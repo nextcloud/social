@@ -21,13 +21,20 @@ use OCP\IRequest;
  * fill the stream queue — and the verification itself fetches the signing key,
  * so a flood is expensive long before anything about it is known to be true.
  *
- * The primary bucket is the connecting address, which is the one thing about an
- * unauthenticated request the sender cannot choose. The host named in the
- * Signature header's keyId is unverified at this point, so mixing it into that
- * key would let a flood mint a fresh, empty bucket per request just by writing a
- * different hostname each time. It gets a second, wider bucket of its own
- * instead, which bounds what one claimed origin can send from however many
- * addresses.
+ * The bucket checked before anything is known is the connecting address, which
+ * is the one thing about an unauthenticated request the sender cannot choose.
+ * The host named in the Signature header's keyId cannot be a bucket of its own
+ * there: nothing has checked that the sender has anything to do with it, so
+ * counting a request against the host it *names* lets any four cheap addresses
+ * fill a large instance's bucket every minute and cut this server off from it —
+ * the deliveries that are genuinely from it are then answered 429 and the local
+ * timelines simply go quiet. That is a better attack than the one the bucket
+ * was there to stop.
+ *
+ * A per-origin ceiling is still worth having, so it moved behind the signature:
+ * assertOriginAllowed() is called with the origin the HTTP signature actually
+ * proved, and only a peer that can sign for a host can spend that host's
+ * budget.
  *
  * Fixed one-minute windows in the distributed cache; the counter is not atomic,
  * which is fine for a ceiling. A limit of 0 disables the check.
@@ -36,8 +43,8 @@ class InboxLimiter {
 	public const WINDOW = 60;
 
 	/**
-	 * The claimed-host bucket is deliberately looser than the per-address one:
-	 * a large instance legitimately delivers from several addresses, and this
+	 * The per-origin bucket is deliberately looser than the per-address one: a
+	 * large instance legitimately delivers from several addresses, and this
 	 * ceiling exists only to bound one origin's total.
 	 */
 	public const HOST_LIMIT_FACTOR = 4;
@@ -52,25 +59,48 @@ class InboxLimiter {
 	}
 
 	/**
+	 * The ceiling that applies before anything about the request is known: the
+	 * source address, and nothing else the sender wrote.
+	 *
 	 * @throws TooManyRequestsException
 	 */
 	public function assertAllowed(IRequest $request): void {
-		$limit = (int)$this->configService->getAppValue(ConfigService::SOCIAL_INBOX_THROTTLE);
+		$limit = $this->limit();
 		if ($limit <= 0) {
 			return;
 		}
 
-		$window = (int)floor(time() / self::WINDOW);
+		$this->consume('ip.' . md5($request->getRemoteAddress()), $this->window(), $limit);
+	}
 
-		// the address first: it is the only part of this the sender is stuck with
-		$this->consume('ip.' . md5($request->getRemoteAddress()), $window, $limit);
-
-		$claimedHost = $this->claimedHost($request);
-		if ($claimedHost !== '') {
-			$this->consume(
-				'host.' . md5($claimedHost), $window, $limit * self::HOST_LIMIT_FACTOR
-			);
+	/**
+	 * The ceiling on one origin's total, across however many addresses it
+	 * delivers from.
+	 *
+	 * $origin must be the host the HTTP signature verified against — the keyId
+	 * as it arrived proves nothing, and spending a bucket on an unproven name
+	 * is a way to silence the instance that owns it.
+	 *
+	 * @throws TooManyRequestsException
+	 */
+	public function assertOriginAllowed(string $origin): void {
+		$origin = strtolower(trim($origin));
+		$limit = $this->limit();
+		if ($limit <= 0 || $origin === '') {
+			return;
 		}
+
+		$this->consume(
+			'host.' . md5($origin), $this->window(), $limit * self::HOST_LIMIT_FACTOR
+		);
+	}
+
+	private function limit(): int {
+		return (int)$this->configService->getAppValue(ConfigService::SOCIAL_INBOX_THROTTLE);
+	}
+
+	private function window(): int {
+		return (int)floor(time() / self::WINDOW);
 	}
 
 	/**
@@ -85,18 +115,5 @@ class InboxLimiter {
 		}
 
 		$this->cache->set($key, $count + 1, self::WINDOW * 2);
-	}
-
-	/**
-	 * The host of the keyId the sender claims to sign with — unverified, and so
-	 * never the only thing a bucket is keyed on.
-	 */
-	private function claimedHost(IRequest $request): string {
-		$signature = $request->getHeader('Signature');
-		if ($signature !== '' && preg_match('/keyId="([^"]+)"/', $signature, $matches) === 1) {
-			return strtolower(parse_url($matches[1], PHP_URL_HOST) ?: '');
-		}
-
-		return '';
 	}
 }

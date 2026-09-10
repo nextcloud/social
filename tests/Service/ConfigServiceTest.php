@@ -344,6 +344,31 @@ class ConfigServiceTest extends TestCase {
 		$this->assertSame(3, $request->getTimeout());
 	}
 
+	public function testReachingAPeerCanBeBudgetedApartFromReadingItsAnswer(): void {
+		// one number for both meant DNS+TCP+TLS and the peer rendering its actor
+		// document had to share a deadline a slow-but-honest instance could not meet
+		$this->withAppValues([]);
+		$request = new NCRequest('/users/bob', Request::TYPE_GET);
+
+		$this->service->withRequestTimeout(10, function () use ($request) {
+			$this->service->configureRequest($request);
+		}, 5);
+
+		$this->assertSame(10, $request->getTimeout());
+		$this->assertSame(5, $request->getConnectTimeout());
+	}
+
+	public function testAConnectBudgetIsAlsoLiftedAfterTheCall(): void {
+		$this->withAppValues([]);
+
+		$this->service->withRequestTimeout(10, fn () => null, 5);
+
+		$after = new NCRequest('/users/bob', Request::TYPE_GET);
+		$this->service->configureRequest($after);
+
+		$this->assertSame(0, $after->getConnectTimeout(), 'no separate budget was asked for');
+	}
+
 	public function testTheTimeoutOverrideLastsOnlyForThatCall(): void {
 		$this->withAppValues([]);
 		$default = (new NCRequest('/users/bob', Request::TYPE_GET))->getTimeout();

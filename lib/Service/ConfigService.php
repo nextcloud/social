@@ -78,6 +78,9 @@ class ConfigService {
 	/** Seconds; 0 leaves each request its own default. See withRequestTimeout(). */
 	private int $requestTimeout = 0;
 
+	/** Seconds allowed for reaching the peer alone; 0 shares $requestTimeout. */
+	private int $requestConnectTimeout = 0;
+
 	public function __construct(
 		?string $userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
 		MiscService $miscService,
@@ -424,13 +427,16 @@ class ConfigService {
 	 *
 	 * @return mixed whatever $action returns
 	 */
-	public function withRequestTimeout(int $timeout, callable $action) {
+	public function withRequestTimeout(int $timeout, callable $action, int $connectTimeout = 0) {
 		$previous = $this->requestTimeout;
+		$previousConnect = $this->requestConnectTimeout;
 		$this->requestTimeout = max(1, $timeout);
+		$this->requestConnectTimeout = max(0, $connectTimeout);
 		try {
 			return $action();
 		} finally {
 			$this->requestTimeout = $previous;
+			$this->requestConnectTimeout = $previousConnect;
 		}
 	}
 
@@ -439,6 +445,10 @@ class ConfigService {
 
 		if ($this->requestTimeout > 0) {
 			$request->setTimeout($this->requestTimeout);
+		}
+
+		if ($this->requestConnectTimeout > 0) {
+			$request->setConnectTimeout($this->requestConnectTimeout);
 		}
 
 		// do not add json headers if required

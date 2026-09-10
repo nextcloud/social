@@ -13,12 +13,18 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\ActivityPubFormatException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RealTokenException;
+use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TooManyRequestsException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
@@ -37,6 +43,10 @@ use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TAsync;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCA\Social\Tools\Traits\TStringTools;
@@ -174,7 +184,8 @@ class ActivityPubController extends Controller {
 	 * local actors). Flow:
 	 *  1. Read raw JSON body
 	 *  2. Verify HTTP Signature: ensures the request came from the claimed origin
-	 *  3. Check Fediverse authorization (blocklist/allowlist)
+	 *  3. Check Fediverse authorization (blocklist/allowlist) and the per-origin
+	 *     rate ceiling, now that the origin is proven
 	 *  4. Parse JSON into an ActivityPub model object
 	 *  5. Verify LinkedDataSignature (if present), else trust HTTP signature origin
 	 *  6. Process the incoming activity (varies by type: Follow→auto-accept,
@@ -196,6 +207,12 @@ class ActivityPubController extends Controller {
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
 			$this->fediverseService->authorized($origin);
+
+			// the per-origin ceiling is spent here rather than on the way in:
+			// before this line the origin is only what the sender wrote, and
+			// counting against a name anyone can write is a way to throttle the
+			// instance that owns it
+			$this->inboxLimiter->assertOriginAllowed($origin);
 
 			$activity = $this->importService->importFromJson($body);
 			if (!$this->signatureService->checkObject($activity)) {
@@ -219,7 +236,7 @@ class ActivityPubController extends Controller {
 		} catch (ItemUnknownException $e) {
 			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->rejectDelivery($e);
 		}
 	}
 
@@ -246,6 +263,12 @@ class ActivityPubController extends Controller {
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
 			$this->fediverseService->authorized($origin);
 
+			// the per-origin ceiling is spent here rather than on the way in:
+			// before this line the origin is only what the sender wrote, and
+			// counting against a name anyone can write is a way to throttle the
+			// instance that owns it
+			$this->inboxLimiter->assertOriginAllowed($origin);
+
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$activity = $this->importService->importFromJson($body);
@@ -270,8 +293,63 @@ class ActivityPubController extends Controller {
 		} catch (ItemUnknownException $e) {
 			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->rejectDelivery($e);
 		}
+	}
+
+	/**
+	 * A delivery this instance will not take, answered with what the refusal
+	 * actually is.
+	 *
+	 * The status is the only thing a peer reads to decide what to do next, and
+	 * Mastodon re-queues a 5xx with backoff for about two days. Answering every
+	 * rejection 500 — which a catch-all `fail()` did — therefore turned one
+	 * refused delivery into a dozen, and made blocking an instance *multiply*
+	 * its traffic instead of ending it. A 4xx is final: the peer drops the
+	 * activity and stops.
+	 */
+	private function rejectDelivery(Exception $e): Response {
+		return $this->fail($e, [], $this->statusForRejection($e));
+	}
+
+	/**
+	 * 500 is reserved for a fault of this instance's own — anything else the
+	 * inbox refuses has a status that says which part of the request was
+	 * unacceptable.
+	 */
+	private function statusForRejection(Exception $e): int {
+		return match (true) {
+			// a decision about who may talk to this instance, not a failure
+			$e instanceof UnauthorizedFediverseException => Http::STATUS_FORBIDDEN,
+
+			// the sender is fine, the verification is not finishable right now:
+			// the host holding the signing key could not be reached, or its
+			// last fetch failed recently enough to still be in backoff. This is
+			// the one rejection that *should* be redelivered.
+			$e instanceof RequestNetworkException,
+			$e instanceof RequestServerException,
+			$e instanceof SignatureException
+			&& $e->getCode() === Http::STATUS_SERVICE_UNAVAILABLE => Http::STATUS_SERVICE_UNAVAILABLE,
+
+			// nothing about the request proves who sent it: no signature, one
+			// that does not verify, a replay, a Date outside the window, a
+			// Signature header missing its parts, or an activity whose actor is
+			// not the origin that signed for it
+			$e instanceof SignatureException,
+			$e instanceof MalformedArrayException,
+			$e instanceof InvalidOriginException => Http::STATUS_UNAUTHORIZED,
+
+			// the bytes could not be read as an activity, and redelivering the
+			// same bytes will not change that
+			$e instanceof ActivityPubFormatException,
+			$e instanceof DateTimeException => Http::STATUS_BAD_REQUEST,
+
+			// addressed to a local actor that does not exist
+			$e instanceof CacheActorDoesNotExistException,
+			$e instanceof ActorDoesNotExistException => Http::STATUS_NOT_FOUND,
+
+			default => Http::STATUS_INTERNAL_SERVER_ERROR,
+		};
 	}
 
 	/**

@@ -30,6 +30,7 @@ use OCA\Social\Service\SignatureService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCP\Files\AppData\IAppDataFactory;
@@ -63,6 +64,8 @@ class SignatureServiceTest extends TestCase {
 	private array $seenSignatures = [];
 	/** @var array<string, mixed> backing store of the mocked key-attempt cache */
 	private array $keyAttempts = [];
+	/** @var array<string, int> the ttl each cache entry was written with */
+	private array $cacheTtl = [];
 
 	public static function setUpBeforeClass(): void {
 		[self::$privateKey, self::$publicKey] = self::keyPair();
@@ -95,6 +98,7 @@ class SignatureServiceTest extends TestCase {
 		// in-memory stand-ins for the two distributed caches
 		$this->seenSignatures = [];
 		$this->keyAttempts = [];
+		$this->cacheTtl = [];
 		$cacheFactory = $this->createMock(ICacheFactory::class);
 		$cacheFactory->method('createDistributed')->willReturnCallback(
 			fn (string $prefix): ICache => $prefix === 'social.keys'
@@ -126,8 +130,9 @@ class SignatureServiceTest extends TestCase {
 			}
 		);
 		$cache->method('set')->willReturnCallback(
-			function (string $key, $value) use (&$store) {
+			function (string $key, $value, $ttl = 0) use (&$store) {
 				$store[$key] = $value;
+				$this->cacheTtl[$key] = (int)$ttl;
 
 				return true;
 			}
@@ -619,6 +624,103 @@ class SignatureServiceTest extends TestCase {
 		$this->expectException(SignatureException::class);
 		$this->expectExceptionMessage('too recently');
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/**
+	 * Three seconds had to cover DNS, TCP, TLS and the peer rendering its actor
+	 * JSON. A small self-hosted instance does not manage that on first contact,
+	 * and every miss then poisoned the negative cache below — so a follow to it
+	 * simply never completed.
+	 */
+	public function testTheFirstKeyFetchGetsABudgetARealPeerCanMeet(): void {
+		$this->assertGreaterThanOrEqual(
+			5, SignatureService::UNKNOWN_KEY_TIMEOUT,
+			'Mastodon alone allows 5s just to connect'
+		);
+		// still bounded, and CurlService::retrieveObject() retries unsigned
+		// after a 401/403, so a worker can be held for roughly twice this
+		$this->assertLessThanOrEqual(10, SignatureService::UNKNOWN_KEY_TIMEOUT);
+	}
+
+	/**
+	 * A host that was unreachable, or slower than the budget, has said nothing
+	 * about its keyId: remembering that for the full failure interval is what
+	 * kept a slow-but-honest peer from ever federating, since every delivery in
+	 * the window was refused without a fetch.
+	 */
+	public function testAPeerThatCouldNotBeReachedIsRetriedSoon(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willThrowException(new RequestNetworkException('timeout'));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the fetch to fail');
+		} catch (RequestNetworkException $e) {
+		}
+
+		$this->assertSame(
+			[SignatureService::KEY_UNREACHABLE_TTL],
+			array_values($this->cacheTtl),
+			'an unreachable host is not held against its keyId for the full interval'
+		);
+	}
+
+	public function testAnAnswerThatIsNotAUsableKeyIsRememberedForLonger(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willThrowException(new RequestContentException('404'));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the fetch to fail');
+		} catch (\Exception $e) {
+		}
+
+		$this->assertSame(
+			[SignatureService::KEY_FAILURE_TTL],
+			array_values($this->cacheTtl),
+			'the peer answered, and the answer is a fact about the keyId'
+		);
+	}
+
+	public function testASuccessfulFetchLeavesNoAttemptBehind(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+
+		$this->assertSame([], $this->keyAttempts, 'the in-flight marker is dropped on success');
+	}
+
+	/**
+	 * The backoff is this instance's own, and temporary: a peer told to give up
+	 * on the delivery would lose it for good, so the refusal has to read as
+	 * "later", which is what the inbox turns into a 503.
+	 */
+	public function testTheBackoffRefusalAsksForARedelivery(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willThrowException(new RequestNetworkException('timeout'));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the fetch to fail');
+		} catch (RequestNetworkException $e) {
+		}
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the second attempt to be refused without a fetch');
+		} catch (SignatureException $e) {
+			$this->assertStringContainsString('too recently', $e->getMessage());
+			$this->assertSame(\OCP\AppFramework\Http::STATUS_SERVICE_UNAVAILABLE, $e->getCode());
+		}
 	}
 
 	public function testAForcedRefreshIsThrottledPerKeyId(): void {

@@ -9,14 +9,18 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
+use Exception;
 use OCA\Social\Controller\ActivityPubController;
 use OCA\Social\Controller\SocialPubController;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\ActivityPubFormatException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -37,6 +41,9 @@ use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -161,7 +168,11 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(self::LD_JSON, $response->getHeaders()['Content-Type']);
 	}
 
-	private function assertFailure(DataResponse $response, string $exceptionClass, int $status = Http::STATUS_INTERNAL_SERVER_ERROR): void {
+	/**
+	 * $status has no default: what a rejected delivery answers is the whole
+	 * point of the inbox's error handling, so every caller states it.
+	 */
+	private function assertFailure(DataResponse $response, string $exceptionClass, int $status): void {
 		$this->assertSame($status, $response->getStatus());
 		$data = $response->getData();
 		$this->assertSame(-1, $data['status']);
@@ -278,6 +289,24 @@ class ActivityPubControllerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The per-origin ceiling is spent on the origin the signature proved, not on
+	 * the keyId as it arrived: an unverified name is anyone's to write, and
+	 * charging it would let a stranger throttle the instance it names.
+	 */
+	public function testTheOriginCeilingIsChargedOnlyAfterTheSignatureVerified(): void {
+		$this->signedRequestFrom('remote.example');
+		$this->inboxLimiter->expects($this->once())->method('assertOriginAllowed')
+			->with('remote.example')
+			->willThrowException(new TooManyRequestsException());
+		$this->importService->expects($this->never())->method('importFromJson');
+
+		$this->assertSame(
+			Http::STATUS_TOO_MANY_REQUESTS,
+			$this->controller->sharedInbox()->getStatus()
+		);
+	}
+
 	public function testSharedInboxRejectsRequestsWithInvalidSignature(): void {
 		$this->signatureService->method('checkRequest')->willThrowException(new SignatureException('bad signature'));
 		$this->importService->expects($this->never())->method('importFromJson');
@@ -285,7 +314,9 @@ class ActivityPubControllerTest extends TestCase {
 
 		$response = $this->controller->sharedInbox();
 
-		$this->assertFailure($response, SignatureException::class);
+		// a signature that does not verify is not a fault of this server, and a
+		// peer must not redeliver it: 500 had it retrying for two days
+		$this->assertFailure($response, SignatureException::class, Http::STATUS_UNAUTHORIZED);
 		$this->assertSame(0, $this->controller->asyncCalls);
 	}
 
@@ -305,7 +336,11 @@ class ActivityPubControllerTest extends TestCase {
 			->willThrowException(new UnauthorizedFediverseException('blocked'));
 		$this->importService->expects($this->never())->method('importFromJson');
 
-		$this->assertFailure($this->controller->sharedInbox(), UnauthorizedFediverseException::class);
+		// blocking an instance has to *end* its deliveries; answering 500 made
+		// each one come back a dozen times
+		$this->assertFailure(
+			$this->controller->sharedInbox(), UnauthorizedFediverseException::class, Http::STATUS_FORBIDDEN
+		);
 	}
 
 	public function testSharedInboxImportsTheActivityAndTagsItsOrigin(): void {
@@ -413,7 +448,9 @@ class ActivityPubControllerTest extends TestCase {
 		$this->cacheActorService->expects($this->never())->method('getFromLocalAccount');
 		$this->importService->expects($this->never())->method('importFromJson');
 
-		$this->assertFailure($this->controller->inbox('alice'), SignatureException::class);
+		$this->assertFailure(
+			$this->controller->inbox('alice'), SignatureException::class, Http::STATUS_UNAUTHORIZED
+		);
 	}
 
 	public function testInboxFailsForUnknownLocalUser(): void {
@@ -422,7 +459,9 @@ class ActivityPubControllerTest extends TestCase {
 			->willThrowException(new CacheActorDoesNotExistException());
 		$this->importService->expects($this->never())->method('importFromJson');
 
-		$this->assertFailure($this->controller->inbox('ghost'), CacheActorDoesNotExistException::class);
+		$this->assertFailure(
+			$this->controller->inbox('ghost'), CacheActorDoesNotExistException::class, Http::STATUS_NOT_FOUND
+		);
 	}
 
 	public function testInboxImportsActivityForExistingLocalUser(): void {
@@ -438,6 +477,56 @@ class ActivityPubControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame(1, $this->controller->asyncCalls);
+	}
+
+	/**
+	 * The status is the only thing a peer reads to decide what to do with the
+	 * activity it could not deliver, and Mastodon re-queues a 5xx with backoff
+	 * for about two days. Every one of these used to be a 500, so refusing a
+	 * delivery — blocking an instance most of all — multiplied its traffic
+	 * instead of ending it.
+	 *
+	 * @return iterable<string, array{Exception, int}>
+	 */
+	public function inboxRejections(): iterable {
+		yield 'blocked instance' => [new UnauthorizedFediverseException('blocked'), Http::STATUS_FORBIDDEN];
+		yield 'bad signature' => [new SignatureException('does not verify'), Http::STATUS_UNAUTHORIZED];
+		yield 'incomplete signature header' => [new MalformedArrayException('keyId'), Http::STATUS_UNAUTHORIZED];
+		yield 'origin mismatch' => [new InvalidOriginException('signed by someone else'), Http::STATUS_UNAUTHORIZED];
+		yield 'unparseable date' => [new DateTimeException('not a date'), Http::STATUS_BAD_REQUEST];
+		yield 'key host unreachable' => [new RequestNetworkException('timeout'), Http::STATUS_SERVICE_UNAVAILABLE];
+		yield 'key fetch in backoff' => [
+			new SignatureException('attempted too recently', Http::STATUS_SERVICE_UNAVAILABLE),
+			Http::STATUS_SERVICE_UNAVAILABLE,
+		];
+		yield 'a fault of our own' => [new SocialAppConfigException('no url'), Http::STATUS_INTERNAL_SERVER_ERROR];
+	}
+
+	/** @dataProvider inboxRejections */
+	public function testARejectedDeliveryAnswersWhatTheRejectionActuallyIs(Exception $e, int $status): void {
+		$this->signatureService->method('checkRequest')->willThrowException($e);
+
+		$this->assertFailure($this->controller->sharedInbox(), get_class($e), $status);
+	}
+
+	public function testAMalformedBodyIsRefusedOnceInsteadOfRedelivered(): void {
+		$this->signedRequestFrom('https://remote.example');
+		$this->importService->method('importFromJson')
+			->willThrowException(new ActivityPubFormatException('not json'));
+
+		$this->assertFailure(
+			$this->controller->sharedInbox(), ActivityPubFormatException::class, Http::STATUS_BAD_REQUEST
+		);
+	}
+
+	public function testTheUserInboxRefusesABlockedInstanceWithoutInvitingARetry(): void {
+		$this->signedRequestFrom('https://blocked.example');
+		$this->fediverseService->method('authorized')
+			->willThrowException(new UnauthorizedFediverseException('blocked'));
+
+		$this->assertFailure(
+			$this->controller->inbox('alice'), UnauthorizedFediverseException::class, Http::STATUS_FORBIDDEN
+		);
 	}
 
 	public function testInboxAcknowledgesGoneSignatures(): void {
@@ -488,7 +577,10 @@ class ActivityPubControllerTest extends TestCase {
 	public function testOutboxOfUnknownUserFails(): void {
 		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new CacheActorDoesNotExistException());
 
-		$this->assertFailure($this->controller->outbox('ghost'), CacheActorDoesNotExistException::class);
+		$this->assertFailure(
+			$this->controller->outbox('ghost'), CacheActorDoesNotExistException::class,
+			Http::STATUS_INTERNAL_SERVER_ERROR
+		);
 	}
 
 	public function testFeaturedServesThePinnedPostsAsAnOrderedCollection(): void {
@@ -703,7 +795,10 @@ class ActivityPubControllerTest extends TestCase {
 		$this->acceptHeader('application/activity+json');
 		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new CacheActorDoesNotExistException());
 
-		$this->assertFailure($this->controller->followers('ghost'), CacheActorDoesNotExistException::class);
+		$this->assertFailure(
+			$this->controller->followers('ghost'), CacheActorDoesNotExistException::class,
+			Http::STATUS_INTERNAL_SERVER_ERROR
+		);
 	}
 
 	// displayPost()

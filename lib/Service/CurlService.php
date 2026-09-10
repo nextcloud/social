@@ -450,7 +450,7 @@ class CurlService {
 		$options = [
 			'headers' => $request->getHeaders(),
 			'timeout' => $request->getTimeout(),
-			'connect_timeout' => $request->getTimeout(),
+			'connect_timeout' => $request->getConnectTimeout() ?: $request->getTimeout(),
 			// the status code belongs to the caller, not to an exception
 			'http_errors' => false,
 			'stream' => true,

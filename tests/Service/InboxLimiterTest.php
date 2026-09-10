@@ -88,22 +88,60 @@ class InboxLimiterTest extends TestCase {
 		$this->limiter->assertAllowed($this->request('https://three.example/actor#main-key'));
 	}
 
-	public function testAClaimedHostIsAlsoCappedAcrossAddresses(): void {
-		// one origin delivering from a fleet of addresses is bounded too, at a
-		// looser ceiling than a single address gets
+	/**
+	 * The pre-signature check must not touch a bucket named by the sender: a
+	 * keyId is free to write, so counting it there let anyone spend a chosen
+	 * instance's budget from a handful of cheap addresses and have its genuine
+	 * deliveries answered 429 for the rest of the minute.
+	 */
+	public function testAnUnverifiedClaimedHostCannotSpendThatHostsBudget(): void {
 		$this->limit(1);
-		$allowed = InboxLimiter::HOST_LIMIT_FACTOR;
+		$allowed = InboxLimiter::HOST_LIMIT_FACTOR + 1;
 		for ($i = 0; $i < $allowed; $i++) {
 			$this->limiter->assertAllowed(
-				$this->request('https://one.example/actor#main-key', '198.51.100.' . $i)
+				$this->request('https://mastodon.example/actor#main-key', '198.51.100.' . $i)
 			);
+		}
+
+		// the host it named is untouched, so a delivery it really signed still passes
+		$this->limiter->assertOriginAllowed('mastodon.example');
+		$this->addToAssertionCount(1);
+	}
+
+	public function testAVerifiedOriginIsCappedAcrossAddresses(): void {
+		// one origin delivering from a fleet of addresses is bounded too, at a
+		// looser ceiling than a single address gets — but only once the
+		// signature has proven the origin
+		$this->limit(1);
+		for ($i = 0; $i < InboxLimiter::HOST_LIMIT_FACTOR; $i++) {
+			$this->limiter->assertOriginAllowed('one.example');
 		}
 
 		$this->expectException(TooManyRequestsException::class);
 
-		$this->limiter->assertAllowed(
-			$this->request('https://one.example/actor#main-key', '198.51.100.200')
-		);
+		$this->limiter->assertOriginAllowed('one.example');
+	}
+
+	public function testTheOriginBucketIsPerOriginAndCaseInsensitive(): void {
+		$this->limit(1);
+		for ($i = 0; $i < InboxLimiter::HOST_LIMIT_FACTOR; $i++) {
+			$this->limiter->assertOriginAllowed('ONE.example');
+		}
+		// a different origin has its own budget
+		$this->limiter->assertOriginAllowed('two.example');
+
+		$this->expectException(TooManyRequestsException::class);
+
+		$this->limiter->assertOriginAllowed('one.example');
+	}
+
+	public function testADisabledLimiterHasNoOriginCeilingEither(): void {
+		$this->limit(0);
+		for ($i = 0; $i < 50; $i++) {
+			$this->limiter->assertOriginAllowed('one.example');
+		}
+
+		$this->assertSame([], $this->cache);
 	}
 
 	public function testDifferentSourceAddressesUseDifferentBuckets(): void {

@@ -76,11 +76,38 @@ class SignatureService {
 	 * and the whole Nextcloud instance stops answering — so pre-authentication
 	 * work gets a fraction of it. A key this instance already knows is read from
 	 * the database and needs no fetch at all.
+	 *
+	 * Three seconds was not that fraction, it was less than the work takes: DNS,
+	 * TCP, TLS and the peer rendering its actor JSON all have to fit inside it
+	 * on first contact, which a small self-hosted instance does not manage —
+	 * and the failure then poisoned the negative cache below, so a follow to a
+	 * slow-but-honest peer never completed at all. These match what Mastodon
+	 * allows a peer of its own. Note `CurlService::retrieveObject()` retries
+	 * unsigned after a 401/403, so a worker can be held for roughly twice the
+	 * read budget.
 	 */
-	public const UNKNOWN_KEY_TIMEOUT = 3;
+	public const UNKNOWN_KEY_TIMEOUT = 10;
 
-	/** How long a failed key retrieval is remembered, in seconds. */
+	/** Seconds for DNS+TCP+TLS alone, within UNKNOWN_KEY_TIMEOUT. */
+	public const UNKNOWN_KEY_CONNECT_TIMEOUT = 5;
+
+	/**
+	 * How long a key retrieval that failed on its own terms — no such actor,
+	 * an answer that is not one — is remembered, in seconds.
+	 */
 	public const KEY_FAILURE_TTL = 300;
+
+	/**
+	 * How long a key retrieval that never got an answer — the host was
+	 * unreachable, or slower than the budget above — is remembered.
+	 *
+	 * Much shorter, because it is not a fact about the keyId: it says the peer
+	 * was having a bad minute, and holding that against it for five would keep
+	 * an instance that is merely slow permanently unable to federate here. Long
+	 * enough that repeating the same unreachable keyId still costs far fewer
+	 * fetches than requests.
+	 */
+	public const KEY_UNREACHABLE_TTL = 30;
 
 	/**
 	 * Digest algorithms this server can compute, keyed by the name as it
@@ -651,24 +678,42 @@ class SignatureService {
 
 		$attemptKey = ($refresh ? 'refresh.' : 'resolve.') . hash('sha256', $id);
 		if ($this->keyAttempts->get($attemptKey) !== null) {
+			// temporary by construction: the caller has to answer something that
+			// asks the peer to deliver this again rather than to give up on it
 			throw new SignatureException(
-				'key retrieval for ' . $id . ' was attempted too recently'
+				'key retrieval for ' . $id . ' was attempted too recently',
+				Http::STATUS_SERVICE_UNAVAILABLE
 			);
 		}
+
+		// while the fetch is in flight the entry stands for the fetch itself, so
+		// a burst of deliveries naming the same unknown keyId costs one of them
+		// and not one each. What it means afterwards depends on how it ended.
 		$this->keyAttempts->set(
 			$attemptKey,
 			1,
-			$refresh ? self::KEY_REFRESH_INTERVAL : self::KEY_FAILURE_TTL
+			$refresh ? self::KEY_REFRESH_INTERVAL : self::UNKNOWN_KEY_TIMEOUT * 2
 		);
 
 		// bounded: an unauthenticated caller must not be able to decide how long
-		// one of this instance's workers stays busy. A failure leaves the entry
-		// above in place, so the next request naming this keyId is refused
-		// without touching the network.
-		$actor = $this->configService->withRequestTimeout(
-			self::UNKNOWN_KEY_TIMEOUT,
-			fn (): Person => $this->cacheActorService->getFromId($id, $refresh)
-		);
+		// one of this instance's workers stays busy.
+		try {
+			$actor = $this->configService->withRequestTimeout(
+				self::UNKNOWN_KEY_TIMEOUT,
+				fn (): Person => $this->cacheActorService->getFromId($id, $refresh),
+				self::UNKNOWN_KEY_CONNECT_TIMEOUT
+			);
+		} catch (RequestNetworkException|RequestServerException $e) {
+			$this->rememberFailedAttempt($attemptKey, self::KEY_UNREACHABLE_TTL, $refresh);
+
+			throw $e;
+		} catch (Exception $e) {
+			// the peer answered, and the answer was not a usable actor: that is
+			// a fact about the keyId, and worth remembering for a while
+			$this->rememberFailedAttempt($attemptKey, self::KEY_FAILURE_TTL, $refresh);
+
+			throw $e;
+		}
 
 		if (!$refresh) {
 			// resolved and stored, so the read above will answer from now on;
@@ -678,6 +723,19 @@ class SignatureService {
 		}
 
 		return $actor->getPublicKey();
+	}
+
+	/**
+	 * How long the next request naming this keyId is refused without touching
+	 * the network.
+	 *
+	 * A forced refresh keeps the interval it was given: that entry is a ceiling
+	 * on how often the same key may be re-fetched, not a record of a failure.
+	 */
+	private function rememberFailedAttempt(string $attemptKey, int $ttl, bool $refresh): void {
+		if (!$refresh) {
+			$this->keyAttempts->set($attemptKey, 1, $ttl);
+		}
 	}
 
 	/**
