@@ -166,7 +166,10 @@ class NavigationController extends Controller {
 		 * Create social user account if it doesn't exist yet
 		 */
 		try {
-			$this->accountService->createActor($this->userId, $this->userId);
+			$this->accountService->createActor(
+				$this->userId,
+				$this->accountService->generateHandleFromUserId($this->userId)
+			);
 			$serverData['firstrun'] = true;
 			$this->logger->info('[NavigationController] Created new actor for user', [
 				'userId' => $this->userId

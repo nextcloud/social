@@ -16,6 +16,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Actor\PersonInterface;
@@ -441,5 +442,120 @@ class AccountServiceTest extends TestCase {
 		$this->signatureService->expects($this->never())->method('generateKeys');
 
 		$this->assertSame(0, $this->service->blindKeyRotation());
+	}
+
+	/**
+	 * @return array<string, array{string, bool}>
+	 */
+	public function displayNameScopeProvider(): array {
+		return [
+			// the default scope on a stock Nextcloud: requiring SCOPE_PUBLISHED
+			// meant no local actor ever federated a display name at all
+			'federated is published' => [IAccountManager::SCOPE_FEDERATED, true],
+			'published is published' => [IAccountManager::SCOPE_PUBLISHED, true],
+			'local is kept back' => [IAccountManager::SCOPE_LOCAL, false],
+			'private is kept back' => [IAccountManager::SCOPE_PRIVATE, false],
+		];
+	}
+
+	/**
+	 * @dataProvider displayNameScopeProvider
+	 */
+	public function testTheDisplayNameFederatesUnlessTheUserAskedOtherwise(
+		string $scope,
+		bool $expectPublished,
+	): void {
+		$alice = $this->alice();
+		$alice->setName('alice');
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->withDisplayName('Alice Wonder', $scope);
+		$this->documentService->method('cacheLocalAvatarByUsername')
+			->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')
+			->willThrowException(new StreamNotFoundException());
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame($expectPublished ? 'Alice Wonder' : 'alice', $alice->getName());
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public function handleProvider(): array {
+		return [
+			// already usable: left exactly as it is, so existing installs keep
+			// the handles their actors already have
+			'a plain user id is kept' => ['alice', 'alice'],
+			'digits and underscore are fine' => ['alice_99', 'alice_99'],
+			'a dot inside is fine' => ['alice.wonder', 'alice.wonder'],
+			// these produce an acct: no remote server can resolve
+			'a space is folded' => ['alice wonder', 'alice_wonder'],
+			'an email-shaped id is folded' => ['alice@example.org', 'alice_example.org'],
+			'an ldap uuid is folded' => ['{8f3a1b2c-dead}', '8f3a1b2c-dead'],
+			// already valid, so untouched: lookups are case-insensitive and
+			// rewriting it would change handles that already work
+			'a valid id keeps its case' => ['ALICE', 'ALICE'],
+			'runs collapse and edges are trimmed' => ['--alice???wonder--', 'alice_wonder'],
+		];
+	}
+
+	/**
+	 * @dataProvider handleProvider
+	 */
+	public function testGenerateHandleFromUserId(string $userId, string $expected): void {
+		$this->actorsRequest->method('getFromUsername')
+			->willThrowException(new ActorDoesNotExistException());
+
+		$this->assertSame($expected, $this->service->generateHandleFromUserId($userId));
+	}
+
+	public function testGenerateHandleFallsBackWhenNothingUsableSurvives(): void {
+		$this->actorsRequest->method('getFromUsername')
+			->willThrowException(new ActorDoesNotExistException());
+
+		// a purely non-latin id leaves nothing in the allowed set
+		$handle = $this->service->generateHandleFromUserId('這是一個帳號');
+
+		$this->assertMatchesRegularExpression('/^user_[0-9a-f]{12}$/', $handle);
+	}
+
+	public function testGenerateHandleIsStableForTheSameUserId(): void {
+		$this->actorsRequest->method('getFromUsername')
+			->willThrowException(new ActorDoesNotExistException());
+
+		$this->assertSame(
+			$this->service->generateHandleFromUserId('這是一個帳號'),
+			$this->service->generateHandleFromUserId('這是一個帳號')
+		);
+	}
+
+	public function testGenerateHandleAvoidsAHandleThatIsTakenAlready(): void {
+		$taken = $this->alice();
+		$this->actorsRequest->method('getFromUsername')
+			->willReturnCallback(function (string $username) use ($taken): Person {
+				if ($username === 'alice') {
+					return $taken;
+				}
+
+				throw new ActorDoesNotExistException();
+			});
+
+		$this->assertSame('alice_2', $this->service->generateHandleFromUserId('alice'));
+	}
+
+	public function testCreateActorRefusesAHandleTheFediverseCannotResolve(): void {
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->expectException(InvalidHandleException::class);
+
+		$this->service->createActor('alice', 'alice wonder');
+	}
+
+	public function testCreateActorRefusesAnEmptyHandle(): void {
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->expectException(InvalidHandleException::class);
+
+		$this->service->createActor('alice', '');
 	}
 }

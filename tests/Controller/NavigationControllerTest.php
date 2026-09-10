@@ -150,6 +150,12 @@ class NavigationControllerTest extends TestCase {
 	public function testNavigateCreatesTheActorOnFirstRun(): void {
 		$this->systemValues([]);
 		$this->configuredCloud();
+		// the handle is derived from the user id rather than being the user id:
+		// not every Nextcloud user id is a usable Fediverse handle
+		$this->accountService->expects($this->once())
+			->method('generateHandleFromUserId')
+			->with('alice')
+			->willReturn('alice');
 		$this->accountService->expects($this->once())->method('createActor')->with('alice', 'alice');
 
 		$this->controller()->navigate();

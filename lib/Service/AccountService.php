@@ -18,6 +18,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -42,6 +43,14 @@ use Psr\Log\LoggerInterface;
 class AccountService {
 	/** How long a soft-deleted actor is kept before `manageDeletedActors()` purges it. */
 	public const TIME_RETENTION = 3600;
+
+	/**
+	 * What may appear in a `preferredUsername`. Letters, digits and underscore,
+	 * with dot and dash allowed inside but not at either end — the intersection
+	 * of what Mastodon, Pleroma and GoToSocial accept.
+	 */
+	private const HANDLE_PATTERN = '/^[a-zA-Z0-9_]+([a-zA-Z0-9_.-]*[a-zA-Z0-9_])?$/';
+	private const HANDLE_MAX_LENGTH = 64;
 
 	/**
 	 * Age, in days, past which `blindKeyRotation()` would renew an actor's key pair.
@@ -154,7 +163,7 @@ class AccountService {
 			$actor = $this->actorsRequest->getFromUserId($userId);
 		} catch (ActorDoesNotExistException $e) {
 			if ($create) {
-				$this->createActor($userId, $userId);
+				$this->createActor($userId, $this->generateHandleFromUserId($userId));
 				$actor = $this->actorsRequest->getFromUserId($userId);
 			} else {
 				throw new ActorDoesNotExistException('Actor not found for user: ' . $userId);
@@ -177,6 +186,7 @@ class AccountService {
 	 * @param string $username
 	 *
 	 * @throws AccountAlreadyExistsException
+	 * @throws InvalidHandleException
 	 * @throws ItemAlreadyExistsException
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
@@ -396,24 +406,130 @@ class AccountService {
 			throw new NoUserException();
 		}
 
+		// A Fediverse actor is public by definition — creating one is the act of
+		// publishing a profile — so anything short of an explicitly private
+		// display name is fair to federate. Requiring SCOPE_PUBLISHED meant
+		// that on a default install (where the scope is SCOPE_FEDERATED)
+		// nobody's display name ever reached their actor, and every client fell
+		// back to `preferredUsername`, i.e. the raw Nextcloud user id.
+		$publishable = [
+			IAccountManager::SCOPE_PUBLISHED,
+			IAccountManager::SCOPE_FEDERATED,
+		];
+
 		try {
 			$account = $this->accountManager->getAccount($user);
 			$displayNameProperty = $account->getProperty(IAccountManager::PROPERTY_DISPLAYNAME);
-			if ($displayNameProperty->getScope() === IAccountManager::SCOPE_PUBLISHED) {
-				$actor->setName($displayNameProperty->getValue());
+
+			if (!in_array($displayNameProperty->getScope(), $publishable, true)) {
+				// deliberately kept private or instance-local: leave whatever
+				// the actor already carries alone rather than publishing it
+				return;
 			}
+
+			$displayName = (string)$displayNameProperty->getValue();
 		} catch (Exception $e) {
-			$this->logger->error('Issue while trying to updateCacheLocalActorName: ' . $e->getMessage());
+			// The property could not be read at all, which is not the same as
+			// the user having asked for privacy: fall back to the display name
+			// the rest of Nextcloud already shows.
+			$this->logger->warning(
+				'could not read the account of a local actor, falling back to its display name',
+				['userId' => $actor->getUserId(), 'exception' => $e]
+			);
+			$displayName = (string)$user->getDisplayName();
+		}
+
+		if ($displayName !== '') {
+			$actor->setName($displayName);
 		}
 	}
 
 	/**
-	 * @param string $username
+	 * A Fediverse handle is not a Nextcloud user id.
+	 *
+	 * It ends up in `preferredUsername`, in the actor's URL and in the
+	 * `acct:` WebFinger subject, so it has to survive being put in a URL and
+	 * has to match what other implementations accept — Mastodon and most
+	 * others allow letters, digits and `_`, with `.` and `-` inside. A user id
+	 * that does not (an LDAP UUID, an e-mail address, anything with a space)
+	 * produces an actor no remote server can resolve, which used to happen
+	 * silently because this method validated nothing at all.
+	 *
+	 * @throws InvalidHandleException
 	 */
-	private function checkActorUsername(string $username) {
-		$accepted = 'qwertyuiopasdfghjklzxcvbnm';
+	private function checkActorUsername(string $username): void {
+		if ($username === '' || strlen($username) > self::HANDLE_MAX_LENGTH) {
+			throw new InvalidHandleException(
+				'a Fediverse handle must be between 1 and ' . self::HANDLE_MAX_LENGTH . ' characters'
+			);
+		}
 
-		return;
+		if (preg_match(self::HANDLE_PATTERN, $username) !== 1) {
+			throw new InvalidHandleException(
+				'"' . $username . '" cannot be used as a Fediverse handle: only letters, digits and '
+				. 'underscore are allowed, with dot and dash inside'
+			);
+		}
+	}
+
+	/**
+	 * Derive a usable Fediverse handle from a Nextcloud user id.
+	 *
+	 * Called by the paths that create an account on the user's behalf, where
+	 * nobody got to choose a handle. The user id is used as-is when it already
+	 * qualifies, so existing installs keep the handles they have; otherwise it
+	 * is folded down to something resolvable and a numeric suffix is added
+	 * until it is free.
+	 */
+	public function generateHandleFromUserId(string $userId): string {
+		$candidate = $userId;
+		try {
+			$this->checkActorUsername($candidate);
+		} catch (InvalidHandleException $e) {
+			$candidate = strtolower($userId);
+			// anything outside the allowed set becomes an underscore, then
+			// runs of underscores collapse and the edges are trimmed
+			$candidate = preg_replace('/[^a-z0-9_.-]+/', '_', $candidate) ?? '';
+			$candidate = preg_replace('/_{2,}/', '_', $candidate) ?? '';
+			$candidate = trim($candidate, '_.-');
+			$candidate = substr($candidate, 0, self::HANDLE_MAX_LENGTH);
+
+			if ($candidate === '' || preg_match(self::HANDLE_PATTERN, $candidate) !== 1) {
+				// nothing usable survived (a purely non-latin id, say): fall
+				// back to something stable and unique for this user
+				$candidate = 'user_' . substr(hash('sha256', $userId), 0, 12);
+			}
+
+			$this->logger->notice(
+				'user id cannot be used as a Fediverse handle, derived one instead',
+				['userId' => $userId, 'handle' => $candidate]
+			);
+		}
+
+		return $this->firstFreeHandle($candidate);
+	}
+
+	/**
+	 * `$candidate` if no actor holds it, else `$candidate` with the lowest
+	 * numeric suffix that is free.
+	 */
+	private function firstFreeHandle(string $candidate): string {
+		$handle = $candidate;
+		for ($i = 2; $i < 100; $i++) {
+			try {
+				$this->actorsRequest->getFromUsername($handle);
+			} catch (ActorDoesNotExistException $e) {
+				return $handle;
+			}
+
+			$suffix = '_' . $i;
+			$handle = substr($candidate, 0, self::HANDLE_MAX_LENGTH - strlen($suffix)) . $suffix;
+		}
+
+		// a hundred collisions on one derived handle is not a real install
+		return substr($candidate, 0, self::HANDLE_MAX_LENGTH - 13) . '_' . substr(
+			hash('sha256', $candidate . microtime()), 0, 12
+		);
 	}
 
 	/**
