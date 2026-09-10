@@ -184,8 +184,8 @@ class Benchmark extends Base {
 			$ids[] = $id;
 
 			$actor = new Person();
-			$actor->setId($id)
-				->setPreferredUsername('actor' . $i)
+			$actor->setId($id);
+			$actor->setPreferredUsername('actor' . $i)
 				->setFollowers($id . '/followers');
 			$actor->setAccount('actor' . $i . '@' . self::HOST);
 			$this->cacheActorsRequest->save($actor);

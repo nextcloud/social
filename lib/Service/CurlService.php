@@ -372,7 +372,7 @@ class CurlService {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 */
-	public function doRequestOrig(Request $request): string {
+	public function doRequestOrig(NCRequest $request): string {
 		$client = $this->clientService->newClient();
 
 		$networkFailure = null;
@@ -399,7 +399,7 @@ class CurlService {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 */
-	private function send(IClient $client, Request $request): string {
+	private function send(IClient $client, NCRequest $request): string {
 		if (!$request->isLocalAddressAllowed() && RemoteAddress::isLocalHost($request->getHost())) {
 			throw new RequestServerException('host resolves to a local address: ' . $request->getHost());
 		}
@@ -446,7 +446,7 @@ class CurlService {
 	 * - the answer is read as a stream, so an endless body is cut off at
 	 *   `max_size` rather than filling memory.
 	 */
-	private function requestOptions(Request $request): array {
+	private function requestOptions(NCRequest $request): array {
 		$options = [
 			'headers' => $request->getHeaders(),
 			'timeout' => $request->getTimeout(),

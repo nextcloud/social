@@ -288,8 +288,8 @@ class CacheDocumentService {
 			throw new CacheContentDecodeException('content is not a readable image');
 		}
 
-		$width = (int)($size[0] ?? 0);
-		$height = (int)($size[1] ?? 0);
+		$width = $size[0] ?? 0;
+		$height = $size[1] ?? 0;
 		if ($width < 1 || $height < 1) {
 			throw new CacheContentDecodeException('image has no usable dimensions');
 		}

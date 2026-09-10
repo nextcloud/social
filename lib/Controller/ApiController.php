@@ -714,7 +714,7 @@ class ApiController extends Controller {
 			}
 
 			$name = $file['tmp_name'] ?? '';
-			$size = (int)($file['size'] ?? -1);
+			$size = $file['size'] ?? -1;
 			$type = $file['type'] ?? '';
 
 			if ($name === '' || $size === -1 || $type === '') {

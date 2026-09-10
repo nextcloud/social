@@ -432,6 +432,7 @@ namespace Symfony\Component\Console\Input {
 	class InputInterface {
 		public function getOption(string $key) {}
 		public function getArgument(string $key) {}
+		public function isInteractive(): bool {}
 	}
 	class InputArgument {
 		const REQUIRED = 0;

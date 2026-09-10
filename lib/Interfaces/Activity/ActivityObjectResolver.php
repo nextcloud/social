@@ -53,8 +53,9 @@ class ActivityObjectResolver {
 	 * @throws ItemNotFoundException when there is neither
 	 */
 	public function resolve(ACore $activity): ACore {
-		if ($activity->hasObject()) {
-			return $activity->getObject();
+		$embedded = $activity->hasObject() ? $activity->getObject() : null;
+		if ($embedded !== null) {
+			return $embedded;
 		}
 
 		$objectId = $activity->getObjectId();

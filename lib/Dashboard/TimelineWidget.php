@@ -178,7 +178,7 @@ abstract class TimelineWidget implements IAPIWidgetV2, IIconWidget, IButtonWidge
 		}
 
 		$author = $this->actorOf($status->getAttributedTo());
-		$content = $this->summarise((string)$status->getContent());
+		$content = $this->summarise($status->getContent());
 
 		return new WidgetItem(
 			$content !== '' ? $content : $this->l10n->t('(no content)'),

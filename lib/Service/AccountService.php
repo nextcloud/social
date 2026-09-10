@@ -427,7 +427,7 @@ class AccountService {
 				return;
 			}
 
-			$displayName = (string)$displayNameProperty->getValue();
+			$displayName = $displayNameProperty->getValue();
 		} catch (Exception $e) {
 			// The property could not be read at all, which is not the same as
 			// the user having asked for privacy: fall back to the display name
