@@ -91,6 +91,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The visibilities a client may ask for, for telling somebody which ones
+	 * those are when they asked for something else.
+	 *
+	 * @return string[]
+	 */
+	public static function clientVisibilities(): array {
+		return array_keys(self::CLIENT_VISIBILITIES);
+	}
+
+	/**
 	 * The hashtags on this item.
 	 *
 	 * Only a Note actually stores any — it overrides this — but the tags belong

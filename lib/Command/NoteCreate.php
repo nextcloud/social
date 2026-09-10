@@ -11,6 +11,7 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
@@ -79,7 +80,7 @@ class NoteCreate extends Base {
 			)
 			->addOption(
 				'type', 'y', InputOption::VALUE_OPTIONAL,
-				'type: public (default), followers, unlisted, direct'
+				'type: public (default), unlisted, private (or followers), direct'
 			)
 			->addOption(
 				'hashtag', 'g', InputOption::VALUE_OPTIONAL,
@@ -104,10 +105,23 @@ class NoteCreate extends Base {
 		$replyTo = $input->getOption('replyTo');
 		$type = $input->getOption('type');
 
+		// an omitted --type is what the option's own help promises, public; an
+		// unrecognised one used to become a direct post addressed to nobody,
+		// silently, which is not something a command line should do quietly
+		$type = ($type === null || $type === '') ? 'public' : (string)$type;
+		if (!Stream::isKnownClientVisibility($type)) {
+			$output->writeln(
+				'<error>unknown type "' . $type . '"; expected one of: '
+				. implode(', ', Stream::clientVisibilities()) . '</error>'
+			);
+
+			return 1;
+		}
+
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$post = new Post($actor);
 		$post->setContent($content);
-		$post->setType(($type === null) ? '' : $type);
+		$post->setType($type);
 		$post->setReplyTo(($replyTo === null) ? '' : $replyTo);
 		$post->addTo(($to === null) ? '' : $to);
 		$post->setHashtags(($hashtag === null) ? [] : [$hashtag]);
