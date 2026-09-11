@@ -204,14 +204,18 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/*
+ * The column, and nothing about what is in it. `.social__timeline` is another
+ * component's root element, and a scoped style still reaches a child's root —
+ * so a rule here lands on it with the same specificity as the list's own and
+ * wins or loses on bundle order. This view used to set `margin: 0` on it, which
+ * beat the list's own `margin: 0 auto` and left the timeline flush to one side
+ * while the composer beside it stayed centred.
+ */
 .social__wrapper {
-	max-width: 600px;
+	max-width: var(--social-column);
 	margin: 0 auto;
 	padding: 0;
-}
-
-.social__timeline {
-	margin: 0;
 }
 
 .timeline-heading-row {

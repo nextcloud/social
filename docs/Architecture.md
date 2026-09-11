@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.60  
+**App version:** 0.11.61  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -479,12 +479,23 @@ rather than what they said. It is the same query and the same filters, one
 predicate narrower, so nothing about visibility, blocks, mutes or silencing is
 decided twice.
 
-**One column.** `--social-column` in `App.vue` is the width of the timeline,
-stated once. The list carries the gutter (`--social-column-gutter`) and anything
+**One column, one owner.** `--social-column` in `App.vue` is the width of the
+timeline, stated once. The list carries the gutter (`--social-column-gutter`) and anything
 that sits beside it — the composer — takes `--social-column-inner`, the list's
 content box. Both used to carry the same max-width independently while only one
 of them had a gutter, so the composer stood a gutter proud of every post beneath
 it at both edges.
+
+`TimelineList` owns its own layout and the views that render it do not touch
+it. That is not style: `.social__timeline` is a child component's **root**, and
+a scoped rule still reaches a child's root — so a view styling it lands beside
+the list's own rule at the same specificity and wins or loses on whatever order
+the bundle puts them in. `Timeline.vue` set `margin: 0` there, which beat the
+list's `margin: 0 auto` and left the timeline flush to one side while the
+composer beside it stayed centred. Where a view genuinely needs to shift the
+list — the reply spine in `TimelineSinglePost` — it says so through its own
+element (`.thread .social__timeline`), which wins on specificity rather than on
+luck.
 
 Every entry in the list has the same edges for the same reason. A notification
 is a card, because it is a thing that happened and the post inside it is quoted
