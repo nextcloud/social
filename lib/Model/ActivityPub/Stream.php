@@ -638,11 +638,19 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		foreach (['contentMap', 'summaryMap'] as $map) {
-			if (!is_array($data[$map] ?? null)) {
+			$translations = $data[$map] ?? null;
+			if (!is_array($translations)) {
 				continue;
 			}
-			foreach (array_keys($data[$map]) as $key) {
-				$language = self::normalizeLanguage(is_string($key) ? $key : (string)$key);
+
+			// the keys are language tags; PHP turns a numeric one into an int,
+			// and no language tag is a number
+			foreach ($translations as $tag => $ignored) {
+				if (!is_string($tag)) {
+					continue;
+				}
+
+				$language = self::normalizeLanguage($tag);
 				if ($language !== '') {
 					return $language;
 				}
