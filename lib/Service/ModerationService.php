@@ -109,7 +109,7 @@ class ModerationService {
 		$this->moderationRequest->save($moderation);
 
 		if ($level === Moderation::SUSPEND) {
-			$this->purge($actorId);
+			$this->purgeActor($actorId);
 		}
 
 		// not 'level': the server's logger reads that key in a context as a log
@@ -164,15 +164,23 @@ class ModerationService {
 	}
 
 	/**
-	 * Everything the suspended account has here. Its cached actor goes too, so
-	 * nothing of it is served from this instance while the suspension stands.
+	 * Everything an account has here. Its cached actor goes too, so nothing of
+	 * it is served from this instance afterwards.
 	 *
 	 * The relationships go with it. A suspension that left the follow rows in
 	 * place kept the account in the delivery fan-out — every local post still
 	 * went to it — and kept it in the timelines of the people who followed it,
 	 * addressed through the dest rows.
+	 *
+	 * Public because a domain purge detaches accounts one at a time and has to
+	 * detach exactly what a suspension detaches: two lists of tables that were
+	 * meant to be the same one would drift, and whichever was forgotten would
+	 * be a row of a blocked instance still reaching a timeline. Every step is
+	 * caught on its own and none is a delete that depends on an earlier one,
+	 * so calling it twice on the same account is a no-op rather than a
+	 * failure.
 	 */
-	private function purge(string $actorId): void {
+	public function purgeActor(string $actorId): void {
 		try {
 			$this->streamRequest->deleteByAuthor($actorId);
 		} catch (\Exception $e) {

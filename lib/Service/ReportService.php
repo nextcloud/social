@@ -32,6 +32,7 @@ class ReportService {
 		private IUserManager $userManager,
 		private IGroupManager $groupManager,
 		private INotificationManager $notificationManager,
+		private ReportForwardService $reportForwardService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -40,9 +41,13 @@ class ReportService {
 	 * A report filed by a local user over POST /api/v1/reports.
 	 *
 	 * @param string[] $statusIds
+	 * @param bool $forward Mastodon's `forward`: also tell the instance the
+	 *                      reported account is on. Ignored for a local
+	 *                      account, which has no other instance to tell.
 	 */
 	public function reportFromLocal(
 		Person $reporter, Person $target, array $statusIds, string $comment, string $category,
+		bool $forward = false,
 	): Report {
 		$report = new Report();
 		$report->setActorId($reporter->getId())
@@ -56,7 +61,33 @@ class ReportService {
 		$this->reportsRequest->save($report);
 		$this->notifyAdmins($report);
 
+		if ($forward) {
+			$this->forward($report, $target);
+		}
+
 		return $report;
+	}
+
+	/**
+	 * Forwards the report, and records whether the remote instance took it.
+	 *
+	 * Done after the report is stored, so the moderators here have it whatever
+	 * the other instance does with it, and never throws: the report was filed
+	 * successfully even when the forward could not be delivered.
+	 */
+	private function forward(Report $report, Person $target): void {
+		try {
+			if (!$this->reportForwardService->forward($report, $target)) {
+				return;
+			}
+
+			$report->setForwarded(true);
+			$this->reportsRequest->setForwarded($report->getId(), true);
+		} catch (Exception $e) {
+			$this->logger->warning('could not forward a report', [
+				'report' => $report->getId(), 'exception' => $e,
+			]);
+		}
 	}
 
 	/**

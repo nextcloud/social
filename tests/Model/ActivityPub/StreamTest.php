@@ -427,6 +427,61 @@ class StreamTest extends TestCase {
 		$this->assertSame($stream->getEmojis(), $stream->exportAsLocal()['emojis']);
 	}
 
+	/**
+	 * `tag` has no column, so a post read back from the database used to
+	 * re-export naming nobody: every Update and every outbox entry told the
+	 * peers that the people the post mentions are not mentioned by it, and a
+	 * hashtag stopped reaching any tag timeline after the first reload.
+	 */
+	public function testMentionsAndHashtagsSurviveTheDatabaseRoundTripViaTheStoredSource(): void {
+		$tags = [
+			['type' => 'Mention', 'href' => 'https://remote.example/users/bob', 'name' => '@bob@remote.example'],
+			['type' => 'Hashtag', 'href' => 'https://cloud.example/tags/nextcloud', 'name' => '#Nextcloud'],
+		];
+		$stream = new Note();
+
+		$stream->importFromDatabase([
+			'id' => 'https://cloud.example/apps/social/@alice/1',
+			'type' => 'Note',
+			'source' => json_encode(['id' => 'https://cloud.example/apps/social/@alice/1', 'tag' => $tags]),
+		]);
+
+		$this->assertSame($tags, $stream->getTags());
+		$this->assertSame($tags, $stream->exportAsActivityPub()['tag']);
+	}
+
+	/**
+	 * A reply reaches the instances that hold the post it answers and nowhere
+	 * else, so a reader on a third instance sees a post with no replies unless
+	 * there is a collection to walk. Mastodon publishes one on every note.
+	 */
+	public function testALocalNoteNamesTheCollectionOfItsReplies(): void {
+		$note = new Note();
+		$note->setId('https://cloud.example/apps/social/@alice/1');
+		$note->setLocal(true);
+
+		$this->assertSame(
+			[
+				'id' => 'https://cloud.example/apps/social/@alice/1/replies',
+				'type' => 'OrderedCollection',
+				'first' => 'https://cloud.example/apps/social/@alice/1/replies?page=1',
+			],
+			$note->exportAsActivityPub()['replies']
+		);
+	}
+
+	/**
+	 * A remote post's replies live on the server that holds it, under an id of
+	 * its choosing. Naming a collection here, under an id this instance does
+	 * not own and does not serve, sends every reader to a 404.
+	 */
+	public function testARemoteNoteIsNotGivenARepliesCollectionOfOurs(): void {
+		$note = new Note();
+		$note->setId('https://remote.example/notes/1');
+
+		$this->assertArrayNotHasKey('replies', $note->exportAsActivityPub());
+	}
+
 	public function testJsonSerializeExposesTheAttachments(): void {
 		$media = (new MediaAttachment())->setId('4');
 		$stream = new Note();

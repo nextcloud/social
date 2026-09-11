@@ -22,6 +22,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
@@ -230,11 +231,19 @@ class StreamService {
 			return;
 		}
 
-		$instancePath = new InstancePath(
-			$actor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM
-		);
+		// A mention is addressed the way Mastodon addresses one
+		// (`Account#preferred_inbox_url`): the instance's shared inbox where it
+		// publishes one, the personal inbox otherwise. Who the activity is for
+		// is carried by `to`/`cc`, not by which inbox it was posted to, so
+		// three people mentioned on one server are one delivery instead of
+		// three — and a mention of somebody who also follows the author is the
+		// same inbox the follower fan-out already uses, which is what lets the
+		// queue recognise it as one.
+		$inbox = $actor->getSharedInbox() !== '' ? $actor->getSharedInbox() : $actor->getInbox();
+
+		$priority = InstancePath::PRIORITY_MEDIUM;
 		if ($type === Stream::TYPE_DIRECT) {
-			$instancePath->setPriority(InstancePath::PRIORITY_HIGH);
+			$priority = InstancePath::PRIORITY_HIGH;
 			$stream->addToArray($actor->getId());
 			$stream->setFilterDuplicate(true); // TODO: really needed ?
 		} else {
@@ -249,7 +258,20 @@ class StreamService {
 			]
 		);
 
-		$stream->addInstancePath($instancePath);
+		// the addressing and the tag stand whatever happens next: they are what
+		// renders the mention here and what tells every recipient who it names
+		if ($inbox === '') {
+			$this->logger->notice(
+				'cannot deliver a mention: the actor has neither a shared inbox nor an inbox',
+				['actor' => $actor->getId(), 'account' => $account]
+			);
+
+			return;
+		}
+
+		$stream->addInstancePath(
+			new InstancePath($inbox, InstancePath::TYPE_INBOX, $priority)
+		);
 	}
 
 	/**
@@ -650,6 +672,48 @@ class StreamService {
 			$actor->getOutbox(),
 			$this->getInt('post', $actor->getDetails('count')),
 			$actor->getOutbox()
+		);
+	}
+
+	/**
+	 * The `replies` collection of a post: what a peer dereferences after
+	 * reading `replies` on the note itself.
+	 *
+	 * A reply reaches the instances that hold the post it answers and nowhere
+	 * else, so without this a reader on a third instance sees a post with no
+	 * replies. Mastodon publishes one on every note and walks one on every note
+	 * it fetches.
+	 */
+	public function getRepliesCollection(Stream $post): OrderedCollection {
+		$id = $post->getId() . Stream::REPLIES_PATH;
+
+		return OrderedCollection::paged(
+			$id, $this->streamRequest->countPublicRepliesTo($post->getId()), $id
+		);
+	}
+
+	/**
+	 * One page of it: the ids of the public replies, oldest first.
+	 *
+	 * Ids and not the replies themselves. A reply is its author's document,
+	 * held and served by their instance, and handing out a copy of it from here
+	 * would publish this instance's idea of a post somebody else may since have
+	 * edited or deleted. It is also what keeps the page small: a thread of
+	 * forty replies is forty URIs.
+	 */
+	public function getRepliesPage(Stream $post, int $page): OrderedCollectionPage {
+		$id = $post->getId() . Stream::REPLIES_PATH;
+
+		$replies = $this->streamRequest->getPublicRepliesTo(
+			$post->getId(),
+			OrderedCollection::PAGE_SIZE,
+			($page - 1) * OrderedCollection::PAGE_SIZE
+		);
+
+		return OrderedCollectionPage::of(
+			$id, $id, $page, array_values(array_map(
+				static fn (Stream $reply): string => $reply->getId(), $replies
+			))
 		);
 	}
 

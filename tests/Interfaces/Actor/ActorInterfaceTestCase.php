@@ -21,6 +21,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\ReportsRequest;
 use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\ScheduledStatusesRequest;
 use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
@@ -78,6 +79,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 	protected ConversationsRequest|MockObject $conversationsRequest;
 	protected FeaturedTagsRequest|MockObject $featuredTagsRequest;
 	protected AnnouncementsRequest|MockObject $announcementsRequest;
+	protected ScheduledStatusesRequest|MockObject $scheduledStatusesRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -97,6 +99,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->conversationsRequest = $this->createMock(ConversationsRequest::class);
 		$this->featuredTagsRequest = $this->createMock(FeaturedTagsRequest::class);
 		$this->announcementsRequest = $this->createMock(AnnouncementsRequest::class);
+		$this->scheduledStatusesRequest = $this->createMock(ScheduledStatusesRequest::class);
 		$this->actorService = $this->createMock(ActorService::class);
 
 		$this->handler = $this->createHandler();

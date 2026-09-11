@@ -26,6 +26,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\HttpSignatureService;
+use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Tests\Helper\RsaPssSigner;
 use OCA\Social\Tools\Exceptions\DateTimeException;
@@ -113,7 +114,9 @@ class SignatureServiceTest extends TestCase {
 			$this->cacheActorsRequest,
 			$this->createMock(CurlService::class),
 			$configService,
-			new HttpSignatureService($this->actorsRequest, new NullLogger()),
+			new HttpSignatureService(
+				$this->actorsRequest, $this->createMock(InstanceActorService::class), new NullLogger()
+			),
 			$cacheFactory,
 			new NullLogger(),
 		);
@@ -1121,7 +1124,9 @@ class SignatureServiceTest extends TestCase {
 			$this->cacheActorsRequest,
 			$this->createMock(CurlService::class),
 			$configService,
-			new HttpSignatureService($this->actorsRequest, new NullLogger()),
+			new HttpSignatureService(
+				$this->actorsRequest, $this->createMock(InstanceActorService::class), new NullLogger()
+			),
 			$cacheFactory,
 			new NullLogger(),
 		);

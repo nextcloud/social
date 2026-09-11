@@ -538,6 +538,55 @@ by the same exact comparison.
   `jailed()`, which refuses service when the instance is in `none_but` mode with an
   empty list.
 
+### `social:domain:purge`
+
+Delete everything an instance already sent this one. Blocking the domain
+(`social:fediverse add`) is what stops it coming back; this removes what arrived
+before the block.
+
+```
+php occ social:domain:purge [-b|--batches BATCHES] [--check] <domain>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `domain` | Yes | The instance to purge, e.g. `spam.example`. Accepts what a user would type — `https://spam.example/@someone`, `@someone@spam.example`, `Spam.Example:8443` — and reduces it to the host |
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-b`, `--batches` | required | Stop after this many batches of 50 accounts instead of running to the end. Without it the command runs until nothing of the domain is left |
+| `--check` | none | Only report whether anything of the domain is still stored; deletes nothing |
+
+**What goes.** For every account of that instance still known here: its cached
+actor, its posts (with their recipient, tag, action, card, revision and cached
+attachment rows), the notifications they caused, the follows in **both**
+directions, the per-user blocks, mutes and notes about it, and the deliveries
+still queued towards it. Leaving the follows behind kept the instance in the
+delivery fan-out of every local post.
+
+**This cannot be undone.** Unblocking the domain lets it reach the instance
+again; it does not restore anything deleted here. The command says so before it
+exits.
+
+**Safe to interrupt and safe to repeat.** Each pass asks what of the domain is
+still stored rather than counting off a position, so a run that is killed half
+way is resumed by running it again, and a run against an already-purged domain
+does nothing. Accounts are found from three places — the actor cache, the
+authors of stored posts, and the follow rows — because a post can outlive the
+actor it was cached from and a follow can name an account this instance never
+cached.
+
+**The exact host, not subdomains.** A deny-list entry covers everything under
+the domain (`isListed()`), but the purge does not: refusing traffic from one
+instance too many is undone by editing the list, and deleting one is not. Purge
+each subdomain you mean to include.
+
+**This normally runs on its own.** Adding a domain to the deny list queues
+`OCA\Social\Cron\DomainPurge`, which does 10 batches per cron run and re-queues
+itself until the instance is gone. Use this command for a domain blocked before
+the purge existed, for a job that failed part way, or to finish without waiting
+for cron.
+
 ---
 
 ## Installation & Maintenance
@@ -630,10 +679,12 @@ The app files themselves are not removed, and the app is not disabled.
 
 ## Background Jobs
 
-The app also registers two `TimedJob`s, both with an interval of 12 minutes, run by
-Nextcloud's cron:
+The app registers three `TimedJob`s in `appinfo/info.xml`, run by Nextcloud's
+cron, and queues a fourth job on demand:
 
 | Job | Class | Description |
 |-----|-------|-------------|
-| Cache maintenance | `OCA\Social\Cron\Cache` | Same steps as `social:cache:refresh` (deleted actors, local actor cache, remote actors and their details, documents, hashtags), and additionally syncs the timelines of cached remote actors. No key rotation is performed. |
-| Queue processing | `OCA\Social\Cron\Queue` | Processes the outbound request queue **and** the stream queue, like `social:queue:process`. |
+| Cache maintenance | `OCA\Social\Cron\Cache` | Every 12 minutes. Same steps as `social:cache:refresh` (deleted actors, local actor cache, remote actors and their details, documents, hashtags), and additionally syncs the timelines of cached remote actors. No key rotation is performed. |
+| Queue processing | `OCA\Social\Cron\Queue` | Every 12 minutes. Processes the outbound request queue **and** the stream queue, like `social:queue:process`. |
+| Scheduled posts | `OCA\Social\Cron\ScheduledPosts` | Every 5 minutes. Publishes the posts whose `scheduled_at` has passed, at most 50 per run. Shorter than the other two on purpose: a scheduled post may be published up to one cron period late, and a longer period would promise a precision the five-minute minimum on `scheduled_at` implies but the app could not keep. |
+| Domain purge | `OCA\Social\Cron\DomainPurge` | Queued with a domain when one is added to the deny list — not registered in `appinfo/info.xml`, because a job listed there is added once at install time with no argument. Does 10 batches of 50 accounts per run and re-queues itself while anything of the domain is left. |

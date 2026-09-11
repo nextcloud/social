@@ -13,6 +13,7 @@ use DateInterval;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\Client\Options\ProbeOptions;
@@ -306,6 +307,34 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->limitToIdPrim($qb->prim($id));
 
 		$qb->executeStatement();
+	}
+
+	/**
+	 * The cached actors of one instance, a page at a time.
+	 *
+	 * Bounded because a domain purge must not read a whole instance's accounts
+	 * into memory to delete them; the caller deletes each row it is handed, so
+	 * the next call returns the next page without an offset to keep track of.
+	 *
+	 * @return string[] actor ids
+	 *
+	 * @throws InvalidResourceException the domain is not one
+	 */
+	public function getIdsFromDomain(string $domain, int $limit = 100): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('ca.id')
+			->from(self::TABLE_CACHE_ACTORS, 'ca')
+			->where(DomainBlocksRequestBuilder::onDomain($qb, 'ca.id', $domain))
+			->setMaxResults($limit);
+
+		$ids = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$ids[] = (string)$data['id'];
+		}
+		$cursor->closeCursor();
+
+		return $ids;
 	}
 
 	/**

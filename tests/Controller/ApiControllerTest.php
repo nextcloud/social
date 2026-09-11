@@ -26,6 +26,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Client\ScheduledStatus;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
@@ -51,6 +52,7 @@ use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
@@ -124,6 +126,7 @@ class ApiControllerTest extends TestCase {
 	private CacheDocumentsRequest|MockObject $cacheDocumentsRequest;
 	private ICacheFactory|MockObject $cacheFactory;
 	private AccountRelationService|MockObject $accountRelationService;
+	private ScheduledStatusService|MockObject $scheduledStatusService;
 	private BannerService|MockObject $bannerService;
 	private FilterService|MockObject $filterService;
 	private IRootFolder|MockObject $rootFolder;
@@ -209,6 +212,7 @@ class ApiControllerTest extends TestCase {
 		// a pass-through: these tests are about the routes, not about filtering,
 		// and a filter that removed anything would rewrite what they assert
 		$this->accountRelationService = $this->createMock(AccountRelationService::class);
+		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
 		$this->accountRelationService->method('withoutExpiredMutes')->willReturnArgument(1);
 		$this->bannerService = $this->createMock(BannerService::class);
 		$this->filterService = $this->createMock(FilterService::class);
@@ -285,7 +289,8 @@ class ApiControllerTest extends TestCase {
 			$this->tempManager,
 			$this->filterService,
 			$this->bannerService,
-			$this->accountRelationService
+			$this->accountRelationService,
+			$this->scheduledStatusService
 		);
 	}
 
@@ -924,6 +929,33 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame("hello\nworld", $created->getContent(), 'the raw text; PostService escapes and converts newlines');
 		$this->assertSame('unlisted', $created->getType());
 		$this->assertSame('https://remote.example/notes/7', $created->getReplyTo());
+	}
+
+	/**
+	 * The field used to be parsed and thrown away, so a client that scheduled
+	 * a post for next week was told it had been scheduled and the post went
+	 * out at once.
+	 */
+	public function testStatusNewWithAScheduledTimeStoresItInsteadOfPosting(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn([
+			'status' => 'later', 'scheduled_at' => '2030-01-01T12:00:00Z',
+		]);
+		$entity = $this->createMock(ScheduledStatus::class);
+		$this->scheduledStatusService->method('requestedTime')->willReturn(1893499200);
+		$this->scheduledStatusService->expects($this->once())->method('schedule')->willReturn($entity);
+		$this->postService->expects($this->never())->method('createPost');
+
+		$response = $this->controller()->statusNew();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($entity, $response->getData());
+	}
+
+	public function testStatusNewWithoutAScheduledTimePostsStraightAway(): void {
+		$this->scheduledStatusService->expects($this->never())->method('schedule');
+
+		$this->assertSame('hi', $this->postWith(['status' => 'hi'])->getContent());
 	}
 
 	public function testStatusNewIgnoresAMissingParent(): void {
@@ -1751,13 +1783,33 @@ class ApiControllerTest extends TestCase {
 		$report = new Report();
 		$this->reportService->expects($this->once())
 			->method('reportFromLocal')
-			->with($this->identicalTo($viewer), $this->identicalTo($target), ['7', '8'], 'spam bot', 'spam')
+			->with($this->identicalTo($viewer), $this->identicalTo($target), ['7', '8'], 'spam bot', 'spam', false)
 			->willReturn($report);
 
 		$response = $this->controller()->reportNew();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($report, $response->getData());
+	}
+
+	/**
+	 * `forward` is what sends the report to the instance that hosts the
+	 * account, which is the only one that can act on it; dropped here, the
+	 * client is told the report was filed and the reported instance never
+	 * hears of it.
+	 */
+	public function testReportNewCarriesTheForwardFlag(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->request->method('getParams')->willReturn([
+			'account_id' => '42', 'comment' => 'spam bot', 'forward' => 'true',
+		]);
+		$this->reportService->expects($this->once())
+			->method('reportFromLocal')
+			->with($this->identicalTo($viewer), $this->identicalTo($target), [], 'spam bot', 'other', true)
+			->willReturn(new Report());
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->reportNew()->getStatus());
 	}
 
 	public function testReportNewRequiresAnAccountId(): void {

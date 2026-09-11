@@ -12,6 +12,7 @@ namespace OCA\Social\Db;
 use DateTime;
 use Exception;
 use InvalidArgumentException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -375,6 +376,69 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToSubType($subType);
 
 		return $this->getStreamFromRequest($qb);
+	}
+
+	/**
+	 * The public replies to a post, oldest first, for the `replies` collection
+	 * a peer walks to discover a thread.
+	 *
+	 * Public only. The collection is served to anybody who asks for it, and a
+	 * followers-only or direct reply is not theirs to read — not even as an id,
+	 * which is enough to fetch the reply itself from the instance that holds
+	 * it. This is the same audience test `getPublicByAuthor()` applies to an
+	 * outbox.
+	 *
+	 * Oldest first, because that is the order a thread is read in and the order
+	 * `OrderedCollectionPage` offsets are stable under: newest-first paging
+	 * renumbers every page as soon as somebody replies again.
+	 *
+	 * @return Stream[]
+	 */
+	public function getPublicRepliesTo(string $id, int $limit, int $offset = 0): array {
+		if ($id === '' || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql();
+		$qb->limitToInReplyTo($id, true);
+		$qb->limitToStatusTypes();
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+
+		$qb->orderBy('s.published_time', 'asc');
+		$qb->setMaxResults($limit);
+		$qb->setFirstResult($offset);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * How many replies {@see self::getPublicRepliesTo()} would return: the
+	 * `totalItems` of the collection, counted over the same audience so the
+	 * number and the pages cannot disagree.
+	 */
+	public function countPublicRepliesTo(string $id): int {
+		if ($id === '') {
+			return 0;
+		}
+
+		$qb = $this->countNotesSelectSql();
+		$qb->limitToInReplyTo($id, true);
+		$qb->limitToStatusTypes();
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
 	}
 
 	/**
@@ -1280,6 +1344,34 @@ class StreamRequest extends StreamRequestBuilder {
 				return;
 			}
 		}
+	}
+
+	/**
+	 * The authors of one instance that still have something stored here.
+	 *
+	 * Distinct authors rather than posts: the caller deletes an author's posts
+	 * with `deleteByAuthor()`, which is already batched, so this only has to
+	 * name who is left. Once an author's posts are gone they are not named
+	 * again, which is what lets a purge resume where it stopped.
+	 *
+	 * @return string[] actor ids
+	 *
+	 * @throws InvalidResourceException the domain is not one
+	 */
+	public function getAuthorsFromDomain(string $domain, int $limit = 100): array {
+		$qb = $this->getQueryBuilder();
+		$qb->selectDistinct('s.attributed_to')
+			->from(self::TABLE_STREAM, 's')
+			->where(DomainBlocksRequestBuilder::onDomain($qb, 's.attributed_to', $domain))
+			->setMaxResults($limit);
+
+		$cursor = $qb->executeQuery();
+		$authors = array_map(
+			static fn (array $row): string => (string)$row['attributed_to'], $cursor->fetchAll()
+		);
+		$cursor->closeCursor();
+
+		return $authors;
 	}
 
 	/**

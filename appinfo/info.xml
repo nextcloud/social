@@ -41,6 +41,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 	<background-jobs>
 		<job>OCA\Social\Cron\Cache</job>
 		<job>OCA\Social\Cron\Queue</job>
+		<job>OCA\Social\Cron\ScheduledPosts</job>
 	</background-jobs>
 
 	<repair-steps>
@@ -74,6 +75,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<command>OCA\Social\Command\QueueStatus</command>
 		<command>OCA\Social\Command\QueueProcess</command>
 		<command>OCA\Social\Command\QueueRetry</command>
+		<command>OCA\Social\Command\DomainPurge</command>
 	</commands>
 
 	<settings>

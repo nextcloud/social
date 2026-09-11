@@ -46,6 +46,7 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 			$this->conversationsRequest,
 			$this->featuredTagsRequest,
 			$this->announcementsRequest,
+			$this->scheduledStatusesRequest,
 		);
 	}
 
@@ -216,6 +217,20 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 
 		$this->filtersRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
 		$this->listsRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
+
+		$this->handler->delete($bob);
+	}
+
+	/**
+	 * A scheduled post is the one thing an account leaves behind that would
+	 * otherwise go *out* after it is gone: the cron has no reason to look the
+	 * poster up until the moment it publishes.
+	 */
+	public function testDeleteTakesTheAccountsScheduledPostsWithIt(): void {
+		$bob = $this->bob();
+
+		$this->scheduledStatusesRequest->expects($this->once())
+			->method('deleteRelatedId')->with(self::BOB);
 
 		$this->handler->delete($bob);
 	}

@@ -95,7 +95,9 @@ class StreamServiceTest extends TestCase {
 		$actor->setPreferredUsername('bob');
 		$actor->setAccount('bob@remote.example');
 		$actor->setInbox($id . '/inbox');
-		$actor->setSharedInbox('https://remote.example/inbox');
+		// one shared inbox per instance, which is what makes two actors on one
+		// host a single delivery
+		$actor->setSharedInbox('https://' . parse_url($id, PHP_URL_HOST) . '/inbox');
 		$actor->setFollowers($id . '/followers');
 		$actor->setOutbox($id . '/outbox');
 
@@ -337,7 +339,8 @@ class StreamServiceTest extends TestCase {
 		);
 		$this->assertCount(1, $note->getInstancePaths());
 		$this->assertHasInstancePath(
-			$note->getInstancePaths(), $bob->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH
+			$note->getInstancePaths(), $bob->getSharedInbox(), InstancePath::TYPE_INBOX,
+			InstancePath::PRIORITY_HIGH
 		);
 	}
 
@@ -367,7 +370,8 @@ class StreamServiceTest extends TestCase {
 		$this->assertFalse($note->isFilterDuplicate());
 		$this->assertSame('Mention', $note->getTags()[0]['type']);
 		$this->assertHasInstancePath(
-			$note->getInstancePaths(), $bob->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM
+			$note->getInstancePaths(), $bob->getSharedInbox(), InstancePath::TYPE_INBOX,
+			InstancePath::PRIORITY_MEDIUM
 		);
 	}
 
@@ -410,6 +414,60 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame([$bob->getId(), $carol->getId()], $note->getCcArray());
 		$this->assertCount(2, $note->getTags('Mention'));
 		$this->assertCount(2, $note->getInstancePaths());
+	}
+
+	/**
+	 * Mastodon addresses a mention at `Account#preferred_inbox_url`: the shared
+	 * inbox where the instance publishes one. Sending to the personal inbox of
+	 * each mentioned account meant three people on one server were three POSTs
+	 * of the same post to the same server.
+	 */
+	public function testTwoMentionsOnOneInstanceAddressOneInbox(): void {
+		$bob = $this->remoteActor('https://remote.example/users/bob');
+		$dan = $this->remoteActor('https://remote.example/users/dan');
+		$this->cacheActorService->method('getFromAccount')
+			->willReturnMap([
+				['bob@remote.example', true, $bob],
+				['dan@remote.example', true, $dan],
+			]);
+
+		$note = new Note();
+		$this->service->addRecipients($note, Stream::TYPE_PUBLIC, ['bob@remote.example', 'dan@remote.example']);
+
+		$uris = array_map(static fn (InstancePath $path): string => $path->getUri(), $note->getInstancePaths());
+		$this->assertSame(['https://remote.example/inbox', 'https://remote.example/inbox'], $uris);
+		$this->assertCount(2, $note->getTags('Mention'));
+	}
+
+	/**
+	 * `endpoints.sharedInbox` is optional, and an instance that publishes none
+	 * must keep receiving what it is mentioned in.
+	 */
+	public function testAMentionFallsBackToThePersonalInbox(): void {
+		$bob = $this->remoteActor();
+		$bob->setSharedInbox('');
+		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
+
+		$note = new Note();
+		$this->service->addRecipient($note, Stream::TYPE_DIRECT, 'bob@remote.example');
+
+		$this->assertHasInstancePath(
+			$note->getInstancePaths(), $bob->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH
+		);
+	}
+
+	public function testAMentionWithNoInboxAtAllIsStillAddressedAndTagged(): void {
+		$bob = $this->remoteActor();
+		$bob->setSharedInbox('');
+		$bob->setInbox('');
+		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
+
+		$note = new Note();
+		$this->service->addRecipient($note, Stream::TYPE_PUBLIC, 'bob@remote.example');
+
+		$this->assertSame([$bob->getId()], $note->getCcArray());
+		$this->assertCount(1, $note->getTags('Mention'));
+		$this->assertSame([], $note->getInstancePaths());
 	}
 
 	// addHashtag() / addHashtags()
@@ -1122,5 +1180,87 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(['https://remote.example/followers'], $saved->getToArray());
 		$this->assertSame([ACore::CONTEXT_PUBLIC], $saved->getCcArray());
 		$this->assertSame([], $saved->getHashtags());
+	}
+
+	// the replies collection
+
+	private function post(string $id = self::GENERATED_ID): Note {
+		$note = new Note();
+		$note->setId($id);
+		$note->setLocal(true);
+
+		return $note;
+	}
+
+	public function testTheRepliesCollectionSaysWhereItsPagesAre(): void {
+		$this->streamRequest->method('countPublicRepliesTo')
+			->with(self::GENERATED_ID)
+			->willReturn(45);
+
+		$collection = $this->service->getRepliesCollection($this->post());
+
+		$this->assertSame(self::GENERATED_ID . '/replies', $collection->getId());
+		$this->assertSame(45, $collection->getTotalItems());
+		$this->assertSame(self::GENERATED_ID . '/replies?page=1', $collection->getFirst());
+		$this->assertSame(self::GENERATED_ID . '/replies?page=2', $collection->getLast());
+	}
+
+	public function testAPostWithNoRepliesStillHasAPageToOffer(): void {
+		$this->streamRequest->method('countPublicRepliesTo')->willReturn(0);
+
+		$collection = $this->service->getRepliesCollection($this->post());
+
+		$this->assertSame(0, $collection->getTotalItems());
+		$this->assertSame(self::GENERATED_ID . '/replies?page=1', $collection->getLast());
+	}
+
+	/**
+	 * Ids, not the replies themselves: a reply is its author's document and is
+	 * served by their instance, which may since have changed or deleted it.
+	 */
+	public function testARepliesPageListsTheIdsOfTheReplies(): void {
+		$this->streamRequest->method('getPublicRepliesTo')
+			->with(self::GENERATED_ID, 40, 0)
+			->willReturn([
+				$this->post('https://remote.example/notes/1'),
+				$this->post('https://remote.example/notes/2'),
+			]);
+
+		$page = $this->service->getRepliesPage($this->post(), 1);
+
+		$this->assertSame(self::GENERATED_ID . '/replies?page=1', $page->getId());
+		$this->assertSame(self::GENERATED_ID . '/replies', $page->getPartOf());
+		$this->assertSame(
+			['https://remote.example/notes/1', 'https://remote.example/notes/2'],
+			$page->getOrderedItems()
+		);
+		$this->assertSame('', $page->getNext(), 'a page that came back short is the last one');
+		$this->assertSame('', $page->getPrev());
+	}
+
+	public function testAFurtherPageIsAskedForAtTheRightOffsetAndLinksBack(): void {
+		$this->streamRequest->expects($this->once())
+			->method('getPublicRepliesTo')
+			->with(self::GENERATED_ID, 40, 40)
+			->willReturn([]);
+
+		$page = $this->service->getRepliesPage($this->post(), 2);
+
+		$this->assertSame(self::GENERATED_ID . '/replies?page=2', $page->getId());
+		$this->assertSame(self::GENERATED_ID . '/replies?page=1', $page->getPrev());
+	}
+
+	/** A full page is the only evidence there may be another one. */
+	public function testAFullPagePointsAtTheNextOne(): void {
+		$this->streamRequest->method('getPublicRepliesTo')
+			->willReturn(array_map(
+				fn (int $i): Note => $this->post('https://remote.example/notes/' . $i),
+				range(1, 40)
+			));
+
+		$page = $this->service->getRepliesPage($this->post(), 1);
+
+		$this->assertCount(40, $page->getOrderedItems());
+		$this->assertSame(self::GENERATED_ID . '/replies?page=2', $page->getNext());
 	}
 }

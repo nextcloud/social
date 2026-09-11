@@ -12,6 +12,7 @@ namespace OCA\Social\Db;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\FollowNotFoundException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Tools\Traits\TArrayTools;
@@ -392,6 +393,38 @@ class FollowsRequest extends FollowsRequestBuilder {
 	/**
 	 * @param string $actorId
 	 */
+	/**
+	 * The accounts of one instance that a follow row still names, in either
+	 * direction — the ones following somebody here and the ones followed from
+	 * here.
+	 *
+	 * Both halves matter to a purge: leaving the follows of a blocked instance
+	 * behind keeps it in the delivery fan-out of every local post, and keeps
+	 * its accounts in the follower counts and lists shown here.
+	 *
+	 * @return string[] actor ids
+	 *
+	 * @throws InvalidResourceException the domain is not one
+	 */
+	public function getActorIdsFromDomain(string $domain, int $limit = 100): array {
+		$ids = [];
+		foreach (['actor_id', 'object_id'] as $column) {
+			$qb = $this->getQueryBuilder();
+			$qb->selectDistinct('f.' . $column)
+				->from(self::TABLE_FOLLOWS, 'f')
+				->where(DomainBlocksRequestBuilder::onDomain($qb, 'f.' . $column, $domain))
+				->setMaxResults($limit);
+
+			$cursor = $qb->executeQuery();
+			while ($data = $cursor->fetch()) {
+				$ids[(string)$data[$column]] = true;
+			}
+			$cursor->closeCursor();
+		}
+
+		return array_slice(array_keys($ids), 0, $limit);
+	}
+
 	public function deleteRelatedId(string $actorId) {
 		$qb = $this->getFollowsDeleteSql();
 		$orX = $qb->expr()->orX(

@@ -19,6 +19,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\InstanceActorService;
 use OCA\Social\WellKnown\JrdResponse;
 use OCA\Social\WellKnown\WebfingerHandler;
 use OCA\Social\WellKnown\XrdResponse;
@@ -33,6 +34,7 @@ use PHPUnit\Framework\TestCase;
 
 class WebfingerHandlerTest extends TestCase {
 	private const ACTOR_URL = 'https://cloud.example/index.php/apps/social/@alice';
+	private const INSTANCE_ACTOR_URL = 'https://cloud.example/index.php/apps/social/actor';
 
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
@@ -42,6 +44,8 @@ class WebfingerHandlerTest extends TestCase {
 	private $fediverseService;
 	/** @var ConfigService&MockObject */
 	private $configService;
+	/** @var InstanceActorService&MockObject */
+	private $instanceActorService;
 	/** @var IRequest&MockObject */
 	private $request;
 	/** @var IRequestContext&MockObject */
@@ -53,6 +57,8 @@ class WebfingerHandlerTest extends TestCase {
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->instanceActorService = $this->createMock(InstanceActorService::class);
+		$this->instanceActorService->method('getId')->willReturn(self::INSTANCE_ACTOR_URL);
 		$this->request = $this->createMock(IRequest::class);
 		$this->context = $this->createMock(IRequestContext::class);
 		$this->context->method('getHttpRequest')->willReturn($this->request);
@@ -68,7 +74,8 @@ class WebfingerHandlerTest extends TestCase {
 			$this->cacheActorsRequest,
 			$this->cacheActorService,
 			$this->fediverseService,
-			$this->configService
+			$this->configService,
+			$this->instanceActorService
 		);
 	}
 
@@ -139,7 +146,7 @@ class WebfingerHandlerTest extends TestCase {
 	public function testHostMetaIsSkippedWhenTheCloudUrlIsNotConfigured(): void {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException());
-		$handler = new WebfingerHandler($this->cacheActorsRequest, $this->cacheActorService, $this->fediverseService, $configService);
+		$handler = new WebfingerHandler($this->cacheActorsRequest, $this->cacheActorService, $this->fediverseService, $configService, $this->instanceActorService);
 		$previous = $this->createMock(IResponse::class);
 
 		$this->assertSame($previous, $handler->handle('host-meta', $this->context, $previous));
@@ -311,5 +318,51 @@ class WebfingerHandlerTest extends TestCase {
 
 		$this->assertInstanceOf(JrdResponse::class, $response);
 		$this->assertSame(Http::STATUS_NOT_FOUND, $response->toHttpResponse()->getStatus());
+	}
+
+	/**
+	 * A peer that checks one of our signatures dereferences the `keyId`; a peer
+	 * that wants to know what signed at all looks the host up as a handle. That
+	 * is `acct:<host>@<host>`, and it has to lead to the instance actor.
+	 */
+	public function testTheInstanceActorIsDiscoverableUnderTheHostHandle(): void {
+		$this->resource('acct:cloud.example@cloud.example');
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->cacheActorService->expects($this->never())->method('getFromLocalAccount');
+
+		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
+
+		$this->assertSame('acct:cloud.example@cloud.example', $json['subject']);
+		$this->assertSame([self::INSTANCE_ACTOR_URL], $json['aliases']);
+		$this->assertSame(
+			[['rel' => 'self', 'type' => 'application/activity+json', 'href' => self::INSTANCE_ACTOR_URL]],
+			$json['links']
+		);
+	}
+
+	/** A domain is not case-sensitive, and a peer may ask in any case. */
+	public function testTheInstanceActorHandleIsMatchedRegardlessOfCase(): void {
+		$this->resource('acct:Cloud.Example@CLOUD.example');
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+
+		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
+
+		$this->assertSame([self::INSTANCE_ACTOR_URL], $json['aliases']);
+	}
+
+	/**
+	 * The instance handle is reserved, but nothing else is: every other subject
+	 * still has to reach the account lookup.
+	 */
+	public function testAnOrdinaryHandleIsStillLookedUpAsALocalAccount(): void {
+		$this->resource('acct:alice@cloud.example');
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->cacheActorService->expects($this->once())
+			->method('getFromLocalAccount')
+			->willReturn($this->localActor('alice'));
+
+		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
+
+		$this->assertSame(self::ACTOR_URL, $json['links'][0]['href']);
 	}
 }

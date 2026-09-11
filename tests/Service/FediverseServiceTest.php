@@ -10,24 +10,29 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use Exception;
+use OCA\Social\Cron\DomainPurge;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\MiscService;
+use OCP\BackgroundJob\IJobList;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class FediverseServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
+	private IJobList|MockObject $jobList;
 	private FediverseService $service;
 
 	protected function setUp(): void {
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		$this->jobList = $this->createMock(IJobList::class);
 		$this->service = new FediverseService(
-			$this->configService, $this->createMock(MiscService::class), $this->cacheActorsRequest
+			$this->configService, $this->createMock(MiscService::class), $this->cacheActorsRequest,
+			$this->jobList
 		);
 	}
 
@@ -304,4 +309,47 @@ class FediverseServiceTest extends TestCase {
 		$this->assertSame([], $this->service->getKnownAddresses());
 	}
 
+	public function testBlockingADomainQueuesThePurgeOfWhatItAlreadySent(): void {
+		$this->withAccess('all_but', []);
+		// a block only ever stopped the next request; everything the instance
+		// already sent stayed, which is what the job is for
+		$this->jobList->expects($this->once())->method('add')
+			->with(DomainPurge::class, ['domain' => 'spam.example']);
+
+		$this->service->addAddress('spam.example');
+	}
+
+	public function testAddingAnAllowedDomainPurgesNothing(): void {
+		// the same app value holds the allow list, where an entry is an
+		// instance this server is choosing to talk to
+		$this->withAccess('none_but', []);
+		$this->jobList->expects($this->never())->method('add');
+
+		$this->service->addAddress('friends.example');
+	}
+
+	public function testBlockingADomainTwiceQueuesOnePurge(): void {
+		$this->withAccess('all_but', ['spam.example']);
+		$this->jobList->expects($this->never())->method('add');
+
+		$this->service->addAddress('spam.example');
+	}
+
+	public function testUnblockingADomainRestoresNothing(): void {
+		$this->withAccess('all_but', ['spam.example']);
+		// what the purge deleted is gone: lifting the block only lets the
+		// instance reach us again
+		$this->jobList->expects($this->never())->method('add');
+
+		$this->service->removeAddress('spam.example');
+	}
+
+	public function testABlockStandsEvenWhenItsPurgeCannotBeQueued(): void {
+		$this->withAccess('all_but', []);
+		$this->jobList->method('add')->willThrowException(new Exception('no job list'));
+
+		$this->service->addAddress('spam.example');
+
+		$this->assertTrue(true, 'addAddress() did not throw');
+	}
 }

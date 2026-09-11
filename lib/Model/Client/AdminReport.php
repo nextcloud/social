@@ -24,9 +24,10 @@ use OCA\Social\Model\Report;
  *
  * `rules` is always `[]`: a report here carries a category, never a rule id —
  * `POST /api/v1/reports` ignores `rule_ids`, and the instance's rules are
- * lines of text in an app value with no ids to refer to. `forwarded` is always
- * `false` for the same kind of reason: nothing in this app forwards a report
- * to the reported account's own instance, so no report was ever forwarded.
+ * lines of text in an app value with no ids to refer to. `forwarded` is read
+ * from the report: a local report about a remote account is forwarded when the
+ * reporter asked for it and the reported account's instance accepted the
+ * `Flag`, and is `false` in every other case.
  *
  * `updated_at` is the moment of the last decision on the report, and the
  * moment it was filed while there has been none — the report table records no
@@ -127,7 +128,7 @@ class AdminReport implements JsonSerializable {
 			'action_taken_at' => ($this->actionTakenAt > 0) ? $this->date($this->actionTakenAt) : null,
 			'category' => $this->report->getCategory(),
 			'comment' => $this->report->getComment(),
-			'forwarded' => false,
+			'forwarded' => $this->report->isForwarded(),
 			'created_at' => $this->date($this->report->getCreation()),
 			'updated_at' => $this->date(max($this->actionTakenAt, $this->report->getCreation())),
 			'account' => $this->getAccount(),
