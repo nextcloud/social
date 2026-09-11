@@ -388,4 +388,35 @@ class MigrationServiceTest extends TestCase {
 			$this->service->importFollows('alice', "Account address,Show boosts,Notify on new posts,Languages\n")
 		);
 	}
+
+	public function testExportFollowsCsvWritesTheHeaderMastodonWrites(): void {
+		$csv = MigrationService::exportFollowsCsv(['carol@remote.example', 'dave@other.example']);
+
+		$this->assertSame(
+			"Account address,Show boosts,Notify on new posts,Languages\n"
+			. "carol@remote.example,true,false,\n"
+			. "dave@other.example,true,false,\n",
+			$csv
+		);
+	}
+
+	public function testExportFollowsCsvWithNoHandlesIsTheHeaderAlone(): void {
+		$this->assertSame(
+			"Account address,Show boosts,Notify on new posts,Languages\n",
+			MigrationService::exportFollowsCsv([])
+		);
+	}
+
+	/**
+	 * The writer exists so that what leaves here can come back — into this app,
+	 * or into Mastodon's "Import follows", which is the same file.
+	 */
+	public function testExportFollowsCsvRoundTripsThroughTheReader(): void {
+		$handles = ['carol@remote.example', 'dave@other.example', 'erin@third.example'];
+
+		$this->assertSame(
+			$handles,
+			MigrationService::parseFollowsCsv(MigrationService::exportFollowsCsv($handles))
+		);
+	}
 }

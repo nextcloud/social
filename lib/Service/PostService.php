@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -16,7 +17,9 @@ use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\QuoteRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
@@ -121,6 +124,7 @@ class PostService {
 		$note->setLanguage($this->languageFor($post->getLanguage(), $actor));
 
 		$this->streamService->replyTo($note, $post->getReplyTo());
+		$quotedAuthor = $this->applyQuote($note, $post->getQuotedId());
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());
 		//		$this->streamService->addAttachments($note, $post->getDocuments());
@@ -133,6 +137,12 @@ class PostService {
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);
+
+		// after the post exists: the request names it as the instrument, and
+		// the quoted author's server dereferences both before approving
+		if ($quotedAuthor !== null) {
+			$this->requestQuoteApproval($actor, $note, $quotedAuthor);
+		}
 
 		$this->logger->debug('Activity: ' . json_encode($activity));
 
@@ -188,6 +198,126 @@ class PostService {
 		}
 
 		return $updated;
+	}
+
+	/**
+	 * Puts the quoted post on the note and addresses its author.
+	 *
+	 * The quoted post is named by whatever the caller had: the numeric status
+	 * id a Mastodon client sends as `quote_id`, or an ActivityPub URI. Only a
+	 * post this instance holds can be quoted — the quote has to name a real
+	 * object for anyone else to resolve — and only one that is public or
+	 * unlisted, which is the rule `PinService::pin()` and
+	 * `BoostService::create()` apply: a quote carries the quoted post into the
+	 * quoter's audience, and a followers-only post has none of those readers.
+	 *
+	 * The author is addressed rather than merely notified: they are a recipient
+	 * of the post that carries their words, and their server is the one that
+	 * has to answer the QuoteRequest that follows — unless that server is this
+	 * one, in which case the approval is granted here and now.
+	 *
+	 * @return ?Person the quoted author, when there is a quote and they are known
+	 * @throws InvalidActionException when the post may not be quoted — the
+	 *                                exception ApiController already answers 422 with, which is what a
+	 *                                client can act on, and the one PinService::pin() raises for the
+	 *                                same refusal
+	 */
+	private function applyQuote(Note $note, string $quotedId): ?Person {
+		if ($quotedId === '') {
+			return null;
+		}
+
+		try {
+			$quoted = ctype_digit($quotedId)
+				? $this->streamService->getStreamByNid((int)$quotedId)
+				: $this->streamService->getStreamById($quotedId);
+		} catch (\Exception $e) {
+			throw new InvalidActionException('the post to quote is unknown here');
+		}
+
+		if (!$quoted->isQuotable()) {
+			throw new InvalidActionException('you can only quote a public or unlisted post');
+		}
+
+		$note->setQuote($quoted->getId());
+
+		if ($quoted->isLocal()) {
+			// this server is the quoted author's server, so the approval is
+			// ours to give and there is nobody to ask: sending a QuoteRequest
+			// here would be this instance posting to its own inbox and waiting
+			// for its own answer. The post is quotable — that was decided two
+			// lines up, by the same rule QuoteRequestInterface would apply —
+			// so stamp it now, before the source is snapshotted, and the very
+			// first delivery carries an approval every peer can dereference.
+			$note->setQuoteAuthorization(
+				$quoted->getId() . '/quote_authorizations/'
+				. QuoteRequestInterface::stamp($note->getId())
+			);
+			$note->setQuoteState(Stream::QUOTE_ACCEPTED);
+
+			return null;
+		}
+
+		try {
+			$author = $this->streamService->getAuthorFromPostId($quoted->getId());
+		} catch (\Exception $e) {
+			// the post is here but its author is not cached: the quote still
+			// stands, the author simply learns of it the way anyone else does
+			$this->logger->notice('quoting a post whose author cannot be resolved', [
+				'quoted' => $quoted->getId(),
+				'exception' => $e,
+			]);
+
+			return null;
+		}
+
+		$note->addCc($author->getId());
+		$inbox = ($author->getSharedInbox() !== '') ? $author->getSharedInbox() : $author->getInbox();
+		if ($inbox !== '') {
+			$note->addInstancePath(
+				new InstancePath($inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH)
+			);
+		}
+
+		return $author;
+	}
+
+	/**
+	 * FEP-044f: ask the quoted author's server for permission.
+	 *
+	 * Mastodon 4.5 renders a quote inline only once the quoting post carries a
+	 * `quoteAuthorization`, and only grants one in answer to a QuoteRequest —
+	 * without this the quote federates as a bare link on every Mastodon
+	 * instance. The approval arrives later, as an `Accept{QuoteRequest}`, and
+	 * `QuoteRequestInterface` writes it onto the post.
+	 *
+	 * A failure here is not a failure of the post: it is already published.
+	 */
+	private function requestQuoteApproval(Person $actor, Stream $note, Person $author): void {
+		$request = new QuoteRequest();
+		$request->setId($note->getId() . '#quote-request');
+		$request->setActor($actor);
+		$request->setObjectId($note->getQuote());
+		$request->setInstrument($note->getId());
+		$request->setToArray([$author->getId()]);
+
+		$inbox = ($author->getSharedInbox() !== '') ? $author->getSharedInbox() : $author->getInbox();
+		if ($inbox === '') {
+			return;
+		}
+
+		$request->addInstancePath(
+			new InstancePath($inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH)
+		);
+
+		try {
+			$this->activityService->request($request);
+		} catch (\Exception $e) {
+			$this->logger->warning('could not ask for approval of a quote', [
+				'quote' => $note->getQuote(),
+				'exception' => $e,
+			]);
+		}
 	}
 
 	/**

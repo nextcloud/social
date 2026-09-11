@@ -2,17 +2,25 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import { mount } from '@vue/test-utils'
+import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createStore } from 'vuex'
+import axios from '@nextcloud/axios'
 import Timeline from '../../../src/views/Timeline.vue'
 import FirstPostCelebration from '../../../src/components/FirstPostCelebration.vue'
+import HashtagFollowButton from '../../../src/components/HashtagFollowButton.vue'
+import HashtagFollowedList from '../../../src/components/HashtagFollowedList.vue'
 import eventBus from '../../../src/services/eventBus.js'
 import account from '../../../src/store/account.js'
 import errors from '../../../src/store/errors.js'
 import settings from '../../../src/store/settings.js'
 import timeline from '../../../src/store/timeline.js'
+
+vi.mock('@nextcloud/axios', () => ({
+	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+}))
+vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -67,7 +75,7 @@ const mountTimeline = (route = {}) => mount(Timeline, {
 	global: {
 		plugins: [store],
 		mocks: { $route: { name: 'timeline', params: {}, ...route } },
-		stubs: { Composer: ComposerStub, TimelineList: TimelineListStub },
+		stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
 	},
 })
 
@@ -329,6 +337,113 @@ describe('Timeline', () => {
 			wrapper.unmount()
 
 			expect(store.state.timeline.firstPostCelebration).toBe(false)
+		})
+	})
+
+	describe('following the hashtag a timeline is of', () => {
+		const tag = (name, following) => ({ name, url: `https://cloud.example.org/tags/${name}`, history: [], following })
+
+		/**
+		 * @param {boolean} following whether the viewer already follows #nextcloud
+		 * @param {object[]} followed the tags `/followed_tags` answers with
+		 */
+		const answerWith = (following = false, followed = []) => {
+			axios.get.mockImplementation((url) => Promise.resolve({
+				data: url.endsWith('/followed_tags') ? followed : tag('nextcloud', following),
+			}))
+			axios.post.mockImplementation((url) => Promise.resolve({
+				data: tag('nextcloud', url.endsWith('/follow')),
+			}))
+		}
+
+		const mountTags = async () => {
+			const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
+			await flushPromises()
+			return wrapper
+		}
+
+		beforeEach(() => {
+			vi.clearAllMocks()
+			answerWith()
+		})
+
+		it('offers to follow the hashtag next to its heading', async () => {
+			const wrapper = await mountTags()
+
+			const row = wrapper.find('.timeline-heading-row')
+			expect(row.find('h1').text()).toBe('#nextcloud')
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/tags/nextcloud')
+			expect(row.find('button').text()).toBe('Follow')
+			expect(row.find('button').attributes('aria-pressed')).toBe('false')
+		})
+
+		it('says which hashtags are already followed', async () => {
+			answerWith(true)
+			const wrapper = await mountTags()
+
+			expect(wrapper.findComponent(HashtagFollowButton).find('button').text()).toBe('Following')
+		})
+
+		it('follows the hashtag from its own timeline', async () => {
+			const wrapper = await mountTags()
+
+			await wrapper.findComponent(HashtagFollowButton).find('button').trigger('click')
+			await flushPromises()
+
+			expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/tags/nextcloud/follow')
+			expect(wrapper.findComponent(HashtagFollowButton).find('button').text()).toBe('Following')
+		})
+
+		it('has no hashtag to follow on any other timeline', async () => {
+			expect((await mountTags()).findComponent(HashtagFollowButton).exists()).toBe(true)
+
+			const wrapper = mountTimeline({ params: { type: 'federated' } })
+			await flushPromises()
+
+			expect(wrapper.findComponent(HashtagFollowButton).exists()).toBe(false)
+			expect(wrapper.findComponent(HashtagFollowedList).exists()).toBe(false)
+		})
+
+		// nothing behind these routes answers without a viewer
+		it('offers neither control to a reader who is not logged in', async () => {
+			makeStore({ public: true })
+			const wrapper = await mountTags()
+
+			expect(wrapper.find('.timeline-heading-row button').exists()).toBe(false)
+			expect(wrapper.find('.followed-hashtags').exists()).toBe(false)
+			expect(axios.get).not.toHaveBeenCalled()
+
+			makeStore({ public: false })
+			const loggedIn = await mountTags()
+
+			expect(loggedIn.find('.timeline-heading-row button').exists()).toBe(true)
+			expect(loggedIn.find('.followed-hashtags').exists()).toBe(true)
+		})
+
+		it('lists the hashtags the reader follows, each linking to its timeline', async () => {
+			answerWith(false, [tag('fediverse', true), tag('nextcloud', true)])
+			const wrapper = await mountTags()
+
+			await wrapper.find('.followed-hashtags__toggle').trigger('click')
+			await flushPromises()
+
+			const links = wrapper.findAllComponents(RouterLinkStub)
+			expect(links.map((link) => link.text())).toEqual(['#fediverse', '#nextcloud'])
+			expect(links[0].props('to')).toEqual({ name: 'tags', params: { tag: 'fediverse' } })
+		})
+
+		it('brings that list up to date when a hashtag is followed under it', async () => {
+			answerWith(false, [tag('fediverse', true)])
+			const wrapper = await mountTags()
+			await wrapper.find('.followed-hashtags__toggle').trigger('click')
+			await flushPromises()
+			answerWith(true, [tag('fediverse', true), tag('nextcloud', true)])
+
+			await wrapper.findComponent(HashtagFollowButton).find('button').trigger('click')
+			await flushPromises()
+
+			expect(wrapper.findAllComponents(RouterLinkStub).map((link) => link.text()))
+				.toEqual(['#fediverse', '#nextcloud'])
 		})
 	})
 })

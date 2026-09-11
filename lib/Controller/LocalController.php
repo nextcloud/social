@@ -760,6 +760,32 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * Replace the current user's bio — the text under the display name.
+	 *
+	 * Plain text, at most 500 characters; `AccountService::setSummary()`
+	 * flattens any markup and cuts what is over the limit, then federates the
+	 * change to the followers.
+	 *
+	 * @param string $summary the bio as plain text
+	 */
+	#[NoAdminRequired]
+	public function accountSummary(string $summary = ''): DataResponse {
+		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
+			$this->accountService->setSummary($this->userId, $summary);
+
+			$local = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->cacheActorService->getFromLocalAccount($local->getPreferredUsername());
+
+			return $this->success(['account' => $actor]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
 	#[NoAdminRequired]
 	public function currentFollowers(): DataResponse {
 		try {

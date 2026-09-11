@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.52  
+**App version:** 0.11.63  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -42,6 +42,7 @@ social/
 │   ├── Service/                # Business logic services
 │   ├── Settings/               # Admin settings (moderation panel: reports + Fediverse access list)
 │   ├── Tools/                  # Vendored helper layer (query builder base, HTML sanitizer, traits, exceptions)
+│   ├── UserMigration/          # Account export/import (`SocialMigrator`, the Nextcloud user-migration framework)
 │   ├── Traits/                 # TDetails
 │   └── WellKnown/              # WebFinger / NodeInfo / host-meta handler and responses
 ├── src/                        # Vue 3 frontend
@@ -93,8 +94,9 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_report` | Moderation reports, local and federated `Flag` activities, with a `resolved` flag |
 | `social_moderation` | The decision taken about an account: one row per silenced or suspended actor (`level`) |
 | `social_stream_card` | The link-preview card of a status (url, title, description, image, provider), one row per stream |
+| `social_followed_tag` | The hashtags an account follows: one row per (actor, lowercased tag), unique on the pair |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, and `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`.
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`, and `Version1000Date20260911000004` adds `social_followed_tag` (the hashtags an account follows, unique on (actor, tag) — which is also the index the home timeline reads).
 
 Two of those deserve a warning.
 
@@ -158,6 +160,27 @@ The business logic lives in `lib/Service/`.
 - **DocumentService** — Owns the cached document lifecycle: caching a remote document by id, serving originals and resized copies out of app storage, and caching the local actor's avatar and header. Serving applies a viewer bound: a cached attachment is handed to a logged-in user only if it hangs off a post they may read or is their own upload, and the unauthenticated `/media/{uuid}` route only for a row marked public
 - **CacheDocumentService** — Writes uploads, remote downloads and temp files into app storage, filters MIME types against an allow-list, and reads content back out. An upload is created non-public; it takes the visibility of the post it is attached to when that post is created (`ApiController::scopeMediaToVisibility()`, public for public and unlisted, non-public otherwise), because which post an upload belongs to is only known then
 - **BlurService** — Generates a blurhash string from a GD image
+
+**Posting a picture that is already in Nextcloud.** `ApiController::mediaFromFile()`
+(`POST /api/v1/media/from-file`) attaches a file out of the user's own storage,
+so the one thing this app should never ask of the person running it — download
+your own photo, then upload it back — is not required. The path is resolved
+through `IRootFolder::getUserFolder()` and checked against that folder again
+afterwards: the route names a file and returns its contents, which is the shape
+a mistake here would be exploited in, so the boundary is stated twice.
+
+The bytes are **copied, not referenced**. A post keeps the picture it was
+published with, so moving, renaming or deleting the original cannot empty a post
+that has already federated, and the attachment can take the post's visibility
+the way an upload does. The copy goes through a temp file into
+`saveFromTempToCache()`, which is the same code an upload takes — so the MIME
+allow-list, the size ceiling, the resizing and the blurhash cannot drift between
+the two ways a picture gets in. `ApiController::storeAttachment()` is the shared
+half that guarantees it.
+
+Note what this means for where the file lives afterwards: attachments are held
+in **appdata**, not in the user's file tree. A picture posted from Files has a
+copy in app storage; the original stays where it was, untouched.
 
 ### System
 
@@ -245,6 +268,8 @@ An activity that is understood but has no handler is still answered 200 (see bel
 | `Undo` (Follow, Like, Announce) | The wrapped relation or action is deleted |
 | `Like` | Stored as an action, notification generated |
 | `Announce` | Stored as a boost, notification generated — unless the announced object is one this instance holds and is not public, in which case the activity is dropped. A boost carries the *booster's* audience, so storing it would republish a followers-only post to everyone the booster reaches; the local boost path has always refused to create one |
+| `QuoteRequest` | Somebody asks to quote a local post. Answered with an `Accept` carrying the approval, or a `Reject`, according to the post's own policy — see **Quote posts** below |
+| `Accept` / `Reject` (QuoteRequest) | The answer to a request of ours: the approval is written onto the quoting post, or the quote is marked rejected |
 | `Move` | Actions, follows, streams and cached documents are repointed to the target actor — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused |
 
 **Moderation.** `social_moderation` holds what the *instance* has decided about an account, as against `social_actor_relation`, which holds what one of its users has. Two levels: `silence` keeps the account reachable for its followers and drops it from the public and global timelines (`StreamRequest::filterSilencedActors()`, a small NOT IN rather than a join, because a moderator acts rarely); `suspend` deletes the account's streams and cached actor and makes `ImportService::parseIncomingRequest()` refuse everything it sends afterwards — without that last part a suspension would undo itself the next time the account posted. Lifting removes the record; it cannot undo a deletion, and the admin panel says so before suspending.
@@ -262,6 +287,75 @@ An activity whose type this app does not implement is logged at `notice` with it
 `Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied.
 
 An incoming `Block` targeting a local user is remembered as a `blocked_by` relation and severs the follow relationship in both directions; `Undo{Block}` lifts it. A `Follow` from an actor the target has blocked is answered with a `Reject`.
+
+### Quote posts
+
+A quote is a post that embeds another post rather than linking to it, and the
+part that needs agreeing on is not the embedding — it is consent. FEP-044f, and
+Mastodon 4.5 with it, treats a quote as something the quoted author grants, and
+a quote without that grant renders as a bare link no matter what the quoting
+server says about it. So the feature is a handshake, and this app is on both
+ends of it.
+
+**Quoting.** `Status::import()` reads a client's `quote_id`, `PostService`
+stores it on the post as `quote`, and the post is published straight away — the
+author should not wait on somebody else's server. In the same step
+`requestQuoteApproval()` sends a `QuoteRequest` to the quoted author's inbox
+naming the quoting post as its `instrument`. Until an answer comes back the
+quote's state is `pending`; a failure to even send the request is logged and
+nothing more, because the post is already out.
+
+**Being quoted.** `QuoteRequestInterface::processIncomingRequest()` answers for
+local posts. The policy is `Stream::isQuotable()` — public and unlisted, yes;
+anything narrower, no — which is the same rule `PinService::pin()` and
+`BoostService::create()` apply, and for the same reason: a quote carries the
+audience of the quoter, so a narrower post would reach readers its author never
+addressed. It is also exactly what `interactionPolicy.canQuote` advertises on
+our posts, and the two have to agree, because Mastodon offers its users a quote
+button on the strength of the advertisement and shows them an error if the
+request is then refused. A `Yes` is an `Accept` whose `result` is the URI of the
+approval.
+
+**Quoting a post of our own.** Then this server is the authority the request
+would be addressed to, and there is nobody to ask: a `QuoteRequest` would be the
+instance delivering to its own inbox and waiting for its own answer.
+`PostService::applyQuote()` grants the approval on the spot instead — the post
+was already checked against the same policy — and stamps it onto the note before
+the wire object is snapshotted, so the first delivery already carries it.
+
+**What a client is told.** The `quote` entity's state is read from the approval,
+not from whether the quoted post happens to be in the database: `accepted` means
+the author said yes, `pending` means no answer yet. Holding the quoted post
+answers a different question — whether we *could* show it — and deriving the
+state from that reported every quote as accepted the moment it was written,
+including ones the author went on to refuse. An accepted quote whose post is
+missing here, or closed to this particular reader, is still `accepted`, with a
+null `quoted_status`; calling that `pending` would report the author as not
+having answered when they have.
+
+**The approval.** That URI is `<quoted post>/quote_authorizations/<stamp>`,
+where the stamp is the quoting post's id in base64url. Carrying the id rather
+than a digest of it is what lets the endpoint be stateless: a peer that
+dereferences the URI — Mastodon does, before it will render the quote inline —
+gets a `QuoteAuthorization` document built from the stamp and the post's current
+policy, with nothing stored in between. Deriving the stamp from the id also
+means a request redelivered twice is answered with the same URI both times
+instead of two approvals that disagree.
+
+Answering from the *current* policy is deliberate, and it is the only way a
+grant is taken back on this side. An author who narrows a post has withdrawn the
+permission, and a peer that re-checks the approval finds the endpoint no longer
+answering. Nothing pushes that news: statelessness has a price, and this is it —
+approvals granted are not recorded, so there is no list of who to tell. A peer
+that never re-checks goes on showing the quote. Withdrawal in the other
+direction does arrive promptly: a `Reject` for a quote that was previously
+accepted is applied as a revocation, the stamp comes off the stored wire object
+so later deliveries stop claiming an approval, and the client sees the quote's
+state as `revoked` rather than `rejected`.
+
+**On the wire.** `quote` is FEP-044f's name and what Mastodon 4.5 reads first;
+`quoteUrl` and `_misskey_quote` are emitted beside it for the servers that
+predate the FEP. `quoteAuthorization` carries the approval once there is one.
 
 ### Discovery
 
@@ -351,9 +445,92 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 
 ### Components
 
-`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+
+`ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
+(a file, or the address of one), the bio and the metadata fields. The banner
+buttons used to float over the picture on the owner's own profile, which put
+editing chrome on a page whose job is to show somebody. Applying a banner from a
+URL leaves the dialog open, because the bio and the fields may still be being
+edited.
+
+`Composer.vue` grows a second attach control beside the paperclip: the
+`@nextcloud/dialogs` file picker, so a picture already in the user's Nextcloud
+goes straight to `POST /api/v1/media/from-file` instead of being downloaded and
+uploaded back. Both sources fill the same attachment map and share one ceiling
+of eight, and with anything attached the preview grid moves above the text box —
+in the DOM, so the tab order follows the eye — and the box becomes a caption
+field. A picture with no alt text is marked as such on its own thumbnail, and a
+description is saved on leaving the field rather than only when the post goes
+out, so it survives a post that is never sent.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
+
+`QuotedPost.vue` renders a status's `quote`. Only an `accepted` quote whose
+`quoted_status` came back becomes a card; `pending`, `rejected`, `revoked` and
+an accepted quote the reader may not see each get a line saying which, because
+a quote that silently renders as nothing is indistinguishable from a bug. A
+quoted post that itself quotes something is not nested a second time — the
+component prints one line and stops, so no chain and no cycle can recurse.
+
+**The Photos view.** The sidebar's `Photos`, directly under Home, is the home
+timeline with `only_media` — the people you follow, but only what they showed
+rather than what they said. It is the same query and the same filters, one
+predicate narrower, so nothing about visibility, blocks, mutes or silencing is
+decided twice.
+
+**One column, one owner.** `--social-column` in `App.vue` is the width of the
+timeline — 900px — and every view that shows the same column reads it from
+there: the profile, the followers and follow-request lists, the blocked
+accounts, search, the welcome banner and the composer. They each used to carry
+their own `600px`, so widening the timeline alone would have made every other
+page snap back on navigation. (The OAuth consent card keeps its own narrow
+width; it is a dialog, not the column.) The list keeps `--social-column-gutter` inside that, so a
+post is narrower than the column by a gutter on each side; the composer takes the
+column whole and therefore stands that much proud of the posts beneath it, which
+is deliberate — the box you write in should read as the thing that makes them
+rather than as one of them. Both used to carry the same max-width independently
+while only one of them had a gutter, which is how they came to disagree.
+
+`TimelineList` owns its own layout and the views that render it do not touch
+it. That is not style: `.social__timeline` is a child component's **root**, and
+a scoped rule still reaches a child's root — so a view styling it lands beside
+the list's own rule at the same specificity and wins or loses on whatever order
+the bundle puts them in. `Timeline.vue` set `margin: 0` there, which beat the
+list's `margin: 0 auto` and left the timeline flush to one side while the
+composer beside it stayed centred. Where a view genuinely needs to shift the
+list — the reply spine in `TimelineSinglePost` — it says so through its own
+element (`.thread .social__timeline`), which wins on specificity rather than on
+luck.
+
+Every entry in the list has the same edges for the same reason. A notification
+is a card, because it is a thing that happened and the post inside it is quoted
+evidence; a boost is not, because it is somebody else's post with a line saying
+who passed it on. Giving a boost a card put a box inside a box and inset the
+post by the outer padding, so boosted posts were narrower than their neighbours.
+
+**Posts that are pictures.** A post carrying attachments and no content
+warning is laid out around them: `TimelinePost.vue`'s `mediaLeads` puts
+`PostAttachment` above the text, which then reads as a caption. A warning wins
+over that — its cover has to come before anything it covers — and so does edit
+mode, where the text is the thing being worked on. One or two pictures are a
+mosaic; from three (`CAROUSEL_FROM`) they become a `GalleryCarousel` paged with
+the arrow keys, Home and End, because eight thumbnails side by side are eight
+pictures in which nothing can be made out. The older thumbnail grid stays for
+every place the text still leads.
+
+`GalleryRatio.js` reserves each picture's box from `meta.original` before it
+loads, clamped between 3:4 and 16:9, so a photo timeline does not jump under the
+reader's thumb as images arrive; `MediaAttachment.vue` paints the `blurhash`
+into that box meanwhile. `GalleryMedia.vue` carries the ALT badge — the
+description is what the picture *is*, and a reader who cannot see it is not the
+only one who wants it — and sets the `alt` attribute from the same value.
+
+`HashtagFollowButton.vue` reads `/api/v1/tags/{tag}` on mount and whenever the
+route's tag changes, and takes its state from what the server answers rather
+than from what was asked, so a refused follow does not leave the button lying.
+It renders nothing on the public page, where there is no viewer to follow
+anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 
 ---
 
@@ -372,6 +549,7 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 | Dashboard | `SocialFederationHealthWidget` | `Application::register()` | Instances the outbound queue is failing to reach; conditional — admins only |
 | Unified Search | `UnifiedSearchProvider` | `Application::register()` | Searches URIs, accounts, hashtags and **status content** (case-insensitive substring over the statuses the viewer may see: own posts, public/unlisted, and what is addressed to them — the timeline viewer bound). Local hits link to the post page, remote hits to their origin. Honours the query's cursor and limit — each source is asked for one entry past the end of the page, and a further page is offered only when one of them supplied it. It used to advertise a next cursor unconditionally while reading neither, so "load more" served the first page for ever |
 | Notifications | `Notifier` | `Application::register()` | Prepares Social notifications for the NC notification system |
+| User migration | `UserMigration\SocialMigrator` | `Application::register()` | Puts the user's Social data in a Nextcloud account export, and reads it back on import. See "Account export and import" below |
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
@@ -394,6 +572,100 @@ the newest. A boost renders as the post it repeats, subtitled with who boosted
 it; a boost or notification whose subject did not resolve has no row.
 
 Seventeen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `ExtendedBase.php`, a shared base several of them extend; it calls no `setName()`, so it registers no command of its own. See `docs/OCC-Commands.md`.
+
+---
+
+## Account export and import
+
+`lib/UserMigration/SocialMigrator.php` implements the server's
+`OCP\UserMigration\IMigrator` (and `ISizeEstimationMigrator`), registered in
+`Application::register()`. It is what makes a user's Fediverse identity part of
+`occ user:export` / `occ user:import` and of the account-transfer UI; before it
+existed, an exported account carried nothing of this app at all.
+
+The migrator id is `social` and the export format version is `1`. Everything it
+writes lives under `social/` in the archive:
+
+| File | What it holds |
+|------|---------------|
+| `social/actor.json` | The actor: id, handle, display name, bio, profile fields, `locked`, `discoverable`, `indexable`, `bot`, `sensitive`, default privacy, language, avatar and header URLs, `alsoKnownAs`, `movedTo`, the **public** key and the creation date |
+| `social/following_accounts.csv` | Who the account follows, in Mastodon's `following_accounts.csv` shape (`Account address,Show boosts,Notify on new posts,Languages`) — written by `MigrationService::exportFollowsCsv()`, read by `MigrationService::parseFollowsCsv()`, and accepted by Mastodon's own "Import follows" |
+| `social/followers.csv` | Who follows the account, same shape. A record for the user; nothing imports it, because a follower is somebody else's decision |
+| `social/blocked_accounts.csv` | Blocked handles, one per line (the shape Mastodon exports) |
+| `social/muted_accounts.csv` | Muted handles with the `Hide notifications` column |
+| `social/bookmarks.csv` | The URLs of the bookmarked posts |
+| `social/likes.csv` | The URLs of the favourited posts |
+| `social/outbox.json` | The user's own posts as an ActivityPub `OrderedCollection`, written a page at a time through a temporary file so that an account with years of posts never has to fit in memory |
+
+Reads are paged everywhere (`SocialMigrator::PAGE`, 50 rows); the block and mute
+lists come from one capped query (`RELATIONS_LIMIT`, 5000), and reaching the cap
+is reported on the console rather than silently truncating. A follow whose
+account this server never cached is left out of the CSV instead of being written
+as a bare actor URL, which no reader of the format accepts.
+
+### What deliberately does not travel
+
+- **The actor's private key.** It is the only secret that lets anything speak as
+  that account, ActivityPub has no revocation for it, and the app encrypts it at
+  rest (`PrivateKeyCipher`, see Security above) precisely so that a copy of the
+  database is not enough to impersonate a local actor. An export archive is an
+  ordinary file the user downloads and keeps, so a plaintext key in it would
+  undo that — and for nothing: an account imported elsewhere is a *new* actor
+  with a new id, and `AccountService::createActor()` gives it a fresh pair.
+  Identity continuity is carried by `alsoKnownAs` plus a `Move` from the old
+  server (`MigrationService::move()`), which is why the import records the old
+  actor id as an alias. The public key is exported, because it is public and
+  says which actor this was.
+- **Other people's posts.** The local copies of remote statuses are a cache of
+  somebody else's content, re-fetched wherever they are needed.
+- **Moderation decisions taken against the account**, and reports. A suspension
+  deliberately outlives even the deletion of an actor (`PersonInterface::delete()`),
+  so it must not be something a user can shed by exporting and re-importing.
+- **Tokens, OAuth clients and client secrets**, and the outbound request queue.
+  A credential that survived a move would be one nobody can revoke.
+- **Media files.** Attachments are referenced by the URLs in `outbox.json`; the
+  cached files themselves are not copied into the archive.
+
+### What an import does
+
+An import is safe on a server where the account already exists: the actor is
+taken as found and only created when there is none
+(`AccountService::getActorFromUserId($uid, create: true)`), every write is
+idempotent, and nothing is ever deleted. A missing file is not a failure — an
+archive from an older version, or one assembled by hand, imports whatever it
+does carry, and an archive with no version for this migrator is skipped
+entirely (the migrator is not mandatory). An archive that carries a version but
+none of the files above — the export of a user who never used this app — creates
+no account either: a Fediverse identity is something a user asks for.
+
+- the profile — `locked`, `discoverable`/`indexable`, the fields and the bio —
+  goes back through `AccountService`, the same path the API uses. The **display
+  name** does not: it belongs to the Nextcloud account, the core `account`
+  migrator carries it, and `AccountService` re-derives the actor's name from it.
+- the old actor id is recorded in `alsoKnownAs`, so a `Move` from the old
+  account is accepted here. `movedTo` is **not** imported: it would point the
+  new account's own followers somewhere else.
+- the follows are re-created through the ordinary follow path
+  (`MigrationService::importFollows()`), one handle at a time, and a handle whose
+  server is unreachable is reported without stopping the rest.
+- blocks and mutes are written straight to the relation table. Resolving a
+  handle may fetch the remote actor (a signed GET), but no `Block` is federated:
+  the account on the other end was already blocked, and was never told about the
+  move.
+- bookmarks and favourites are re-marked on the posts this server already has.
+  A post nobody here has seen is skipped rather than fetched from its origin,
+  and a favourite is not re-federated as a `Like`.
+- the posts in `outbox.json` are **not** replayed into the timeline. Their ids
+  belong to the server they were written on, the threads around them are not
+  here, and minting new ids would either publish years of posts to the Fediverse
+  again or fill the timeline with statuses no remote server can resolve.
+  Mastodon's own import does not restore statuses either.
+
+So the only thing an import sends to other servers is a `Follow` per followed
+account — which is the only way a follow can exist at all — plus the single
+`Update{Person}` that any bio change sends to the account's followers, of which
+a freshly imported account has none. No `Delete`, no `Move`, no `Like`, no
+`Block`.
 
 ---
 

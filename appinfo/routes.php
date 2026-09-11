@@ -40,6 +40,9 @@ return [
 		['name' => 'ActivityPub#followers', 'url' => '/@{username}/followers', 'verb' => 'GET'],
 		['name' => 'ActivityPub#following', 'url' => '/@{username}/following', 'verb' => 'GET'],
 		['name' => 'ActivityPub#featured', 'url' => '/@{username}/collections/featured', 'verb' => 'GET'],
+		// before displayPost, whose {token} is a single segment and so would
+		// never match this, but the two belong next to each other
+		['name' => 'ActivityPub#displayQuoteAuthorization', 'url' => '/@{username}/{token}/quote_authorizations/{stamp}', 'verb' => 'GET'],
 		['name' => 'ActivityPub#displayPost', 'url' => '/@{username}/{token}', 'verb' => 'GET'],
 
 		['name' => 'OStatus#subscribe', 'url' => '/ostatus/follow/', 'verb' => 'GET'],
@@ -66,6 +69,14 @@ return [
 		['name' => 'Api#instanceV2', 'url' => '/api/v2/instance', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#trendTags', 'url' => '/api/v1/trends/tags', 'verb' => 'GET'],
+
+		// Following a hashtag. The two action routes are registered ahead of the
+		// lookup so that /api/v1/tags/foo/follow cannot be read as a tag named
+		// "foo/follow" if the lookup ever gains a `.+` requirement.
+		['name' => 'Tag#followedTags', 'url' => '/api/v1/followed_tags', 'verb' => 'GET'],
+		['name' => 'Tag#follow', 'url' => '/api/v1/tags/{hashtag}/follow', 'verb' => 'POST'],
+		['name' => 'Tag#unfollow', 'url' => '/api/v1/tags/{hashtag}/unfollow', 'verb' => 'POST'],
+		['name' => 'Tag#get', 'url' => '/api/v1/tags/{hashtag}', 'verb' => 'GET'],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#searchV2', 'url' => '/api/v2/search', 'verb' => 'GET'],
 		// Mastodon's own v1 search. This path used to be the app's web-UI search
@@ -82,6 +93,9 @@ return [
 		['name' => 'Api#tag', 'url' => '/api/v1/timelines/tag/{hashtag}', 'verb' => 'GET'],
 		['name' => 'Api#mediaNew', 'url' => '/api/v1/media', 'verb' => 'POST'],
 		['name' => 'Api#mediaNewV2', 'url' => '/api/v2/media', 'verb' => 'POST'],
+		// a Nextcloud extension, not a Mastodon route: attach a file the user
+		// already has here rather than making them download and re-upload it
+		['name' => 'Api#mediaFromFile', 'url' => '/api/v1/media/from-file', 'verb' => 'POST'],
 		['name' => 'Api#mediaGet', 'url' => '/api/v1/media/{nid}', 'verb' => 'GET'],
 		['name' => 'Api#mediaUpdate', 'url' => '/api/v1/media/{nid}', 'verb' => 'PUT'],
 		['name' => 'Api#mediaOpen', 'url' => '/media/{uuid}', 'verb' => 'GET'],
@@ -129,6 +143,7 @@ return [
 		['name' => 'Local#actionUnfollow', 'url' => '/api/v1/current/follow', 'verb' => 'DELETE'],
 		['name' => 'Local#currentInfo', 'url' => '/api/v1/current/info', 'verb' => 'GET'],
 		['name' => 'Local#accountFields', 'url' => '/api/v1/account/fields', 'verb' => 'PUT'],
+		['name' => 'Local#accountSummary', 'url' => '/api/v1/account/summary', 'verb' => 'PUT'],
 		['name' => 'Local#currentFollowers', 'url' => '/api/v1/current/followers', 'verb' => 'GET'],
 		['name' => 'Local#currentFollowing', 'url' => '/api/v1/current/following', 'verb' => 'GET'],
 		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/{username}/info', 'verb' => 'GET'],

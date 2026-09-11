@@ -283,7 +283,7 @@ export default {
 
 <style scoped lang="scss">
 	.social__search {
-		max-width: 600px;
+		max-width: var(--social-column);
 		margin: 0 auto;
 		padding: calc(var(--default-grid-baseline) * 2);
 	}

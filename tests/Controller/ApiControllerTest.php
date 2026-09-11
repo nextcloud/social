@@ -54,11 +54,15 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Files\File;
+use OCP\Files\Folder;
+use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IRequest;
+use OCP\ITempManager;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
@@ -116,16 +120,22 @@ class ApiControllerTest extends TestCase {
 	private $curlService;
 	private CacheDocumentsRequest|MockObject $cacheDocumentsRequest;
 	private ICacheFactory|MockObject $cacheFactory;
+	private IRootFolder|MockObject $rootFolder;
+	private ITempManager|MockObject $tempManager;
 	/** what a previous request with the same Idempotency-Key created, per test */
 	private array $idempotencyCache = [];
 
 	private array $filesBackup;
+	/** temporary files a test made, removed in tearDown */
+	private array $tempFiles = [];
 	/** the value getParam('_route') hands the controller, per test */
 	private string $route = '';
 	/** what passesCSRFCheck() reports, per test */
 	private bool $csrf = true;
 	/** the value getParam('description') hands the controller, per test */
 	private string $description = '';
+	/** the value getParam('path') hands the controller, per test */
+	private string $pathParam = '';
 	/** the request headers the controller under construction will see */
 	private array $headers = [];
 
@@ -141,10 +151,12 @@ class ApiControllerTest extends TestCase {
 		$this->csrf = true;
 		$this->request->method('passesCSRFCheck')->willReturnCallback(fn (): bool => $this->csrf);
 		$this->route = '';
+		$this->pathParam = '';
 		$this->request->method('getParam')->willReturnCallback(
 			fn (string $key, $default = null) => match ($key) {
 				'_route' => $this->route,
 				'description' => ($this->description === '') ? $default : $this->description,
+				'path' => ($this->pathParam === '') ? $default : $this->pathParam,
 				default => $default,
 			}
 		);
@@ -184,6 +196,8 @@ class ApiControllerTest extends TestCase {
 
 				return true;
 			});
+		$this->rootFolder = $this->createMock(IRootFolder::class);
+		$this->tempManager = $this->createMock(ITempManager::class);
 		$this->cacheFactory = $this->createMock(ICacheFactory::class);
 		$this->cacheFactory->method('createDistributed')->willReturn($cache);
 
@@ -196,6 +210,12 @@ class ApiControllerTest extends TestCase {
 
 	protected function tearDown(): void {
 		$_FILES = $this->filesBackup;
+		foreach ($this->tempFiles as $tmp) {
+			if (is_file($tmp)) {
+				unlink($tmp);
+			}
+		}
+		$this->tempFiles = [];
 		AP::$activityPub = null;
 		\OC::$server->reset();
 	}
@@ -241,7 +261,9 @@ class ApiControllerTest extends TestCase {
 			$this->configService,
 			$this->curlService,
 			$this->cacheDocumentsRequest,
-			$this->cacheFactory
+			$this->cacheFactory,
+			$this->rootFolder,
+			$this->tempManager
 		);
 	}
 
@@ -915,6 +937,25 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/**
+	 * `quote_id` is parsed off the body by `Status::import()`, but it only
+	 * becomes a quote if the controller carries it onto the `Post` — and a
+	 * client whose quote is dropped here is told the post succeeded, because
+	 * it did: it just quotes nothing.
+	 */
+	public function testStatusNewCarriesTheQuotedPostToThePost(): void {
+		$created = $this->postWith([
+			'status' => 'look at this',
+			'quote_id' => 'https://mastodon.social/users/bob/statuses/111',
+		]);
+
+		$this->assertSame('https://mastodon.social/users/bob/statuses/111', $created->getQuotedId());
+	}
+
+	public function testAStatusThatQuotesNothingCarriesNoQuote(): void {
+		$this->assertSame('', $this->postWith(['status' => 'just a post'])->getQuotedId());
+	}
+
+	/**
 	 * A status posted without a visibility used to become a direct message
 	 * addressed to nobody: the empty value fell through
 	 * `Stream::visibilityFromClient()` to `direct`, and a direct post with no
@@ -1320,6 +1361,33 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame($viewer->jsonSerialize(), $response->getData());
 	}
 
+	public function testUpdateCredentialsWritesTheBio(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['note' => 'Nextcloud, mostly.']);
+		$this->accountService->expects($this->once())->method('setSummary')
+			->with('alice', 'Nextcloud, mostly.');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsCanEmptyTheBioOnPurpose(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['note' => '']);
+		$this->accountService->expects($this->once())->method('setSummary')->with('alice', '');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsWithoutANoteLeavesTheBioAlone(): void {
+		// a client changing the display name says nothing about the bio, and
+		// must not wipe it on the way past
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['locked' => 'true']);
+		$this->accountService->expects($this->never())->method('setSummary');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
 	public function testUpdateCredentialsStoresProfileFields(): void {
 		$this->loggedInAs();
 		$this->request->method('getParams')->willReturn([
@@ -1517,22 +1585,28 @@ class ApiControllerTest extends TestCase {
 	// trends
 
 	public function testTrendTagsReturnsTagEntitiesForWhatIsTrending(): void {
+		// the entity is built by HashtagService, which the tag lookup and the
+		// follow answers use too — the shape is pinned in HashtagServiceTest;
+		// what belongs here is that each trending tag is asked for, for the
+		// window that was requested, and without a `following` this public
+		// route has nobody to answer for
 		$this->loggedInAs();
-		$this->urlGenerator->method('linkToRouteAbsolute')
-			->willReturnCallback(static fn (string $route, array $args): string => 'https://cloud.example/' . $args['path']);
 		$this->hashtagService->method('getTrending')->with(5, '1h')->willReturn([
 			['hashtag' => 'nextcloud', 'trend' => ['1h' => 12, '1d' => 40]],
 			['hashtag' => 'fediverse', 'trend' => ['1h' => 3]],
 		]);
+		$this->hashtagService->expects($this->exactly(2))->method('tagEntity')
+			->willReturnCallback(static function (string $name, ?bool $following, string $period): array {
+				self::assertNull($following, 'a public route knows no viewer to answer `following` for');
+				self::assertSame('1h', $period);
+
+				return ['name' => $name, 'url' => 'https://cloud.example/tags/' . $name, 'history' => []];
+			});
 
 		$tags = $this->controller()->trendTags(5, '1h')->getData();
 
 		$this->assertSame(['nextcloud', 'fediverse'], array_column($tags, 'name'));
 		$this->assertSame('https://cloud.example/tags/nextcloud', $tags[0]['url']);
-		// the count is the one for the window that was asked for
-		$this->assertSame('12', $tags[0]['history'][0]['uses']);
-		// this instance counts uses, not distinct accounts
-		$this->assertSame('0', $tags[0]['history'][0]['accounts']);
 	}
 
 	public function testTrendTagsCapsTheLimit(): void {
@@ -2393,6 +2467,206 @@ class ApiControllerTest extends TestCase {
 		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
 
 		$this->assertSame(['error' => 'missing details'], $this->controller()->mediaNew()->getData());
+	}
+
+	// mediaFromFile()
+
+	/**
+	 * The viewer's own files, with one readable file at $path.
+	 *
+	 * @param ?string $relative what getRelativePath() reports for the node —
+	 *                          null means the node resolved outside the folder
+	 */
+	private function userFolderHolding(
+		string $path, string $contents = 'PNGDATA', ?string $relative = 'Photos/beach.jpg',
+	): File {
+		$stream = fopen('php://memory', 'r+');
+		fwrite($stream, $contents);
+		rewind($stream);
+
+		$file = $this->createMock(File::class);
+		$file->method('getSize')->willReturn(strlen($contents));
+		$file->method('getPath')->willReturn('/alice/files/' . ltrim($path, '/'));
+		$file->method('fopen')->willReturn($stream);
+
+		$folder = $this->createMock(Folder::class);
+		$folder->method('get')->with($path)->willReturn($file);
+		$folder->method('getRelativePath')->willReturn($relative);
+		$this->rootFolder->method('getUserFolder')->with('alice')->willReturn($folder);
+
+		return $file;
+	}
+
+	/** A real temporary file, cleaned up after the test. */
+	private function temporaryFile(): string {
+		$tmp = tempnam(sys_get_temp_dir(), 'social-itest');
+		$this->tempManager->method('getTemporaryFile')->willReturn($tmp);
+		$this->tempFiles[] = $tmp;
+
+		return $tmp;
+	}
+
+	private function expectDocumentSaved(?string &$saved, ?string &$tmpSeen): void {
+		$this->cacheDocumentService->method('saveFromTempToCache')
+			->willReturnCallback(function (Document $document, string $tmpPath) use (&$saved, &$tmpSeen): void {
+				$saved = $document;
+				$tmpSeen = $tmpPath;
+			});
+		$interface = $this->createMock(IActivityPubInterface::class);
+		$interface->method('save');
+		AP::$activityPub = $this->createMock(AP::class);
+		AP::$activityPub->method('getInterfaceForItem')->willReturn($interface);
+	}
+
+	/**
+	 * The point of the route: the picture is already on this server, and the
+	 * bytes are copied into the app's own store rather than referenced, so a
+	 * post keeps what it was published with.
+	 */
+	public function testMediaFromFileAttachesTheViewersOwnFile(): void {
+		$this->loggedInAs();
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
+		$this->pathParam = '/Photos/beach.jpg';
+		$this->userFolderHolding('/Photos/beach.jpg');
+		$tmp = $this->temporaryFile();
+		$this->expectDocumentSaved($saved, $tmpSeen);
+
+		$response = $this->controller()->mediaFromFile();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertInstanceOf(MediaAttachment::class, $response->getData());
+		$this->assertSame($tmp, $tmpSeen, 'the file was not copied through a temporary file');
+		$this->assertSame('PNGDATA', file_get_contents($tmp), 'the bytes never reached the store');
+		$this->assertTrue($saved->isLocal());
+		// the same rule an upload follows: /media/{uuid} is unauthenticated and
+		// serves only what this flag allows, and a post sets it later
+		$this->assertFalse($saved->isPublic());
+		$this->assertSame('alice', $saved->getAccount());
+	}
+
+	public function testMediaFromFileCarriesTheAltText(): void {
+		$this->loggedInAs();
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
+		$this->pathParam = '/Photos/beach.jpg';
+		$this->description = 'The sea at dusk';
+		$this->userFolderHolding('/Photos/beach.jpg');
+		$this->temporaryFile();
+		$this->expectDocumentSaved($saved, $tmpSeen);
+
+		$this->controller()->mediaFromFile();
+
+		$this->assertSame('The sea at dusk', $saved->getDescription());
+	}
+
+	public function testMediaFromFileNeedsAPath(): void {
+		$this->loggedInAs();
+		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
+
+		$this->assertSame(['error' => 'no file named'], $this->controller()->mediaFromFile()->getData());
+	}
+
+	/**
+	 * The route names a file and returns its contents, so the boundary is the
+	 * whole of it: everything is resolved inside the viewer's own user folder.
+	 */
+	public function testMediaFromFileRefusesAPathOutsideTheViewersFiles(): void {
+		$this->loggedInAs();
+		$this->pathParam = '../../../../etc/passwd';
+		$folder = $this->createMock(Folder::class);
+		$folder->method('get')->willThrowException(new NotFoundException());
+		$this->rootFolder->method('getUserFolder')->with('alice')->willReturn($folder);
+		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
+
+		$this->assertSame(['error' => 'no such file'], $this->controller()->mediaFromFile()->getData());
+	}
+
+	/**
+	 * Belt and braces: even were a node to resolve outside the folder, it is
+	 * checked against it again before a byte is read.
+	 */
+	public function testMediaFromFileRefusesANodeThatResolvedOutsideTheFolder(): void {
+		$this->loggedInAs();
+		$this->pathParam = '/Photos/beach.jpg';
+		$this->userFolderHolding('/Photos/beach.jpg', 'PNGDATA', null);
+		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
+
+		$this->assertSame(['error' => 'no such file'], $this->controller()->mediaFromFile()->getData());
+	}
+
+	public function testMediaFromFileRefusesAFolder(): void {
+		$this->loggedInAs();
+		$this->pathParam = '/Photos';
+		$folder = $this->createMock(Folder::class);
+		$folder->method('get')->with('/Photos')->willReturn($this->createMock(Folder::class));
+		$this->rootFolder->method('getUserFolder')->with('alice')->willReturn($folder);
+		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
+
+		$this->assertSame(['error' => 'that is not a file'], $this->controller()->mediaFromFile()->getData());
+	}
+
+	/**
+	 * The ceiling an upload is held to, applied to the same bytes — and checked
+	 * before anything is read, because reading is what costs.
+	 */
+	public function testMediaFromFileRefusesAFileOverTheLimit(): void {
+		$this->loggedInAs();
+		$this->pathParam = '/Photos/huge.png';
+		$file = $this->createMock(File::class);
+		$file->method('getSize')->willReturn(11 * 1048576);
+		$file->method('getPath')->willReturn('/alice/files/Photos/huge.png');
+		$file->expects($this->never())->method('fopen');
+		$folder = $this->createMock(Folder::class);
+		$folder->method('get')->with('/Photos/huge.png')->willReturn($file);
+		$folder->method('getRelativePath')->willReturn('Photos/huge.png');
+		$this->rootFolder->method('getUserFolder')->with('alice')->willReturn($folder);
+		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
+
+		$this->assertSame(
+			['error' => 'file is larger than the 10MB limit'],
+			$this->controller()->mediaFromFile()->getData()
+		);
+	}
+
+	/**
+	 * The two ways a picture gets in share their storing half, and the things
+	 * that must not differ between them are the ones a mistake would be
+	 * invisible in: an attachment that arrived public would be readable over
+	 * the unauthenticated /media/{uuid} route before any post had said so.
+	 *
+	 * @dataProvider waysToAttachAPicture
+	 */
+	public function testEveryWayInStoresTheSameKindOfDocument(string $how): void {
+		$this->loggedInAs();
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
+
+		if ($how === 'upload') {
+			$tmp = tempnam(sys_get_temp_dir(), 'social-itest');
+			$this->tempFiles[] = $tmp;
+			$_FILES['file'] = ['tmp_name' => $tmp, 'size' => 10, 'type' => 'image/png', 'error' => UPLOAD_ERR_OK];
+		} else {
+			$this->pathParam = '/Photos/beach.jpg';
+			$this->userFolderHolding('/Photos/beach.jpg');
+			$this->temporaryFile();
+		}
+
+		$this->expectDocumentSaved($saved, $tmpSeen);
+
+		$response = ($how === 'upload')
+			? $this->controller()->mediaNew()
+			: $this->controller()->mediaFromFile();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertInstanceOf(MediaAttachment::class, $response->getData());
+		$this->assertTrue($saved->isLocal());
+		$this->assertFalse($saved->isPublic(), 'an attachment was public before a post said so');
+		$this->assertSame('alice', $saved->getAccount());
+		$this->assertNotSame('', $saved->getId(), 'the document was stored without an id');
+	}
+
+	/** @return iterable<string, array{string}> */
+	public function waysToAttachAPicture(): iterable {
+		yield 'uploaded from the device' => ['upload'];
+		yield 'picked out of Nextcloud Files' => ['from-file'];
 	}
 
 	public function testMediaNewStoresTheUploadAsANonPublicLocalDocument(): void {

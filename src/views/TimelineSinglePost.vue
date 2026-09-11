@@ -171,7 +171,13 @@ export default {
 	padding-bottom: 25%;
 }
 
-.social__timeline {
+/*
+ * The indent belongs to the thread, not to the list: `.social__timeline` is
+ * another component's root, and a scoped rule here lands on it beside the
+ * list's own layout with the same specificity, so which one wins depends on
+ * the order the bundle happens to put them in.
+ */
+.thread .social__timeline {
 	margin-left: 16px;
 }
 

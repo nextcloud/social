@@ -266,6 +266,19 @@ a.external_link {
 	--social-elevation-raised:
 		0 2px 4px color-mix(in srgb, var(--color-box-shadow) 20%, transparent),
 		0 6px 16px color-mix(in srgb, var(--color-box-shadow) 12%, transparent);
+
+	/*
+	 * One column, stated once. The composer and the timeline used to each
+	 * carry their own max-width — the same number, but the list also had a
+	 * horizontal padding and the composer did not, so the two boxes were a
+	 * gutter's width apart at both edges and nothing on the page lined up.
+	 * Anything that sits in the column is `--social-column` wide. The list
+	 * keeps a gutter inside that, so a post is narrower than the column by
+	 * `--social-column-gutter` on each side and the composer, which takes the
+	 * column whole, stands that much proud of the posts beneath it.
+	 */
+	--social-column: 900px;
+	--social-column-gutter: calc(var(--default-grid-baseline, 4px) * 2);
 }
 
 img.emoji {
@@ -277,7 +290,7 @@ img.emoji {
 .social__timeline {
 	.social__wrapper {
 		padding: 0;
-		max-width: 600px;
+		max-width: var(--social-column);
 		margin: 0 auto;
 	}
 
@@ -348,7 +361,7 @@ img.emoji {
 	border-radius: 8px;
 	margin: calc(var(--default-grid-baseline) * 4) auto;
 	padding: calc(var(--default-grid-baseline) * 5);
-	max-width: 600px;
+	max-width: var(--social-column);
 
 	h2 {
 		font-size: 22px;
@@ -368,7 +381,7 @@ img.emoji {
 	border-radius: 8px;
 	margin: calc(var(--default-grid-baseline) * 3) auto;
 	padding: calc(var(--default-grid-baseline) * 3);
-	max-width: 600px;
+	max-width: var(--social-column);
 	position: sticky;
 	top: 0;
 	z-index: 100;

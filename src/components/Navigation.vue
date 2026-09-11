@@ -96,9 +96,23 @@
 		</template>
 		<template #footer>
 			<div class="navigation__footer">
-				<NcAppNavigationSettings :name="t('social', 'Settings')">
+				<NcAppNavigationSettings :name="t('social', 'More')">
+					<NcAppNavigationItem v-for="item in menu.more"
+						:key="item.key"
+						:name="item.title"
+						:href="hrefFor(item.to)"
+						:active="isActive(item)"
+						@click="navigate(item.to, $event)">
+						<template #icon>
+							<component :is="item.icon" :size="20" />
+						</template>
+						<template v-if="item.counter > 0" #counter>
+							<NcCounterBubble :count="item.counter" type="highlighted" />
+						</template>
+					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('social', 'Blocked and muted accounts')"
 						:href="hrefFor({ name: 'blocked-accounts' })"
+						:active="isActive({ to: { name: 'blocked-accounts' } })"
 						@click="navigate({ name: 'blocked-accounts' }, $event)">
 						<template #icon>
 							<IconCancel :size="20" />
@@ -156,6 +170,7 @@ import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
 import { defineAsyncComponent } from 'vue'
 
 import IconHome from 'vue-material-design-icons/Home.vue'
+import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
@@ -264,6 +279,12 @@ export default {
 						to: { name: 'timeline' },
 					},
 					{
+						key: 'social-photos',
+						icon: IconImageMultiple,
+						title: t('social', 'Photos'),
+						to: { name: 'timeline', params: { type: 'photos' } },
+					},
+					{
 						key: 'social-notifications',
 						icon: IconBell,
 						title: t('social', 'Notifications'),
@@ -288,6 +309,13 @@ export default {
 						title: t('social', 'Global'),
 						to: { name: 'timeline', params: { type: 'federated' } },
 					},
+				],
+				// The sidebar's top level is for the timelines a reader moves
+				// between all day; these three are things they go looking for,
+				// and eight equal-weight entries made the first five harder to
+				// pick out. They keep their routes, their icons and their
+				// active state — only where they are drawn changes.
+				more: [
 					{
 						key: 'social-follow-requests',
 						icon: IconAccountClock,

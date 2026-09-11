@@ -56,6 +56,7 @@ class StreamRequest extends StreamRequestBuilder {
 		MiscService $miscService,
 		private ModerationRequest $moderationRequest,
 		private CacheDocumentService $cacheDocumentService,
+		private FollowedTagsRequest $followedTagsRequest,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 
@@ -517,7 +518,22 @@ class StreamRequest extends StreamRequestBuilder {
 	/**
 	 * Should return:
 	 *  * Own posts,
-	 *  * Followed accounts
+	 *  * Followed accounts,
+	 *  * Public posts carrying a hashtag the viewer follows
+	 *
+	 * Two pages of ids, not one query. A post belongs here because of its
+	 * author *or* because of its tags, and written as one query that is an OR
+	 * across two different joins: no index can serve both sides of it, so the
+	 * database falls back to reading the stream table. Each half on its own is
+	 * a query over one indexed column, which is the shape the rest of this
+	 * method depends on.
+	 *
+	 * Merging them here is exact rather than approximate. Both halves are
+	 * ordered and cut to the same limit, so anything that belongs in the top
+	 * `limit` of the union is in the top `limit` of the half it came from —
+	 * there can be at most `limit - 1` ids above it in the union, hence at
+	 * most that many in its own half. Sorting the two and cutting is therefore
+	 * the same page one query would have produced.
 	 *
 	 * @param ProbeOptions $options
 	 *
@@ -525,14 +541,121 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	private function getTimelineHome(ProbeOptions $options): array {
 		// which posts, decided over one column, then what they say
-		$page = $this->getStreamNidsSelectSql();
-		$this->homeTimelineFilters($page, $options);
-		$nids = $this->getNidsFromRequest($page);
+		$nids = $this->homeTimelineNids($options);
+
+		if ($this->followsAnyTag()) {
+			$nids = $this->mergeNidPages($nids, $this->followedTagNids($options), $options);
+		}
 
 		if ($nids === []) {
 			return [];
 		}
 
+		return $this->streamsByNids($nids, $options);
+	}
+
+	/**
+	 * Applies `only_media` when the caller asked for it.
+	 *
+	 * The option has been parsed off the request since the hashtag timeline
+	 * gained it and was never applied to a query, so `only_media=true` quietly
+	 * returned everything. Every timeline that can carry media runs it through
+	 * here, so the dedicated photo timeline and a client asking Mastodon's
+	 * question of any other list get the same answer.
+	 */
+	private function filterMedia(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		if ($options->isOnlyMedia()) {
+			$qb->limitToMedia();
+		}
+	}
+
+	/**
+	 * The page of the home timeline that the viewer's follows put there.
+	 *
+	 * @return int[]
+	 */
+	protected function homeTimelineNids(ProbeOptions $options): array {
+		$page = $this->getStreamNidsSelectSql();
+		$this->homeTimelineFilters($page, $options);
+
+		return $this->getNidsFromRequest($page);
+	}
+
+	/**
+	 * The page of the home timeline that the viewer's followed hashtags put
+	 * there: public posts carrying one of them.
+	 *
+	 * Public only — a followed hashtag is not a relationship with the author,
+	 * so it may not reach past what any stranger can read. Every other filter
+	 * the follows half applies holds here too: notifications are not posts,
+	 * the viewer's own boosts are not shown back to them, blocked and muted
+	 * accounts stay hidden, and a silenced account is out of the public square
+	 * this half reads from, exactly as it is out of the hashtag timeline.
+	 *
+	 * @return int[]
+	 */
+	protected function followedTagNids(ProbeOptions $options): array {
+		$page = $this->getStreamNidsSelectSql();
+
+		$page->filterType(SocialAppNotification::TYPE);
+		$page->paginate($options);
+		$this->filterMedia($page, $options);
+		$page->limitToFollowedTags('ft_st', 'ft');
+		$page->selectDestFollowing('ft_sd', '');
+		$page->innerJoinStreamDest('recipient', 'id_prim', 'ft_sd', 's');
+		$page->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'ft_sd');
+		$page->filterHiddenActors();
+		$page->filterDuplicate();
+		$this->filterSilencedActors($page);
+
+		return $this->getNidsFromRequest($page);
+	}
+
+	/**
+	 * Whether the second half is worth asking for at all.
+	 *
+	 * One count answered out of the `(actor_id_prim, hashtag)` index without
+	 * reading a row, and it is the whole cost of this feature to the accounts
+	 * that follow no tag — which is all of them until they say otherwise.
+	 */
+	private function followsAnyTag(): bool {
+		return $this->viewer !== null
+			&& $this->followedTagsRequest->countByActor($this->viewer->getId()) > 0;
+	}
+
+	/**
+	 * One page out of two, in the order the page is asked for, with nothing
+	 * twice: a post by somebody the viewer follows that also carries a tag
+	 * they follow is in both halves and is one post.
+	 *
+	 * @param int[] $first
+	 * @param int[] $second
+	 *
+	 * @return int[]
+	 */
+	private function mergeNidPages(array $first, array $second, ProbeOptions $options): array {
+		if ($second === []) {
+			return $first;
+		}
+
+		$nids = array_values(array_unique(array_merge($first, $second)));
+		if ($options->isInverted()) {
+			sort($nids);
+		} else {
+			rsort($nids);
+		}
+
+		return array_slice($nids, 0, $options->getLimit());
+	}
+
+	/**
+	 * The rows of a page that has already been decided, in its order.
+	 *
+	 * @param int[] $nids
+	 *
+	 * @return Stream[]
+	 */
+	protected function streamsByNids(array $nids, ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->andWhere(
 			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
@@ -556,6 +679,7 @@ class StreamRequest extends StreamRequestBuilder {
 	private function homeTimelineFilters(SocialQueryBuilder $qb, ProbeOptions $options): void {
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
+		$this->filterMedia($qb, $options);
 		$qb->limitToViewer('sd', 'f', false);
 		// a filter, not a join: it constrains on the follow's type
 		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
@@ -576,6 +700,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
+		$this->filterMedia($qb, $options);
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
@@ -602,6 +727,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->limitToStatusTypes();
 		$qb->paginate($options);
+		$this->filterMedia($qb, $options);
 
 		$actorId = $options->getAccountId();
 		if ($actorId === '') {
@@ -656,6 +782,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$viewer = $page->createNamedParameter($page->prim($page->getViewer()->getId()));
 		$page->limitToStatusTypes();
 		$page->paginate($options);
+		$this->filterMedia($page, $options);
 		$page->innerJoin(
 			's', CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
 			$page->expr()->andX(
@@ -700,6 +827,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->limitToStatusTypes();
 		$qb->paginate($options);
+		$this->filterMedia($qb, $options);
 
 		$expr = $qb->expr();
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -930,6 +1058,7 @@ class StreamRequest extends StreamRequestBuilder {
 	private function getTimelinePublic(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql();
 		$page->paginate($options);
+		$this->filterMedia($page, $options);
 
 		if ($options->isLocal()) {
 			$page->limitToLocal(true);

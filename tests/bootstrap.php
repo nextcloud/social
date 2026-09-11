@@ -63,6 +63,23 @@ if (!class_exists('OC\\User\\NoUserException', false)) {
 	class_alias(\OCA\Social\Tests\Helper\NoUserException::class, 'OC\\User\\NoUserException');
 }
 
+// Symfony's console output: every IMigrator method takes one, and
+// `symfony/console` is under `replace` in composer.json because the server
+// supplies it, so the standalone suite has no such interface to implement.
+if (!interface_exists('Symfony\\Component\\Console\\Output\\OutputInterface', false)) {
+	class_alias(
+		\OCA\Social\Tests\Helper\ConsoleOutputInterface::class,
+		'Symfony\\Component\\Console\\Output\\OutputInterface'
+	);
+}
+
+// `OCP\Files\IRootFolder` extends `OC\Hooks\Emitter`, which is server-private
+// and absent from the OCP stubs: without this the interface cannot be loaded at
+// all, so nothing that touches the user's files can even be mocked.
+if (!interface_exists('OC\\Hooks\\Emitter', false)) {
+	class_alias(\OCA\Social\Tests\Helper\HooksEmitter::class, 'OC\\Hooks\\Emitter');
+}
+
 // Util::addScript() constructs this one, so a settings page cannot be asked for
 // its form without it.
 if (!class_exists('OC\\AppScriptDependency', false)) {

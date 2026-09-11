@@ -799,4 +799,83 @@ class PersonTest extends TestCase {
 
 		$this->assertSame('https://new.example/users/alice', $person->getMovedTo());
 	}
+
+	// --- the bio -------------------------------------------------------
+
+	/** A local actor as `ActorsRequestBuilder::parseActorsSelectSql()` hands it over. */
+	private function localActorWithBio(string $storedBio): Person {
+		$person = $this->localActor();
+		// the order parseActorsSelectSql() uses: the row first, then the flag,
+		// because a local actor row has no `local` column to carry it
+		$person->importFromDatabase(['summary' => $storedBio]);
+		$person->setLocal(true);
+
+		return $person;
+	}
+
+	public function testALocalBioIsStoredAsPlainTextAndLeavesAsHtml(): void {
+		$person = $this->localActorWithBio('I keep bees & goats.');
+
+		$this->assertSame(
+			'<p>I keep bees &amp; goats.</p>',
+			$person->exportAsActivityPub()['summary'],
+			'summary is HTML on the wire, so an & of the stored text has to be escaped'
+		);
+		$account = $person->exportAsLocal();
+		$this->assertSame('<p>I keep bees &amp; goats.</p>', $account['note'], 'note is HTML, the client feeds it to v-html');
+		$this->assertSame(
+			'I keep bees & goats.',
+			$account['source']['note'],
+			'source.note is the plain text a client puts back in its edit box'
+		);
+	}
+
+	public function testALocalBioKeepsItsParagraphsAndLineBreaks(): void {
+		$person = $this->localActorWithBio("Beekeeper.\nGoatherd.\n\nHe/him");
+
+		$this->assertSame(
+			'<p>Beekeeper.<br />Goatherd.</p><p>He/him</p>',
+			$person->exportAsActivityPub()['summary']
+		);
+	}
+
+	public function testAnEmptyLocalBioIsNotSentAtAll(): void {
+		$person = $this->localActorWithBio('');
+
+		$this->assertArrayNotHasKey('summary', $person->exportAsActivityPub());
+		$this->assertSame('', $person->exportAsLocal()['note']);
+		$this->assertSame('', $person->exportAsLocal()['source']['note']);
+	}
+
+	public function testALocalBioSurvivesTheActorCacheWithoutBeingEscapedTwice(): void {
+		$person = $this->localActorWithBio('I keep bees & goats.');
+		// what ActorService::cacheLocalActor() stores: the rendered document in
+		// `source`, the plain text in the `summary` column, `local` set
+		$stored = json_encode($person->exportAsActivityPub());
+
+		$cached = new Person();
+		$cached->importFromDatabase([
+			'id' => 'https://cloud.example.org/apps/social/@alice',
+			'summary' => 'I keep bees & goats.',
+			'local' => 1,
+			'source' => $stored,
+		]);
+
+		$this->assertSame('<p>I keep bees &amp; goats.</p>', $cached->exportAsActivityPub()['summary']);
+		$this->assertSame('I keep bees & goats.', $cached->exportAsLocal()['source']['note']);
+	}
+
+	public function testARemoteBioIsPassedThroughAsTheHtmlItArrivedAs(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'summary' => '<p>I keep <b>bees</b>.</p>',
+		]);
+
+		$this->assertSame(
+			'<p>I keep <b>bees</b>.</p>',
+			$person->exportAsLocal()['note'],
+			'a remote bio already is HTML and was sanitized on import; it is never re-rendered'
+		);
+	}
 }

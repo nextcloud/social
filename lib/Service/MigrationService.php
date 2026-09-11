@@ -188,6 +188,39 @@ class MigrationService {
 	}
 
 	/**
+	 * The handles as a Mastodon `following_accounts.csv`: the header Mastodon
+	 * writes, then one row per handle.
+	 *
+	 * The column values are what a fresh Mastodon follow carries — boosts
+	 * shown, no notification, no language filter — because neither this app nor
+	 * the file format it is borrowing stores them per follow. What matters is
+	 * the shape: the file an export produces has to be one that Mastodon's own
+	 * "Import follows" accepts, and one that parseFollowsCsv() reads back.
+	 *
+	 * @param string[] $handles
+	 */
+	public static function exportFollowsCsv(array $handles): string {
+		// written by hand rather than with fputcsv(), which quotes a field
+		// containing a space and would put the header out in a shape no other
+		// implementation writes
+		$lines = ['Account address,Show boosts,Notify on new posts,Languages'];
+		foreach ($handles as $handle) {
+			$lines[] = self::csvCell($handle) . ',true,false,';
+		}
+
+		return implode("\n", $lines) . "\n";
+	}
+
+	/** A value as one CSV cell: quoted only where it has to be. */
+	private static function csvCell(string $value): string {
+		if (strpbrk($value, ",\"\r\n") === false) {
+			return $value;
+		}
+
+		return '"' . str_replace('"', '""', $value) . '"';
+	}
+
+	/**
 	 * The handles in a Mastodon `following_accounts.csv`.
 	 *
 	 * Current exports carry the header `Account address,Show boosts,Notify on

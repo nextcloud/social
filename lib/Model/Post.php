@@ -27,6 +27,12 @@ class Post implements JsonSerializable {
 	private Person $actor;
 	private array $to = [];
 	private string $replyTo = '';
+	/**
+	 * The post this one quotes, as whoever asked for it named it: the numeric
+	 * status id a Mastodon client sends as `quote_id`, or an ActivityPub URI.
+	 * `PostService::createPost()` resolves the one into the other.
+	 */
+	private string $quotedId = '';
 	private string $content = '';
 	private string $type = '';
 	private array $hashtags = [];
@@ -111,6 +117,16 @@ class Post implements JsonSerializable {
 	 */
 	public function setReplyTo(string $replyTo): Post {
 		$this->replyTo = $replyTo;
+
+		return $this;
+	}
+
+	public function getQuotedId(): string {
+		return $this->quotedId;
+	}
+
+	public function setQuotedId(string $quotedId): Post {
+		$this->quotedId = trim($quotedId);
 
 		return $this;
 	}

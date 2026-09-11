@@ -53,6 +53,13 @@ class AccountService {
 	private const HANDLE_MAX_LENGTH = 64;
 
 	/**
+	 * How long a bio may be, in characters. Mastodon's `note` is capped at 500
+	 * and truncates what a client sends beyond it; a longer one would be cut
+	 * on every server that shows it anyway.
+	 */
+	private const SUMMARY_MAX_LENGTH = 500;
+
+	/**
 	 * Age, in days, past which `blindKeyRotation()` would renew an actor's key pair.
 	 * The rotation is not currently scheduled; the constant exists so the method does
 	 * not fatal on an undefined constant if it is ever called.
@@ -388,6 +395,72 @@ class AccountService {
 		$actor->setFields($fields);
 		$this->actorsRequest->updateFields($actor);
 		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+	}
+
+	/**
+	 * Stores the bio of this user's actor, refreshes the actor cache so it
+	 * reaches the actor document and the account entity, and tells the
+	 * followers about it.
+	 *
+	 * A bio is kept as **plain text**: it is what the user typed, it is what
+	 * `source.note` has to hand back to a client that opens an edit box on it,
+	 * and it is the only form that cannot carry markup into a reader's
+	 * timeline. It is stored exactly as it was typed — every path that renders
+	 * it escapes it (`Person::bioAsHtml()` for `summary` on the wire and `note`
+	 * on the client API), so there is nothing left for a stripping pass here to
+	 * protect and a great deal for it to break: `strip_tags()` reads a bare
+	 * `<` as the start of a tag and eats the rest of the line, which turned
+	 * `Maths: a<b and b>c` into `Maths: ac`. What is stored is cut to
+	 * `SUMMARY_MAX_LENGTH` characters rather than refused, the way
+	 * `Person::setFields()` caps a field.
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function setSummary(string $userId, string $summary): void {
+		$actor = $this->getActorFromUserId($userId);
+		$actor->setSummary($this->plainSummary($summary));
+		$this->actorsRequest->updateSummary($actor);
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+		$this->federateActorUpdate($actor);
+	}
+
+	/** A bio as it is stored: as typed, normalised newlines, length-capped. */
+	private function plainSummary(string $summary): string {
+		$summary = trim(str_replace(["\r\n", "\r"], "\n", $summary));
+
+		if (mb_strlen($summary) > self::SUMMARY_MAX_LENGTH) {
+			$summary = rtrim(mb_substr($summary, 0, self::SUMMARY_MAX_LENGTH));
+		}
+
+		return $summary;
+	}
+
+	/**
+	 * Tells the followers that the actor document changed, with an
+	 * `Update{Person}` — the path `LocalController` already uses after a new
+	 * header image, signed here with the local actor's own key.
+	 *
+	 * A failure is logged and swallowed: the change is stored either way, and
+	 * a remote server picks it up when it next refreshes the actor.
+	 */
+	private function federateActorUpdate(Person $actor): void {
+		try {
+			$update = clone $actor;
+			$update->addInstancePath(
+				new InstancePath(
+					$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+				)
+			);
+			$this->activityService->updateActivity($actor, $update);
+		} catch (Exception $e) {
+			$this->logger->warning(
+				'could not tell the followers that a local actor changed',
+				['actor' => $actor->getId(), 'exception' => $e]
+			);
+		}
 	}
 
 	/**

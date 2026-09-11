@@ -26,9 +26,11 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\QuoteAuthorization;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -601,6 +603,55 @@ class ActivityPubController extends Controller {
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
+	}
+
+	/**
+	 * FEP-044f: the approval a quote of one of our posts rests on.
+	 *
+	 * A peer that received an `Accept` from us holds only the URI of the
+	 * approval; Mastodon fetches it and will not render the quote inline unless
+	 * what comes back names the same two posts and is attributed to the quoted
+	 * author. Nothing was stored when the `Accept` was sent, and nothing needs
+	 * to be: the stamp carries the quoting post's id, and the question the
+	 * document answers — may this be quoted? — is answered by the post's own
+	 * policy, which is where `QuoteRequestInterface` read it from too.
+	 *
+	 * Asking now rather than remembering the old answer is deliberate. A post
+	 * that has since been narrowed stops being quotable, this endpoint stops
+	 * answering, and a peer that re-checks sees the approval withdrawn — which
+	 * is the behaviour the author asked for when they narrowed it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function displayQuoteAuthorization(string $username, string $token, string $stamp): Response {
+		$quotedId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+
+		try {
+			$quoted = $this->streamService->getStreamById($quotedId);
+		} catch (StreamNotFoundException $e) {
+			return $this->fail($e, ['stream' => $quotedId], Http::STATUS_NOT_FOUND);
+		}
+
+		$quoting = QuoteRequestInterface::instrumentOfStamp($stamp);
+
+		// no viewer is set, so this is the anonymous view of the post: an
+		// approval is a public statement, and one for a post the asker cannot
+		// even read would be a way of confirming it exists
+		if ($quoting === '' || !$quoted->isLocal() || !$quoted->isQuotable()) {
+			return $this->fail(
+				new ItemUnknownException('no such quote authorization'),
+				['stream' => $quotedId],
+				Http::STATUS_NOT_FOUND
+			);
+		}
+
+		$authorization = new QuoteAuthorization();
+		$authorization->setId($quotedId . '/quote_authorizations/' . $stamp);
+		$authorization->setAttributedTo($quoted->getAttributedTo());
+		$authorization->setInteractingObject($quoting);
+		$authorization->setInteractionTarget($quotedId);
+
+		return $this->activityPubSuccess($authorization);
 	}
 
 	/**

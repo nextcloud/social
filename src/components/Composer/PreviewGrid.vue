@@ -11,21 +11,29 @@
 				<FileUpload :size="32" />
 			</div>
 
-			<div class="upload-progress__message">
-				{{ t('social', 'Uploading...') }}
+			<!-- a moving bar says nothing to a screen reader: the same fraction
+			     is on the element itself, so it is read rather than watched -->
+			<div class="upload-progress__message"
+				role="progressbar"
+				:aria-label="label"
+				aria-valuemin="0"
+				aria-valuemax="100"
+				:aria-valuenow="Math.round(uploadProgress * 100)">
+				{{ label }}
 
 				<div class="upload-progress__backdrop">
 					<div class="upload-progress__tracker" :style="`width: ${uploadProgress * 100}%`" />
 				</div>
 			</div>
 		</div>
-		<div class="preview-grid">
+		<div class="preview-grid" :class="{ 'preview-grid--single': count === 1 }">
 			<PreviewGridItem v-for="(item, randomKey) in miniatures"
 				:key="randomKey"
 				:preview="item"
 				:random-key="randomKey"
 				@delete="deletePreview"
-				@describe="$emit('describe', $event)" />
+				@describe="$emit('describe', $event)"
+				@commit-description="$emit('commitDescription', $event)" />
 		</div>
 	</div>
 </template>
@@ -41,11 +49,16 @@ export default {
 		PreviewGridItem,
 		FileUpload,
 	},
-	emits: ['deleted', 'describe'],
+	emits: ['deleted', 'describe', 'commitDescription'],
 	props: {
 		uploadProgress: {
 			type: Number,
 			required: true,
+		},
+		/** what the bar is working on; attaching from Files is not uploading */
+		progressLabel: {
+			type: String,
+			default: '',
 		},
 		uploading: {
 			type: Boolean,
@@ -55,6 +68,16 @@ export default {
 		miniatures: {
 			type: Object,
 			required: true,
+		},
+	},
+	computed: {
+		/** @return {number} how many pictures the post is carrying */
+		count() {
+			return Object.keys(this.miniatures).length
+		},
+		/** @return {string} */
+		label() {
+			return this.progressLabel || translate('social', 'Uploading…')
 		},
 	},
 	methods: {
@@ -107,5 +130,10 @@ export default {
 	flex-direction: row;
 	margin-left: -5px;
 	margin-right: -5px;
+}
+
+// one picture is the post, not a thumbnail of it
+.preview-grid--single :deep(.preview-item) {
+	height: 260px;
 }
 </style>

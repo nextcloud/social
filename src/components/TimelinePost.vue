@@ -36,9 +36,12 @@
 				<Pin :size="14" />
 				{{ t('social', 'Pinned') }}
 			</span>
+			<!-- the byline is 12px text; a 22px globe beside it read as the
+			     loudest thing in the row, and it is the least important -->
 			<VisibilityIcon v-if="visibility"
 				:title="visibility.text"
 				class="post-visibility"
+				:size="14"
 				:visibility="visibility.id" />
 		</div>
 		<div v-if="isEditing" class="post-edit-inline">
@@ -91,19 +94,44 @@
 				<MessageContent v-if="item.content" :item="item" />
 			</div>
 		</div>
+		<!--
+		  A post carrying pictures is read pictures first: they lead at the
+		  width of the card and the text reads as their caption. A warned post
+		  is not, because its cover has to come before anything it covers.
+		-->
+		<template v-else-if="mediaLeads">
+			<PostAttachment v-if="mediaRevealed"
+				media-first
+				:attachments="item.media_attachments || []" />
+			<div v-else class="post-sensitive post-sensitive--leading">
+				<NcButton variant="secondary"
+					@click="warningLifted = true">
+					<template #icon>
+						<EyeOff :size="20" />
+					</template>
+					{{ t('social', 'Show sensitive content') }}
+				</NcButton>
+			</div>
+			<div v-if="item.content" class="post-message post-message--caption">
+				<MessageContent :item="item" />
+			</div>
+		</template>
 		<div v-else-if="item.content" class="post-message">
 			<MessageContent :item="item" />
 		</div>
 		<template v-if="mediaRevealed">
+			<QuotedPost v-if="item.quote" :quote="item.quote" />
 			<Poll v-if="localPoll" :poll="localPoll" @update:poll="updatePoll" />
-			<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
+			<PostAttachment v-if="hasAttachments && !mediaLeads" :attachments="item.media_attachments || []" />
 			<PostCard v-if="showCard" :card="item.card" />
 		</template>
 		<!-- not when there is a content warning: that already renders a
 		     "Show more" for the very same flag, so a post with both offered
 		     two buttons for one reveal. No aria-expanded either — this
-		     control is gone the moment it would have to say "true". -->
-		<div v-else-if="!hasSpoiler" class="post-sensitive">
+		     control is gone the moment it would have to say "true". And not
+		     when the media leads, which shows this same reveal in the place
+		     the pictures will take. -->
+		<div v-else-if="!hasSpoiler && !mediaLeads" class="post-sensitive">
 			<NcButton variant="secondary"
 				@click="warningLifted = true">
 				<template #icon>
@@ -159,6 +187,12 @@
 				<RollingCount :count="item.favourites_count || 0" />
 			</div>
 			<NcActions>
+				<NcActionButton v-if="canQuote" @click="quote">
+					<template #icon>
+						<FormatQuoteClose :size="20" />
+					</template>
+					{{ t('social', 'Quote') }}
+				</NcActionButton>
 				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
 					icon="icon-rename"
 					@click="editPost">
@@ -247,6 +281,7 @@ import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
+import FormatQuoteClose from 'vue-material-design-icons/FormatQuoteClose.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError, showSuccess } from '@nextcloud/dialogs'
@@ -260,6 +295,7 @@ import { onTick } from '../services/clock.js'
 import { originOf } from '../utils/instanceIdentity.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
+import QuotedPost from './QuotedPost.vue'
 import RollingCount from './RollingCount.vue'
 import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
@@ -285,12 +321,14 @@ export default {
 		BookmarkOutline,
 		Pin,
 		PinOff,
+		FormatQuoteClose,
 		Repeat,
 		Reply,
 		Heart,
 		HeartOutline,
 		MessageContent,
 		Poll,
+		QuotedPost,
 		RollingCount,
 		DisplayName,
 		VisibilityIcon,
@@ -336,7 +374,11 @@ export default {
 		},
 		/** @return {boolean} anything a warning is supposed to cover */
 		hasMedia() {
-			return this.hasAttachments || this.localPoll !== null || this.showCard
+			return this.hasAttachments || this.localPoll !== null || this.showCard || this.hasQuote
+		},
+		/** @return {boolean} the post embeds another one, whatever came of it */
+		hasQuote() {
+			return Boolean(this.item.quote)
 		},
 		/**
 		 * @return {boolean} whether the media sits behind a reveal. A warning
@@ -349,6 +391,15 @@ export default {
 		/** @return {boolean} */
 		mediaRevealed() {
 			return !this.hasGatedMedia || this.warningLifted
+		},
+		/**
+		 * @return {boolean} whether the post is laid out around its pictures.
+		 * Not while it is being edited, where the text is the thing being
+		 * worked on, and not under a content warning, which owns the top of
+		 * the post until the reader lifts it.
+		 */
+		mediaLeads() {
+			return this.hasAttachments && !this.hasSpoiler && !this.isEditing
 		},
 		/** @return {number} how many characters the edit has left */
 		editCharsLeft() {
@@ -391,6 +442,15 @@ export default {
 			return this.item.account.acct === this.currentAccount?.acct
 				&& this.item.local !== false
 				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
+		},
+		/**
+		 * @return {boolean} whether this post may be quoted at all. A quote
+		 * carries the audience of the quoter, so the server grants one only for
+		 * a public or unlisted post — the same set a boost is allowed for — and
+		 * offering the action on anything narrower would be offering a refusal.
+		 */
+		canQuote() {
+			return this.item.visibility === 'public' || this.item.visibility === 'unlisted'
 		},
 		reportButtons() {
 			return [
@@ -569,6 +629,10 @@ export default {
 		reply() {
 			this.$store.commit('setComposerDisplayStatus', true)
 			eventBus.emit('composer-reply', this.item)
+		},
+		quote() {
+			this.$store.commit('setComposerDisplayStatus', true)
+			eventBus.emit('composer-quote', this.item)
 		},
 		async sendReport() {
 			try {
@@ -814,22 +878,44 @@ function nodeToPlainText(node) {
 			}
 		}
 
+		// The row is aligned on the text baseline, which is right for the name
+		// and the handle and wrong for anything that is an icon: an icon has no
+		// text baseline of its own, so flexbox hangs it from its bottom edge and
+		// it sits below the line it belongs on. These two carry icons, so they
+		// are centred on the line instead.
 		.post-visibility {
 			color: var(--color-text-lighter);
 			flex-shrink: 0;
+			align-self: center;
 		}
 
 		.post-pinned {
 			display: inline-flex;
 			align-items: center;
-			gap: 2px;
+			align-self: center;
+			gap: 4px;
 			flex-shrink: 0;
 			font-size: 12px;
-			font-weight: 600;
+			// the same weight as the rest of the byline: the pin already says
+			// this is a state, and a bold word beside grey text reads as the
+			// loudest thing in a row that is all supporting detail
+			font-weight: normal;
 			color: var(--color-text-lighter);
 		}
 
 		.post-timestamp {
+			// It opens the thread, so it stays a real button — reachable by
+			// keyboard and announced as one. What it must not keep is the
+			// chrome a bare <button> inherits from the server, which drew a
+			// filled box around four characters of grey byline.
+			background: none;
+			border: none;
+			border-radius: 0;
+			padding: 0;
+			margin: 0;
+			min-height: 0;
+			font-family: inherit;
+			font-weight: normal;
 			font-size: 12px;
 			text-align: right;
 			color: var(--color-text-lighter);
@@ -839,6 +925,15 @@ function nodeToPlainText(node) {
 
 			&:hover {
 				color: var(--color-primary-element);
+				background: none;
+			}
+
+			// the box was also the focus indicator; without one, a keyboard
+			// reader loses the only affordance for opening a thread
+			&:focus-visible {
+				outline: 2px solid var(--color-primary-element);
+				outline-offset: 2px;
+				border-radius: var(--border-radius-small, 4px);
 			}
 		}
 	}
@@ -1063,6 +1158,17 @@ function nodeToPlainText(node) {
 		margin-bottom: 8px;
 		font-weight: 600;
 	}
+}
+
+/* the text of a picture post is its caption: smaller, and nearer the picture */
+.post-message--caption {
+	margin-top: 2px;
+	font-size: 14.5px;
+	color: var(--color-main-text);
+}
+
+.post-sensitive--leading {
+	min-height: 180px;
 }
 
 .post-message--behind-warning {

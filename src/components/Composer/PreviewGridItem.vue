@@ -5,7 +5,9 @@
 <template>
 	<div class="preview-item-wrapper">
 		<div class="preview-item">
-			<MediaAttachment :attachment="preview.data" />
+			<!-- a refused attachment has no picture behind it, and the spinner
+			     MediaAttachment shows for `null` would never stop -->
+			<MediaAttachment v-if="!preview.failed" :attachment="preview.data" />
 
 			<div class="preview-item__actions">
 				<NcButton variant="tertiary-no-background" @click="$emit('delete', randomKey)">
@@ -17,21 +19,29 @@
 			</div>
 
 			<!-- a picture nobody described is a picture some readers never see -->
-			<span v-if="!described" class="preview-item__missing" aria-hidden="true">
+			<span v-if="!described && !preview.failed" class="preview-item__missing" aria-hidden="true">
 				{{ t('social', 'No description') }}
+			</span>
+
+			<!-- one attachment out of several can be refused, and the grid is
+			     the only place that can say which one -->
+			<span v-if="preview.failed" class="preview-item__failed" role="status">
+				{{ t('social', 'Could not be attached') }}
 			</span>
 		</div>
 
-		<label class="preview-item__label" :for="fieldId">
+		<label v-if="!preview.failed" class="preview-item__label" :for="fieldId">
 			{{ t('social', 'Describe this for people who cannot see it') }}
 		</label>
-		<textarea :id="fieldId"
+		<textarea v-if="!preview.failed"
+			:id="fieldId"
 			class="preview-item__description"
 			rows="2"
 			maxlength="1500"
 			:value="preview.description || ''"
 			:placeholder="t('social', 'A cat asleep on a keyboard')"
-			@input="$emit('describe', { key: randomKey, description: $event.target.value })" />
+			@input="$emit('describe', { key: randomKey, description: $event.target.value })"
+			@change="$emit('commitDescription', { key: randomKey, description: $event.target.value })" />
 	</div>
 </template>
 
@@ -48,7 +58,7 @@ export default {
 		NcButton,
 		MediaAttachment,
 	},
-	emits: ['delete', 'describe'],
+	emits: ['delete', 'describe', 'commitDescription'],
 	props: {
 		/** @type {import('vue').PropType<import('./Composer.vue').LocalAttachment>} */
 		preview: {
@@ -90,6 +100,18 @@ export default {
 	border-radius: var(--border-radius-pill);
 	background: var(--color-warning);
 	color: var(--color-warning-text, var(--color-main-text));
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.preview-item__failed {
+	position: absolute;
+	inset-inline-start: 8px;
+	inset-block-end: 8px;
+	padding: 2px 8px;
+	border-radius: var(--border-radius-pill);
+	background: var(--color-error);
+	color: var(--color-primary-element-text, white);
 	font-size: 12px;
 	font-weight: 600;
 }

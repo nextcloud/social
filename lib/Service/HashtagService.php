@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IURLGenerator;
 
 class HashtagService {
 	/** the windows the cron counts, and the one asked for when none is named */
@@ -43,11 +44,14 @@ class HashtagService {
 	 *
 	 * @param HashtagsRequest $hashtagsRequest
 	 * @param StreamRequest $streamRequest
+	 * @param IURLGenerator $urlGenerator
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		HashtagsRequest $hashtagsRequest, StreamRequest $streamRequest,
+		HashtagsRequest $hashtagsRequest,
+		StreamRequest $streamRequest,
+		private IURLGenerator $urlGenerator,
 		ConfigService $configService,
 		MiscService $miscService,
 	) {
@@ -131,11 +135,71 @@ class HashtagService {
 	 * @throws HashtagDoesNotExistException
 	 */
 	public function getHashtag(string $hashtag): array {
-		if (substr($hashtag, 0, 1) !== '#') {
-			$hashtag = '#' . $hashtag;
+		// stored without it: the tags come from social_stream_tag, and
+		// Note::fillHashtags() strips the '#' before either table sees one.
+		// Adding it back here meant this lookup could never match, so the
+		// exact-match half of a hashtag search always came up empty.
+		return $this->hashtagsRequest->getHashtag(ltrim(trim($hashtag), '#'));
+	}
+
+	/**
+	 * One hashtag as Mastodon's `Tag` entity: `name`, `url`, `history`, and
+	 * `following` when there is somebody to answer that for.
+	 *
+	 * The single place this shape is built, so that the trends list, the tag
+	 * lookup and the follow/unfollow answers cannot drift apart — a client
+	 * that gets a `Tag` without `history` from one route and with it from
+	 * another has to special-case this server.
+	 *
+	 * `history` carries one bucket, for the window that was asked for, and its
+	 * `accounts` is always `0`: this instance counts uses, not distinct
+	 * accounts. A hashtag nobody has posted has no bucket at all rather than a
+	 * zero, because a zero is a claim about a day and this is the absence of
+	 * one.
+	 *
+	 * @param string $hashtag with no leading '#', as the tables store it
+	 * @param bool|null $following null leaves the key out, for a route with no
+	 *                             viewer to answer it for
+	 */
+	public function tagEntity(
+		string $hashtag, ?bool $following = null, string $period = self::PERIOD_DEFAULT,
+	): array {
+		$tag = [
+			'name' => $hashtag,
+			'url' => $this->urlGenerator->linkToRouteAbsolute(
+				'social.Navigation.timeline', ['path' => 'tags/' . $hashtag]
+			),
+			'history' => $this->tagHistory($hashtag, $period),
+		];
+
+		if ($following !== null) {
+			$tag['following'] = $following;
 		}
 
-		return $this->hashtagsRequest->getHashtag($hashtag);
+		return $tag;
+	}
+
+	/**
+	 * The `history` of a Tag entity: one bucket for one window, or none.
+	 */
+	private function tagHistory(string $hashtag, string $period): array {
+		if (!in_array($period, self::PERIODS, true)) {
+			$period = self::PERIOD_DEFAULT;
+		}
+
+		try {
+			$known = $this->hashtagsRequest->getHashtag($hashtag);
+		} catch (HashtagDoesNotExistException $e) {
+			return [];
+		}
+
+		return [
+			[
+				'day' => (string)strtotime('today midnight'),
+				'uses' => (string)(int)($this->getArray('trend', $known, [])[$period] ?? 0),
+				'accounts' => '0',
+			]
+		];
 	}
 
 	/**

@@ -32,11 +32,18 @@
 
 		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :default-visibility="type === 'direct' ? 'direct' : undefined" />
 
-		<!-- the page had no heading at all outside tags and notifications, so
-		     there was nothing to land on and nothing to say where you were -->
-		<h1 class="timeline-heading" :class="{ 'hidden-visually': !headingIsVisible }">
-			{{ heading }}
-		</h1>
+		<div class="timeline-heading-row">
+			<!-- the page had no heading at all outside tags and notifications, so
+			     there was nothing to land on and nothing to say where you were -->
+			<h1 class="timeline-heading" :class="{ 'hidden-visually': !headingIsVisible }">
+				{{ heading }}
+			</h1>
+			<HashtagFollowButton v-if="type === 'tags'"
+				:tag="$route.params.tag"
+				@changed="onHashtagFollowChanged" />
+		</div>
+
+		<HashtagFollowedList v-if="type === 'tags'" ref="followedHashtags" />
 
 		<TimelineList :type="type" />
 
@@ -50,6 +57,8 @@ import { defineAsyncComponent } from 'vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import TimelineList from './../components/TimelineList.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
+import HashtagFollowButton from './../components/HashtagFollowButton.vue'
+import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import eventBus from './../services/eventBus.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
@@ -59,6 +68,8 @@ export default {
 	components: {
 		Composer,
 		FirstPostCelebration,
+		HashtagFollowButton,
+		HashtagFollowedList,
 		TimelineList,
 	},
 	mixins: [
@@ -76,6 +87,8 @@ export default {
 			switch (this.type) {
 			case 'tags':
 				return '#' + this.$route.params.tag
+			case 'photos':
+				return t('social', 'Photos')
 			case 'notifications':
 				return t('social', 'Notifications')
 			case 'direct':
@@ -100,7 +113,9 @@ export default {
 		 * the view for a screen reader without changing what anyone sees.
 		 */
 		headingIsVisible() {
-			return this.type === 'tags' || this.type === 'notifications'
+			// Photos is a view of its own rather than a filter of a list you
+			// were already on, so it says which one you are looking at
+			return this.type === 'tags' || this.type === 'notifications' || this.type === 'photos'
 		},
 		/** @return {string} what identifies this timeline, params included */
 		timelineKey() {
@@ -174,6 +189,10 @@ export default {
 		onPostPublished() {
 			this.$store.dispatch('celebrateFirstPost')
 		},
+		/** The list of followed hashtags is stale the moment one is followed. */
+		onHashtagFollowChanged() {
+			this.$refs.followedHashtags?.refresh()
+		},
 		endCelebration() {
 			this.$store.dispatch('endFirstPostCelebration')
 		},
@@ -185,14 +204,26 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/*
+ * The column, and nothing about what is in it. `.social__timeline` is another
+ * component's root element, and a scoped style still reaches a child's root —
+ * so a rule here lands on it with the same specificity as the list's own and
+ * wins or loses on bundle order. This view used to set `margin: 0` on it, which
+ * beat the list's own `margin: 0 auto` and left the timeline flush to one side
+ * while the composer beside it stayed centred.
+ */
 .social__wrapper {
-	max-width: 600px;
+	max-width: var(--social-column);
 	margin: 0 auto;
 	padding: 0;
 }
 
-.social__timeline {
-	margin: 0;
+.timeline-heading-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: calc(var(--default-grid-baseline) * 2);
+	margin-inline-end: calc(var(--default-grid-baseline) * 2);
 }
 
 .timeline-heading {

@@ -17,6 +17,7 @@ use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Interfaces\Activity\MoveInterface;
+use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
@@ -42,6 +43,7 @@ use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Move;
+use OCA\Social\Model\ActivityPub\Activity\QuoteRequest;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -118,6 +120,7 @@ class AP {
 	public ServiceInterface $serviceInterface;
 	public UndoInterface $undoInterface;
 	public UpdateInterface $updateInterface;
+	public QuoteRequestInterface $quoteRequestInterface;
 	public SocialAppNotificationInterface $notificationInterface;
 	public ConfigService $configService;
 	public static ?AP $activityPub = null;
@@ -146,6 +149,7 @@ class AP {
 		RemoveInterface $removeInterface,
 		UndoInterface $undoInterface,
 		UpdateInterface $updateInterface,
+		QuoteRequestInterface $quoteRequestInterface,
 		ConfigService $configService,
 	) {
 		$this->acceptInterface = $acceptInterface;
@@ -171,6 +175,7 @@ class AP {
 		$this->removeInterface = $removeInterface;
 		$this->undoInterface = $undoInterface;
 		$this->updateInterface = $updateInterface;
+		$this->quoteRequestInterface = $quoteRequestInterface;
 		$this->configService = $configService;
 	}
 
@@ -343,6 +348,10 @@ class AP {
 				$item = new Question();
 				break;
 
+			case QuoteRequest::TYPE:
+				$item = new QuoteRequest();
+				break;
+
 			case OrderedCollection::TYPE:
 				$item = new OrderedCollection();
 				break;
@@ -470,6 +479,8 @@ class AP {
 				return $this->undoInterface;
 			case Update::TYPE:
 				return $this->updateInterface;
+			case QuoteRequest::TYPE:
+				return $this->quoteRequestInterface;
 			default:
 				// an item built elsewhere than getSimpleItemFromData() can still
 				// carry the wire type; it is handled as the Note it was modelled as

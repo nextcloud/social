@@ -471,6 +471,84 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
+	 * Limit to posts that carry at least one attachment.
+	 *
+	 * `attachments` is the JSON list the post was stored with, and "no media"
+	 * has three spellings in it — NULL for a row written before the column
+	 * existed, `''` and `'[]'` — so all three are excluded rather than the one
+	 * that happens to be commonest. Plain string comparison, not a JSON
+	 * function: the same predicate has to run on MySQL, PostgreSQL and SQLite.
+	 */
+	public function limitToMedia(): self {
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->andWhere($expr->isNotNull($pf . '.attachments'));
+		$this->andWhere($expr->neq($pf . '.attachments', $this->createNamedParameter('')));
+		$this->andWhere($expr->neq($pf . '.attachments', $this->createNamedParameter('[]')));
+
+		return $this;
+	}
+
+	/**
+	 * Limit to posts carrying a hashtag the viewer follows.
+	 *
+	 * Two inner joins: the post's tags, and the ones this account follows. It
+	 * says nothing about *visibility* — a followed hashtag is not a
+	 * relationship with the author — so the caller adds that; see
+	 * `StreamRequest::followedTagNids()`, which limits to public.
+	 *
+	 * The stored tag is lowered rather than the followed one, because
+	 * `social_stream_tag` holds the tag as it was written (`#NextCloud` stays
+	 * `NextCloud`) while a followed tag is stored normalised — see
+	 * `FollowedTagsRequest::normalise()`. It is the same comparison
+	 * `getTimelineHashtag()` makes on the same column, which is what keeps
+	 * "posts tagged #x" and "I follow #x" meaning one thing.
+	 *
+	 * That `LOWER()` is also why the join is not driven from the followed tags:
+	 * no index can answer it from that side. Driven from the stream, which is
+	 * what the `nid` ordering and the page limit ask for anyway, each candidate
+	 * post looks its own tags up through `social_stream_tag`'s
+	 * `(stream_id, hashtag)` unique index and the account's tags come out of
+	 * `social_followed_tag`'s `(actor_id_prim, hashtag)` index.
+	 *
+	 * A post carrying two followed tags matches twice; the caller selects
+	 * DISTINCT over the one column it pages by, which is the cheap place to
+	 * fold that back into one row.
+	 *
+	 * No viewer, no followed tags, and this adds nothing — which would leave
+	 * an unconstrained query, so callers must only use it with a viewer.
+	 */
+	public function limitToFollowedTags(string $aliasTags = 'ft_st', string $aliasFollowed = 'ft'): self {
+		if (!$this->hasViewer()) {
+			return $this;
+		}
+
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->innerJoin(
+			$pf, CoreRequestBuilder::TABLE_STREAM_TAGS, $aliasTags,
+			$expr->eq($aliasTags . '.stream_id', $pf . '.id_prim')
+		);
+		$this->innerJoin(
+			$aliasTags, CoreRequestBuilder::TABLE_FOLLOWED_TAGS, $aliasFollowed,
+			$expr->andX(
+				$expr->eq(
+					$aliasFollowed . '.actor_id_prim',
+					$this->createNamedParameter($this->prim($this->getViewer()->getId()))
+				),
+				$expr->eq(
+					$aliasFollowed . '.hashtag',
+					$this->func()->lower($aliasTags . '.hashtag')
+				)
+			)
+		);
+
+		return $this;
+	}
+
+	/**
 	 * Hide streams involving actors the viewer has blocked or muted (and actors who
 	 * blocked the viewer). One LEFT JOIN anti-join against social_actor_relation,
 	 * on the row's author and — for boosts — the boosted post's author. Levels:

@@ -79,6 +79,45 @@ describe('PreviewGrid', () => {
 		expect(wrapper.find('.upload-progress__tracker').attributes('style')).toBe('width: 25%;')
 	})
 
+	it('names what the bar is working on, and says how far it has got out loud', () => {
+		// attaching a file the reader already has is not an upload, and a
+		// moving bar tells a screen reader nothing on its own
+		const wrapper = mountGrid({}, { uploading: true, uploadProgress: 0.5, progressLabel: 'Attaching from Files…' })
+
+		const bar = wrapper.find('[role="progressbar"]')
+		expect(bar.text()).toContain('Attaching from Files…')
+		expect(bar.attributes('aria-valuenow')).toBe('50')
+		expect(bar.attributes('aria-label')).toBe('Attaching from Files…')
+	})
+
+	it('falls back to the upload wording when no label was given', () => {
+		const wrapper = mountGrid({}, { uploading: true, uploadProgress: 0 })
+		expect(wrapper.find('[role="progressbar"]').text()).toContain('Uploading…')
+	})
+
+	it('gives a single picture the room a post built around it needs', async () => {
+		const wrapper = mountGrid({ 'blob:one': { file: file('one.png'), data: media('m1') } })
+		expect(wrapper.find('.preview-grid').classes()).toContain('preview-grid--single')
+
+		await wrapper.setProps({
+			miniatures: {
+				'blob:one': { file: file('one.png'), data: media('m1') },
+				'blob:two': { file: file('two.png'), data: media('m2') },
+			},
+		})
+		expect(wrapper.find('.preview-grid').classes()).not.toContain('preview-grid--single')
+	})
+
+	it('passes a description on to be saved when an item commits one', async () => {
+		const wrapper = mountGrid({ 'blob:one': { file: file('one.png'), data: media('m1') } })
+
+		const field = wrapper.find('.preview-item__description')
+		field.element.value = 'a beach'
+		await field.trigger('change')
+
+		expect(wrapper.emitted('commitDescription')).toEqual([[{ key: 'blob:one', description: 'a beach' }]])
+	})
+
 	it('re-emits an item removal as "deleted" with the attachment key', async () => {
 		const wrapper = mountGrid({
 			'blob:one': { file: file('one.png'), data: media('m1') },

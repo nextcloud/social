@@ -20,6 +20,28 @@ describe('VisibilityIcon', () => {
 		expect(icons[0].classes()).toContain(iconClass)
 	})
 
+	// the rendered <svg width> is what "how big is the globe" means
+	const iconSize = (wrapper) => wrapper.find('svg').attributes('width')
+
+	it('draws the icon at the size it is asked for', () => {
+		expect(iconSize(mount(VisibilityIcon, { props: { visibility: 'public', size: 16 } }))).toBe('16')
+	})
+
+	/**
+	 * The size used to be hard-coded, so every caller that passed one was
+	 * quietly ignored — `VisibilitySelect` had been asking for 20 and getting
+	 * 22 for as long as it had been asking.
+	 */
+	it('honours a size from every visibility, not just the public one', () => {
+		for (const visibility of ['public', 'unlisted', 'followers', 'direct', 'secret']) {
+			expect(iconSize(mount(VisibilityIcon, { props: { visibility, size: 14 } }))).toBe('14')
+		}
+	})
+
+	it('falls back to a size of its own when asked for none', () => {
+		expect(iconSize(mount(VisibilityIcon, { props: { visibility: 'public' } }))).toBe('22')
+	})
+
 	it('says it does not recognise an unknown visibility', () => {
 		const wrapper = mount(VisibilityIcon, { props: { visibility: 'secret' } })
 

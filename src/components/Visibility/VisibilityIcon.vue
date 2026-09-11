@@ -3,13 +3,13 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<Earth v-if="visibility === 'public'" :size="22" />
-	<AccountMultiple v-else-if="visibility === 'followers'" :size="22" />
-	<LockOpen v-else-if="visibility === 'unlisted'" :size="22" />
-	<At v-else-if="visibility === 'direct'" :size="22" />
+	<Earth v-if="visibility === 'public'" :size="size" />
+	<AccountMultiple v-else-if="visibility === 'followers'" :size="size" />
+	<LockOpen v-else-if="visibility === 'unlisted'" :size="size" />
+	<At v-else-if="visibility === 'direct'" :size="size" />
 	<!-- a visibility this client does not know is still a visibility: showing
 	     nothing at all reads as "public", which may be exactly wrong -->
-	<HelpCircleOutline v-else :size="22" />
+	<HelpCircleOutline v-else :size="size" />
 </template>
 <script>
 import Earth from 'vue-material-design-icons/Earth.vue'
@@ -31,6 +31,15 @@ export default {
 		visibility: {
 			type: String,
 			required: true,
+		},
+		/**
+		 * The size was fixed at 22 and the prop did not exist, so
+		 * `VisibilitySelect` had been asking for 20 and silently getting 22
+		 * for as long as it has been asking.
+		 */
+		size: {
+			type: Number,
+			default: 22,
 		},
 	},
 	data() {

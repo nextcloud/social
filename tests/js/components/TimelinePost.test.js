@@ -108,6 +108,23 @@ const mountPost = ({
 	return { wrapper, item, $store, $router }
 }
 
+// the media-first layout is about order: the picture leads and the text reads
+// as its caption underneath
+const isBefore = (first, second) =>
+	Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+const photo = (index = 1) => ({
+	id: `m${index}`,
+	type: 'image',
+	url: `https://cloud.example.org/m${index}.jpg`,
+	preview_url: `https://cloud.example.org/m${index}-small.jpg`,
+	description: `Picture ${index}`,
+	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+	meta: { original: { width: 1600, height: 1200 } },
+})
+
+const attachmentsOf = (wrapper) => wrapper.findComponent({ name: 'PostAttachment' })
+
 const actionButton = (wrapper, label) => wrapper.find(`.post-actions button[aria-label="${label}"]`)
 const menuItem = (wrapper, label) => wrapper.findAll('.post-menu__item').find((button) => button.text() === label)
 
@@ -136,6 +153,24 @@ describe('TimelinePost', () => {
 			const icon = wrapper.find('.post-visibility')
 			expect(icon.classes()).toContain('account-multiple-icon')
 			expect(icon.find('title').text()).toBe('Followers')
+		})
+
+		/**
+		 * The byline is 12px text. A 22px globe beside it was the loudest thing
+		 * in the row and is the least important thing in it.
+		 */
+		it('draws the visibility icon no larger than the byline it sits in', () => {
+			const { wrapper } = mountPost()
+			expect(wrapper.find('.post-visibility svg').attributes('width')).toBe('14')
+		})
+
+		/** two icons on one line at two different sizes read as a mistake */
+		it('draws both byline icons at the same size', () => {
+			const { wrapper } = mountPost({ item: makeItem({ pinned: true }) })
+			const globe = wrapper.find('.post-visibility svg').attributes('width')
+			const pin = wrapper.find('.post-pinned svg').attributes('width')
+
+			expect(pin).toBe(globe)
 		})
 
 		it('exposes the creation time on the timestamp', () => {
@@ -302,6 +337,106 @@ describe('TimelinePost', () => {
 
 			expect(wrapper.find('.post-sensitive').exists()).toBe(false)
 			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(true)
+		})
+	})
+
+	describe('quoting', () => {
+		const quotedStatus = (overrides = {}) => ({
+			id: '77',
+			url: 'https://remote.example/@bob/77',
+			content: '<p>The post being quoted</p>',
+			visibility: 'public',
+			mentions: [],
+			tags: [],
+			emojis: [],
+			account: bob,
+			quote: null,
+			...overrides,
+		})
+		const quoting = (quote) => makeItem({ quote })
+
+		it('shows the quoted post inside the post that quotes it', () => {
+			const { wrapper } = mountPost({
+				item: quoting({ state: 'accepted', quoted_status: quotedStatus() }),
+			})
+
+			const quoted = wrapper.find('.quoted-post')
+			expect(quoted.exists()).toBe(true)
+			expect(quoted.text()).toContain('The post being quoted')
+			expect(quoted.find('.quoted-post__handle').text()).toBe('@bob@remote.example')
+			// nested, not merged into the post's own body
+			expect(wrapper.find('.post-message').element.contains(quoted.element)).toBe(false)
+		})
+
+		it.each([
+			['pending', 'This quote is waiting for the quoted author to approve it.'],
+			['rejected', 'The author of the quoted post did not allow this quote.'],
+			['revoked', 'The author of the quoted post withdrew their permission for this quote.'],
+		])('says what became of a %s quote instead of showing nothing', (state, said) => {
+			const { wrapper } = mountPost({ item: quoting({ state, quoted_status: null }) })
+
+			expect(wrapper.find('.quoted-post__notice').text()).toBe(said)
+		})
+
+		it('shows nothing of the kind for a post that quotes nothing', () => {
+			const quoter = mountPost({ item: quoting({ state: 'accepted', quoted_status: quotedStatus() }) })
+			const { wrapper } = mountPost({ item: quoting(null) })
+
+			expect(quoter.wrapper.find('.quoted-post').exists()).toBe(true)
+			expect(wrapper.find('.quoted-post').exists()).toBe(false)
+			expect(wrapper.find('.quoted-post__notice').exists()).toBe(false)
+		})
+
+		it('keeps the quote behind a content warning, like the rest of the post', async () => {
+			const { wrapper } = mountPost({
+				item: makeItem({
+					spoiler_text: 'politics',
+					quote: { state: 'accepted', quoted_status: quotedStatus() },
+				}),
+			})
+
+			expect(wrapper.find('.quoted-post').exists()).toBe(false)
+			expect(wrapper.text()).not.toContain('The post being quoted')
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show more').trigger('click')
+
+			expect(wrapper.find('.quoted-post').exists()).toBe(true)
+		})
+
+		it('keeps the quote behind the reveal of a post flagged sensitive', async () => {
+			const { wrapper } = mountPost({
+				item: makeItem({ sensitive: true, quote: { state: 'accepted', quoted_status: quotedStatus() } }),
+			})
+
+			expect(wrapper.find('.quoted-post').exists()).toBe(false)
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show sensitive content').trigger('click')
+
+			expect(wrapper.find('.quoted-post').exists()).toBe(true)
+		})
+
+		it.each(['public', 'unlisted'])('is offered on a %s post', (visibility) => {
+			const { wrapper } = mountPost({ item: makeItem({ visibility }) })
+
+			expect(menuItem(wrapper, 'Quote')).not.toBeUndefined()
+		})
+
+		it.each(['followers', 'direct'])('is not offered on a %s post, which the server would refuse', (visibility) => {
+			const { wrapper } = mountPost({ item: makeItem({ visibility }) })
+
+			expect(menuItem(wrapper, 'Quote')).toBeUndefined()
+		})
+
+		it('opens the composer and hands it the post to quote', async () => {
+			const onQuote = vi.fn()
+			eventBus.on('composer-quote', onQuote)
+			const { wrapper, item, $store } = mountPost()
+
+			await menuItem(wrapper, 'Quote').trigger('click')
+
+			expect($store.commit).toHaveBeenCalledWith('setComposerDisplayStatus', true)
+			expect(onQuote).toHaveBeenCalledTimes(1)
+			expect(onQuote.mock.calls[0][0]).toEqual(item)
 		})
 	})
 
@@ -871,6 +1006,118 @@ describe('TimelinePost', () => {
 			// the draft is not kept for the next edit
 			await menuItem(wrapper, 'Edit').trigger('click')
 			expect(wrapper.find('textarea').element.value).toBe('Hello world')
+		})
+	})
+	describe('the media-first layout', () => {
+		it('leads with the pictures and reads the text as their caption', () => {
+			const media = [photo(1), photo(2)]
+			const { wrapper } = mountPost({ item: makeItem({ media_attachments: media }) })
+
+			const attachments = attachmentsOf(wrapper)
+			expect(attachments.props('mediaFirst')).toBe(true)
+			expect(attachments.props('attachments')).toEqual(media)
+
+			const caption = wrapper.find('.post-message')
+			expect(caption.classes()).toContain('post-message--caption')
+			expect(isBefore(attachments.element, caption.element)).toBe(true)
+		})
+
+		it('leaves a post without media exactly as it was, text first and uncaptioned', () => {
+			const { wrapper } = mountPost()
+
+			expect(attachmentsOf(wrapper).exists()).toBe(false)
+			expect(wrapper.find('.post-message').exists()).toBe(true)
+			expect(wrapper.find('.post-message').classes()).not.toContain('post-message--caption')
+		})
+
+		it('shows a picture post with no text at all as the picture alone', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({ content: '', media_attachments: [photo(1)] }),
+			})
+
+			expect(attachmentsOf(wrapper).props('mediaFirst')).toBe(true)
+			expect(wrapper.find('.post-message').exists()).toBe(false)
+		})
+
+		it('puts the text back on top while the post is being edited', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ media_attachments: [photo(1)] }) })
+
+			await menuItem(wrapper, 'Edit').trigger('click')
+
+			// the editor is what is being worked on, and it is the text
+			expect(wrapper.find('.post-edit-textarea').exists()).toBe(true)
+			expect(attachmentsOf(wrapper).props('mediaFirst')).toBe(false)
+			expect(isBefore(wrapper.find('.post-edit-inline').element, attachmentsOf(wrapper).element)).toBe(true)
+		})
+
+		it('never renders the pictures twice, in either layout', () => {
+			const withMedia = mountPost({ item: makeItem({ media_attachments: [photo(1)] }) }).wrapper
+			const warned = mountPost({
+				item: makeItem({ spoiler_text: 'politics', media_attachments: [photo(1)] }),
+			}).wrapper
+
+			expect(withMedia.findAllComponents({ name: 'PostAttachment' })).toHaveLength(1)
+			expect(warned.findAllComponents({ name: 'PostAttachment' })).toHaveLength(0)
+		})
+	})
+
+	describe('the media-first layout and the reveals', () => {
+		const sensitive = () => makeItem({
+			sensitive: true,
+			content: '<p>look at this</p>',
+			media_attachments: [photo(1)],
+		})
+
+		it('keeps a picture post flagged sensitive covered, and offers one reveal', async () => {
+			const { wrapper } = mountPost({ item: sensitive() })
+
+			expect(attachmentsOf(wrapper).exists()).toBe(false)
+			const reveals = wrapper.findAll('button').filter((button) => button.text() === 'Show sensitive content')
+			expect(reveals).toHaveLength(1)
+			// the reveal stands where the pictures will be: the caption below it
+			// does not move when they arrive
+			const cover = wrapper.find('.post-sensitive--leading')
+			expect(cover.exists()).toBe(true)
+			expect(isBefore(cover.element, wrapper.find('.post-message').element)).toBe(true)
+
+			await reveals[0].trigger('click')
+
+			expect(attachmentsOf(wrapper).props('mediaFirst')).toBe(true)
+			expect(isBefore(attachmentsOf(wrapper).element, wrapper.find('.post-message').element)).toBe(true)
+		})
+
+		it('never lets a warned picture post lead with the picture', async () => {
+			const item = makeItem({
+				spoiler_text: 'politics',
+				content: '<p>the hidden part</p>',
+				media_attachments: [photo(1)],
+			})
+			const { wrapper } = mountPost({ item })
+
+			expect(attachmentsOf(wrapper).exists()).toBe(false)
+			expect(wrapper.find('.post-sensitive').exists()).toBe(false)
+			expect(wrapper.find('.post-warning').exists()).toBe(true)
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show more').trigger('click')
+
+			// the cover still leads the post, so the picture is not given the top
+			const attachments = attachmentsOf(wrapper)
+			expect(attachments.props('mediaFirst')).toBe(false)
+			expect(isBefore(wrapper.find('.post-warning').element, attachments.element)).toBe(true)
+		})
+
+		it('covers a warned picture post again when the warning is put back', async () => {
+			const item = makeItem({
+				spoiler_text: 'politics',
+				content: '<p>the hidden part</p>',
+				media_attachments: [photo(1)],
+			})
+			const { wrapper } = mountPost({ item })
+			await wrapper.findAll('button').find((button) => button.text() === 'Show more').trigger('click')
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show less').trigger('click')
+
+			expect(attachmentsOf(wrapper).exists()).toBe(false)
 		})
 	})
 })

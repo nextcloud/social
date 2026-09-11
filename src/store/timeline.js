@@ -422,6 +422,33 @@ const actions = {
 		}
 	},
 	/**
+	 * Attaches a file the reader already keeps in Nextcloud.
+	 *
+	 * The bytes never leave the server: the path is all the browser sends, and
+	 * what comes back is the same attachment an upload would have produced.
+	 *
+	 * @param {object} context the store
+	 * @param {object} media what to attach
+	 * @param {string} media.path the file, relative to the reader's own files
+	 * @param {string} [media.description] what it shows
+	 * @return {Promise<object|undefined>} the media entity, or undefined when the server refused
+	 */
+	async createMediaFromFile(context, { path, description = '' }) {
+		try {
+			const { data } = await axios.post(
+				generateUrl('apps/social/api/v1/media/from-file'),
+				{ path, description },
+			)
+			logger.info('Media created from ' + path + ' with id ' + data.id)
+			return data
+		} catch (error) {
+			// named, because a picker run attaches several at once and "it
+			// failed" would not say which one to try again
+			showError(t('social', 'Could not attach {file}', { file: path }))
+			logger.error('Failed to attach a file from Nextcloud', { error })
+		}
+	},
+	/**
 	 * Sends a status.
 	 *
 	 * Resolves with what the server created and with `undefined` when it
@@ -602,6 +629,12 @@ const actions = {
 			break
 		case 'federated':
 			url = generateUrl('apps/social/api/v1/timelines/public')
+			break
+		case 'photos':
+			// the home timeline with the text-only posts left out: the people
+			// you follow, but only what they showed rather than what they said
+			url = generateUrl('apps/social/api/v1/timelines/home')
+			params.only_media = true
 			break
 		case 'notifications':
 			url = generateUrl('apps/social/api/v1/notifications')

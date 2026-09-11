@@ -471,6 +471,44 @@ describe('timeline store actions', () => {
 		})
 	})
 
+	describe('createMediaFromFile', () => {
+		it('sends the path of a file the reader already has, and nothing else', async () => {
+			const media = { id: '42', url: 'https://cloud.example.org/media/42' }
+			axios.post.mockResolvedValue({ data: media })
+
+			const result = await store.dispatch('createMediaFromFile', { path: '/Photos/beach.jpg' })
+
+			expect(result).toEqual(media)
+			expect(axios.post).toHaveBeenCalledWith(
+				`${API}/media/from-file`,
+				{ path: '/Photos/beach.jpg', description: '' },
+			)
+		})
+
+		it('carries a description straight into the request', async () => {
+			axios.post.mockResolvedValue({ data: { id: '42' } })
+
+			await store.dispatch('createMediaFromFile', { path: '/Photos/beach.jpg', description: 'The sea' })
+
+			expect(axios.post).toHaveBeenCalledWith(
+				`${API}/media/from-file`,
+				{ path: '/Photos/beach.jpg', description: 'The sea' },
+			)
+		})
+
+		it('names the file it could not attach and resolves to undefined', async () => {
+			axios.post.mockRejectedValue(new Error('nope'))
+
+			await expect(store.dispatch('createMediaFromFile', { path: '/Photos/beach.jpg' }))
+				.resolves.toBeUndefined()
+
+			// a picker run attaches several at once: "it failed" would not say
+			// which one to try again
+			expect(showError).toHaveBeenCalledWith('Could not attach /Photos/beach.jpg')
+			expect(logger.error).toHaveBeenCalledWith('Failed to attach a file from Nextcloud', { error: expect.any(Error) })
+		})
+	})
+
 	describe('describeMedia', () => {
 		it('tells the server what an attachment shows', async () => {
 			axios.put.mockResolvedValue({ data: {} })
@@ -787,6 +825,8 @@ describe('timeline store actions', () => {
 			['timeline', {}, `${API}/timelines/public`, { limit: 15, local: true }],
 			['federated', {}, `${API}/timelines/public`, { limit: 15 }],
 			['tags', { tag: 'nextcloud' }, `${API}/timelines/tag/nextcloud`, { limit: 15 }],
+			// the same list as home, with the text-only posts left out
+			['photos', {}, `${API}/timelines/home`, { limit: 15, only_media: true }],
 		])('requests the %s timeline from its endpoint and appends the result', async (type, params, url, query) => {
 			await store.dispatch('changeTimelineType', { type, params })
 
