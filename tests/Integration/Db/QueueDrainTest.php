@@ -101,8 +101,9 @@ class QueueDrainTest extends TestCase {
 	}
 
 	public function testARequestWithinItsBackoffIsLeftAlone(): void {
-		// tries = 4 waits floor(4^4 / 3) = 85 seconds
-		$this->request('waiting.example', 4, 10);
+		// tries = 4 waits 4^4 + 15 = 271 seconds (RequestQueueService::retryDelay);
+		// 200 seconds ago was already due on the old tries^4/3 schedule (85 s)
+		$this->request('waiting.example', 4, 200);
 
 		$this->assertSame([], $this->drained());
 	}

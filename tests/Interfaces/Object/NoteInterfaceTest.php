@@ -247,14 +247,22 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
 	}
 
-	public function testCreateOfANoteClaimingAnAuthorFromAnotherServerIsRefused(): void {
-		$note = $this->note(self::NOTE, $this->carol->getId());
+	/**
+	 * The note is attributed to the actor of the Create, so an actor on a third
+	 * server is what makes the note's authorship foreign — whatever the note's own
+	 * `attributedTo` claimed.
+	 */
+	public function testCreateByAnActorFromAnotherServerIsRefused(): void {
+		$note = $this->incomingNote(); // claims bob, on the note's own server
+		$create = $this->incoming(
+			Create::TYPE, self::NOTE . '/activity', $this->carol->getId(), $note, self::REMOTE_HOST
+		);
 
 		$this->streamRequest->expects($this->never())->method('save');
 
 		$this->expectException(InvalidOriginException::class);
 
-		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
+		$this->handler->activity($create, $note);
 	}
 
 	public function testSaveRefusesANoteWhoseAuthorIsOnAnotherServer(): void {
@@ -349,6 +357,76 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
 	}
 
+	/**
+	 * Nothing used to fetch the parent of a reply this instance never received: the
+	 * reply sat in the timeline "in reply to nothing". The parent is queued for
+	 * caching the way an Announce queues its object, so the inbox request does not
+	 * wait on a stranger's server.
+	 */
+	public function testReplyToAnUnknownParentQueuesTheParentForFetching(): void {
+		$this->nothingStored();
+		$note = $this->incomingNote();
+		$note->setInReplyTo(self::PARENT);
+
+		$this->streamRequest->expects($this->once())->method('save')
+			->with($this->callback(static fn (Note $saved): bool => $saved->hasCache() && $saved->getCache()->hasItem(self::PARENT)));
+		$this->streamQueueService->expects($this->once())->method('generateStreamQueue')
+			->with($note->getRequestToken(), StreamQueue::TYPE_CACHE, self::NOTE);
+
+		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
+	}
+
+	public function testReplyToAKnownParentDoesNotQueueAFetch(): void {
+		$parent = $this->note(self::PARENT, $this->alice->getId(), true);
+		$this->streamRequest->method('getStreamById')->willReturnCallback(function (string $id) use ($parent): Stream {
+			if ($id === self::PARENT) {
+				return $parent;
+			}
+
+			throw new StreamNotFoundException();
+		});
+		$note = $this->incomingNote();
+		$note->setInReplyTo(self::PARENT);
+
+		$this->streamQueueService->expects($this->never())->method('generateStreamQueue');
+
+		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
+
+		$this->assertFalse($note->hasCache());
+	}
+
+	/** A fetched ancestor carries how deep the climb already is; at the cap it stops. */
+	public function testTheAncestorClimbStopsAtTheDepthCap(): void {
+		$this->nothingStored();
+		$note = $this->incomingNote();
+		$note->setInReplyTo(self::PARENT);
+		$note->setDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH, StreamQueueService::MAX_ANCESTOR_DEPTH);
+
+		$this->streamRequest->expects($this->once())->method('save');
+		$this->streamQueueService->expects($this->never())->method('generateStreamQueue');
+
+		$this->handler->save($note);
+
+		$this->assertFalse($note->hasCache());
+	}
+
+	/** `"to": "<Public>"` as a bare string is a public post, not a direct message. */
+	public function testANoteAddressedToPublicByABareStringIsPublic(): void {
+		$this->nothingStored();
+		/** @var Note $note */
+		$note = $this->ap->getItemFromData([
+			'type' => 'Note',
+			'id' => self::NOTE,
+			'attributedTo' => $this->bob->getId(),
+			'to' => ACore::CONTEXT_PUBLIC,
+			'content' => '<p>hello</p>',
+		]);
+
+		$this->handler->save($note);
+
+		$this->assertSame(Stream::TYPE_PUBLIC, $note->getVisibility());
+	}
+
 	public function testMentioningALocalActorNotifiesThem(): void {
 		$this->storedAfterSave();
 		$this->knownActors($this->alice);
@@ -394,6 +472,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 
 	public function testDeleteRemovesTheNoteAndItsLinkPreview(): void {
 		$note = $this->incomingNote();
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($this->storedCopy());
 
 		$this->streamRequest->expects($this->once())->method('deleteById')->with(self::NOTE, Note::TYPE);
 		$this->linkPreviewService->expects($this->once())->method('deleteCard')->with(self::NOTE);
@@ -439,6 +518,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$note = $this->incomingNote();
 		$note->setContent('<p>edited</p>');
 		$update = $this->wrap(Update::TYPE, $note);
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($this->storedCopy());
 
 		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($note));
 		$this->streamRequest->expects($this->never())->method('save');
@@ -456,6 +536,93 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->expectException(InvalidOriginException::class);
 
 		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
+	}
+
+	/**
+	 * Both checks used to stop at the host: any account on the same server as the
+	 * author could edit or remove the author's post here. Mastodon looks the status
+	 * up by uri *and* account, so a peer's Update or Delete finds nothing.
+	 */
+	public function testUpdateByAnotherUserOfTheSameServerIsRefused(): void {
+		$note = $this->incomingNote();
+		$note->setContent('<p>defaced</p>');
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($this->storedCopy());
+		$mallory = self::REMOTE_URL . '/users/mallory';
+
+		$this->streamRequest->expects($this->never())->method('update');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->activity(
+			$this->incoming(Update::TYPE, $mallory . '#updates/1', $mallory, $note),
+			$note
+		);
+	}
+
+	public function testDeleteByAnotherUserOfTheSameServerIsRefused(): void {
+		$note = $this->incomingNote();
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($this->storedCopy());
+		$mallory = self::REMOTE_URL . '/users/mallory';
+
+		$this->streamRequest->expects($this->never())->method('deleteById');
+		$this->linkPreviewService->expects($this->never())->method('deleteCard');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->activity(
+			$this->incoming(Delete::TYPE, $mallory . '#delete/1', $mallory, $note),
+			$note
+		);
+	}
+
+	public function testUpdateOfANoteNeverReceivedRewritesNothing(): void {
+		$this->nothingStored();
+		$note = $this->incomingNote();
+
+		$this->streamRequest->expects($this->never())->method('update');
+
+		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
+	}
+
+	public function testDeleteOfANoteNeverReceivedDeletesNothing(): void {
+		$this->nothingStored();
+		$note = $this->incomingNote();
+
+		$this->streamRequest->expects($this->never())->method('deleteById');
+
+		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
+	}
+
+	/**
+	 * Mastodon attributes an incoming Create to the actor that performs it,
+	 * whatever `attributedTo` says. Same here — so one user of a shared server
+	 * cannot publish under a neighbour's name, and a Create that names its own
+	 * actor (the normal case) is stored unchanged.
+	 */
+	public function testCreateAttributesTheNoteToTheActorOfTheActivity(): void {
+		$this->nothingStored();
+		$mallory = self::REMOTE_URL . '/users/mallory';
+		$note = $this->incomingNote(); // claims bob
+		$create = $this->incoming(Create::TYPE, $mallory . '#creates/1', $mallory, $note);
+
+		$saved = null;
+		$this->capture($this->streamRequest, 'save', $saved);
+
+		$this->handler->activity($create, $note);
+
+		$this->assertSame($mallory, $saved->getAttributedTo());
+	}
+
+	public function testCreateWithoutAnActorIsRefused(): void {
+		$this->nothingStored();
+		$note = $this->incomingNote();
+		$create = $this->incoming(Create::TYPE, self::NOTE . '/activity', '', $note);
+
+		$this->streamRequest->expects($this->never())->method('save');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->activity($create, $note);
 	}
 
 	public function testOtherActivitiesLeaveTheNoteAlone(): void {

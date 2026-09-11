@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\InstancesRequest;
+use OCA\Social\Db\InstanceStatsRequest;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -28,6 +29,7 @@ use PHPUnit\Framework\TestCase;
 
 class InstanceServiceTest extends TestCase {
 	private InstancesRequest|MockObject $instancesRequest;
+	private InstanceStatsRequest|MockObject $statsRequest;
 	private ConfigService|MockObject $configService;
 	private IConfig|MockObject $config;
 	private IUserManager|MockObject $userManager;
@@ -41,6 +43,7 @@ class InstanceServiceTest extends TestCase {
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->userManager->method('countUsers')->willReturn(['Database' => 3]);
 		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
+		$this->statsRequest = $this->createMock(InstanceStatsRequest::class);
 
 		$urlGenerator = $this->createMock(IURLGenerator::class);
 		$urlGenerator->method('imagePath')->willReturn('/apps/social/img/social.svg');
@@ -55,6 +58,7 @@ class InstanceServiceTest extends TestCase {
 			$urlGenerator,
 			$this->userManager,
 			$this->cacheDocumentService,
+			$this->statsRequest,
 		);
 	}
 
@@ -167,6 +171,62 @@ class InstanceServiceTest extends TestCase {
 		$this->assertSame(3, $json->stats->user_count);
 		$this->assertSame(0, $json->stats->status_count);
 		$this->assertSame(0, $json->stats->domain_count);
+	}
+
+	public function testStatusAndDomainCountsAreComputedOnceAndRememberedInAppConfig(): void {
+		// /api/v1/instance is the first request every client makes; the two
+		// aggregates behind these numbers must not run on every hit
+		$this->theming([]);
+		$this->statsRequest->expects($this->once())->method('countLocalStatuses')->willReturn(42);
+		$this->statsRequest->expects($this->once())->method('countRemoteDomains')->willReturn(7);
+		$remembered = null;
+		$this->config->expects($this->once())->method('setAppValue')
+			->with('social', InstanceService::STATS_CACHE_KEY, $this->isType('string'))
+			->willReturnCallback(function (string $app, string $key, string $value) use (&$remembered): void {
+				$remembered = json_decode($value, true);
+			});
+
+		$json = json_decode((string)json_encode($this->service->createLocal()->jsonSerialize()), false);
+
+		$this->assertSame(42, $json->stats->status_count);
+		$this->assertSame(7, $json->stats->domain_count);
+		$this->assertSame(3, $json->stats->user_count);
+		$this->assertSame(42, $this->service->createLocal()->getUsage()['localPosts']);
+		$this->assertSame(42, $remembered['status_count']);
+		$this->assertSame(7, $remembered['domain_count']);
+		$this->assertEqualsWithDelta(time(), $remembered['computed_at'], 5);
+	}
+
+	public function testFreshRememberedStatsAreServedWithoutTouchingTheDatabase(): void {
+		$this->theming([
+			'social.' . InstanceService::STATS_CACHE_KEY => json_encode(
+				['status_count' => 5, 'domain_count' => 2, 'computed_at' => time() - 60]
+			),
+		]);
+		$this->statsRequest->expects($this->never())->method('countLocalStatuses');
+		$this->statsRequest->expects($this->never())->method('countRemoteDomains');
+		$this->config->expects($this->never())->method('setAppValue');
+
+		$stats = $this->service->createLocal()->getStats();
+
+		$this->assertSame(5, $stats['status_count']);
+		$this->assertSame(2, $stats['domain_count']);
+	}
+
+	public function testStaleRememberedStatsAreRecomputed(): void {
+		$this->theming([
+			'social.' . InstanceService::STATS_CACHE_KEY => json_encode(
+				['status_count' => 5, 'domain_count' => 2, 'computed_at' => time() - InstanceService::STATS_CACHE_SECONDS - 1]
+			),
+		]);
+		$this->statsRequest->method('countLocalStatuses')->willReturn(6);
+		$this->statsRequest->method('countRemoteDomains')->willReturn(3);
+		$this->config->expects($this->once())->method('setAppValue');
+
+		$stats = $this->service->createLocal()->getStats();
+
+		$this->assertSame(6, $stats['status_count']);
+		$this->assertSame(3, $stats['domain_count']);
 	}
 
 	public function testTheConfigurationBlockCarriesTheRealLimits(): void {

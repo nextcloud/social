@@ -17,6 +17,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -1367,26 +1368,117 @@ class StreamRequest extends StreamRequestBuilder {
 
 	/** How much of a thread one context request returns. */
 	public const MAX_DESCENDANTS = 200;
+	/** How many levels below a post one context request walks. */
+	public const MAX_DESCENDANT_DEPTH = 20;
 
 	/**
-	 * @param string $id
+	 * The whole conversation under a post: its replies, the replies to those,
+	 * and so on — what `/statuses/{id}/context` calls the descendants. Used to
+	 * return the direct replies only, so a thread three messages deep showed as
+	 * one reply with nothing under it.
 	 *
-	 * @return array
+	 * Bounded in depth and in count (Mastodon bounds the same walk), filtered
+	 * for the viewer at every level, and returned depth first with siblings
+	 * oldest first, so each reply follows what it answers.
+	 *
+	 * @return Stream[]
 	 */
 	public function getDescendants(string $id): array {
+		$byParent = [];
+		$parents = [$id];
+		$count = 0;
+		for ($depth = 0; $depth < self::MAX_DESCENDANT_DEPTH && $parents !== []; $depth++) {
+			$remaining = self::MAX_DESCENDANTS - $count;
+			if ($remaining <= 0) {
+				break;
+			}
+
+			$level = $this->getRepliesTo($parents, $remaining);
+			$count += count($level);
+			$parents = [];
+			foreach ($level as $reply) {
+				$byParent[$reply->getInReplyTo()][] = $reply;
+				$parents[] = $reply->getId();
+			}
+		}
+
+		$thread = [];
+		$this->flattenThread($id, $byParent, $thread);
+		// a row was only ever selected as the child of a row above it, so this is
+		// empty unless a stored in_reply_to differs from its parent's id in spelling
+		foreach ($byParent as $unplaced) {
+			array_push($thread, ...$unplaced);
+		}
+
+		return $thread;
+	}
+
+	/**
+	 * @param array<string, Stream[]> $byParent
+	 * @param Stream[] $thread
+	 */
+	private function flattenThread(string $parent, array &$byParent, array &$thread): void {
+		foreach ($byParent[$parent] ?? [] as $reply) {
+			$thread[] = $reply;
+			$this->flattenThread($reply->getId(), $byParent, $thread);
+		}
+		unset($byParent[$parent]);
+	}
+
+	/**
+	 * One level of a thread: the direct replies to a set of posts, as the
+	 * viewer may see them, oldest first.
+	 *
+	 * @param string[] $ids
+	 *
+	 * @return Stream[]
+	 */
+	protected function getRepliesTo(array $ids, int $limit): array {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->limitToViewer('sd', 'f', true);
-		$qb->limitToInReplyTo($id, true);
+		$qb->limitToDBFieldArray(
+			'in_reply_to_prim',
+			array_map(static fn (string $id): string => $qb->prim($id), $ids)
+		);
 		// a thread is read by anyone, logged in or not, and every row comes
 		// back fully hydrated: the context of a post that thousands replied to
 		// is not something to hand to PHP whole
-		$qb->setMaxResults(self::MAX_DESCENDANTS);
+		$qb->setMaxResults($limit);
 		$qb->orderBy('s.published_time', 'asc');
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-		//$qb->filterDuplicate();
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * The boosts of a post and the replies to it, each with its author joined
+	 * in: the actors a Delete of the post has to reach beyond the author's own
+	 * followers, because each of them carried the post to followers of theirs.
+	 *
+	 * @return Stream[]
+	 */
+	public function getAnnouncesAndRepliesTo(string $id, int $limit = 500): array {
+		$qb = $this->getStreamSelectSql();
+		$prim = $qb->prim($id);
+		if ($prim === '') {
+			return [];
+		}
+
+		$expr = $qb->expr();
+		$qb->andWhere(
+			$expr->orX(
+				$expr->andX(
+					$qb->exprLimitToDBField('type', Announce::TYPE),
+					$qb->exprLimitToDBField('object_id_prim', $prim)
+				),
+				$qb->exprLimitToDBField('in_reply_to_prim', $prim)
+			)
+		);
+		$qb->setMaxResults($limit);
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
 		return $this->getStreamsFromRequest($qb);
 	}

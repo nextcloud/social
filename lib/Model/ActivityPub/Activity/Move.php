@@ -32,6 +32,19 @@ class Move extends ACore implements JsonSerializable {
 	}
 
 	/**
+	 * `target` is where the account went, and it is the only reason the
+	 * activity is worth sending: the generic export knows nothing of it, so a
+	 * Move without this override says an account moved and not where to.
+	 */
+	public function exportAsActivityPub(): array {
+		if ($this->getTarget() !== '') {
+			$this->addEntry('target', $this->getTarget());
+		}
+
+		return parent::exportAsActivityPub();
+	}
+
+	/**
 	 * @return array
 	 */
 	public function jsonSerialize(): array {

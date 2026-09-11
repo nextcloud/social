@@ -92,7 +92,8 @@ class PostTest extends TestCase {
 			->addHashtag('nextcloud')
 			->setReplyTo('https://mastodon.social/users/bob/statuses/1')
 			->setType(Stream::TYPE_PUBLIC)
-			->setAttachments(['4']);
+			->setAttachments(['4'])
+			->setLanguage('de');
 
 		$this->assertSame([
 			'actor' => $alice,
@@ -102,6 +103,7 @@ class PostTest extends TestCase {
 			'attachments' => ['4'],
 			'hashtags' => ['nextcloud'],
 			'type' => 'public',
+			'language' => 'de',
 		], $post->jsonSerialize());
 	}
 
@@ -131,5 +133,17 @@ class PostTest extends TestCase {
 		$post->setType($sent);
 
 		$this->assertSame($expected, $post->getType());
+	}
+
+	public function testTheLanguageIsCarriedNormalisedAndEmptyByDefault(): void {
+		$post = new Post($this->alice());
+
+		$this->assertSame('', $post->getLanguage(), 'no language means "use the default", not English');
+
+		$post->setLanguage('PT_br');
+		$this->assertSame('pt-BR', $post->getLanguage());
+
+		$post->setLanguage('not a language');
+		$this->assertSame('', $post->getLanguage(), 'an unusable value falls back to the default');
 	}
 }

@@ -129,6 +129,7 @@ class SignatureService {
 	private CurlService $curlService;
 	private ConfigService $configService;
 	private HttpSignatureService $httpSignatureService;
+	private HttpMessageSignatureParser $messageSignatures;
 	private ICache $seenSignatures;
 	private ICache $keyAttempts;
 	private LoggerInterface $logger;
@@ -149,6 +150,7 @@ class SignatureService {
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->httpSignatureService = $httpSignatureService;
+		$this->messageSignatures = new HttpMessageSignatureParser();
 		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
 		$this->keyAttempts = $cacheFactory->createDistributed('social.keys');
 		$this->logger = $logger;
@@ -217,7 +219,50 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function checkRequest(IRequest $request, string $data, int &$time = 0): string {
+	public function checkRequest(
+		IRequest $request, string $data, int &$time = 0, string &$signer = '',
+	): string {
+		// RFC 9421 announces itself with Signature-Input. Without it, the
+		// Signature header is a draft-cavage one and is read as it always was.
+		$messageSignature = $this->selectMessageSignature($request);
+
+		$time = $messageSignature === null
+			? $this->checkDateHeader($request)
+			: $this->checkMessageSignatureTime($request, $messageSignature);
+
+		$this->checkContentLength($request, $data);
+		$this->checkDigest($request, $data);
+
+		try {
+			$origin = $messageSignature === null
+				? $this->checkRequestSignature($request, $data, $signer)
+				: $this->checkMessageSignature($request, $data, $messageSignature, $signer);
+
+			return $origin;
+		} catch (RequestContentException $e) {
+			if ($e->getCode() === Http::STATUS_GONE) {
+				throw new SignatureIsGoneException();
+			}
+
+			// The signing key could not be retrieved. Failing here, rather than
+			// returning an empty origin for a later check to reject, keeps this method
+			// the single place that decides whether a request is authenticated.
+			throw new SignatureException(
+				'signing key could not be retrieved: ' . get_class($e) . ' ' . $e->getMessage(),
+				0,
+				$e
+			);
+		}
+	}
+
+	/**
+	 * The Date header, parsed and held to the replay window.
+	 *
+	 * @return int the request time it names
+	 * @throws DateTimeException
+	 * @throws SignatureException
+	 */
+	private function checkDateHeader(IRequest $request): int {
 		try {
 			$dTime = new DateTime($request->getHeader('date'));
 			$time = $dTime->getTimestamp();
@@ -242,24 +287,242 @@ class SignatureService {
 			throw new SignatureException('object is from the future');
 		}
 
-		$this->checkContentLength($request, $data);
-		$this->checkDigest($request, $data);
+		return $time;
+	}
 
-		try {
-			return $this->checkRequestSignature($request, $data);
-		} catch (RequestContentException $e) {
-			if ($e->getCode() === Http::STATUS_GONE) {
-				throw new SignatureIsGoneException();
+	/**
+	 * The RFC 9421 signature this request is verified against, or null when
+	 * the request carries no Signature-Input and is a draft-cavage one.
+	 *
+	 * A sender may sign under several labels. One is enough: the first whose
+	 * signature value is present, whose keyid names a key, and whose algorithm
+	 * this instance implements is the one verified — so a peer that also signs
+	 * with an Ed25519 key is not refused for it. Nothing here touches the
+	 * network; the key is fetched once, later, for the label chosen.
+	 *
+	 * @return array{label: string, components: list<array{name: string, params: array<string, mixed>}>, params: array<string, mixed>, serialized: string, signature: string}|null
+	 * @throws SignatureException
+	 */
+	private function selectMessageSignature(IRequest $request): ?array {
+		$inputHeader = $request->getHeader('Signature-Input');
+		if ($inputHeader === '') {
+			return null;
+		}
+
+		$inputs = $this->messageSignatures->parseSignatureInput($inputHeader);
+		$signatures = $this->messageSignatures->parseSignature($request->getHeader('Signature'));
+
+		$candidates = [];
+		foreach ($inputs as $label => $input) {
+			$keyId = $input['params']['keyid'] ?? '';
+			if (!isset($signatures[$label]) || !is_string($keyId) || $keyId === '') {
+				continue;
 			}
+			$candidates[] = $input + ['label' => $label, 'signature' => $signatures[$label]];
+		}
 
-			// The signing key could not be retrieved. Failing here, rather than
-			// returning an empty origin for a later check to reject, keeps this method
-			// the single place that decides whether a request is authenticated.
+		if ($candidates === []) {
 			throw new SignatureException(
-				'signing key could not be retrieved: ' . get_class($e) . ' ' . $e->getMessage(),
-				0,
-				$e
+				'no usable signature: every label lacks a signature value or a keyid - ' . $inputHeader
 			);
+		}
+
+		foreach ($candidates as $candidate) {
+			if ($this->messageSignatures->isSupportedAlgorithm($this->messageSignatureAlgorithm($candidate))) {
+				return $candidate;
+			}
+		}
+
+		// the same refusal, by name, that the draft-cavage path gives an
+		// algorithm it cannot verify: an Ed25519 key has no place to live here
+		throw new SignatureException(
+			'unsupported signature algorithm: ' . $this->messageSignatureAlgorithm($candidates[0])
+		);
+	}
+
+	/**
+	 * The algorithm a signature's `alg` parameter names. Absent, RFC 9421 lets
+	 * the key decide — and the keys ActivityPub actors publish are RSA, for
+	 * which Mastodon signs `rsa-v1_5-sha256`.
+	 *
+	 * @param array{params: array<string, mixed>, ...} $signature
+	 */
+	private function messageSignatureAlgorithm(array $signature): string {
+		$algorithm = $signature['params']['alg'] ?? HttpMessageSignatureParser::ALG_RSA_V1_5_SHA256;
+
+		return is_string($algorithm) ? strtolower($algorithm) : 'not a string';
+	}
+
+	/**
+	 * The replay window of the draft-cavage path, applied to what RFC 9421
+	 * carries: a `created` parameter inside the signed set, an optional
+	 * `expires`, and a Date header that a 9421 sender may or may not send.
+	 * Whatever is there has to hold; that one of `date` and `created` is there
+	 * at all is the coverage check's business.
+	 *
+	 * @param array{params: array<string, mixed>, ...} $signature
+	 * @return int the request time: `created` when present, else the Date header
+	 * @throws DateTimeException
+	 * @throws SignatureException
+	 */
+	private function checkMessageSignatureTime(IRequest $request, array $signature): int {
+		$params = $signature['params'];
+		$now = time();
+		$time = 0;
+
+		if ($request->getHeader('date') !== '') {
+			$time = $this->checkDateHeader($request);
+		}
+
+		if (array_key_exists('created', $params)) {
+			$created = $params['created'];
+			if (!is_int($created)) {
+				throw new SignatureException('signature created is not an integer');
+			}
+			if ($created < $now - self::DATE_DELAY) {
+				throw new SignatureException('signature created is too old');
+			}
+			if ($created > $now + self::DATE_DELAY) {
+				throw new SignatureException('signature created is from the future');
+			}
+			$time = $created;
+		}
+
+		if (array_key_exists('expires', $params)) {
+			$expires = $params['expires'];
+			if (!is_int($expires)) {
+				throw new SignatureException('signature expires is not an integer');
+			}
+			if ($expires < $now) {
+				throw new SignatureException('signature has expired');
+			}
+		}
+
+		return $time;
+	}
+
+	/**
+	 * Verifies the RFC 9421 signature chosen by selectMessageSignature().
+	 *
+	 * Same steps as the draft-cavage path, in the same order: the key's
+	 * origin, the mandatory covered set, the signature base, then the key —
+	 * fetched through the same bounded retrieval and refreshed once when the
+	 * signature does not verify against it.
+	 *
+	 * @param array{label: string, components: list<array{name: string, params: array<string, mixed>}>, params: array<string, mixed>, serialized: string, signature: string} $signature
+	 * @return string the key's origin host
+	 * @throws InvalidOriginException
+	 * @throws SignatureException
+	 * @throws Exception anything retrieveKey() raises
+	 */
+	private function checkMessageSignature(
+		IRequest $request, string $data, array $signature, string &$signer = '',
+	): string {
+		$keyId = $signature['params']['keyid'];
+		$origin = $this->getKeyOrigin($keyId);
+		$signer = $this->keyOwner($keyId);
+
+		$covered = array_map(
+			static fn (array $component): string => strtolower($component['name']),
+			$signature['components']
+		);
+		$this->requireCoveredComponents($covered, $data, array_key_exists('created', $signature['params']));
+
+		// the authority verified is this instance's own, as for `host` on the
+		// draft-cavage path; a peer that signed another one is told why in the log
+		$authority = array_intersect($covered, ['host', '@authority', '@target-uri']) === []
+			? $this->configService->getCloudHost()
+			: $this->signedHost($request->getHeader('host'));
+		$base = $this->messageSignatures->signatureBase(
+			$request, $signature['components'], $signature['serialized'], $authority
+		);
+		$algorithm = $this->messageSignatureAlgorithm($signature);
+
+		$this->verifyWithKey($keyId, function (string $publicKey) use ($algorithm, $base, $signature): void {
+			if (!$this->messageSignatures->verify($algorithm, $publicKey, $base, $signature['signature'])) {
+				throw new SignatureException(
+					'signature cannot be checked - label: ' . $signature['label'] . ' - key: ' . $publicKey
+					. ' - algo: ' . $algorithm . ' - base: ' . $base
+				);
+			}
+		});
+
+		return $origin;
+	}
+
+	/**
+	 * The RFC 9421 counterpart of the mandatory set the draft-cavage path
+	 * demands: the method and the full target (or authority and path) so a
+	 * captured request cannot be replayed elsewhere, the digest so it binds the
+	 * body, and a time so it cannot be replayed later.
+	 *
+	 * @param list<string> $covered lowercased component names
+	 * @throws SignatureException
+	 */
+	private function requireCoveredComponents(array $covered, string $data, bool $hasCreated): void {
+		if (!in_array('@method', $covered, true)) {
+			throw new SignatureException('component is not signed: @method');
+		}
+
+		$hasTarget = in_array('@target-uri', $covered, true)
+			|| (in_array('@authority', $covered, true)
+				&& (in_array('@path', $covered, true) || in_array('@request-target', $covered, true)));
+		if (!$hasTarget) {
+			throw new SignatureException('component is not signed: @target-uri');
+		}
+
+		if ($data !== ''
+			&& !in_array('content-digest', $covered, true)
+			&& !in_array('digest', $covered, true)) {
+			throw new SignatureException('header is not signed: digest');
+		}
+
+		if (!$hasCreated && !in_array('date', $covered, true)) {
+			throw new SignatureException('header is not signed: date');
+		}
+	}
+
+	/**
+	 * The host a signature is verified against: always the configured one.
+	 *
+	 * The signed host is what the sender addressed; substituting the
+	 * configured one is what stops a captured request being replayed
+	 * against another instance. But on a deployment whose configured host is
+	 * not the one peers reach (a second domain, a non-default port, a proxy
+	 * that rewrites Host), that substitution makes *every* inbound delivery
+	 * fail verification — with nothing in the log to say why.
+	 */
+	private function signedHost(string $sent): string {
+		$configured = $this->configService->getCloudHost();
+		if ($sent !== '' && strtolower($sent) !== strtolower($configured)) {
+			$this->logger->notice(
+				'the host a peer signed is not the configured host, so its signature cannot verify',
+				['signedHost' => $sent, 'configuredHost' => $configured]
+			);
+		}
+
+		return $configured;
+	}
+
+	/**
+	 * Runs `$verify` with the key `$keyId` names, and once more with a freshly
+	 * fetched copy if the first does not verify.
+	 *
+	 * A retrieval failure is not a reason to retrieve again: only a key that
+	 * was fetched and did not verify is worth refreshing, because only then
+	 * might the peer have rotated it. Retrying on any failure meant a keyId
+	 * that cannot be resolved cost two fetches per request instead of none.
+	 *
+	 * @param callable(string): void $verify throws SignatureException when the key does not verify
+	 * @throws SignatureException
+	 * @throws Exception anything retrieveKey() raises
+	 */
+	private function verifyWithKey(string $keyId, callable $verify): void {
+		$publicKey = $this->retrieveKey($keyId);
+		try {
+			$verify($publicKey);
+		} catch (SignatureException $e) {
+			$verify($this->retrieveKey($keyId, true));
 		}
 	}
 
@@ -479,7 +742,7 @@ class SignatureService {
 	 * @throws UnauthorizedFediverseException
 	 * @throws SignatureException
 	 */
-	private function checkRequestSignature(IRequest $request, string $data): string {
+	private function checkRequestSignature(IRequest $request, string $data, string &$signer = ''): string {
 		$signatureHeader = $request->getHeader('Signature');
 
 		$sign = $this->parseSignatureHeader($signatureHeader);
@@ -488,6 +751,7 @@ class SignatureService {
 
 		$keyId = $sign['keyId'];
 		$origin = $this->getKeyOrigin($keyId);
+		$signer = $this->keyOwner($keyId);
 
 		$headers = $sign['headers'];
 
@@ -511,17 +775,9 @@ class SignatureService {
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
-		// A retrieval failure is not a reason to retrieve again: only a key that
-		// was fetched and did not verify is worth refreshing, because only then
-		// might the peer have rotated it. Retrying on any failure meant a keyId
-		// that cannot be resolved cost two fetches per request instead of none.
-		$publicKey = $this->retrieveKey($keyId);
-		try {
+		$this->verifyWithKey($keyId, function (string $publicKey) use ($sign, $estimated, $signed): void {
 			$this->checkRequestSignatureUsingPublicKey($publicKey, $sign, $estimated, $signed);
-		} catch (SignatureException $e) {
-			$publicKey = $this->retrieveKey($keyId, true);
-			$this->checkRequestSignatureUsingPublicKey($publicKey, $sign, $estimated, $signed);
-		}
+		});
 
 		return $origin;
 	}
@@ -578,21 +834,7 @@ class SignatureService {
 
 			$value = $request->getHeader($key);
 			if ($key === 'host') {
-				// The signed host is what the sender addressed; substituting the
-				// configured one is what stops a captured request being replayed
-				// against another instance. But on a deployment whose configured
-				// host is not the one peers reach (a second domain, a
-				// non-default port, a proxy that rewrites Host), that
-				// substitution makes *every* inbound delivery fail verification
-				// — with nothing in the log to say why.
-				$configured = $this->configService->getCloudHost();
-				if ($value !== '' && strtolower($value) !== strtolower($configured)) {
-					$this->logger->notice(
-						'the host a peer signed is not the configured host, so its signature cannot verify',
-						['signedHost' => $value, 'configuredHost' => $configured]
-					);
-				}
-				$value = $configured;
+				$value = $this->signedHost($value);
 			}
 
 			$estimated .= $key . ': ' . $value . "\n";
@@ -755,6 +997,41 @@ class SignatureService {
 	 * @return string
 	 * @throws InvalidOriginException
 	 */
+	/**
+	 * The actor a key belongs to: a keyId is that actor's id with the key named
+	 * in the fragment (`…/users/alice#main-key`).
+	 */
+	private function keyOwner(string $keyId): string {
+		$owner = strtok($keyId, '#');
+
+		return ($owner === false) ? '' : rtrim($owner, '/');
+	}
+
+	/**
+	 * An activity may only speak for the actor whose key signed it.
+	 *
+	 * Checking the host alone lets anyone with an account on a server act as
+	 * anybody else on that server: same origin, different person. The one
+	 * legitimate case for a mismatch is a relayed or forwarded activity, and
+	 * that is what the Linked Data signature on the object is for — the caller
+	 * checks it first and only asks this when there was none. Mastodon draws
+	 * the line in the same place.
+	 *
+	 * @throws InvalidOriginException
+	 */
+	public function assertSignerSpeaksFor(string $signer, ACore $activity): void {
+		$actor = rtrim($activity->getActorId(), '/');
+		if ($actor === '' || $signer === '') {
+			throw new InvalidOriginException('an activity with no actor cannot be attributed to a signer');
+		}
+
+		if (strtolower($signer) !== strtolower($actor)) {
+			throw new InvalidOriginException(
+				'the key that signed this request belongs to ' . $signer . ', not to ' . $actor
+			);
+		}
+	}
+
 	private function getKeyOrigin(string $id) {
 		$host = parse_url($id, PHP_URL_HOST);
 		if (is_string($host) && ($host !== '')) {

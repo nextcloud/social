@@ -45,9 +45,16 @@ class StreamServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private CurlService|MockObject $curlService;
 	private LinkPreviewService|MockObject $linkPreviewService;
+	private IURLGenerator|MockObject $urlGenerator;
 	private StreamService $service;
 
 	protected function setUp(): void {
+		$this->urlGenerator = $this->createMock(IURLGenerator::class);
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturnCallback(
+				static fn (string $route, array $args): string => 'https://social.example/index.php/apps/social/'
+					. $route . '/' . ($args['path'] ?? '')
+			);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
@@ -59,7 +66,7 @@ class StreamServiceTest extends TestCase {
 		$this->configService->method('getSocialUrl')->willReturn(self::SOCIAL_URL);
 
 		$this->service = new StreamService(
-			$this->createMock(IURLGenerator::class),
+			$this->urlGenerator,
 			$this->streamRequest,
 			$this->activityService,
 			$this->cacheActorService,
@@ -407,12 +414,25 @@ class StreamServiceTest extends TestCase {
 
 	// addHashtag() / addHashtags()
 
-	public function testAddHashtagAddsLowercasedTagLink(): void {
+	/**
+	 * The href used to be `<social url>tag/<tag>`, a path no route serves. The
+	 * hashtag timeline lives under the Navigation route at `tags/<tag>` — the
+	 * same URL UnifiedSearchProvider hands out for a hashtag.
+	 */
+	public function testAddHashtagLinksToTheHashtagTimelineRoute(): void {
+		$this->urlGenerator->expects($this->once())
+			->method('linkToRouteAbsolute')
+			->with('social.Navigation.timeline', ['path' => 'tags/nextcloud']);
+
 		$note = new Note();
 		$this->service->addHashtag($note, 'NextCloud');
 
 		$this->assertSame(
-			[['type' => 'Hashtag', 'href' => self::SOCIAL_URL . 'tag/nextcloud', 'name' => '#NextCloud']],
+			[[
+				'type' => 'Hashtag',
+				'href' => 'https://social.example/index.php/apps/social/social.Navigation.timeline/tags/nextcloud',
+				'name' => '#NextCloud',
+			]],
 			$note->getTags()
 		);
 	}
@@ -424,14 +444,14 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(['Fediverse', 'Nextcloud'], $note->getHashtags());
 		$this->assertCount(2, $note->getTags('Hashtag'));
 		$this->assertSame('#Fediverse', $note->getTags()[0]['name']);
-		$this->assertSame(self::SOCIAL_URL . 'tag/nextcloud', $note->getTags()[1]['href']);
+		$this->assertStringEndsWith('/tags/nextcloud', $note->getTags()[1]['href']);
 	}
 
-	public function testAddHashtagSkipsTagWhenSocialUrlIsNotConfigured(): void {
+	public function testAddHashtagDoesNotNeedTheSocialUrl(): void {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getSocialUrl')->willThrowException(new SocialAppConfigException());
 		$service = new StreamService(
-			$this->createMock(IURLGenerator::class),
+			$this->urlGenerator,
 			$this->streamRequest,
 			$this->activityService,
 			$this->cacheActorService,
@@ -445,7 +465,7 @@ class StreamServiceTest extends TestCase {
 		$service->addHashtags($note, ['Nextcloud']);
 
 		$this->assertSame(['Nextcloud'], $note->getHashtags());
-		$this->assertSame([], $note->getTags());
+		$this->assertStringEndsWith('/tags/nextcloud', $note->getTags()[0]['href']);
 	}
 
 	// replyTo()
@@ -517,6 +537,53 @@ class StreamServiceTest extends TestCase {
 		$this->assertHasInstancePath(
 			$item->getInstancePaths(), self::ACTOR_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
 		);
+	}
+
+	/**
+	 * A post travels further than the author's followers: every boost carried it
+	 * to the booster's followers, every reply to the replier's. Mastodon sends the
+	 * Delete to those actors' inboxes too; without that the post lingers on every
+	 * instance that only ever saw it through a boost.
+	 */
+	public function testDeleteLocalItemAlsoAddressesBoostersAndRepliers(): void {
+		$item = $this->note('https://social.example/@alice/1');
+		$item->setLocal(true);
+		$this->cacheActorService->method('getFromId')->willReturn($this->actor());
+
+		$bob = $this->remoteActor();
+		$boost = new Announce();
+		$boost->setId('https://remote.example/users/bob/statuses/9/activity');
+		$boost->setAttributedTo($bob->getId());
+		$boost->setActor($bob);
+
+		$secondBoost = new Announce(); // same server as bob: one shared inbox, one delivery
+		$secondBoost->setId('https://remote.example/users/dan/statuses/3/activity');
+		$secondBoost->setActor($this->remoteActor('https://remote.example/users/dan'));
+
+		$carol = $this->remoteActor('https://other.example/users/carol');
+		$carol->setSharedInbox(''); // only a personal inbox
+		$reply = $this->note('https://other.example/notes/5', $carol->getId(), $item->getId());
+		$reply->setActor($carol);
+
+		$localBoost = new Announce();
+		$localBoost->setActor($this->actor()); // our own boost: nothing to deliver
+
+		$unresolved = new Announce(); // author not in the actor cache: no inbox to use
+		$unresolved->setAttributedTo('https://nowhere.example/users/x');
+
+		$this->streamRequest->expects($this->once())
+			->method('getAnnouncesAndRepliesTo')
+			->with($item->getId())
+			->willReturn([$boost, $secondBoost, $reply, $localBoost, $unresolved]);
+		$this->activityService->expects($this->once())->method('deleteActivity')->willReturn('token');
+
+		$this->service->deleteLocalItem($item, Note::TYPE);
+
+		$paths = $item->getInstancePaths();
+		$this->assertHasInstancePath($paths, 'https://remote.example/inbox', InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM);
+		$this->assertHasInstancePath($paths, $carol->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM);
+		$this->assertHasInstancePath($paths, self::ACTOR_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW);
+		$this->assertCount(3, $paths);
 	}
 
 	public function testDeleteLocalItemStillDeletesWhenAuthorCannotBeResolved(): void {
@@ -684,21 +751,23 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(['ancestors' => [], 'descendants' => []], $context);
 	}
 
+	/** Ancestors are walked up as long as they are known, capped where Mastodon caps them. */
 	public function testGetContextByNidLimitsAncestorDepth(): void {
-		$post = $this->note('https://social.example/@alice/9', self::ACTOR_ID, 'https://social.example/@alice/8');
+		$chain = static fn (int $n): string => 'https://social.example/@alice/' . $n;
+		$post = $this->note($chain(50), self::ACTOR_ID, $chain(49));
 		$this->streamRequest->method('getStreamByNid')->willReturn($post);
-		$this->streamRequest->method('getStreamById')->willReturnCallback(function (string $id): Note {
-			$n = (int)substr($id, -1);
+		$this->streamRequest->method('getStreamById')->willReturnCallback(function (string $id) use ($chain): Note {
+			$n = (int)basename($id);
 
-			return $this->note($id, self::ACTOR_ID, $n > 1 ? 'https://social.example/@alice/' . ($n - 1) : '');
+			return $this->note($id, self::ACTOR_ID, $n > 1 ? $chain($n - 1) : '');
 		});
 		$this->streamRequest->method('getDescendants')->willReturn([]);
 
-		$context = $this->service->getContextByNid(9);
+		$context = $this->service->getContextByNid(50);
 
-		$this->assertCount(5, $context['ancestors']);
-		$this->assertSame('https://social.example/@alice/4', $context['ancestors'][0]->getId());
-		$this->assertSame('https://social.example/@alice/8', $context['ancestors'][4]->getId());
+		$this->assertCount(40, $context['ancestors']);
+		$this->assertSame($chain(10), $context['ancestors'][0]->getId());
+		$this->assertSame($chain(49), $context['ancestors'][39]->getId());
 	}
 
 	// getAuthorFromPostId()

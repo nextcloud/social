@@ -784,4 +784,217 @@ class StreamTest extends TestCase {
 		$this->assertSame(Stream::TYPE_FOLLOWERS, $stream->getVisibility());
 		$this->assertSame('private', $stream->exportAsLocal()['visibility']);
 	}
+
+	// language and `updated` — federation parity
+
+	public function testImportReadsTheLanguageFromTheContentMap(): void {
+		$stream = new Stream();
+
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'content' => '<p>Hallo</p>',
+			'contentMap' => ['de' => '<p>Hallo</p>'],
+		]);
+
+		$this->assertSame('de', $stream->getLanguage());
+	}
+
+	public function testATopLevelLanguageWinsOverTheContentMap(): void {
+		$stream = new Stream();
+
+		$stream->import([
+			'id' => 'https://pleroma.example/objects/1',
+			'type' => 'Note',
+			'language' => 'fr',
+			'contentMap' => ['de' => '<p>x</p>'],
+		]);
+
+		$this->assertSame('fr', $stream->getLanguage());
+	}
+
+	public function testImportLeavesTheLanguageEmptyWhenTheRemoteSaidNothing(): void {
+		$stream = new Stream();
+
+		$stream->import(['id' => 'https://mastodon.social/users/alice/statuses/1', 'type' => 'Note', 'content' => 'x']);
+
+		$this->assertSame('', $stream->getLanguage(), 'no more pretending every remote post is English');
+		$this->assertNull($stream->exportAsLocal()['language'], "Mastodon's language is nullable");
+	}
+
+	public function testAnUnusableContentMapKeyLeavesTheLanguageEmpty(): void {
+		$stream = new Stream();
+
+		$stream->import([
+			'id' => 'https://evil.example/1',
+			'type' => 'Note',
+			'contentMap' => ['<script>alert(1)</script>' => 'x'],
+		]);
+
+		$this->assertSame('', $stream->getLanguage());
+	}
+
+	public function testImportReadsUpdated(): void {
+		$stream = new Stream();
+
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'published' => '2024-05-01T12:00:00Z',
+			'updated' => '2024-05-02T09:30:00Z',
+		]);
+
+		$this->assertSame('2024-05-02T09:30:00Z', $stream->getUpdated());
+		$this->assertSame('2024-05-02T09:30:00.000Z', $stream->exportAsLocal()['edited_at']);
+	}
+
+	public function testExportAsActivityPubCarriesTheLanguageMapsAndUpdated(): void {
+		$stream = new Note();
+		$stream->setId('https://cloud.example.org/apps/social/@alice/1')
+			->setContent('<p>Hallo</p>')
+			->setSpoilerText('Vorsicht')
+			->setLanguage('de')
+			->setPublished('2024-05-01T12:00:00+00:00')
+			->setUpdated('2024-05-02T09:30:00Z');
+
+		$export = $stream->exportAsActivityPub();
+
+		$this->assertSame(['de' => '<p>Hallo</p>'], $export['contentMap']);
+		$this->assertSame(['de' => 'Vorsicht'], $export['summaryMap']);
+		$this->assertSame('2024-05-01T12:00:00+00:00', $export['published'], 'published is when it was written');
+		$this->assertSame('2024-05-02T09:30:00Z', $export['updated'], 'updated is what makes Mastodon apply an edit');
+	}
+
+	public function testExportAsActivityPubCarriesNoMapsWithoutALanguageAndNoUpdatedWithoutAnEdit(): void {
+		$stream = new Note();
+		$stream->setId('https://cloud.example.org/apps/social/@alice/1')
+			->setContent('<p>hi</p>')
+			->setSpoilerText('cw');
+
+		$export = $stream->exportAsActivityPub();
+
+		$this->assertArrayNotHasKey('contentMap', $export);
+		$this->assertArrayNotHasKey('summaryMap', $export);
+		$this->assertArrayNotHasKey('updated', $export);
+	}
+
+	public function testAnEmptySummaryHasNoSummaryMap(): void {
+		$stream = new Note();
+		$stream->setContent('<p>hi</p>')->setLanguage('en');
+
+		$export = $stream->exportAsActivityPub();
+
+		$this->assertSame(['en' => '<p>hi</p>'], $export['contentMap']);
+		$this->assertArrayNotHasKey('summaryMap', $export);
+	}
+
+	public function testEditedAtComesFromUpdatedWhenThereIsOne(): void {
+		$stream = new Note();
+		$stream->setNid(4)->setPublishedTime(1714564800);
+		$stream->setPublished('2024-05-01T12:00:00+00:00');
+		$stream->setUpdated('2024-05-03T08:00:00Z');
+
+		$this->assertSame('2024-05-03T08:00:00.000Z', $stream->exportAsLocal()['edited_at']);
+	}
+
+	public function testAnUnparsableUpdatedIsNotAnEdit(): void {
+		$stream = new Note();
+		$stream->setNid(4)->setPublishedTime(1714564800);
+		$stream->setPublished('2024-05-01T12:00:00+00:00');
+		$stream->setUpdated('not a date');
+
+		$this->assertNull($stream->exportAsLocal()['edited_at']);
+	}
+
+	public function testImportFromDatabaseReadsUpdatedAndTheLanguageFromTheStoredSource(): void {
+		$stream = new Note();
+
+		$stream->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'content' => '<p>Hallo</p>',
+			'published' => '2024-05-01T12:00:00Z',
+			'published_time' => '2024-05-01 12:00:00',
+			'source' => json_encode([
+				'id' => 'https://mastodon.social/users/alice/statuses/1',
+				'type' => 'Note',
+				'content' => '<p>Hallo</p>',
+				'contentMap' => ['de' => '<p>Hallo</p>'],
+				'published' => '2024-05-01T12:00:00Z',
+				'updated' => '2024-05-02T09:30:00Z',
+			]),
+		]);
+
+		$this->assertSame('de', $stream->getLanguage());
+		$this->assertSame('2024-05-02T09:30:00Z', $stream->getUpdated());
+		$this->assertSame('2024-05-02T09:30:00.000Z', $stream->exportAsLocal()['edited_at']);
+		$this->assertSame(['de' => '<p>Hallo</p>'], $stream->exportAsActivityPub()['contentMap']);
+	}
+
+	public function testImportFromDatabaseWithoutASourceHasNoLanguageAndNoEdit(): void {
+		$stream = new Note();
+
+		$stream->importFromDatabase([
+			'id' => 'https://cloud.example.org/apps/social/@alice/1',
+			'type' => 'Note',
+			'content' => '<p>hi</p>',
+			'published' => '2024-05-01T12:00:00+00:00',
+			'published_time' => '2024-05-01 12:00:00',
+		]);
+
+		$this->assertSame('', $stream->getLanguage());
+		$this->assertSame('', $stream->getUpdated());
+		$this->assertNull($stream->exportAsLocal()['edited_at']);
+	}
+
+	public function testImportFromLocalAcceptsANullLanguage(): void {
+		$stream = new Stream();
+
+		$stream->importFromLocal([
+			'id' => '123',
+			'url' => 'https://mastodon.social/@alice/123',
+			'local' => false,
+			'content' => '<p>hello</p>',
+			'visibility' => 'public',
+			'language' => null,
+			'created_at' => '2024-05-01T12:00:00.000Z',
+			'media_attachments' => [],
+			'mentions' => [],
+			'account' => ['id' => '31', 'username' => 'alice', 'acct' => 'alice@mastodon.social', 'url' => 'https://mastodon.social/@alice'],
+		]);
+
+		$this->assertSame('', $stream->getLanguage());
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public function languageProvider(): array {
+		return [
+			'a plain primary tag' => ['de', 'de'],
+			'a three letter primary tag' => ['ast', 'ast'],
+			'case is normalised' => ['DE', 'de'],
+			'a region is kept, upper-cased' => ['pt-br', 'pt-BR'],
+			'a script is kept, title-cased' => ['zh-hant-tw', 'zh-Hant-TW'],
+			'a numeric region' => ['es-419', 'es-419'],
+			'a POSIX style locale is accepted' => ['pt_BR', 'pt-BR'],
+			'padding is ignored' => [' fr ', 'fr'],
+			'a name is not a tag' => ['english', ''],
+			'a dangling separator is refused' => ['en-', ''],
+			'markup is refused' => ['<b>de</b>', ''],
+			'nothing stays nothing' => ['', ''],
+		];
+	}
+
+	/**
+	 * @dataProvider languageProvider
+	 */
+	public function testNormalizeLanguage(string $sent, string $expected): void {
+		$this->assertSame($expected, Stream::normalizeLanguage($sent));
+	}
+
+	public function testSetLanguageNormalisesWhatItIsGiven(): void {
+		$this->assertSame('pt-BR', (new Note())->setLanguage('PT_br')->getLanguage());
+		$this->assertSame('', (new Note())->setLanguage('nonsense words')->getLanguage());
+	}
 }

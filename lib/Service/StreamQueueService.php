@@ -38,6 +38,15 @@ use OCA\Social\Tools\Model\CacheItem;
  * @package OCA\Social\Service
  */
 class StreamQueueService {
+	/**
+	 * Detail stamped on every ancestor fetched for a reply: how many levels up
+	 * the climb already is. NoteInterface::save() stops queueing the next parent
+	 * once it reaches MAX_ANCESTOR_DEPTH, so a thread of a thousand messages
+	 * costs eight fetches, not a thousand. Mastodon bounds the same climb.
+	 */
+	public const DETAIL_ANCESTOR_DEPTH = 'ancestor_depth';
+	public const MAX_ANCESTOR_DEPTH = 8;
+
 	private StreamRequest $streamRequest;
 
 	private StreamQueueRequest $streamQueueRequest;
@@ -203,9 +212,15 @@ class StreamQueueService {
 			// TODO: PHP7.2 (NC16) : multiple exception per catch
 
 			try {
-				$this->cacheItem($item);
-				$item->setStatus(StreamQueue::STATUS_SUCCESS);
-				$cache->updateItem($item);
+				$this->cacheItem($stream, $item);
+				if ($stream->getType() === Note::TYPE) {
+					// a reply only needed its parent fetched; the parent is a row
+					// of its own now and nothing reads a copy out of the reply
+					$cache->removeItem($item->getUrl());
+				} else {
+					$item->setStatus(StreamQueue::STATUS_SUCCESS);
+					$cache->updateItem($item);
+				}
 			} catch (StreamNotFoundException $e) {
 				$this->miscService->log(
 					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
@@ -285,6 +300,13 @@ class StreamQueueService {
 	}
 
 	/**
+	 * Fetches the object a cache item names, unless it is stored already: the
+	 * object of a boost, or the parent of a reply. Either way it is checked like
+	 * anything fetched — id equal to the URL asked for, origin the URL's host,
+	 * author on that host (NoteInterface::save()) — and saved through the same
+	 * interface an inbox delivery goes through.
+	 *
+	 * @param Stream $stream the stream whose cache wants the item
 	 * @param CacheItem $item
 	 *
 	 * @throws InvalidOriginException
@@ -301,7 +323,7 @@ class StreamQueueService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	private function cacheItem(CacheItem &$item) {
+	private function cacheItem(Stream $stream, CacheItem &$item) {
 		try {
 			$note = $this->streamRequest->getStreamById($item->getUrl());
 		} catch (StreamNotFoundException $e) {
@@ -325,13 +347,36 @@ class StreamQueueService {
 			/** @var Stream $object */
 			$this->cacheActorService->getFromId($object->getAttributedTo());
 
+			// one level further up than the stream that asked for it; the save
+			// below queues the next parent only while this stays under the cap
+			$object->setDetailInt(
+				self::DETAIL_ANCESTOR_DEPTH,
+				$stream->getDetailInt(self::DETAIL_ANCESTOR_DEPTH) + 1
+			);
+
 			$interface = AP::$activityPub->getInterfaceForItem($object);
 			$interface->save($object);
 
 			$note = $this->streamRequest->getStreamById($object->getId());
+			$this->countStoredReplies($note);
 		}
 
 		$item->setContent(json_encode($note, JSON_UNESCAPED_SLASHES));
+	}
+
+	/**
+	 * The replies that arrived before their parent did were stored without
+	 * bumping anything — there was no parent to bump. Counted now, the way
+	 * NoteInterface::updateDetails() counts them when the parent came first.
+	 */
+	private function countStoredReplies(Stream $note): void {
+		$stored = $this->streamRequest->countRepliesTo($note->getId());
+		if ($stored === 0) {
+			return;
+		}
+
+		$note->setDetailInt('replies', $note->getDetailInt('remote_replies') + $stored);
+		$this->streamRequest->updateDetails($note);
 	}
 
 	/**

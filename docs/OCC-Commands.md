@@ -2,7 +2,7 @@
 
 All commands are invoked via `php occ <command>` from the Nextcloud root directory.
 
-This page documents the seventeen commands the app registers in `appinfo/info.xml`.
+This page documents the twenty commands the app registers in `appinfo/info.xml`.
 Every command extends Nextcloud's `OC\Core\Command\Base`, so the generic
 `--output plain|json|json_pretty` option exists on all of them, but only
 `social:timeline` reads it (see below).
@@ -69,6 +69,109 @@ php occ social:account:following [--local] [--unfollow] <userId> <account>
 Prints progress lines (`Following account...`, the resolved local actor id and nid,
 then the result). This is the only command that returns exit code `1` on a handled
 failure; the rest let the exception surface.
+
+---
+
+### `social:account:alias`
+
+Manage the `alsoKnownAs` list of a local account: the actor ids it also answers
+to. Setting one is the first step of moving an account **to** this server — a
+Mastodon (or other) server refuses to start a Move towards an account that does
+not list the moving one here.
+
+```
+php occ social:account:alias [--add URL] [--remove URL] [--list] <userId>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `userId` | Yes | Nextcloud user whose actor is aliased |
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--add` | required | Actor id to add — the `https://…` address of the old account (`https://mastodon.example/users/alice`), **not** its `alice@mastodon.example` handle. Adding one that is already listed changes nothing. |
+| `--remove` | required | Actor id to remove. Removing one that is not listed changes nothing. |
+| `--list` | none | Print the current list. This is also what happens with no option at all. |
+
+`--add` and `--remove` cannot be combined in one run. Every change refreshes the
+actor cache, so the new list is on the actor document at once; the remote server
+reads it when the Move is started there.
+
+Prints `added <url>` / `removed <url>` followed by the list, or `no alias set.`.
+Exit code `1` when `userId` has no actor or the value is not an `http(s)://` URL.
+
+---
+
+### `social:account:move`
+
+Move a local account to one on another server, the way Mastodon's account
+migration works: the new account has to list this one in its `alsoKnownAs`, every
+follower is sent a `Move`, and the account here is marked as moved.
+
+```
+php occ social:account:move [-f|--force] <userId> <target>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `userId` | Yes | Nextcloud user whose actor moves away |
+| `target` | Yes | Actor id of the new account — its `https://…` address, not its handle |
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-f`, `--force` | none | Do not ask for confirmation (required with `--no-interaction`) |
+
+What happens, in order:
+
+1. The target is fetched fresh from its server (not read from the cache) and
+   must list this account's actor id in `alsoKnownAs` — the same check
+   `MoveInterface` applies to an incoming Move. Without it the command stops
+   with exit code `1` and nothing changes; add the alias on the new account
+   first (in Mastodon: *Preferences → Account → Moving from a different
+   account*).
+2. A `Move{actor, object: this actor, target}` is signed and queued through the
+   ordinary delivery queue to every follower's inbox and to the new account's
+   inbox. Servers that support migration re-follow the target for their users
+   and drop the follow of the old account.
+3. `movedTo` is recorded on the actor: it appears on the actor document and as
+   `moved` on the account entity, so clients show the "has moved" banner.
+4. Followers **on this server** never receive the Move (deliveries to ourselves
+   are dropped), so the command follows the new account on their behalf through
+   the ordinary follow path. One follower that cannot be re-followed is logged
+   and does not stop the others.
+
+The command asks for confirmation first; under `--no-interaction` it refuses
+unless `--force` is given, rather than moving an account because nobody was
+there to say no. Posts stay where they are — like Mastodon, a move carries the
+followers, not the content.
+
+---
+
+### `social:account:import-follows`
+
+Follow every account of a Mastodon `following_accounts.csv` export from a local
+account: the other half of moving an account **to** this server.
+
+```
+php occ social:account:import-follows <userId> <csv>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `userId` | Yes | Nextcloud user whose actor follows the accounts |
+| `csv` | Yes | Path to the export. The current Mastodon format with the header `Account address,Show boosts,Notify on new posts,Languages` is read by its `Account address` column wherever it is; the older format — one handle per line, no header — works too. |
+
+Each handle goes through the same path as `social:account:following`: the
+account is resolved (WebFinger), a `Follow` is queued, and a handle already
+followed is left alone. A leading `@` is dropped, repeats are followed once, and
+a line that is not a `user@host` handle is ignored. The other columns (boosts,
+notifications, languages) are not imported.
+
+One handle that fails — an unreachable instance, an account that no longer
+exists — is reported and does not stop the rest. The command prints how many
+were followed, how many were skipped (the importing account's own handle) and
+how many failed, each with its reason. Exit code `1` when the file cannot be
+read, or when something was asked for and none of it could be followed.
 
 ---
 

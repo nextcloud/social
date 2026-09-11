@@ -558,4 +558,87 @@ class AccountServiceTest extends TestCase {
 
 		$this->service->createActor('alice', '');
 	}
+
+	// --- setActorFlags -------------------------------------------------
+
+	private function aliceIsKnown(Person $alice): void {
+		$this->userManager->method('get')->with('alice')->willReturn($this->user('alice'));
+		$this->actorsRequest->method('getFromUserId')->with('alice')->willReturn($alice);
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+	}
+
+	public function testSetActorFlagsStoresBothFlagsAndRefreshesTheCache(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateFlags')
+			->willReturnCallback(function (Person $actor): void {
+				$this->assertTrue($actor->isDiscoverable());
+				$this->assertTrue($actor->isIndexable());
+			});
+		// the refreshed cache document is what federates the flags
+		$this->actorService->expects($this->once())->method('cacheLocalActor')
+			->with($this->identicalTo($alice));
+
+		$this->service->setActorFlags('alice', ['discoverable' => true, 'indexable' => true]);
+	}
+
+	public function testSetActorFlagsChangesOnlyTheKeysItIsGiven(): void {
+		$alice = $this->alice();
+		$alice->setDiscoverable(true)->setIndexable(true);
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateFlags');
+
+		$this->service->setActorFlags('alice', ['indexable' => false]);
+
+		$this->assertTrue($alice->isDiscoverable(), 'a key that was not sent is not a key that was cleared');
+		$this->assertFalse($alice->isIndexable());
+	}
+
+	public function testSetActorFlagsIgnoresUnknownKeysAndNonBooleans(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateFlags');
+
+		$this->service->setActorFlags('alice', ['discoverable' => 'true', 'locked' => true, 'bot' => true]);
+
+		$this->assertTrue($alice->isDiscoverable(), 'the string forms clients send are accepted');
+		$this->assertFalse($alice->isLocked(), 'locked has its own setter and is not a flag here');
+	}
+
+	public function testSetActorFlagsWithNothingToChangeWritesNothing(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->never())->method('updateFlags');
+		$this->actorService->expects($this->never())->method('cacheLocalActor');
+
+		$this->service->setActorFlags('alice', ['bot' => true]);
+	}
+
+	// --- aliases and moves ---------------------------------------------
+
+	public function testSetAlsoKnownAsStoresTheListAndRefreshesTheCache(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateAlsoKnownAs')
+			->willReturnCallback(function (Person $actor): void {
+				$this->assertSame(['https://old.example/users/alice'], $actor->getAlsoKnownAs());
+			});
+		$this->actorService->expects($this->once())->method('cacheLocalActor')
+			->with($this->identicalTo($alice));
+
+		$this->service->setAlsoKnownAs('alice', ['https://old.example/users/alice']);
+	}
+
+	public function testSetMovedToStoresTheTargetAndRefreshesTheCache(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateMovedTo')
+			->willReturnCallback(function (Person $actor): void {
+				$this->assertSame('https://new.example/users/alice', $actor->getMovedTo());
+			});
+		$this->actorService->expects($this->once())->method('cacheLocalActor')
+			->with($this->identicalTo($alice));
+
+		$this->service->setMovedTo('alice', 'https://new.example/users/alice');
+	}
 }

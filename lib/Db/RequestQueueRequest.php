@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
+use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\RequestQueueService;
@@ -256,6 +257,41 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$this->limitToId($qb, $queue->getId());
 
 		$qb->executeStatement();
+	}
+
+	/**
+	 * The outbound retry schedule, in SQL.
+	 *
+	 * The parent's version unrolls the `tries^4/3` backoff the inbound stream
+	 * queue still runs on. Deliveries wait on `RequestQueueService::retryDelay()`
+	 * instead — Mastodon's schedule, about two days in total — and the query
+	 * has to agree with the PHP side or a row is handed back and then dropped
+	 * again on every pass. Same shape as the parent: one branch per try count
+	 * below the give-up threshold, `tries = n AND (last IS NULL OR last <= now -
+	 * delay(n))`; the threshold falls out of the same expression. A row that
+	 * has never been attempted has a NULL `last`.
+	 */
+	protected function limitToQueueDue(IQueryBuilder &$qb, int $maxTries): void {
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$now = time();
+
+		$due = $expr->orX();
+		for ($tries = 0; $tries < $maxTries; $tries++) {
+			$cutoff = new DateTime('@' . ($now - RequestQueueService::retryDelay($tries)));
+
+			$due->add(
+				$expr->andX(
+					$expr->eq($pf . 'tries', $qb->createNamedParameter($tries, IQueryBuilder::PARAM_INT)),
+					$expr->orX(
+						$expr->isNull($pf . 'last'),
+						$expr->lte($pf . 'last', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_DATE))
+					)
+				)
+			);
+		}
+
+		$qb->andWhere($due);
 	}
 
 	/**

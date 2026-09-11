@@ -161,4 +161,28 @@ class QuestionTest extends TestCase {
 
 		$this->assertArrayNotHasKey('poll', $question->exportAsLocal());
 	}
+
+	public function testAPollCarriesItsLanguageOnTheWireLikeANote(): void {
+		$question = new Question();
+		$question->setPollData(['Katzen', 'Hunde'], false, 3600);
+		$question->setContent('<p>Lieblingstier?</p>')->setLanguage('de');
+
+		$wire = $question->jsonSerialize();
+
+		$this->assertSame(['de' => '<p>Lieblingstier?</p>'], $wire['contentMap']);
+		$this->assertArrayHasKey('oneOf', $wire);
+
+		$copy = new Question();
+		$copy->import(json_decode(json_encode($wire), true));
+		$this->assertSame('de', $copy->getLanguage());
+		$this->assertSame($question->getOptions(), $copy->getOptions());
+	}
+
+	public function testARemotePollTakesItsLanguageFromTheContentMap(): void {
+		$question = new Question();
+		$question->import($this->mastodonPoll('oneOf', ['contentMap' => ['fr' => '<p>Best animal?</p>']]));
+
+		$this->assertSame('fr', $question->getLanguage());
+		$this->assertSame('fr', $question->exportAsLocal()['language']);
+	}
 }

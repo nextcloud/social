@@ -134,7 +134,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $activityId = '';
 	private string $content = '';
 	private string $visibility = '';
-	private string $language = 'en';
+	/** BCP 47, normalised; empty when nobody said — never a guess, see normalizeLanguage() */
+	private string $language = '';
+	/** when the author last edited this, ISO-8601 — the ActivityPub `updated` */
+	private string $updated = '';
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
 	private array $attachments = [];
@@ -247,6 +250,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The language of the content as a BCP 47 tag, or an empty string when
+	 * nobody said. This used to default to `'en'`, so every local post
+	 * federated as English and every remote post was shown as English
+	 * whatever it was written in; an empty value is the honest answer and
+	 * becomes `null` in the client format, which Mastodon allows.
+	 *
 	 * @return string
 	 */
 	public function getLanguage(): string {
@@ -254,12 +263,62 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * Anything that is not a language tag is dropped rather than federated:
+	 * the value ends up as a key of `contentMap` on every other server.
+	 *
 	 * @param string $language
 	 *
 	 * @return $this
 	 */
 	public function setLanguage(string $language): self {
-		$this->language = $language;
+		$this->language = self::normalizeLanguage($language);
+
+		return $this;
+	}
+
+	/**
+	 * A language tag as this app is willing to federate it: a 2–3 letter
+	 * primary subtag, optionally a script and a region, cased the way BCP 47
+	 * does (`pt-BR`, `zh-Hant-TW`). Anything else — a language name, markup,
+	 * a variant this app does not understand — becomes an empty string, so
+	 * the caller's default applies. Loose on purpose: Mastodon's own list is
+	 * mostly ISO 639-1 with a handful of regional variants, and a stricter
+	 * check would need a registry that ages.
+	 */
+	public static function normalizeLanguage(string $language): string {
+		$language = str_replace('_', '-', trim($language));
+		if (!preg_match('/^([a-z]{2,3})(?:-([a-z]{4}))?(?:-([a-z]{2}|\d{3}))?$/i', $language, $m)) {
+			return '';
+		}
+
+		$tag = strtolower($m[1]);
+		if (($m[2] ?? '') !== '') {
+			$tag .= '-' . ucfirst(strtolower($m[2]));
+		}
+		if (($m[3] ?? '') !== '') {
+			$tag .= '-' . strtoupper($m[3]);
+		}
+
+		return $tag;
+	}
+
+	/**
+	 * When the author last edited the post, as the ActivityPub `updated`
+	 * property; empty for a post that was never edited.
+	 *
+	 * Mastodon reads an `Update{Note}` without `updated` as an implicit
+	 * update — it refreshes poll counters and discards the content change —
+	 * so every edit has to carry one, and `published` has to stay what it
+	 * was: it is the creation time, and moving it is not an edit to anybody.
+	 *
+	 * @return string
+	 */
+	public function getUpdated(): string {
+		return $this->updated;
+	}
+
+	public function setUpdated(string $updated): self {
+		$this->updated = $updated;
 
 		return $this;
 	}
@@ -544,6 +603,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setObjectId($this->get('object', $data, ''));
 		$this->setConversation($this->validate(self::AS_ID, 'conversation', $data, ''));
 		$this->setContent($this->get('content', $data, ''));
+		$this->setLanguage(self::languageOf($data));
+		$this->setUpdated($this->validate(self::AS_DATE, 'updated', $data, ''));
 		try {
 			$this->importAttachments($this->getArray('attachment', $data, []));
 		} catch (ItemAlreadyExistsException $e) {
@@ -563,6 +624,40 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		if (isset($data['replies']['totalItems'])) {
 			$this->setDetailInt('replies', (int)$data['replies']['totalItems']);
 		}
+	}
+
+	/**
+	 * The language a wire object declares: a top-level `language` where a
+	 * server sends one, otherwise the key of its `contentMap` — Mastodon
+	 * sends nothing else. Empty when it declares none.
+	 */
+	private static function languageOf(array $data): string {
+		$language = self::normalizeLanguage((string)($data['language'] ?? ''));
+		if ($language !== '') {
+			return $language;
+		}
+
+		foreach (['contentMap', 'summaryMap'] as $map) {
+			$translations = $data[$map] ?? null;
+			if (!is_array($translations)) {
+				continue;
+			}
+
+			// the keys are language tags; PHP turns a numeric one into an int,
+			// and no language tag is a number
+			foreach ($translations as $tag => $ignored) {
+				if (!is_string($tag)) {
+					continue;
+				}
+
+				$language = self::normalizeLanguage($tag);
+				if ($language !== '') {
+					return $language;
+				}
+			}
+		}
+
+		return '';
 	}
 
 	/**
@@ -644,6 +739,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$sourceData = json_decode($source, true);
 			if (is_array($sourceData)) {
 				$this->setEmojis($this->extractEmojisFromTag($sourceData));
+				// neither has a column; both ride in the stored wire object,
+				// which is the one thing an Update rewrites — a remote edit
+				// through NoteInterface as much as a local one through
+				// PostService::editPost()
+				$this->setLanguage(self::languageOf($sourceData));
+				$this->setUpdated($this->validate(self::AS_DATE, 'updated', $sourceData, ''));
 				$details = $this->getDetailsAll();
 				if (!array_key_exists('remote_likes', $details) && isset($sourceData['likes']['totalItems'])) {
 					$remoteLikes = (int)$sourceData['likes']['totalItems'];
@@ -751,8 +852,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				'attributedTo' => $this->getAttributedTo(),
 				'inReplyTo' => $this->getInReplyTo(),
 				'sensitive' => $this->isSensitive(),
-				'conversation' => $this->getConversation()
-			]
+				'conversation' => $this->getConversation(),
+				'updated' => $this->getUpdated(),
+			],
+			$this->exportLanguageMaps()
 		);
 
 		// TODO: use exportFormat
@@ -771,6 +874,31 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->cleanArray($result);
 
 		return $result;
+	}
+
+	/**
+	 * `contentMap`/`summaryMap`: the text keyed by its language, which is how
+	 * ActivityPub says what language a post is in and the only place Mastodon
+	 * looks. Nothing when the language is unknown — a wrong key is worse than
+	 * none — and no map for an empty text.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	private function exportLanguageMaps(): array {
+		$language = $this->getLanguage();
+		if ($language === '') {
+			return [];
+		}
+
+		$maps = [];
+		if ($this->getContent() !== '') {
+			$maps['contentMap'] = [$language => $this->getContent()];
+		}
+		if ($this->getSummary() !== '') {
+			$maps['summaryMap'] = [$language => $this->getSummary()];
+		}
+
+		return $maps;
 	}
 
 	/**
@@ -804,7 +932,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'sensitive' => $this->isSensitive(),
 			'spoiler_text' => $this->getSpoilerText(),
 			'visibility' => self::visibilityForClient($this->getVisibility()),
-			'language' => $this->getLanguage(),
+			// nullable in Mastodon's entity, and null is what "nobody said" is
+			'language' => ($this->getLanguage() === '') ? null : $this->getLanguage(),
 			'in_reply_to_id' => $inReplyToId,
 			'in_reply_to_account_id' => $inReplyToAccountId,
 			'mentions' => $this->exportMentionsAsLocal(),
@@ -943,12 +1072,21 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * When this status was last edited, or null if it never was.
 	 *
-	 * Nothing stores an edit timestamp of its own, but `PostService::editPost()`
-	 * stamps `published` with the moment of the edit and leaves `published_time`
-	 * — which is what `created_at` is built from — at the original. The two
-	 * agreeing means the post has not been edited since it was written.
+	 * The edit stamp is the ActivityPub `updated`, remote or local. Rows
+	 * edited before this app emitted one carry the edit differently: the
+	 * edit used to move `published` and leave `published_time` — which
+	 * `created_at` is built from — at the original, so for those the two
+	 * disagreeing is what says the post was edited.
 	 */
 	private function editedAt(): ?string {
+		if ($this->getUpdated() !== '') {
+			try {
+				return gmdate('Y-m-d\TH:i:s', (new DateTime($this->getUpdated()))->getTimestamp()) . '.000Z';
+			} catch (Exception $e) {
+				return null;
+			}
+		}
+
 		$published = $this->getPublished();
 		if ($published === '' || $this->getPublishedTime() === 0) {
 			return null;

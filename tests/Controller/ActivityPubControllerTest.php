@@ -249,10 +249,13 @@ class ActivityPubControllerTest extends TestCase {
 
 	// sharedInbox() / inbox()
 
-	private function signedRequestFrom(string $origin, int $time = 1700000000): void {
+	private function signedRequestFrom(string $origin, int $time = 1700000000, string $signedBy = ''): void {
 		$this->signatureService->method('checkRequest')
-			->willReturnCallback(function (IRequest $request, string $body, int &$requestTime) use ($origin, $time): string {
+			->willReturnCallback(function (
+				IRequest $request, string $body, int &$requestTime, string &$signer = '',
+			) use ($origin, $time, $signedBy): string {
 				$requestTime = $time;
+				$signer = $signedBy;
 
 				return $origin;
 			});
@@ -365,6 +368,41 @@ class ActivityPubControllerTest extends TestCase {
 		$activity = $this->incomingActivity();
 		$this->signatureService->method('checkObject')->willReturn(true);
 		$activity->expects($this->never())->method('setOrigin');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testSharedInboxMakesTheSignerAnswerForTheActivity(): void {
+		// the host matching proves the server, not the person: without this the
+		// holder of any account on a server can act as anybody else on it
+		$this->signedRequestFrom('https://remote.example', 1234, 'https://remote.example/users/mallory');
+		$activity = $this->incomingActivity('tok-1');
+		$this->signatureService->method('checkObject')->willReturn(false);
+		$this->signatureService->expects($this->once())->method('assertSignerSpeaksFor')
+			->with('https://remote.example/users/mallory', $activity);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testSharedInboxRefusesAnActivityItsSignerMayNotSpeakFor(): void {
+		$this->signedRequestFrom('https://remote.example', 1234, 'https://remote.example/users/mallory');
+		$this->incomingActivity();
+		$this->signatureService->method('checkObject')->willReturn(false);
+		$this->signatureService->method('assertSignerSpeaksFor')
+			->willThrowException(new InvalidOriginException('not yours'));
+
+		$response = $this->controller->sharedInbox();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	public function testSharedInboxLetsALinkedDataSignatureSpeakForAForwardedActivity(): void {
+		// a relayed or forwarded activity is signed by the server that passed it
+		// on; the signature on the object itself is what vouches for the actor
+		$this->signedRequestFrom('https://relay.example', 1234, 'https://relay.example/actor');
+		$this->incomingActivity();
+		$this->signatureService->method('checkObject')->willReturn(true);
+		$this->signatureService->expects($this->never())->method('assertSignerSpeaksFor');
 
 		$this->assertSame(Http::STATUS_OK, $this->controller->sharedInbox()->getStatus());
 	}

@@ -70,38 +70,77 @@ class OAuthController extends Controller {
 
 	}
 
+	/**
+	 * What this software is called on NodeInfo. The schema wants
+	 * `^[a-z0-9-]+$`, and crawlers group instances by this string, so it is a
+	 * constant: the theming title that used to go here put every Nextcloud
+	 * under its own "software" and made the app invisible in every statistic.
+	 * The human title travels as `metadata.nodeName`.
+	 */
+	private const SOFTWARE_NAME = 'nextcloud-social';
+	private const REPOSITORY = 'https://github.com/nextcloud/social';
+
+	/** `/.well-known/nodeinfo/2.0` */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	public function nodeinfo2(): Response {
+		return new DataResponse($this->nodeInfo('2.0'), Http::STATUS_OK);
+	}
+
+	/**
+	 * `/.well-known/nodeinfo/2.1`: 2.0 plus `software.repository` and
+	 * `software.homepage`. Needs a route and a link from the discovery
+	 * document (`WebfingerHandler::handleNodeInfo()`) to be reachable.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function nodeinfo21(): Response {
+		return new DataResponse($this->nodeInfo('2.1'), Http::STATUS_OK);
+	}
+
+	/**
+	 * The NodeInfo document for one schema version. The schema allows no
+	 * property it does not name, so `services` and `metadata` are always
+	 * present (both required) and nothing else is added at the top level.
+	 */
+	private function nodeInfo(string $schema): array {
 		try {
 			$local = $this->instanceService->getLocal();
 			$name = $local->getTitle();
-
+			$description = $local->getShortDescription();
 			$version = $local->getVersion();
 			$usage = $local->getUsage();
 			$openReg = $local->isRegistrations();
 		} catch (InstanceDoesNotExistException $e) {
 			$name = 'Nextcloud Social';
+			$description = '';
 			$version = $this->configService->getAppValue('installed_version');
 			$usage = [];
 			$openReg = false;
 		}
 
-		$nodeInfo = [
-			'version' => '2.0',
-			'software' => [
-				'name' => $name,
-				'version' => $version
-			],
-			'protocols' => [
-				'activitypub'
-			],
-			'rootUrl' => rtrim($this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'), '/'),
-			'usage' => $usage,
-			'openRegistrations' => $openReg
+		$software = [
+			'name' => self::SOFTWARE_NAME,
+			'version' => (string)$version,
 		];
+		if ($schema === '2.1') {
+			$software['repository'] = self::REPOSITORY;
+			$software['homepage'] = self::REPOSITORY;
+		}
 
-		return new DataResponse($nodeInfo, Http::STATUS_OK);
+		return [
+			'version' => $schema,
+			'software' => $software,
+			'protocols' => ['activitypub'],
+			// no third-party service is bridged in or out
+			'services' => ['inbound' => [], 'outbound' => []],
+			'usage' => $usage,
+			'openRegistrations' => $openReg,
+			'metadata' => [
+				'nodeName' => $name,
+				'nodeDescription' => $description,
+			],
+		];
 	}
 
 	/**

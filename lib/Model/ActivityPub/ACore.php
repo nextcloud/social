@@ -63,6 +63,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		'toot' => 'http://joinmastodon.org/ns#',
 		'featured' => ['@id' => 'toot:featured', '@type' => '@id'],
 		'discoverable' => 'toot:discoverable',
+		'indexable' => 'toot:indexable',
 		'votersCount' => 'toot:votersCount',
 		'blurhash' => 'toot:blurhash',
 		'focalPoint' => ['@container' => '@list', '@id' => 'toot:focalPoint'],
@@ -657,12 +658,33 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
 		$this->setUrl($this->validate(self::AS_URL, 'url', $data, ''));
 		$this->setSummary($this->get('summary', $data, ''));
-		$this->setToArray($this->validateArray(self::AS_ID, 'to', $data, []));
-		$this->setCcArray($this->validateArray(self::AS_ID, 'cc', $data, []));
+		$this->setToArray($this->validateRecipients('to', $data));
+		$this->setCcArray($this->validateRecipients('cc', $data));
 		$this->setPublished($this->validate(self::AS_DATE, 'published', $data, ''));
 		$this->setActorId($this->validate(self::AS_ID, 'actor', $data, ''));
 		$this->setObjectId($this->validate(self::AS_ID, 'object', $data, ''));
 		$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $data, []));
+	}
+
+	/**
+	 * The ids in an addressing field, whether it came as a list or as one bare
+	 * string. `to` and `cc` are lists in the vocabulary, but a single recipient —
+	 * `"to": "https://www.w3.org/ns/activitystreams#Public"` — is regularly sent
+	 * unwrapped. Read through `getArray()` the string was json-decoded, decoded to
+	 * nothing, and the post arrived with no recipients at all, which
+	 * `NoteInterface::estimateVisibility()` reads as a direct message.
+	 *
+	 * Handled here rather than in the trait: `getArray()` is shared by every
+	 * model and every database row parser, where a string is a JSON column.
+	 *
+	 * @return string[]
+	 */
+	private function validateRecipients(string $k, array $data): array {
+		if (is_string($data[$k] ?? null)) {
+			$data[$k] = [$data[$k]];
+		}
+
+		return $this->validateArray(self::AS_ID, $k, $data, []);
 	}
 
 	/**

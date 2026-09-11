@@ -60,6 +60,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private array $emojis = [];
 	private bool $bot = false;
 	private bool $discoverable = false;
+	private bool $indexable = false;
 	private string $privacy = 'public';
 	private bool $sensitive = false;
 	private string $language = 'en';
@@ -69,6 +70,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 	/** @var string[] */
 	private array $alsoKnownAs = [];
+
+	/** The actor this account moved to, if it has; `movedTo` on the wire. */
+	private string $movedTo = '';
+
+	/** The cached copy of the `movedTo` actor, when whoever hydrated this one had it. */
+	private ?Person $movedToActor = null;
 
 	/** @var array[] profile metadata, [['name' => string, 'value' => string], …] */
 	private array $fields = [];
@@ -497,6 +504,20 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * Whether the account's public posts may be full-text indexed by other
+	 * servers (`toot:indexable`). Opt-in, like `discoverable`.
+	 */
+	public function isIndexable(): bool {
+		return $this->indexable;
+	}
+
+	public function setIndexable(bool $indexable): self {
+		$this->indexable = $indexable;
+
+		return $this;
+	}
+
+	/**
 	 * @return string
 	 */
 	public function getPrivacy(): string {
@@ -624,6 +645,33 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The id of the actor this account moved to; empty while it has not.
+	 */
+	public function getMovedTo(): string {
+		return $this->movedTo;
+	}
+
+	public function setMovedTo(string $movedTo): self {
+		$this->movedTo = $movedTo;
+
+		return $this;
+	}
+
+	/**
+	 * The account behind `movedTo`, when it is known. What the client entity
+	 * shows as `moved`; without it, a stub is derived from the id alone.
+	 */
+	public function getMovedToActor(): ?Person {
+		return $this->movedToActor;
+	}
+
+	public function setMovedToActor(?Person $movedToActor): self {
+		$this->movedToActor = $movedToActor;
+
+		return $this;
+	}
+
+	/**
 	 * Profile metadata (the name/value table under the bio), federated as
 	 * `attachment` entries of type PropertyValue. Mastodon-compatible: at most
 	 * four fields, both halves required.
@@ -700,8 +748,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
 			->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
 			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
-			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []));
+			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []))
+			->setMovedTo($this->validate(ACore::AS_URL, 'movedTo', $data, ''));
 		$this->setLocked($this->getBool('manuallyApprovesFollowers', $data, false));
+		// Mastodon serialises an unset preference as null; getBool() reads that as the default
+		$this->setDiscoverable($this->getBool('discoverable', $data, false));
+		$this->setIndexable($this->getBool('indexable', $data, false));
 		$this->setFields($this->extractFieldsFromAttachment($data));
 
 		/** @var Image $icon */
@@ -734,6 +786,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$this->setLocked($this->getBool('locked', $data));
 		$this->setBot($this->getBool('bot', $data));
 		$this->setDiscoverable($this->getBool('discoverable', $data));
+		$this->setIndexable($this->getBool('indexable', $data));
+		$this->setMovedTo($this->get('moved.url', $data, ''));
 		$this->setDescription($this->get('note', $data));
 		$this->setUrl($this->get('url', $data));
 
@@ -768,7 +822,16 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
+		// the columns of a local actor row; a cache row has none of them and
+		// carries the same facts in its source document, read just below
 		$this->setLocked($this->getInt('locked', $data, 0) === 1);
+		$this->setDiscoverable($this->getInt('discoverable', $data, 0) === 1);
+		$this->setIndexable($this->getInt('indexable', $data, 0) === 1);
+		$this->setMovedTo($this->get('moved_to', $data, ''));
+		$storedAliases = json_decode($this->get('also_known_as', $data, ''), true);
+		if (is_array($storedAliases)) {
+			$this->setAlsoKnownAs($storedAliases);
+		}
 
 		$source = json_decode($this->getSource(), true);
 		if (is_array($source)) {
@@ -777,7 +840,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				$this->setHeader($image);
 			}
 			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
+			$this->setMovedTo($this->validate(self::AS_URL, 'movedTo', $source, $this->getMovedTo()));
 			$this->setLocked($this->getBool('manuallyApprovesFollowers', $source, $this->isLocked()));
+			$this->setDiscoverable($this->getBool('discoverable', $source, $this->isDiscoverable()));
+			$this->setIndexable($this->getBool('indexable', $source, $this->isIndexable()));
 			$this->setEmojis($this->extractEmojisFromTag($source));
 			$this->setFields($this->extractFieldsFromAttachment($source));
 		}
@@ -852,6 +918,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		];
 
 		$data['manuallyApprovesFollowers'] = $this->isLocked();
+		// Both default to false on the receiving side (Mastodon), so an actor
+		// that omits them is never listed in a directory, suggested, or
+		// full-text searched: they have to be said out loud to opt in.
+		$data['discoverable'] = $this->isDiscoverable();
+		$data['indexable'] = $this->isIndexable();
 
 		if ($this->getFeatured() !== '') {
 			$data['featured'] = $this->getFeatured();
@@ -859,6 +930,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		if ($this->getAlsoKnownAs() !== []) {
 			$data['alsoKnownAs'] = $this->getAlsoKnownAs();
+		}
+
+		if ($this->getMovedTo() !== '') {
+			$data['movedTo'] = $this->getMovedTo();
 		}
 
 		if ($this->fields !== []) {
@@ -925,6 +1000,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'locked' => $this->isLocked(),
 				'bot' => $this->isBot(),
 				'discoverable' => $this->isDiscoverable(),
+				'indexable' => $this->isIndexable(),
 				'group' => false,
 				'created_at' => gmdate('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
 				'note' => $this->getDescription(),
@@ -936,7 +1012,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'followers_count' => $this->getInt('count.followers', $details),
 				'following_count' => $this->getInt('count.following', $details),
 				'statuses_count' => $this->getInt('count.post', $details),
-				'last_status_at' => $this->get('last_post_creation', $details),
+				// null, not '', while nothing was posted: a date-or-null field in Mastodon's entity
+				'last_status_at' => $this->get('last_post_creation', $details) !== ''
+					? $this->get('last_post_creation', $details) : null,
 				'source' => [
 					'privacy' => $this->getPrivacy(),
 					'sensitive' => $this->isSensitive(),
@@ -949,6 +1027,37 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'fields' => $fields
 			];
 
+		if ($this->getMovedTo() !== '') {
+			$result['moved'] = $this->exportMovedAccount();
+		}
+
 		return array_merge(parent::exportAsLocal(), $result);
+	}
+
+	/**
+	 * The `moved` account entity: what a client shows as the "has moved"
+	 * banner and follows through to. The cached target when it is known; a
+	 * stub derived from the id otherwise, complete in shape so a client that
+	 * expects a full Account entity does not choke on it. Never chains: a
+	 * target that itself moved on is not followed.
+	 */
+	private function exportMovedAccount(): array {
+		$target = $this->movedToActor;
+		if ($target === null) {
+			$target = new Person();
+			$path = (string)parse_url($this->movedTo, PHP_URL_PATH);
+			$username = basename(rtrim($path, '/'));
+			$username = ltrim($username, '@');
+			$host = (string)parse_url($this->movedTo, PHP_URL_HOST);
+			$target->setId($this->movedTo);
+			$target->setUrl($this->movedTo);
+			$target->setPreferredUsername($username)
+				->setAccount($host === '' ? $username : $username . '@' . $host);
+		}
+
+		$export = $target->exportAsLocal();
+		unset($export['moved']);
+
+		return $export;
 	}
 }

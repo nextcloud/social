@@ -101,6 +101,25 @@ class ActivitiesTest extends TestCase {
 		$this->assertSame('https://other.example/users/alice', $move->getTarget());
 	}
 
+	public function testMoveSaysWhereTheAccountWent(): void {
+		// a Move whose export drops `target` tells the other server that an
+		// account moved and not where to, so its followers have nothing to follow
+		$move = new Move();
+		$move->setId('https://cloud.example/users/alice#moves/1');
+		$move->setActorId('https://cloud.example/users/alice');
+		$move->setObjectId('https://cloud.example/users/alice');
+		$move->setTarget('https://mastodon.social/users/alice');
+
+		$this->assertSame('https://mastodon.social/users/alice', $move->exportAsActivityPub()['target']);
+	}
+
+	public function testAMoveWithNoTargetExportsNone(): void {
+		$move = new Move();
+		$move->setActorId('https://cloud.example/users/alice');
+
+		$this->assertArrayNotHasKey('target', $move->exportAsActivityPub());
+	}
+
 	public function testUndoWithAnEmbeddedFollowExportsTheObjectInline(): void {
 		$undo = new Undo();
 		$undo->setId('https://mastodon.social/users/alice#follows/1/undo')

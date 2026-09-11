@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\InstancesRequest;
+use OCA\Social\Db\InstanceStatsRequest;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -50,6 +51,15 @@ class InstanceService {
 		'audio/flac', 'audio/aac', 'audio/webm', 'audio/3gpp',
 	];
 
+	/**
+	 * Where the counted `status_count` and `domain_count` are remembered, as
+	 * JSON with a `computed_at` timestamp, and for how long. Five minutes is
+	 * fresh enough for a number nobody reads to the unit, and it keeps the two
+	 * table walks behind it off the request path.
+	 */
+	public const STATS_CACHE_KEY = 'instance_stats';
+	public const STATS_CACHE_SECONDS = 300;
+
 	private InstancesRequest $instancesRequest;
 	private ConfigService $configService;
 	private MiscService $miscService;
@@ -57,6 +67,9 @@ class InstanceService {
 
 	/** @var string[]|null memoised: filterMimeTypes() does not change mid-request */
 	private ?array $supportedMimeTypes = null;
+
+	/** @var array{status_count: int, domain_count: int}|null memoised per request */
+	private ?array $countedStats = null;
 
 	public function __construct(
 		InstancesRequest $instancesRequest,
@@ -66,6 +79,7 @@ class InstanceService {
 		private IURLGenerator $urlGenerator,
 		private IUserManager $userManager,
 		private CacheDocumentService $cacheDocumentService,
+		private InstanceStatsRequest $instanceStatsRequest,
 	) {
 		$this->instancesRequest = $instancesRequest;
 		$this->configService = $configService;
@@ -133,8 +147,8 @@ class InstanceService {
 			->setApprovalRequired(false)
 			->setInvitesEnabled(false)
 			->setUrls($this->urls())
-			->setStats($this->stats($instance))
-			->setUsage($this->usage($instance))
+			->setStats($this->stats())
+			->setUsage($this->usage())
 			->setConfiguration($this->configuration())
 			->setRules($this->rules());
 	}
@@ -150,32 +164,69 @@ class InstanceService {
 	}
 
 	/**
-	 * `stats` as an object with all three keys.
+	 * `stats` as an object with all three keys, all of them live.
 	 *
 	 * `user_count` is the number of Nextcloud users, which is the number of
 	 * people who can have an account here: an actor is created for a user the
-	 * first time they open the app. `status_count` and `domain_count` would
-	 * each need an aggregate the Db layer does not offer yet, and are reported
-	 * as 0 rather than guessed.
+	 * first time they open the app. `status_count` and `domain_count` are
+	 * counted from the database and remembered for a few minutes, see
+	 * `countedStats()`. Nothing is read back from the stored row: it holds
+	 * whatever was true on the day the instance was set up.
 	 */
-	private function stats(Instance $instance): array {
-		$stored = $instance->getStats();
+	private function stats(): array {
+		$counted = $this->countedStats();
 
 		return [
-			'user_count' => (int)($stored['user_count'] ?? $this->countUsers()),
-			'status_count' => (int)($stored['status_count'] ?? 0),
-			'domain_count' => (int)($stored['domain_count'] ?? 0),
+			'user_count' => $this->countUsers(),
+			'status_count' => $counted['status_count'],
+			'domain_count' => $counted['domain_count'],
 		];
 	}
 
 	/** NodeInfo's shape for the same numbers. */
-	private function usage(Instance $instance): array {
-		$stats = $this->stats($instance);
+	private function usage(): array {
+		$stats = $this->stats();
 
 		return [
 			'users' => ['total' => $stats['user_count']],
 			'localPosts' => $stats['status_count'],
 		];
+	}
+
+	/**
+	 * The two counted numbers, from app config when a recent count is there,
+	 * from the database otherwise — and then written back for the next
+	 * STATS_CACHE_SECONDS. Also memoised for the request, since the instance
+	 * entity is built more than once per response.
+	 *
+	 * @return array{status_count: int, domain_count: int}
+	 */
+	private function countedStats(): array {
+		if ($this->countedStats !== null) {
+			return $this->countedStats;
+		}
+
+		$remembered = json_decode(
+			(string)$this->config->getAppValue(Application::APP_ID, self::STATS_CACHE_KEY, ''), true
+		);
+		if (is_array($remembered)
+			&& (int)($remembered['computed_at'] ?? 0) > time() - self::STATS_CACHE_SECONDS) {
+			return $this->countedStats = [
+				'status_count' => (int)($remembered['status_count'] ?? 0),
+				'domain_count' => (int)($remembered['domain_count'] ?? 0),
+			];
+		}
+
+		$counted = [
+			'status_count' => $this->instanceStatsRequest->countLocalStatuses(),
+			'domain_count' => $this->instanceStatsRequest->countRemoteDomains(),
+		];
+		$this->config->setAppValue(
+			Application::APP_ID, self::STATS_CACHE_KEY,
+			(string)json_encode($counted + ['computed_at' => time()])
+		);
+
+		return $this->countedStats = $counted;
 	}
 
 	private function countUsers(): int {

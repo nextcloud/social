@@ -206,7 +206,7 @@ class ApiContractTest extends TestCase {
 		$expected = [
 			'acct', 'avatar', 'avatar_static', 'bot', 'created_at', 'discoverable',
 			'display_name', 'emojis', 'fields', 'followers_count', 'following_count',
-			'group', 'header', 'header_static', 'id', 'last_status_at', 'locked',
+			'group', 'header', 'header_static', 'id', 'indexable', 'last_status_at', 'locked',
 			'nid', 'note', 'source', 'statuses_count', 'url', 'username',
 		];
 		$actual = array_keys($account);
@@ -214,6 +214,13 @@ class ApiContractTest extends TestCase {
 		sort($actual);
 
 		$this->assertSame($expected, $actual);
+
+		// `moved` is the one optional key of the entity: present only once the
+		// account has moved, and then a full account entity of its own
+		$person->setMovedTo('https://new.example/users/alice');
+		$moved = array_keys($person->exportAsLocal()['moved']);
+		sort($moved);
+		$this->assertSame($expected, $moved, 'moved carries the same keys as any account entity');
 	}
 
 	public function testTheRelationshipEntityKeysAreStable(): void {

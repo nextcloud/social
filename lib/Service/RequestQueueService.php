@@ -19,8 +19,56 @@ use OCA\Social\Model\RequestQueue;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class RequestQueueService {
-	/** A request is abandoned after this many failed delivery attempts. */
-	public const MAX_TRIES = 15;
+	/**
+	 * A request is abandoned after this many failed delivery attempts.
+	 *
+	 * The schedule is Mastodon's (Sidekiq's `count^4 + 15` backoff, 16
+	 * attempts): a peer gets about two days to come back, which covers the
+	 * weekend outage the old 15 tries on `tries^4/3` (12-16 hours in total)
+	 * did not. The first attempts stay minutes apart, because a peer that was
+	 * only momentarily down is the common case; the cron runs every 12
+	 * minutes, so every wait below that is "next run". A row is retried once
+	 * `last + retryDelay(tries)` has passed:
+	 *
+	 *   failed tries | wait before the next attempt
+	 *   -------------|-----------------------------
+	 *              0 |  none: never failed, due at once
+	 *              1 |      16 s
+	 *              2 |      31 s
+	 *              3 |      96 s
+	 *              4 |     271 s  (4.5 min)
+	 *              5 |     640 s  (11 min)
+	 *              6 |   1 311 s  (22 min)
+	 *              7 |   2 416 s  (40 min)
+	 *              8 |   4 111 s  (1.1 h)
+	 *              9 |   6 576 s  (1.8 h)
+	 *             10 |  10 015 s  (2.8 h)
+	 *             11 |  14 656 s  (4.1 h)
+	 *             12 |  20 751 s  (5.8 h)
+	 *             13 |  28 576 s  (7.9 h)
+	 *             14 |  38 431 s  (10.7 h)
+	 *             15 |  50 640 s  (14.1 h)
+	 *             16 |  abandoned
+	 *
+	 * Total: 178 537 s, 49.6 hours, plus up to one cron interval per attempt.
+	 *
+	 * The same schedule has to be applied by the query that reads the queue
+	 * (`RequestQueueRequest::limitToQueueDue()`), so both sides call
+	 * `retryDelay()`.
+	 */
+	public const MAX_TRIES = 16;
+
+	/**
+	 * How long a request waits after its n-th failure, in seconds; the table
+	 * on MAX_TRIES. `tries` is the count of failed attempts so far.
+	 */
+	public static function retryDelay(int $tries): int {
+		if ($tries < 1) {
+			return 0;
+		}
+
+		return $tries ** 4 + 15;
+	}
 
 	/** A `running` request older than this (seconds) is treated as stranded. */
 	public const STALE_RUNNING_SECONDS = 3600;
@@ -152,7 +200,7 @@ class RequestQueueService {
 				continue;
 			}
 
-			$delay = floor(pow($request->getTries(), 4) / 3);
+			$delay = self::retryDelay($request->getTries());
 			if ($request->getLast() < (time() - $delay)) {
 				$result[] = $request;
 			}
