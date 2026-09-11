@@ -205,7 +205,8 @@ class ActivityPubController extends Controller {
 			$body = (string)file_get_contents('php://input');
 
 			$requestTime = 0;
-			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
+			$signer = '';
+			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime, $signer);
 			$this->fediverseService->authorized($origin);
 
 			// the per-origin ceiling is spent here rather than on the way in:
@@ -216,6 +217,10 @@ class ActivityPubController extends Controller {
 
 			$activity = $this->importService->importFromJson($body);
 			if (!$this->signatureService->checkObject($activity)) {
+				// no Linked Data signature to vouch for the object, so the only
+				// thing standing behind this activity is the key that signed the
+				// request — and it has to be the actor's own
+				$this->signatureService->assertSignerSpeaksFor($signer, $activity);
 				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, $requestTime);
 			}
 
@@ -260,7 +265,8 @@ class ActivityPubController extends Controller {
 			$body = (string)file_get_contents('php://input');
 
 			$requestTime = 0;
-			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
+			$signer = '';
+			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime, $signer);
 			$this->fediverseService->authorized($origin);
 
 			// the per-origin ceiling is spent here rather than on the way in:
@@ -273,6 +279,10 @@ class ActivityPubController extends Controller {
 
 			$activity = $this->importService->importFromJson($body);
 			if (!$this->signatureService->checkObject($activity)) {
+				// no Linked Data signature to vouch for the object, so the only
+				// thing standing behind this activity is the key that signed the
+				// request — and it has to be the actor's own
+				$this->signatureService->assertSignerSpeaksFor($signer, $activity);
 				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, $requestTime);
 			}
 

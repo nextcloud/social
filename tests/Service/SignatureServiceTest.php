@@ -27,6 +27,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Tests\Helper\RsaPssSigner;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -252,6 +253,7 @@ class SignatureServiceTest extends TestCase {
 		$request->method('getHeader')->willReturnCallback(fn (string $name) => $headers[strtolower($name)] ?? '');
 		$request->method('getMethod')->willReturn('POST');
 		$request->method('getRequestUri')->willReturn('/apps/social/@alice/inbox');
+		$request->method('getServerProtocol')->willReturn('https');
 
 		return $request;
 	}
@@ -568,6 +570,350 @@ class SignatureServiceTest extends TestCase {
 
 		$this->assertSame('remote.example', $origin);
 		$this->assertSame((new DateTime($headers['date']))->getTimestamp(), $time);
+	}
+
+	// RFC 9421 HTTP Message Signatures
+
+	/**
+	 * Build the headers of an RFC 9421-signed inbox POST, the way Mastodon 4.4+
+	 * sends one: `("@method" "@target-uri" "content-digest")` with `created`,
+	 * `keyid` and `alg` as signature parameters. The signature base is written
+	 * out here by hand, independently of the implementation.
+	 *
+	 * @param array<string, int|string|null> $params a null value omits the parameter
+	 * @param array<string, string> $values derived component values, overriding the request's own
+	 * @return array<string, string> lower-cased header names
+	 */
+	private function messageSignedHeaders(
+		string $body,
+		string $privateKey,
+		array $overrides = [],
+		array $components = ['@method', '@target-uri', 'content-digest'],
+		array $params = [],
+		string $label = 'sig1',
+		array $values = [],
+	): array {
+		$headers = array_merge([
+			'date' => gmdate(SignatureService::DATE_HEADER),
+			'host' => self::CLOUD_HOST,
+			'content-digest' => 'sha-256=:' . base64_encode(hash('sha256', $body, true)) . ':',
+			'content-length' => (string)strlen($body),
+		], $overrides);
+
+		$params = array_merge(
+			['created' => time(), 'keyid' => self::REMOTE_KEY_ID, 'alg' => 'rsa-v1_5-sha256'],
+			$params
+		);
+		$serialized = '(' . implode(' ', array_map(fn (string $c): string => '"' . $c . '"', $components)) . ')';
+		foreach ($params as $key => $value) {
+			if ($value !== null) {
+				$serialized .= ';' . $key . '=' . (is_int($value) ? $value : '"' . $value . '"');
+			}
+		}
+
+		$values = array_merge([
+			'@method' => 'POST',
+			'@target-uri' => 'https://' . self::CLOUD_HOST . '/apps/social/@alice/inbox',
+			'@authority' => self::CLOUD_HOST,
+			'@path' => '/apps/social/@alice/inbox',
+		], $values);
+		$lines = [];
+		foreach ($components as $component) {
+			$lines[] = '"' . $component . '": ' . ($values[$component] ?? $headers[$component]);
+		}
+		$lines[] = '"@signature-params": ' . $serialized;
+		$base = implode("\n", $lines);
+
+		if ($params['alg'] === 'rsa-pss-sha512') {
+			$signed = RsaPssSigner::sign($base, $privateKey);
+		} else {
+			// an "ed25519" label is signed like this too: the point of that
+			// test is that the label is refused before anything is verified
+			openssl_sign($base, $signed, $privateKey, OPENSSL_ALGO_SHA256);
+		}
+
+		$headers['signature-input'] = $label . '=' . $serialized;
+		$headers['signature'] = $label . '=:' . base64_encode($signed) . ':';
+
+		return $headers;
+	}
+
+	public function testCheckRequestAcceptsAnRfc9421SignatureTheWayMastodonSendsIt(): void {
+		$body = '{"type":"Follow"}';
+		$created = time() - 5;
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['created' => $created]);
+		$this->cacheActorService->expects($this->once())
+			->method('getFromId')
+			->with(self::REMOTE_ACTOR, false)
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$time = 0;
+		$origin = $this->service->checkRequest($this->incomingRequest($headers), $body, $time);
+
+		$this->assertSame('remote.example', $origin);
+		$this->assertSame($created, $time, 'the signature\'s own created is the request time');
+	}
+
+	/** The RFC's alternative to @target-uri, and a covered `date` instead of `created`. */
+	public function testCheckRequestAcceptsAnRfc9421SignatureOverAuthorityPathAndDate(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders(
+			$body, self::$privateKey, [], ['@method', '@authority', '@path', 'date', 'content-digest'], ['created' => null]
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$time = 0;
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body, $time));
+		$this->assertSame((new DateTime($headers['date']))->getTimestamp(), $time);
+	}
+
+	public function testCheckRequestAcceptsAnRfc9421SignatureWithoutADateHeaderWhenCreatedIsSet(): void {
+		// RFC 9421 senders are not obliged to send Date at all
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, ['date' => '']);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testCheckRequestAcceptsAnRfc9421RsaPssSha512Signature(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['alg' => 'rsa-pss-sha512']);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testCheckRequestAcceptsAnRfc9421SignatureOverALegacyDigestHeader(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders(
+			$body,
+			self::$privateKey,
+			['content-digest' => '', 'digest' => 'SHA-256=' . base64_encode(hash('sha256', $body, true))],
+			['@method', '@target-uri', 'digest']
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testCheckRequestRefreshesTheKeyOnceThenRefusesABadRfc9421Signature(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey);
+		$this->cacheActorService->expects($this->exactly(2))
+			->method('getFromId')
+			->withConsecutive([self::REMOTE_ACTOR, false], [self::REMOTE_ACTOR, true])
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('signature cannot be checked');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestAcceptsAnRfc9421SignatureAfterRefreshingAStaleCachedKey(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey);
+		$this->cacheActorService->expects($this->exactly(2))
+			->method('getFromId')
+			->willReturnOnConsecutiveCalls(
+				$this->person(self::REMOTE_ACTOR, self::$otherPublicKey),
+				$this->person(self::REMOTE_ACTOR, self::$publicKey),
+			);
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testCheckRequestRejectsAnRfc9421SignatureSignedForAnotherHost(): void {
+		// the authority signed is what the sender addressed; the one verified is this instance
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders(
+			$body, self::$privateKey, ['host' => 'other.example'], ['@method', '@target-uri', 'content-digest'], [], 'sig1',
+			['@target-uri' => 'https://other.example/apps/social/@alice/inbox']
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('signature cannot be checked');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsAnExpiredRfc9421Signature(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['expires' => time() - 1]);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('expired');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/** @return array<string, array{int, string}> */
+	public function createdOutsideTheWindow(): array {
+		return [
+			'too old' => [-SignatureService::DATE_DELAY - 30, 'too old'],
+			'from the future' => [SignatureService::DATE_DELAY + 30, 'from the future'],
+		];
+	}
+
+	/**
+	 * The same window the Date header gets on the draft-cavage path.
+	 *
+	 * @dataProvider createdOutsideTheWindow
+	 */
+	public function testCheckRequestRejectsAnRfc9421SignatureCreatedOutsideTheDateWindow(int $offset, string $message): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['created' => time() + $offset]);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage($message);
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsAnRfc9421RequestWithAnUnparsableDateHeader(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, ['date' => 'not a date']);
+
+		$this->expectException(DateTimeException::class);
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRefusesAnRfc9421SignatureThatDoesNotCoverTheDigestOfAPost(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri']);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('header is not signed: digest');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/** @return array<string, array{list<string>, array<string, mixed>, string}> */
+	public function incompleteCoveredComponentSets(): array {
+		return [
+			'missing @method' => [['@target-uri', 'content-digest'], [], 'component is not signed: @method'],
+			'missing @target-uri' => [['@method', 'content-digest'], [], 'component is not signed: @target-uri'],
+			'@authority without @path' => [['@method', '@authority', 'content-digest'], [], 'component is not signed: @target-uri'],
+			'neither date nor created' => [['@method', '@target-uri', 'content-digest'], ['created' => null], 'header is not signed: date'],
+		];
+	}
+
+	/**
+	 * Mirrors the mandatory set of the draft-cavage path: what is not covered is
+	 * not bound, so a captured request could be replayed elsewhere or later.
+	 *
+	 * @dataProvider incompleteCoveredComponentSets
+	 */
+	public function testCheckRequestRefusesAnRfc9421SignatureThatDoesNotCoverEveryMandatoryComponent(array $components, array $params, string $message): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], $components, $params);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage($message);
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsAnRfc9421RequestWhoseBodyDoesNotMatchTheContentDigest(): void {
+		$headers = $this->messageSignedHeaders('{"type":"Follow"}', self::$privateKey);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('digest does not match the body');
+		$this->service->checkRequest($this->incomingRequest($headers), '{"type":"Delete"}');
+	}
+
+	public function testCheckRequestWithAnUnknownRfc9421KeyIdIsRefusedAndNotFetchedAgainImmediately(): void {
+		// the same bounded fetch and negative cache as the draft-cavage path
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey);
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->with(self::REMOTE_ACTOR, false)
+			->willThrowException(new RequestContentException('not found', 404));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the first attempt to fail');
+		} catch (SignatureException $e) {
+			$this->assertStringContainsString('signing key could not be retrieved', $e->getMessage());
+		}
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the second attempt to be refused without a fetch');
+		} catch (SignatureException $e) {
+			$this->assertStringContainsString('too recently', $e->getMessage());
+			$this->assertSame(\OCP\AppFramework\Http::STATUS_SERVICE_UNAVAILABLE, $e->getCode());
+		}
+	}
+
+	public function testCheckRequestSignalsAGoneActorForAnRfc9421Signature(): void {
+		$body = '{"type":"Delete"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')->willThrowException(new RequestContentException('gone', 410));
+
+		$this->expectException(SignatureIsGoneException::class);
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/**
+	 * Signature-Input decides the scheme. A request that announces RFC 9421 is
+	 * read as RFC 9421 even when its Signature header would have verified as a
+	 * draft-cavage one.
+	 */
+	public function testCheckRequestReadsARequestWithSignatureInputAsRfc9421OnlyAndNeverFallsBackToCavage(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$headers['signature-input'] = 'sig1=("@method" "@target-uri" "content-digest");created=' . time() . ';keyid="' . self::REMOTE_KEY_ID . '"';
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRefusesAnEd25519Rfc9421SignatureByName(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['alg' => 'ed25519']);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('unsupported signature algorithm: ed25519');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestUsesTheFirstRfc9421LabelItCanVerify(): void {
+		// a sender that signs with several keys: the Ed25519 one is skipped, the RSA one used
+		$body = '{"type":"Follow"}';
+		$created = time();
+		$ed = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['created' => $created, 'alg' => 'ed25519'], 'sig-ed');
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['created' => $created], 'sig-rsa');
+		$headers['signature-input'] = $ed['signature-input'] . ', ' . $headers['signature-input'];
+		$headers['signature'] = $ed['signature'] . ', ' . $headers['signature'];
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testCheckRequestRefusesAnRfc9421SignatureWithoutAKeyId(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['keyid' => null]);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('no usable signature');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRefusesAnRfc9421SignatureWhoseLabelHasNoSignatureValue(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->messageSignedHeaders($body, self::$privateKey);
+		$headers['signature'] = str_replace('sig1=', 'other=', $headers['signature']);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('no usable signature');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
 	// bounding the pre-authentication key fetch
@@ -1003,5 +1349,46 @@ class SignatureServiceTest extends TestCase {
 		$this->expectException(SignatureException::class);
 
 		$this->service->signRequest($request, $queue);
+	}
+
+	// assertSignerSpeaksFor(): whose key it was, not merely which server
+
+	public function testTheActorsOwnKeyMaySpeakForTheActivity(): void {
+		$activity = new Note();
+		$activity->setActorId('https://remote.example/users/alice');
+
+		$this->service->assertSignerSpeaksFor('https://remote.example/users/alice', $activity);
+		$this->addToAssertionCount(1);
+	}
+
+	public function testANeighbourOnTheSameServerMayNot(): void {
+		// same origin, different person: the host check alone let mallory edit,
+		// delete and post as alice
+		$activity = new Note();
+		$activity->setActorId('https://remote.example/users/alice');
+
+		$this->expectException(InvalidOriginException::class);
+		$this->service->assertSignerSpeaksFor('https://remote.example/users/mallory', $activity);
+	}
+
+	public function testATrailingSlashOrADifferentCaseIsStillTheSameActor(): void {
+		$activity = new Note();
+		$activity->setActorId('https://Remote.example/users/alice/');
+
+		$this->service->assertSignerSpeaksFor('https://remote.example/users/alice', $activity);
+		$this->addToAssertionCount(1);
+	}
+
+	public function testAnActivityWithNoActorIsRefused(): void {
+		$this->expectException(InvalidOriginException::class);
+		$this->service->assertSignerSpeaksFor('https://remote.example/users/alice', new Note());
+	}
+
+	public function testAnUnsignedRequestCannotSpeakForAnybody(): void {
+		$activity = new Note();
+		$activity->setActorId('https://remote.example/users/alice');
+
+		$this->expectException(InvalidOriginException::class);
+		$this->service->assertSignerSpeaksFor('', $activity);
 	}
 }
