@@ -263,24 +263,27 @@ class DocumentServiceTest extends TestCase {
 		$this->assertSame([$file, $document], $this->service->getFromUuid(self::UUID));
 	}
 
-	public function testGetFromUuidRefusesANonPublicCopyByDefault(): void {
-		$document = $this->createMock(Document::class);
-		$document->method('isPublic')->willReturn(false);
-		$this->cacheDocumentsRequest->method('getByCopy')->with(self::UUID)->willReturn($document);
-		$this->cacheService->expects($this->never())->method('getFromUuid');
-
-		$this->expectException(NotFoundException::class);
-		$this->service->getFromUuid(self::UUID);
-	}
-
-	public function testGetFromUuidServesANonPublicCopyOnlyWhenNotRestricted(): void {
+	public function testGetFromUuidServesTheAttachmentOfAFollowersOnlyPostByItsUuid(): void {
+		// the uuid is the capability: Mastodon fetches media unsigned, so a copy
+		// that is only handed out when its row says `public` is a broken image
+		// on every followers-only post with a picture
 		$file = $this->createMock(ISimpleFile::class);
 		$document = $this->createMock(Document::class);
 		$document->method('isPublic')->willReturn(false);
 		$this->cacheDocumentsRequest->method('getByCopy')->with(self::UUID)->willReturn($document);
 		$this->cacheService->method('getFromUuid')->with(self::UUID)->willReturn($file);
 
-		$this->assertSame([$file, $document], $this->service->getFromUuid(self::UUID, false));
+		$this->assertSame([$file, $document], $this->service->getFromUuid(self::UUID));
+	}
+
+	public function testGetFromUuidOfAnUnknownUuidIsNotFound(): void {
+		$this->cacheDocumentsRequest->method('getByCopy')->with(self::UUID)
+			->willThrowException(new CacheDocumentDoesNotExistException());
+		$this->cacheService->expects($this->never())->method('getFromUuid');
+
+		$this->expectException(NotFoundException::class);
+		$this->expectExceptionMessage('unknown document');
+		$this->service->getFromUuid(self::UUID);
 	}
 
 	public function testCacheRemoteDocumentReturnsAnAlreadyCachedDocument(): void {

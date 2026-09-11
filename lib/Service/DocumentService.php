@@ -341,23 +341,28 @@ class DocumentService {
 	}
 
 	/**
-	 * @param string $uuid
+	 * The copy behind `/media/{uuid}`, with the row that describes it.
 	 *
-	 * @return ISimpleFile
-	 * @throws NotFoundException
-	 */
-	/**
-	 * The copy behind `/media/{uuid}`, with the visibility its database row records.
+	 * The uuid *is* the access control. Every copy is named by a version-4
+	 * uuid drawn from `random_bytes()` (`TStringTools::uuid()`), 122 bits
+	 * nobody can enumerate, and the link is only ever handed to the people a
+	 * post was addressed to. This is Mastodon's own model — media is a
+	 * capability URL, reachable by whoever holds it, whatever the visibility
+	 * of the post it hangs off — and it is the model the rest of the fediverse
+	 * relies on: a remote server fetches an attachment unsigned, on behalf of
+	 * a reader it has already checked. This method used to refuse any row not
+	 * flagged `public`, which turned every followers-only or direct post with
+	 * a picture into a broken image on every Mastodon that received it, while
+	 * protecting nothing the uuid did not already protect.
 	 *
-	 * Serving by filename alone would hand out every cached copy — attachments of
-	 * direct and followers-only posts included — to anyone holding a uuid, so the
-	 * row is authoritative: no row, no file; a non-public row only for a viewer the
-	 * caller has authenticated.
+	 * The row is still required — no row, no file — so a copy this app has
+	 * forgotten about is not served, and so the caller learns the visibility
+	 * (`Document::isPublic()`) to decide how shared caches may treat the bytes.
 	 *
 	 * @return array{0: ISimpleFile, 1: Document}
 	 * @throws NotFoundException
 	 */
-	public function getFromUuid(string $uuid, bool $publicOnly = true): array {
+	public function getFromUuid(string $uuid): array {
 		if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $uuid)
 			!== 1) {
 			throw new NotFoundException('invalid document');
@@ -367,10 +372,6 @@ class DocumentService {
 			// either copy: a preview link names the resized one
 			$document = $this->cacheDocumentsRequest->getByCopy($uuid);
 		} catch (CacheDocumentDoesNotExistException $e) {
-			throw new NotFoundException('unknown document');
-		}
-
-		if ($publicOnly && !$document->isPublic()) {
 			throw new NotFoundException('unknown document');
 		}
 

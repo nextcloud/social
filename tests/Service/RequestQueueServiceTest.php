@@ -135,8 +135,8 @@ class RequestQueueServiceTest extends TestCase {
 	public function testGetRequestStandbyAppliesTheRetryBackoff(): void {
 		$now = time();
 		$fresh = $this->queued(InstancePath::PRIORITY_LOW)->setTries(0)->setLast($now - 1);
-		$retriedRecently = $this->queued(InstancePath::PRIORITY_LOW)->setTries(3)->setLast($now - 10); // delay 27s
-		$retriedLongAgo = $this->queued(InstancePath::PRIORITY_LOW)->setTries(3)->setLast($now - 60);
+		$retriedRecently = $this->queued(InstancePath::PRIORITY_LOW)->setTries(3)->setLast($now - 10); // delay 96s
+		$retriedLongAgo = $this->queued(InstancePath::PRIORITY_LOW)->setTries(3)->setLast($now - 120);
 		$this->requestQueueRequest->method('getStandby')->willReturn([$fresh, $retriedRecently, $retriedLongAgo]);
 
 		$total = 0;
@@ -213,7 +213,7 @@ class RequestQueueServiceTest extends TestCase {
 		// A request that has burned through MAX_TRIES is deleted and never handed back,
 		// so a dead host cannot keep it on standby forever.
 		$exhausted = $this->queued(InstancePath::PRIORITY_LOW)->setTries(RequestQueueService::MAX_TRIES)->setLast($now - 100000);
-		$ready = $this->queued(InstancePath::PRIORITY_LOW)->setTries(2)->setLast($now - 60); // delay 5s, elapsed
+		$ready = $this->queued(InstancePath::PRIORITY_LOW)->setTries(2)->setLast($now - 60); // delay 31s, elapsed
 		$this->requestQueueRequest->method('getStandby')->willReturn([$exhausted, $ready]);
 		$this->requestQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($exhausted));
 
@@ -223,6 +223,40 @@ class RequestQueueServiceTest extends TestCase {
 		$this->assertSame(2, $total);
 		$this->assertSame([$ready], $result);
 		$this->assertNotContains($exhausted, $result);
+	}
+
+	public function testGetRequestStandbyHoldsARequestStillInsideItsBackoff(): void {
+		// four failures wait 4^4 + 15 = 271 seconds; the old tries^4/3 schedule
+		// (85 s) handed this one back already
+		$waiting = $this->queued(InstancePath::PRIORITY_LOW)->setTries(4)->setLast(time() - 100);
+		$this->requestQueueRequest->method('getStandby')->willReturn([$waiting]);
+		$this->requestQueueRequest->expects($this->never())->method('delete');
+
+		$total = 0;
+		$this->assertSame([], $this->service->getRequestStandby($total));
+		$this->assertSame(1, $total);
+	}
+
+	public function testRetryScheduleKeepsEarlyRetriesQuickAndSpansAboutTwoDays(): void {
+		// Mastodon keeps trying a peer for about two days (16 attempts on
+		// Sidekiq's count^4 + 15 backoff); a 12-16 hour window gave up on every
+		// instance that was down for a weekend
+		$total = 0;
+		$previous = 0;
+		for ($tries = 1; $tries < RequestQueueService::MAX_TRIES; $tries++) {
+			$delay = RequestQueueService::retryDelay($tries);
+			$this->assertGreaterThan($previous, $delay, 'the wait must keep growing');
+			$previous = $delay;
+			$total += $delay;
+		}
+
+		// the first minutes matter most for a peer that was momentarily down
+		$this->assertLessThanOrEqual(60, RequestQueueService::retryDelay(1));
+		$this->assertLessThanOrEqual(5 * 60, RequestQueueService::retryDelay(4));
+		// ... and the tail is spread out over roughly two days in total
+		$this->assertGreaterThan(3600, RequestQueueService::retryDelay(RequestQueueService::MAX_TRIES - 1));
+		$this->assertGreaterThanOrEqual(1.9 * 86400, $total);
+		$this->assertLessThanOrEqual(2.2 * 86400, $total);
 	}
 
 	public function testReapStaleRunningReturnsStrandedRunningToStandby(): void {

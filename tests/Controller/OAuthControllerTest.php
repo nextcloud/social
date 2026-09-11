@@ -101,19 +101,41 @@ class OAuthControllerTest extends TestCase {
 		$instance = new Instance();
 		$instance->setTitle('My Social')->setVersion('0.10.1')->setUsage(['users' => ['total' => 3]])->setRegistrations(true);
 		$this->instanceService->method('getLocal')->willReturn($instance);
-		$this->urlGenerator->method('linkToRouteAbsolute')->with('social.Navigation.navigate')->willReturn('https://cloud.example/apps/social/');
-
 		$response = $this->controller->nodeinfo2();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([
 			'version' => '2.0',
-			'software' => ['name' => 'My Social', 'version' => '0.10.1'],
+			// the schema wants ^[a-z0-9-]+$ here, and crawlers group instances
+			// by it; the human title goes to metadata.nodeName
+			'software' => ['name' => 'nextcloud-social', 'version' => '0.10.1'],
 			'protocols' => ['activitypub'],
-			'rootUrl' => 'https://cloud.example/apps/social',
+			'services' => ['inbound' => [], 'outbound' => []],
+			// the schema names every top-level key and allows no other, so the
+			// old `rootUrl` is gone
 			'usage' => ['users' => ['total' => 3]],
 			'openRegistrations' => true,
+			'metadata' => ['nodeName' => 'My Social', 'nodeDescription' => ''],
 		], $response->getData());
+	}
+
+	public function testNodeinfo21AddsTheRepositoryAndHomepage(): void {
+		$instance = new Instance();
+		$instance->setTitle('My Social')->setShortDescription('A cosy corner')->setVersion('0.10.1');
+		$this->instanceService->method('getLocal')->willReturn($instance);
+		$this->urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example/apps/social/');
+
+		$data = $this->controller->nodeinfo21()->getData();
+
+		$this->assertSame('2.1', $data['version']);
+		$this->assertSame([
+			'name' => 'nextcloud-social',
+			'version' => '0.10.1',
+			'repository' => 'https://github.com/nextcloud/social',
+			'homepage' => 'https://github.com/nextcloud/social',
+		], $data['software']);
+		$this->assertSame(['nodeName' => 'My Social', 'nodeDescription' => 'A cosy corner'], $data['metadata']);
+		$this->assertSame(['inbound' => [], 'outbound' => []], $data['services']);
 	}
 
 	public function testNodeinfo2FallsBackToAppDefaultsWithoutAnInstance(): void {
@@ -123,7 +145,8 @@ class OAuthControllerTest extends TestCase {
 
 		$data = $this->controller->nodeinfo2()->getData();
 
-		$this->assertSame(['name' => 'Nextcloud Social', 'version' => '0.10.1'], $data['software']);
+		$this->assertSame(['name' => 'nextcloud-social', 'version' => '0.10.1'], $data['software']);
+		$this->assertSame('Nextcloud Social', $data['metadata']['nodeName']);
 		$this->assertSame([], $data['usage']);
 		$this->assertFalse($data['openRegistrations']);
 	}
