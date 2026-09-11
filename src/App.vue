@@ -261,11 +261,11 @@ a.external_link {
  */
 :root {
 	--social-elevation-resting:
-		0 1px 2px color-mix(in srgb, var(--color-box-shadow) 34%, transparent),
-		0 3px 10px color-mix(in srgb, var(--color-box-shadow) 22%, transparent);
+		0 1px 2px color-mix(in srgb, var(--color-box-shadow) 22%, transparent),
+		0 2px 8px color-mix(in srgb, var(--color-box-shadow) 14%, transparent);
 	--social-elevation-raised:
-		0 2px 4px color-mix(in srgb, var(--color-box-shadow) 40%, transparent),
-		0 10px 24px color-mix(in srgb, var(--color-box-shadow) 28%, transparent);
+		0 2px 4px color-mix(in srgb, var(--color-box-shadow) 28%, transparent),
+		0 8px 20px color-mix(in srgb, var(--color-box-shadow) 18%, transparent);
 }
 
 img.emoji {
