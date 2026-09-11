@@ -9,10 +9,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\AccountNotesRequest;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
+use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
@@ -45,9 +48,15 @@ class ModerationServiceTest extends TestCase {
 	private StreamDestRequest|MockObject $streamDestRequest;
 	private RequestQueueRequest|MockObject $requestQueueRequest;
 	private StreamService|MockObject $streamService;
+	private DomainBlocksRequest|MockObject $domainBlocksRequest;
+	private AccountNotesRequest|MockObject $accountNotesRequest;
+	private MuteExpiryRequest|MockObject $muteExpiryRequest;
 	private ModerationService $service;
 
 	protected function setUp(): void {
+		$this->domainBlocksRequest = $this->createMock(DomainBlocksRequest::class);
+		$this->accountNotesRequest = $this->createMock(AccountNotesRequest::class);
+		$this->muteExpiryRequest = $this->createMock(MuteExpiryRequest::class);
 		$this->moderationRequest = $this->createMock(ModerationRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
@@ -67,6 +76,9 @@ class ModerationServiceTest extends TestCase {
 			$this->requestQueueRequest,
 			$this->streamService,
 			new NullLogger(),
+			$this->domainBlocksRequest,
+			$this->accountNotesRequest,
+			$this->muteExpiryRequest
 		);
 	}
 
@@ -201,7 +213,8 @@ class ModerationServiceTest extends TestCase {
 		$service = new ModerationService(
 			$this->moderationRequest, $this->streamRequest, $this->cacheActorsRequest,
 			$this->followsRequest, $this->actorRelationRequest, $this->streamDestRequest,
-			$this->requestQueueRequest, $this->createMock(StreamService::class), $logger
+			$this->requestQueueRequest, $this->createMock(StreamService::class), $logger,
+			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest
 		);
 
 		$service->decide(self::SPAMMER, Moderation::SILENCE);

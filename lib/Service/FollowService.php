@@ -75,6 +75,7 @@ class FollowService {
 		ConfigService $configService,
 		FollowInterface $followInterface,
 		private ModerationService $moderationService,
+		private AccountRelationService $accountRelationService,
 		LoggerInterface $logger,
 	) {
 		$this->urlGenerator = $urlGenerator;
@@ -493,16 +494,18 @@ class FollowService {
 					$relationship->setMuting(true);
 					$relationship->setMutingNotifications($relation->isNotifications());
 					break;
+				case AccountRelationService::TYPE_ENDORSE:
+					// the row is already in hand; reading it again would be a
+					// query for something this loop just read
+					$relationship->setEndorsed(true);
+					break;
 			}
 		}
 
-		// `domain_blocking`, `endorsed` and `note` are the three the entity
-		// carries and nothing here stores: a per-viewer block of the account's
-		// whole instance, the viewer featuring the account on their profile,
-		// and the viewer's private note about it. Each is a lookup on
-		// ($viewerId, $actorId) and belongs here, on the relationship that is
-		// already being built; until then the defaults say "no block, not
-		// featured, no note", which is true of every account.
+		// `domain_blocking`, `note` and the expiry of a mute are each a lookup
+		// on (viewer, account), and a mute that has run out is still a row: the
+		// read is what stops reporting it
+		$this->accountRelationService->decorate($relationship, $viewerId, $actorId);
 
 		return $relationship;
 	}

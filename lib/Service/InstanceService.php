@@ -265,7 +265,7 @@ class InstanceService {
 				'max_expiration' => PostService::POLL_MAX_EXPIRATION,
 			],
 			'accounts' => [
-				'max_featured_tags' => 0,
+				'max_featured_tags' => FeaturedTagService::MAX_FEATURED_TAGS,
 			],
 		];
 	}

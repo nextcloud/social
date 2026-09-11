@@ -20,13 +20,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class FeaturedTagsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-	/**
-	 * Declared here rather than in CoreRequestBuilder's table list, which is
-	 * what `emptyAll()`/`uninstall()` walk: adding it there is a change to a
-	 * file this feature does not own.
-	 */
-	public const TABLE_FEATURED_TAGS = 'social_featured_tag';
-
 	protected function getFeaturedTagsInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_FEATURED_TAGS);

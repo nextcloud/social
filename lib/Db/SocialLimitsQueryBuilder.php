@@ -573,6 +573,12 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 			)
 		);
 
+		if ($level !== self::HIDDEN_DIRECT) {
+			// the expiry of a timed mute is a condition of the join below, and
+			// a join may only name an alias that already exists
+			MuteExpiryRequestBuilder::joinExpiredMutes($this);
+		}
+
 		if ($level === self::HIDDEN_NOTIFICATIONS) {
 			// a mute hides notifications only when it was created with notifications=true
 			$onTypes = $expr->orX(
@@ -585,17 +591,32 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 				),
 				$expr->andX(
 					$expr->eq('hd_r.type', $this->createNamedParameter(ActorRelation::TYPE_MUTE)),
-					$expr->eq('hd_r.notifications', $this->createNamedParameter(1))
+					$expr->eq('hd_r.notifications', $this->createNamedParameter(1)),
+					MuteExpiryRequestBuilder::unexpired($expr)
 				)
 			);
 		} else {
-			$types = [ActorRelation::TYPE_BLOCK, ActorRelation::TYPE_BLOCKED_BY];
-			if ($level === self::HIDDEN_TIMELINE) {
-				$types[] = ActorRelation::TYPE_MUTE;
-			}
 			$onTypes = $expr->in(
-				'hd_r.type', $this->createNamedParameter($types, IQueryBuilder::PARAM_STR_ARRAY)
+				'hd_r.type',
+				$this->createNamedParameter(
+					[ActorRelation::TYPE_BLOCK, ActorRelation::TYPE_BLOCKED_BY],
+					IQueryBuilder::PARAM_STR_ARRAY
+				)
 			);
+			if ($level === self::HIDDEN_TIMELINE) {
+				// a mute whose expiry has passed is not a mute: it stops
+				// applying on the read, with nothing deleting the row. The
+				// expiry belongs in this ON clause and not in the WHERE —
+				// there, a second matching relation row would let the post
+				// through whenever one of them satisfied the relaxed predicate
+				$onTypes = $expr->orX(
+					$onTypes,
+					$expr->andX(
+						$expr->eq('hd_r.type', $this->createNamedParameter(ActorRelation::TYPE_MUTE)),
+						MuteExpiryRequestBuilder::unexpired($expr)
+					)
+				);
+			}
 		}
 
 		$this->leftJoin(
@@ -610,5 +631,10 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 			)
 		);
 		$this->andWhere($expr->isNull('hd_r.id'));
+
+		// an instance the viewer blocked for themselves, which is not a row in
+		// social_actor_relation and cannot be one: it applies to accounts that
+		// do not exist yet
+		DomainBlocksRequestBuilder::filterDomainBlocked($this);
 	}
 }

@@ -29,6 +29,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamService;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
@@ -88,6 +89,7 @@ class PostServiceQuoteTest extends TestCase {
 			$l10nFactory,
 			$this->createMock(IUserManager::class),
 			$this->createMock(ModerationService::class),
+			$this->createMock(StatusRevisionService::class),
 			new NullLogger()
 		);
 	}

@@ -1323,6 +1323,7 @@ class StreamRequest extends StreamRequestBuilder {
 			[self::TABLE_STREAM_TAGS, 'stream_id'],
 			[self::TABLE_STREAM_ACTIONS, 'stream_id_prim'],
 			[self::TABLE_STREAM_CARDS, 'stream_id_prim'],
+			[self::TABLE_STATUS_REVISIONS, 'stream_id_prim'],
 			// the Like and Announce activities pointing at the post
 			[self::TABLE_ACTIONS, 'object_id_prim'],
 		] as [$table, $field]) {

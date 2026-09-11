@@ -31,6 +31,7 @@ use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Relationship;
 use OCA\Social\Model\Report;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\BannerService;
@@ -122,6 +123,7 @@ class ApiControllerTest extends TestCase {
 	private $curlService;
 	private CacheDocumentsRequest|MockObject $cacheDocumentsRequest;
 	private ICacheFactory|MockObject $cacheFactory;
+	private AccountRelationService|MockObject $accountRelationService;
 	private BannerService|MockObject $bannerService;
 	private FilterService|MockObject $filterService;
 	private IRootFolder|MockObject $rootFolder;
@@ -206,6 +208,8 @@ class ApiControllerTest extends TestCase {
 			});
 		// a pass-through: these tests are about the routes, not about filtering,
 		// and a filter that removed anything would rewrite what they assert
+		$this->accountRelationService = $this->createMock(AccountRelationService::class);
+		$this->accountRelationService->method('withoutExpiredMutes')->willReturnArgument(1);
 		$this->bannerService = $this->createMock(BannerService::class);
 		$this->filterService = $this->createMock(FilterService::class);
 		$this->filterService->method('apply')->willReturnArgument(0);
@@ -280,7 +284,8 @@ class ApiControllerTest extends TestCase {
 			$this->rootFolder,
 			$this->tempManager,
 			$this->filterService,
-			$this->bannerService
+			$this->bannerService,
+			$this->accountRelationService
 		);
 	}
 

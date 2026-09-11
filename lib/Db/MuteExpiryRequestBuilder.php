@@ -24,16 +24,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class MuteExpiryRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-	/**
-	 * The table name lives here rather than beside the others in
-	 * `CoreRequestBuilder` because a `TABLE_*` constant there is a claim three
-	 * other places have to honour at once — `CoreRequestBuilder::$tables`, the
-	 * schema table of `docs/Architecture.md` and `occ social:reset` — and this
-	 * change may not edit those files. Moving it up is one commit; until it
-	 * happens, a reset leaves this table behind.
-	 */
-	public const TABLE_MUTE_EXPIRY = 'social_mute_expiry';
-
 	/** The alias the expiry rows of a timeline query are joined under. */
 	public const ALIAS = 'hd_x';
 

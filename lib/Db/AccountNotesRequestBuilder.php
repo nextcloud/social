@@ -19,16 +19,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class AccountNotesRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-	/**
-	 * The table name lives here rather than beside the others in
-	 * `CoreRequestBuilder` because a `TABLE_*` constant there is a claim three
-	 * other places have to honour at once — `CoreRequestBuilder::$tables`, the
-	 * schema table of `docs/Architecture.md` and `occ social:reset` — and this
-	 * change may not edit those files. Moving it up is one commit; until it
-	 * happens, a reset leaves this table behind.
-	 */
-	public const TABLE_ACCOUNT_NOTES = 'social_account_note';
-
 	protected function getAccountNotesInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_ACCOUNT_NOTES);

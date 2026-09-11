@@ -9,10 +9,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\AccountNotesRequest;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
+use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
@@ -48,6 +51,9 @@ class ModerationService {
 		private RequestQueueRequest $requestQueueRequest,
 		private StreamService $streamService,
 		private LoggerInterface $logger,
+		private DomainBlocksRequest $domainBlocksRequest,
+		private AccountNotesRequest $accountNotesRequest,
+		private MuteExpiryRequest $muteExpiryRequest,
 	) {
 	}
 
@@ -181,6 +187,11 @@ class ModerationService {
 			// the per-user blocks and mutes against it, which have nothing
 			// left to hide
 			'relations' => fn () => $this->actorRelationRequest->deleteRelatedId($actorId),
+			// the instances it blocked, the notes it wrote and the notes others
+			// wrote about it, and the expiry of any mute in either direction
+			'domainBlocks' => fn () => $this->domainBlocksRequest->deleteRelatedId($actorId),
+			'notes' => fn () => $this->accountNotesRequest->deleteRelatedId($actorId),
+			'muteExpiry' => fn () => $this->muteExpiryRequest->deleteRelatedId($actorId),
 			// what put its posts in a local timeline, and what addressed local
 			// posts to it
 			'dest' => fn () => $this->streamDestRequest->deleteRelatedToActor($actorId),

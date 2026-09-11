@@ -69,6 +69,19 @@ return [
 		['name' => 'Api#instanceV2', 'url' => '/api/v2/instance', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#trendTags', 'url' => '/api/v1/trends/tags', 'verb' => 'GET'],
+		['name' => 'Discovery#trendStatuses', 'url' => '/api/v1/trends/statuses', 'verb' => 'GET'],
+		['name' => 'Discovery#trendLinks', 'url' => '/api/v1/trends/links', 'verb' => 'GET'],
+
+		// Discovery. /featured_tags/suggestions is registered ahead of the
+		// {id} lookup so it cannot be read as a featured tag with the id
+		// "suggestions"; the lookup is a \d+ for the same reason.
+		['name' => 'Discovery#directory', 'url' => '/api/v1/directory', 'verb' => 'GET'],
+		['name' => 'Discovery#suggestions', 'url' => '/api/v2/suggestions', 'verb' => 'GET'],
+		['name' => 'Discovery#suggestionsV1', 'url' => '/api/v1/suggestions', 'verb' => 'GET'],
+		['name' => 'Discovery#featuredTagSuggestions', 'url' => '/api/v1/featured_tags/suggestions', 'verb' => 'GET'],
+		['name' => 'Discovery#featuredTags', 'url' => '/api/v1/featured_tags', 'verb' => 'GET'],
+		['name' => 'Discovery#featureTag', 'url' => '/api/v1/featured_tags', 'verb' => 'POST'],
+		['name' => 'Discovery#unfeatureTag', 'url' => '/api/v1/featured_tags/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
 
 		// Following a hashtag. The two action routes are registered ahead of the
 		// lookup so that /api/v1/tags/foo/follow cannot be read as a tag named
@@ -140,6 +153,7 @@ return [
 		['name' => 'Api#statusDelete', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'DELETE'],
 		['name' => 'Api#statusSource', 'url' => '/api/v1/statuses/{nid}/source', 'verb' => 'GET'],
 		['name' => 'Api#statusContext', 'url' => '/api/v1/statuses/{nid}/context', 'verb' => 'GET'],
+		['name' => 'History#history', 'url' => '/api/v1/statuses/{nid}/history', 'verb' => 'GET'],
 		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],
 		['name' => 'Api#relationships', 'url' => '/api/v1/accounts/relationships', 'verb' => 'GET'],
 		['name' => 'Api#accountLookup', 'url' => '/api/v1/accounts/lookup', 'verb' => 'GET'],
@@ -151,9 +165,17 @@ return [
 		['name' => 'Api#accountUnblock', 'url' => '/api/v1/accounts/{id}/unblock', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#accountMute', 'url' => '/api/v1/accounts/{id}/mute', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#accountUnmute', 'url' => '/api/v1/accounts/{id}/unmute', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Relation#note', 'url' => '/api/v1/accounts/{id}/note', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Relation#pin', 'url' => '/api/v1/accounts/{id}/pin', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Relation#unpin', 'url' => '/api/v1/accounts/{id}/unpin', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Relation#endorsements', 'url' => '/api/v1/endorsements', 'verb' => 'GET'],
+		['name' => 'Relation#domainBlocks', 'url' => '/api/v1/domain_blocks', 'verb' => 'GET'],
+		['name' => 'Relation#blockDomain', 'url' => '/api/v1/domain_blocks', 'verb' => 'POST'],
+		['name' => 'Relation#unblockDomain', 'url' => '/api/v1/domain_blocks', 'verb' => 'DELETE'],
 		['name' => 'Api#blocks', 'url' => '/api/v1/blocks', 'verb' => 'GET'],
 		['name' => 'Api#mutes', 'url' => '/api/v1/mutes', 'verb' => 'GET'],
 		['name' => 'Api#accountFollowers', 'url' => '/api/v1/accounts/{account}/followers', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
+		['name' => 'Discovery#accountFeaturedTags', 'url' => '/api/v1/accounts/{account}/featured_tags', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'List#accountLists', 'url' => '/api/v1/accounts/{account}/lists', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'Api#accountFollowing', 'url' => '/api/v1/accounts/{account}/following', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		// Last of the /accounts routes on purpose, and it has to stay last:
