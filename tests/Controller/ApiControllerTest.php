@@ -33,6 +33,7 @@ use OCA\Social\Model\Relationship;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
+use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
@@ -121,6 +122,7 @@ class ApiControllerTest extends TestCase {
 	private $curlService;
 	private CacheDocumentsRequest|MockObject $cacheDocumentsRequest;
 	private ICacheFactory|MockObject $cacheFactory;
+	private BannerService|MockObject $bannerService;
 	private FilterService|MockObject $filterService;
 	private IRootFolder|MockObject $rootFolder;
 	private ITempManager|MockObject $tempManager;
@@ -204,6 +206,7 @@ class ApiControllerTest extends TestCase {
 			});
 		// a pass-through: these tests are about the routes, not about filtering,
 		// and a filter that removed anything would rewrite what they assert
+		$this->bannerService = $this->createMock(BannerService::class);
 		$this->filterService = $this->createMock(FilterService::class);
 		$this->filterService->method('apply')->willReturnArgument(0);
 		$this->filterService->method('applyToNotifications')->willReturnArgument(0);
@@ -276,7 +279,8 @@ class ApiControllerTest extends TestCase {
 			$this->cacheFactory,
 			$this->rootFolder,
 			$this->tempManager,
-			$this->filterService
+			$this->filterService,
+			$this->bannerService
 		);
 	}
 
@@ -2521,6 +2525,33 @@ class ApiControllerTest extends TestCase {
 		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
 
 		$this->assertSame(['error' => 'missing details'], $this->controller()->mediaNew()->getData());
+	}
+
+	/**
+	 * Mastodon sends the banner as `header` on this route, and it used to be
+	 * accepted with a 200 and dropped — so changing it in a client appeared to
+	 * work and did nothing.
+	 */
+	public function testUpdateCredentialsStoresAHeaderUpload(): void {
+		$this->loggedInAs();
+		$tmp = tempnam(sys_get_temp_dir(), 'social-itest');
+		$this->tempFiles[] = $tmp;
+		$_FILES['header'] = ['tmp_name' => $tmp, 'size' => 10, 'type' => 'image/png', 'error' => UPLOAD_ERR_OK];
+
+		$this->bannerService->expects($this->once())
+			->method('setFromTempFile')
+			->with('alice', $tmp);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsIgnoresAHeaderUploadThatFailed(): void {
+		$this->loggedInAs();
+		$_FILES['header'] = ['tmp_name' => '', 'size' => 0, 'type' => '', 'error' => UPLOAD_ERR_NO_FILE];
+
+		$this->bannerService->expects($this->never())->method('setFromTempFile');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
 	}
 
 	// mediaFromFile()

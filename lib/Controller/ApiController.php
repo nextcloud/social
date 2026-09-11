@@ -50,6 +50,7 @@ use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
+use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
@@ -166,6 +167,7 @@ class ApiController extends Controller {
 		private IRootFolder $rootFolder,
 		private ITempManager $tempManager,
 		private FilterService $filterService,
+		private BannerService $bannerService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -298,6 +300,16 @@ class ApiController extends Controller {
 			}
 			if ($flags !== []) {
 				$this->accountService->setActorFlags($this->currentSession(), $flags);
+				$changed = true;
+			}
+
+			// Mastodon sends the banner as `header`, multipart, on this same
+			// route. The avatar is not accepted: it is the Nextcloud account's
+			// picture, changed where the account is, exactly as the display
+			// name is — see the note in docs/API.md.
+			$header = $_FILES['header'] ?? [];
+			if ($header !== [] && ($header['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+				$this->bannerService->setFromTempFile($this->currentSession(), (string)$header['tmp_name']);
 				$changed = true;
 			}
 

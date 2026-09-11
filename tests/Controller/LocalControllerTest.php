@@ -27,6 +27,7 @@ use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\BannerService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
@@ -56,6 +57,8 @@ use Psr\Log\NullLogger;
 class LocalControllerTest extends TestCase {
 	/** @var IRequest&MockObject */
 	private $request;
+	/** @var BannerService&MockObject */
+	private $bannerService;
 	/** @var AccountService&MockObject */
 	private $accountService;
 	/** @var CacheActorService&MockObject */
@@ -95,6 +98,7 @@ class LocalControllerTest extends TestCase {
 	private array $cachedRemoteFiles = [];
 
 	protected function setUp(): void {
+		$this->bannerService = $this->createMock(BannerService::class);
 		$this->filesBackup = $_FILES;
 		$_FILES = [];
 
@@ -166,7 +170,8 @@ class LocalControllerTest extends TestCase {
 			new NullLogger(),
 			$this->actorService,
 			$this->activityService,
-			$this->cacheDocumentService
+			$this->cacheDocumentService,
+			$this->bannerService
 		);
 	}
 
