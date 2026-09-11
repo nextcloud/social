@@ -471,6 +471,26 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
+	 * Limit to posts that carry at least one attachment.
+	 *
+	 * `attachments` is the JSON list the post was stored with, and "no media"
+	 * has three spellings in it — NULL for a row written before the column
+	 * existed, `''` and `'[]'` — so all three are excluded rather than the one
+	 * that happens to be commonest. Plain string comparison, not a JSON
+	 * function: the same predicate has to run on MySQL, PostgreSQL and SQLite.
+	 */
+	public function limitToMedia(): self {
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->andWhere($expr->isNotNull($pf . '.attachments'));
+		$this->andWhere($expr->neq($pf . '.attachments', $this->createNamedParameter('')));
+		$this->andWhere($expr->neq($pf . '.attachments', $this->createNamedParameter('[]')));
+
+		return $this;
+	}
+
+	/**
 	 * Limit to posts carrying a hashtag the viewer follows.
 	 *
 	 * Two inner joins: the post's tags, and the ones this account follows. It

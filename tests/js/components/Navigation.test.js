@@ -90,6 +90,7 @@ describe('Navigation', () => {
 		expect(itemNames(mountNavigation())).toEqual([
 			'New post',
 			'Home',
+			'Photos',
 			'Notifications',
 			'Direct messages',
 			'Local',
@@ -122,6 +123,7 @@ describe('Navigation', () => {
 		expect(topLevel).toEqual([
 			'New post',
 			'Home',
+			'Photos',
 			'Notifications',
 			'Direct messages',
 			'Local',

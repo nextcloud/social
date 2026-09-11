@@ -822,6 +822,18 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
+		// The parent flattens `summary` the way a plain-text field arriving
+		// from the wire has to be flattened. A stored bio is not arriving from
+		// anywhere: it is the text the user typed, and everything that renders
+		// it escapes it (`bioAsHtml()`), so flattening it again protects
+		// nothing and destroys plenty — `strip_tags()` reads a bare `<` as the
+		// start of a tag and eats the rest of the line, so a bio saying
+		// `Maths: a<b and b>c` came back out of the database as `Maths: ac`.
+		// A cached remote actor's column holds HTML, but nothing renders
+		// `getSummary()` for one: remote bios are read from `description`,
+		// which the sanitising pass below still produces.
+		$this->setSummary((string)($data['summary'] ?? ''));
+
 		// the columns of a local actor row; a cache row has none of them and
 		// carries the same facts in its source document, read just below
 		$this->setLocked($this->getInt('locked', $data, 0) === 1);

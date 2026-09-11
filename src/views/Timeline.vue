@@ -87,6 +87,8 @@ export default {
 			switch (this.type) {
 			case 'tags':
 				return '#' + this.$route.params.tag
+			case 'photos':
+				return t('social', 'Photos')
 			case 'notifications':
 				return t('social', 'Notifications')
 			case 'direct':
@@ -111,7 +113,9 @@ export default {
 		 * the view for a screen reader without changing what anyone sees.
 		 */
 		headingIsVisible() {
-			return this.type === 'tags' || this.type === 'notifications'
+			// Photos is a view of its own rather than a filter of a list you
+			// were already on, so it says which one you are looking at
+			return this.type === 'tags' || this.type === 'notifications' || this.type === 'photos'
 		},
 		/** @return {string} what identifies this timeline, params included */
 		timelineKey() {

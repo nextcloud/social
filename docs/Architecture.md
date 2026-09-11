@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.56  
+**App version:** 0.11.57  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -465,6 +465,12 @@ an accepted quote the reader may not see each get a line saying which, because
 a quote that silently renders as nothing is indistinguishable from a bug. A
 quoted post that itself quotes something is not nested a second time — the
 component prints one line and stops, so no chain and no cycle can recurse.
+
+**The Photos view.** The sidebar's `Photos`, directly under Home, is the home
+timeline with `only_media` — the people you follow, but only what they showed
+rather than what they said. It is the same query and the same filters, one
+predicate narrower, so nothing about visibility, blocks, mutes or silencing is
+decided twice.
 
 **Posts that are pictures.** A post carrying attachments and no content
 warning is laid out around them: `TimelinePost.vue`'s `mediaLeads` puts

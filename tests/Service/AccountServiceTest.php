@@ -685,6 +685,24 @@ class AccountServiceTest extends TestCase {
 	}
 
 	/**
+	 * The write path was only half of it: the row is flattened again every time
+	 * it is read, so a bio survived being saved and was destroyed on the next
+	 * page load.
+	 *
+	 * @dataProvider plainTextBios
+	 */
+	public function testAStoredBioSurvivesComingBackOutOfTheDatabase(string $typed): void {
+		$alice = $this->alice();
+
+		$alice->importFromDatabase([
+			'preferred_username' => 'alice',
+			'summary' => $typed,
+		]);
+
+		$this->assertSame($typed, $alice->getSummary());
+	}
+
+	/**
 	 * Nothing is stripped on the way in, so the escaping on the way out is the
 	 * whole of the defence: a bio is text, and must never become an element.
 	 */

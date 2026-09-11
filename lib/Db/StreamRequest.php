@@ -555,6 +555,21 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * Applies `only_media` when the caller asked for it.
+	 *
+	 * The option has been parsed off the request since the hashtag timeline
+	 * gained it and was never applied to a query, so `only_media=true` quietly
+	 * returned everything. Every timeline that can carry media runs it through
+	 * here, so the dedicated photo timeline and a client asking Mastodon's
+	 * question of any other list get the same answer.
+	 */
+	private function filterMedia(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		if ($options->isOnlyMedia()) {
+			$qb->limitToMedia();
+		}
+	}
+
+	/**
 	 * The page of the home timeline that the viewer's follows put there.
 	 *
 	 * @return int[]
@@ -584,6 +599,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$page->filterType(SocialAppNotification::TYPE);
 		$page->paginate($options);
+		$this->filterMedia($page, $options);
 		$page->limitToFollowedTags('ft_st', 'ft');
 		$page->selectDestFollowing('ft_sd', '');
 		$page->innerJoinStreamDest('recipient', 'id_prim', 'ft_sd', 's');
@@ -663,6 +679,7 @@ class StreamRequest extends StreamRequestBuilder {
 	private function homeTimelineFilters(SocialQueryBuilder $qb, ProbeOptions $options): void {
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
+		$this->filterMedia($qb, $options);
 		$qb->limitToViewer('sd', 'f', false);
 		// a filter, not a join: it constrains on the follow's type
 		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
@@ -683,6 +700,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
+		$this->filterMedia($qb, $options);
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
@@ -709,6 +727,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->limitToStatusTypes();
 		$qb->paginate($options);
+		$this->filterMedia($qb, $options);
 
 		$actorId = $options->getAccountId();
 		if ($actorId === '') {
@@ -763,6 +782,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$viewer = $page->createNamedParameter($page->prim($page->getViewer()->getId()));
 		$page->limitToStatusTypes();
 		$page->paginate($options);
+		$this->filterMedia($page, $options);
 		$page->innerJoin(
 			's', CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
 			$page->expr()->andX(
@@ -807,6 +827,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->limitToStatusTypes();
 		$qb->paginate($options);
+		$this->filterMedia($qb, $options);
 
 		$expr = $qb->expr();
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -1037,6 +1058,7 @@ class StreamRequest extends StreamRequestBuilder {
 	private function getTimelinePublic(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql();
 		$page->paginate($options);
+		$this->filterMedia($page, $options);
 
 		if ($options->isLocal()) {
 			$page->limitToLocal(true);

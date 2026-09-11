@@ -630,6 +630,12 @@ const actions = {
 		case 'federated':
 			url = generateUrl('apps/social/api/v1/timelines/public')
 			break
+		case 'photos':
+			// the home timeline with the text-only posts left out: the people
+			// you follow, but only what they showed rather than what they said
+			url = generateUrl('apps/social/api/v1/timelines/home')
+			params.only_media = true
+			break
 		case 'notifications':
 			url = generateUrl('apps/social/api/v1/notifications')
 			break

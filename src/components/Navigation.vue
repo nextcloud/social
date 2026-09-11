@@ -170,6 +170,7 @@ import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
 import { defineAsyncComponent } from 'vue'
 
 import IconHome from 'vue-material-design-icons/Home.vue'
+import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
@@ -276,6 +277,12 @@ export default {
 						icon: IconHome,
 						title: t('social', 'Home'),
 						to: { name: 'timeline' },
+					},
+					{
+						key: 'social-photos',
+						icon: IconImageMultiple,
+						title: t('social', 'Photos'),
+						to: { name: 'timeline', params: { type: 'photos' } },
 					},
 					{
 						key: 'social-notifications',

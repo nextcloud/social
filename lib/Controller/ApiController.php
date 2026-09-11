@@ -1112,6 +1112,7 @@ class ApiController extends Controller {
 		int $max_id = 0,
 		int $min_id = 0,
 		int $since_id = 0,
+		bool $only_media = false,
 	): DataResponse {
 		$this->logger->info('[ApiController] timelines called', [
 			'timeline' => $timeline,
@@ -1158,7 +1159,8 @@ class ApiController extends Controller {
 				->setLimit($limit)
 				->setMaxId($max_id)
 				->setMinId($min_id)
-				->setSince($since_id);
+				->setSince($since_id)
+				->setOnlyMedia($only_media);
 
 			$posts = $this->streamService->getTimeline($options);
 			$this->logger->info('[ApiController] Timeline retrieved', [
