@@ -280,6 +280,34 @@ class ACoreTest extends TestCase {
 		$this->assertSame([['type' => 'Hashtag', 'href' => 'https://mastodon.social/tags/x', 'name' => '#x']], $item->getTags());
 	}
 
+	/**
+	 * `to`/`cc` are lists, but a single recipient is regularly sent as a bare
+	 * string; read through getArray() the string was json-decoded to nothing, the
+	 * post had no recipients at all, and NoteInterface filed it as a direct message.
+	 */
+	public function testImportAcceptsABareStringAsAOneElementRecipientList(): void {
+		$item = new ACore();
+
+		$item->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'to' => ACore::CONTEXT_PUBLIC,
+			'cc' => 'https://mastodon.social/users/alice/followers',
+		]);
+
+		$this->assertSame([ACore::CONTEXT_PUBLIC], $item->getToArray());
+		$this->assertSame(['https://mastodon.social/users/alice/followers'], $item->getCcArray());
+	}
+
+	public function testImportStillDropsRecipientsThatAreNotIds(): void {
+		$item = new ACore();
+
+		$item->import(['to' => 42, 'cc' => [['type' => 'Collection']]]);
+
+		$this->assertSame([], $item->getToArray());
+		$this->assertSame([], $item->getCcArray());
+	}
+
 	public function testImportIgnoresAnEmbeddedObjectForTheObjectId(): void {
 		$item = new ACore();
 

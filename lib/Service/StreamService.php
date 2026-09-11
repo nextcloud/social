@@ -47,7 +47,8 @@ class StreamService {
 	private CurlService $curlService;
 	private LoggerInterface $logger;
 
-	private const ANCESTOR_LIMIT = 5;
+	/** How far up a thread one context request walks; Mastodon's cap. */
+	private const ANCESTOR_LIMIT = 40;
 
 	/**
 	 * How many entries of a remote outbox page a single sync walks.
@@ -252,20 +253,21 @@ class StreamService {
 	}
 
 	/**
-	 * @param Note $note
-	 * @param string $hashtag
+	 * The href is the hashtag timeline this instance actually serves — the URL
+	 * `UnifiedSearchProvider` hands out for a hashtag. It used to be
+	 * `<social url>tag/<tag>`, a path no route answers, so following a tag on a
+	 * post from here led every reader, local or remote, to a 404.
 	 */
 	public function addHashtag(Note $note, string $hashtag) {
-		try {
-			$note->addTag(
-				[
-					'type' => 'Hashtag',
-					'href' => $this->configService->getSocialUrl() . 'tag/' . strtolower($hashtag),
-					'name' => '#' . $hashtag
-				]
-			);
-		} catch (SocialAppConfigException $e) {
-		}
+		$note->addTag(
+			[
+				'type' => 'Hashtag',
+				'href' => $this->urlGenerator->linkToRouteAbsolute(
+					'social.Navigation.timeline', ['path' => 'tags/' . strtolower($hashtag)]
+				),
+				'name' => '#' . $hashtag
+			]
+		);
 	}
 
 	/**
@@ -357,8 +359,37 @@ class StreamService {
 			);
 		} catch (\Exception $e) {
 		}
+		$this->addressBoostersAndRepliers($item);
 		$this->activityService->deleteActivity($item);
 		$this->streamRequest->deleteById($item->getId(), $type);
+	}
+
+	/**
+	 * A post travels further than the author's followers and the instances it
+	 * was addressed to: every boost carried it to the booster's followers, and
+	 * every reply to the replier's. Mastodon sends the Delete to the inboxes of
+	 * everyone who boosted or replied as well; without that, the post lingers on
+	 * every instance that only ever saw it through a boost. The shared inbox is
+	 * used where the actor has one — a server with ten boosters is one delivery.
+	 */
+	private function addressBoostersAndRepliers(Stream $item): void {
+		$inboxes = [];
+		foreach ($this->streamRequest->getAnnouncesAndRepliesTo($item->getId()) as $interaction) {
+			$actor = $interaction->getActor();
+			if ($actor === null || $actor->isLocal()) {
+				continue;
+			}
+
+			$inbox = $actor->getSharedInbox() !== '' ? $actor->getSharedInbox() : $actor->getInbox();
+			if ($inbox === '' || isset($inboxes[$inbox])) {
+				continue;
+			}
+
+			$inboxes[$inbox] = true;
+			$item->addInstancePath(
+				new InstancePath($inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM)
+			);
+		}
 	}
 
 	/**

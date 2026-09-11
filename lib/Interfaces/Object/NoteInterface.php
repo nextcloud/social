@@ -77,6 +77,12 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		/** @var Note $item */
 		if ($activity->getType() === Create::TYPE) {
 			$activity->checkOrigin($item->getId());
+			// Mastodon attributes an incoming Create to the actor performing it,
+			// whatever the object's `attributedTo` says. Same here: the origin
+			// check alone is host-wide, and let one user of a shared server
+			// publish under a neighbour's name. A Create without an actor has
+			// nobody to attribute to and fails the origin check below.
+			$item->setAttributedTo($activity->getActorId());
 			$activity->checkOrigin($item->getAttributedTo());
 			$item->setActivityId($activity->getId());
 
@@ -92,15 +98,49 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 
 		if ($activity->getType() === Delete::TYPE) {
 			$activity->checkOrigin($item->getId());
+			try {
+				$this->getStoredForAuthor($activity, $item->getId());
+			} catch (StreamNotFoundException $e) {
+				return; // never received: nothing here to remove
+			}
 			$this->delete($item);
 		}
 
 		if ($activity->getType() === Update::TYPE) {
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getAttributedTo());
+			try {
+				$this->getStoredForAuthor($activity, $item->getId());
+			} catch (StreamNotFoundException $e) {
+				return; // an edit of a post never received: nothing to rewrite
+			}
 			$item->setActivityId($activity->getId());
 			$this->streamRequest->update($item);
 		}
+	}
+
+	/**
+	 * The stored copy of the note an Update or Delete refers to, provided the
+	 * activity comes from the note's author.
+	 *
+	 * The origin check compares hosts, so on its own it let any account on the
+	 * author's server edit or remove the author's post here. Mastodon looks the
+	 * status up by uri *and* account; a peer's activity finds nothing and is
+	 * dropped. Here it is refused out loud, the way a foreign origin is.
+	 *
+	 * @throws StreamNotFoundException nothing is stored under that id
+	 * @throws InvalidOriginException the actor is not the stored author
+	 */
+	private function getStoredForAuthor(ACore $activity, string $id): Stream {
+		$stored = $this->streamRequest->getStreamById($id);
+		if ($stored->getAttributedTo() !== $activity->getActorId()) {
+			throw new InvalidOriginException(
+				'NoteInterface::getStoredForAuthor - actor: ' . $activity->getActorId()
+				. ' - attributedTo: ' . $stored->getAttributedTo()
+			);
+		}
+
+		return $stored;
 	}
 
 	private function isKnown(string $id): bool {
@@ -130,12 +170,48 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			if ($note->getVisibility() === '') {
 				$note->setVisibility($this->estimateVisibility($note));
 			}
+			// marked before the save, so the row carries what the queue has to fetch
+			$fetchParent = $this->markUnknownParent($note);
 			$this->streamRequest->save($note);
 			$this->updateDetails($note);
 			$this->generateNotification($note);
 			$this->pushService->onNewStream($note->getId());
 			$this->queueLinkPreview($note);
+			if ($fetchParent) {
+				$this->streamQueueService->generateStreamQueue(
+					$note->getRequestToken(), StreamQueue::TYPE_CACHE, $note->getId()
+				);
+			}
 		}
+	}
+
+	/**
+	 * A reply whose parent this instance never received used to sit in every
+	 * timeline "in reply to nothing", for good: nothing ever fetched the parent.
+	 * The parent goes into the note's cache and the note into the stream queue —
+	 * exactly how an Announce has its object fetched — so the fetch happens after
+	 * the inbox request is answered, and is retried by the queue if the parent's
+	 * server is down. The queue saves the parent through save() as well, which
+	 * queues *its* parent in turn: the whole thread is completed, one level per
+	 * pass. `StreamQueueService` stamps each fetched ancestor with its depth, and
+	 * the climb stops at the cap.
+	 *
+	 * @return bool whether a queue entry is needed once the note is saved
+	 */
+	private function markUnknownParent(Note $note): bool {
+		$parent = $note->getInReplyTo();
+		if ($parent === '' || $this->isKnown($parent)) {
+			return false;
+		}
+
+		if ($note->getDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH)
+			>= StreamQueueService::MAX_ANCESTOR_DEPTH) {
+			return false;
+		}
+
+		$note->addCacheItem($parent);
+
+		return true;
 	}
 
 	/**

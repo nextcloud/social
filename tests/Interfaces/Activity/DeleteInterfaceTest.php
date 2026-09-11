@@ -51,6 +51,35 @@ class DeleteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->processIncomingRequest($this->delete(self::NOTE));
 	}
 
+	/**
+	 * The origin check stops at the host; a stored note is removed only by its
+	 * stored author, so another account on bob's server cannot delete bob's post.
+	 */
+	public function testDeleteNamingAPeersNoteIsRefused(): void {
+		$note = $this->note(self::NOTE, self::REMOTE_URL . '/users/mallory');
+		$this->noteInterface->method('getItemById')->with(self::NOTE)->willReturn($note);
+
+		$this->noteInterface->expects($this->never())->method('delete');
+		$this->personInterface->expects($this->never())->method('delete');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->processIncomingRequest($this->delete(self::NOTE));
+	}
+
+	public function testDeleteEmbeddingATombstoneOfAPeersNoteIsRefused(): void {
+		$note = $this->note(self::NOTE, self::REMOTE_URL . '/users/mallory');
+		$this->noteInterface->method('getItemById')->with(self::NOTE)->willReturn($note);
+
+		$this->noteInterface->expects($this->never())->method('delete');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->processIncomingRequest(
+			$this->incomingDelete(['type' => 'Tombstone', 'id' => self::NOTE])
+		);
+	}
+
 	public function testDeleteNamingAKnownActorRemovesTheActor(): void {
 		$bob = $this->person(self::BOB);
 		$this->noteInterface->method('getItemById')->willThrowException(new ItemNotFoundException());

@@ -16,7 +16,9 @@ use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Object\NoteInterface;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CurlService;
@@ -34,6 +36,7 @@ use PHPUnit\Framework\TestCase;
 class StreamQueueServiceTest extends TestCase {
 	private const STREAM_ID = 'https://cloud.example.com/apps/social/@alice/1';
 	private const REPLY_URL = 'https://remote.example/notes/99';
+	private const PARENT_URL = 'https://remote.example/notes/parent';
 	private const BOB = 'https://remote.example/users/bob';
 
 	private StreamRequest|MockObject $streamRequest;
@@ -74,13 +77,26 @@ class StreamQueueServiceTest extends TestCase {
 		return new StreamQueue('tok', $type, self::STREAM_ID);
 	}
 
-	/** A local note whose cache is waiting for one remote reply. */
-	private function streamWithCache(): Note {
-		$note = new Note();
-		$note->setId(self::STREAM_ID);
-		$note->addCacheItem(self::REPLY_URL);
+	/** A local boost whose cache is waiting for the remote object it repeats. */
+	private function streamWithCache(): Announce {
+		$announce = new Announce();
+		$announce->setId(self::STREAM_ID);
+		$announce->addCacheItem(self::REPLY_URL);
 
-		return $note;
+		return $announce;
+	}
+
+	/** A remote reply whose parent this instance never received. */
+	private function replyWithCache(int $depth = 0): Note {
+		$reply = new Note();
+		$reply->setId(self::STREAM_ID);
+		$reply->setInReplyTo(self::PARENT_URL);
+		$reply->addCacheItem(self::PARENT_URL);
+		if ($depth > 0) {
+			$reply->setDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH, $depth);
+		}
+
+		return $reply;
 	}
 
 	public function testGenerateStreamQueueCreatesAStandbyEntry(): void {
@@ -183,7 +199,7 @@ class StreamQueueServiceTest extends TestCase {
 		$updatedCache = null;
 		$this->streamRequest->expects($this->once())
 			->method('updateCache')
-			->willReturnCallback(function (Note $s, Cache $cache) use (&$updatedCache) {
+			->willReturnCallback(function (Stream $s, Cache $cache) use (&$updatedCache) {
 				$updatedCache = $cache;
 			});
 		$noteInterface = $this->createMock(NoteInterface::class);
@@ -237,6 +253,96 @@ class StreamQueueServiceTest extends TestCase {
 
 		$this->assertSame('remote.example', $fetched->getOrigin());
 		$this->assertSame(SignatureService::ORIGIN_REQUEST, $fetched->getOriginSource());
+		// the object of a boost starts an ancestor climb of its own
+		$this->assertSame(1, $fetched->getDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH));
+	}
+
+	/**
+	 * The parent of a reply is fetched, checked and saved like any cached object;
+	 * it is stamped with how deep the climb is, so the save of the parent queues
+	 * *its* parent with the count bumped and NoteInterface can stop at the cap.
+	 * The reply itself keeps no copy: the parent is a row of its own now.
+	 */
+	public function testTheParentOfAReplyIsFetchedStampedAndDroppedFromTheReplysCache(): void {
+		$queue = $this->queue();
+		$reply = $this->replyWithCache(2);
+		$parent = new Note();
+		$parent->setId(self::PARENT_URL);
+		$parent->setAttributedTo(self::BOB);
+		$saved = false;
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id) use ($reply, $parent, &$saved) {
+				if ($id === self::STREAM_ID) {
+					return $reply;
+				}
+				if (!$saved) {
+					throw new StreamNotFoundException();
+				}
+
+				return $parent;
+			});
+		$this->curlService->expects($this->once())
+			->method('retrieveObject')
+			->with(self::PARENT_URL)
+			->willReturn(['id' => self::PARENT_URL, 'type' => 'Note']);
+		$this->ap->method('getItemFromData')->willReturn($parent);
+		$this->cacheActorService->method('getFromId')->willReturn(new Person());
+		$noteInterface = $this->createMock(NoteInterface::class);
+		$noteInterface->expects($this->once())
+			->method('save')
+			->with($this->identicalTo($parent))
+			->willReturnCallback(function () use (&$saved) {
+				$saved = true;
+			});
+		$this->ap->method('getInterfaceForItem')->willReturn($noteInterface);
+		$updatedCache = null;
+		$this->streamRequest->expects($this->once())
+			->method('updateCache')
+			->willReturnCallback(function (Stream $s, Cache $cache) use (&$updatedCache) {
+				$updatedCache = $cache;
+			});
+		$this->streamQueueRequest->expects($this->once())->method('setAsSuccess')->with($this->identicalTo($queue));
+
+		$this->service->manageStreamQueue($queue);
+
+		$this->assertSame(3, $parent->getDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH));
+		$this->assertFalse($updatedCache->hasItem(self::PARENT_URL));
+	}
+
+	/** The replies stored before the parent arrived are counted on it once it does. */
+	public function testAFetchedParentLearnsHowManyRepliesItAlreadyHas(): void {
+		$reply = $this->replyWithCache();
+		$parent = new Note();
+		$parent->setId(self::PARENT_URL);
+		$parent->setAttributedTo(self::BOB);
+		$parent->setDetailInt('remote_replies', 5);
+		$saved = false;
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id) use ($reply, $parent, &$saved) {
+				if ($id === self::STREAM_ID) {
+					return $reply;
+				}
+				if (!$saved) {
+					throw new StreamNotFoundException();
+				}
+
+				return $parent;
+			});
+		$this->curlService->method('retrieveObject')->willReturn(['id' => self::PARENT_URL, 'type' => 'Note']);
+		$this->ap->method('getItemFromData')->willReturn($parent);
+		$this->cacheActorService->method('getFromId')->willReturn(new Person());
+		$noteInterface = $this->createMock(NoteInterface::class);
+		$noteInterface->method('save')->willReturnCallback(function () use (&$saved) {
+			$saved = true;
+		});
+		$this->ap->method('getInterfaceForItem')->willReturn($noteInterface);
+		$this->streamRequest->method('countRepliesTo')->with(self::PARENT_URL)->willReturn(2);
+
+		$this->streamRequest->expects($this->once())->method('updateDetails')->with($this->identicalTo($parent));
+
+		$this->service->manageStreamQueue($this->queue());
+
+		$this->assertSame(7, $parent->getDetailInt('replies'));
 	}
 
 	public function testReplyWithMismatchingIdIsRemovedFromTheCache(): void {
@@ -259,7 +365,7 @@ class StreamQueueServiceTest extends TestCase {
 			->with($this->stringContains('InvalidOriginException'), 1);
 		$updatedCache = null;
 		$this->streamRequest->method('updateCache')
-			->willReturnCallback(function (Note $s, Cache $cache) use (&$updatedCache) {
+			->willReturnCallback(function (Stream $s, Cache $cache) use (&$updatedCache) {
 				$updatedCache = $cache;
 			});
 		// nothing left to cache: the queue entry is complete
