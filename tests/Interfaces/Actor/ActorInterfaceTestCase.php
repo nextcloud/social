@@ -14,6 +14,7 @@ use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\ConversationsRequest;
+use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Db\FiltersRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ListsRequest;
@@ -74,6 +75,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 	protected FiltersRequest|MockObject $filtersRequest;
 	protected ListsRequest|MockObject $listsRequest;
 	protected ConversationsRequest|MockObject $conversationsRequest;
+	protected FeaturedTagsRequest|MockObject $featuredTagsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -91,6 +93,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->filtersRequest = $this->createMock(FiltersRequest::class);
 		$this->listsRequest = $this->createMock(ListsRequest::class);
 		$this->conversationsRequest = $this->createMock(ConversationsRequest::class);
+		$this->featuredTagsRequest = $this->createMock(FeaturedTagsRequest::class);
 		$this->actorService = $this->createMock(ActorService::class);
 
 		$this->handler = $this->createHandler();

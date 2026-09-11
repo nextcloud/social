@@ -46,7 +46,12 @@ class CoreRequestBuilder {
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_FILTERS = 'social_filter';
 	public const TABLE_FILTER_KEYWORDS = 'social_filter_kw';
+	public const TABLE_ACCOUNT_NOTES = 'social_account_note';
 	public const TABLE_CONVERSATION_STATE = 'social_convo_state';
+	public const TABLE_DOMAIN_BLOCKS = 'social_domain_block';
+	public const TABLE_MUTE_EXPIRY = 'social_mute_expiry';
+	public const TABLE_FEATURED_TAGS = 'social_featured_tag';
+	public const TABLE_STATUS_REVISIONS = 'social_stream_rev';
 	public const TABLE_LISTS = 'social_list';
 	public const TABLE_LIST_MEMBERS = 'social_list_member';
 	public const TABLE_INSTANCE = 'social_instance';
@@ -202,6 +207,43 @@ class CoreRequestBuilder {
 			'root_id_prim',
 			'read_nid',
 			'hidden_nid',
+			'creation'
+		],
+		self::TABLE_DOMAIN_BLOCKS => [
+			'id',
+			'actor_id_prim',
+			'domain',
+			'creation'
+		],
+		self::TABLE_ACCOUNT_NOTES => [
+			'id',
+			'actor_id_prim',
+			'object_id',
+			'object_id_prim',
+			'note',
+			'creation'
+		],
+		self::TABLE_MUTE_EXPIRY => [
+			'id',
+			'actor_id_prim',
+			'object_id_prim',
+			'expires_at',
+			'creation'
+		],
+		self::TABLE_STATUS_REVISIONS => [
+			'id',
+			'stream_id_prim',
+			'content',
+			'spoiler_text',
+			'sensitive',
+			'published',
+			'creation'
+		],
+		self::TABLE_FEATURED_TAGS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'hashtag',
 			'creation'
 		],
 		self::TABLE_FOLLOWS => [

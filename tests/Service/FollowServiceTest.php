@@ -24,6 +24,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -45,6 +46,7 @@ class FollowServiceTest extends TestCase {
 	private FollowsRequest|MockObject $followsRequest;
 	/** @var ActorRelationRequest&MockObject */
 	private $actorRelationRequest;
+	private AccountRelationService|MockObject $accountRelationService;
 	private ActivityService|MockObject $activityService;
 	private CacheActorService|MockObject $cacheActorService;
 	/** @var FollowInterface&MockObject */
@@ -53,6 +55,7 @@ class FollowServiceTest extends TestCase {
 	private FollowService $service;
 
 	protected function setUp(): void {
+		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 		$this->bootActivityPub();
 
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
@@ -72,6 +75,7 @@ class FollowServiceTest extends TestCase {
 			$this->createMock(ConfigService::class),
 			$this->followInterface,
 			$this->moderationService,
+			$this->accountRelationService,
 			new NullLogger()
 		);
 	}

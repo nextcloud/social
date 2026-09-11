@@ -20,16 +20,6 @@ class DomainBlocksRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
 	/**
-	 * The table name lives here rather than beside the others in
-	 * `CoreRequestBuilder` because a `TABLE_*` constant there is a claim three
-	 * other places have to honour at once — `CoreRequestBuilder::$tables`, the
-	 * schema table of `docs/Architecture.md` and `occ social:reset` — and this
-	 * change may not edit those files. Moving it up is one commit; until it
-	 * happens, a reset leaves this table behind.
-	 */
-	public const TABLE_DOMAIN_BLOCKS = 'social_domain_block';
-
-	/**
 	 * The schemes an actor id is written with. Each pattern is anchored at one
 	 * of them and closed by the `/` that ends the host, so a blocked
 	 * `good.example` cannot be matched by `good.example.attacker.test` and a

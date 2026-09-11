@@ -30,6 +30,7 @@ use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
@@ -58,9 +59,11 @@ class PostServiceTest extends TestCase {
 	private PostService $service;
 
 	/** what the poster's Nextcloud is set to, as IFactory::getUserLanguage() reports it */
+	private StatusRevisionService|MockObject $revisionService;
 	private string $userLanguage = 'de_DE';
 
 	protected function setUp(): void {
+		$this->revisionService = $this->createMock(StatusRevisionService::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
@@ -100,6 +103,7 @@ class PostServiceTest extends TestCase {
 			$l10nFactory,
 			$this->createMock(IUserManager::class),
 			$this->moderationService,
+			$this->revisionService,
 			new NullLogger()
 		);
 	}

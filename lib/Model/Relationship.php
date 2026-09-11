@@ -177,9 +177,9 @@ class Relationship implements JsonSerializable {
 	}
 
 	/**
-	 * The private note the viewer keeps about this account. Nothing stores one
-	 * yet, and an empty note is what an account nobody wrote a note about has
-	 * — see `FollowService::generateRelationship()` for where the lookup goes.
+	 * The private note the viewer keeps about this account, written through
+	 * `POST /api/v1/accounts/{id}/note` and read by nobody else — not by the
+	 * account it is about, and never by another instance.
 	 */
 	public function setNote(string $note): self {
 		$this->note = $note;

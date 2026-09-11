@@ -44,6 +44,7 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 			$this->filtersRequest,
 			$this->listsRequest,
 			$this->conversationsRequest,
+			$this->featuredTagsRequest,
 		);
 	}
 

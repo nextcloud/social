@@ -70,6 +70,7 @@ class PostService {
 		IFactory $l10nFactory,
 		IUserManager $userManager,
 		private ModerationService $moderationService,
+		private StatusRevisionService $revisionService,
 		LoggerInterface $logger,
 	) {
 		$this->streamService = $streamService;
@@ -191,6 +192,9 @@ class PostService {
 			$content, $spoilerText ?? $stream->getSpoilerText()
 		);
 
+		// the revision recorded below is the version being replaced, so it has
+		// to be taken before any of the fields are overwritten
+		$original = clone $stream;
 		$stream->setContent(nl2br(htmlentities($content, ENT_QUOTES)));
 		if ($spoilerText !== null) {
 			$stream->setSpoilerText(strip_tags($spoilerText));
@@ -208,6 +212,7 @@ class PostService {
 		$this->snapshotSource($stream);
 
 		$this->streamService->updateStream($stream);
+		$this->revisionService->recordEdit($original, $stream);
 
 		$updated = $this->streamService->getStreamByNid($nid);
 		$updated->addInstancePath(

@@ -48,6 +48,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\BannerService;
@@ -168,6 +169,7 @@ class ApiController extends Controller {
 		private ITempManager $tempManager,
 		private FilterService $filterService,
 		private BannerService $bannerService,
+		private AccountRelationService $accountRelationService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -1529,8 +1531,8 @@ class ApiController extends Controller {
 
 	#[PublicPage]
 	#[NoCSRFRequired]
-	public function accountMute(string $id, bool $notifications = true): DataResponse {
-		return $this->relationshipAction($id, 'mute', $notifications);
+	public function accountMute(string $id, bool $notifications = true, int $duration = 0): DataResponse {
+		return $this->relationshipAction($id, 'mute', $notifications, $duration);
 	}
 
 	#[PublicPage]
@@ -1539,7 +1541,9 @@ class ApiController extends Controller {
 		return $this->relationshipAction($id, 'unmute');
 	}
 
-	private function relationshipAction(string $id, string $action, bool $notifications = true): DataResponse {
+	private function relationshipAction(
+		string $id, string $action, bool $notifications = true, int $duration = 0,
+	): DataResponse {
 		try {
 			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
@@ -1553,9 +1557,13 @@ class ApiController extends Controller {
 					break;
 				case 'mute':
 					$this->relationshipService->mute($this->viewer, $target, $notifications);
+					// duration 0 is Mastodon's "until I say otherwise", and it
+					// drops the expiry a previous timed mute left behind
+					$this->accountRelationService->setMuteExpiry($this->viewer, $target, $duration);
 					break;
 				case 'unmute':
 					$this->relationshipService->unmute($this->viewer, $target);
+					$this->accountRelationService->clearMuteExpiry($this->viewer, $target);
 					break;
 			}
 
@@ -1587,8 +1595,15 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 			$limit = max(1, min(ProbeOptions::MAX_LIMIT, $limit));
 
+			$related = $this->relationshipService->getRelated($this->viewer, $type, $limit);
+			if ($type === ActorRelation::TYPE_MUTE) {
+				// one query for the page: a mute whose expiry has passed is not
+				// a mute, and nothing deleted the row to make that so
+				$related = $this->accountRelationService->withoutExpiredMutes($this->viewer, $related);
+			}
+
 			$accounts = [];
-			foreach ($this->relationshipService->getRelated($this->viewer, $type, $limit) as $person) {
+			foreach ($related as $person) {
 				$person->setExportFormat(ACore::FORMAT_LOCAL);
 				$accounts[] = $person;
 			}
