@@ -211,7 +211,7 @@ export default {
 	padding: 20px;
 	box-sizing: content-box;
 	margin: 16px 0;
-	box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
+	box-shadow: var(--social-elevation-resting);
 }
 
 #app-content {
