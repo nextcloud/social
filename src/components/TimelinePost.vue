@@ -36,9 +36,12 @@
 				<Pin :size="14" />
 				{{ t('social', 'Pinned') }}
 			</span>
+			<!-- the byline is 12px text; a 22px globe beside it read as the
+			     loudest thing in the row, and it is the least important -->
 			<VisibilityIcon v-if="visibility"
 				:title="visibility.text"
 				class="post-visibility"
+				:size="16"
 				:visibility="visibility.id" />
 		</div>
 		<div v-if="isEditing" class="post-edit-inline">
@@ -891,6 +894,18 @@ function nodeToPlainText(node) {
 		}
 
 		.post-timestamp {
+			// It opens the thread, so it stays a real button — reachable by
+			// keyboard and announced as one. What it must not keep is the
+			// chrome a bare <button> inherits from the server, which drew a
+			// filled box around four characters of grey byline.
+			background: none;
+			border: none;
+			border-radius: 0;
+			padding: 0;
+			margin: 0;
+			min-height: 0;
+			font-family: inherit;
+			font-weight: normal;
 			font-size: 12px;
 			text-align: right;
 			color: var(--color-text-lighter);
@@ -900,6 +915,15 @@ function nodeToPlainText(node) {
 
 			&:hover {
 				color: var(--color-primary-element);
+				background: none;
+			}
+
+			// the box was also the focus indicator; without one, a keyboard
+			// reader loses the only affordance for opening a thread
+			&:focus-visible {
+				outline: 2px solid var(--color-primary-element);
+				outline-offset: 2px;
+				border-radius: var(--border-radius-small, 4px);
 			}
 		}
 	}

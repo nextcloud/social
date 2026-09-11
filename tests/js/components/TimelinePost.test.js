@@ -155,6 +155,15 @@ describe('TimelinePost', () => {
 			expect(icon.find('title').text()).toBe('Followers')
 		})
 
+		/**
+		 * The byline is 12px text. A 22px globe beside it was the loudest thing
+		 * in the row and is the least important thing in it.
+		 */
+		it('draws the visibility icon no larger than the byline it sits in', () => {
+			const { wrapper } = mountPost()
+			expect(wrapper.find('.post-visibility svg').attributes('width')).toBe('16')
+		})
+
 		it('exposes the creation time on the timestamp', () => {
 			const { wrapper } = mountPost()
 			expect(wrapper.find('.post-timestamp').attributes('data-timestamp')).toBe(String(Date.parse('2026-09-01T10:00:00Z')))
