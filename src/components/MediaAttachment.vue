@@ -168,6 +168,13 @@ export default {
 
 	&__blurhash {
 		position: absolute;
+		/* Both edges, not just the top. An absolutely positioned box with no
+		   inline offset keeps its *static* position, and the static position
+		   here comes from a `<button>` — which centres its content by UA rule.
+		   The picture was drawn half its own width to the right of its frame,
+		   the empty half showing the frame's grey and the other half clipped
+		   off the card. */
+		inset-inline-start: 0;
 		top: 0;
 		height: 100%;
 		width: 100%;
@@ -182,6 +189,7 @@ export default {
 
 	&__preview {
 		position: absolute;
+		inset-inline-start: 0;
 		top: 0;
 		height: 100%;
 		width: 100%;
