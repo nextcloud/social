@@ -272,12 +272,13 @@ a.external_link {
 	 * carry their own max-width — the same number, but the list also had a
 	 * horizontal padding and the composer did not, so the two boxes were a
 	 * gutter's width apart at both edges and nothing on the page lined up.
-	 * Anything that sits in the column is `--social-column` wide; anything
-	 * inside the list's padding is `--social-column-inner`.
+	 * Anything that sits in the column is `--social-column` wide. The list
+	 * keeps a gutter inside that, so a post is narrower than the column by
+	 * `--social-column-gutter` on each side and the composer, which takes the
+	 * column whole, stands that much proud of the posts beneath it.
 	 */
 	--social-column: 600px;
 	--social-column-gutter: calc(var(--default-grid-baseline, 4px) * 2);
-	--social-column-inner: calc(var(--social-column) - 2 * var(--social-column-gutter));
 }
 
 img.emoji {

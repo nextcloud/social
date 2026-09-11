@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.61  
+**App version:** 0.11.62  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -480,11 +480,12 @@ predicate narrower, so nothing about visibility, blocks, mutes or silencing is
 decided twice.
 
 **One column, one owner.** `--social-column` in `App.vue` is the width of the
-timeline, stated once. The list carries the gutter (`--social-column-gutter`) and anything
-that sits beside it — the composer — takes `--social-column-inner`, the list's
-content box. Both used to carry the same max-width independently while only one
-of them had a gutter, so the composer stood a gutter proud of every post beneath
-it at both edges.
+timeline, stated once. The list keeps `--social-column-gutter` inside that, so a
+post is narrower than the column by a gutter on each side; the composer takes the
+column whole and therefore stands that much proud of the posts beneath it, which
+is deliberate — the box you write in should read as the thing that makes them
+rather than as one of them. Both used to carry the same max-width independently
+while only one of them had a gutter, which is how they came to disagree.
 
 `TimelineList` owns its own layout and the views that render it do not touch
 it. That is not style: `.social__timeline` is a child component's **root**, and

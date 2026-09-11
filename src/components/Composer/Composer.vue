@@ -1371,10 +1371,10 @@ $composer-duration: 220ms;
 	border-radius: var(--border-radius-large, 12px);
 	padding: 18px;
 	margin: calc(var(--default-grid-baseline) * 3) auto;
-	// the list's content box, not the column: the list carries a gutter and
-	// this does not, so the same number on both left the composer standing a
-	// gutter proud of every post under it
-	max-width: var(--social-column-inner);
+	// the full column, where the list only fills it inside its own gutter: the
+	// box you write in reaches a little past the posts it will join on both
+	// sides, so it reads as the thing that makes them rather than one of them
+	max-width: var(--social-column);
 	position: sticky;
 	top: 0;
 	z-index: 100;
