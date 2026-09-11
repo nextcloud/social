@@ -11,8 +11,8 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Db\InstanceStatsRequest;
 use OCA\Social\Db\InstancesRequest;
+use OCA\Social\Db\InstanceStatsRequest;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
