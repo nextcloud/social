@@ -124,7 +124,7 @@ class RequestQueueService {
 	public function generateRequestQueueFromSource(array $instancePaths, string $activity, string $author): string {
 		$token = '';
 		$requests = [];
-		foreach ($instancePaths as $instancePath) {
+		foreach ($this->uniqueInboxes($instancePaths) as $instancePath) {
 			$request = new RequestQueue($activity, $instancePath, $author);
 			if ($token === '') {
 				$token = $request->getToken();
@@ -138,6 +138,49 @@ class RequestQueueService {
 		$this->requestQueueRequest->multiple($requests);
 
 		return $token;
+	}
+
+	/**
+	 * One delivery per inbox.
+	 *
+	 * The paths reaching here come from several places that know nothing of
+	 * each other: every mention adds the mentioned actor's inbox, the follower
+	 * fan-out adds one path per instance, boosters and repliers add theirs. A
+	 * post mentioning three people on one Mastodon server, or mentioning
+	 * somebody who also follows the author, produced that many identical
+	 * POSTs of the same activity to the same inbox — wasted on us, and
+	 * duplicate work for the peer, which drops all but the first as already
+	 * seen.
+	 *
+	 * Same inbox means same URI: the callers already prefer an instance's
+	 * shared inbox where it publishes one, so the shared inbox is the single
+	 * URI they converge on. An instance that publishes none is addressed by
+	 * its personal inboxes, which are distinct URIs and each still delivered —
+	 * uniquing must not turn two people on such a server into one delivery.
+	 *
+	 * Of two paths to one inbox the higher priority wins, so folding a
+	 * follower fan-out into a direct mention does not demote the delivery from
+	 * inline to the next cron run.
+	 *
+	 * @param InstancePath[] $instancePaths
+	 *
+	 * @return InstancePath[] in the order the inboxes were first named
+	 */
+	private function uniqueInboxes(array $instancePaths): array {
+		$unique = [];
+		foreach ($instancePaths as $instancePath) {
+			$uri = $instancePath->getUri();
+			if (!array_key_exists($uri, $unique)) {
+				$unique[$uri] = $instancePath;
+				continue;
+			}
+
+			if ($instancePath->getPriority() > $unique[$uri]->getPriority()) {
+				$unique[$uri] = $instancePath;
+			}
+		}
+
+		return array_values($unique);
 	}
 
 	/**

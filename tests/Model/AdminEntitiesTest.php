@@ -185,11 +185,17 @@ class AdminEntitiesTest extends TestCase {
 		$this->assertNull($entity['action_taken_by_account']);
 		$this->assertNull($entity['action_taken_at']);
 		$this->assertFalse($entity['action_taken']);
-		// nothing forwards a report to the reported account's own instance,
-		// and a report carries a category rather than a rule id
-		$this->assertFalse($entity['forwarded']);
+		// a report carries a category rather than a rule id
+		$this->assertFalse($entity['forwarded'], 'a report nobody asked to forward was not forwarded');
 		$this->assertSame([], $entity['rules']);
 		$this->assertSame($entity['created_at'], $entity['updated_at']);
+	}
+
+	public function testAForwardedReportSaysSo(): void {
+		$report = new Report();
+		$report->setId(3)->setCreation(1757548800)->setForwarded(true);
+
+		$this->assertTrue((new AdminReport($report))->jsonSerialize()['forwarded']);
 	}
 
 	public function testADecidedReportIsUpdatedWhenTheDecisionWasTaken(): void {

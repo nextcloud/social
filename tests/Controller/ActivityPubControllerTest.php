@@ -26,6 +26,7 @@ use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\InstanceActor;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\QuoteAuthorization;
@@ -39,6 +40,7 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\InboxLimiter;
+use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
@@ -95,6 +97,8 @@ class ActivityPubControllerTest extends TestCase {
 	private $streamRequest;
 	/** @var PinService&MockObject */
 	private $pinService;
+	/** @var InstanceActorService&MockObject */
+	private $instanceActorService;
 	/** @var ConfigService&MockObject */
 	private $configService;
 	/** @var IInitialStateService&MockObject */
@@ -119,6 +123,7 @@ class ActivityPubControllerTest extends TestCase {
 		$this->streamService = $this->createMock(StreamService::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->pinService = $this->createMock(PinService::class);
+		$this->instanceActorService = $this->createMock(InstanceActorService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->initialStateService = $this->createMock(IInitialStateService::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
@@ -142,6 +147,7 @@ class ActivityPubControllerTest extends TestCase {
 			$this->streamService,
 			$this->streamRequest,
 			$this->pinService,
+			$this->instanceActorService,
 			$this->configService,
 			$this->initialStateService,
 			$this->logger
@@ -944,6 +950,92 @@ class ActivityPubControllerTest extends TestCase {
 
 		$this->assertInstanceOf(TemplateResponse::class, $response);
 		$this->assertSame(['serverData'], $keys);
+	}
+
+	// instanceActor()
+
+	/**
+	 * Every outbound signed fetch names this document's URL as its `keyId`; a
+	 * peer running authorized-fetch dereferences it before answering, so a
+	 * signature naming a key nobody can find is worse than no signature.
+	 */
+	public function testTheInstanceActorIsServedAsActivityPub(): void {
+		$actor = new InstanceActor();
+		$actor->setId(self::SOCIAL_URL . 'actor');
+		$this->instanceActorService->method('getActor')->willReturn($actor);
+
+		$response = $this->controller->instanceActor();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(self::LD_JSON, $response->getHeaders()['Content-Type']);
+		$this->assertSame($actor, $response->getData());
+	}
+
+	/** An instance that cannot produce one says so rather than half-serving it. */
+	public function testAnInstanceActorThatCannotBeBuiltIsA404(): void {
+		$this->instanceActorService->method('getActor')
+			->willThrowException(new SocialAppConfigException('no cloud address yet'));
+
+		$response = $this->controller->instanceActor();
+
+		$this->assertFailure($response, SocialAppConfigException::class, Http::STATUS_NOT_FOUND);
+	}
+
+	// replies()
+
+	public function testRepliesServesTheCollectionOfAPost(): void {
+		$post = $this->quotablePost();
+		$collection = new OrderedCollection();
+		$this->streamService->expects($this->once())
+			->method('getRepliesCollection')
+			->with($this->identicalTo($post))
+			->willReturn($collection);
+
+		$response = $this->controller->replies('alice', 'abc123');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(self::LD_JSON, $response->getHeaders()['Content-Type']);
+		$this->assertSame($collection, $response->getData());
+	}
+
+	/** @return iterable<string, array{string, int}> */
+	public function requestedReplyPages(): iterable {
+		yield 'a numbered page' => ['2', 2];
+		yield "Mastodon's page=true, which means the first" => ['true', 1];
+	}
+
+	/** @dataProvider requestedReplyPages */
+	public function testRepliesServesTheRequestedPage(string $page, int $expected): void {
+		$this->quotablePost();
+		$collectionPage = new OrderedCollectionPage();
+		$this->streamService->expects($this->once())
+			->method('getRepliesPage')
+			->with($this->anything(), $expected)
+			->willReturn($collectionPage);
+
+		$response = $this->controller->replies('alice', 'abc123', $page);
+
+		$this->assertSame($collectionPage, $response->getData());
+	}
+
+	/** Somebody else's replies live under an id this instance does not own. */
+	public function testRepliesOfARemotePostIsA404(): void {
+		$post = $this->quotablePost();
+		$post->setLocal(false);
+		$this->streamService->expects($this->never())->method('getRepliesCollection');
+
+		$response = $this->controller->replies('alice', 'abc123');
+
+		$this->assertFailure($response, ItemUnknownException::class, Http::STATUS_NOT_FOUND);
+	}
+
+	public function testRepliesOfAnUnknownPostIsA404(): void {
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$response = $this->controller->replies('alice', 'missing');
+
+		$this->assertFailure($response, StreamNotFoundException::class, Http::STATUS_NOT_FOUND);
+		$this->assertSame(self::SOCIAL_URL . '@alice/missing', $response->getData()['stream']);
 	}
 
 	// displayQuoteAuthorization()

@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Flag;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ReportForwardService;
 use OCA\Social\Service\ReportService;
 use OCP\IGroupManager;
 use OCP\IUser;
@@ -36,6 +37,7 @@ class ReportServiceTest extends TestCase {
 	private IUserManager|MockObject $userManager;
 	private IGroupManager|MockObject $groupManager;
 	private INotificationManager|MockObject $notificationManager;
+	private ReportForwardService|MockObject $reportForwardService;
 	private ReportService $service;
 
 	protected function setUp(): void {
@@ -44,6 +46,7 @@ class ReportServiceTest extends TestCase {
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->groupManager = $this->createMock(IGroupManager::class);
 		$this->notificationManager = $this->createMock(INotificationManager::class);
+		$this->reportForwardService = $this->createMock(ReportForwardService::class);
 
 		$this->service = new ReportService(
 			$this->reportsRequest,
@@ -51,6 +54,7 @@ class ReportServiceTest extends TestCase {
 			$this->userManager,
 			$this->groupManager,
 			$this->notificationManager,
+			$this->reportForwardService,
 			new NullLogger()
 		);
 	}
@@ -136,6 +140,73 @@ class ReportServiceTest extends TestCase {
 		);
 
 		$this->assertSame(Report::CATEGORY_OTHER, $report->getCategory());
+	}
+
+	public function testForwardIsNotAttemptedUnlessTheReporterAskedForIt(): void {
+		$this->withAdmin();
+		$this->reportsRequest->method('save')->willReturn(11);
+		$this->reportForwardService->expects($this->never())->method('forward');
+
+		$report = $this->service->reportFromLocal(
+			$this->person(self::ALICE), $this->person(self::REMOTE_ACTOR, false), [], 'spam', 'spam'
+		);
+
+		$this->assertFalse($report->isForwarded());
+	}
+
+	public function testAForwardedReportIsRecordedAsForwarded(): void {
+		$this->withAdmin();
+		$this->reportsRequest->method('save')->willReturnCallback(
+			static function (Report $report): int {
+				$report->setId(12);
+
+				return 12;
+			}
+		);
+		$this->reportForwardService->expects($this->once())->method('forward')->willReturn(true);
+		// stored, not only held in memory: the moderation API reads it back
+		$this->reportsRequest->expects($this->once())->method('setForwarded')->with(12, true);
+
+		$report = $this->service->reportFromLocal(
+			$this->person(self::ALICE), $this->person(self::REMOTE_ACTOR, false), [], 'spam', 'spam', true
+		);
+
+		$this->assertTrue($report->isForwarded());
+	}
+
+	public function testAForwardThatCouldNotBeDeliveredIsNotRecordedAsForwarded(): void {
+		$this->withAdmin();
+		$this->reportsRequest->method('save')->willReturn(13);
+		$this->reportForwardService->method('forward')->willReturn(false);
+		$this->reportsRequest->expects($this->never())->method('setForwarded');
+
+		$report = $this->service->reportFromLocal(
+			$this->person(self::ALICE), $this->person(self::REMOTE_ACTOR, false), [], 'spam', 'spam', true
+		);
+
+		$this->assertFalse($report->isForwarded());
+	}
+
+	public function testAFailingForwardStillFilesTheReport(): void {
+		$this->withAdmin();
+		$this->reportsRequest->expects($this->once())->method('save')->willReturnCallback(
+			static function (Report $report): int {
+				$report->setId(14);
+
+				return 14;
+			}
+		);
+		$this->reportForwardService->method('forward')
+			->willThrowException(new \RuntimeException('the other instance is on fire'));
+
+		// the report is for our own moderators first; what the other instance
+		// does with it must never decide whether it was filed
+		$report = $this->service->reportFromLocal(
+			$this->person(self::ALICE), $this->person(self::REMOTE_ACTOR, false), [], 'spam', 'spam', true
+		);
+
+		$this->assertSame(14, $report->getId());
+		$this->assertFalse($report->isForwarded());
 	}
 
 	public function testReportFromFlagSplitsTheLocalAccountFromTheStatuses(): void {

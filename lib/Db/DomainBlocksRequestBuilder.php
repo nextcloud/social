@@ -9,7 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 
 /**
  * Class DomainBlocksRequestBuilder
@@ -105,6 +107,57 @@ class DomainBlocksRequestBuilder extends CoreRequestBuilder {
 			)
 		);
 		$qb->andWhere($expr->isNull('dbk.id'));
+	}
+
+	/**
+	 * Matches a column of actor ids against one domain.
+	 *
+	 * The purge side of a domain block: `filterDomainBlocked()` above compares
+	 * a column against the *rows* of the block table, while this compares it
+	 * against one domain the caller already has. Same two patterns, each
+	 * anchored at a scheme and closed by the `/` that ends the host, so
+	 * `good.example` cannot be matched by `good.example.attacker.test`.
+	 *
+	 * @param string $domain must already have been through
+	 *                       `DomainBlockService::normalise()`. A `%` or a `_`
+	 *                       reaching a LIKE pattern would widen it to other
+	 *                       instances, and this one is used to *delete* — so
+	 *                       it is refused here as well rather than trusted.
+	 *
+	 * @throws InvalidResourceException
+	 */
+	public static function onDomain(SocialQueryBuilder $qb, string $column, string $domain): ICompositeExpression {
+		$patterns = [];
+		foreach (self::domainPatterns($domain) as $pattern) {
+			$patterns[] = $qb->expr()->like(
+				$qb->func()->lower($column), $qb->createNamedParameter($pattern)
+			);
+		}
+
+		return $qb->expr()->orX(...$patterns);
+	}
+
+	/**
+	 * The LIKE patterns an actor id on one domain matches, one per scheme.
+	 *
+	 * Separate from the expression above so that what the patterns do — and
+	 * refuse to do — can be read and tested without a database.
+	 *
+	 * @return string[]
+	 *
+	 * @throws InvalidResourceException
+	 */
+	public static function domainPatterns(string $domain): array {
+		if ($domain === '' || strpbrk($domain, '%_\\') !== false) {
+			throw new InvalidResourceException("'" . $domain . "' is not a domain");
+		}
+
+		$patterns = [];
+		foreach (self::SCHEMES as $scheme) {
+			$patterns[] = $scheme . strtolower($domain) . '/%';
+		}
+
+		return $patterns;
 	}
 
 	protected function getDomainBlocksInsertSql(): SocialQueryBuilder {

@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use DateTime;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -50,6 +51,7 @@ class PostServiceTest extends TestCase {
 	private const ACTOR_FOLLOWERS = 'https://social.example/@alice/followers';
 	private const GENERATED_ID = 'https://social.example/@alice/1234567890';
 	private const BOB_ID = 'https://remote.example/users/bob';
+	private const BOB_SHARED_INBOX = 'https://remote.example/inbox';
 
 	private StreamRequest|MockObject $streamRequest;
 	private AccountService|MockObject $accountService;
@@ -105,6 +107,7 @@ class PostServiceTest extends TestCase {
 			$this->moderationService,
 			$this->revisionService,
 			$this->createMock(\OCA\Social\Service\NotificationService::class),
+			new \OCA\Social\Service\LinkifyService(),
 			new NullLogger(),
 		);
 	}
@@ -125,7 +128,7 @@ class PostServiceTest extends TestCase {
 		$bob->setPreferredUsername('bob');
 		$bob->setAccount('bob@remote.example');
 		$bob->setInbox(self::BOB_ID . '/inbox');
-		$bob->setSharedInbox('https://remote.example/inbox');
+		$bob->setSharedInbox(self::BOB_SHARED_INBOX);
 
 		return $bob;
 	}
@@ -181,7 +184,12 @@ class PostServiceTest extends TestCase {
 		$this->assertTrue($note->isLocal());
 		$this->assertSame(self::ACTOR_ID, $note->getAttributedTo());
 		$this->assertSame(Stream::TYPE_PUBLIC, $note->getVisibility());
-		$this->assertSame('Hello @bob@remote.example it&#039;s &quot;great&quot; #Nextcloud', $note->getContent());
+		$this->assertSame(
+			'<p>Hello <a href="' . self::BOB_ID . '" class="u-url mention" rel="nofollow noopener noreferrer">'
+			. '@bob@remote.example</a> it&#039;s &quot;great&quot; '
+			. '<a href="' . self::SOCIAL_URL . 'tags/nextcloud" class="mention hashtag" rel="tag">#Nextcloud</a></p>',
+			$note->getContent()
+		);
 		$this->assertEqualsWithDelta(time(), (new DateTime($note->getPublished()))->getTimestamp(), 5);
 		$this->assertSame(['Nextcloud'], $note->getHashtags());
 		$this->assertSame(
@@ -318,7 +326,7 @@ class PostServiceTest extends TestCase {
 
 		$paths = $note->getInstancePaths();
 		$this->assertCount(1, $paths);
-		$this->assertSame(self::BOB_ID . '/inbox', $paths[0]->getUri());
+		$this->assertSame(self::BOB_SHARED_INBOX, $paths[0]->getUri());
 		$this->assertSame(InstancePath::TYPE_INBOX, $paths[0]->getType());
 		$this->assertSame(InstancePath::PRIORITY_HIGH, $paths[0]->getPriority());
 		$this->assertTrue($note->isFilterDuplicate());
@@ -334,7 +342,7 @@ class PostServiceTest extends TestCase {
 		$this->assertCount(2, $paths);
 		$this->assertSame(self::ACTOR_ID, $paths[0]->getUri());
 		$this->assertSame(InstancePath::TYPE_FOLLOWERS, $paths[0]->getType());
-		$this->assertSame(self::BOB_ID . '/inbox', $paths[1]->getUri());
+		$this->assertSame(self::BOB_SHARED_INBOX, $paths[1]->getUri());
 		$this->assertSame(InstancePath::PRIORITY_MEDIUM, $paths[1]->getPriority());
 	}
 
@@ -474,10 +482,67 @@ class PostServiceTest extends TestCase {
 		$this->service->createPost($this->post("line one\n<b>line two</b>"));
 
 		$this->assertSame(
-			"line one<br />\n&lt;b&gt;line two&lt;/b&gt;",
+			'<p>line one<br />&lt;b&gt;line two&lt;/b&gt;</p>',
 			$note->getContent(),
-			'user text is escaped first, then newlines become <br />'
+			'user text is escaped first, then markup is built around it'
 		);
+	}
+
+	/**
+	 * Peers render `content` and look for nothing to linkify in it, so a URL
+	 * written here arrived on every one of them as dead text.
+	 */
+	public function testCreatePostLinksTheUrlsInTheText(): void {
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post('read https://example.invalid/a'));
+
+		$this->assertSame(
+			'<p>read <a href="https://example.invalid/a" rel="nofollow noopener noreferrer">'
+			. 'https://example.invalid/a</a></p>',
+			$note->getContent()
+		);
+	}
+
+	/**
+	 * The links and the `tag` array come out of one parse, so the markup cannot
+	 * name somebody the tags do not — which is the list a receiving instance
+	 * checks a mention against before it notifies anybody.
+	 */
+	public function testAMentionThatResolvedToNobodyIsNeitherTaggedNorLinked(): void {
+		$this->cacheActorService->method('getFromAccount')
+			->willReturnCallback(fn (string $account): Person => $account === 'bob@remote.example'
+				? $this->bob()
+				: throw new CacheActorDoesNotExistException());
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post('@bob@remote.example @ghost@nowhere.invalid'));
+
+		$this->assertSame(
+			[['type' => 'Mention', 'href' => self::BOB_ID, 'name' => '@bob@remote.example']],
+			$note->getTags()
+		);
+		$this->assertStringContainsString('>@bob@remote.example</a>', $note->getContent());
+		$this->assertStringContainsString('@ghost@nowhere.invalid</p>', $note->getContent());
+		$this->assertSame(1, substr_count($note->getContent(), '<a '), 'only the tagged mention is a link');
+	}
+
+	/**
+	 * A handle read as "everything up to the next space" swallowed the full
+	 * stop that ended the sentence, and the post was addressed to — and
+	 * federated as mentioning — an account nobody has.
+	 */
+	public function testAHandleAtTheEndOfASentenceKeepsItsDomainAndNotThePunctuation(): void {
+		$this->cacheActorService->expects($this->once())
+			->method('getFromAccount')
+			->with('bob@remote.example', true)
+			->willReturn($this->bob());
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post('ask @bob@remote.example.'));
+
+		$this->assertSame('@bob@remote.example', $note->getTags()[0]['name']);
+		$this->assertStringEndsWith('</a>.</p>', $note->getContent());
 	}
 
 	public function testCreatePostWithAPollBuildsAQuestion(): void {
@@ -640,7 +705,7 @@ class PostServiceTest extends TestCase {
 		$result = $this->service->editPost(7, $this->actor(), 'new', 'new cw', true);
 
 		$this->assertSame($reloaded, $result);
-		$this->assertSame('new', $stored->getContent());
+		$this->assertSame('<p>new</p>', $stored->getContent());
 		$this->assertSame('new cw', $stored->getSpoilerText());
 		$this->assertTrue($stored->isSensitive());
 		$this->assertSame('2020-01-01T00:00:00+00:00', $stored->getPublished(), 'published is when the post was written, not when it was last edited');
@@ -662,7 +727,7 @@ class PostServiceTest extends TestCase {
 		$this->service->editPost(7, $this->actor(), "line one\n<script>x()</script>");
 
 		$this->assertSame(
-			"line one<br />\n&lt;script&gt;x()&lt;/script&gt;",
+			'<p>line one<br />&lt;script&gt;x()&lt;/script&gt;</p>',
 			$stored->getContent(),
 			'edited text goes through the same escaping as new posts'
 		);
@@ -676,7 +741,7 @@ class PostServiceTest extends TestCase {
 
 		$this->service->editPost(7, $this->actor(), 'new');
 
-		$this->assertSame('new', $stored->getContent());
+		$this->assertSame('<p>new</p>', $stored->getContent());
 		$this->assertSame('old cw', $stored->getSpoilerText());
 		$this->assertTrue($stored->isSensitive());
 	}
@@ -717,7 +782,7 @@ class PostServiceTest extends TestCase {
 		$this->service->createPost($this->post('Hallo Welt'));
 
 		$this->assertSame('de', $note->getLanguage(), 'the UI locale\'s region says nothing about the text');
-		$this->assertSame(['de' => 'Hallo Welt'], $note->exportAsActivityPub()['contentMap']);
+		$this->assertSame(['de' => '<p>Hallo Welt</p>'], $note->exportAsActivityPub()['contentMap']);
 		$this->assertSame('de', $note->exportAsLocal()['language']);
 	}
 
@@ -755,7 +820,7 @@ class PostServiceTest extends TestCase {
 		$this->service->createPost($post);
 
 		$this->assertSame('fr', $note->getLanguage());
-		$this->assertSame(['fr' => 'Bonjour'], $note->exportAsActivityPub()['contentMap']);
+		$this->assertSame(['fr' => '<p>Bonjour</p>'], $note->exportAsActivityPub()['contentMap']);
 	}
 
 	public function testCreatePostSnapshotsTheNoteIntoTheSourceSoTheLanguageSurvivesTheDatabase(): void {
@@ -765,7 +830,7 @@ class PostServiceTest extends TestCase {
 		$this->service->createPost($this->post('Hallo'));
 
 		$source = json_decode($note->getSource(), true);
-		$this->assertSame(['de' => 'Hallo'], $source['contentMap']);
+		$this->assertSame(['de' => '<p>Hallo</p>'], $source['contentMap']);
 
 		$reloaded = new Note();
 		$reloaded->importFromDatabase(['id' => $note->getId(), 'type' => 'Note', 'content' => 'Hallo', 'source' => $note->getSource()]);
@@ -857,13 +922,13 @@ class PostServiceTest extends TestCase {
 		$this->assertNotSame($stored, $federated, 'what federates is the reloaded row');
 		$wire = json_decode(json_encode($federated), true);
 
-		$this->assertSame('neu', $wire['content']);
+		$this->assertSame('<p>neu</p>', $wire['content']);
 		$this->assertSame('2020-01-01T00:00:00+00:00', $wire['published'], 'published is untouched by an edit');
 		$this->assertArrayHasKey('updated', $wire, 'without `updated` Mastodon drops the content change');
 		$this->assertMatchesRegularExpression('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', $wire['updated'], 'ISO-8601, UTC');
 		$this->assertGreaterThan(strtotime($wire['published']), strtotime($wire['updated']));
 		$this->assertEqualsWithDelta(time(), strtotime($wire['updated']), 5);
-		$this->assertSame(['de' => 'neu'], $wire['contentMap']);
+		$this->assertSame(['de' => '<p>neu</p>'], $wire['contentMap']);
 		$this->assertSame(['de' => 'neue CW'], $wire['summaryMap']);
 
 		// and the client sees the same edit
@@ -880,7 +945,7 @@ class PostServiceTest extends TestCase {
 		$this->service->editPost(7, $this->actor(), 'new');
 
 		$source = json_decode($stored->getSource(), true);
-		$this->assertSame('new', $source['content'], 'the source is what a re-export reads');
+		$this->assertSame('<p>new</p>', $source['content'], 'the source is what a re-export reads');
 		$this->assertSame($stored->getUpdated(), $source['updated']);
 	}
 }

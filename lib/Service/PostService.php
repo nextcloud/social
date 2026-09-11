@@ -72,6 +72,7 @@ class PostService {
 		private ModerationService $moderationService,
 		private StatusRevisionService $revisionService,
 		private NotificationService $notificationService,
+		private LinkifyService $linkifyService,
 		LoggerInterface $logger,
 	) {
 		$this->streamService = $streamService;
@@ -131,7 +132,6 @@ class PostService {
 		$this->streamService->assignItem($note, $actor, $post->getType());
 
 		$note->setAttributedTo($actor->getId());
-		$note->setContent(nl2br(htmlentities($post->getContent(), ENT_QUOTES)));
 		// The warning rides as the object's `summary`, which is what every other
 		// server reads it from — and unlike the content it is plain text
 		// wherever it is read: `spoiler_text` to a client, interpolated rather
@@ -150,6 +150,12 @@ class PostService {
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());
 		//		$this->streamService->addAttachments($note, $post->getDocuments());
+
+		// Last, because the links are built out of the `tag` array the three
+		// calls above assemble: a mention is only linked once it is known which
+		// actor it resolved to, and only a mention the tags vouch for is linked
+		// at all. Nothing here can name somebody the tags do not.
+		$note->setContent($this->linkifyService->toHtml($post->getContent(), $note->getTags()));
 
 		// the stored source is what survives the database and federates on
 		// Update — a poll's options and counts, and for every post the
@@ -196,7 +202,9 @@ class PostService {
 		// the revision recorded below is the version being replaced, so it has
 		// to be taken before any of the fields are overwritten
 		$original = clone $stream;
-		$stream->setContent(nl2br(htmlentities($content, ENT_QUOTES)));
+		// the post's existing tags: an edit does not re-address anybody, so the
+		// people it may link to are the people it already named
+		$stream->setContent($this->linkifyService->toHtml($content, $stream->getTags()));
 		if ($spoilerText !== null) {
 			$stream->setSpoilerText(strip_tags($spoilerText));
 		}
@@ -422,16 +430,23 @@ class PostService {
 	/**
 	 * @param Post $post
 	 */
+	/**
+	 * The accounts and hashtags written into the text itself.
+	 *
+	 * The entities come from `LinkifyService`, which is also what builds the
+	 * links in the published HTML: one parse, so what the post addresses, what
+	 * its `tag` array names and what its markup links can never be three
+	 * different lists. The pair of regular expressions this replaced read a
+	 * handle as "everything up to the next space", which swallowed the full
+	 * stop at the end of a sentence and addressed `bob@example.invalid.`.
+	 */
 	public function fixRecipientAndHashtags(Post $post) {
-		preg_match_all('/(?!\b)@([^\s]+)/', $post->getContent(), $matchesTo);
-		preg_match_all('/(?!\b)#([^\s]+)/', $post->getContent(), $matchesHash);
-
-		foreach ($matchesTo[1] as $to) {
-			$post->addTo($to);
-		}
-
-		foreach ($matchesHash[1] as $hash) {
-			$post->addHashtag($hash);
+		foreach ($this->linkifyService->entitiesIn($post->getContent()) as $entity) {
+			match ($entity['type']) {
+				LinkifyService::TYPE_MENTION => $post->addTo($entity['name']),
+				LinkifyService::TYPE_HASHTAG => $post->addHashtag($entity['name']),
+				default => null,
+			};
 		}
 	}
 }

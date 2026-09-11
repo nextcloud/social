@@ -37,6 +37,21 @@ class RequestQueueServiceTest extends TestCase {
 		);
 	}
 
+	/** @return object{requests: RequestQueue[]} filled in when the queue is written */
+	private function captureQueued(): object {
+		$stored = new class {
+			/** @var RequestQueue[] */
+			public array $requests = [];
+		};
+		$this->requestQueueRequest->expects($this->once())
+			->method('multiple')
+			->willReturnCallback(function (array $requests) use ($stored): void {
+				$stored->requests = $requests;
+			});
+
+		return $stored;
+	}
+
 	private function queued(int $priority, int $status = RequestQueue::STATUS_STANDBY): RequestQueue {
 		$queue = new RequestQueue('{}', new InstancePath('https://remote.example/inbox', InstancePath::TYPE_INBOX, $priority), self::AUTHOR);
 		$queue->setStatus($status);
@@ -72,6 +87,76 @@ class RequestQueueServiceTest extends TestCase {
 		$this->assertSame(InstancePath::PRIORITY_HIGH, $stored[0]->getPriority());
 		$this->assertSame($shared, $stored[1]->getInstance());
 		$this->assertSame(InstancePath::PRIORITY_LOW, $stored[1]->getPriority());
+	}
+
+	/**
+	 * Every mention adds an inbox, the follower fan-out adds one per instance
+	 * and the boost/reply fan-out adds more: the same inbox arrives here
+	 * several times for one activity, and used to become that many POSTs.
+	 */
+	public function testTheSameInboxIsQueuedOnlyOnce(): void {
+		$shared = 'https://remote.example/inbox';
+		$stored = $this->captureQueued();
+
+		$token = $this->service->generateRequestQueueFromSource(
+			[
+				new InstancePath($shared, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM),
+				new InstancePath($shared, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM),
+				new InstancePath($shared, InstancePath::TYPE_GLOBAL, InstancePath::PRIORITY_LOW),
+			],
+			'{}',
+			self::AUTHOR
+		);
+
+		$this->assertCount(1, $stored->requests);
+		$this->assertSame($shared, $stored->requests[0]->getInstance()->getUri());
+		$this->assertSame($token, $stored->requests[0]->getToken());
+	}
+
+	/**
+	 * A direct mention is delivered inline; folding the follower fan-out to the
+	 * same inbox into it must not demote it to the next cron run.
+	 */
+	public function testDeduplicationKeepsTheHighestPriority(): void {
+		$shared = 'https://remote.example/inbox';
+		$stored = $this->captureQueued();
+
+		$this->service->generateRequestQueueFromSource(
+			[
+				new InstancePath($shared, InstancePath::TYPE_GLOBAL, InstancePath::PRIORITY_LOW),
+				new InstancePath($shared, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH),
+			],
+			'{}',
+			self::AUTHOR
+		);
+
+		$this->assertCount(1, $stored->requests);
+		$this->assertSame(InstancePath::PRIORITY_HIGH, $stored->requests[0]->getPriority());
+		$this->assertSame(InstancePath::TYPE_INBOX, $stored->requests[0]->getInstance()->getType());
+	}
+
+	/**
+	 * `endpoints.sharedInbox` is optional: an instance that publishes none is
+	 * addressed by one personal inbox per account, and those are different
+	 * inboxes — uniquing them away would silently stop delivering to everybody
+	 * but the first account on such a server.
+	 */
+	public function testPersonalInboxesOnOneHostAreEachDelivered(): void {
+		$stored = $this->captureQueued();
+
+		$this->service->generateRequestQueueFromSource(
+			[
+				new InstancePath('https://plain.example/users/bob/inbox', InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM),
+				new InstancePath('https://plain.example/users/dan/inbox', InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM),
+			],
+			'{}',
+			self::AUTHOR
+		);
+
+		$this->assertSame(
+			['https://plain.example/users/bob/inbox', 'https://plain.example/users/dan/inbox'],
+			array_map(static fn (RequestQueue $queue): string => $queue->getInstance()->getUri(), $stored->requests)
+		);
 	}
 
 	public function testGenerateRequestQueueWithoutInstancesStoresNothingAndHasNoToken(): void {

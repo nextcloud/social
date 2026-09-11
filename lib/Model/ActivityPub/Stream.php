@@ -52,6 +52,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const TYPE_ANNOUNCE = 'announce';
 
 	/**
+	 * What is appended to a post's id to name the collection of its replies.
+	 * The route that serves it has to agree with this, because this is the URL
+	 * a peer dereferences.
+	 */
+	public const REPLIES_PATH = '/replies';
+
+	/**
 	 * The states Mastodon's Quote entity can be in. A quote is `accepted` once
 	 * the quoted author's server has approved it — and, here, once the quoted
 	 * post is one this instance holds and the reader may see; `pending` while
@@ -842,6 +849,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$sourceData = json_decode($source, true);
 			if (is_array($sourceData)) {
 				$this->setEmojis($this->extractEmojisFromTag($sourceData));
+				// `tag` has no column of its own, so a post read back from the
+				// database used to re-export with no mentions and no hashtags
+				// at all: every Update and every outbox entry told the peers
+				// that the people the post names are not named by it. It rides
+				// in the stored wire object like the rest of them.
+				$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $sourceData, []));
 				// neither has a column; both ride in the stored wire object,
 				// which is the one thing an Update rewrites — a remote edit
 				// through NoteInterface as much as a local one through
@@ -964,6 +977,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				'updated' => $this->getUpdated(),
 			],
 			$this->exportQuoteAsActivityPub(),
+			$this->exportRepliesAsActivityPub(),
 			$this->exportInteractionPolicy(),
 			$this->exportLanguageMaps()
 		);
@@ -984,6 +998,42 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->cleanArray($result);
 
 		return $result;
+	}
+
+	/**
+	 * The `replies` collection, which is how a peer discovers a thread.
+	 *
+	 * Everything else publishes one and reads it: a reply reaches the instances
+	 * that hold the post it answers and nowhere else, so a reader on a third
+	 * instance sees a post with no replies unless there is a collection to walk.
+	 * Without it, a conversation that starts here is a conversation only the
+	 * participants' own servers ever see whole.
+	 *
+	 * Only for a local post. A remote one's replies live on the server that
+	 * holds it, under an id of its choosing; naming a collection here that this
+	 * instance does not serve, under an id it does not own, would send every
+	 * reader to a 404.
+	 *
+	 * `first` is a URL rather than an inlined page: the page it names is the
+	 * one the route serves, and a page written out here would have to be
+	 * queried for during a model export that has no database.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	private function exportRepliesAsActivityPub(): array {
+		if (!$this->isLocal() || $this->getId() === '') {
+			return [];
+		}
+
+		$id = $this->getId() . self::REPLIES_PATH;
+
+		return [
+			'replies' => [
+				'id' => $id,
+				'type' => OrderedCollection::TYPE,
+				'first' => $id . '?page=1',
+			],
+		];
 	}
 
 	/**

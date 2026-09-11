@@ -41,6 +41,7 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\InboxLimiter;
+use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
@@ -96,6 +97,7 @@ class ActivityPubController extends Controller {
 		StreamService $streamService,
 		private StreamRequest $streamRequest,
 		private PinService $pinService,
+		private InstanceActorService $instanceActorService,
 		ConfigService $configService,
 		IInitialStateService $initialStateService,
 		LoggerInterface $logger,
@@ -652,6 +654,64 @@ class ActivityPubController extends Controller {
 		$authorization->setInteractionTarget($quotedId);
 
 		return $this->activityPubSuccess($authorization);
+	}
+
+	/**
+	 * The instance's own `Application` actor.
+	 *
+	 * Every outbound signed fetch names `<this url>#main-key` as its `keyId`,
+	 * and a peer running authorized-fetch dereferences exactly this URL before
+	 * it will answer. Without the route the signature names a key nobody can
+	 * find, which is worse than sending none.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function instanceActor(): Response {
+		try {
+			return $this->activityPubSuccess($this->instanceActorService->getActor());
+		} catch (Exception $e) {
+			return $this->fail($e, [], Http::STATUS_NOT_FOUND);
+		}
+	}
+
+	/**
+	 * The `replies` collection of a post, and its pages.
+	 *
+	 * A reply reaches the instances that hold the post it answers and nowhere
+	 * else, so without this a reader on a third instance sees a post with no
+	 * replies. The note points here with `replies`.
+	 *
+	 * No viewer is set: this is the anonymous view, and `StreamService` selects
+	 * only public replies for it — a followers-only reply is not served here
+	 * even as an id, because an id is enough to go and fetch the reply itself.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function replies(string $username, string $token, string $page = ''): Response {
+		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+
+		try {
+			$post = $this->streamService->getStreamById($postId);
+		} catch (Exception $e) {
+			return $this->fail($e, ['stream' => $postId], Http::STATUS_NOT_FOUND);
+		}
+
+		// a post this instance does not hold has its replies somewhere else,
+		// under an id this instance does not own
+		if (!$post->isLocal()) {
+			return $this->fail(
+				new ItemUnknownException('no such replies collection'),
+				['stream' => $postId],
+				Http::STATUS_NOT_FOUND
+			);
+		}
+
+		$requested = OrderedCollectionPage::requestedPage($page);
+		if ($requested > 0) {
+			return $this->activityPubSuccess($this->streamService->getRepliesPage($post, $requested));
+		}
+
+		return $this->activityPubSuccess($this->streamService->getRepliesCollection($post));
 	}
 
 	/**

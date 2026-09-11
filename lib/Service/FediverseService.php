@@ -10,9 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
+use OCA\Social\Cron\DomainPurge;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCP\BackgroundJob\IJobList;
 
 /**
  * Class FediverseService
@@ -28,6 +30,7 @@ class FediverseService {
 		ConfigService $configService,
 		MiscService $miscService,
 		private CacheActorsRequest $cacheActorsRequest,
+		private IJobList $jobList,
 	) {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -227,6 +230,7 @@ class FediverseService {
 		array_push($list, $address);
 
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_LIST, json_encode($list));
+		$this->purgeBlocked($address);
 	}
 
 	/**
@@ -235,6 +239,37 @@ class FediverseService {
 	 * @return void
 	 * @throws Exception
 	 */
+	/**
+	 * Hands a newly blocked instance to the purge job.
+	 *
+	 * Here rather than in the admin API, so that `occ social:fediverse add`
+	 * and `POST /api/v1/admin/domain_blocks` behave the same way — a block
+	 * that only purges when it was made through one of the two would be worse
+	 * than one that never purges, because nobody could tell which they got.
+	 *
+	 * Only in block-list mode: the same app value holds the allow list, where
+	 * an entry is an instance this server is choosing to *talk to*, and
+	 * deleting everything it ever sent us would be the exact opposite of what
+	 * the admin asked for.
+	 *
+	 * Queued, not run: blocking a domain is one admin request and the purge is
+	 * however much that instance sent over its lifetime. The block itself is
+	 * already in effect — nothing new arrives while the job works through what
+	 * is left.
+	 */
+	private function purgeBlocked(string $address): void {
+		if ($this->getAccessType() !== $this->configService->accessTypeList['BLACKLIST']) {
+			return;
+		}
+
+		try {
+			$this->jobList->add(DomainPurge::class, ['domain' => $address]);
+		} catch (Exception $e) {
+			// a block that could not queue its purge is still a block
+			$this->miscService->log('could not queue the purge of ' . $address . ': ' . $e->getMessage(), 1);
+		}
+	}
+
 	public function removeAddress(string $address) {
 		$list = array_values(array_udiff($this->getListedAddresses(), [$address], 'strcasecmp'));
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_LIST, json_encode($list));

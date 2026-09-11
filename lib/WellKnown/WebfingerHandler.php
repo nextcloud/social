@@ -18,6 +18,7 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\InstanceActorService;
 use OCP\AppFramework\Http;
 use OCP\Http\WellKnown\IHandler;
 use OCP\Http\WellKnown\IRequestContext;
@@ -32,8 +33,10 @@ class WebfingerHandler implements IHandler {
 
 	public function __construct(
 		CacheActorsRequest $cacheActorsRequest,
-		CacheActorService $cacheActorService, FediverseService $fediverseService,
+		CacheActorService $cacheActorService,
+		FediverseService $fediverseService,
 		ConfigService $configService,
+		private InstanceActorService $instanceActorService,
 	) {
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->cacheActorService = $cacheActorService;
@@ -120,6 +123,11 @@ class WebfingerHandler implements IHandler {
 			return $previousResponse;
 		}
 
+		$instanceActor = $this->instanceActorResponse($subject, $subjectAcct);
+		if ($instanceActor !== null) {
+			return $instanceActor;
+		}
+
 		$actor = null;
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($subject);
@@ -168,6 +176,37 @@ class WebfingerHandler implements IHandler {
 			null,
 			['template' => $subscribe]
 		);
+
+		return $response;
+	}
+
+	/**
+	 * The instance's own `Application` actor, answered for
+	 * `acct:<host>@<host>` — the handle Mastodon gives its own instance actor
+	 * and the one a peer holding a `keyId` from here will look up when it wants
+	 * to know what the signer is.
+	 *
+	 * It is answered before any local account is looked up, so a Nextcloud user
+	 * whose id happens to equal the instance host cannot take the name the
+	 * server signs under. Mastodon reserves the handle the same way.
+	 *
+	 * @return IResponse|null null when the subject is somebody else's
+	 */
+	private function instanceActorResponse(string $subject, string $subjectAcct): ?IResponse {
+		try {
+			$address = $this->configService->getSocialAddress();
+			$id = $this->instanceActorService->getId();
+		} catch (SocialAppConfigException $e) {
+			return null;
+		}
+
+		if ($address === '' || strtolower($subject) !== strtolower($address . '@' . $address)) {
+			return null;
+		}
+
+		$response = new JrdResponse($subjectAcct);
+		$response->addAlias($id);
+		$response->addLink('self', 'application/activity+json', $id);
 
 		return $response;
 	}

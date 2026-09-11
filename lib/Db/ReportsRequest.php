@@ -27,6 +27,7 @@ class ReportsRequest extends ReportsRequestBuilder {
 			->setValue('category', $qb->createNamedParameter($report->getCategory()))
 			->setValue('local', $qb->createNamedParameter($report->isLocal() ? 1 : 0))
 			->setValue('resolved', $qb->createNamedParameter($report->isResolved() ? 1 : 0))
+			->setValue('forwarded', $qb->createNamedParameter($report->isForwarded() ? 1 : 0))
 			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
 
 		$qb->executeStatement();
@@ -89,6 +90,20 @@ class ReportsRequest extends ReportsRequestBuilder {
 		$cursor->closeCursor();
 
 		return $this->getInt('count', $data === false ? [] : $data, 0);
+	}
+
+	/**
+	 * Recorded after the fact: the report is stored first and delivered
+	 * second, so a forward that fails still leaves a report a moderator can
+	 * read — and one that succeeds is not lost if this update is the thing
+	 * that fails.
+	 */
+	public function setForwarded(int $id, bool $forwarded): void {
+		$qb = $this->getReportsUpdateSql();
+		$qb->set('forwarded', $qb->createNamedParameter($forwarded ? 1 : 0));
+		$qb->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
 	}
 
 	public function setResolved(int $id, bool $resolved): void {

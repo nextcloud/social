@@ -30,6 +30,10 @@ return [
 		['name' => 'Navigation#resizedGet', 'url' => '/document/get/resized', 'verb' => 'GET'],
 		['name' => 'Navigation#resizedGetPublic', 'url' => '/document/public/resized', 'verb' => 'GET'],
 
+		// The instance's own Application actor, at the path Mastodon serves its
+		// own at. `InstanceActorService::PATH` builds the same URL, and that is
+		// the `keyId` owner every peer dereferences to check a signed fetch.
+		['name' => 'ActivityPub#instanceActor', 'url' => '/actor', 'verb' => 'GET'],
 		['name' => 'ActivityPub#actor', 'url' => '/users/{username}', 'verb' => 'GET'],
 		['name' => 'ActivityPub#actorAlias', 'url' => '/@{username}/', 'verb' => 'GET'],
 		['name' => 'ActivityPub#inbox', 'url' => '/@{username}/inbox', 'verb' => 'POST'],
@@ -43,6 +47,7 @@ return [
 		// before displayPost, whose {token} is a single segment and so would
 		// never match this, but the two belong next to each other
 		['name' => 'ActivityPub#displayQuoteAuthorization', 'url' => '/@{username}/{token}/quote_authorizations/{stamp}', 'verb' => 'GET'],
+		['name' => 'ActivityPub#replies', 'url' => '/@{username}/{token}/replies', 'verb' => 'GET'],
 		['name' => 'ActivityPub#displayPost', 'url' => '/@{username}/{token}', 'verb' => 'GET'],
 
 		['name' => 'OStatus#subscribe', 'url' => '/ostatus/follow/', 'verb' => 'GET'],
@@ -165,6 +170,10 @@ return [
 		['name' => 'Api#statusContext', 'url' => '/api/v1/statuses/{nid}/context', 'verb' => 'GET'],
 		['name' => 'History#history', 'url' => '/api/v1/statuses/{nid}/history', 'verb' => 'GET'],
 		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],
+		['name' => 'Api#scheduledStatuses', 'url' => '/api/v1/scheduled_statuses', 'verb' => 'GET'],
+		['name' => 'Api#scheduledStatusGet', 'url' => '/api/v1/scheduled_statuses/{id}', 'verb' => 'GET'],
+		['name' => 'Api#scheduledStatusUpdate', 'url' => '/api/v1/scheduled_statuses/{id}', 'verb' => 'PUT'],
+		['name' => 'Api#scheduledStatusDelete', 'url' => '/api/v1/scheduled_statuses/{id}', 'verb' => 'DELETE'],
 		['name' => 'Api#relationships', 'url' => '/api/v1/accounts/relationships', 'verb' => 'GET'],
 		['name' => 'Api#accountLookup', 'url' => '/api/v1/accounts/lookup', 'verb' => 'GET'],
 		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET', 'requirements' => ['account' => '.+']],

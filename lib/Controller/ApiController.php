@@ -68,6 +68,7 @@ use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -170,6 +171,7 @@ class ApiController extends Controller {
 		private FilterService $filterService,
 		private BannerService $bannerService,
 		private AccountRelationService $accountRelationService,
+		private ScheduledStatusService $scheduledStatusService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -541,7 +543,12 @@ class ApiController extends Controller {
 				$target,
 				$statusIds,
 				(string)($input['comment'] ?? ''),
-				(string)($input['category'] ?? Report::CATEGORY_OTHER)
+				(string)($input['category'] ?? Report::CATEGORY_OTHER),
+				// Mastodon's `forward`: the report also goes to the instance
+				// that hosts the account, which is the only one that can act
+				// on it. Ignored for a local account -- ReportForwardService
+				// decides, so no entry point can forward what must not be
+				$this->formBool($input['forward'] ?? false)
 			);
 			$target->setExportFormat(ACore::FORMAT_LOCAL);
 
@@ -618,8 +625,27 @@ class ApiController extends Controller {
 			$input = file_get_contents('php://input');
 			$this->logger->debug('[ApiController] statusNew: ' . $input);
 
+			$data = $this->convertInput($input);
 			$status = new Status();
-			$status->import($this->convertInput($input));
+			$status->import($data);
+
+			// A `scheduled_at` is not a slow post: Mastodon answers it with a
+			// ScheduledStatus entity and publishes nothing until the time
+			// comes. The field used to be parsed and ignored, so a post
+			// scheduled for next Tuesday went out at once -- and the client was
+			// told it had been scheduled. This sits before the idempotency
+			// lookup, which remembers a published status by nid and has nothing
+			// to remember here.
+			if ($this->scheduledStatusService->requestedTime($data) > 0) {
+				return new DataResponse(
+					$this->scheduledStatusService->schedule(
+						$this->accountService->getActorFromUserId($this->currentSession(), true),
+						$status,
+						$data
+					),
+					Http::STATUS_OK
+				);
+			}
 
 			// Tusky and Ivory send an Idempotency-Key and retry the post when
 			// the connection drops, so on a flaky mobile link the same post used
@@ -1374,6 +1400,80 @@ class ApiController extends Controller {
 	}
 
 	/**
+	 * The posts this account has asked to have published later, soonest first.
+	 *
+	 * No `Link` header: a ScheduledStatus is not a Stream and carries no nid
+	 * for `paged()` to page on. The three cursors are honoured, so a client
+	 * that builds its own still pages.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function scheduledStatuses(
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since_id = 0,
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			return new DataResponse(
+				$this->scheduledStatusService->getAll($actor, $limit, $max_id, $min_id, $since_id),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** One waiting post. One that is not the viewer's is a 404, not a refusal. */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function scheduledStatusGet(int $id): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			return new DataResponse($this->scheduledStatusService->getOne($actor, $id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Moves a waiting post to another time; the five-minute rule applies again. */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function scheduledStatusUpdate(int $id): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$data = $this->convertInput(file_get_contents('php://input'));
+
+			return new DataResponse(
+				$this->scheduledStatusService->reschedule($actor, $id, $data), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Cancels a waiting post. Mastodon answers an empty object. */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function scheduledStatusDelete(int $id): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$this->scheduledStatusService->delete($actor, $id);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
 	 * Follows the account, or asks to (a locked account leaves the
 	 * relationship in `requested`). Returns the updated relationship.
 	 */
@@ -1465,6 +1565,19 @@ class ApiController extends Controller {
 			$statuses = [];
 			if ($type === '' || $type === 'statuses') {
 				$statuses = array_slice($this->searchService->searchStreamContent($q), 0, $limit);
+
+				// `resolve` is the reader saying "I have a link, go and get
+				// it". Without it a post found in a browser cannot be replied
+				// to or boosted here, because nothing has ever had a reason to
+				// ask its server for it. Only on the reader's say-so: this
+				// fetches an address they chose.
+				if ($resolve && $statuses === []) {
+					$resolved = $this->searchService->resolveStatus($q);
+					if ($resolved !== null) {
+						$resolved->setExportFormat(ACore::FORMAT_LOCAL);
+						$statuses = [$resolved];
+					}
+				}
 			}
 
 			$hashtags = [];
@@ -2397,7 +2510,8 @@ class ApiController extends Controller {
 
 		$accepted = match ($name) {
 			'statusNew', 'statusUpdate', 'statusDelete', 'mediaNew', 'mediaNewV2', 'mediaUpdate',
-			'statusAction', 'updateCredentials', 'reportNew', 'pollVote', 'markersSet' => ['write'],
+			'statusAction', 'updateCredentials', 'reportNew', 'pollVote', 'markersSet',
+			'scheduledStatusUpdate', 'scheduledStatusDelete' => ['write'],
 			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
 			'accountFollow', 'accountUnfollow',
 			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],

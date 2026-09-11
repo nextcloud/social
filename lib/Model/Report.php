@@ -38,6 +38,7 @@ class Report implements JsonSerializable {
 	private string $category = self::CATEGORY_OTHER;
 	private bool $local = true;
 	private bool $resolved = false;
+	private bool $forwarded = false;
 	private int $creation = 0;
 	private ?Person $targetAccount = null;
 
@@ -117,6 +118,22 @@ class Report implements JsonSerializable {
 		return $this->local;
 	}
 
+	/**
+	 * Whether the Flag was delivered to the instance the reported account is
+	 * on. Only ever true for a local report about a remote account: there is
+	 * nowhere to forward a report about one of our own, and a report that
+	 * arrived as a Flag is not ours to pass on.
+	 */
+	public function setForwarded(bool $forwarded): self {
+		$this->forwarded = $forwarded;
+
+		return $this;
+	}
+
+	public function isForwarded(): bool {
+		return $this->forwarded;
+	}
+
 	public function setResolved(bool $resolved): self {
 		$this->resolved = $resolved;
 
@@ -157,7 +174,7 @@ class Report implements JsonSerializable {
 			'action_taken_at' => null,
 			'category' => $this->getCategory(),
 			'comment' => $this->getComment(),
-			'forwarded' => false,
+			'forwarded' => $this->isForwarded(),
 			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
 			'status_ids' => $this->getStatusIds(),
 			'rule_ids' => null,

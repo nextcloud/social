@@ -60,6 +60,7 @@ class CoreRequestBuilder {
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
+	public const TABLE_SCHEDULED = 'social_scheduled';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_CARDS = 'social_stream_card';
@@ -319,6 +320,14 @@ class CoreRequestBuilder {
 			'status',
 			'tries',
 			'last'
+		],
+		self::TABLE_SCHEDULED => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'scheduled_at',
+			'params',
+			'creation'
 		],
 		self::TABLE_STREAM => [
 			'nid',

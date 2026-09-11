@@ -10,8 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\ActorsRequest;
-use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Actor\InstanceActor;
 use OCA\Social\Service\HttpSignatureService;
+use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -24,14 +25,13 @@ use Psr\Log\NullLogger;
  * object, collection and outbox GET this app makes.
  */
 class HttpSignatureServiceTest extends TestCase {
-	private const ALICE = 'https://cloud.example.com/apps/social/@alice';
-	private const BOB = 'https://cloud.example.com/apps/social/@bob';
+	private const INSTANCE_ACTOR = 'https://cloud.example.com/apps/social/actor';
 
 	private static string $privateKey;
 	private static string $publicKey;
 
-	/** @var ActorsRequest&MockObject */
-	private $actorsRequest;
+	/** @var InstanceActorService&MockObject */
+	private $instanceActorService;
 
 	public static function setUpBeforeClass(): void {
 		$res = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
@@ -41,20 +41,21 @@ class HttpSignatureServiceTest extends TestCase {
 	}
 
 	protected function setUp(): void {
-		$this->actorsRequest = $this->createMock(ActorsRequest::class);
+		$this->instanceActorService = $this->createMock(InstanceActorService::class);
 	}
 
-	private function actor(string $id, int $nid, string $privateKey): Person {
-		$actor = new Person();
-		$actor->setId($id);
-		$actor->setNid($nid);
+	private function signsWith(string $privateKey): void {
+		$actor = new InstanceActor();
+		$actor->setId(self::INSTANCE_ACTOR);
 		$actor->setPrivateKey($privateKey);
 
-		return $actor;
+		$this->instanceActorService->method('getSigningActor')->willReturn($actor);
 	}
 
 	private function service(): HttpSignatureService {
-		return new HttpSignatureService($this->actorsRequest, new NullLogger());
+		return new HttpSignatureService(
+			$this->createMock(ActorsRequest::class), $this->instanceActorService, new NullLogger()
+		);
 	}
 
 	private function fetch(string $path = '/users/bob', string $host = 'remote.example'): NCRequest {
@@ -77,15 +78,18 @@ class HttpSignatureServiceTest extends TestCase {
 		return $parts;
 	}
 
-	public function testAFetchIsSignedWithALocalActorsKey(): void {
-		$this->actorsRequest->method('getAll')
-			->willReturn([$this->actor(self::ALICE, 1, self::$privateKey)]);
+	/**
+	 * The key that signs is the server's own, never a person's: the owner of a
+	 * signing key is dereferenced by every peer that checks it.
+	 */
+	public function testAFetchIsSignedWithTheInstanceActorsKey(): void {
+		$this->signsWith(self::$privateKey);
 		$request = $this->fetch();
 
 		$this->assertTrue($this->service()->signFetch($request));
 
 		$parts = $this->signatureParts($request);
-		$this->assertSame(self::ALICE . '#main-key', $parts['keyId']);
+		$this->assertSame(self::INSTANCE_ACTOR . '#main-key', $parts['keyId']);
 		$this->assertSame('rsa-sha256', $parts['algorithm']);
 		$this->assertSame('(request-target) host date', $parts['headers']);
 	}
@@ -95,8 +99,7 @@ class HttpSignatureServiceTest extends TestCase {
 	 * something a peer is entitled to find strange.
 	 */
 	public function testAFetchSignsNeitherDigestNorContentLength(): void {
-		$this->actorsRequest->method('getAll')
-			->willReturn([$this->actor(self::ALICE, 1, self::$privateKey)]);
+		$this->signsWith(self::$privateKey);
 		$request = $this->fetch();
 
 		$this->service()->signFetch($request);
@@ -109,8 +112,7 @@ class HttpSignatureServiceTest extends TestCase {
 	}
 
 	public function testTheSignedStringIsTheRequestAsItGoesOut(): void {
-		$this->actorsRequest->method('getAll')
-			->willReturn([$this->actor(self::ALICE, 1, self::$privateKey)]);
+		$this->signsWith(self::$privateKey);
 		$request = $this->fetch('/users/bob/outbox');
 		$request->addParam('page', '2');
 
@@ -140,10 +142,7 @@ class HttpSignatureServiceTest extends TestCase {
 	 * not.
 	 */
 	public function testEveryFetchIsSignedByTheSameActor(): void {
-		$this->actorsRequest->method('getAll')->willReturn([
-			$this->actor(self::BOB, 7, self::$privateKey),
-			$this->actor(self::ALICE, 2, self::$privateKey),
-		]);
+		$this->signsWith(self::$privateKey);
 		$service = $this->service();
 
 		$first = $this->fetch();
@@ -151,47 +150,25 @@ class HttpSignatureServiceTest extends TestCase {
 		$service->signFetch($first);
 		$service->signFetch($second);
 
-		$this->assertSame(self::ALICE . '#main-key', $this->signatureParts($first)['keyId']);
-		$this->assertSame(self::ALICE . '#main-key', $this->signatureParts($second)['keyId']);
-	}
-
-	public function testTheSigningActorIsReadOnlyOnce(): void {
-		$this->actorsRequest->expects($this->once())
-			->method('getAll')
-			->willReturn([$this->actor(self::ALICE, 1, self::$privateKey)]);
-		$service = $this->service();
-
-		$service->signFetch($this->fetch());
-		$service->signFetch($this->fetch('/users/carol'));
+		$this->assertSame(self::INSTANCE_ACTOR . '#main-key', $this->signatureParts($first)['keyId']);
+		$this->assertSame(self::INSTANCE_ACTOR . '#main-key', $this->signatureParts($second)['keyId']);
 	}
 
 	/**
-	 * Before any local account exists there is no key to sign with. The fetch
-	 * still goes out — unsigned is what it was until now, and against a peer
-	 * that does not demand a signature it still works.
+	 * An instance that cannot produce a key pair — it does not know its own URL
+	 * yet, or OpenSSL refused — still fetches. Unsigned is what the request was
+	 * until now, and against a peer that does not demand a signature it works.
 	 */
-	public function testWithoutALocalActorTheFetchGoesOutUnsigned(): void {
-		$this->actorsRequest->method('getAll')->willReturn([]);
+	public function testWithoutAnInstanceActorTheFetchGoesOutUnsigned(): void {
+		$this->instanceActorService->method('getSigningActor')->willReturn(null);
 		$request = $this->fetch();
 
 		$this->assertFalse($this->service()->signFetch($request));
 		$this->assertArrayNotHasKey('Signature', $request->getHeaders());
 	}
 
-	public function testAnActorWithoutAPrivateKeyIsNotUsedToSign(): void {
-		$this->actorsRequest->method('getAll')->willReturn([
-			$this->actor(self::ALICE, 1, ''),
-			$this->actor(self::BOB, 2, self::$privateKey),
-		]);
-		$request = $this->fetch();
-
-		$this->assertTrue($this->service()->signFetch($request));
-		$this->assertSame(self::BOB . '#main-key', $this->signatureParts($request)['keyId']);
-	}
-
 	public function testAnUnusableKeyLeavesTheRequestUnsigned(): void {
-		$this->actorsRequest->method('getAll')
-			->willReturn([$this->actor(self::ALICE, 1, 'not a key')]);
+		$this->signsWith('not a key');
 		$request = $this->fetch();
 
 		$this->assertFalse($this->service()->signFetch($request));

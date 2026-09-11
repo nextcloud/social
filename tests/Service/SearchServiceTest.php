@@ -9,24 +9,132 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\SearchService;
+use OCA\Social\Tests\Model\TActivityPubMocks;
+use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
+require_once __DIR__ . '/../Model/TActivityPubMocks.php';
+
 class SearchServiceTest extends TestCase {
+	use TActivityPubMocks;
+
 	private CacheActorService|MockObject $cacheActorService;
 	private HashtagService|MockObject $hashtagService;
 	private StreamRequest|MockObject $streamRequest;
+	private CurlService|MockObject $curlService;
 	private SearchService $service;
 
+	// resolveStatus()
+
+	private function note(string $id): Note {
+		$note = new Note();
+		$note->setId($id);
+		$note->setAttributedTo('https://remote.example/users/bob');
+
+		return $note;
+	}
+
+	/**
+	 * The read the resolver does after a save. Returning a post here means a
+	 * refusal further up is the only thing that can make the answer empty --
+	 * without it these tests would pass for the wrong reason.
+	 */
+	private function readBackIsASavedPost(Note $stored): void {
+		$calls = 0;
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function () use (&$calls, $stored) {
+				if ($calls++ === 0) {
+					throw new StreamNotFoundException();
+				}
+
+				return $stored;
+			});
+	}
+
+	public function testAPostAlreadyHeldIsNotFetchedAgain(): void {
+		$held = $this->note('https://remote.example/notes/1');
+		$this->streamRequest->method('getStreamById')->willReturn($held);
+		$this->curlService->expects($this->never())->method('retrieveObject');
+
+		$this->assertSame($held, $this->service->resolveStatus('https://remote.example/notes/1'));
+	}
+
+	public function testSomethingThatIsNotAnAddressIsNeverFetched(): void {
+		$this->curlService->expects($this->never())->method('retrieveObject');
+
+		$this->assertNull($this->service->resolveStatus('just some words'));
+	}
+
+	/**
+	 * The positive case, which is what makes the guard below load-bearing: a
+	 * well-formed document *is* fetched, stored and returned.
+	 */
+	public function testAPostNamedByItsAddressIsFetchedAndStored(): void {
+		$stored = $this->note('https://remote.example/notes/1');
+		$this->readBackIsASavedPost($stored);
+		$this->curlService->method('retrieveObject')->willReturn([
+			'id' => 'https://remote.example/notes/1',
+			'type' => 'Note',
+			'attributedTo' => 'https://remote.example/users/bob',
+			'content' => '<p>hello</p>',
+		]);
+
+		$this->assertSame($stored, $this->service->resolveStatus('https://remote.example/notes/1'));
+	}
+
+	/**
+	 * A document is only evidence about itself. Without this, anybody could
+	 * host a document claiming to be somebody else's post and have this
+	 * instance store it under that id.
+	 */
+	public function testADocumentThatClaimsAnotherAddressIsRefused(): void {
+		$this->readBackIsASavedPost($this->note('https://remote.example/notes/1'));
+		$this->curlService->method('retrieveObject')->willReturn([
+			'id' => 'https://remote.example/notes/SOMEBODY-ELSE',
+			'type' => 'Note',
+			'attributedTo' => 'https://remote.example/users/bob',
+		]);
+
+		$this->assertNull($this->service->resolveStatus('https://remote.example/notes/1'));
+	}
+
+	public function testSomethingThatIsNotAPostIsRefused(): void {
+		$this->readBackIsASavedPost($this->note('https://remote.example/users/bob'));
+		$this->curlService->method('retrieveObject')->willReturn([
+			'id' => 'https://remote.example/users/bob',
+			'type' => 'Person',
+		]);
+
+		$this->assertNull($this->service->resolveStatus('https://remote.example/users/bob'));
+	}
+
+	public function testAServerThatCannotBeReachedIsAnEmptyAnswerAndNotAFailure(): void {
+		$this->streamRequest->method('getStreamById')
+			->willThrowException(new StreamNotFoundException());
+		$this->curlService->method('retrieveObject')
+			->willThrowException(new \Exception('unreachable'));
+
+		$this->assertNull($this->service->resolveStatus('https://remote.example/notes/1'));
+	}
+
 	protected function setUp(): void {
+		$this->installActivityPub();
+		// importing a Note reaches the container for the hashtag links it builds
+		\OC::$server->register(IURLGenerator::class, $this->createMock(IURLGenerator::class));
+		$this->curlService = $this->createMock(CurlService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
@@ -36,7 +144,13 @@ class SearchServiceTest extends TestCase {
 			$this->streamRequest,
 			$this->createMock(ConfigService::class),
 			new NullLogger(),
+			$this->curlService
 		);
+	}
+
+	protected function tearDown(): void {
+		AP::$activityPub = null;
+		\OC::$server->reset();
 	}
 
 	public function testSearchUriResolvesAnActorUrl(): void {

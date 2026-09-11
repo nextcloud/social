@@ -21,6 +21,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\ReportsRequest;
 use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\ScheduledStatusesRequest;
 use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
@@ -75,6 +76,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		private ConversationsRequest $conversationsRequest,
 		private FeaturedTagsRequest $featuredTagsRequest,
 		private AnnouncementsRequest $announcementsRequest,
+		private ScheduledStatusesRequest $scheduledStatusesRequest,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -164,6 +166,11 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		// which announcements they had dismissed; the announcements themselves
 		// are the instance's and stay
 		$this->announcementsRequest->deleteRelatedId($item->getId());
+		// the posts they had asked to have published later, which are the one
+		// thing here that would otherwise go *out* under an account that no
+		// longer exists — the cron has no reason to look the poster up until
+		// the moment it publishes
+		$this->scheduledStatusesRequest->deleteRelatedId($item->getId());
 		// a moderation decision deliberately outlives the account: it is what
 		// keeps a suspended account suspended if it comes back
 
