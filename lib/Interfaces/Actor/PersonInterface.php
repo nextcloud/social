@@ -11,6 +11,7 @@ namespace OCA\Social\Interfaces\Actor;
 
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\AnnouncementsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\ConversationsRequest;
@@ -73,6 +74,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		private ListsRequest $listsRequest,
 		private ConversationsRequest $conversationsRequest,
 		private FeaturedTagsRequest $featuredTagsRequest,
+		private AnnouncementsRequest $announcementsRequest,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -159,6 +161,9 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		$this->conversationsRequest->deleteRelatedId($item->getId());
 		// the hashtags they pinned to a profile that no longer exists
 		$this->featuredTagsRequest->deleteRelatedId($item->getId());
+		// which announcements they had dismissed; the announcements themselves
+		// are the instance's and stay
+		$this->announcementsRequest->deleteRelatedId($item->getId());
 		// a moderation decision deliberately outlives the account: it is what
 		// keeps a suspended account suspended if it comes back
 

@@ -20,8 +20,13 @@ use OCP\Util;
 
 /**
  * Moderation panel: open (and recently resolved) reports, the state of outbound
- * federation, and the Fediverse access list the occ social:fediverse command
- * manages.
+ * federation, the Fediverse access list the occ social:fediverse command
+ * manages, and the announcements the instance is showing everybody.
+ *
+ * The announcements section carries no data from here. It is read from
+ * `/admin/announcements` when the page loads, because that is the same route
+ * the section writes through, and a list rendered here would disagree with it
+ * the moment an announcement was posted.
  */
 class AdminSettings implements ISettings {
 	public function __construct(
@@ -35,6 +40,10 @@ class AdminSettings implements ISettings {
 
 	public function getForm(): TemplateResponse {
 		Util::addScript('social', 'social-adminSettings');
+		// its own bundle rather than a second panel in the hand-written one:
+		// the announcements section reads and writes its own routes, and
+		// nothing on the page above it is loaded any earlier for it
+		Util::addScript('social', 'social-adminAnnouncements');
 
 		return new TemplateResponse('social', 'settings/admin', [
 			'reports' => $this->reportService->getReports(true),

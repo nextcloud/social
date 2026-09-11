@@ -35,6 +35,7 @@ class ServiceInterfaceTest extends ActorInterfaceTestCase {
 			$this->listsRequest,
 			$this->conversationsRequest,
 			$this->featuredTagsRequest,
+			$this->announcementsRequest,
 		);
 	}
 

@@ -125,6 +125,13 @@ return [
 		['name' => 'Filter#get', 'url' => '/api/v2/filters/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
 		['name' => 'Filter#update', 'url' => '/api/v2/filters/{id}', 'verb' => 'PUT', 'requirements' => ['id' => '\d+']],
 		['name' => 'Filter#delete', 'url' => '/api/v2/filters/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
+
+		// Mastodon's announcements: what the instance is telling everybody,
+		// and the dismissal that makes one read for a single account. The
+		// window is a predicate of the read, so nothing has to run for an
+		// announcement to start or stop applying.
+		['name' => 'Announcement#index', 'url' => '/api/v1/announcements', 'verb' => 'GET'],
+		['name' => 'Announcement#dismiss', 'url' => '/api/v1/announcements/{id}/dismiss', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#searchV2', 'url' => '/api/v2/search', 'verb' => 'GET'],
 		// Mastodon's own v1 search. This path used to be the app's web-UI search
@@ -230,6 +237,9 @@ return [
 		['name' => 'Moderation#fediverseAccess', 'url' => '/moderation/fediverse/access', 'verb' => 'POST'],
 		['name' => 'Moderation#retention', 'url' => '/moderation/retention', 'verb' => 'POST'],
 		['name' => 'Moderation#accountModerate', 'url' => '/moderation/accounts', 'verb' => 'POST'],
-		['name' => 'Moderation#statusRemove', 'url' => '/moderation/statuses/remove', 'verb' => 'POST']
+		['name' => 'Moderation#statusRemove', 'url' => '/moderation/statuses/remove', 'verb' => 'POST'],
+		['name' => 'Announcement#adminIndex', 'url' => '/admin/announcements', 'verb' => 'GET'],
+		['name' => 'Announcement#adminCreate', 'url' => '/admin/announcements', 'verb' => 'POST'],
+		['name' => 'Announcement#adminDelete', 'url' => '/admin/announcements/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']]
 	]
 ];
