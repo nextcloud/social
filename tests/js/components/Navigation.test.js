@@ -63,6 +63,9 @@ const items = (wrapper) => wrapper.findAll('.nav-item')
 const itemNames = (wrapper) => items(wrapper).map((item) => item.attributes('data-name'))
 const item = (wrapper, name) => items(wrapper).find((candidate) => candidate.attributes('data-name') === name)
 const activeNames = (wrapper) => items(wrapper).filter((candidate) => candidate.classes('active')).map((candidate) => candidate.attributes('data-name'))
+// what the footer's collapsible menu holds, as against the sidebar's top level
+const moreMenu = (wrapper) => wrapper.find('.nav-settings')
+const moreNames = (wrapper) => moreMenu(wrapper).findAll('.nav-item').map((candidate) => candidate.attributes('data-name'))
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(() => Promise.resolve({ data: [] })) },
@@ -91,11 +94,39 @@ describe('Navigation', () => {
 			'Direct messages',
 			'Local',
 			'Global',
+			'Alice',
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
-			'Alice',
 			'Blocked and muted accounts',
+		])
+	})
+
+	/**
+	 * The top level is for the timelines a reader moves between all day. The
+	 * three below are things they go looking for, and eight equal-weight
+	 * entries made the first five harder to pick out.
+	 */
+	it('keeps the timelines at the top level and the rest under More', () => {
+		const wrapper = mountNavigation()
+
+		expect(moreMenu(wrapper).attributes('data-name')).toBe('More')
+		expect(moreNames(wrapper)).toEqual([
+			'Follow requests',
+			'Liked posts',
+			'Bookmarks',
+			'Blocked and muted accounts',
+		])
+
+		const topLevel = itemNames(wrapper).filter((name) => !moreNames(wrapper).includes(name))
+		expect(topLevel).toEqual([
+			'New post',
+			'Home',
+			'Notifications',
+			'Direct messages',
+			'Local',
+			'Global',
+			'Alice',
 		])
 	})
 
@@ -274,9 +305,9 @@ describe('Navigation', () => {
 		expect(wrapper.find('.modal-stub').exists()).toBe(false)
 	})
 
-	it('offers nothing in the settings section but the accounts it can act on', () => {
+	it('offers nothing more in the footer menu than what it says it does', () => {
 		const wrapper = mountNavigation()
-		expect(wrapper.find('.nav-settings').attributes('data-name')).toBe('Settings')
+		expect(moreMenu(wrapper).attributes('data-name')).toBe('More')
 
 		// the cache reset posted to a route that never existed, and the help
 		// link pointed at a personal fork; both are gone
