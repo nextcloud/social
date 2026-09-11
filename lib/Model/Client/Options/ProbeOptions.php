@@ -116,6 +116,24 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	}
 
 	/**
+	 * Where a timeline's posts may come from, as the client narrowed it:
+	 * `true` for this instance's own posts (`local=true`), `false` for every
+	 * other instance's (`remote=true`), `null` for all of them.
+	 *
+	 * Asking for both is asking for no narrowing at all — a post cannot be
+	 * from here and from elsewhere — so `local` wins and the timeline stays
+	 * whole, rather than answering with the empty intersection nobody asked
+	 * for.
+	 */
+	public function originLimit(): ?bool {
+		if ($this->isLocal()) {
+			return true;
+		}
+
+		return $this->isRemote() ? false : null;
+	}
+
+	/**
 	 * @return bool
 	 */
 	public function isOnlyMedia(): bool {

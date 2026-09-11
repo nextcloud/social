@@ -124,4 +124,42 @@ class ProbeOptionsTest extends TestCase {
 		$this->assertSame(['Announce'], $options->getExcludeTypes());
 		$this->assertTrue($options->isInverted());
 	}
+	// originLimit()
+
+	private function options(array $params): ProbeOptions {
+		return (new ProbeOptions())->fromArray($params);
+	}
+
+	public function testRemoteIsEveryInstanceButThisOne(): void {
+		$this->assertFalse($this->options(['remote' => 'true'])->originLimit());
+	}
+
+	public function testLocalIsThisInstanceOnly(): void {
+		$this->assertTrue($this->options(['local' => 'true'])->originLimit());
+	}
+
+	public function testNeitherNarrowsTheTimeline(): void {
+		$this->assertNull($this->options([])->originLimit());
+	}
+
+	public function testBothDoesNotNarrowTheTimelineToNothing(): void {
+		// the intersection is empty, and an empty timeline is the one answer
+		// the client cannot have meant
+		$this->assertTrue($this->options(['local' => 'true', 'remote' => 'true'])->originLimit());
+	}
+
+	/**
+	 * `remote` is parsed off the request and was read by nothing: a client
+	 * asking the federated timeline for `remote=true` got this instance's own
+	 * posts back among the rest.
+	 */
+	public function testThePublicTimelineNarrowsByWhereAPostCameFrom(): void {
+		$source = (string)file_get_contents(__DIR__ . '/../../../../lib/Db/StreamRequest.php');
+		$start = strpos($source, 'private function getTimelinePublic(');
+		$this->assertNotFalse($start);
+		$body = substr($source, $start, (int)strpos($source, "\n\t}", $start) - $start);
+
+		$this->assertStringContainsString('originLimit()', $body);
+	}
+
 }

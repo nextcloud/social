@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 
@@ -23,14 +24,10 @@ class FediverseService {
 
 	private MiscService $miscService;
 
-	/**
-	 * FediverseService constructor.
-	 *
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		ConfigService $configService, MiscService $miscService,
+		ConfigService $configService,
+		MiscService $miscService,
+		private CacheActorsRequest $cacheActorsRequest,
 	) {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -112,10 +109,31 @@ class FediverseService {
 	}
 
 	/**
-	 * @return array
+	 * Every instance this one has met: the hosts of the remote actors it has
+	 * cached. `occ social:fediverse list` prints them above the access list, so
+	 * an admin adding an entry can read the name off this instance rather than
+	 * guess at it — an empty section was worse than no section.
+	 *
+	 * Taken from the cached shared inboxes, which is one row per instance
+	 * rather than one per account. An actor whose server publishes no shared
+	 * inbox is missing from it; every implementation that federates at any
+	 * volume publishes one.
+	 *
+	 * @return string[] hostnames, lowercased, in alphabetical order
 	 */
 	public function getKnownAddresses(): array {
-		return [];
+		$hosts = [];
+		foreach ($this->cacheActorsRequest->getSharedInboxes() as $inbox) {
+			$host = strtolower((string)parse_url((string)$inbox, PHP_URL_HOST));
+			if ($host !== '') {
+				$hosts[$host] = true;
+			}
+		}
+
+		$hosts = array_keys($hosts);
+		sort($hosts);
+
+		return $hosts;
 	}
 
 	/**

@@ -39,6 +39,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
@@ -120,6 +121,7 @@ class ApiControllerTest extends TestCase {
 	private $curlService;
 	private CacheDocumentsRequest|MockObject $cacheDocumentsRequest;
 	private ICacheFactory|MockObject $cacheFactory;
+	private FilterService|MockObject $filterService;
 	private IRootFolder|MockObject $rootFolder;
 	private ITempManager|MockObject $tempManager;
 	/** what a previous request with the same Idempotency-Key created, per test */
@@ -165,6 +167,10 @@ class ApiControllerTest extends TestCase {
 		$this->instanceService = $this->createMock(InstanceService::class);
 		$this->clientService = $this->createMock(ClientService::class);
 		$this->accountService = $this->createMock(AccountService::class);
+		// what an account posts with when the client names no visibility
+		$this->accountService->method('getDefaultPrivacy')->willReturnCallback(
+			fn (): string => $this->defaultPrivacy
+		);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
 		$this->documentService = $this->createMock(DocumentService::class);
@@ -196,6 +202,12 @@ class ApiControllerTest extends TestCase {
 
 				return true;
 			});
+		// a pass-through: these tests are about the routes, not about filtering,
+		// and a filter that removed anything would rewrite what they assert
+		$this->filterService = $this->createMock(FilterService::class);
+		$this->filterService->method('apply')->willReturnArgument(0);
+		$this->filterService->method('applyToNotifications')->willReturnArgument(0);
+		$this->filterService->method('applyToStatus')->willReturnArgument(0);
 		$this->rootFolder = $this->createMock(IRootFolder::class);
 		$this->tempManager = $this->createMock(ITempManager::class);
 		$this->cacheFactory = $this->createMock(ICacheFactory::class);
@@ -263,7 +275,8 @@ class ApiControllerTest extends TestCase {
 			$this->cacheDocumentsRequest,
 			$this->cacheFactory,
 			$this->rootFolder,
-			$this->tempManager
+			$this->tempManager,
+			$this->filterService
 		);
 	}
 
@@ -271,6 +284,9 @@ class ApiControllerTest extends TestCase {
 	 * A session user "alice" whose actor is cached: what initViewer() needs.
 	 * @return Person&MockObject
 	 */
+	/** the stored `source.privacy` of the logged-in account */
+	private string $defaultPrivacy = 'public';
+
 	private function loggedInAs(string $uid = 'alice'): Person {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
@@ -965,6 +981,27 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(Stream::TYPE_PUBLIC, $this->postWith(['status' => 'hi'])->getType());
 	}
 
+	/**
+	 * A client that names no visibility means "whatever this account posts
+	 * with", which Mastodon resolves against `source.privacy`: a reader who set
+	 * their default to followers-only had every post from a client that omits
+	 * the field published to the whole fediverse instead.
+	 */
+	public function testAStatusWithoutAVisibilityTakesTheAccountsDefault(): void {
+		$this->defaultPrivacy = 'private';
+
+		$this->assertSame(Stream::TYPE_FOLLOWERS, $this->postWith(['status' => 'hi'])->getType());
+	}
+
+	public function testAVisibilityTheClientNamesWinsOverTheDefault(): void {
+		$this->defaultPrivacy = 'private';
+
+		$this->assertSame(
+			Stream::TYPE_PUBLIC,
+			$this->postWith(['status' => 'hi', 'visibility' => 'public'])->getType()
+		);
+	}
+
 	public function testAVisibilityThisAppDoesNotKnowIsRefused(): void {
 		$this->loggedInAs();
 		$this->request->method('getParams')->willReturn(['status' => 'hi', 'visibility' => 'friends']);
@@ -1359,6 +1396,23 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($viewer->jsonSerialize(), $response->getData());
+	}
+
+	public function testUpdateCredentialsStoresTheDefaultAudience(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['source' => ['privacy' => 'unlisted']]);
+		$this->accountService->expects($this->once())
+			->method('setDefaultPrivacy')->with('alice', 'unlisted');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsWithoutASourceLeavesTheDefaultAudienceAlone(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['locked' => 'true']);
+		$this->accountService->expects($this->never())->method('setDefaultPrivacy');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
 	}
 
 	public function testUpdateCredentialsWritesTheBio(): void {

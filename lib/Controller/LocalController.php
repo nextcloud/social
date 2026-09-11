@@ -15,6 +15,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -359,6 +360,15 @@ class LocalController extends Controller {
 					'post' => $activity->getObject(),
 					'token' => $token
 				]
+			);
+		} catch (InvalidActionException $e) {
+			// The request was understood and refused: too long, or a quote of a
+			// post that may not be quoted. `fail()` answers 500 with 'request
+			// failed', which reads as "the server broke" and leaves the composer
+			// nothing to say; this one exception is raised with a message meant
+			// for whoever is writing the post, so it is the one that is passed on.
+			return new DataResponse(
+				['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY
 			);
 		} catch (Exception $e) {
 			$this->logger->error('[LocalController] postCreate failed', [

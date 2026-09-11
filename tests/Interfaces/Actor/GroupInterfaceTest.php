@@ -31,6 +31,8 @@ class GroupInterfaceTest extends ActorInterfaceTestCase {
 			$this->configService,
 			$this->streamActionsRequest,
 			$this->reportsRequest,
+			$this->filtersRequest,
+			$this->listsRequest,
 		);
 	}
 

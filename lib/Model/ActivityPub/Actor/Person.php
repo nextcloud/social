@@ -34,6 +34,13 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 	public const TYPE = 'Person';
 
+	/**
+	 * The actor types the fediverse serves an automated account as, and which
+	 * Mastodon reports as `bot`: a `Service` is a bot account, an `Application`
+	 * is a server's own actor. Nothing else on the wire states it.
+	 */
+	private const BOT_TYPES = [Service::TYPE, Application::TYPE];
+
 	public const LINK_VIEWER = 'viewer';
 	public const LINK_REMOTE = 'remote';
 	public const LINK_LOCAL = 'local';
@@ -751,6 +758,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []))
 			->setMovedTo($this->validate(ACore::AS_URL, 'movedTo', $data, ''));
 		$this->setLocked($this->getBool('manuallyApprovesFollowers', $data, false));
+		$this->setBot(in_array($this->getType(), self::BOT_TYPES, true));
 		// Mastodon serialises an unset preference as null; getBool() reads that as the default
 		$this->setDiscoverable($this->getBool('discoverable', $data, false));
 		$this->setIndexable($this->getBool('indexable', $data, false));
@@ -859,6 +867,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$this->setEmojis($this->extractEmojisFromTag($source));
 			$this->setFields($this->extractFieldsFromAttachment($source));
 		}
+
+		// the cached row keeps the actor type it was served as, which is the
+		// only thing that ever said the account is automated
+		$this->setBot(in_array($this->getType(), self::BOT_TYPES, true));
 
 		// local actor rows carry the canonical fields in their own column
 		$storedFields = json_decode($this->get('fields', $data, ''), true);

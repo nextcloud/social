@@ -67,10 +67,16 @@ class LikeService {
 	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
-		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
-		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
-		MiscService $miscService, LoggerInterface $logger,
+		StreamRequest $streamRequest,
+		StreamService $streamService,
+		SignatureService $signatureService,
+		ActivityService $activityService,
+		StreamActionService $streamActionService,
+		StreamQueueService $streamQueueService,
+		CacheActorService $cacheActorService,
+		MiscService $miscService,
+		LoggerInterface $logger,
+		private ModerationService $moderationService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
@@ -94,6 +100,10 @@ class LikeService {
 	 * @throws Exception
 	 */
 	public function create(Person $actor, string $postId, string &$token = ''): ACore {
+		// a suspended account may not act: the check lives here rather than in
+		// StreamService, which ModerationService itself now depends on
+		$this->moderationService->assertNotSuspended($actor->getId());
+
 		/** @var Like $like */
 		$like = AP::$activityPub->getItemFromType(Like::TYPE);
 		$like->setId($actor->getId() . '#like/' . $this->uuid(8));

@@ -16,6 +16,8 @@ use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\Moderation;
 use Psr\Log\LoggerInterface;
 
@@ -44,6 +46,7 @@ class ModerationService {
 		private ActorRelationRequest $actorRelationRequest,
 		private StreamDestRequest $streamDestRequest,
 		private RequestQueueRequest $requestQueueRequest,
+		private StreamService $streamService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -66,6 +69,22 @@ class ModerationService {
 
 	public function isSuspended(string $actorId): bool {
 		return $this->moderationRequest->levelOf($actorId) === Moderation::SUSPEND;
+	}
+
+	/**
+	 * Refuses an account that is suspended here anything it would send out.
+	 *
+	 * A suspension used to be enforced on the way in only, so a local account
+	 * suspended by its own admin went on posting, boosting and following from
+	 * every client — and this instance went on federating it. Asked at the
+	 * service that performs the action, so no entry point can miss it.
+	 *
+	 * @throws InvalidActionException
+	 */
+	public function assertNotSuspended(string $actorId): void {
+		if ($this->isSuspended($actorId)) {
+			throw new InvalidActionException('this account is suspended');
+		}
 	}
 
 	/**
@@ -103,9 +122,38 @@ class ModerationService {
 		$this->logger->info('moderation decision lifted', ['actor' => $actorId]);
 	}
 
-	/** Takes one post down, whoever wrote it. */
+	/**
+	 * Takes one post down, whoever wrote it.
+	 *
+	 * A post of this instance's own goes the way its author's own delete goes:
+	 * a federated Delete to the followers, boosters and repliers holding a
+	 * copy. Dropping only the row left a post taken down here live on every
+	 * other instance that ever saw it. A post from elsewhere is dropped here
+	 * and nowhere else — this instance is not its origin, and a Delete it
+	 * signed for somebody else's post is not one any other server would act on.
+	 */
 	public function removeStream(string $streamId): void {
-		$this->streamRequest->deleteById($streamId);
+		try {
+			$stream = $this->streamRequest->getStreamById($streamId);
+		} catch (StreamNotFoundException $e) {
+			return;
+		}
+
+		if ($stream->isLocal()) {
+			try {
+				$this->streamService->deleteLocalItem($stream);
+			} catch (\Exception $e) {
+				// a takedown does not wait on the fediverse: the post goes, and
+				// the Delete that could not be built is what is lost
+				$this->logger->error('could not federate a moderator takedown', [
+					'stream' => $streamId, 'exception' => $e,
+				]);
+				$this->streamRequest->deleteById($streamId);
+			}
+		} else {
+			$this->streamRequest->deleteById($streamId);
+		}
+
 		$this->logger->info('post removed by a moderator', ['stream' => $streamId]);
 	}
 

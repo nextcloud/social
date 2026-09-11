@@ -23,7 +23,6 @@ class StatusTest extends TestCase {
 			'sensitive' => 'true',
 			'media_ids' => ['12', '13'],
 			'in_reply_to_id' => '99',
-			'content_type' => 'text/markdown',
 			'language' => 'de',
 		]);
 
@@ -34,7 +33,6 @@ class StatusTest extends TestCase {
 		$this->assertTrue($status->isSensitive());
 		$this->assertSame([12, 13], $status->getMediaIds());
 		$this->assertSame(99, $status->getInReplyToId());
-		$this->assertSame('text/markdown', $status->getContentType());
 		$this->assertSame('de', $status->getLanguage());
 	}
 
@@ -68,11 +66,9 @@ class StatusTest extends TestCase {
 			->setSpoilerText('')
 			->setSensitive(true)
 			->setMediaIds(['3'])
-			->setLanguage('en')
-			->setContentType('text/plain');
+			->setLanguage('en');
 
 		$this->assertSame([
-			'contentType' => 'text/plain',
 			'sensitive' => true,
 			'mediaIds' => [3],
 			'visibility' => 'public',

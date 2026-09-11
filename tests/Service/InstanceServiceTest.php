@@ -246,6 +246,13 @@ class InstanceServiceTest extends TestCase {
 		$this->assertSame(
 			PostService::POLL_MAX_OPTIONS, $configuration['polls']['max_options']
 		);
+		// what is advertised is what PostService lets a poll run for
+		$this->assertSame(
+			PostService::POLL_MIN_EXPIRATION, $configuration['polls']['min_expiration']
+		);
+		$this->assertSame(
+			PostService::POLL_MAX_EXPIRATION, $configuration['polls']['max_expiration']
+		);
 		$this->assertSame(
 			20 * 1048576, $configuration['media_attachments']['image_size_limit']
 		);

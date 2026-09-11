@@ -74,6 +74,7 @@ class FollowService {
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
 		FollowInterface $followInterface,
+		private ModerationService $moderationService,
 		LoggerInterface $logger,
 	) {
 		$this->urlGenerator = $urlGenerator;
@@ -158,6 +159,7 @@ class FollowService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function followAccount(Person $actor, string $account) {
+		$this->moderationService->assertNotSuspended($actor->getId());
 		$this->logger->debug('FollowService::followAccount called', [
 			'actor' => $actor->getId(),
 			'account' => $account,
@@ -470,6 +472,11 @@ class FollowService {
 			$follow = $this->followsRequest->getByPersons($actorId, $viewerId);
 			if ($follow->isAccepted()) {
 				$relationship->setFollowedBy(true);
+			} else {
+				// the row behind /api/v1/follow_requests: this account has asked
+				// to follow the viewer and is waiting to be let in, which is
+				// what a client shows the approve/reject buttons for
+				$relationship->setRequestedBy(true);
 			}
 		} catch (FollowNotFoundException $e) {
 		}
@@ -488,6 +495,14 @@ class FollowService {
 					break;
 			}
 		}
+
+		// `domain_blocking`, `endorsed` and `note` are the three the entity
+		// carries and nothing here stores: a per-viewer block of the account's
+		// whole instance, the viewer featuring the account on their profile,
+		// and the viewer's private note about it. Each is a lookup on
+		// ($viewerId, $actorId) and belongs here, on the relationship that is
+		// already being built; until then the defaults say "no block, not
+		// featured, no note", which is true of every account.
 
 		return $relationship;
 	}

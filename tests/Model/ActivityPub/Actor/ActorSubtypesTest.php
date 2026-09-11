@@ -74,4 +74,36 @@ class ActorSubtypesTest extends TestCase {
 		$this->assertSame('PEM', $actor->getPublicKey());
 		$this->assertSame($type, $actor->exportAsActivityPub()['type']);
 	}
+
+	/**
+	 * @dataProvider subtypeProvider
+	 */
+	public function testAnAutomatedActorIsExportedAsABot(string $class, string $type): void {
+		/** @var Person $actor */
+		$actor = new $class();
+		$actor->import(['id' => 'https://bots.example/actor', 'type' => $type]);
+
+		// what a client reads to put the "bot" label on an account; nothing
+		// else on the wire states it, and `bot` was never imported at all
+		$this->assertSame(
+			in_array($type, ['Service', 'Application'], true),
+			$actor->isBot()
+		);
+		$this->assertSame($actor->isBot(), $actor->exportAsLocal()['bot']);
+	}
+
+	/**
+	 * @dataProvider subtypeProvider
+	 */
+	public function testTheCachedRowRemembersThatAnAccountIsAutomated(string $class, string $type): void {
+		$actor = new Person();
+		$actor->importFromDatabase([
+			'id' => 'https://bots.example/actor',
+			'type' => $type,
+			'account' => 'relay@bots.example',
+			'preferred_username' => 'relay',
+		]);
+
+		$this->assertSame(in_array($type, ['Service', 'Application'], true), $actor->isBot());
+	}
 }

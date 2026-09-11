@@ -38,6 +38,7 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - 🚩 **Reporting** — `POST /api/v1/reports` files a report, incoming federated `Flag` activities are stored the same way, admins are notified, and reports are reviewed in the Social section of the administration settings. Reports are never forwarded to the reported account's instance.
 - 🔒 **Locked accounts and approvable follow requests** — `PATCH /api/v1/accounts/update_credentials` with `locked` toggles `manuallyApprovesFollowers`; an incoming follow towards a locked account stays pending (with a `follow_request` notification) until the owner authorizes or rejects it via `/api/v1/follow_requests` (`lib/Interfaces/Object/FollowInterface.php`).
 - 🛡️ **Instance access list** — an allow-list or deny-list of remote hosts, enforced on incoming activities and outgoing requests. Managed with `occ social:fediverse`; see [docs/OCC-Commands.md](https://github.com/nextcloud/social/blob/master/docs/OCC-Commands.md) for the details and its limits.
+- 📋 **Lists** — group the accounts you follow and read them as their own timeline (`/api/v1/lists`, `/api/v1/timelines/list/{id}`). A list is private to whoever made it.
 - 🔑 **Mastodon-compatible API** — the Mastodon client API's core surface plus OAuth 2 authorization: third-party clients can log in, read every timeline, post (with media and polls), follow/unfollow, favourite/boost/bookmark, search (`/api/v2/search`), manage follow requests and report. No streaming endpoint or push subscriptions — clients poll. See [docs/API.md](https://github.com/nextcloud/social/blob/master/docs/API.md) for exactly which routes exist.
 
 ### 🚧 Not implemented yet
@@ -45,7 +46,6 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 These are absent from the code today, not merely rough edges:
 
 - **No status translation.** The `translate` action returns the post unchanged (`lib/Service/ActionService.php`).
-- **No lists.** There is no list timeline and no `/api/v1/lists` route.
 - **No document or file attachments.** Images, video and audio only — anything else is refused by `filterMimeTypes()` (`lib/Service/CacheDocumentService.php`).
 - **No custom emoji of this instance's own.** Emoji from other servers render; `/api/v1/custom_emojis` returns an empty list (`lib/Controller/ApiController.php`, `customEmojis()`).
 - **No streaming API and no push subscriptions.** Third-party clients poll. (The web client does get live timelines when [notify_push](https://github.com/nextcloud/notify_push) is installed — that is a Nextcloud channel, not a Mastodon one.)

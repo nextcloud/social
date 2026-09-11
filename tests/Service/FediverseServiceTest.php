@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use Exception;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -19,11 +20,15 @@ use PHPUnit\Framework\TestCase;
 
 class FediverseServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
+	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private FediverseService $service;
 
 	protected function setUp(): void {
 		$this->configService = $this->createMock(ConfigService::class);
-		$this->service = new FediverseService($this->configService, $this->createMock(MiscService::class));
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		$this->service = new FediverseService(
+			$this->configService, $this->createMock(MiscService::class), $this->cacheActorsRequest
+		);
 	}
 
 	private function withAccess(string $type, array $list, string $cloudHost = 'cloud.example.com'): void {
@@ -277,4 +282,26 @@ class FediverseServiceTest extends TestCase {
 
 		$this->service->removeAddress('B.example');
 	}
+	// getKnownAddresses()
+
+	public function testTheKnownAddressesAreTheInstancesThisOneHasMet(): void {
+		// an empty section under `- Known address:` told an admin nothing and
+		// read as "this instance has met nobody"
+		$this->cacheActorsRequest->method('getSharedInboxes')->willReturn([
+			'https://mastodon.social/inbox',
+			'https://Mastodon.Social/inbox',
+			'https://chaos.social/inbox',
+		]);
+
+		$this->assertSame(
+			['chaos.social', 'mastodon.social'], $this->service->getKnownAddresses()
+		);
+	}
+
+	public function testAnInboxThatIsNotAUrlNamesNoInstance(): void {
+		$this->cacheActorsRequest->method('getSharedInboxes')->willReturn(['not a url', '']);
+
+		$this->assertSame([], $this->service->getKnownAddresses());
+	}
+
 }

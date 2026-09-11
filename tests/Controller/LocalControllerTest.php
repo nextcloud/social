@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\FollowSameAccountException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -232,6 +233,22 @@ class LocalControllerTest extends TestCase {
 		$this->assertSame('https://remote.example/n/1', $created->getReplyTo());
 		$this->assertSame(['https://cloud.example/documents/1'], $created->getAttachments());
 		$this->assertSame(['nextcloud'], $created->getHashtags());
+	}
+
+	public function testAPostTheServiceRefusesIsAnswered422WithTheReason(): void {
+		// 500 and 'request failed' reads as "the server broke"; the composer
+		// has to be able to say why the post was not made
+		$this->actorForUser();
+		$this->postService->method('createPost')
+			->willThrowException(new InvalidActionException('a post may not be longer than 5000 characters'));
+
+		$response = $this->controller()->postCreate('far too much');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(
+			['status' => -1, 'error' => 'a post may not be longer than 5000 characters'],
+			$response->getData()
+		);
 	}
 
 	public function testPostCreateDefaultsToAPublicTopLevelPost(): void {

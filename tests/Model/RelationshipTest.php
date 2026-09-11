@@ -22,12 +22,19 @@ class RelationshipTest extends TestCase {
 		// `id: String` cannot decode an integer, and the follow/block/mute
 		// button state broke after every action that returns one of these
 		$this->assertSame('5', $json['id']);
-		unset($json['id'], $json['note'], $json['languages']);
+		unset($json['id'], $json['note'], $json['languages'], $json['showing_reblogs']);
 		$this->assertSame(array_fill_keys([
-			'following', 'showing_reblogs', 'notifying', 'followed_by', 'blocking', 'blocked_by',
+			'following', 'notifying', 'followed_by', 'blocking', 'blocked_by',
 			'muting', 'muting_notifications', 'requested', 'domain_blocking', 'endorsed',
 			'requested_by',
 		], false), $json);
+	}
+
+	public function testBoostsAreShownUnlessSomethingSaysOtherwise(): void {
+		// boosts from a followed account do reach the home timeline and nothing
+		// here turns them off per account, so `false` described a setting this
+		// app does not have
+		$this->assertTrue((new Relationship(5))->jsonSerialize()['showing_reblogs']);
 	}
 
 	public function testTheOptionalFieldsMastodonAlwaysSendsArePresent(): void {

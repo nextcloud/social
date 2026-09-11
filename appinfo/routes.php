@@ -77,6 +77,33 @@ return [
 		['name' => 'Tag#follow', 'url' => '/api/v1/tags/{hashtag}/follow', 'verb' => 'POST'],
 		['name' => 'Tag#unfollow', 'url' => '/api/v1/tags/{hashtag}/unfollow', 'verb' => 'POST'],
 		['name' => 'Tag#get', 'url' => '/api/v1/tags/{hashtag}', 'verb' => 'GET'],
+
+		// Lists. The membership routes are registered ahead of the list itself
+		// so that /api/v1/lists/4/accounts cannot be read as a list named
+		// "4/accounts" if the lookup ever gains a `.+` requirement.
+		['name' => 'List#index', 'url' => '/api/v1/lists', 'verb' => 'GET'],
+		['name' => 'List#create', 'url' => '/api/v1/lists', 'verb' => 'POST'],
+		['name' => 'List#accounts', 'url' => '/api/v1/lists/{id}/accounts', 'verb' => 'GET'],
+		['name' => 'List#addAccounts', 'url' => '/api/v1/lists/{id}/accounts', 'verb' => 'POST'],
+		['name' => 'List#removeAccounts', 'url' => '/api/v1/lists/{id}/accounts', 'verb' => 'DELETE'],
+		['name' => 'List#get', 'url' => '/api/v1/lists/{id}', 'verb' => 'GET'],
+		['name' => 'List#update', 'url' => '/api/v1/lists/{id}', 'verb' => 'PUT'],
+		['name' => 'List#delete', 'url' => '/api/v1/lists/{id}', 'verb' => 'DELETE'],
+		['name' => 'List#timeline', 'url' => '/api/v1/timelines/list/{id}', 'verb' => 'GET'],
+
+		// Keyword filters, Mastodon's v2 API. The v1 routes are deprecated
+		// there and are deliberately not served: a v1 client cannot express
+		// `hide`, an expiry, or a keyword id.
+		['name' => 'Filter#index', 'url' => '/api/v2/filters', 'verb' => 'GET'],
+		['name' => 'Filter#create', 'url' => '/api/v2/filters', 'verb' => 'POST'],
+		['name' => 'Filter#getKeyword', 'url' => '/api/v2/filters/keywords/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#updateKeyword', 'url' => '/api/v2/filters/keywords/{id}', 'verb' => 'PUT', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#deleteKeyword', 'url' => '/api/v2/filters/keywords/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#keywords', 'url' => '/api/v2/filters/{id}/keywords', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#addKeyword', 'url' => '/api/v2/filters/{id}/keywords', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#get', 'url' => '/api/v2/filters/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#update', 'url' => '/api/v2/filters/{id}', 'verb' => 'PUT', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#delete', 'url' => '/api/v2/filters/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#searchV2', 'url' => '/api/v2/search', 'verb' => 'GET'],
 		// Mastodon's own v1 search. This path used to be the app's web-UI search
@@ -118,6 +145,7 @@ return [
 		['name' => 'Api#blocks', 'url' => '/api/v1/blocks', 'verb' => 'GET'],
 		['name' => 'Api#mutes', 'url' => '/api/v1/mutes', 'verb' => 'GET'],
 		['name' => 'Api#accountFollowers', 'url' => '/api/v1/accounts/{account}/followers', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
+		['name' => 'List#accountLists', 'url' => '/api/v1/accounts/{account}/lists', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'Api#accountFollowing', 'url' => '/api/v1/accounts/{account}/following', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		// Last of the /accounts routes on purpose, and it has to stay last:
 		// {id} accepts slashes (a client may hold an actor URI rather than a
