@@ -393,7 +393,10 @@ class CoreRequestBuilder {
 			'category',
 			'local',
 			'resolved',
-			'creation'
+			'creation',
+			'assigned_to',
+			'action_taken_by',
+			'action_taken_at'
 		],
 		self::TABLE_STREAM_CARDS => [
 			'stream_id_prim',
