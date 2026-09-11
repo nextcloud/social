@@ -93,6 +93,9 @@ return [
 		['name' => 'Api#tag', 'url' => '/api/v1/timelines/tag/{hashtag}', 'verb' => 'GET'],
 		['name' => 'Api#mediaNew', 'url' => '/api/v1/media', 'verb' => 'POST'],
 		['name' => 'Api#mediaNewV2', 'url' => '/api/v2/media', 'verb' => 'POST'],
+		// a Nextcloud extension, not a Mastodon route: attach a file the user
+		// already has here rather than making them download and re-upload it
+		['name' => 'Api#mediaFromFile', 'url' => '/api/v1/media/from-file', 'verb' => 'POST'],
 		['name' => 'Api#mediaGet', 'url' => '/api/v1/media/{nid}', 'verb' => 'GET'],
 		['name' => 'Api#mediaUpdate', 'url' => '/api/v1/media/{nid}', 'verb' => 'PUT'],
 		['name' => 'Api#mediaOpen', 'url' => '/media/{uuid}', 'verb' => 'GET'],

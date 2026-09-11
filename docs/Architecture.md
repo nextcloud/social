@@ -161,6 +161,27 @@ The business logic lives in `lib/Service/`.
 - **CacheDocumentService** — Writes uploads, remote downloads and temp files into app storage, filters MIME types against an allow-list, and reads content back out. An upload is created non-public; it takes the visibility of the post it is attached to when that post is created (`ApiController::scopeMediaToVisibility()`, public for public and unlisted, non-public otherwise), because which post an upload belongs to is only known then
 - **BlurService** — Generates a blurhash string from a GD image
 
+**Posting a picture that is already in Nextcloud.** `ApiController::mediaFromFile()`
+(`POST /api/v1/media/from-file`) attaches a file out of the user's own storage,
+so the one thing this app should never ask of the person running it — download
+your own photo, then upload it back — is not required. The path is resolved
+through `IRootFolder::getUserFolder()` and checked against that folder again
+afterwards: the route names a file and returns its contents, which is the shape
+a mistake here would be exploited in, so the boundary is stated twice.
+
+The bytes are **copied, not referenced**. A post keeps the picture it was
+published with, so moving, renaming or deleting the original cannot empty a post
+that has already federated, and the attachment can take the post's visibility
+the way an upload does. The copy goes through a temp file into
+`saveFromTempToCache()`, which is the same code an upload takes — so the MIME
+allow-list, the size ceiling, the resizing and the blurhash cannot drift between
+the two ways a picture gets in. `ApiController::storeAttachment()` is the shared
+half that guarantees it.
+
+Note what this means for where the file lives afterwards: attachments are held
+in **appdata**, not in the user's file tree. A picture posted from Files has a
+copy in app storage; the original stays where it was, untouched.
+
 ### System
 
 - **ConfigService** — App/user configuration and the derived URLs (cloud URL, social URL, social address, max download size, self-signed toggle), plus ActivityPub id generation

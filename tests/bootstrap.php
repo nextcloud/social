@@ -73,6 +73,13 @@ if (!interface_exists('Symfony\\Component\\Console\\Output\\OutputInterface', fa
 	);
 }
 
+// `OCP\Files\IRootFolder` extends `OC\Hooks\Emitter`, which is server-private
+// and absent from the OCP stubs: without this the interface cannot be loaded at
+// all, so nothing that touches the user's files can even be mocked.
+if (!interface_exists('OC\\Hooks\\Emitter', false)) {
+	class_alias(\OCA\Social\Tests\Helper\HooksEmitter::class, 'OC\\Hooks\\Emitter');
+}
+
 // Util::addScript() constructs this one, so a settings page cannot be asked for
 // its form without it.
 if (!class_exists('OC\\AppScriptDependency', false)) {

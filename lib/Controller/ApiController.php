@@ -81,9 +81,12 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\Files\File;
+use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use OCP\ICacheFactory;
 use OCP\IRequest;
+use OCP\ITempManager;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
@@ -158,6 +161,8 @@ class ApiController extends Controller {
 		CurlService $curlService,
 		private CacheDocumentsRequest $cacheDocumentsRequest,
 		private ICacheFactory $cacheFactory,
+		private IRootFolder $rootFolder,
+		private ITempManager $tempManager,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -828,32 +833,141 @@ class ApiController extends Controller {
 
 			$this->logger->debug('[ApiController] mediaNew: ' . json_encode($file));
 
-			$document = new Document();
-			$document->setLocal(true);
-			$document->setAccount($this->viewer->getPreferredUsername());
-			$document->setUrlCloud($this->configService->getCloudUrl());
-			$document->generateUniqueId('/documents/local');
-			// Not public until a post says so. `public` decides whether the
-			// unauthenticated /media/{uuid} route serves the file, and this used
-			// to be set on every upload — so an attachment to a direct message
-			// was, by the row's own account, readable by anybody. The visibility
-			// is applied when the status is created; see scopeMediaToVisibility().
-			$document->setPublic(false);
-			// the alt text; `focus` is accepted but not stored (no focal-point support)
-			$document->setDescription((string)$this->request->getParam('description', ''));
-
-			$this->cacheDocumentService->saveFromTempToCache($document, $name);
-			$service = AP::$activityPub->getInterfaceForItem($document);
-			$service->save($document);
-
-			$mediaAttachment = $document->convertToMediaAttachment($this->urlGenerator);
-
-			$this->logger->debug('generated attachment: ' . json_encode($mediaAttachment));
-
-			return new DataResponse($mediaAttachment, Http::STATUS_OK);
+			return new DataResponse(
+				$this->storeAttachment($name, (string)$this->request->getParam('description', '')),
+				Http::STATUS_OK
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/**
+	 * Attaches a file the viewer already has in Nextcloud.
+	 *
+	 * Not a Mastodon route: the point of running this app inside a Nextcloud is
+	 * that the pictures are already here, and making somebody download their
+	 * own photo and upload it back is the one thing no other Fediverse server
+	 * has an excuse for. The file is copied, not referenced — a post keeps the
+	 * picture it was published with, so moving or deleting the original later
+	 * cannot empty a post that is already federated, and the attachment is
+	 * scoped to the post's visibility the same way an upload is.
+	 *
+	 * The path is resolved inside the viewer's own user folder and nowhere
+	 * else, so a share they can read is fair game and everything else is a 404.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
+	public function mediaFromFile(): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$input = $this->convertInput(file_get_contents('php://input'));
+			$path = trim((string)($input['path'] ?? $this->request->getParam('path', '')));
+			if ($path === '') {
+				throw new InvalidActionException('no file named');
+			}
+
+			$file = $this->ownFile($this->currentSession(), $path);
+
+			// the ceiling an upload is held to, applied to the same bytes: the
+			// file is read into memory to be hashed, sniffed and decoded
+			$maxSize = $this->instanceService->maxUploadSize();
+			if ($file->getSize() > $maxSize) {
+				throw new InvalidActionException(
+					'file is larger than the ' . (int)($maxSize / 1048576) . 'MB limit'
+				);
+			}
+
+			$description = (string)($input['description'] ?? $this->request->getParam('description', ''));
+
+			// through a temp file, so the mime sniffing, the size guard and the
+			// resizing are the same code an upload goes through rather than a
+			// second path that could drift from it
+			$tmpPath = $this->tempManager->getTemporaryFile();
+			if ($tmpPath === false) {
+				throw new InvalidActionException('no temporary file to copy into');
+			}
+
+			$handle = $file->fopen('r');
+			if ($handle === false) {
+				throw new InvalidActionException('the file could not be read');
+			}
+
+			try {
+				if (file_put_contents($tmpPath, $handle) === false) {
+					throw new InvalidActionException('the file could not be copied');
+				}
+			} finally {
+				fclose($handle);
+			}
+
+			return new DataResponse($this->storeAttachment($tmpPath, $description), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * One file out of the viewer's own storage.
+	 *
+	 * `getUserFolder()` is the boundary: a path is resolved relative to it, so
+	 * a traversal leaves the folder and is not found. The containment check
+	 * after the lookup says so a second time rather than trusting that — this
+	 * route names a file and returns its contents, which is exactly the shape
+	 * a mistake here would be exploited in.
+	 *
+	 * @throws InvalidActionException
+	 */
+	private function ownFile(string $userId, string $path): File {
+		try {
+			$userFolder = $this->rootFolder->getUserFolder($userId);
+			$node = $userFolder->get($path);
+		} catch (Throwable $e) {
+			throw new InvalidActionException('no such file');
+		}
+
+		if (!$node instanceof File) {
+			throw new InvalidActionException('that is not a file');
+		}
+
+		if ($userFolder->getRelativePath($node->getPath()) === null) {
+			throw new InvalidActionException('no such file');
+		}
+
+		return $node;
+	}
+
+	/**
+	 * Stores a local file as one of the viewer's attachments.
+	 *
+	 * @return MediaAttachment the entity a client is answered with
+	 */
+	private function storeAttachment(string $tmpPath, string $description): MediaAttachment {
+		$document = new Document();
+		$document->setLocal(true);
+		$document->setAccount($this->viewer->getPreferredUsername());
+		$document->setUrlCloud($this->configService->getCloudUrl());
+		$document->generateUniqueId('/documents/local');
+		// Not public until a post says so. `public` decides whether the
+		// unauthenticated /media/{uuid} route serves the file, and this used
+		// to be set on every upload — so an attachment to a direct message
+		// was, by the row's own account, readable by anybody. The visibility
+		// is applied when the status is created; see scopeMediaToVisibility().
+		$document->setPublic(false);
+		// the alt text; `focus` is accepted but not stored (no focal-point support)
+		$document->setDescription($description);
+
+		$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
+		$service = AP::$activityPub->getInterfaceForItem($document);
+		$service->save($document);
+
+		$mediaAttachment = $document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->logger->debug('generated attachment: ' . json_encode($mediaAttachment));
+
+		return $mediaAttachment;
 	}
 
 	/**
