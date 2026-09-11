@@ -173,15 +173,28 @@ describe('ProfileInfo', () => {
 		expect(buttonByText(wrapper, 'Follow')).toBeUndefined()
 	})
 
-	it('only lets the viewer edit the banner of their own profile', () => {
+	/**
+	 * The banner controls used to float over the picture on everybody's own
+	 * profile. They live in the Edit profile dialog now, so the page carries
+	 * nothing but the profile itself.
+	 */
+	it('keeps the banner controls out of the page', () => {
 		const own = mountProfile('alice')
-		expect(buttonByText(own, 'Change banner')).toBeDefined()
-		expect(buttonByText(own, 'Set from URL')).toBeDefined()
+
+		expect(buttonByText(own, 'Upload an image')).toBeUndefined()
+		expect(buttonByText(own, 'Apply')).toBeUndefined()
+		expect(own.find('input[type="url"]').exists()).toBe(false)
+	})
+
+	it('only lets the viewer edit the banner of their own profile', async () => {
+		const own = mountProfile('alice')
 		expect(bannerOf(own).classes()).toContain('user-profile__banner--editable')
+		await buttonByText(own, 'Edit profile').trigger('click')
+		expect(buttonByText(own.find('.modal-stub'), 'Upload an image')).toBeDefined()
+		expect(own.find('.modal-stub input[type="url"]').exists()).toBe(true)
 
 		const other = mountProfile('bob@remote.example')
-		expect(buttonByText(other, 'Change banner')).toBeUndefined()
-		expect(buttonByText(other, 'Set from URL')).toBeUndefined()
+		expect(buttonByText(other, 'Edit profile')).toBeUndefined()
 		expect(bannerOf(other).classes()).not.toContain('user-profile__banner--editable')
 	})
 
@@ -353,7 +366,8 @@ describe('ProfileInfo', () => {
 
 			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			const modal = wrapper.find('.modal-stub')
-			const inputs = modal.findAll('input')
+			// scoped to the field rows: the dialog also holds the banner controls
+			const inputs = modal.findAll('.user-profile__fields-row input')
 			expect(inputs).toHaveLength(2)
 			expect(inputs[0].element.value).toBe('Website')
 			expect(inputs[1].element.value).toBe('https://example.org')
@@ -592,6 +606,7 @@ describe('ProfileInfo', () => {
 		it('uploads the chosen file, applies the returned banner and refreshes the account', async () => {
 			post.mockResolvedValue({ data: { result: { url: 'https://cloud.example.org/banners/alice.png' } } })
 			const wrapper = mountProfile('alice')
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			const file = new File(['png'], 'banner.png', { type: 'image/png' })
 			const input = wrapper.find('input[type="file"]')
 			Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
@@ -607,7 +622,7 @@ describe('ProfileInfo', () => {
 			expect(bannerOf(wrapper).element.style.backgroundImage).toContain('https://cloud.example.org/banners/alice.png')
 			expect(showSuccess).toHaveBeenCalledWith('Banner uploaded successfully')
 			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
-			expect(buttonByText(wrapper, 'Change banner').attributes('disabled')).toBeUndefined()
+			expect(buttonByText(wrapper.find('.modal-stub'), 'Upload an image').attributes('disabled')).toBeUndefined()
 		})
 
 		it('ignores a change event without a file', async () => {
@@ -620,6 +635,7 @@ describe('ProfileInfo', () => {
 		it('reports a failed upload and unlocks the buttons again', async () => {
 			post.mockRejectedValue(new Error('500'))
 			const wrapper = mountProfile('alice')
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			const input = wrapper.find('input[type="file"]')
 			Object.defineProperty(input.element, 'files', { value: [new File(['x'], 'b.png', { type: 'image/png' })], configurable: true })
 
@@ -628,23 +644,23 @@ describe('ProfileInfo', () => {
 
 			expect(showError).toHaveBeenCalledWith('Failed to upload banner')
 			expect(dispatch).not.toHaveBeenCalled()
-			expect(buttonByText(wrapper, 'Change banner').attributes('disabled')).toBeUndefined()
+			expect(buttonByText(wrapper.find('.modal-stub'), 'Upload an image').attributes('disabled')).toBeUndefined()
 		})
 
-		it('sets the banner from a URL through the modal', async () => {
+		it('sets the banner from a URL inside the Edit profile dialog', async () => {
 			post.mockResolvedValue({ data: { result: { url: 'https://cloud.example.org/banners/from-url.png' } } })
 			const wrapper = mountProfile('alice')
 			expect(wrapper.find('.modal-stub').exists()).toBe(false)
 
-			await buttonByText(wrapper, 'Set from URL').trigger('click')
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			const modal = wrapper.find('.modal-stub')
-			expect(modal.find('h3').text()).toBe('Set banner from URL')
+			expect(modal.find('h3').text()).toBe('Edit profile')
 			const apply = buttonByText(modal, 'Apply')
 			expect(apply.attributes('disabled')).toBeDefined()
 
 			await modal.find('input[type="url"]').setValue(' https://example.com/image.jpg ')
-			expect(apply.attributes('disabled')).toBeUndefined()
-			await apply.trigger('click')
+			expect(buttonByText(wrapper.find('.modal-stub'), 'Apply').attributes('disabled')).toBeUndefined()
+			await buttonByText(wrapper.find('.modal-stub'), 'Apply').trigger('click')
 			await flushPromises()
 
 			const [url, body, config] = post.mock.calls[0]
@@ -652,7 +668,9 @@ describe('ProfileInfo', () => {
 			expect(body).toBeInstanceOf(URLSearchParams)
 			expect(body.get('url')).toBe('https://example.com/image.jpg')
 			expect(config.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
-			expect(wrapper.find('.modal-stub').exists()).toBe(false)
+			// the dialog stays: the bio and the fields may still be being edited
+			expect(wrapper.find('.modal-stub').exists()).toBe(true)
+			expect(wrapper.find('.modal-stub input[type="url"]').element.value).toBe('')
 			expect(bannerOf(wrapper).element.style.backgroundImage).toContain('https://cloud.example.org/banners/from-url.png')
 			expect(showSuccess).toHaveBeenCalledWith('Banner set successfully')
 			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
@@ -661,7 +679,7 @@ describe('ProfileInfo', () => {
 		it('keeps the modal open and reports when the URL cannot be fetched', async () => {
 			post.mockRejectedValue(new Error('400'))
 			const wrapper = mountProfile('alice')
-			await buttonByText(wrapper, 'Set from URL').trigger('click')
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			await wrapper.find('.modal-stub input[type="url"]').setValue('https://example.com/broken.jpg')
 			await buttonByText(wrapper.find('.modal-stub'), 'Apply').trigger('click')
 			await flushPromises()

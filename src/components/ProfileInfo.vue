@@ -6,42 +6,9 @@
 	<div v-if="profileAccount && accountInfo"
 		class="user-profile"
 		:style="accent ? { '--profile-accent': accent, '--profile-accent-text': 'var(--color-primary-element-text)' } : {}">
-		<NcButton v-if="isOwnProfile"
-			class="user-profile__banner-upload"
-			:disabled="loading"
-			@click="openFilePicker">
-			<template #icon>
-				<ImagePlus :size="20" />
-			</template>
-			{{ loading ? t('social', 'Uploading…') : t('social', 'Change banner') }}
-		</NcButton>
-		<NcButton v-if="isOwnProfile"
-			class="user-profile__banner-url"
-			:disabled="loading"
-			@click="showBannerUrlModal = true">
-			<template #icon>
-				<LinkVariant :size="20" />
-			</template>
-			{{ t('social', 'Set from URL') }}
-		</NcButton>
-		<NcModal v-if="showBannerUrlModal"
-			:name="t('social', 'Set banner from URL')"
-			@close="showBannerUrlModal = false">
-			<div class="user-profile__banner-url-modal">
-				<h3>{{ t('social', 'Set banner from URL') }}</h3>
-				<input v-model="bannerUrlInput"
-					type="url"
-					class="user-profile__banner-url-input"
-					:aria-label="t('social', 'Address of the banner image')"
-					:placeholder="t('social', 'https://example.com/image.jpg')"
-					@keyup.enter="uploadBannerByUrl">
-				<NcButton variant="primary" :disabled="!bannerUrlInput || loadingUrl" @click="uploadBannerByUrl">
-					{{ loadingUrl ? t('social', 'Downloading…') : t('social', 'Apply') }}
-				</NcButton>
-			</div>
-		</NcModal>
-		<!-- decorative: "Change banner" above is the control, and a click here is
-		     a shortcut for people who have a pointer, not the only way in -->
+		<!-- decorative: the banner is changed from the Edit profile dialog, and
+		     a click here is a shortcut for people who have a pointer, not the
+		     only way in -->
 		<div ref="bannerEl"
 			class="user-profile__banner"
 			aria-hidden="true"
@@ -162,6 +129,28 @@
 				@close="showProfileModal = false">
 				<div class="user-profile__fields-modal">
 					<h3>{{ t('social', 'Edit profile') }}</h3>
+					<div class="user-profile__banner-edit">
+						<span class="user-profile__banner-edit-label">{{ t('social', 'Banner') }}</span>
+						<NcButton :disabled="loading" @click="openFilePicker">
+							<template #icon>
+								<ImagePlus :size="20" />
+							</template>
+							{{ loading ? t('social', 'Uploading…') : t('social', 'Upload an image') }}
+						</NcButton>
+						<label class="user-profile__banner-edit-or" for="social-profile-banner-url">
+							{{ t('social', 'or give the address of one') }}
+						</label>
+						<div class="user-profile__banner-edit-url">
+							<input id="social-profile-banner-url"
+								v-model="bannerUrlInput"
+								type="url"
+								:placeholder="t('social', 'https://example.com/image.jpg')"
+								@keyup.enter="uploadBannerByUrl">
+							<NcButton :disabled="!bannerUrlInput || loadingUrl" @click="uploadBannerByUrl">
+								{{ loadingUrl ? t('social', 'Downloading…') : t('social', 'Apply') }}
+							</NcButton>
+						</div>
+					</div>
 					<div class="user-profile__bio">
 						<label class="user-profile__bio-label" for="social-profile-bio">
 							{{ t('social', 'Bio') }}
@@ -223,7 +212,6 @@
 import Cancel from 'vue-material-design-icons/Cancel.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
-import LinkVariant from 'vue-material-design-icons/LinkVariant.vue'
 import TableEdit from 'vue-material-design-icons/TableEdit.vue'
 import VolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
@@ -269,7 +257,6 @@ export default {
 		NcButton,
 		NcModal,
 		ImagePlus,
-		LinkVariant,
 		TableEdit,
 		VolumeHigh,
 		VolumeOff,
@@ -290,7 +277,6 @@ export default {
 			followingText: t('social', 'Following'),
 			bannerUrl: null,
 			loading: false,
-			showBannerUrlModal: false,
 			bannerUrlInput: '',
 			loadingUrl: false,
 			/** the banner's own colour, tinting this profile only */
@@ -518,7 +504,6 @@ export default {
 					{ headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
 				)
 				this.bannerUrl = data.result.url
-				this.showBannerUrlModal = false
 				this.bannerUrlInput = ''
 				await this.showSuccess(t('social', 'Banner set successfully'))
 				try {
@@ -592,15 +577,6 @@ export default {
 		&--editable {
 			cursor: pointer;
 		}
-	}
-
-	&__banner-upload {
-		position: absolute;
-		top: 12px;
-		right: 12px;
-		z-index: 10;
-		opacity: 1;
-		transition: opacity 0.2s;
 	}
 
 	&__content {
@@ -833,52 +809,49 @@ export default {
 		gap: 8px;
 	}
 
-	&__banner-url {
-		position: absolute;
-		top: 52px;
-		right: 12px;
-		z-index: 10;
-		opacity: 1;
-		transition: opacity 0.2s;
-	}
-
-	&__banner-url-modal {
-		padding: 32px;
+	&__banner-edit {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
-
-		h3 {
-			margin: 0;
-			font-size: 18px;
-			font-weight: 700;
-		}
+		gap: 8px;
+		padding-bottom: 16px;
+		border-bottom: 1px solid var(--color-border);
 	}
 
-	&__banner-url-input {
-		width: 100%;
-		padding: 10px 12px;
-		border: 1px solid var(--color-border);
-		border-radius: 8px;
-		font-size: 14px;
-		background: var(--color-main-background);
-		color: var(--color-main-text);
+	&__banner-edit-label {
+		font-weight: 600;
+	}
 
-		&:focus-visible {
-			border-color: var(--color-primary-element);
-			outline: 2px solid var(--color-primary-element);
-			outline-offset: 1px;
+	&__banner-edit-or {
+		color: var(--color-text-maxcontrast);
+		font-size: 13px;
+	}
+
+	&__banner-edit-url {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+
+		input {
+			// the Apply button takes what it needs; the address takes the rest
+			flex: 1 1 auto;
+			min-width: 0;
+			padding: 10px 12px;
+			border: 1px solid var(--color-border);
+			border-radius: 8px;
+			font-size: 14px;
+			background: var(--color-main-background);
+			color: var(--color-main-text);
+
+			&:focus-visible {
+				border-color: var(--color-primary-element);
+				outline: 2px solid var(--color-primary-element);
+				outline-offset: 1px;
+			}
 		}
 	}
 
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.user-profile__banner-upload,
-	.user-profile__banner-url {
-		transition: none;
-	}
-}
 /**
  * A profile arrives as a card rather than appearing: the banner settles, and
  * the avatar and name follow it a beat later.

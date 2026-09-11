@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.57  
+**App version:** 0.11.58  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -446,6 +446,13 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 ### Components
 
 `src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+
+`ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
+(a file, or the address of one), the bio and the metadata fields. The banner
+buttons used to float over the picture on the owner's own profile, which put
+editing chrome on a page whose job is to show somebody. Applying a banner from a
+URL leaves the dialog open, because the bio and the fields may still be being
+edited.
 
 `Composer.vue` grows a second attach control beside the paperclip: the
 `@nextcloud/dialogs` file picker, so a picture already in the user's Nextcloud
