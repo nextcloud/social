@@ -140,122 +140,133 @@
 				{{ t('social', 'Show sensitive content') }}
 			</NcButton>
 		</div>
-		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
-			<div class="post-action-group">
-				<NcButton :title="t('social', 'Reply')"
-					:aria-label="t('social', 'Reply')"
-					variant="tertiary"
-					@click="reply">
-					<template #icon>
-						<Reply :size="20" />
-					</template>
-				</NcButton>
-				<RollingCount :count="item.replies_count || 0" />
+		<!-- The row is revealed by the pointer and the card grows to make
+		     room for it. The grid row going from 0fr to 1fr is the one way
+		     to animate to a height nobody can know in advance, and the
+		     dialogs below stay outside it: a box collapsing to nothing is
+		     no place to put a modal. -->
+		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public"
+			class="post-actions-reveal"
+			:class="{ 'post-actions-reveal--held': menuOpen }">
+			<div class="post-actions">
+				<div class="post-action-group">
+					<NcButton :title="t('social', 'Reply')"
+						:aria-label="t('social', 'Reply')"
+						variant="tertiary"
+						@click="reply">
+						<template #icon>
+							<Reply :size="20" />
+						</template>
+					</NcButton>
+					<RollingCount :count="item.replies_count || 0" />
+				</div>
+				<div class="post-action-group"
+					:class="{ 'post-action-group--refused': refused === 'boost' }">
+					<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+						:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+						:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+						:aria-pressed="isBoosted ? 'true' : 'false'"
+						variant="tertiary"
+						:class="{ 'post-action--spun': celebrate === 'boost' }"
+						@click="boost">
+						<template #icon>
+							<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+						</template>
+					</NcButton>
+					<RollingCount :count="item.reblogs_count || 0" />
+				</div>
+				<div class="post-action-group post-action-group--like"
+					:class="{ 'post-action-group--refused': refused === 'like' }">
+					<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
+					<!-- one button whose label changes, not two swapped by v-if:
+					     unmounting the button someone just pressed drops their focus
+					     to the body and loses their place in the timeline -->
+					<NcButton :title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+						:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+						:aria-pressed="isLiked ? 'true' : 'false'"
+						variant="tertiary"
+						:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
+						@click="like">
+						<template #icon>
+							<Heart v-if="isLiked" :size="20" :fill-color="'var(--color-element-error)'" />
+							<HeartOutline v-else :size="20" />
+						</template>
+					</NcButton>
+					<RollingCount :count="item.favourites_count || 0" />
+				</div>
+				<!-- the menu opens in a portal, so the pointer leaving the card
+				     while it is open would take the row it belongs to away -->
+				<NcActions @update:open="menuOpen = $event">
+					<NcActionButton v-if="canQuote" @click="quote">
+						<template #icon>
+							<FormatQuoteClose :size="20" />
+						</template>
+						{{ t('social', 'Quote') }}
+					</NcActionButton>
+					<NcActionButton v-if="item.account.acct === currentAccount?.acct"
+						icon="icon-rename"
+						@click="editPost">
+						{{ t('social', 'Edit') }}
+					</NcActionButton>
+					<NcActionButton v-if="item.account.acct === currentAccount?.acct"
+						icon="icon-delete"
+						@click="showDeleteDialog = true">
+						{{ t('social', 'Delete') }}
+					</NcActionButton>
+					<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
+					<NcActionLink v-if="!origin.local && item.url"
+						:href="item.url"
+						target="_blank">
+						<template #icon>
+							<OpenInNew :size="20" />
+						</template>
+						{{ t('social', 'Open on original instance') }}
+					</NcActionLink>
+					<NcActionButton @click="toggleBookmark">
+						<template #icon>
+							<Bookmark v-if="item.bookmarked" :size="20" />
+							<BookmarkOutline v-else :size="20" />
+						</template>
+						{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
+					</NcActionButton>
+					<NcActionButton v-if="canPin"
+						@click="togglePin">
+						<template #icon>
+							<Pin v-if="!item.pinned" :size="20" />
+							<PinOff v-else :size="20" />
+						</template>
+						{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
+					</NcActionButton>
+					<NcActionButton v-if="item.account.acct !== currentAccount?.acct"
+						@click="showReportDialog = true">
+						<template #icon>
+							<Flag :size="20" />
+						</template>
+						{{ t('social', 'Report') }}
+					</NcActionButton>
+				</NcActions>
 			</div>
-			<div class="post-action-group"
-				:class="{ 'post-action-group--refused': refused === 'boost' }">
-				<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
-					:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-					:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-					:aria-pressed="isBoosted ? 'true' : 'false'"
-					variant="tertiary"
-					:class="{ 'post-action--spun': celebrate === 'boost' }"
-					@click="boost">
-					<template #icon>
-						<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
-					</template>
-				</NcButton>
-				<RollingCount :count="item.reblogs_count || 0" />
-			</div>
-			<div class="post-action-group post-action-group--like"
-				:class="{ 'post-action-group--refused': refused === 'like' }">
-				<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
-				<!-- one button whose label changes, not two swapped by v-if:
-				     unmounting the button someone just pressed drops their focus
-				     to the body and loses their place in the timeline -->
-				<NcButton :title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-					:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-					:aria-pressed="isLiked ? 'true' : 'false'"
-					variant="tertiary"
-					:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
-					@click="like">
-					<template #icon>
-						<Heart v-if="isLiked" :size="20" :fill-color="'var(--color-element-error)'" />
-						<HeartOutline v-else :size="20" />
-					</template>
-				</NcButton>
-				<RollingCount :count="item.favourites_count || 0" />
-			</div>
-			<NcActions>
-				<NcActionButton v-if="canQuote" @click="quote">
-					<template #icon>
-						<FormatQuoteClose :size="20" />
-					</template>
-					{{ t('social', 'Quote') }}
-				</NcActionButton>
-				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
-					icon="icon-rename"
-					@click="editPost">
-					{{ t('social', 'Edit') }}
-				</NcActionButton>
-				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
-					icon="icon-delete"
-					@click="showDeleteDialog = true">
-					{{ t('social', 'Delete') }}
-				</NcActionButton>
-				<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
-				<NcActionLink v-if="!origin.local && item.url"
-					:href="item.url"
-					target="_blank">
-					<template #icon>
-						<OpenInNew :size="20" />
-					</template>
-					{{ t('social', 'Open on original instance') }}
-				</NcActionLink>
-				<NcActionButton @click="toggleBookmark">
-					<template #icon>
-						<Bookmark v-if="item.bookmarked" :size="20" />
-						<BookmarkOutline v-else :size="20" />
-					</template>
-					{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
-				</NcActionButton>
-				<NcActionButton v-if="canPin"
-					@click="togglePin">
-					<template #icon>
-						<Pin v-if="!item.pinned" :size="20" />
-						<PinOff v-else :size="20" />
-					</template>
-					{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
-				</NcActionButton>
-				<NcActionButton v-if="item.account.acct !== currentAccount?.acct"
-					@click="showReportDialog = true">
-					<template #icon>
-						<Flag :size="20" />
-					</template>
-					{{ t('social', 'Report') }}
-				</NcActionButton>
-			</NcActions>
-			<NcDialog v-model:open="showReportDialog"
-				:name="t('social', 'Report {account}', { account: item.account.acct })"
-				:buttons="reportButtons">
-				<p class="report-hint">
-					{{ t('social', 'The report goes to the moderators of this instance. It is never sent to the reported account or their server.') }}
-				</p>
-				<textarea v-model="reportComment"
-					class="report-comment"
-					:placeholder="t('social', 'Why are you reporting this post? (optional)')"
-					rows="3" />
-			</NcDialog>
-			<!-- deleting is irreversible and federates: it is not something to
-			     do on the first click of a menu item sitting under "Edit" -->
-			<NcDialog v-model:open="showDeleteDialog"
-				:name="t('social', 'Delete this post?')"
-				:buttons="deleteButtons">
-				<p class="delete-hint">
-					{{ t('social', 'The post is removed from this server and a deletion is sent to every server that received it. This cannot be undone.') }}
-				</p>
-			</NcDialog>
 		</div>
+		<NcDialog v-model:open="showReportDialog"
+			:name="t('social', 'Report {account}', { account: item.account.acct })"
+			:buttons="reportButtons">
+			<p class="report-hint">
+				{{ t('social', 'The report goes to the moderators of this instance. It is never sent to the reported account or their server.') }}
+			</p>
+			<textarea v-model="reportComment"
+				class="report-comment"
+				:placeholder="t('social', 'Why are you reporting this post? (optional)')"
+				rows="3" />
+		</NcDialog>
+		<!-- deleting is irreversible and federates: it is not something to
+		     do on the first click of a menu item sitting under "Edit" -->
+		<NcDialog v-model:open="showDeleteDialog"
+			:name="t('social', 'Delete this post?')"
+			:buttons="deleteButtons">
+			<p class="delete-hint">
+				{{ t('social', 'The post is removed from this server and a deletion is sent to every server that received it. This cannot be undone.') }}
+			</p>
+		</NcDialog>
 	</article>
 </template>
 
@@ -355,6 +366,8 @@ export default {
 			refused: '',
 			/** whether j/k has this post, so l/b/r act on the right one */
 			hasKeyboardFocus: false,
+			/** whether the overflow menu is open, which holds the action row open with it */
+			menuOpen: false,
 			/** a warned post stays closed until the reader opens it */
 			warningLifted: false,
 			editContent: '',
@@ -849,6 +862,40 @@ function nodeToPlainText(node) {
 		box-shadow: 0 0 0 2px var(--color-primary-element-light);
 	}
 
+	/*
+	 * `focus-within` is not decoration here: it is the whole of the keyboard
+	 * path. Tabbing into a card has to bring up the same row the pointer does,
+	 * or the buttons are focusable and invisible.
+	 */
+	&:hover .post-actions-reveal,
+	&:focus-within .post-actions-reveal,
+	.post-actions-reveal--held {
+		grid-template-rows: 1fr;
+		margin-top: 10px;
+
+		.post-actions {
+			opacity: 1;
+			pointer-events: auto;
+			padding-top: 10px;
+			border-top-width: 1px;
+			border-top-color: var(--color-border);
+			/* the buttons arrive once there is room for them, not while the
+			   card is still on its way open */
+			transition-delay: .08s;
+
+			> * {
+				transform: translateY(0);
+			}
+
+			/* each one a beat behind the last, left to right, so the row
+			   arrives as a movement rather than as four things at once */
+			> :nth-child(1) { transition-delay: .08s; }
+			> :nth-child(2) { transition-delay: .115s; }
+			> :nth-child(3) { transition-delay: .15s; }
+			> :nth-child(4) { transition-delay: .185s; }
+		}
+	}
+
 	.post-header {
 		display: flex;
 		gap: 8px;
@@ -1039,13 +1086,56 @@ function nodeToPlainText(node) {
 		}
 	}
 
+	/*
+	 * The action row is the loudest thing in a card and the least often used:
+	 * somebody scrolling a timeline is reading, not boosting. So the card is
+	 * only as tall as what somebody is reading, and grows to make room for the
+	 * row when the pointer arrives.
+	 *
+	 * A grid whose single row goes from `0fr` to `1fr` is what animates that:
+	 * a height nobody can know in advance — the row wraps on a narrow window,
+	 * and a count going from 9 to 10 is another pixel — cannot be transitioned
+	 * any other way. `max-height` needs a number big enough to be wrong, and
+	 * `height: auto` does not interpolate anywhere this app can rely on yet.
+	 */
+	.post-actions-reveal {
+		display: grid;
+		grid-template-rows: 0fr;
+		/* the gap above the divider: part of the animation, because a margin
+		   sits outside the grid row and would be left behind when it closes */
+		margin-top: 0;
+		transition:
+			grid-template-rows .34s cubic-bezier(.32, .72, 0, 1),
+			margin-top .34s cubic-bezier(.32, .72, 0, 1);
+	}
+
 	.post-actions {
 		display: flex;
 		align-items: center;
 		gap: 2px;
-		margin-top: 10px;
-		padding-top: 10px;
-		border-top: 1px solid var(--color-border);
+		/* Zero at rest, and not merely clipped. `min-height: 0` frees the
+		   content to collapse but padding and a border are outside the content
+		   box, so a row with either is 11px tall however hard the grid squeezes
+		   it — 11px of nothing under every post in the timeline. They arrive
+		   with the row instead. */
+		padding-top: 0;
+		border-top: 0 solid transparent;
+		/* what makes the clipping a clip rather than an overflow */
+		min-height: 0;
+		overflow: hidden;
+		opacity: 0;
+		/* it is not there to be clicked until it is there to be seen */
+		pointer-events: none;
+		transition:
+			opacity .16s ease,
+			padding-top .34s cubic-bezier(.32, .72, 0, 1),
+			border-top-width .34s cubic-bezier(.32, .72, 0, 1),
+			border-top-color .16s ease;
+
+		> * {
+			transform: translateY(6px);
+			transition: transform .36s cubic-bezier(.22, 1.4, .48, 1);
+		}
 
 		.post-action-group {
 			display: inline-flex;
@@ -1196,5 +1286,49 @@ function nodeToPlainText(node) {
 	padding: 0 12px 12px;
 	color: var(--color-text-lighter);
 	line-height: 1.5;
+}
+
+/*
+ * A finger cannot hover. On a touch screen there is no state in which the row
+ * would ever appear, so it is simply always there.
+ */
+@media (hover: none) {
+	.post-content .post-actions-reveal {
+		grid-template-rows: 1fr;
+		margin-top: 10px;
+	}
+
+	.post-content .post-actions {
+		opacity: 1;
+		pointer-events: auto;
+		padding-top: 10px;
+		border-top-width: 1px;
+		border-top-color: var(--color-border);
+
+		> * {
+			transform: none;
+		}
+	}
+}
+
+/*
+ * Reduced motion takes the movement away, not the reveal: the row still has to
+ * arrive when the pointer does, it just stops travelling to get there.
+ */
+@media (prefers-reduced-motion: reduce) {
+	.post-content .post-actions-reveal {
+		transition: none;
+	}
+
+	.post-content .post-actions {
+		transition: opacity .01ms linear;
+		transition-delay: 0ms !important;
+
+		> * {
+			transform: none;
+			transition: none;
+			transition-delay: 0ms !important;
+		}
+	}
 }
 </style>

@@ -601,6 +601,25 @@ describe('TimelinePost', () => {
 			expect(wrapper.find('.post-actions').exists()).toBe(false)
 		})
 
+		/**
+		 * The card grows for the row when the pointer arrives, in CSS. The one
+		 * case CSS cannot see is the overflow menu: it opens in a portal, so
+		 * the pointer is off the card while its own menu is open, and the card
+		 * would close under it.
+		 */
+		it('holds the action row open while the overflow menu is', async () => {
+			const { wrapper } = mountPost()
+			expect(wrapper.find('.post-actions-reveal').classes()).not.toContain('post-actions-reveal--held')
+
+			wrapper.findComponent({ name: 'NcActions' }).vm.$emit('update:open', true)
+			await wrapper.vm.$nextTick()
+			expect(wrapper.find('.post-actions-reveal').classes()).toContain('post-actions-reveal--held')
+
+			wrapper.findComponent({ name: 'NcActions' }).vm.$emit('update:open', false)
+			await wrapper.vm.$nextTick()
+			expect(wrapper.find('.post-actions-reveal').classes()).not.toContain('post-actions-reveal--held')
+		})
+
 		it('shows a counter only when it is above zero', () => {
 			expect(mountPost().wrapper.findAll('.post-action-count')).toHaveLength(0)
 
