@@ -13,6 +13,7 @@ use DateTime;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -30,6 +31,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamQueueService;
@@ -52,9 +54,11 @@ class LikeServiceTest extends TestCase {
 	private StreamActionService|MockObject $streamActionService;
 	private CacheActorService|MockObject $cacheActorService;
 	private LikeInterface|MockObject $likeInterface;
+	private ModerationService|MockObject $moderationService;
 	private LikeService $service;
 
 	protected function setUp(): void {
+		$this->moderationService = $this->createMock(ModerationService::class);
 		$this->likeInterface = $this->createMock(LikeInterface::class);
 		$this->bootActivityPub([LikeInterface::class => $this->likeInterface]);
 
@@ -74,7 +78,8 @@ class LikeServiceTest extends TestCase {
 			$this->createMock(StreamQueueService::class),
 			$this->cacheActorService,
 			$this->createMock(MiscService::class),
-			new NullLogger()
+			new NullLogger(),
+			$this->moderationService
 		);
 	}
 
@@ -318,5 +323,14 @@ class LikeServiceTest extends TestCase {
 
 		$this->expectException(StreamNotFoundException::class);
 		$this->service->delete($this->alice(), 'https://remote.example/notes/missing');
+	}
+
+	/** A suspended account may not act; see the boost path for the reasoning. */
+	public function testASuspendedAccountCannotLike(): void {
+		$this->moderationService->method('assertNotSuspended')
+			->willThrowException(new InvalidActionException('account is suspended'));
+
+		$this->expectException(InvalidActionException::class);
+		$this->service->create($this->alice(), self::POST_ID);
 	}
 }

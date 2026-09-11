@@ -1,0 +1,699 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Controller;
+
+use Exception;
+use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\ListsRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\InsufficientScopeException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\MastodonList;
+use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ClientService;
+use OCA\Social\Service\FollowService;
+use OCA\Social\Service\LinkPreviewService;
+use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\IRequest;
+use OCP\IUserSession;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+/**
+ * Mastodon's lists: a user-made group of accounts they follow, with a timeline
+ * of its own.
+ *
+ * A list is private to the account that made it, and that is the whole of its
+ * access model — there is no sharing, no visibility flag and nobody else who
+ * may read one. Every route here therefore resolves its list through
+ * `ListsRequest::getOwnedById()`, which carries the owner in the statement, so
+ * a list belonging to somebody else is a 404 and not a row that was read and
+ * then rejected.
+ *
+ * `#[PublicPage]` with `#[NoCSRFRequired]`, like `ApiController` and
+ * `TagController`, and for the same reason: a Mastodon client authenticates
+ * with a bearer token and has no Nextcloud session or CSRF token to present,
+ * so `#[NoAdminRequired]` would refuse every real caller before the handler
+ * ran. Every route here then requires a viewer itself — no token, no session,
+ * 401 — so nothing is public in fact.
+ */
+class ListController extends Controller {
+	/** What Mastodon defaults and caps a page of list members at. */
+	private const MEMBERS_LIMIT = 40;
+	private const MAX_MEMBERS_LIMIT = 80;
+
+	/**
+	 * What `limit=0` — Mastodon's "all accounts without pagination" — is
+	 * turned into. The page is built in memory, one cached actor per row, so
+	 * "all" has to have a ceiling; a list longer than this is read with the
+	 * cursor like any other.
+	 */
+	private const ALL_MEMBERS_LIMIT = 500;
+
+	private string $bearer = '';
+	private ?SocialClient $client = null;
+	private ?Person $viewer = null;
+
+	public function __construct(
+		IRequest $request,
+		private IUserSession $userSession,
+		private LoggerInterface $logger,
+		private AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		private ClientService $clientService,
+		private FollowService $followService,
+		private LinkPreviewService $linkPreviewService,
+		private ListsRequest $listsRequest,
+	) {
+		parent::__construct(Application::APP_ID, $request);
+
+		$authHeader = trim($this->request->getHeader('Authorization'));
+		if (strpos($authHeader, ' ')) {
+			[$authType, $authToken] = explode(' ', $authHeader);
+			if (strtolower($authType) === 'bearer') {
+				$this->bearer = $authToken;
+			}
+		}
+	}
+
+	/**
+	 * Every list the viewer owns.
+	 *
+	 * Unpaged, as Mastodon's is: the route takes no cursor there either, and a
+	 * client draws the whole sidebar from one call.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function index(): DataResponse {
+		try {
+			$this->initViewer();
+
+			return new DataResponse(
+				$this->listsRequest->getByActor($this->viewer->getId()), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function create(
+		string $title = '',
+		string $replies_policy = MastodonList::DEFAULT_REPLIES_POLICY,
+		bool $exclusive = false,
+	): DataResponse {
+		try {
+			$this->initViewer(['write:lists']);
+
+			$list = new MastodonList();
+			$list->setOwnerId($this->viewer->getId())
+				->setTitle($this->title($title))
+				->setRepliesPolicy($this->repliesPolicy($replies_policy))
+				->setExclusive($exclusive);
+
+			return new DataResponse($this->listsRequest->create($list), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function get(int $id): DataResponse {
+		try {
+			$this->initViewer();
+
+			return new DataResponse($this->ownedList($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Mastodon requires `title` on an update as it does on a create, so an
+	 * absent one is a 422 and not "keep what is there": a client that meant to
+	 * change only `exclusive` still sends the title back.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function update(
+		int $id,
+		string $title = '',
+		string $replies_policy = '',
+		?bool $exclusive = null,
+	): DataResponse {
+		try {
+			$this->initViewer(['write:lists']);
+			$list = $this->ownedList($id);
+
+			$list->setTitle($this->title($title));
+			if ($replies_policy !== '') {
+				$list->setRepliesPolicy($this->repliesPolicy($replies_policy));
+			}
+			if ($exclusive !== null) {
+				$list->setExclusive($exclusive);
+			}
+
+			$this->listsRequest->update($list);
+
+			return new DataResponse($list, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Answers `{}`, as Mastodon does, and takes the memberships with it. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function delete(int $id): DataResponse {
+		try {
+			$this->initViewer(['write:lists']);
+			$this->listsRequest->delete($this->ownedList($id));
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * A page of the list's members as Account entities, newest addition
+	 * first, with the `Link` header masto.js reads its cursor from.
+	 *
+	 * The cursor is the membership row id, not the account: an account can be
+	 * removed from a list and added again, so its own id does not move in one
+	 * direction and cannot page.
+	 *
+	 * A member whose actor is no longer in the cache is left out of the page
+	 * rather than sent as a half-filled account — but its row is still what
+	 * decides the cursor, so paging does not stall on it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accounts(
+		int $id,
+		int $limit = self::MEMBERS_LIMIT,
+		int $max_id = 0,
+		int $min_id = 0,
+	): DataResponse {
+		try {
+			$this->initViewer();
+			$list = $this->ownedList($id);
+
+			// Mastodon documents limit=0 as "all accounts without pagination"
+			$limit = ($limit === 0)
+				? self::ALL_MEMBERS_LIMIT
+				: max(1, min(self::MAX_MEMBERS_LIMIT, $limit));
+
+			$rows = $this->listsRequest->getMembers($list, $limit, $max_id, $min_id);
+			$actors = $this->cacheActorService->getCachedFromIds(array_column($rows, 'actorId'));
+
+			$accounts = [];
+			foreach ($rows as $row) {
+				$actor = $actors[$row['actorId']] ?? null;
+				if ($actor === null) {
+					continue;
+				}
+
+				$actor->setExportFormat(ACore::FORMAT_LOCAL);
+				$accounts[] = $actor;
+			}
+
+			return $this->paged($accounts, $limit, array_column($rows, 'id'));
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Adds accounts to the list.
+	 *
+	 * A list is a view of what the owner already follows, so an account they
+	 * do not follow may not be put in one — Mastodon refuses that with a 404,
+	 * because the follow it would have to attach the membership to is what is
+	 * missing. The owner may be in their own list without following
+	 * themselves, which is also Mastodon's rule.
+	 *
+	 * `$account_ids` carries its own default because a request-bound array
+	 * parameter is filled in by the dispatcher, before this method's try
+	 * block: a client that asks with no `account_ids[]` at all would otherwise
+	 * raise a TypeError there and get a Nextcloud error page instead of
+	 * `{"error": …}`.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function addAccounts(int $id, array|string $account_ids = []): DataResponse {
+		try {
+			$this->initViewer(['write:lists']);
+			$list = $this->ownedList($id);
+
+			// resolved before anything is written, so a request naming one
+			// account that may not be added adds none of them — a partly
+			// applied write is one a client cannot retry safely
+			$members = [];
+			foreach ($this->accountIds($account_ids) as $accountId) {
+				$members[] = $this->followed($accountId);
+			}
+
+			foreach ($members as $member) {
+				$this->listsRequest->addMember($list, $member->getId());
+			}
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Removes accounts from the list. Removing one that is not in it is not an
+	 * error: Mastodon answers `{}` either way.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function removeAccounts(int $id, array|string $account_ids = []): DataResponse {
+		try {
+			$this->initViewer(['write:lists']);
+			$list = $this->ownedList($id);
+
+			foreach ($this->accountIds($account_ids) as $accountId) {
+				// resolved, not trusted: the row is keyed by the actor id, and
+				// what a client sends is a numeric id or a handle
+				$this->listsRequest->removeMember($list, $this->resolveAccount($accountId)->getId());
+			}
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Which of the viewer's own lists an account is in.
+	 *
+	 * The viewer's own, and nobody else's: which lists a stranger put somebody
+	 * in is not a thing either of them may read, and Mastodon scopes this to
+	 * the token's account for the same reason.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accountLists(string $account): DataResponse {
+		try {
+			$this->initViewer();
+			$actor = $this->resolveAccount($account);
+
+			return new DataResponse(
+				$this->listsRequest->getByMember($this->viewer->getId(), $actor->getId()),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The list's timeline.
+	 *
+	 * A route of its own rather than another name in `ApiController::
+	 * timelines()`: that method takes the timeline as a path segment and
+	 * matches it against a fixed set of probe names, and a list timeline is
+	 * not a name but a name *and an id*. Squeezing it in would mean either a
+	 * second placeholder on a route that has one, or reading the id back off
+	 * the query string — and either way the list's owner would have to be
+	 * checked inside a method that has no business knowing what a list is.
+	 * Mastodon serves it from its own controller for the same reason.
+	 *
+	 * `read:lists`, not `read:statuses`: it is the list that decides whether
+	 * the caller may see this page at all.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function timeline(
+		int $id,
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since_id = 0,
+		bool $only_media = false,
+	): DataResponse {
+		try {
+			$this->initViewer();
+			$list = $this->ownedList($id);
+
+			$this->listsRequest->setViewer($this->viewer);
+
+			$options = new ProbeOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setLimit($limit)
+				->setMaxId($max_id)
+				->setMinId($min_id)
+				->setSince($since_id)
+				->setOnlyMedia($only_media);
+
+			$posts = $this->listsRequest->getTimeline($list, $options);
+			// one query for the whole page, as the home timeline does it
+			$this->linkPreviewService->attachCards($posts);
+
+			return $this->paged($posts, $options->getLimit());
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The list a request names, or a 404.
+	 *
+	 * @throws ItemNotFoundException it is not there, or it is not the
+	 *                               viewer's — which are one answer
+	 */
+	private function ownedList(int $id): MastodonList {
+		return $this->listsRequest->getOwnedById($this->viewer->getId(), $id);
+	}
+
+	/**
+	 * @throws InvalidResourceException Mastodon's "Title can't be blank"
+	 */
+	private function title(string $title): string {
+		$title = ListsRequest::normaliseTitle($title);
+		if ($title === '') {
+			throw new InvalidResourceException("Title can't be blank");
+		}
+
+		return $title;
+	}
+
+	/**
+	 * @throws InvalidResourceException an unknown policy is refused rather
+	 *                                  than quietly stored as the default: a
+	 *                                  client that asked for one thing must
+	 *                                  not be shown another
+	 */
+	private function repliesPolicy(string $repliesPolicy): string {
+		if (!MastodonList::isRepliesPolicy($repliesPolicy)) {
+			throw new InvalidResourceException(
+				"'" . $repliesPolicy . "' is not a valid replies_policy"
+			);
+		}
+
+		return $repliesPolicy;
+	}
+
+	/**
+	 * The `account_ids[]` of a request, as strings and without blanks.
+	 *
+	 * Takes a bare string as well as an array: a client that sends one id
+	 * without the `[]` hands PHP a scalar, and the dispatcher passes it
+	 * through — a TypeError there would be a Nextcloud error page rather than
+	 * `{"error": …}`.
+	 *
+	 * @return string[]
+	 *
+	 * @throws InvalidResourceException
+	 */
+	private function accountIds(array|string $accountIds): array {
+		$ids = [];
+		foreach ((array)$accountIds as $accountId) {
+			if (!is_scalar($accountId)) {
+				continue;
+			}
+
+			$accountId = trim((string)$accountId);
+			if ($accountId !== '') {
+				$ids[$accountId] = $accountId;
+			}
+		}
+
+		if ($ids === []) {
+			throw new InvalidResourceException('account_ids is required');
+		}
+
+		return array_values($ids);
+	}
+
+	/**
+	 * The account behind what a client sent: Mastodon's numeric local id, an
+	 * actor URI, or a handle. The same three forms `ApiController` accepts
+	 * wherever it takes an account.
+	 *
+	 * @throws CacheActorDoesNotExistException
+	 */
+	private function resolveAccount(string $id): Person {
+		$id = trim($id);
+
+		if (is_numeric($id)) {
+			if ((int)$id < 1) {
+				throw new CacheActorDoesNotExistException('Record not found');
+			}
+
+			$actors = $this->cacheActorService->getFromNids([(int)$id]);
+			if ($actors === []) {
+				throw new CacheActorDoesNotExistException('Record not found');
+			}
+
+			return $actors[0];
+		}
+
+		if (str_starts_with($id, 'http://') || str_starts_with($id, 'https://')) {
+			return $this->cacheActorService->getFromId($id);
+		}
+
+		if ($id === '') {
+			throw new CacheActorDoesNotExistException('Record not found');
+		}
+
+		return $this->cacheActorService->getFromAccount(ltrim($id, '@'));
+	}
+
+	/**
+	 * The account, once it is established that the viewer follows it.
+	 *
+	 * @throws Exception the account does not exist, or is not followed
+	 */
+	private function followed(string $accountId): Person {
+		$actor = $this->resolveAccount($accountId);
+		if ($actor->getId() === $this->viewer->getId()) {
+			// your own account needs no follow to belong to your own list
+			return $actor;
+		}
+
+		$this->followService->setViewer($this->viewer);
+		$relationship = $this->followService->getRelationshipWith($actor);
+		// a follow that has not been accepted yet counts, as it does on
+		// Mastodon: the list is made now and fills in when the follow is
+		// answered, rather than failing on a locked account
+		if (!$relationship->isFollowing() && !$relationship->isRequested()) {
+			throw new ItemNotFoundException('Record not found');
+		}
+
+		return $actor;
+	}
+
+	/**
+	 * Resolves the viewer from the bearer token, or from the Nextcloud session
+	 * when there is none — the same order `ApiController` uses, because the
+	 * same clients call both.
+	 *
+	 * @param string[] $scopes any one of which satisfies a bearer token
+	 *
+	 * @throws ClientNotFoundException there is nobody to answer for
+	 * @throws InsufficientScopeException the token is fine, its grant is not
+	 */
+	private function initViewer(array $scopes = ['read:lists']): void {
+		try {
+			$userId = $this->currentSession($scopes);
+			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
+		} catch (InsufficientScopeException $e) {
+			throw $e;
+		} catch (Exception $e) {
+			// a missing, stale or made-up token is ordinary internet noise and
+			// is answered with a 401, not logged as a fault
+			$this->logger->debug('[ListController] no usable credentials', [
+				'exception' => $e->getMessage(),
+			]);
+
+			throw new ClientNotFoundException('the access_token was revoked');
+		}
+	}
+
+	/**
+	 * @param string[] $scopes
+	 *
+	 * @throws ClientNotFoundException
+	 * @throws InsufficientScopeException
+	 */
+	private function currentSession(array $scopes): string {
+		if ($this->bearer !== '') {
+			$this->client = $this->clientService->getFromToken($this->bearer);
+			$this->checkTokenScope($scopes);
+
+			return $this->client->getAuthUserId();
+		}
+
+		$user = $this->userSession->getUser();
+		if ($user !== null && $this->request->passesCSRFCheck()) {
+			return $user->getUID();
+		}
+
+		throw new ClientNotFoundException('userId not defined');
+	}
+
+	/**
+	 * A granular scope is satisfied by itself or by the broad scope that
+	 * contains it: `read:lists` by `read:lists` or by `read`, and by nothing
+	 * else.
+	 *
+	 * Not by any other granular variant of the same parent — a token granted
+	 * `read:statuses` has not been granted the reader's lists, and lists are
+	 * the one thing in this API that nobody but their owner may see.
+	 *
+	 * @param string[] $accepted
+	 *
+	 * @throws InsufficientScopeException
+	 */
+	private function checkTokenScope(array $accepted): void {
+		foreach ($accepted as $scope) {
+			$broad = strstr($scope, ':', true);
+			$broad = ($broad === false) ? $scope : $broad;
+
+			foreach ($this->client->getAuthScopes() as $granted) {
+				if ($granted === $scope || $granted === $broad) {
+					return;
+				}
+			}
+		}
+
+		throw new InsufficientScopeException(
+			'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
+		);
+	}
+
+	/**
+	 * A page of entities with the `Link` header masto.js reads its cursor
+	 * from — without it Elk and Phanpy show the first page of a list and stop.
+	 *
+	 * @param int[]|null $ids the cursor ids of the page, in its order; the
+	 *                        entities' own ids when they are what pages
+	 */
+	private function paged(array $items, int $limit, ?array $ids = null): DataResponse {
+		$response = new DataResponse($items, Http::STATUS_OK);
+
+		$ids ??= $this->pageIds($items);
+		if ($ids === []) {
+			return $response;
+		}
+
+		$links = [];
+		if (count($ids) >= $limit) {
+			// a page shorter than the limit is the last one
+			$links[] = '<' . $this->pageUrl(['max_id' => (string)min($ids)]) . '>; rel="next"';
+		}
+		$links[] = '<' . $this->pageUrl(['min_id' => (string)max($ids)]) . '>; rel="prev"';
+
+		$response->addHeader('Link', implode(', ', $links));
+
+		return $response;
+	}
+
+	/**
+	 * The paging ids of a page of statuses.
+	 *
+	 * @return int[]
+	 */
+	private function pageIds(array $items): array {
+		$ids = [];
+		foreach ($items as $item) {
+			$nid = (is_object($item) && method_exists($item, 'getNid')) ? (int)$item->getNid() : 0;
+			if ($nid > 0) {
+				$ids[] = $nid;
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * This request's own URL with the cursor replaced, so every other filter
+	 * the client sent survives into the next page.
+	 */
+	private function pageUrl(array $cursor): string {
+		$uri = $this->request->getRequestUri();
+		$path = $uri;
+		$query = [];
+
+		$pos = strpos($uri, '?');
+		if ($pos !== false) {
+			$path = substr($uri, 0, $pos);
+			parse_str(substr($uri, $pos + 1), $query);
+		}
+
+		unset($query['max_id'], $query['min_id'], $query['since_id'], $query['_route']);
+
+		return $path . '?' . http_build_query(array_merge($query, $cursor));
+	}
+
+	/**
+	 * A failure as a Mastodon client can act on it: `{"error": "..."}` with a
+	 * status that says what to do about it. An unrecognised failure is a bug
+	 * on this side, so it answers 500 and its message is not sent on — these
+	 * are `#[PublicPage]` routes, and echoing getMessage() publishes whatever
+	 * the failure happened to name.
+	 */
+	private function error(Throwable $e): DataResponse {
+		if ($e instanceof InsufficientScopeException) {
+			return new DataResponse(
+				['error' => $e->getMessage()],
+				Http::STATUS_FORBIDDEN,
+				['WWW-Authenticate' => 'Bearer error="insufficient_scope"']
+			);
+		}
+
+		if ($e instanceof ClientNotFoundException) {
+			$message = trim($e->getMessage());
+
+			return new DataResponse(
+				['error' => ($message === '') ? 'the access_token is invalid' : $message],
+				Http::STATUS_UNAUTHORIZED,
+				['WWW-Authenticate' => 'Bearer error="invalid_token"']
+			);
+		}
+
+		// a list that is not there, a list that is somebody else's, and an
+		// account that cannot be found are one answer: 404 with Mastodon's own
+		// wording, so that none of them can be told apart from the others
+		if ($e instanceof ItemNotFoundException || $e instanceof CacheActorDoesNotExistException) {
+			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
+		}
+
+		if ($e instanceof InvalidResourceException) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		$this->logger->error('[ListController] unexpected failure answering the client API', [
+			'exception' => $e,
+			'route' => (string)$this->request->getParam('_route', ''),
+		]);
+
+		return new DataResponse(
+			['error' => 'internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR
+		);
+	}
+}

@@ -44,6 +44,11 @@ class CoreRequestBuilder {
 	public const TABLE_FOLLOWED_TAGS = 'social_followed_tag';
 	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_HASHTAGS = 'social_hashtag';
+	public const TABLE_FILTERS = 'social_filter';
+	public const TABLE_FILTER_KEYWORDS = 'social_filter_kw';
+	public const TABLE_CONVERSATION_STATE = 'social_convo_state';
+	public const TABLE_LISTS = 'social_list';
+	public const TABLE_LIST_MEMBERS = 'social_list_member';
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
@@ -155,6 +160,48 @@ class CoreRequestBuilder {
 			'id',
 			'actor_id_prim',
 			'hashtag',
+			'creation'
+		],
+		self::TABLE_FILTERS => [
+			'id',
+			'actor_id_prim',
+			'title',
+			'contexts',
+			'action',
+			'expires_at',
+			'creation'
+		],
+		self::TABLE_FILTER_KEYWORDS => [
+			'id',
+			'filter_id',
+			'keyword',
+			'whole_word',
+			'creation'
+		],
+		self::TABLE_LISTS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'title',
+			'replies_policy',
+			'exclusive',
+			'creation'
+		],
+		self::TABLE_LIST_MEMBERS => [
+			'id',
+			'list_id',
+			'actor_id',
+			'actor_id_prim',
+			'creation'
+		],
+		self::TABLE_CONVERSATION_STATE => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'root_id',
+			'root_id_prim',
+			'read_nid',
+			'hidden_nid',
 			'creation'
 		],
 		self::TABLE_FOLLOWS => [

@@ -38,6 +38,16 @@ use Psr\Log\LoggerInterface;
 
 class PostService {
 	public const POLL_MAX_OPTIONS = 4;
+
+	/**
+	 * How long a poll may run, in seconds, and the shortest it may run for.
+	 * Mastodon's own bounds, and what `InstanceService` advertises as
+	 * `polls.min_expiration`/`max_expiration`: a client offers exactly the
+	 * durations it is told about, so a ceiling of its own here silently turned
+	 * every longer poll a client offered into a shorter one.
+	 */
+	public const POLL_MIN_EXPIRATION = 300;
+	public const POLL_MAX_EXPIRATION = 2629746;
 	private StreamService $streamService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
@@ -54,8 +64,13 @@ class PostService {
 	private const REGIONAL_LANGUAGES = ['pt', 'zh'];
 
 	public function __construct(
-		StreamService $streamService, AccountService $accountService, ActivityService $activityService,
-		IFactory $l10nFactory, IUserManager $userManager, LoggerInterface $logger,
+		StreamService $streamService,
+		AccountService $accountService,
+		ActivityService $activityService,
+		IFactory $l10nFactory,
+		IUserManager $userManager,
+		private ModerationService $moderationService,
+		LoggerInterface $logger,
 	) {
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;
@@ -85,6 +100,8 @@ class PostService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function createPost(Post $post, string &$token = ''): ?ACore {
+		$this->moderationService->assertNotSuspended($post->getActor()->getId());
+		$this->assertWithinLength($post->getContent(), $post->getSpoilerText());
 		$this->fixRecipientAndHashtags($post);
 
 		$note = new Note();
@@ -102,7 +119,10 @@ class PostService {
 			$note->setPollData(
 				$options,
 				(bool)($poll['multiple'] ?? false),
-				min(max((int)($poll['expires_in'] ?? 86400), 300), 7 * 86400)
+				min(
+					max((int)($poll['expires_in'] ?? 86400), self::POLL_MIN_EXPIRATION),
+					self::POLL_MAX_EXPIRATION
+				)
 			);
 		}
 		$actor = $post->getActor();
@@ -160,11 +180,16 @@ class PostService {
 		int $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null,
 		?string $language = null,
 	): Stream {
+		$this->moderationService->assertNotSuspended($actor->getId());
 		$stream = $this->streamService->getStreamByNid($nid);
 
 		if ($stream->getAttributedTo() !== $actor->getId()) {
 			throw new \Exception('Not authorized to edit this post');
 		}
+
+		$this->assertWithinLength(
+			$content, $spoilerText ?? $stream->getSpoilerText()
+		);
 
 		$stream->setContent(nl2br(htmlentities($content, ENT_QUOTES)));
 		if ($spoilerText !== null) {
@@ -198,6 +223,28 @@ class PostService {
 		}
 
 		return $updated;
+	}
+
+	/**
+	 * Refuses a post longer than the limit this instance advertises as
+	 * `configuration.statuses.max_characters`, which nothing enforced: a client
+	 * that does not read the limit, or reads a different one, had its post
+	 * accepted and federated at whatever length it sent.
+	 *
+	 * Characters, not bytes — `mb_strlen()`, as the bio cap in `AccountService`
+	 * counts — and the spoiler counts towards the same budget, the way Mastodon
+	 * measures a status.
+	 *
+	 * @throws InvalidActionException the refusal ApiController answers 422 with
+	 */
+	private function assertWithinLength(string $content, string $spoilerText): void {
+		if (mb_strlen($content) + mb_strlen($spoilerText) <= InstanceService::MAX_CHARACTERS) {
+			return;
+		}
+
+		throw new InvalidActionException(
+			'a post may not be longer than ' . InstanceService::MAX_CHARACTERS . ' characters'
+		);
 	}
 
 	/**

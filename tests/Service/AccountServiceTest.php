@@ -17,6 +17,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -55,6 +56,7 @@ class AccountServiceTest extends TestCase {
 	private ActivityService|MockObject $activityService;
 	private DocumentService|MockObject $documentService;
 	private SignatureService|MockObject $signatureService;
+	private ConfigService|MockObject $configService;
 	private AccountService $service;
 	private int $errorReporting;
 
@@ -69,6 +71,7 @@ class AccountServiceTest extends TestCase {
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->signatureService = $this->createMock(SignatureService::class);
+		$this->configService = $this->createMock(ConfigService::class);
 
 		// AccountService assigns its collaborators to undeclared properties; PHP reports
 		// "Creation of dynamic property" for each of them, which PHPUnit would treat as
@@ -85,7 +88,7 @@ class AccountServiceTest extends TestCase {
 			$this->activityService,
 			$this->documentService,
 			$this->signatureService,
-			$this->createMock(ConfigService::class),
+			$this->configService,
 			new NullLogger(),
 		);
 		error_reporting($this->errorReporting);
@@ -799,4 +802,42 @@ class AccountServiceTest extends TestCase {
 
 		$this->service->setMovedTo('alice', 'https://new.example/users/alice');
 	}
+	// getDefaultPrivacy() / setDefaultPrivacy()
+
+	public function testTheDefaultAudienceIsPublicUntilSomebodyChangesIt(): void {
+		$this->configService->method('getValueForUser')->willReturn('');
+
+		$this->assertSame('public', $this->service->getDefaultPrivacy('alice'));
+	}
+
+	public function testTheStoredDefaultAudienceIsWhatAPostGetsWithoutOne(): void {
+		$this->configService->method('getValueForUser')
+			->with('alice', 'default_privacy')->willReturn('private');
+
+		$this->assertSame('private', $this->service->getDefaultPrivacy('alice'));
+	}
+
+	public function testAStoredAudienceThisAppCannotPostWithIsIgnored(): void {
+		// guessing at it would publish to the wrong audience; `public` is what
+		// the account had before anyone set anything
+		$this->configService->method('getValueForUser')->willReturn('friends');
+
+		$this->assertSame('public', $this->service->getDefaultPrivacy('alice'));
+	}
+
+	public function testSettingTheDefaultAudienceStoresIt(): void {
+		$this->configService->expects($this->once())
+			->method('setValueForUser')->with('alice', 'default_privacy', 'private');
+
+		$this->service->setDefaultPrivacy('alice', '  Private ');
+	}
+
+	public function testAnAudienceThisAppCannotPostWithIsRefused(): void {
+		$this->configService->expects($this->never())->method('setValueForUser');
+
+		$this->expectException(InvalidActionException::class);
+
+		$this->service->setDefaultPrivacy('alice', 'friends');
+	}
+
 }

@@ -1,0 +1,478 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\Service;
+
+use OCA\Social\Db\FiltersRequest;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\Client\Filter;
+use OCA\Social\Model\Client\FilterKeyword;
+use OCA\Social\Service\FilterService;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * What a keyword filter does to what a viewer is shown.
+ *
+ * The API that stores a filter is the easy half; this is the half that decides
+ * whether a status reaches the reader, and it is the half a mistake in is
+ * invisible — a filter that matches nothing looks exactly like one nothing
+ * matched.
+ */
+class FilterServiceTest extends TestCase {
+	private const ALICE = 'https://cloud.example/users/alice';
+	private const BOB = 'https://cloud.example/users/bob';
+
+	private FiltersRequest|MockObject $filtersRequest;
+	private FilterService $service;
+	/** @var array<string, Filter[]> actor id => the filters the store holds */
+	private array $stored = [];
+	/** @var string[] the actor ids the store was asked about */
+	private array $asked = [];
+
+	protected function setUp(): void {
+		$this->filtersRequest = $this->createMock(FiltersRequest::class);
+		$this->filtersRequest->method('getActiveByActor')
+			->willReturnCallback(function (string $actorId, ?int $now = null): array {
+				$this->asked[] = $actorId;
+
+				// the store answers only with what is still active, as the SQL
+				// does; the service is expected not to rely on that alone
+				return $this->stored[$actorId] ?? [];
+			});
+
+		$this->service = new FilterService($this->filtersRequest);
+	}
+
+	private function viewer(string $id): Person {
+		$person = new Person();
+		$person->setId($id);
+
+		return $person;
+	}
+
+	/**
+	 * @param array<array{string, bool}> $keywords [keyword, whole word]
+	 * @param string[] $contexts
+	 */
+	private function filter(
+		string $title,
+		array $keywords,
+		array $contexts = [Filter::CONTEXT_HOME],
+		string $action = Filter::ACTION_WARN,
+		int $expiresAt = 0,
+		int $id = 1,
+	): Filter {
+		$filter = new Filter();
+		$filter->setId($id)
+			->setTitle($title)
+			->setContexts($contexts)
+			->setAction($action)
+			->setExpiresAt($expiresAt);
+
+		foreach ($keywords as $index => [$keyword, $wholeWord]) {
+			$filter->addKeyword(
+				(new FilterKeyword())->setId($index + 1)->setKeyword($keyword)->setWholeWord($wholeWord)
+			);
+		}
+
+		return $filter;
+	}
+
+	private function status(string $content, array $extra = []): array {
+		return array_merge(['id' => '1', 'content' => $content, 'spoiler_text' => ''], $extra);
+	}
+
+	public function testAStatusNothingMatchedSaysSoRatherThanSayingNothing(): void {
+		// a client reads the absence of `filtered` as "nothing filtered", which
+		// is the same answer for every viewer and so the wrong one: the key has
+		// to be there, empty
+		$this->stored[self::ALICE] = [$this->filter('spoilers', [['banana', false]])];
+
+		$page = $this->service->apply(
+			[$this->status('<p>hello</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page);
+		$this->assertArrayHasKey('filtered', $page[0]);
+		$this->assertSame([], $page[0]['filtered']);
+	}
+
+	public function testAWarnFilterKeepsTheStatusAndSaysWhatMatched(): void {
+		$this->stored[self::ALICE] = [
+			$this->filter('spoilers', [['banana', false]], [Filter::CONTEXT_HOME], Filter::ACTION_WARN),
+		];
+
+		$page = $this->service->apply(
+			[$this->status('<p>a banana split</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page, 'a warn filter leaves the status in the timeline');
+		$this->assertCount(1, $page[0]['filtered']);
+		$this->assertSame('spoilers', $page[0]['filtered'][0]['filter']['title']);
+		$this->assertSame(Filter::ACTION_WARN, $page[0]['filtered'][0]['filter']['filter_action']);
+		$this->assertSame(['banana'], $page[0]['filtered'][0]['keyword_matches']);
+		$this->assertSame([], $page[0]['filtered'][0]['status_matches']);
+	}
+
+	public function testAHideFilterTakesTheStatusOutOfTheTimeline(): void {
+		// the difference between the two actions, and the reason `hide` cannot
+		// be left to the client: the status must not be sent at all
+		$this->stored[self::ALICE] = [
+			$this->filter('spoilers', [['banana', false]], [Filter::CONTEXT_HOME], Filter::ACTION_HIDE),
+		];
+
+		$page = $this->service->apply(
+			[$this->status('<p>a banana split</p>'), $this->status('<p>an apple</p>')],
+			Filter::CONTEXT_HOME,
+			$this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page);
+		$this->assertStringContainsString('apple', $page[0]['content']);
+	}
+
+	public function testWholeWordMatchesAWordAndNotAWordItStartsWith(): void {
+		$this->stored[self::ALICE] = [$this->filter('pets', [['cat', true]])];
+
+		$whole = $this->service->apply(
+			[$this->status('<p>look at that cat!</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+		$part = $this->service->apply(
+			[$this->status('<p>read the catalogue</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $whole[0]['filtered'], 'a whole-word keyword matches the word');
+		$this->assertSame([], $part[0]['filtered'], 'and nothing it is merely the start of');
+	}
+
+	public function testWithoutWholeWordTheKeywordMatchesInsideAWord(): void {
+		$this->stored[self::ALICE] = [$this->filter('pets', [['cat', false]])];
+
+		$page = $this->service->apply(
+			[$this->status('<p>read the catalogue</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page[0]['filtered']);
+		$this->assertSame(['cat'], $page[0]['filtered'][0]['keyword_matches']);
+	}
+
+	public function testAWholeWordKeywordThatStartsWithAHashStillMatches(): void {
+		// '\b' before '#' can never hold, so anchoring both sides blindly would
+		// make a keyword like this match nothing at all
+		$this->stored[self::ALICE] = [$this->filter('tags', [['#spoiler', true]])];
+
+		$page = $this->service->apply(
+			[$this->status('<p>careful, #spoiler ahead</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page[0]['filtered']);
+	}
+
+	public function testCaseNeverMatters(): void {
+		$this->stored[self::ALICE] = [$this->filter('shouting', [['banana', true]])];
+
+		$page = $this->service->apply(
+			[$this->status('<p>BANANA</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page[0]['filtered']);
+	}
+
+	public function testAKeywordIsNotAPattern(): void {
+		// stored as the account typed it, and compared as text: a keyword with
+		// regex punctuation in it must not blow up, and must not match
+		// everything
+		$this->stored[self::ALICE] = [$this->filter('literal', [['c++ (beta)', false]])];
+
+		$matching = $this->service->apply(
+			[$this->status('<p>about c++ (beta) today</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+		$other = $this->service->apply(
+			[$this->status('<p>about cxx beta today</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $matching[0]['filtered']);
+		$this->assertSame([], $other[0]['filtered']);
+	}
+
+	public function testMarkupIsNotPartOfTheText(): void {
+		// a keyword must not match an attribute the reader never sees
+		$this->stored[self::ALICE] = [$this->filter('markup', [['href', false]])];
+
+		$page = $this->service->apply(
+			[$this->status('<p><a href="https://example.net/">a link</a></p>')],
+			Filter::CONTEXT_HOME,
+			$this->viewer(self::ALICE)
+		);
+
+		$this->assertSame([], $page[0]['filtered']);
+	}
+
+	public function testEntitiesAreComparedAsTheReaderSeesThem(): void {
+		$this->stored[self::ALICE] = [$this->filter('apostrophes', [["don't", false]])];
+
+		$page = $this->service->apply(
+			[$this->status('<p>I don&apos;t think so</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page[0]['filtered']);
+	}
+
+	public function testTheContentWarningIsMatchedToo(): void {
+		$this->stored[self::ALICE] = [$this->filter('spoilers', [['ending', false]])];
+
+		$page = $this->service->apply(
+			[$this->status('<p>nothing here</p>', ['spoiler_text' => 'the ending'])],
+			Filter::CONTEXT_HOME,
+			$this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page[0]['filtered']);
+	}
+
+	public function testAnAttachmentDescriptionAndAPollOptionAreMatchedToo(): void {
+		$this->stored[self::ALICE] = [$this->filter('food', [['banana', false]], [Filter::CONTEXT_HOME])];
+
+		$described = $this->service->apply(
+			[$this->status('<p>look</p>', ['media_attachments' => [['description' => 'a banana']]])],
+			Filter::CONTEXT_HOME,
+			$this->viewer(self::ALICE)
+		);
+		$polled = $this->service->apply(
+			[$this->status('<p>vote</p>', ['poll' => ['options' => [['title' => 'banana']]]])],
+			Filter::CONTEXT_HOME,
+			$this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $described[0]['filtered']);
+		$this->assertCount(1, $polled[0]['filtered']);
+	}
+
+	public function testABoostIsFilteredOnWhatItBoosts(): void {
+		// the wrapper carries no text of its own: filtering it on that would
+		// filter nothing, and every filter would be escapable by boosting
+		$this->stored[self::ALICE] = [
+			$this->filter('spoilers', [['banana', false]], [Filter::CONTEXT_HOME], Filter::ACTION_HIDE),
+		];
+
+		$page = $this->service->apply(
+			[$this->status('', ['reblog' => $this->status('<p>a banana split</p>')])],
+			Filter::CONTEXT_HOME,
+			$this->viewer(self::ALICE)
+		);
+
+		$this->assertSame([], $page);
+	}
+
+	public function testTheBoostedStatusCarriesTheSameFilteredKey(): void {
+		// a client renders the boosted status and reads `filtered` off that one
+		$this->stored[self::ALICE] = [$this->filter('spoilers', [['banana', false]])];
+
+		$page = $this->service->apply(
+			[$this->status('', ['reblog' => $this->status('<p>a banana split</p>')])],
+			Filter::CONTEXT_HOME,
+			$this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page[0]['filtered']);
+		$this->assertCount(1, $page[0]['reblog']['filtered']);
+	}
+
+	public function testAFilterOnlyAppliesInTheContextsItNames(): void {
+		$this->stored[self::ALICE] = [
+			$this->filter('home only', [['banana', false]], [Filter::CONTEXT_HOME], Filter::ACTION_HIDE),
+		];
+
+		$home = $this->service->apply(
+			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+		$public = $this->service->apply(
+			[$this->status('<p>a banana</p>')], Filter::CONTEXT_PUBLIC, $this->viewer(self::ALICE)
+		);
+
+		$this->assertSame([], $home);
+		$this->assertCount(1, $public, 'the public timeline is not a context this filter names');
+		$this->assertSame([], $public[0]['filtered']);
+	}
+
+	public function testOneAccountsFiltersNeverTouchAnothersTimeline(): void {
+		// the whole feature is per viewer: a shared cache or an unscoped read
+		// would mute somebody else's timeline, and they would never know why
+		$this->stored[self::ALICE] = [
+			$this->filter('alice hides bananas', [['banana', false]], [Filter::CONTEXT_HOME], Filter::ACTION_HIDE),
+		];
+		$this->stored[self::BOB] = [];
+
+		$alice = $this->service->apply(
+			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+		$bob = $this->service->apply(
+			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::BOB)
+		);
+
+		$this->assertSame([], $alice);
+		$this->assertCount(1, $bob);
+		$this->assertSame([], $bob[0]['filtered']);
+		$this->assertSame([self::ALICE, self::BOB], $this->asked, 'each viewer is asked about by id');
+	}
+
+	public function testAnAnonymousReaderHasNoFiltersAndIsNotAskedAbout(): void {
+		$this->stored[self::ALICE] = [$this->filter('spoilers', [['banana', false]])];
+
+		$page = $this->service->apply([$this->status('<p>a banana</p>')], Filter::CONTEXT_PUBLIC, null);
+
+		$this->assertCount(1, $page);
+		$this->assertSame([], $page[0]['filtered']);
+		$this->assertSame([], $this->asked);
+	}
+
+	public function testAnExpiredFilterStopsApplyingWithNothingRunToMakeItSo(): void {
+		// there is no cleanup job, and one that failed to run would otherwise
+		// go on hiding statuses the account expected back
+		$this->stored[self::ALICE] = [
+			$this->filter(
+				'expired', [['banana', false]], [Filter::CONTEXT_HOME], Filter::ACTION_HIDE, time() - 60
+			),
+		];
+
+		$page = $this->service->apply(
+			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page);
+		$this->assertSame([], $page[0]['filtered']);
+	}
+
+	public function testAFilterThatHasNotExpiredYetStillApplies(): void {
+		$this->stored[self::ALICE] = [
+			$this->filter(
+				'later', [['banana', false]], [Filter::CONTEXT_HOME], Filter::ACTION_HIDE, time() + 3600
+			),
+		];
+
+		$page = $this->service->apply(
+			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertSame([], $page);
+	}
+
+	public function testAFilterWithNoKeywordsMatchesNothing(): void {
+		// it would otherwise be a filter that hides the whole timeline
+		$this->stored[self::ALICE] = [
+			$this->filter('empty', [], [Filter::CONTEXT_HOME], Filter::ACTION_HIDE),
+		];
+
+		$page = $this->service->apply(
+			[$this->status('<p>anything at all</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $page);
+		$this->assertSame([], $page[0]['filtered']);
+	}
+
+	public function testEveryMatchingFilterIsReported(): void {
+		$this->stored[self::ALICE] = [
+			$this->filter('one', [['banana', false]], [Filter::CONTEXT_HOME], Filter::ACTION_WARN, 0, 1),
+			$this->filter('two', [['split', false]], [Filter::CONTEXT_HOME], Filter::ACTION_WARN, 0, 2),
+		];
+
+		$page = $this->service->apply(
+			[$this->status('<p>a banana split</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertSame(
+			['one', 'two'],
+			array_column(array_column($page[0]['filtered'], 'filter'), 'title')
+		);
+	}
+
+	public function testTheStoreIsReadOncePerViewerPerRequest(): void {
+		$this->stored[self::ALICE] = [$this->filter('spoilers', [['banana', false]])];
+
+		$this->service->apply([$this->status('<p>a</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE));
+		$this->service->apply([$this->status('<p>b</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE));
+
+		$this->assertSame([self::ALICE], $this->asked);
+	}
+
+	public function testASingleStatusIsAnsweredOrWithheld(): void {
+		$this->stored[self::ALICE] = [
+			$this->filter('spoilers', [['banana', false]], [Filter::CONTEXT_THREAD], Filter::ACTION_HIDE),
+		];
+
+		$hidden = $this->service->applyToStatus(
+			$this->status('<p>a banana</p>'), Filter::CONTEXT_THREAD, $this->viewer(self::ALICE)
+		);
+		$shown = $this->service->applyToStatus(
+			$this->status('<p>an apple</p>'), Filter::CONTEXT_THREAD, $this->viewer(self::ALICE)
+		);
+
+		$this->assertNull($hidden);
+		$this->assertSame([], $shown['filtered']);
+	}
+
+	public function testANotificationForAHiddenStatusIsDroppedAndTheRestAreUntouched(): void {
+		$this->stored[self::ALICE] = [
+			$this->filter(
+				'spoilers', [['banana', false]], [Filter::CONTEXT_NOTIFICATIONS], Filter::ACTION_HIDE
+			),
+		];
+
+		$mentioning = new Note();
+		$mentioning->setNid(1)->setContent('<p>a banana split</p>');
+		$other = new Note();
+		$other->setNid(2)->setContent('<p>an apple</p>');
+
+		$kept = $this->service->applyToNotifications([$mentioning, $other], $this->viewer(self::ALICE));
+
+		$this->assertCount(1, $kept);
+		$this->assertSame($other, $kept[0], 'a notification is handed back as it came in');
+	}
+
+	public function testANotificationIsFilteredOnTheStatusItIsAbout(): void {
+		$this->stored[self::ALICE] = [
+			$this->filter(
+				'spoilers', [['banana', false]], [Filter::CONTEXT_NOTIFICATIONS], Filter::ACTION_HIDE
+			),
+		];
+
+		$note = new Note();
+		$note->setNid(1)->setSpoilerText('a banana');
+
+		$this->assertSame([], $this->service->applyToNotifications([$note], $this->viewer(self::ALICE)));
+	}
+
+	public function testAWholeWordKeywordEndingInANonAsciiLetterIsStillAWord(): void {
+		// 'é' has to count as a letter, or there is a word boundary between it
+		// and the 's' and a filter on "café" hides every post about cafés —
+		// which is what the '/u' on the pattern buys, PCRE2's UCP flag with it
+		$this->stored[self::ALICE] = [$this->filter('cafés', [['café', true]])];
+
+		$word = $this->service->apply(
+			[$this->status('<p>at the café</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+		$inside = $this->service->apply(
+			[$this->status('<p>about cafés</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+		);
+
+		$this->assertCount(1, $word[0]['filtered']);
+		$this->assertSame([], $inside[0]['filtered']);
+	}
+
+	public function testKeywordRegexIsWhatTheTwoModesSay(): void {
+		$plain = (new FilterKeyword())->setKeyword('cat');
+		$whole = (new FilterKeyword())->setKeyword('cat')->setWholeWord(true);
+
+		$this->assertSame('/cat/iu', FilterService::keywordRegex($plain));
+		$this->assertSame('/\bcat\b/iu', FilterService::keywordRegex($whole));
+	}
+}

@@ -17,7 +17,18 @@ class Relationship implements JsonSerializable {
 
 	private int $id;
 	private bool $following = false;
-	private bool $showingReblogs = false;
+	/**
+	 * Boosts from an account the viewer follows do reach the home timeline, and
+	 * nothing here can turn them off per account. `false` described a setting
+	 * this app does not have, and a client that reads it offers "show boosts"
+	 * as the action for a timeline that already shows them.
+	 */
+	private bool $showingReblogs = true;
+	/**
+	 * Whether the viewer is notified of this account's new posts — Mastodon's
+	 * per-account bell. There is no such subscription here, so the honest
+	 * answer is that nobody is being notified.
+	 */
 	private bool $notifying = false;
 	private bool $followedBy = false;
 	private bool $blocking = false;
@@ -165,7 +176,11 @@ class Relationship implements JsonSerializable {
 		return $this->requestedBy;
 	}
 
-	/** The private note the viewer keeps about this account; not stored yet. */
+	/**
+	 * The private note the viewer keeps about this account. Nothing stores one
+	 * yet, and an empty note is what an account nobody wrote a note about has
+	 * — see `FollowService::generateRelationship()` for where the lookup goes.
+	 */
 	public function setNote(string $note): self {
 		$this->note = $note;
 

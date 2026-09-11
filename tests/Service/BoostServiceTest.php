@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
@@ -28,6 +29,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamQueueService;
@@ -58,9 +60,11 @@ class BoostServiceTest extends TestCase {
 	private StreamQueueService|MockObject $streamQueueService;
 	private CacheActorService|MockObject $cacheActorService;
 	private AnnounceInterface|MockObject $announceInterface;
+	private ModerationService|MockObject $moderationService;
 	private BoostService $service;
 
 	protected function setUp(): void {
+		$this->moderationService = $this->createMock(ModerationService::class);
 		$this->announceInterface = $this->createMock(AnnounceInterface::class);
 		$this->bootActivityPub([AnnounceInterface::class => $this->announceInterface]);
 
@@ -94,7 +98,8 @@ class BoostServiceTest extends TestCase {
 			$this->streamActionService,
 			$this->streamQueueService,
 			$this->cacheActorService,
-			new NullLogger()
+			new NullLogger(),
+			$this->moderationService
 		);
 	}
 
@@ -398,5 +403,18 @@ class BoostServiceTest extends TestCase {
 
 		$this->expectException(StreamNotFoundException::class);
 		$this->service->delete($this->alice(), 'https://remote.example/notes/missing');
+	}
+
+	/**
+	 * A suspended account may not act. The guard is on the service, so it holds
+	 * for every entry point rather than for whichever controller was checked.
+	 */
+	public function testASuspendedAccountCannotBoost(): void {
+		$this->moderationService->method('assertNotSuspended')
+			->willThrowException(new InvalidActionException('account is suspended'));
+		$this->streamRequest->expects($this->never())->method('save');
+
+		$this->expectException(InvalidActionException::class);
+		$this->service->create($this->alice(), self::POST_ID);
 	}
 }

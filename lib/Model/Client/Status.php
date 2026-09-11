@@ -15,7 +15,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class Status implements \JsonSerializable {
 	use TArrayTools;
 
-	private string $contentType = '';
 	private bool $sensitive = false;
 	private string $visibility = '';
 	private string $spoilerText = '';
@@ -36,24 +35,6 @@ class Status implements \JsonSerializable {
 	//"media_ids": [],
 
 	public function __construct() {
-	}
-
-	/**
-	 * @param string $contentType
-	 *
-	 * @return Status
-	 */
-	public function setContentType(string $contentType): self {
-		$this->contentType = $contentType;
-
-		return $this;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getContentType(): string {
-		return $this->contentType;
 	}
 
 	/**
@@ -176,7 +157,6 @@ class Status implements \JsonSerializable {
 	}
 
 	public function import(array $data): self {
-		$this->setContentType($this->get('content_type', $data));
 		$this->setSensitive($this->getBool('sensitive', $data));
 		$this->setVisibility($this->get('visibility', $data));
 		$this->setSpoilerText($this->get('spoiler_text', $data));
@@ -206,7 +186,6 @@ class Status implements \JsonSerializable {
 
 	public function jsonSerialize(): array {
 		return [
-			'contentType' => $this->getContentType(),
 			'sensitive' => $this->isSensitive(),
 			'mediaIds' => $this->getMediaIds(),
 			'visibility' => $this->getVisibility(),

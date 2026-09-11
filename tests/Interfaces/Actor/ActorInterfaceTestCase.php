@@ -13,7 +13,10 @@ use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Db\ConversationsRequest;
+use OCA\Social\Db\FiltersRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\ReportsRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StreamActionsRequest;
@@ -68,6 +71,10 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 	/** An empty instance of the actor model this handler is registered for. */
 	abstract protected function createActor(): Person;
 
+	protected FiltersRequest|MockObject $filtersRequest;
+	protected ListsRequest|MockObject $listsRequest;
+	protected ConversationsRequest|MockObject $conversationsRequest;
+
 	protected function setUp(): void {
 		parent::setUp();
 
@@ -81,6 +88,9 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->streamDestRequest = $this->createMock(StreamDestRequest::class);
 		$this->streamActionsRequest = $this->createMock(StreamActionsRequest::class);
 		$this->reportsRequest = $this->createMock(ReportsRequest::class);
+		$this->filtersRequest = $this->createMock(FiltersRequest::class);
+		$this->listsRequest = $this->createMock(ListsRequest::class);
+		$this->conversationsRequest = $this->createMock(ConversationsRequest::class);
 		$this->actorService = $this->createMock(ActorService::class);
 
 		$this->handler = $this->createHandler();

@@ -27,9 +27,10 @@ class InstanceService {
 	use TArrayTools;
 
 	/**
-	 * How long a post may be. Mastodon's own limit; nothing here truncates, but
-	 * a client that does not know a limit assumes 500 and greys out the button
-	 * on the 501st character.
+	 * How long a post may be, in characters. Mastodon's own limit, advertised
+	 * because a client that is told no limit assumes 500 and greys out the
+	 * button on the 501st character. Nothing truncates to it: `PostService`
+	 * refuses a post over it, so what a client is told is what it gets.
 	 */
 	public const MAX_CHARACTERS = 5000;
 
@@ -260,8 +261,8 @@ class InstanceService {
 			'polls' => [
 				'max_options' => PostService::POLL_MAX_OPTIONS,
 				'max_characters_per_option' => 100,
-				'min_expiration' => 300,
-				'max_expiration' => 2629746,
+				'min_expiration' => PostService::POLL_MIN_EXPIRATION,
+				'max_expiration' => PostService::POLL_MAX_EXPIRATION,
 			],
 			'accounts' => [
 				'max_featured_tags' => 0,

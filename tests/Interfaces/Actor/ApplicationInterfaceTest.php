@@ -31,6 +31,9 @@ class ApplicationInterfaceTest extends ActorInterfaceTestCase {
 			$this->configService,
 			$this->streamActionsRequest,
 			$this->reportsRequest,
+			$this->filtersRequest,
+			$this->listsRequest,
+			$this->conversationsRequest,
 		);
 	}
 

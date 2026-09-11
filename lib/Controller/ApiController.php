@@ -41,6 +41,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
@@ -49,12 +50,14 @@ use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
+use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
@@ -163,6 +166,8 @@ class ApiController extends Controller {
 		private ICacheFactory $cacheFactory,
 		private IRootFolder $rootFolder,
 		private ITempManager $tempManager,
+		private FilterService $filterService,
+		private BannerService $bannerService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -277,6 +282,14 @@ class ApiController extends Controller {
 				$changed = true;
 			}
 
+			// `source[privacy]` is the audience this account posts with when a
+			// client does not name one, and `statusNew()` reads it back
+			$privacy = $input['source']['privacy'] ?? null;
+			if (is_string($privacy) && $privacy !== '') {
+				$this->accountService->setDefaultPrivacy($this->currentSession(), $privacy);
+				$changed = true;
+			}
+
 			// only the flags that were sent: a client updating the display
 			// name must not reset the ones it did not mention
 			$flags = [];
@@ -287,6 +300,16 @@ class ApiController extends Controller {
 			}
 			if ($flags !== []) {
 				$this->accountService->setActorFlags($this->currentSession(), $flags);
+				$changed = true;
+			}
+
+			// Mastodon sends the banner as `header`, multipart, on this same
+			// route. The avatar is not accepted: it is the Nextcloud account's
+			// picture, changed where the account is, exactly as the display
+			// name is — see the note in docs/API.md.
+			$header = $_FILES['header'] ?? [];
+			if ($header !== [] && ($header['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+				$this->bannerService->setFromTempFile($this->currentSession(), (string)$header['tmp_name']);
 				$changed = true;
 			}
 
@@ -339,6 +362,15 @@ class ApiController extends Controller {
 	private function accountEntity(Person $account): array {
 		// the viewer is already in local format, see initViewer()
 		$data = $account->jsonSerialize();
+
+		// `source` is the account's own copy of its settings, and the default
+		// audience is the one of them this app keeps per user rather than on
+		// the actor: the model has no way to know it
+		if ($account->isLocal() && isset($data['source'])) {
+			$data['source']['privacy'] = $this->accountService->getDefaultPrivacy(
+				$this->currentSession()
+			);
+		}
 
 		if (($data['last_status_at'] ?? null) === '') {
 			$data['last_status_at'] = null;
@@ -445,9 +477,10 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * Votes on a federated poll: the choices go to the poll's author as
-	 * ActivityPub vote notes, the authoritative counts come back later as an
-	 * Update from the origin server.
+	 * Votes on a poll. On a poll from another server the choices go to its
+	 * author as ActivityPub vote notes and the authoritative counts come back
+	 * later as an Update from the origin; on a poll of this instance's own the
+	 * vote is counted here and the new counts go out to the author's followers.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -655,10 +688,9 @@ class ApiController extends Controller {
 	 * The visibility a new status is posted with.
 	 *
 	 * A client that leaves the field out means "whatever this account posts
-	 * with"; Mastodon resolves that against the account's default privacy,
-	 * which this app has no setting for, so `public` stands in — the value a
-	 * status route is asked for by every bot and minimal client that omits it.
-	 * Anything this app does not know is refused rather than posted:
+	 * with", which is the account's own default — `source.privacy`, set through
+	 * `/api/v1/accounts/update_credentials` and `public` until someone changes
+	 * it. Anything this app does not know is refused rather than posted:
 	 * `Stream::visibilityFromClient()` maps an unknown value to `direct`, and a
 	 * direct message gets no recipient added, so those posts used to answer 200
 	 * and be delivered to nobody.
@@ -668,7 +700,7 @@ class ApiController extends Controller {
 	private function visibilityOf(Status $status): string {
 		$visibility = trim($status->getVisibility());
 		if ($visibility === '') {
-			return Stream::TYPE_PUBLIC;
+			return $this->accountService->getDefaultPrivacy($this->currentSession());
 		}
 
 		if (!Stream::isKnownClientVisibility($visibility)) {
@@ -1168,7 +1200,13 @@ class ApiController extends Controller {
 				'postsCount' => count($posts)
 			]);
 
-			return $this->paged($posts, $options->getLimit());
+			// the unfiltered page is what says whether a further page exists: a
+			// page shortened by a `hide` filter says nothing about what is older
+			return $this->paged(
+				$this->filterService->apply($posts, $this->filterContext($timeline), $this->viewer),
+				$options->getLimit(),
+				$posts
+			);
 		} catch (Throwable $e) {
 			$this->logger->error('[ApiController] Timeline request failed', [
 				'timeline' => $timeline,
@@ -1213,7 +1251,17 @@ class ApiController extends Controller {
 			$this->initViewer(false);
 			$context = $this->streamService->getContextByNid($nid);
 
-			return new DataResponse($context, Http::STATUS_OK);
+			return new DataResponse(
+				[
+					'ancestors' => $this->filterService->apply(
+						$context['ancestors'] ?? [], Filter::CONTEXT_THREAD, $this->viewer
+					),
+					'descendants' => $this->filterService->apply(
+						$context['descendants'] ?? [], Filter::CONTEXT_THREAD, $this->viewer
+					),
+				],
+				Http::STATUS_OK
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -1739,7 +1787,11 @@ class ApiController extends Controller {
 			$posts = $this->streamService->getTimeline($options);
 			$this->pinService->markPinned($posts, $local->getId());
 
-			return $this->paged($posts, $options->getLimit());
+			return $this->paged(
+				$this->filterService->apply($posts, Filter::CONTEXT_ACCOUNT, $this->viewer),
+				$options->getLimit(),
+				$posts
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -1872,7 +1924,9 @@ class ApiController extends Controller {
 
 			$posts = $this->streamService->getTimeline($options);
 
-			return $this->paged($posts, $options->getLimit());
+			return $this->paged(
+				$this->filterService->apply($posts, '', $this->viewer), $options->getLimit(), $posts
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -1899,7 +1953,11 @@ class ApiController extends Controller {
 
 			$posts = $this->streamService->getTimeline($options);
 
-			return $this->paged($posts, $options->getLimit());
+			// not a filter context in Mastodon either: the statuses carry an
+			// empty `filtered`, because its absence is read as an answer
+			return $this->paged(
+				$this->filterService->apply($posts, '', $this->viewer), $options->getLimit(), $posts
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -2033,7 +2091,11 @@ class ApiController extends Controller {
 			// filter: a page shortened here says nothing about whether older
 			// notifications exist, and a client that pages on the `Link` header
 			// stopped there with the rest of the list still in the database.
-			return $this->paged($posts, $options->getLimit(), $page);
+			return $this->paged(
+				$this->filterService->applyToNotifications($posts, $this->viewer),
+				$options->getLimit(),
+				$page
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -2070,7 +2132,11 @@ class ApiController extends Controller {
 
 			$posts = $this->streamService->getTimeline($options);
 
-			return $this->paged($posts, $options->getLimit());
+			return $this->paged(
+				$this->filterService->apply($posts, Filter::CONTEXT_PUBLIC, $this->viewer),
+				$options->getLimit(),
+				$posts
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -2453,6 +2519,19 @@ class ApiController extends Controller {
 	 * @param array|null $page the rows the query returned, where `$items` is a
 	 *                         filtered subset of them
 	 */
+	/**
+	 * The filter context a timeline is read in. Favourites, bookmarks and the
+	 * direct timeline are not contexts Mastodon filters in: their statuses
+	 * still carry `filtered`, empty, because its absence is read as an answer.
+	 */
+	private function filterContext(string $timeline): string {
+		return match (strtolower($timeline)) {
+			ProbeOptions::HOME => Filter::CONTEXT_HOME,
+			ProbeOptions::PUBLIC => Filter::CONTEXT_PUBLIC,
+			default => '',
+		};
+	}
+
 	private function paged(array $items, int $limit, ?array $page = null): DataResponse {
 		$response = new DataResponse($items, Http::STATUS_OK);
 

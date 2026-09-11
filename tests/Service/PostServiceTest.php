@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use DateTime;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
@@ -25,7 +26,9 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -51,6 +54,7 @@ class PostServiceTest extends TestCase {
 	private AccountService|MockObject $accountService;
 	private ActivityService|MockObject $activityService;
 	private CacheActorService|MockObject $cacheActorService;
+	private ModerationService|MockObject $moderationService;
 	private PostService $service;
 
 	/** what the poster's Nextcloud is set to, as IFactory::getUserLanguage() reports it */
@@ -87,12 +91,15 @@ class PostServiceTest extends TestCase {
 		$l10nFactory = $this->createMock(IFactory::class);
 		$l10nFactory->method('getUserLanguage')->willReturnCallback(fn (): string => $this->userLanguage);
 
+		$this->moderationService = $this->createMock(ModerationService::class);
+
 		$this->service = new PostService(
 			$streamService,
 			$this->accountService,
 			$this->activityService,
 			$l10nFactory,
 			$this->createMock(IUserManager::class),
+			$this->moderationService,
 			new NullLogger()
 		);
 	}
@@ -482,6 +489,36 @@ class PostServiceTest extends TestCase {
 		$this->assertStringContainsString('anyOf', $note->getSource(), 'the poll snapshot lives in the source');
 	}
 
+	public function testAPollLastsAsLongAsTheInstanceAdvertises(): void {
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('Cats or dogs?');
+		$post->setPoll([
+			'options' => ['Cats', 'Dogs'], 'expires_in' => PostService::POLL_MAX_EXPIRATION,
+		]);
+		$this->service->createPost($post);
+
+		$this->assertInstanceOf(Question::class, $note);
+		$this->assertEqualsWithDelta(
+			time() + PostService::POLL_MAX_EXPIRATION,
+			strtotime($note->getEndTime()),
+			10,
+			'a poll asked for at the advertised maximum runs that long'
+		);
+	}
+
+	public function testAPollShorterThanTheAdvertisedMinimumIsRaisedToIt(): void {
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('Cats or dogs?');
+		$post->setPoll(['options' => ['Cats', 'Dogs'], 'expires_in' => 1]);
+		$this->service->createPost($post);
+
+		$this->assertEqualsWithDelta(
+			time() + PostService::POLL_MIN_EXPIRATION, strtotime($note->getEndTime()), 10
+		);
+	}
+
 	public function testCreatePostWithASingleOptionPollIsRefused(): void {
 		$this->activityService->expects($this->never())->method('createActivity');
 
@@ -489,6 +526,62 @@ class PostServiceTest extends TestCase {
 		$post->setPoll(['options' => ['Only one'], 'expires_in' => 3600]);
 
 		$this->expectException(\InvalidArgumentException::class);
+
+		$this->service->createPost($post);
+	}
+
+	public function testASuspendedAccountCannotPost(): void {
+		// enforced where the post is made, so no client and no route can be the
+		// one that was forgotten
+		$this->moderationService->expects($this->once())
+			->method('assertNotSuspended')
+			->with(self::ACTOR_ID)
+			->willThrowException(new InvalidActionException('this account is suspended'));
+		$this->activityService->expects($this->never())->method('createActivity');
+
+		$this->expectException(InvalidActionException::class);
+
+		$this->service->createPost($this->post('still here'));
+	}
+
+	public function testASuspendedAccountCannotEditWhatItPosted(): void {
+		$this->moderationService->method('assertNotSuspended')
+			->willThrowException(new InvalidActionException('this account is suspended'));
+		$this->streamRequest->expects($this->never())->method('update');
+		$this->activityService->expects($this->never())->method('updateActivity');
+
+		$this->expectException(InvalidActionException::class);
+
+		$this->service->editPost(7, $this->actor(), 'new');
+	}
+
+	public function testAPostLongerThanTheAdvertisedLimitIsRefused(): void {
+		$this->activityService->expects($this->never())->method('createActivity');
+
+		$post = $this->post(str_repeat('a', InstanceService::MAX_CHARACTERS + 1));
+
+		$this->expectException(InvalidActionException::class);
+
+		$this->service->createPost($post);
+	}
+
+	public function testTheLimitCountsCharactersAndNotBytes(): void {
+		$this->expectCreateActivity($note);
+
+		// every one of these is three bytes, so a byte count would refuse it
+		$post = $this->post(str_repeat('。', InstanceService::MAX_CHARACTERS));
+		$this->service->createPost($post);
+
+		$this->assertInstanceOf(Note::class, $note);
+	}
+
+	public function testTheSpoilerCountsTowardsTheSameLimit(): void {
+		$this->activityService->expects($this->never())->method('createActivity');
+
+		$post = $this->post(str_repeat('a', InstanceService::MAX_CHARACTERS - 1));
+		$post->setSpoilerText('cw');
+
+		$this->expectException(InvalidActionException::class);
 
 		$this->service->createPost($post);
 	}
@@ -507,6 +600,17 @@ class PostServiceTest extends TestCase {
 		$note->setLocal(true);
 
 		return $note;
+	}
+
+	public function testAnEditLongerThanTheAdvertisedLimitIsRefused(): void {
+		$this->streamRequest->method('getStreamByNid')->with(7)->willReturn($this->storedNote());
+		$this->streamRequest->expects($this->never())->method('update');
+
+		$this->expectException(InvalidActionException::class);
+
+		$this->service->editPost(
+			7, $this->actor(), str_repeat('a', InstanceService::MAX_CHARACTERS + 1)
+		);
 	}
 
 	public function testEditPostUpdatesOwnPostAndFederatesAnUpdate(): void {

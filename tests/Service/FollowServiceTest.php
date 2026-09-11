@@ -15,6 +15,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -27,6 +28,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\ModerationService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -47,6 +49,7 @@ class FollowServiceTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	/** @var FollowInterface&MockObject */
 	private $followInterface;
+	private ModerationService|MockObject $moderationService;
 	private FollowService $service;
 
 	protected function setUp(): void {
@@ -58,6 +61,7 @@ class FollowServiceTest extends TestCase {
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->followInterface = $this->createMock(FollowInterface::class);
+		$this->moderationService = $this->createMock(ModerationService::class);
 
 		$this->service = new FollowService(
 			$this->urlGenerator,
@@ -67,6 +71,7 @@ class FollowServiceTest extends TestCase {
 			$this->cacheActorService,
 			$this->createMock(ConfigService::class),
 			$this->followInterface,
+			$this->moderationService,
 			new NullLogger()
 		);
 	}
@@ -203,6 +208,19 @@ class FollowServiceTest extends TestCase {
 
 		$this->expectException(CacheActorDoesNotExistException::class);
 		$this->service->followAccount($this->alice(), 'nobody@remote.example');
+	}
+
+	public function testASuspendedAccountCannotFollow(): void {
+		$this->moderationService->expects($this->once())
+			->method('assertNotSuspended')
+			->with(self::ALICE_ID)
+			->willThrowException(new InvalidActionException('this account is suspended'));
+		$this->followsRequest->expects($this->never())->method('save');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->expectException(InvalidActionException::class);
+
+		$this->service->followAccount($this->alice(), 'bob@remote.example');
 	}
 
 	// unfollowAccount()
@@ -464,6 +482,47 @@ class FollowServiceTest extends TestCase {
 		$this->assertFalse($relationships[1]->isFollowing());
 		$this->assertFalse($relationships[1]->isFollowedBy());
 		$this->assertTrue($relationships[1]->isRequested());
+	}
+
+	public function testAPendingIncomingFollowIsReportedAsRequestedBy(): void {
+		// the same row /api/v1/follow_requests lists: a client reads
+		// `requested_by` to offer approve and reject on the profile
+		$alice = $this->alice();
+		$bob = $this->person(self::BOB_ID, 'bob', 2);
+		$this->service->setViewer($alice);
+		$this->cacheActorService->method('getFromNids')->willReturn([$bob]);
+		$this->followsRequest->method('getByPersons')
+			->willReturnCallback(function (string $actorId, string $remoteId): Follow {
+				return match ([$actorId, $remoteId]) {
+					[self::BOB_ID, self::ALICE_ID] => $this->follow($actorId, $remoteId, false),
+					default => throw new FollowNotFoundException(),
+				};
+			});
+
+		$relationship = $this->service->getRelationships(['2'])[0];
+
+		$this->assertTrue($relationship->isRequestedBy());
+		$this->assertFalse($relationship->isFollowedBy());
+		$this->assertFalse($relationship->isRequested());
+	}
+
+	public function testAnAcceptedIncomingFollowIsNotAPendingRequest(): void {
+		$alice = $this->alice();
+		$bob = $this->person(self::BOB_ID, 'bob', 2);
+		$this->service->setViewer($alice);
+		$this->cacheActorService->method('getFromNids')->willReturn([$bob]);
+		$this->followsRequest->method('getByPersons')
+			->willReturnCallback(function (string $actorId, string $remoteId): Follow {
+				return match ([$actorId, $remoteId]) {
+					[self::BOB_ID, self::ALICE_ID] => $this->follow($actorId, $remoteId, true),
+					default => throw new FollowNotFoundException(),
+				};
+			});
+
+		$relationship = $this->service->getRelationships(['2'])[0];
+
+		$this->assertTrue($relationship->isFollowedBy());
+		$this->assertFalse($relationship->isRequestedBy());
 	}
 
 	public function testGetRelationshipsSkipsUnknownActors(): void {

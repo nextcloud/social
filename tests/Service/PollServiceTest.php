@@ -210,12 +210,28 @@ class PollServiceTest extends TestCase {
 		$this->service->vote($this->viewer(), 42, [0]);
 	}
 
-	public function testALocalPollRefusesVotes(): void {
-		$this->poll([], true);
+	public function testALocalPollCountsTheVoteHereAndFederatesTheNewCounts(): void {
+		$poll = $this->poll([], true);
+		$author = new Person();
+		$author->setId(self::AUTHOR);
+		$this->accountService->method('getFromId')->with(self::AUTHOR)->willReturn($author);
 
-		$this->expectException(InvalidActionException::class);
+		// nothing is sent to an origin server: this instance is the origin
+		$this->activityService->expects($this->never())->method('request');
+		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($poll));
+		$this->activityService->expects($this->once())
+			->method('updateActivity')
+			->with($this->identicalTo($author), $this->identicalTo($poll));
 
-		$this->service->vote($this->viewer(), 42, [0]);
+		$result = $this->service->vote($this->viewer(), 42, [1]);
+
+		$this->assertSame(3, $result->getOptions()[1]['votes_count']);
+		$this->assertSame(1, $result->getVotersCount());
+		$this->assertStringContainsString('"totalItems":3', $result->getSource());
+
+		$exported = $result->exportAsLocal()['poll'];
+		$this->assertTrue($exported['voted']);
+		$this->assertSame([1], $exported['own_votes']);
 	}
 
 	public function testVotingTwiceIsRefused(): void {
@@ -317,6 +333,52 @@ class PollServiceTest extends TestCase {
 		$this->streamRequest->method('getStreamById')->willReturn($question);
 
 		$this->assertFalse($this->service->handleIncomingVote($this->voteNote()));
+	}
+
+	/** An ActionsRequest that only knows about the votes named here. */
+	private function votesAlreadyCast(array $options): void {
+		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->service = new PollService(
+			$this->streamRequest, $this->actionsRequest, $this->accountService,
+			$this->cacheActorService, $this->activityService,
+			$this->createMock(SignatureService::class),
+			$this->streamActionService, $this->streamActionsRequest, new NullLogger()
+		);
+		$this->actionsRequest->method('getAction')
+			->willReturnCallback(function (string $actorId, string $objectId) use ($options) {
+				foreach ($options as $option) {
+					if ($objectId === self::POLL_ID . '#option-' . $option) {
+						return new Note();
+					}
+				}
+
+				throw new ActionDoesNotExistException();
+			});
+	}
+
+	public function testASecondIncomingVoteOnASingleChoicePollIsNotCounted(): void {
+		$poll = $this->localPoll();
+		$this->votesAlreadyCast([1]);
+		$this->streamRequest->expects($this->never())->method('update');
+
+		$this->assertTrue($this->service->handleIncomingVote($this->voteNote('Cats')));
+
+		$this->assertSame(0, $poll->getOptions()[0]['votes_count']);
+		$this->assertSame(0, $poll->getVotersCount());
+	}
+
+	public function testASecondIncomingVoteOnAMultipleChoicePollIsCounted(): void {
+		$poll = $this->localPoll();
+		$poll->setPollData(['Cats', 'Dogs'], true, 3600);
+		$this->votesAlreadyCast([1]);
+		$author = new Person();
+		$author->setId(self::AUTHOR);
+		$this->accountService->method('getFromId')->willReturn($author);
+		$this->streamRequest->expects($this->once())->method('update');
+
+		$this->assertTrue($this->service->handleIncomingVote($this->voteNote('Cats')));
+
+		$this->assertSame(1, $poll->getOptions()[0]['votes_count']);
 	}
 
 	public function testANonPollStatusIsNotFound(): void {

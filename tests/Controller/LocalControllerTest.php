@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\FollowSameAccountException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -26,6 +27,7 @@ use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\BannerService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
@@ -55,6 +57,8 @@ use Psr\Log\NullLogger;
 class LocalControllerTest extends TestCase {
 	/** @var IRequest&MockObject */
 	private $request;
+	/** @var BannerService&MockObject */
+	private $bannerService;
 	/** @var AccountService&MockObject */
 	private $accountService;
 	/** @var CacheActorService&MockObject */
@@ -94,6 +98,7 @@ class LocalControllerTest extends TestCase {
 	private array $cachedRemoteFiles = [];
 
 	protected function setUp(): void {
+		$this->bannerService = $this->createMock(BannerService::class);
 		$this->filesBackup = $_FILES;
 		$_FILES = [];
 
@@ -165,7 +170,8 @@ class LocalControllerTest extends TestCase {
 			new NullLogger(),
 			$this->actorService,
 			$this->activityService,
-			$this->cacheDocumentService
+			$this->cacheDocumentService,
+			$this->bannerService
 		);
 	}
 
@@ -232,6 +238,22 @@ class LocalControllerTest extends TestCase {
 		$this->assertSame('https://remote.example/n/1', $created->getReplyTo());
 		$this->assertSame(['https://cloud.example/documents/1'], $created->getAttachments());
 		$this->assertSame(['nextcloud'], $created->getHashtags());
+	}
+
+	public function testAPostTheServiceRefusesIsAnswered422WithTheReason(): void {
+		// 500 and 'request failed' reads as "the server broke"; the composer
+		// has to be able to say why the post was not made
+		$this->actorForUser();
+		$this->postService->method('createPost')
+			->willThrowException(new InvalidActionException('a post may not be longer than 5000 characters'));
+
+		$response = $this->controller()->postCreate('far too much');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(
+			['status' => -1, 'error' => 'a post may not be longer than 5000 characters'],
+			$response->getData()
+		);
 	}
 
 	public function testPostCreateDefaultsToAPublicTopLevelPost(): void {

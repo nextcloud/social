@@ -1060,8 +1060,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$page->paginate($options);
 		$this->filterMedia($page, $options);
 
-		if ($options->isLocal()) {
-			$page->limitToLocal(true);
+		// `local=true` is this instance's own posts, `remote=true` every other
+		// instance's: Mastodon's two ways of narrowing the same timeline
+		$origin = $options->originLimit();
+		if ($origin !== null) {
+			$page->limitToLocal($origin);
 		}
 		$page->limitToStatusTypes();
 		$page->selectDestFollowing('sd', '');

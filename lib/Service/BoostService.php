@@ -44,10 +44,15 @@ class BoostService {
 	private LoggerInterface $logger;
 
 	public function __construct(
-		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
-		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
+		StreamRequest $streamRequest,
+		StreamService $streamService,
+		SignatureService $signatureService,
+		ActivityService $activityService,
+		StreamActionService $streamActionService,
+		StreamQueueService $streamQueueService,
+		CacheActorService $cacheActorService,
 		LoggerInterface $logger,
+		private ModerationService $moderationService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
@@ -70,6 +75,10 @@ class BoostService {
 	 * @throws Exception
 	 */
 	public function create(Person $actor, string $postId, string &$token = ''): ACore {
+		// a suspended account may not act: the check lives here rather than in
+		// StreamService, which ModerationService itself now depends on
+		$this->moderationService->assertNotSuspended($actor->getId());
+
 		/** @var Announce $announce */
 		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
 		$this->streamService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);

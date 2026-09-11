@@ -41,6 +41,9 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 			$this->configService,
 			$this->streamActionsRequest,
 			$this->reportsRequest,
+			$this->filtersRequest,
+			$this->listsRequest,
+			$this->conversationsRequest,
 		);
 	}
 
@@ -197,6 +200,20 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 
 		$this->streamRequest->expects($this->once())->method('deleteById')->with($direct->getId());
 		$this->streamRequest->expects($this->never())->method('update');
+
+		$this->handler->delete($bob);
+	}
+
+	/**
+	 * Filters and lists belong to one account and to nobody else, so they have
+	 * nothing to outlive it. Nothing else removes them: without this they
+	 * survive the account and keep muting and grouping for a user who is gone.
+	 */
+	public function testDeleteTakesTheAccountsFiltersAndListsWithIt(): void {
+		$bob = $this->bob();
+
+		$this->filtersRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
+		$this->listsRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
 
 		$this->handler->delete($bob);
 	}

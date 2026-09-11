@@ -10,22 +10,22 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use Exception;
-use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\BannerService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
@@ -89,18 +89,26 @@ class LocalController extends Controller {
 	private CacheActorsRequest $cacheActorsRequest;
 
 	public function __construct(
-		IRequest $request, ?string $userId, AccountService $accountService, CacheActorService $cacheActorService,
+		IRequest $request,
+		?string $userId,
+		AccountService $accountService,
+		CacheActorService $cacheActorService,
 		CacheActorsRequest $cacheActorsRequest,
 		HashtagService $hashtagService,
-		FollowService $followService, PostService $postService, StreamService $streamService,
+		FollowService $followService,
+		PostService $postService,
+		StreamService $streamService,
 		SearchService $searchService,
-		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
+		BoostService $boostService,
+		LikeService $likeService,
+		DocumentService $documentService,
 		MiscService $miscService,
 		ConfigService $configService,
 		LoggerInterface $logger,
 		ActorService $actorService,
 		ActivityService $activityService,
 		CacheDocumentService $cacheDocumentService,
+		private BannerService $bannerService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -155,37 +163,7 @@ class LocalController extends Controller {
 
 			$tmpName = $file['tmp_name'];
 
-			$actor = $this->accountService->getActorFromUserId($this->userId);
-
-			$image = new Image();
-			$image->setLocal(true);
-			$image->setAccount($actor->getPreferredUsername());
-			$image->setUrlCloud($this->configService->getCloudUrl());
-			$image->generateUniqueId('/documents/header');
-			$image->setPublic(true);
-
-			$this->cacheDocumentService->saveFromTempToCache($image, $tmpName);
-			$image->setUrl($image->getMediaUrl(\OC::$server->get(\OCP\IURLGenerator::class), $image->getMimeType()));
-
-			$interface = AP::$activityPub->getInterfaceForItem($image);
-			$interface->save($image);
-
-			$this->accountService->cacheLocalActorByUsername($actor->getPreferredUsername());
-			$cached = $this->cacheActorService->getFromId($actor->getId());
-			$cached->setHeader($image->getUrl());
-			$this->actorService->cacheLocalActor($cached);
-
-			try {
-				$updateItem = clone $cached;
-				$updateItem->addInstancePath(new InstancePath(
-					$cached->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
-				));
-				$this->activityService->updateActivity($cached, $updateItem);
-			} catch (Exception $e) {
-				$this->logger->warning('[LocalController] Failed to federate banner change', [
-					'exception' => $e->getMessage(),
-				]);
-			}
+			$image = $this->bannerService->setFromTempFile($this->userId, $tmpName);
 
 			$this->logger->info('[LocalController] Banner uploaded', [
 				'userId' => $this->userId,
@@ -257,37 +235,7 @@ class LocalController extends Controller {
 				throw new Exception('Cannot store the downloaded banner');
 			}
 
-			$actor = $this->accountService->getActorFromUserId($this->userId);
-
-			$image = new Image();
-			$image->setLocal(true);
-			$image->setAccount($actor->getPreferredUsername());
-			$image->setUrlCloud($this->configService->getCloudUrl());
-			$image->generateUniqueId('/documents/header');
-			$image->setPublic(true);
-
-			$this->cacheDocumentService->saveFromTempToCache($image, $tmpFile);
-			$image->setUrl($image->getMediaUrl(\OC::$server->get(\OCP\IURLGenerator::class), $image->getMimeType()));
-
-			$interface = AP::$activityPub->getInterfaceForItem($image);
-			$interface->save($image);
-
-			$this->accountService->cacheLocalActorByUsername($actor->getPreferredUsername());
-			$cached = $this->cacheActorService->getFromId($actor->getId());
-			$cached->setHeader($image->getUrl());
-			$this->actorService->cacheLocalActor($cached);
-
-			try {
-				$updateItem = clone $cached;
-				$updateItem->addInstancePath(new InstancePath(
-					$cached->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
-				));
-				$this->activityService->updateActivity($cached, $updateItem);
-			} catch (Exception $e) {
-				$this->logger->warning('[LocalController] Failed to federate banner change', [
-					'exception' => $e->getMessage(),
-				]);
-			}
+			$image = $this->bannerService->setFromTempFile($this->userId, $tmpFile);
 
 			$this->logger->info('[LocalController] Banner uploaded via URL', [
 				'userId' => $this->userId,
@@ -359,6 +307,15 @@ class LocalController extends Controller {
 					'post' => $activity->getObject(),
 					'token' => $token
 				]
+			);
+		} catch (InvalidActionException $e) {
+			// The request was understood and refused: too long, or a quote of a
+			// post that may not be quoted. `fail()` answers 500 with 'request
+			// failed', which reads as "the server broke" and leaves the composer
+			// nothing to say; this one exception is raised with a message meant
+			// for whoever is writing the post, so it is the one that is passed on.
+			return new DataResponse(
+				['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY
 			);
 		} catch (Exception $e) {
 			$this->logger->error('[LocalController] postCreate failed', [

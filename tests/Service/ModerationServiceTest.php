@@ -16,8 +16,12 @@ use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\StreamService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -40,6 +44,7 @@ class ModerationServiceTest extends TestCase {
 	private ActorRelationRequest|MockObject $actorRelationRequest;
 	private StreamDestRequest|MockObject $streamDestRequest;
 	private RequestQueueRequest|MockObject $requestQueueRequest;
+	private StreamService|MockObject $streamService;
 	private ModerationService $service;
 
 	protected function setUp(): void {
@@ -50,6 +55,7 @@ class ModerationServiceTest extends TestCase {
 		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->streamDestRequest = $this->createMock(StreamDestRequest::class);
 		$this->requestQueueRequest = $this->createMock(RequestQueueRequest::class);
+		$this->streamService = $this->createMock(StreamService::class);
 
 		$this->service = new ModerationService(
 			$this->moderationRequest,
@@ -59,6 +65,7 @@ class ModerationServiceTest extends TestCase {
 			$this->actorRelationRequest,
 			$this->streamDestRequest,
 			$this->requestQueueRequest,
+			$this->streamService,
 			new NullLogger(),
 		);
 	}
@@ -157,6 +164,22 @@ class ModerationServiceTest extends TestCase {
 		$this->assertFalse($this->service->isSuspended('https://good.example/users/bob'));
 	}
 
+	public function testASuspendedAccountIsRefusedWhatItWouldSend(): void {
+		$this->moderationRequest->method('levelOf')->willReturn(Moderation::SUSPEND);
+
+		$this->expectException(InvalidActionException::class);
+
+		$this->service->assertNotSuspended(self::SPAMMER);
+	}
+
+	public function testASilencedAccountMayStillPost(): void {
+		// silencing closes the public timelines, it does not gag the account
+		$this->moderationRequest->method('levelOf')->willReturn(Moderation::SILENCE);
+
+		$this->service->assertNotSuspended(self::SPAMMER);
+		$this->addToAssertionCount(1);
+	}
+
 	public function testASilencedAccountIsNotSuspended(): void {
 		$this->moderationRequest->method('levelOf')->willReturn(Moderation::SILENCE);
 
@@ -178,19 +201,72 @@ class ModerationServiceTest extends TestCase {
 		$service = new ModerationService(
 			$this->moderationRequest, $this->streamRequest, $this->cacheActorsRequest,
 			$this->followsRequest, $this->actorRelationRequest, $this->streamDestRequest,
-			$this->requestQueueRequest, $logger
+			$this->requestQueueRequest, $this->createMock(StreamService::class), $logger
 		);
 
 		$service->decide(self::SPAMMER, Moderation::SILENCE);
 		$this->addToAssertionCount(1);
 	}
 
-	public function testRemovingAPostDeletesThatPostAndOnlyThatPost(): void {
+	private function post(string $id, bool $local): Note {
+		$note = new Note();
+		$note->setId($id);
+		$note->setAttributedTo(self::SPAMMER);
+		$note->setLocal($local);
+		$this->streamRequest->method('getStreamById')->with($id)->willReturn($note);
+
+		return $note;
+	}
+
+	public function testRemovingARemotePostDeletesThatPostAndOnlyThatPost(): void {
 		// deleteById() removes the post and everything keyed to it; what it
 		// must not do is touch anything else the author wrote
+		$this->post('https://spam.example/p/1', false);
 		$this->streamRequest->expects($this->once())->method('deleteById')->with('https://spam.example/p/1');
 		$this->streamRequest->expects($this->never())->method('deleteByAuthor');
 
 		$this->service->removeStream('https://spam.example/p/1');
+	}
+
+	public function testRemovingARemotePostFederatesNothing(): void {
+		// this instance is not the origin of somebody else's post and has no
+		// standing to tell the rest of the fediverse it is gone
+		$this->post('https://spam.example/p/1', false);
+		$this->streamService->expects($this->never())->method('deleteLocalItem');
+
+		$this->service->removeStream('https://spam.example/p/1');
+	}
+
+	public function testRemovingALocalPostFederatesTheDelete(): void {
+		// a row dropped here alone leaves the post live on every instance that
+		// holds a copy of it
+		$note = $this->post('https://cloud.example/@bob/1', true);
+		$this->streamService->expects($this->once())
+			->method('deleteLocalItem')
+			->with($this->identicalTo($note));
+		$this->streamRequest->expects($this->never())->method('deleteById');
+
+		$this->service->removeStream('https://cloud.example/@bob/1');
+	}
+
+	public function testATakedownDoesNotWaitOnTheFediverse(): void {
+		$this->post('https://cloud.example/@bob/1', true);
+		$this->streamService->method('deleteLocalItem')
+			->willThrowException(new \RuntimeException('no route to host'));
+
+		// the post goes either way; the Delete is what is lost
+		$this->streamRequest->expects($this->once())
+			->method('deleteById')->with('https://cloud.example/@bob/1');
+
+		$this->service->removeStream('https://cloud.example/@bob/1');
+	}
+
+	public function testRemovingAPostThatIsNotThereIsNotAFailure(): void {
+		$this->streamRequest->method('getStreamById')
+			->willThrowException(new StreamNotFoundException());
+		$this->streamRequest->expects($this->never())->method('deleteById');
+
+		$this->service->removeStream('https://spam.example/p/gone');
+		$this->addToAssertionCount(1);
 	}
 }

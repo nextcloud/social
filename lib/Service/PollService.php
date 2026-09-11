@@ -26,13 +26,19 @@ use OCA\Social\Tools\Traits\TStringTools;
 use Psr\Log\LoggerInterface;
 
 /**
- * Voting on federated polls: a vote is a bare Note whose `name` is the chosen
- * option, addressed only to the poll's author — exactly what Mastodon expects.
- * The chosen indices are remembered per viewer in the stream action, so the
- * poll renders as voted; authoritative counts arrive later as Update{Question}
- * from the origin server and refresh the stored source.
+ * Voting on polls, whoever holds the one being voted on.
  *
- * Creating own polls is not supported.
+ * A vote on a *remote* poll is a bare Note whose `name` is the chosen option,
+ * addressed only to the poll's author — exactly what Mastodon expects;
+ * authoritative counts arrive later as Update{Question} from the origin server
+ * and refresh the stored source.
+ *
+ * A vote on a *local* poll has no origin to ask: this instance is the origin,
+ * so the vote is counted here — through the same path an incoming vote takes —
+ * and the new counts go out to the author's followers as Update{Question}.
+ *
+ * Either way the chosen indices are remembered per viewer in the stream action,
+ * so the poll renders as voted.
  */
 class PollService {
 	use TStringTools;
@@ -82,9 +88,6 @@ class PollService {
 	public function vote(Person $viewer, int $nid, array $choices): Question {
 		$poll = $this->getPoll($nid, $viewer);
 
-		if ($poll->isLocal()) {
-			throw new InvalidActionException('only federated polls can be voted on');
-		}
 		if ($poll->isExpired()) {
 			throw new InvalidActionException('this poll has ended');
 		}
@@ -107,9 +110,13 @@ class PollService {
 			throw new InvalidActionException('you already voted on this poll');
 		}
 
-		$author = $this->cacheActorService->getFromId($poll->getAttributedTo());
-		foreach ($choices as $choice) {
-			$this->federateVote($viewer, $poll, $options[$choice]['title'], $author);
+		if ($poll->isLocal()) {
+			$this->countVotes($viewer->getId(), $poll, $choices);
+		} else {
+			$author = $this->cacheActorService->getFromId($poll->getAttributedTo());
+			foreach ($choices as $choice) {
+				$this->federateVote($viewer, $poll, $options[$choice]['title'], $author);
+			}
 		}
 
 		$this->streamActionService->setAction(
@@ -129,8 +136,9 @@ class PollService {
 	 * stored as a timeline item. Returns whether the note was consumed.
 	 *
 	 * A vote is a bare Note whose name is an option of a local poll it replies
-	 * to. Duplicate votes (per voter and option) and votes on expired polls
-	 * are swallowed without counting.
+	 * to. Votes on expired polls, a second vote for an option already voted for
+	 * and any further vote in a single-choice poll are swallowed without
+	 * counting.
 	 */
 	public function handleIncomingVote(Note $note): bool {
 		if ($note->getName() === '' || $note->getInReplyTo() === '' || $note->isLocal()) {
@@ -152,28 +160,54 @@ class PollService {
 		}
 
 		$voter = $note->getAttributedTo();
-		if ($this->alreadyVoted($voter, $target->getId(), $option)) {
+		// a single-choice poll gives one vote per account, not one per option
+		if (!$target->isMultiple() && $this->hasAnyVote($voter, $target)) {
 			return true;
 		}
-		$newVoter = !$this->hasAnyVote($voter, $target);
-		$this->rememberVote($voter, $target->getId(), $option);
 
-		$target->countVote($option, $newVoter);
-		$target->setSource(json_encode($target, JSON_UNESCAPED_SLASHES));
-		$this->streamRequest->update($target);
+		$this->countVotes($voter, $target, [$option]);
+
+		return true;
+	}
+
+	/**
+	 * Counts votes on a poll this instance holds, snapshots the new counts into
+	 * the stored source and tells the author's followers about them. An option
+	 * this voter already voted for is skipped, so a redelivered vote and a
+	 * retried request count once.
+	 *
+	 * @param int[] $options option indices
+	 */
+	private function countVotes(string $voter, Question $poll, array $options): void {
+		$counted = false;
+		foreach ($options as $option) {
+			if ($this->alreadyVoted($voter, $poll->getId(), $option)) {
+				continue;
+			}
+
+			$newVoter = !$this->hasAnyVote($voter, $poll);
+			$this->rememberVote($voter, $poll->getId(), $option);
+			$poll->countVote($option, $newVoter);
+			$counted = true;
+		}
+
+		if (!$counted) {
+			return;
+		}
+
+		$poll->setSource(json_encode($poll, JSON_UNESCAPED_SLASHES));
+		$this->streamRequest->update($poll);
 
 		// tell the followers the new counts
 		try {
-			$author = $this->accountService->getFromId($target->getAttributedTo());
-			$target->addInstancePath(new InstancePath(
+			$author = $this->accountService->getFromId($poll->getAttributedTo());
+			$poll->addInstancePath(new InstancePath(
 				$author->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
 			));
-			$this->activityService->updateActivity($author, $target);
+			$this->activityService->updateActivity($author, $poll);
 		} catch (\Exception $e) {
 			$this->logger->warning('failed to federate poll counts', ['exception' => $e]);
 		}
-
-		return true;
 	}
 
 	private function voteId(string $voter, string $pollId, int $option): string {

@@ -18,6 +18,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -28,6 +29,7 @@ use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCP\Accounts\IAccountManager;
 use OCP\IUser;
@@ -58,6 +60,13 @@ class AccountService {
 	 * on every server that shows it anyway.
 	 */
 	private const SUMMARY_MAX_LENGTH = 500;
+
+	/**
+	 * Where an account's default post visibility is kept, as a per-user app
+	 * preference. It is a preference of the person, not a property of the
+	 * actor: nothing federates it, and the actor row has no column for it.
+	 */
+	private const DEFAULT_PRIVACY = 'default_privacy';
 
 	/**
 	 * Age, in days, past which `blindKeyRotation()` would renew an actor's key pair.
@@ -425,6 +434,33 @@ class AccountService {
 		$this->actorsRequest->updateSummary($actor);
 		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
 		$this->federateActorUpdate($actor);
+	}
+
+	/**
+	 * The visibility a post of this account gets when the client sends none —
+	 * Mastodon's `source.privacy`, which a client reads at login and offers as
+	 * the preselected audience in its composer. A stored value that is not one
+	 * this app posts with is ignored rather than guessed at.
+	 */
+	public function getDefaultPrivacy(string $userId): string {
+		$stored = (string)$this->configService->getValueForUser($userId, self::DEFAULT_PRIVACY);
+
+		return Stream::isKnownClientVisibility($stored) ? $stored : Stream::TYPE_PUBLIC;
+	}
+
+	/**
+	 * @throws InvalidActionException when it is not a visibility a post can have
+	 */
+	public function setDefaultPrivacy(string $userId, string $privacy): void {
+		$privacy = strtolower(trim($privacy));
+		if (!Stream::isKnownClientVisibility($privacy)) {
+			throw new InvalidActionException(
+				'unknown visibility: ' . $privacy . ' (one of '
+				. implode(', ', Stream::clientVisibilities()) . ')'
+			);
+		}
+
+		$this->configService->setValueForUser($userId, self::DEFAULT_PRIVACY, $privacy);
 	}
 
 	/** A bio as it is stored: as typed, normalised newlines, length-capped. */
