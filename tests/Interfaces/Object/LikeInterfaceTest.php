@@ -52,7 +52,7 @@ class LikeInterfaceTest extends ActivityPubTestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 
-		$this->handler = new LikeInterface($this->actionsRequest, $this->streamRequest, $this->cacheActorService);
+		$this->handler = new LikeInterface($this->actionsRequest, $this->streamRequest, $this->cacheActorService, $this->createMock(\OCA\Social\Service\NotificationService::class));
 
 		$this->alice = $this->person(self::LOCAL_URL . '/users/alice', true);
 		$this->bob = $this->person(self::REMOTE_URL . '/users/bob');

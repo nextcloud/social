@@ -34,6 +34,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -58,9 +59,12 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	private MiscService $miscService;
 
 	public function __construct(
-		StreamRequest $streamRequest, ActionsRequest $actionsRequest,
-		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
+		StreamRequest $streamRequest,
+		ActionsRequest $actionsRequest,
+		StreamQueueService $streamQueueService,
+		CacheActorService $cacheActorService,
 		MiscService $miscService,
+		private NotificationService $notificationService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->actionsRequest = $actionsRequest;
@@ -266,6 +270,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 
 			$notification->addDetail('accounts', $author->getAccount());
 			$notificationInterface->update($notification);
+			$this->notificationService->onNotification($notification, $author->getId());
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
 			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);

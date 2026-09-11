@@ -90,7 +90,8 @@ class PostServiceQuoteTest extends TestCase {
 			$this->createMock(IUserManager::class),
 			$this->createMock(ModerationService::class),
 			$this->createMock(StatusRevisionService::class),
-			new NullLogger()
+			$this->createMock(\OCA\Social\Service\NotificationService::class),
+			new NullLogger(),
 		);
 	}
 

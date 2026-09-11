@@ -46,6 +46,8 @@ class CoreRequestBuilder {
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_FILTERS = 'social_filter';
 	public const TABLE_FILTER_KEYWORDS = 'social_filter_kw';
+	public const TABLE_ANNOUNCEMENTS = 'social_announcement';
+	public const TABLE_ANNOUNCEMENT_READS = 'social_announce_read';
 	public const TABLE_ACCOUNT_NOTES = 'social_account_note';
 	public const TABLE_CONVERSATION_STATE = 'social_convo_state';
 	public const TABLE_DOMAIN_BLOCKS = 'social_domain_block';
@@ -207,6 +209,21 @@ class CoreRequestBuilder {
 			'root_id_prim',
 			'read_nid',
 			'hidden_nid',
+			'creation'
+		],
+		self::TABLE_ANNOUNCEMENTS => [
+			'id',
+			'content',
+			'starts_at',
+			'ends_at',
+			'all_day',
+			'creation',
+			'last_update'
+		],
+		self::TABLE_ANNOUNCEMENT_READS => [
+			'id',
+			'announcement_id',
+			'actor_id_prim',
 			'creation'
 		],
 		self::TABLE_DOMAIN_BLOCKS => [
@@ -376,7 +393,10 @@ class CoreRequestBuilder {
 			'category',
 			'local',
 			'resolved',
-			'creation'
+			'creation',
+			'assigned_to',
+			'action_taken_by',
+			'action_taken_at'
 		],
 		self::TABLE_STREAM_CARDS => [
 			'stream_id_prim',

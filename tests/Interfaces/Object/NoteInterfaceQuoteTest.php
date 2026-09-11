@@ -51,7 +51,8 @@ class NoteInterfaceQuoteTest extends ActivityPubTestCase {
 			$this->createMock(PushService::class),
 			$this->streamQueueService,
 			$this->createMock(LinkPreviewService::class),
-			$this->createMock(ForwardService::class)
+			$this->createMock(ForwardService::class),
+			$this->createMock(\OCA\Social\Service\NotificationService::class)
 		);
 	}
 

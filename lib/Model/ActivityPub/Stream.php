@@ -17,6 +17,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -149,6 +150,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		Like::TYPE => 'favourite',
 		Announce::TYPE => 'reblog',
 		Mention::TYPE => 'mention',
+		Update::TYPE => 'update',
 		Follow::TYPE => 'follow',
 		Follow::TYPE_REQUEST => 'follow_request',
 	];

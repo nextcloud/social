@@ -1,0 +1,888 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Service;
+
+use Exception;
+use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Db\ReportsRequest;
+use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\AdminAccount;
+use OCA\Social\Model\Client\AdminDomainBlock;
+use OCA\Social\Model\Client\AdminReport;
+use OCA\Social\Model\Moderation;
+use OCA\Social\Model\Report;
+use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDBConnection;
+use OCP\IGroupManager;
+use Psr\Log\LoggerInterface;
+
+/**
+ * What `/api/v1/admin/*` reads and decides, over the moderation this app
+ * already had.
+ *
+ * Nothing here is a second implementation of moderation: a decision is taken
+ * by `ModerationService`, a report is resolved through `ReportService`, and
+ * the instance access list is `FediverseService`'s. What this service adds is
+ * the reading a moderation client does — which accounts are there, under which
+ * decision, and which reports are open — because none of it existed as a query
+ * anybody could ask.
+ *
+ * ### Why the SQL is in here
+ *
+ * The three reads below are the only ones in the app that ask their questions
+ * (every account under a decision; a page of reports with who is handling it),
+ * and they are written against `IDBConnection` in `protected` methods so the
+ * policy above them can be tested without a database — the standalone suite
+ * cannot even mock `IQueryBuilder`, because DBAL is not loadable in it, so a
+ * test doubles these methods instead.
+ *
+ * ### Who counts as an administrator
+ *
+ * `IGroupManager::isAdmin()` against the Nextcloud user behind the request,
+ * which is the same question `ModerationController` has always been asked by
+ * the server's own `#[AdminRequired]` default. An OAuth scope is not an
+ * answer to it: this app's OAuth registration accepts any scope string a
+ * client asks for, so `admin:write` on a token says only that a client asked
+ * for it, never that the user behind it may moderate anything.
+ */
+class AdminApiService {
+	/** What Mastodon defaults and caps a page of the admin account list at. */
+	public const LIMIT = 40;
+	public const MAX_LIMIT = 200;
+
+	/** Mastodon's `status` filter. Two of them are states this app has not. */
+	public const STATUS_ACTIVE = 'active';
+	public const STATUS_SILENCED = 'silenced';
+	public const STATUS_SUSPENDED = 'suspended';
+	public const STATUS_PENDING = 'pending';
+	public const STATUS_DISABLED = 'disabled';
+
+	/** Mastodon's account actions. `sensitive` and `disable` have no meaning here. */
+	public const ACTION_NONE = 'none';
+	public const ACTION_SILENCE = 'silence';
+	public const ACTION_SUSPEND = 'suspend';
+
+	public function __construct(
+		private IDBConnection $dbConnection,
+		private IGroupManager $groupManager,
+		private AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		private ConfigService $configService,
+		private FediverseService $fediverseService,
+		private ModerationService $moderationService,
+		private ReportService $reportService,
+		private ReportsRequest $reportsRequest,
+		private StreamRequest $streamRequest,
+		private LoggerInterface $logger,
+	) {
+	}
+
+	/**
+	 * Whether the Nextcloud user behind the request may use any of this.
+	 *
+	 * Asked of the user id, never of the token: see the class docblock.
+	 */
+	public function isAdministrator(string $userId): bool {
+		return ($userId !== '') && $this->groupManager->isAdmin($userId);
+	}
+
+	/**
+	 * A page of accounts, newest first, with the cursor ids that page it.
+	 *
+	 * Two of Mastodon's filters answer nothing here and say so by answering
+	 * with no accounts rather than with all of them: `pending` and `disabled`
+	 * are states this app does not have (there is no registration to approve
+	 * and no login to disable from a fediverse account), and a filter that was
+	 * ignored would have shown a moderator the whole instance under the
+	 * heading of accounts awaiting approval. `email` and `ip` are the same
+	 * case, and are handled by the caller for the same reason.
+	 *
+	 * `silenced` and `suspended` are read from the decisions rather than from
+	 * the accounts: suspending an account deletes its cached actor, so an
+	 * account under the decision a moderator is most likely to be looking for
+	 * is exactly the one the account table no longer holds. Those two are
+	 * therefore unpaged beyond `limit` — the decisions of an instance are a
+	 * handful of rows — and come back with no cursors at all rather than with
+	 * ones that would page something else.
+	 *
+	 * The cursors are the nids of the *rows*, not of the entities: an account
+	 * whose cached actor cannot be read is left out of the page, and a cursor
+	 * that skipped it would send the client back to the same page for ever.
+	 *
+	 * @param bool|null $local true for local accounts, false for remote, null
+	 *                         for both — Mastodon's `origin`
+	 *
+	 * @return array{accounts: AdminAccount[], cursors: int[]}
+	 */
+	public function accountPage(
+		?bool $local = null,
+		string $username = '',
+		string $displayName = '',
+		string $domain = '',
+		string $status = '',
+		int $limit = self::LIMIT,
+		int $maxId = 0,
+		int $minId = 0,
+	): array {
+		$limit = max(1, min(self::MAX_LIMIT, $limit));
+
+		if (in_array($status, [self::STATUS_PENDING, self::STATUS_DISABLED], true)) {
+			return ['accounts' => [], 'cursors' => []];
+		}
+
+		if ($status === self::STATUS_SILENCED || $status === self::STATUS_SUSPENDED) {
+			return [
+				'accounts' => $this->moderatedAccounts(
+					($status === self::STATUS_SILENCED) ? Moderation::SILENCE : Moderation::SUSPEND,
+					$local, $username, $domain, $limit
+				),
+				'cursors' => [],
+			];
+		}
+
+		$rows = $this->accountRows(
+			$local, $username, $displayName, $domain,
+			($status === self::STATUS_ACTIVE), $limit, $maxId, $minId
+		);
+
+		$actors = $this->cacheActorService->getCachedFromIds(array_column($rows, 'id'));
+
+		$accounts = [];
+		foreach ($rows as $row) {
+			$actor = $actors[(string)$row['id']] ?? null;
+			if ($actor === null) {
+				// the row was read and its account was not: rather than send a
+				// half-filled entity, leave it out — its nid still decides the
+				// cursor, so the page does not stall on it
+				continue;
+			}
+
+			$accounts[] = AdminAccount::fromPerson($actor, (string)($row['level'] ?? ''));
+		}
+
+		return [
+			'accounts' => $accounts,
+			'cursors' => array_map(static fn (array $row): int => (int)$row['nid'], $rows),
+		];
+	}
+
+	/**
+	 * One account, by the numeric id this API emits, its ActivityPub id, or a
+	 * handle.
+	 *
+	 * The ActivityPub id is accepted because it is the only handle left on an
+	 * account whose cached actor a suspension purged — without it a suspension
+	 * could be applied over this API and never lifted over it.
+	 *
+	 * @throws ItemNotFoundException
+	 */
+	public function account(string $reference): AdminAccount {
+		$reference = trim($reference);
+		if ($reference === '') {
+			throw new ItemNotFoundException('Record not found');
+		}
+
+		if (is_numeric($reference)) {
+			$actors = $this->cacheActorService->getFromNids([(int)$reference]);
+			if ($actors === []) {
+				throw new ItemNotFoundException('Record not found');
+			}
+
+			return $this->withDecision($actors[0]);
+		}
+
+		if (str_starts_with($reference, 'http://') || str_starts_with($reference, 'https://')) {
+			$cached = $this->cacheActorService->getCachedFromIds([$reference]);
+			if (isset($cached[$reference])) {
+				return $this->withDecision($cached[$reference]);
+			}
+
+			$level = $this->moderationService->levelOf($reference);
+			if ($level === '') {
+				throw new ItemNotFoundException('Record not found');
+			}
+
+			return AdminAccount::fromDecision(
+				new Moderation($reference, $level), $this->isLocalActor($reference)
+			);
+		}
+
+		try {
+			// never fetched from the other server: a moderator looking an
+			// account up must not be able to make this instance pull a profile
+			// it has never seen
+			return $this->withDecision(
+				$this->cacheActorService->getFromAccount(ltrim($reference, '@'), false)
+			);
+		} catch (Exception $e) {
+			throw new ItemNotFoundException('Record not found');
+		}
+	}
+
+	/**
+	 * Applies a moderator's decision.
+	 *
+	 * `silence` and `suspend` are `ModerationService`'s, unchanged — the
+	 * suspension that purges the account's posts and relationships here is the
+	 * same one the admin panel applies, because it is the same call.
+	 *
+	 * `none` lifts whatever stands against the account. Mastodon reads `none`
+	 * as "record a warning and take no action", but a warning is a strike
+	 * against an account in a history this app does not keep, so the only
+	 * thing `none` can honestly mean here is the decision the panel's own
+	 * "lift" button takes. `$text` is kept as the comment on a decision that
+	 * stands; there is nowhere to keep one on a decision that is lifted.
+	 *
+	 * @param string $type one of ACTION_NONE, ACTION_SILENCE, ACTION_SUSPEND
+	 *
+	 * @throws \InvalidArgumentException `sensitive` and `disable`, which this
+	 *                                   app has no state for, and anything
+	 *                                   that is not an action at all
+	 */
+	public function act(AdminAccount $account, string $type, string $text = ''): AdminAccount {
+		switch ($type) {
+			case self::ACTION_NONE:
+				$this->moderationService->lift($account->getActorId());
+
+				return $account->setLevel('');
+			case self::ACTION_SILENCE:
+			case self::ACTION_SUSPEND:
+				$this->moderationService->decide($account->getActorId(), $type, $text);
+
+				return $account->setLevel($type);
+			case 'sensitive':
+			case 'disable':
+				throw new \InvalidArgumentException(
+					'this instance has no "' . $type . '" state for an account'
+				);
+
+			default:
+				throw new \InvalidArgumentException('unknown action: ' . $type);
+		}
+	}
+
+	/**
+	 * Lifts a silence, and only a silence.
+	 *
+	 * A suspended account is left suspended, as it is on Mastodon: the two
+	 * decisions are lifted by their own routes, so a client that means to
+	 * unsilence cannot lift a suspension by accident.
+	 */
+	public function unsilence(AdminAccount $account): AdminAccount {
+		if ($account->isSilenced()) {
+			$this->moderationService->lift($account->getActorId());
+			$account->setLevel('');
+		}
+
+		return $account;
+	}
+
+	/** Lifts a suspension, and only a suspension. */
+	public function unsuspend(AdminAccount $account): AdminAccount {
+		if ($account->isSuspended()) {
+			$this->moderationService->lift($account->getActorId());
+			$account->setLevel('');
+		}
+
+		return $account;
+	}
+
+	/**
+	 * A page of reports, newest first.
+	 *
+	 * @param bool|null $resolved Mastodon's `resolved`; null for both
+	 * @param string $reporter an account reference, Mastodon's `account_id`
+	 * @param string $target an account reference, Mastodon's `target_account_id`
+	 *
+	 * @return AdminReport[]
+	 */
+	public function reports(
+		?bool $resolved = null,
+		string $reporter = '',
+		string $target = '',
+		int $limit = self::LIMIT,
+		int $maxId = 0,
+		int $minId = 0,
+	): array {
+		$rows = $this->reportRows(
+			$resolved,
+			$this->actorIdOf($reporter),
+			$this->actorIdOf($target),
+			max(1, min(self::MAX_LIMIT, $limit)),
+			$maxId,
+			$minId
+		);
+
+		return $this->adminReports($rows);
+	}
+
+	/**
+	 * @throws ReportNotFoundException
+	 */
+	public function report(int $id): AdminReport {
+		$rows = $this->reportRows(null, '', '', 1, 0, 0, $id);
+		if ($rows === []) {
+			throw new ReportNotFoundException('report ' . $id . ' not found');
+		}
+
+		return $this->adminReports([$rows[0]])[0];
+	}
+
+	/**
+	 * Marks a report handled, and records who handled it.
+	 *
+	 * The resolving itself is `ReportService`'s, so a report resolved from a
+	 * client and one resolved from the admin panel are the same write.
+	 *
+	 * @throws ReportNotFoundException
+	 */
+	public function resolveReport(int $id, string $userId): AdminReport {
+		$this->reportService->setResolved($id, true);
+		$this->setActionTaken($id, $userId);
+
+		return $this->report($id);
+	}
+
+	/**
+	 * Puts a report back in the queue: unresolved, and with the record of who
+	 * had acted on it cleared — it describes a decision that no longer stands.
+	 *
+	 * @throws ReportNotFoundException
+	 */
+	public function reopenReport(int $id): AdminReport {
+		$this->reportService->setResolved($id, false);
+		$this->setActionTaken($id, null);
+
+		return $this->report($id);
+	}
+
+	/**
+	 * @throws ReportNotFoundException
+	 */
+	public function assignReport(int $id, ?string $userId): AdminReport {
+		$this->reportsRequest->getById($id); // throws when there is no such report
+		$this->setAssignment($id, $userId);
+
+		return $this->report($id);
+	}
+
+	/**
+	 * The instance-wide access list, as domain blocks.
+	 *
+	 * @return AdminDomainBlock[]
+	 *
+	 * @throws \InvalidArgumentException the list is an allow list, so every
+	 *                                   entry on it means the opposite of a
+	 *                                   block
+	 */
+	public function domainBlocks(): array {
+		$this->assertBlockList();
+
+		return array_map(
+			static fn (string $domain): AdminDomainBlock => new AdminDomainBlock($domain),
+			array_values(array_filter(array_map(
+				static fn ($entry): string => strtolower(trim((string)$entry)),
+				$this->fediverseService->getListedAddresses()
+			), static fn (string $domain): bool => $domain !== ''))
+		);
+	}
+
+	/**
+	 * @throws ItemNotFoundException
+	 * @throws \InvalidArgumentException
+	 */
+	public function domainBlock(string $reference): AdminDomainBlock {
+		foreach ($this->domainBlocks() as $block) {
+			if ($block->isNamedBy($reference)) {
+				return $block;
+			}
+		}
+
+		throw new ItemNotFoundException('Record not found');
+	}
+
+	/**
+	 * Blocks a domain.
+	 *
+	 * Blocking one already blocked is not an error and adds nothing: the list
+	 * holds each domain once, and `FediverseService::isListed()` already
+	 * covers every subdomain of an entry — so a client retrying a request it
+	 * lost the answer to gets the same entry back.
+	 *
+	 * @throws \InvalidArgumentException an address no hostname could be, or an
+	 *                                   allow-list instance
+	 */
+	public function blockDomain(string $domain, string $severity = AdminDomainBlock::SEVERITY): AdminDomainBlock {
+		$this->assertBlockList();
+		$this->assertSeverity($severity);
+
+		$domain = strtolower(trim($domain));
+		if ($domain === '' || preg_match('/^[a-z0-9.:\[\]-]+$/', $domain) !== 1) {
+			throw new \InvalidArgumentException('invalid domain');
+		}
+
+		$this->fediverseService->addAddress($domain);
+
+		return new AdminDomainBlock($domain);
+	}
+
+	/**
+	 * Lifts a block.
+	 *
+	 * @throws ItemNotFoundException
+	 * @throws \InvalidArgumentException
+	 */
+	public function unblockDomain(string $reference): AdminDomainBlock {
+		$block = $this->domainBlock($reference);
+		$this->fediverseService->removeAddress($block->getDomain());
+
+		return $block;
+	}
+
+	/**
+	 * The one severity this list can express, or a refusal.
+	 *
+	 * @throws \InvalidArgumentException
+	 */
+	public function assertSeverity(string $severity): void {
+		if ($severity !== '' && $severity !== AdminDomainBlock::SEVERITY) {
+			throw new \InvalidArgumentException(
+				'this instance blocks a domain outright; severity "' . $severity . '" cannot be applied'
+			);
+		}
+	}
+
+	/**
+	 * Refuses every domain-block route while the instance federates by an
+	 * allow list.
+	 *
+	 * The same app value holds both lists, and in allow-list mode its entries
+	 * are the only domains this instance talks to. Served as domain blocks
+	 * they would read as their own opposite, and a client that then "blocked"
+	 * a domain would have added it to the list of the allowed — so the routes
+	 * refuse rather than answer something a moderator would act on.
+	 *
+	 * @throws \InvalidArgumentException
+	 */
+	private function assertBlockList(): void {
+		if ($this->fediverseService->getAccessType() === $this->configService->accessTypeList['WHITELIST']) {
+			throw new \InvalidArgumentException(
+				'this instance federates by an allow list, so its access list is not a list of blocked domains'
+			);
+		}
+	}
+
+	/**
+	 * Accounts under one decision, from the decisions themselves.
+	 *
+	 * @return AdminAccount[]
+	 */
+	private function moderatedAccounts(
+		string $level, ?bool $local, string $username, string $domain, int $limit,
+	): array {
+		$decisions = array_values(array_filter(
+			$this->moderationService->decisions(),
+			static fn (Moderation $decision): bool => $decision->getLevel() === $level
+		));
+
+		$actors = $this->cacheActorService->getCachedFromIds(
+			array_map(static fn (Moderation $decision): string => $decision->getActorId(), $decisions)
+		);
+
+		$accounts = [];
+		foreach ($decisions as $decision) {
+			$actor = $actors[$decision->getActorId()] ?? null;
+			$account = ($actor === null)
+				? AdminAccount::fromDecision($decision, $this->isLocalActor($decision->getActorId()))
+				: AdminAccount::fromPerson($actor, $level);
+
+			if (!$this->matches($account, $local, $username, $domain)) {
+				continue;
+			}
+
+			$accounts[] = $account;
+			if (count($accounts) >= $limit) {
+				break;
+			}
+		}
+
+		return $accounts;
+	}
+
+	/**
+	 * The filters of the account list, applied to an entity rather than in the
+	 * statement — which is what the decisions branch has instead of a WHERE.
+	 */
+	private function matches(AdminAccount $account, ?bool $local, string $username, string $domain): bool {
+		if ($local !== null && $account->isLocal() !== $local) {
+			return false;
+		}
+
+		$username = strtolower(trim($username));
+		if ($username !== '' && !str_contains(strtolower($account->getUsername()), $username)) {
+			return false;
+		}
+
+		$domain = strtolower(trim($domain));
+
+		return ($domain === '') || ($account->getDomain() === $domain);
+	}
+
+	/** The account, under whatever this instance has decided about it. */
+	private function withDecision(Person $actor): AdminAccount {
+		return AdminAccount::fromPerson($actor, $this->moderationService->levelOf($actor->getId()));
+	}
+
+	/**
+	 * Whether an actor id is one of this instance's own.
+	 *
+	 * Read off the id because this is asked about accounts whose cached copy
+	 * is gone, and the copy is where the `local` flag was.
+	 */
+	private function isLocalActor(string $actorId): bool {
+		try {
+			$host = (string)parse_url($actorId, PHP_URL_HOST);
+
+			return ($host !== '') && $this->fediverseService->isLocal(strtolower($host));
+		} catch (Exception $e) {
+			return false;
+		}
+	}
+
+	/**
+	 * The actor id behind an account reference, and '' when nothing was asked
+	 * for.
+	 *
+	 * An account that cannot be resolved becomes an id nothing can equal,
+	 * rather than no filter at all: "the reports about an account this
+	 * instance has never heard of" is an empty list, and answering it with
+	 * every report on the instance would be the filter silently falling off.
+	 */
+	private function actorIdOf(string $reference): string {
+		if (trim($reference) === '') {
+			return '';
+		}
+
+		try {
+			return $this->account($reference)->getActorId();
+		} catch (Exception $e) {
+			return "\0no such account";
+		}
+	}
+
+	/**
+	 * The reports of a page as the entities a moderation client reads, with
+	 * every account of the page resolved in one query.
+	 *
+	 * The two moderators stay on the row rather than on the `Report` model:
+	 * that model is the reporter's entity, serialised as Mastodon's `Report`
+	 * over `POST /api/v1/reports`, and who is handling a complaint is not
+	 * something the person who filed it is shown.
+	 *
+	 * @param array<int, array<string, mixed>> $rows
+	 *
+	 * @return AdminReport[]
+	 */
+	private function adminReports(array $rows): array {
+		$reports = array_map([$this, 'reportFromRow'], $rows);
+
+		$ids = [];
+		foreach ($reports as $report) {
+			$ids[] = $report->getActorId();
+			$ids[] = $report->getAccountId();
+		}
+
+		$actors = $this->cacheActorService->getCachedFromIds($ids);
+
+		$admin = [];
+		foreach ($reports as $index => $report) {
+			$row = $rows[$index];
+
+			$entity = new AdminReport($report);
+			$entity->setAccount($this->reportAccount($actors, $report->getActorId()))
+				->setTargetAccount($this->reportAccount($actors, $report->getAccountId()))
+				->setAssignedAccount($this->moderator((string)($row['assigned_to'] ?? '')))
+				->setActionTakenByAccount($this->moderator((string)($row['action_taken_by'] ?? '')))
+				->setActionTakenAt((int)strtotime((string)($row['action_taken_at'] ?? '')))
+				->setStatuses($this->reportedStatuses($report));
+
+			$admin[] = $entity;
+		}
+
+		return $admin;
+	}
+
+	/**
+	 * @param Person[] $actors
+	 */
+	private function reportAccount(array $actors, string $actorId): ?AdminAccount {
+		if ($actorId === '') {
+			return null;
+		}
+
+		$actor = $actors[$actorId] ?? null;
+		if ($actor === null) {
+			// a report outlives the account it is about — a suspension purges
+			// the cached actor and keeps the report — so the entity is built
+			// from the id the report was filed against, which is what a
+			// moderator acts on
+			return AdminAccount::fromDecision(
+				new Moderation($actorId, $this->moderationService->levelOf($actorId)),
+				$this->isLocalActor($actorId)
+			);
+		}
+
+		return AdminAccount::fromPerson($actor, $this->moderationService->levelOf($actorId));
+	}
+
+	/**
+	 * The Social account of a moderator, by their Nextcloud user id.
+	 *
+	 * Null when the administrator has no Social account, which is an ordinary
+	 * state: moderating this app does not require using it.
+	 */
+	private function moderator(string $userId): ?AdminAccount {
+		if ($userId === '') {
+			return null;
+		}
+
+		try {
+			return AdminAccount::fromPerson($this->accountService->getActorFromUserId($userId));
+		} catch (Exception $e) {
+			return null;
+		}
+	}
+
+	/**
+	 * The reported posts, as the Status entities Mastodon carries in the
+	 * report.
+	 *
+	 * A post that is no longer here is left out rather than sent as an id with
+	 * nothing behind it: the commonest reason for one to be missing is that a
+	 * moderator has already taken it down.
+	 *
+	 * @return array<int, mixed>
+	 */
+	private function reportedStatuses(Report $report): array {
+		$statuses = [];
+		foreach ($report->getStatusIds() as $statusId) {
+			try {
+				$statuses[] = $this->streamRequest->getStreamById($statusId, false, ACore::FORMAT_LOCAL);
+			} catch (Exception $e) {
+				$this->logger->debug('[AdminApiService] a reported status is no longer here', [
+					'status' => $statusId,
+					'report' => $report->getId(),
+				]);
+			}
+		}
+
+		return $statuses;
+	}
+
+	/** A report row as the model the rest of the app passes around. */
+	private function reportFromRow(array $row): Report {
+		$statusIds = json_decode((string)($row['status_ids'] ?? '[]'), true);
+
+		$report = new Report();
+		$report->setId((int)($row['id'] ?? 0))
+			->setActorId((string)($row['actor_id'] ?? ''))
+			->setAccountId((string)($row['account_id'] ?? ''))
+			->setStatusIds(is_array($statusIds) ? $statusIds : [])
+			->setComment((string)($row['comment'] ?? ''))
+			->setCategory((string)($row['category'] ?? Report::CATEGORY_OTHER))
+			->setLocal((int)($row['local'] ?? 1) === 1)
+			->setResolved((int)($row['resolved'] ?? 0) === 1)
+			->setCreation((int)strtotime((string)($row['creation'] ?? '')));
+
+		return $report;
+	}
+
+	/**
+	 * A page of accounts, with the decision standing against each.
+	 *
+	 * A LEFT JOIN rather than a second query filtered in PHP: `status=active`
+	 * has to be a predicate of the page, or a page of forty accounts could
+	 * come back with three in it and the client would read that as the end of
+	 * the list.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	protected function accountRows(
+		?bool $local,
+		string $username,
+		string $displayName,
+		string $domain,
+		bool $undecided,
+		int $limit,
+		int $maxId,
+		int $minId,
+	): array {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->select('ca.id', 'ca.nid', 'ca.local', 'ca.account', 'ca.preferred_username')
+			->selectAlias('m.level', 'level')
+			->from(CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca')
+			->leftJoin(
+				'ca', CoreRequestBuilder::TABLE_MODERATION, 'm',
+				$qb->expr()->eq('ca.id_prim', 'm.actor_id_prim')
+			)
+			->orderBy('ca.nid', 'desc')
+			->setMaxResults($limit);
+
+		if ($local !== null) {
+			$qb->andWhere($qb->expr()->eq(
+				'ca.local', $qb->createNamedParameter($local ? 1 : 0, IQueryBuilder::PARAM_INT)
+			));
+		}
+
+		if ($undecided) {
+			$qb->andWhere($qb->expr()->isNull('m.level'));
+		}
+
+		if (trim($username) !== '') {
+			$qb->andWhere($qb->expr()->like(
+				$qb->func()->lower('ca.preferred_username'),
+				$qb->createNamedParameter('%' . $this->like($username) . '%')
+			));
+		}
+
+		if (trim($displayName) !== '') {
+			$qb->andWhere($qb->expr()->like(
+				$qb->func()->lower('ca.name'),
+				$qb->createNamedParameter('%' . $this->like($displayName) . '%')
+			));
+		}
+
+		if (trim($domain) !== '') {
+			// the handle of a remote account is user@host, so the domain is
+			// what follows the last @ — a local account has no host in it and
+			// is left out of a by_domain page, which is Mastodon's answer too
+			$qb->andWhere($qb->expr()->like(
+				$qb->func()->lower('ca.account'),
+				$qb->createNamedParameter('%@' . $this->like($domain))
+			));
+		}
+
+		if ($maxId > 0) {
+			$qb->andWhere($qb->expr()->lt(
+				'ca.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)
+			));
+		}
+
+		if ($minId > 0) {
+			$qb->andWhere($qb->expr()->gt(
+				'ca.nid', $qb->createNamedParameter($minId, IQueryBuilder::PARAM_INT)
+			));
+		}
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$rows[] = $row;
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/**
+	 * A page of reports, newest first.
+	 *
+	 * Read here rather than through `ReportsRequest` because the moderator
+	 * columns are not in that builder's select and because none of these
+	 * filters exist there; the writes still go through it.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	protected function reportRows(
+		?bool $resolved,
+		string $reporter,
+		string $target,
+		int $limit,
+		int $maxId,
+		int $minId,
+		int $id = 0,
+	): array {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->select(
+			'id', 'actor_id', 'account_id', 'status_ids', 'comment', 'category', 'local', 'resolved',
+			'creation', 'assigned_to', 'action_taken_by', 'action_taken_at'
+		)
+			->from(CoreRequestBuilder::TABLE_REPORTS)
+			->orderBy('id', 'desc')
+			->setMaxResults($limit);
+
+		if ($id > 0) {
+			$qb->andWhere($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		}
+
+		if ($resolved !== null) {
+			$qb->andWhere($qb->expr()->eq(
+				'resolved', $qb->createNamedParameter($resolved ? 1 : 0, IQueryBuilder::PARAM_INT)
+			));
+		}
+
+		if ($reporter !== '') {
+			$qb->andWhere($qb->expr()->eq('actor_id', $qb->createNamedParameter($reporter)));
+		}
+
+		if ($target !== '') {
+			$qb->andWhere($qb->expr()->eq('account_id', $qb->createNamedParameter($target)));
+		}
+
+		if ($maxId > 0) {
+			$qb->andWhere($qb->expr()->lt('id', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+
+		if ($minId > 0) {
+			$qb->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($minId, IQueryBuilder::PARAM_INT)));
+		}
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$rows[] = $row;
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/** Who is dealing with a report; null puts it back in the queue. */
+	protected function setAssignment(int $id, ?string $userId): void {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->update(CoreRequestBuilder::TABLE_REPORTS)
+			->set('assigned_to', $qb->createNamedParameter($userId))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	/** Who acted on a report and when; null clears both. */
+	protected function setActionTaken(int $id, ?string $userId): void {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->update(CoreRequestBuilder::TABLE_REPORTS)
+			->set('action_taken_by', $qb->createNamedParameter($userId))
+			->set('action_taken_at', $qb->createNamedParameter(
+				($userId === null) ? null : new \DateTime('now'), IQueryBuilder::PARAM_DATE
+			))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	/** A literal inside a LIKE pattern, lowercased to match `LOWER(column)`. */
+	private function like(string $value): string {
+		return $this->dbConnection->escapeLikeParameter(strtolower(trim($value)));
+	}
+}

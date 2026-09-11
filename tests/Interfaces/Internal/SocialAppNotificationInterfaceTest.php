@@ -39,7 +39,7 @@ class SocialAppNotificationInterfaceTest extends ActivityPubTestCase {
 		$this->miscService = $this->createMock(MiscService::class);
 
 		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
-		$this->handler = new SocialAppNotificationInterface($this->streamRequest, $this->actorRelationRequest, $this->miscService);
+		$this->handler = new SocialAppNotificationInterface($this->streamRequest, $this->actorRelationRequest, $this->miscService, $this->createMock(\OCA\Social\Service\NotificationService::class));
 	}
 
 	private function notification(): SocialAppNotification {

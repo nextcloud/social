@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Interfaces\Actor;
 
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\AnnouncementsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\ConversationsRequest;
@@ -76,6 +77,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 	protected ListsRequest|MockObject $listsRequest;
 	protected ConversationsRequest|MockObject $conversationsRequest;
 	protected FeaturedTagsRequest|MockObject $featuredTagsRequest;
+	protected AnnouncementsRequest|MockObject $announcementsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -94,6 +96,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->listsRequest = $this->createMock(ListsRequest::class);
 		$this->conversationsRequest = $this->createMock(ConversationsRequest::class);
 		$this->featuredTagsRequest = $this->createMock(FeaturedTagsRequest::class);
+		$this->announcementsRequest = $this->createMock(AnnouncementsRequest::class);
 		$this->actorService = $this->createMock(ActorService::class);
 
 		$this->handler = $this->createHandler();

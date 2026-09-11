@@ -1,0 +1,646 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Controller;
+
+use Exception;
+use InvalidArgumentException;
+use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\InsufficientScopeException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Service\AdminApiService;
+use OCA\Social\Service\ClientService;
+use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\IRequest;
+use OCP\IUserSession;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+/**
+ * Mastodon's admin API: `/api/v1/admin/*`.
+ *
+ * Moderation existed here before this controller did — the admin panel silences
+ * and suspends accounts, resolves reports and keeps the instance access list —
+ * but every one of those was a `Moderation#*` route needing a Nextcloud session
+ * *and* a CSRF token, which no API client has and none can obtain. A moderator
+ * could act from a browser and from nowhere else.
+ *
+ * ### Who may reach any of this
+ *
+ * A **Nextcloud administrator**, and nothing else. Every route begins with
+ * `initAdmin()`, which resolves the Nextcloud user behind the request — the
+ * token's user, or the session's — and then asks `IGroupManager::isAdmin()`
+ * about *that user*. Anyone else is a 403, whatever they present.
+ *
+ * An OAuth scope is not, and cannot be, the check. This app's client
+ * registration stores whatever scope string a client asks for: `admin:write`
+ * on a token records that some client asked for it during an authorisation,
+ * never that the user behind it may moderate anything. A scope check alone
+ * would therefore have made every account on the instance an administrator of
+ * it. The scope is still required on a bearer token, as Mastodon requires it —
+ * it is what keeps an ordinary client's `read` token from reaching the admin
+ * API on an administrator's behalf — but it is checked *after* the group, and
+ * it can only ever narrow what an administrator may do.
+ *
+ * `#[PublicPage]` with `#[NoCSRFRequired]`, like every other client-API
+ * controller here: a bearer token carries no session and no CSRF token, so
+ * `#[AdminRequired]` — which is what `ModerationController` relies on — would
+ * refuse every real caller before the handler ran. Nothing is public in fact;
+ * the administrator check simply happens in the handler rather than in the
+ * middleware, and it happens on every single route.
+ *
+ * Entities are documented in `AdminAccount`, `AdminReport` and
+ * `AdminDomainBlock`; each emits every key Mastodon documents, with the empty
+ * value of its type wherever this app has nothing behind one.
+ */
+class AdminApiController extends Controller {
+	private string $bearer = '';
+	private ?SocialClient $client = null;
+	private string $userId = '';
+
+	public function __construct(
+		IRequest $request,
+		private IUserSession $userSession,
+		private LoggerInterface $logger,
+		private AdminApiService $adminApiService,
+		private ClientService $clientService,
+	) {
+		parent::__construct(Application::APP_ID, $request);
+
+		$authHeader = trim($this->request->getHeader('Authorization'));
+		if (strpos($authHeader, ' ')) {
+			[$authType, $authToken] = explode(' ', $authHeader);
+			if (strtolower($authType) === 'bearer') {
+				$this->bearer = $authToken;
+			}
+		}
+	}
+
+	/**
+	 * A page of accounts, newest first.
+	 *
+	 * `email` and `ip` are accepted and match nothing: this instance holds
+	 * neither for a fediverse account, so a page filtered by one is empty
+	 * rather than unfiltered — a filter that was ignored would have shown a
+	 * moderator the whole instance as the answer to a question about one
+	 * account.
+	 *
+	 * @param string $origin `local`, `remote`, or empty for both
+	 * @param string $status `active`, `silenced`, `suspended`; `pending` and
+	 *                       `disabled` are states this app has not and answer
+	 *                       with nothing
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accounts(
+		string $origin = '',
+		string $status = '',
+		string $username = '',
+		string $display_name = '',
+		string $by_domain = '',
+		string $email = '',
+		string $ip = '',
+		int $limit = AdminApiService::LIMIT,
+		int $max_id = 0,
+		int $min_id = 0,
+	): DataResponse {
+		try {
+			$this->initAdmin();
+
+			if (trim($email) !== '' || trim($ip) !== '') {
+				return new DataResponse([], Http::STATUS_OK);
+			}
+
+			// clamped here as well as in the service: the cursor is offered
+			// only when the page came back full, and a client asking for more
+			// than the instance will build would never be offered one
+			$limit = $this->limit($limit);
+			$page = $this->adminApiService->accountPage(
+				$this->origin($origin), $username, $display_name, $by_domain,
+				$status, $limit, $max_id, $min_id
+			);
+
+			return $this->paged($page['accounts'], $limit, $page['cursors']);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** One account, by numeric id, actor id or handle. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function account(string $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->adminApiService->account($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The moderator's decision about an account.
+	 *
+	 * Answers `{}`, as Mastodon does. `report_id` resolves that report at the
+	 * same time — a decision taken from a report is the report handled, and
+	 * making the client send a second call for it leaves the two able to
+	 * disagree.
+	 *
+	 * @param string $type `silence`, `suspend` or `none`
+	 * @param string $text the moderator's note, kept as the comment on the
+	 *                     decision
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accountAction(
+		string $id,
+		string $type = '',
+		string $text = '',
+		int $report_id = 0,
+	): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			$account = $this->adminApiService->account($id);
+			$this->adminApiService->act($account, $type, $text);
+
+			if ($report_id > 0) {
+				$this->adminApiService->resolveReport($report_id, $this->userId);
+			}
+
+			return new DataResponse((object)[], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Mastodon's "re-enable a disabled login".
+	 *
+	 * Nothing here can disable one — a fediverse account has no login of its
+	 * own, and the Nextcloud account behind a local one is enabled where
+	 * Nextcloud keeps it — so this answers with the account and changes
+	 * nothing. It exists because a moderation client calls it unconditionally
+	 * when clearing a strike, and a 404 there reads as "no such account".
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accountEnable(string $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse($this->adminApiService->account($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accountUnsilence(string $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->adminApiService->unsilence($this->adminApiService->account($id)), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accountUnsuspend(string $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->adminApiService->unsuspend($this->adminApiService->account($id)), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * A page of reports, newest first.
+	 *
+	 * `resolved` follows Mastodon: absent means unresolved only, which is the
+	 * queue a moderator opens the panel to work through.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function reports(
+		string $resolved = '',
+		string $account_id = '',
+		string $target_account_id = '',
+		int $limit = AdminApiService::LIMIT,
+		int $max_id = 0,
+		int $min_id = 0,
+	): DataResponse {
+		try {
+			$this->initAdmin();
+
+			$limit = $this->limit($limit);
+			$reports = $this->adminApiService->reports(
+				$this->bool($resolved) ?? false,
+				$account_id,
+				$target_account_id,
+				$limit,
+				$max_id,
+				$min_id
+			);
+
+			return $this->paged($reports, $limit, array_map(
+				static fn ($report): int => $report->getId(), $reports
+			));
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function report(int $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->adminApiService->report($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function reportResolve(int $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->adminApiService->resolveReport($id, $this->userId), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function reportReopen(int $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse($this->adminApiService->reopenReport($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function reportAssignToSelf(int $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->adminApiService->assignReport($id, $this->userId), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function reportUnassign(int $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse($this->adminApiService->assignReport($id, null), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** The instance-wide access list, as domain blocks. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function domainBlocks(): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->adminApiService->domainBlocks(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function domainBlock(string $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->adminApiService->domainBlock($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Blocks a domain.
+	 *
+	 * `severity` may only be `suspend`: an entry on this list refuses the
+	 * domain outright, and a client asking for `silence` would otherwise be
+	 * told it had been given something milder than it was.
+	 * `reject_media`, `reject_reports`, `obfuscate` and the two comments are
+	 * accepted and ignored — the list has no room for any of them, which
+	 * `AdminDomainBlock` states field by field.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function domainBlockCreate(string $domain = '', string $severity = ''): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->adminApiService->blockDomain($domain, $severity), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * There is nothing on a block here to change, so this confirms the entry
+	 * and refuses any severity but the one it has. A 200 that had quietly
+	 * dropped the change would be worse: the moderator would believe the
+	 * domain was under a lesser block than it is.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function domainBlockUpdate(string $id, string $severity = ''): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$this->adminApiService->assertSeverity($severity);
+
+			return new DataResponse($this->adminApiService->domainBlock($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Lifts a block and answers with the entry that was lifted. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function domainBlockRemove(string $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse($this->adminApiService->unblockDomain($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Establishes that this request is an administrator's, or refuses it.
+	 *
+	 * The order is the point: the Nextcloud user is resolved first, the group
+	 * is asked about that user second, and the token's scope third. A caller
+	 * who is not an administrator is refused before any scope is looked at, so
+	 * no scope a client can ask for makes any difference to them.
+	 *
+	 * @param string[] $scopes any one of which satisfies a bearer token
+	 *
+	 * @throws ClientNotFoundException nobody is behind the request
+	 * @throws InsufficientScopeException they are not an administrator of this
+	 *                                    instance, or their token was not
+	 *                                    granted the admin API
+	 */
+	private function initAdmin(array $scopes = ['admin:read']): void {
+		$userId = $this->currentSession();
+
+		if (!$this->adminApiService->isAdministrator($userId)) {
+			// deliberately the same answer whether the user exists, has a
+			// Social account, or simply may not moderate: the admin API tells
+			// a non-administrator nothing about the instance, not even that
+			$this->logger->info('[AdminApiController] admin API refused to a non-administrator', [
+				'user' => $userId,
+				'route' => (string)$this->request->getParam('_route', ''),
+			]);
+
+			throw new InsufficientScopeException(
+				'this API is restricted to the administrators of this instance'
+			);
+		}
+
+		$this->userId = $userId;
+
+		if ($this->client !== null) {
+			$this->checkTokenScope($scopes);
+		}
+	}
+
+	/**
+	 * The Nextcloud user behind the request: the bearer token's, or the
+	 * session's when there is no token — the same order every other
+	 * client-API controller here uses.
+	 *
+	 * @throws ClientNotFoundException
+	 */
+	private function currentSession(): string {
+		if ($this->bearer !== '') {
+			try {
+				$this->client = $this->clientService->getFromToken($this->bearer);
+			} catch (Exception $e) {
+				// a stale or made-up token is ordinary internet noise
+				$this->logger->debug('[AdminApiController] unusable bearer token', [
+					'exception' => $e->getMessage(),
+				]);
+
+				throw new ClientNotFoundException('the access_token was revoked');
+			}
+
+			return $this->client->getAuthUserId();
+		}
+
+		$user = $this->userSession->getUser();
+		if ($user !== null && $this->request->passesCSRFCheck()) {
+			return $user->getUID();
+		}
+
+		throw new ClientNotFoundException('userId not defined');
+	}
+
+	/**
+	 * `admin:read` is satisfied by `admin:read` or by `admin`, and by nothing
+	 * else.
+	 *
+	 * Not by `read`, which is what every ordinary client holds: Mastodon keeps
+	 * the admin scopes outside the `read`/`write` tree for exactly that
+	 * reason, so a timeline client's token cannot reach the moderation API
+	 * even when its owner happens to be an administrator.
+	 *
+	 * @param string[] $accepted
+	 *
+	 * @throws InsufficientScopeException
+	 */
+	private function checkTokenScope(array $accepted): void {
+		foreach ($accepted as $scope) {
+			$broad = strstr($scope, ':', true);
+			$broad = ($broad === false) ? $scope : $broad;
+
+			foreach ($this->client->getAuthScopes() as $granted) {
+				if ($granted === $scope || $granted === $broad) {
+					return;
+				}
+			}
+		}
+
+		throw new InsufficientScopeException(
+			'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
+		);
+	}
+
+	/**
+	 * Mastodon's `origin`: true for local accounts, false for remote, null for
+	 * both.
+	 *
+	 * @throws InvalidResourceException anything else, rather than silently
+	 *                                  listing everything
+	 */
+	private function origin(string $origin): ?bool {
+		switch (trim($origin)) {
+			case '':
+				return null;
+			case 'local':
+				return true;
+			case 'remote':
+				return false;
+			default:
+				throw new InvalidResourceException("'" . $origin . "' is not a valid origin");
+		}
+	}
+
+	/** What the instance will actually build, which is what a page is. */
+	private function limit(int $limit): int {
+		return max(1, min(AdminApiService::MAX_LIMIT, $limit));
+	}
+
+	/** A tri-state query parameter: absent is null, not false. */
+	private function bool(string $value): ?bool {
+		$value = strtolower(trim($value));
+		if ($value === '') {
+			return null;
+		}
+
+		return in_array($value, ['1', 'true', 'yes', 'on'], true);
+	}
+
+	/**
+	 * A page with the `Link` header masto.js reads its cursor from — without
+	 * it a client shows the first page and stops.
+	 *
+	 * @param int[] $ids the cursor ids of the page, in its order; empty when
+	 *                   the page has no cursor at all, which is what the
+	 *                   `silenced` and `suspended` account lists are
+	 */
+	private function paged(array $items, int $limit, array $ids): DataResponse {
+		$response = new DataResponse($items, Http::STATUS_OK);
+		if ($ids === []) {
+			return $response;
+		}
+
+		$links = [];
+		if (count($ids) >= $limit) {
+			// a page shorter than the limit is the last one
+			$links[] = '<' . $this->pageUrl(['max_id' => (string)min($ids)]) . '>; rel="next"';
+		}
+		$links[] = '<' . $this->pageUrl(['min_id' => (string)max($ids)]) . '>; rel="prev"';
+
+		$response->addHeader('Link', implode(', ', $links));
+
+		return $response;
+	}
+
+	/**
+	 * This request's own URL with the cursor replaced, so every filter the
+	 * client sent survives into the next page.
+	 */
+	private function pageUrl(array $cursor): string {
+		$uri = $this->request->getRequestUri();
+		$path = $uri;
+		$query = [];
+
+		$pos = strpos($uri, '?');
+		if ($pos !== false) {
+			$path = substr($uri, 0, $pos);
+			parse_str(substr($uri, $pos + 1), $query);
+		}
+
+		unset($query['max_id'], $query['min_id'], $query['since_id'], $query['_route']);
+
+		return $path . '?' . http_build_query(array_merge($query, $cursor));
+	}
+
+	/**
+	 * A failure as a client can act on it. An unrecognised one is a bug on
+	 * this side, so it answers 500 and its message is not sent on — these are
+	 * `#[PublicPage]` routes, and echoing getMessage() publishes whatever the
+	 * failure happened to name.
+	 */
+	private function error(Throwable $e): DataResponse {
+		if ($e instanceof InsufficientScopeException) {
+			return new DataResponse(
+				['error' => $e->getMessage()],
+				Http::STATUS_FORBIDDEN,
+				['WWW-Authenticate' => 'Bearer error="insufficient_scope"']
+			);
+		}
+
+		if ($e instanceof ClientNotFoundException) {
+			$message = trim($e->getMessage());
+
+			return new DataResponse(
+				['error' => ($message === '') ? 'the access_token is invalid' : $message],
+				Http::STATUS_UNAUTHORIZED,
+				['WWW-Authenticate' => 'Bearer error="invalid_token"']
+			);
+		}
+
+		if ($e instanceof ItemNotFoundException || $e instanceof ReportNotFoundException) {
+			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
+		}
+
+		if ($e instanceof InvalidResourceException || $e instanceof InvalidArgumentException) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		$this->logger->error('[AdminApiController] unexpected failure answering the admin API', [
+			'exception' => $e,
+			'route' => (string)$this->request->getParam('_route', ''),
+		]);
+
+		return new DataResponse(
+			['error' => 'internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR
+		);
+	}
+}

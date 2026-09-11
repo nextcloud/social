@@ -125,6 +125,13 @@ return [
 		['name' => 'Filter#get', 'url' => '/api/v2/filters/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
 		['name' => 'Filter#update', 'url' => '/api/v2/filters/{id}', 'verb' => 'PUT', 'requirements' => ['id' => '\d+']],
 		['name' => 'Filter#delete', 'url' => '/api/v2/filters/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
+
+		// Mastodon's announcements: what the instance is telling everybody,
+		// and the dismissal that makes one read for a single account. The
+		// window is a predicate of the read, so nothing has to run for an
+		// announcement to start or stop applying.
+		['name' => 'Announcement#index', 'url' => '/api/v1/announcements', 'verb' => 'GET'],
+		['name' => 'Announcement#dismiss', 'url' => '/api/v1/announcements/{id}/dismiss', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#searchV2', 'url' => '/api/v2/search', 'verb' => 'GET'],
 		// Mastodon's own v1 search. This path used to be the app's web-UI search
@@ -136,6 +143,9 @@ return [
 		['name' => 'Api#bookmarks', 'url' => '/api/v1/bookmarks', 'verb' => 'GET'],
 		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
 		['name' => 'Api#notificationsUnreadCount', 'url' => '/api/v1/notifications/unread_count', 'verb' => 'GET'],
+		['name' => 'Notification#clear', 'url' => '/api/v1/notifications/clear', 'verb' => 'POST'],
+		['name' => 'Notification#get', 'url' => '/api/v1/notifications/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'Notification#dismiss', 'url' => '/api/v1/notifications/{id}/dismiss', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'Api#markersGet', 'url' => '/api/v1/markers', 'verb' => 'GET'],
 		['name' => 'Api#markersSet', 'url' => '/api/v1/markers', 'verb' => 'POST'],
 		['name' => 'Api#tag', 'url' => '/api/v1/timelines/tag/{hashtag}', 'verb' => 'GET'],
@@ -220,6 +230,32 @@ return [
 
 		['name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress', 'verb' => 'POST'],
 
+		// Mastodon's admin API. Every route requires a Nextcloud
+		// administrator — asked of the user behind the token or the session,
+		// never of the token's scope — see AdminApiController. The action
+		// routes are declared before the {id} lookup, as the lists routes
+		// are, so that /api/v1/admin/accounts/7/action cannot be read as an
+		// account named "7/action"; {id} accepts slashes because a suspended
+		// account, whose cached actor the suspension purged, is named by its
+		// actor id and no longer by a numeric one.
+		['name' => 'AdminApi#accounts', 'url' => '/api/v1/admin/accounts', 'verb' => 'GET'],
+		['name' => 'AdminApi#accountAction', 'url' => '/api/v1/admin/accounts/{id}/action', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'AdminApi#accountEnable', 'url' => '/api/v1/admin/accounts/{id}/enable', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'AdminApi#accountUnsilence', 'url' => '/api/v1/admin/accounts/{id}/unsilence', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'AdminApi#accountUnsuspend', 'url' => '/api/v1/admin/accounts/{id}/unsuspend', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'AdminApi#account', 'url' => '/api/v1/admin/accounts/{id}', 'verb' => 'GET', 'requirements' => ['id' => '.+']],
+		['name' => 'AdminApi#reports', 'url' => '/api/v1/admin/reports', 'verb' => 'GET'],
+		['name' => 'AdminApi#reportResolve', 'url' => '/api/v1/admin/reports/{id}/resolve', 'verb' => 'POST'],
+		['name' => 'AdminApi#reportReopen', 'url' => '/api/v1/admin/reports/{id}/reopen', 'verb' => 'POST'],
+		['name' => 'AdminApi#reportAssignToSelf', 'url' => '/api/v1/admin/reports/{id}/assign_to_self', 'verb' => 'POST'],
+		['name' => 'AdminApi#reportUnassign', 'url' => '/api/v1/admin/reports/{id}/unassign', 'verb' => 'POST'],
+		['name' => 'AdminApi#report', 'url' => '/api/v1/admin/reports/{id}', 'verb' => 'GET'],
+		['name' => 'AdminApi#domainBlocks', 'url' => '/api/v1/admin/domain_blocks', 'verb' => 'GET'],
+		['name' => 'AdminApi#domainBlockCreate', 'url' => '/api/v1/admin/domain_blocks', 'verb' => 'POST'],
+		['name' => 'AdminApi#domainBlock', 'url' => '/api/v1/admin/domain_blocks/{id}', 'verb' => 'GET'],
+		['name' => 'AdminApi#domainBlockUpdate', 'url' => '/api/v1/admin/domain_blocks/{id}', 'verb' => 'PUT'],
+		['name' => 'AdminApi#domainBlockRemove', 'url' => '/api/v1/admin/domain_blocks/{id}', 'verb' => 'DELETE'],
+
 		// admin-only moderation actions (session + CSRF, never part of the client API)
 		['name' => 'Moderation#reportResolve', 'url' => '/moderation/reports/{id}/resolve', 'verb' => 'POST'],
 		['name' => 'Moderation#fediverseAdd', 'url' => '/moderation/fediverse/add', 'verb' => 'POST'],
@@ -227,6 +263,9 @@ return [
 		['name' => 'Moderation#fediverseAccess', 'url' => '/moderation/fediverse/access', 'verb' => 'POST'],
 		['name' => 'Moderation#retention', 'url' => '/moderation/retention', 'verb' => 'POST'],
 		['name' => 'Moderation#accountModerate', 'url' => '/moderation/accounts', 'verb' => 'POST'],
-		['name' => 'Moderation#statusRemove', 'url' => '/moderation/statuses/remove', 'verb' => 'POST']
+		['name' => 'Moderation#statusRemove', 'url' => '/moderation/statuses/remove', 'verb' => 'POST'],
+		['name' => 'Announcement#adminIndex', 'url' => '/admin/announcements', 'verb' => 'GET'],
+		['name' => 'Announcement#adminCreate', 'url' => '/admin/announcements', 'verb' => 'POST'],
+		['name' => 'Announcement#adminDelete', 'url' => '/admin/announcements/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']]
 	]
 ];

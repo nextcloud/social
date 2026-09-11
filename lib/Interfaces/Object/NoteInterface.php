@@ -31,6 +31,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\ForwardService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
 use OCA\Social\Service\StreamQueueService;
@@ -52,6 +53,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		private StreamQueueService $streamQueueService,
 		private LinkPreviewService $linkPreviewService,
 		private ForwardService $forwardService,
+		private NotificationService $notificationService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -116,6 +118,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			}
 			$item->setActivityId($activity->getId());
 			$this->streamRequest->update($item);
+			$this->notificationService->onStatusEdited($item);
 		}
 	}
 
@@ -358,9 +361,19 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('account', $post->getActor()->getAccount());
-			$notification->setAttributedTo($recipient->getId())
+			// the author, not the reader. The notification timeline finds this
+			// row by its recipient rows in social_stream_dest, so `attributedTo`
+			// is free to say who *did* the thing — which is what it means on
+			// every other notification, what the client shows as the acting
+			// account, and what the block and mute filter compares against.
+			// Naming the recipient here had that filter comparing the reader
+			// with themselves, so a mention from an account they had blocked
+			// reached them anyway.
+			$notification->setAttributedTo($post->getActor()->getId())
 				->setSubType(Mention::TYPE)
-				->setId($post->getId() . '/notification+mention')
+				// one row per recipient: a post mentioning three people wrote
+				// one id three times, and only the first of them survived
+				->setId($post->getId() . '/notification+mention/' . md5($recipient->getId()))
 				->setSummary('{account} mentioned you in a post')
 				->setObjectId($post->getId())
 				->setTo($recipient->getId())

@@ -86,6 +86,48 @@ class Notifier implements INotifier {
 		$params = $notification->getSubjectParameters();
 
 		switch ($notification->getSubject()) {
+			case 'mention':
+				$notification->setParsedSubject(
+					$l10n->t('%s mentioned you in a post', [$this->account($params)])
+				);
+				$this->point($notification, $params);
+				break;
+
+			case 'favourite':
+				$notification->setParsedSubject(
+					$l10n->t('%s favourited your post', [$this->account($params)])
+				);
+				$this->point($notification, $params);
+				break;
+
+			case 'reblog':
+				$notification->setParsedSubject(
+					$l10n->t('%s boosted your post', [$this->account($params)])
+				);
+				$this->point($notification, $params);
+				break;
+
+			case 'follow':
+				$notification->setParsedSubject(
+					$l10n->t('%s is now following you', [$this->account($params)])
+				);
+				$this->point($notification, $params);
+				break;
+
+			case 'follow_request':
+				$notification->setParsedSubject(
+					$l10n->t('%s wants to follow you', [$this->account($params)])
+				);
+				$this->point($notification, $params);
+				break;
+
+			case 'update':
+				$notification->setParsedSubject(
+					$l10n->t('%s edited a post you boosted', [$this->account($params)])
+				);
+				$this->point($notification, $params);
+				break;
+
 			case 'report_new':
 				$account = (string)($params['account'] ?? '');
 				$notification->setParsedSubject(
@@ -106,5 +148,41 @@ class Notifier implements INotifier {
 		}
 
 		return $notification;
+	}
+
+	/**
+	 * Who acted, as it is written into the sentence. An account that could not
+	 * be resolved when the notification was raised leaves this empty rather
+	 * than guessing a name — `%s mentioned you in a post` with nothing in
+	 * front of it still says what happened.
+	 */
+	private function account(array $params): string {
+		return (string)($params['account'] ?? '');
+	}
+
+	/**
+	 * Points the notification at the post or the profile it is about, and
+	 * shows the acting account's avatar instead of the app icon.
+	 *
+	 * Both are taken only when they are absolute http(s) URLs: the parameters
+	 * come from a stored notification, whose actor may be on another server,
+	 * and a relative or exotic value there would be rendered as a link out of
+	 * the Nextcloud interface to something nobody vouched for.
+	 */
+	private function point(INotification $notification, array $params): void {
+		$link = (string)($params['link'] ?? '');
+		if ($this->isWebUrl($link)) {
+			$notification->setLink($link);
+		}
+
+		$avatar = (string)($params['avatar'] ?? '');
+		if ($this->isWebUrl($avatar)) {
+			$notification->setIcon($avatar);
+		}
+	}
+
+	private function isWebUrl(string $url): bool {
+		return (filter_var($url, FILTER_VALIDATE_URL) !== false)
+			&& (str_starts_with($url, 'https://') || str_starts_with($url, 'http://'));
 	}
 }

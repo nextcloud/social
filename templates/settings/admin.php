@@ -213,3 +213,40 @@ $moderation = $_['moderation'];
 		<button type="button" id="social-access-add"><?php p($l->t('Add instance')); ?></button>
 	</p>
 </div>
+
+<div id="social-announcements" class="section">
+	<h2><?php p($l->t('Announcements')); ?></h2>
+	<p class="settings-hint">
+		<?php p($l->t('A notice every account on this instance is shown once in its client, until they dismiss it. Give it a start and an end and it is only shown between them — both or neither. An announcement that has run out stops being shown the moment it does; removing it here takes it away from everybody, read or not.')); ?>
+	</p>
+
+	<table class="grid social-announcements">
+		<thead>
+			<tr>
+				<th><?php p($l->t('Announcement')); ?></th>
+				<th><?php p($l->t('Shown from')); ?></th>
+				<th><?php p($l->t('Until')); ?></th>
+				<th><?php p($l->t('State')); ?></th>
+				<th></th>
+			</tr>
+		</thead>
+		<tbody id="social-announcements-list"></tbody>
+	</table>
+
+	<p>
+		<label for="social-announcement-text"><?php p($l->t('New announcement')); ?></label><br>
+		<textarea id="social-announcement-text" rows="3" cols="60"
+			placeholder="<?php p($l->t('This server will be down for maintenance on Sunday.')); ?>"></textarea>
+	</p>
+	<p>
+		<label for="social-announcement-starts"><?php p($l->t('From')); ?></label>
+		<input type="datetime-local" id="social-announcement-starts">
+		<label for="social-announcement-ends"><?php p($l->t('Until')); ?></label>
+		<input type="datetime-local" id="social-announcement-ends">
+		<label for="social-announcement-all-day">
+			<input type="checkbox" id="social-announcement-all-day">
+			<?php p($l->t('Whole days')); ?>
+		</label>
+		<button type="button" id="social-announcement-add"><?php p($l->t('Post announcement')); ?></button>
+	</p>
+</div>
