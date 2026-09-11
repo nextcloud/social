@@ -110,11 +110,25 @@ describe('TimelineEntry', () => {
 		})
 	})
 
+	/**
+	 * Every entry in the list has to have the same edges. A notification is a
+	 * card because it is a thing that happened; a boost and a plain post are
+	 * both just a post, so neither takes one.
+	 */
+	it('gives a card to notifications and to nothing else', () => {
+		expect(mountEntry(post).wrapper.classes()).not.toContain('with-header')
+		expect(mountEntry(boost).wrapper.classes()).not.toContain('with-header')
+		expect(mountEntry(notification('favourite'), { type: 'notifications' }).wrapper.classes())
+			.toContain('with-header')
+	})
+
 	describe('a boost', () => {
 		it('shows who boosted and links to their profile', () => {
 			const { wrapper } = mountEntry(boost)
 
-			expect(wrapper.classes()).toContain('with-header')
+			// a line above the post, not a box around it: a card here nested a
+			// card and left boosted posts narrower than every post around them
+			expect(wrapper.classes()).not.toContain('with-header')
 			const header = wrapper.find('.boost')
 			expect(header.find('.repeat-icon').exists()).toBe(true)
 			expect(header.find('img').attributes('src')).toBe(bob.avatar)

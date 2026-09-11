@@ -266,6 +266,18 @@ a.external_link {
 	--social-elevation-raised:
 		0 2px 4px color-mix(in srgb, var(--color-box-shadow) 20%, transparent),
 		0 6px 16px color-mix(in srgb, var(--color-box-shadow) 12%, transparent);
+
+	/*
+	 * One column, stated once. The composer and the timeline used to each
+	 * carry their own max-width — the same number, but the list also had a
+	 * horizontal padding and the composer did not, so the two boxes were a
+	 * gutter's width apart at both edges and nothing on the page lined up.
+	 * Anything that sits in the column is `--social-column` wide; anything
+	 * inside the list's padding is `--social-column-inner`.
+	 */
+	--social-column: 600px;
+	--social-column-gutter: calc(var(--default-grid-baseline, 4px) * 2);
+	--social-column-inner: calc(var(--social-column) - 2 * var(--social-column-gutter));
 }
 
 img.emoji {

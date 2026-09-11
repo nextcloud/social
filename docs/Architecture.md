@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.59  
+**App version:** 0.11.60  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -478,6 +478,19 @@ timeline with `only_media` — the people you follow, but only what they showed
 rather than what they said. It is the same query and the same filters, one
 predicate narrower, so nothing about visibility, blocks, mutes or silencing is
 decided twice.
+
+**One column.** `--social-column` in `App.vue` is the width of the timeline,
+stated once. The list carries the gutter (`--social-column-gutter`) and anything
+that sits beside it — the composer — takes `--social-column-inner`, the list's
+content box. Both used to carry the same max-width independently while only one
+of them had a gutter, so the composer stood a gutter proud of every post beneath
+it at both edges.
+
+Every entry in the list has the same edges for the same reason. A notification
+is a card, because it is a thing that happened and the post inside it is quoted
+evidence; a boost is not, because it is somebody else's post with a line saying
+who passed it on. Giving a boost a card put a box inside a box and inset the
+post by the outer padding, so boosted posts were narrower than their neighbours.
 
 **Posts that are pictures.** A post carrying attachments and no content
 warning is laid out around them: `TimelinePost.vue`'s `mediaLeads` puts

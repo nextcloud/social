@@ -517,9 +517,9 @@ export default {
 
 <style scoped lang="scss">
 .social__timeline {
-	max-width: 600px;
+	max-width: var(--social-column);
 	margin: 0 auto;
-	padding: 0 calc(var(--default-grid-baseline) * 2);
+	padding: 0 var(--social-column-gutter);
 
 	ul {
 		margin: 0;

@@ -5,7 +5,7 @@
 <template>
 	<component :is="element"
 		class="timeline-entry"
-		:class="{ 'notification': isNotification, 'with-header': hasHeader }"
+		:class="{ 'notification': isNotification, 'with-header': isNotification }"
 		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">
@@ -162,12 +162,6 @@ export default {
 			return ['follow', 'follow_request', 'admin.sign_up', 'admin.report'].includes(this.notification.type)
 		},
 		/**
-		 * @return {boolean}
-		 */
-		hasHeader() {
-			return this.isBoost || this.isNotification
-		},
-		/**
 		 * @return {string}
 		 */
 		actionSummary() {
@@ -217,6 +211,11 @@ export default {
 		margin-bottom: 0;
 	}
 
+	// A notification is a card of its own: it is a thing that happened, and
+	// the post inside it is quoted evidence. A boost is not — it is somebody
+	// else's post with a line saying who passed it on, so giving it a card
+	// too put a box inside a box and inset the post by the outer padding,
+	// leaving boosted posts narrower than every post around them.
 	&.with-header {
 		background: var(--color-main-background);
 		border: 1px solid var(--color-border);
@@ -297,7 +296,7 @@ export default {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	margin-bottom: 10px;
+	margin-bottom: 6px;
 	padding-left: 4px;
 
 	img {

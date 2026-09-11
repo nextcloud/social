@@ -1371,7 +1371,10 @@ $composer-duration: 220ms;
 	border-radius: var(--border-radius-large, 12px);
 	padding: 18px;
 	margin: calc(var(--default-grid-baseline) * 3) auto;
-	max-width: 600px;
+	// the list's content box, not the column: the list carries a gutter and
+	// this does not, so the same number on both left the composer standing a
+	// gutter proud of every post under it
+	max-width: var(--social-column-inner);
 	position: sticky;
 	top: 0;
 	z-index: 100;
