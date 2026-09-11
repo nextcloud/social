@@ -91,6 +91,14 @@ return [
 		['name' => 'List#delete', 'url' => '/api/v1/lists/{id}', 'verb' => 'DELETE'],
 		['name' => 'List#timeline', 'url' => '/api/v1/timelines/list/{id}', 'verb' => 'GET'],
 
+		// conversations: the direct timeline grouped by thread, which is the
+		// screen a Mastodon client reads direct messages from. The sub-path is
+		// declared before the {id} lookup, as the lists routes are, so that
+		// /api/v1/conversations/4/read cannot be read as a conversation "4"
+		['name' => 'Conversation#index', 'url' => '/api/v1/conversations', 'verb' => 'GET'],
+		['name' => 'Conversation#read', 'url' => '/api/v1/conversations/{id}/read', 'verb' => 'POST'],
+		['name' => 'Conversation#delete', 'url' => '/api/v1/conversations/{id}', 'verb' => 'DELETE'],
+
 		// Keyword filters, Mastodon's v2 API. The v1 routes are deprecated
 		// there and are deliberately not served: a v1 client cannot express
 		// `hide`, an expiry, or a keyword id.
@@ -138,6 +146,7 @@ return [
 		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'Api#accountFollow', 'url' => '/api/v1/accounts/{id}/follow', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#accountUnfollow', 'url' => '/api/v1/accounts/{id}/unfollow', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Follower#remove', 'url' => '/api/v1/accounts/{id}/remove_from_followers', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#accountBlock', 'url' => '/api/v1/accounts/{id}/block', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#accountUnblock', 'url' => '/api/v1/accounts/{id}/unblock', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#accountMute', 'url' => '/api/v1/accounts/{id}/mute', 'verb' => 'POST', 'requirements' => ['id' => '.+']],

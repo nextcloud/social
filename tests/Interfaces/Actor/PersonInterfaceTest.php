@@ -43,6 +43,7 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 			$this->reportsRequest,
 			$this->filtersRequest,
 			$this->listsRequest,
+			$this->conversationsRequest,
 		);
 	}
 

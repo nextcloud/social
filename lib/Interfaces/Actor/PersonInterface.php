@@ -13,6 +13,7 @@ use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\FiltersRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ListsRequest;
@@ -69,6 +70,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		private ReportsRequest $reportsRequest,
 		private FiltersRequest $filtersRequest,
 		private ListsRequest $listsRequest,
+		private ConversationsRequest $conversationsRequest,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -151,6 +153,8 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		// which nothing else removes
 		$this->filtersRequest->deleteRelatedId($item->getId());
 		$this->listsRequest->deleteRelatedId($item->getId());
+		// how far they had read and dismissed their own conversations
+		$this->conversationsRequest->deleteRelatedId($item->getId());
 		// a moderation decision deliberately outlives the account: it is what
 		// keeps a suspended account suspended if it comes back
 

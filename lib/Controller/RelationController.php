@@ -1,0 +1,402 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Controller;
+
+use Exception;
+use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\InsufficientScopeException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Model\Relationship;
+use OCA\Social\Service\AccountRelationService;
+use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ClientService;
+use OCA\Social\Service\DomainBlockService;
+use OCA\Social\Service\FollowService;
+use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\IRequest;
+use OCP\IUserSession;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+/**
+ * What one account decides about another, beside following, blocking and
+ * muting it: the instances it will not hear from, the note it keeps about an
+ * account, and the accounts it features on its profile.
+ *
+ * They share a controller because they share an access model, and it is the
+ * strictest one in this API: every row involved belongs to exactly one account,
+ * is only ever read for that account, and is never federated. Nobody — not the
+ * account a note is about, not the instance that was blocked — may see any of
+ * it, so every route here resolves the viewer first and scopes every read and
+ * every write by them.
+ *
+ * Not `RelationshipService`, which is blocks and mutes and does federate what
+ * Mastodon federates. Nothing here leaves the server.
+ *
+ * `#[PublicPage]` with `#[NoCSRFRequired]`, like `ApiController`,
+ * `TagController` and `ListController`, and for the same reason: a Mastodon
+ * client authenticates with a bearer token and has no Nextcloud session or CSRF
+ * token to present, so `#[NoAdminRequired]` would refuse every real caller
+ * before the handler ran. Every route then requires a viewer itself — no token,
+ * no session, 401 — so nothing is public in fact.
+ */
+class RelationController extends Controller {
+	/** What Mastodon defaults and caps a page of featured accounts at. */
+	private const ENDORSEMENTS_LIMIT = 40;
+	private const MAX_ENDORSEMENTS_LIMIT = 80;
+
+	private string $bearer = '';
+	private ?SocialClient $client = null;
+	private ?Person $viewer = null;
+
+	public function __construct(
+		IRequest $request,
+		private IUserSession $userSession,
+		private LoggerInterface $logger,
+		private AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		private ClientService $clientService,
+		private FollowService $followService,
+		private AccountRelationService $accountRelationService,
+		private DomainBlockService $domainBlockService,
+	) {
+		parent::__construct(Application::APP_ID, $request);
+
+		$authHeader = trim($this->request->getHeader('Authorization'));
+		if (strpos($authHeader, ' ')) {
+			[$authType, $authToken] = explode(' ', $authHeader);
+			if (strtolower($authType) === 'bearer') {
+				$this->bearer = $authToken;
+			}
+		}
+	}
+
+	/**
+	 * The instances the viewer has blocked, as a flat list of domains — which
+	 * is what Mastodon answers here, not entities.
+	 *
+	 * No `Link` header, like `/api/v1/blocks` and `/api/v1/mutes`: the route
+	 * takes no cursor, and a header advertising the page just sent is one a
+	 * client scrolls for ever.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function domainBlocks(int $limit = DomainBlockService::LIMIT): DataResponse {
+		try {
+			$this->initViewer(['read:blocks']);
+			$limit = max(1, min(DomainBlockService::MAX_LIMIT, $limit));
+
+			return new DataResponse($this->domainBlockService->getBlocked($this->viewer, $limit), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Blocks an instance for the viewer alone, and answers `{}` as Mastodon
+	 * does. Blocking one that is already blocked is not an error.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function blockDomain(string $domain = ''): DataResponse {
+		try {
+			$this->initViewer(['write:blocks']);
+			$this->domainBlockService->block($this->viewer, $domain);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Unblocking an instance that was not blocked answers `{}` as well. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function unblockDomain(string $domain = ''): DataResponse {
+		try {
+			$this->initViewer(['write:blocks']);
+			$this->domainBlockService->unblock($this->viewer, $domain);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Keeps the viewer's private note about an account and answers the updated
+	 * relationship, which is where a client reads the note back from.
+	 *
+	 * Mastodon calls the parameter `comment`, and an empty one clears the note
+	 * rather than storing a blank.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function note(string $id, string $comment = ''): DataResponse {
+		try {
+			$this->initViewer(['write:accounts']);
+			$target = $this->resolveAccount($id);
+			$this->accountRelationService->setNote($this->viewer, $target, $comment);
+
+			return new DataResponse($this->relationship($target), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Features the account on the viewer's profile. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function pin(string $id): DataResponse {
+		try {
+			$this->initViewer(['write:accounts']);
+			$target = $this->resolveAccount($id);
+			$this->accountRelationService->endorse($this->viewer, $target);
+
+			return new DataResponse($this->relationship($target, true), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Stops featuring it. Unfeaturing one that was not featured is not an error. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function unpin(string $id): DataResponse {
+		try {
+			$this->initViewer(['write:accounts']);
+			$target = $this->resolveAccount($id);
+			$this->accountRelationService->unendorse($this->viewer, $target);
+
+			return new DataResponse($this->relationship($target, false), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The accounts the viewer features, as Account entities, newest first.
+	 *
+	 * The viewer's own and nobody else's: Mastodon serves another account's
+	 * featured accounts from its profile, not from here.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function endorsements(int $limit = self::ENDORSEMENTS_LIMIT): DataResponse {
+		try {
+			$this->initViewer(['read:accounts']);
+			$limit = max(1, min(self::MAX_ENDORSEMENTS_LIMIT, $limit));
+
+			$accounts = $this->accountRelationService->getEndorsed($this->viewer, $limit);
+			foreach ($accounts as $account) {
+				$account->setExportFormat(ACore::FORMAT_LOCAL);
+			}
+
+			return new DataResponse($accounts, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The relationship a client is handed back after a write here.
+	 *
+	 * Decorated on the way out rather than left to `FollowService::
+	 * generateRelationship()`: the caller of one of these routes has just
+	 * changed one of these fields and must be told what it is now, whether or
+	 * not the relationship builder has been taught to read them. Decorating a
+	 * relationship twice reaches the same answer.
+	 *
+	 * @param bool|null $endorsed what this request made of it, when it is this
+	 *                            request that decided — no query can answer it
+	 *                            better than the write that just happened
+	 */
+	private function relationship(Person $target, ?bool $endorsed = null): Relationship {
+		$this->followService->setViewer($this->viewer);
+		$relationship = $this->followService->getRelationshipWith($target);
+
+		$this->accountRelationService->decorate(
+			$relationship, $this->viewer->getId(), $target->getId()
+		);
+		$relationship->setEndorsed(
+			$endorsed ?? $this->accountRelationService->isEndorsing($this->viewer->getId(), $target->getId())
+		);
+
+		return $relationship;
+	}
+
+	/**
+	 * The account behind what a client sent: Mastodon's numeric local id, an
+	 * actor URI, or a handle. The same three forms `ApiController` and
+	 * `ListController` accept wherever they take an account.
+	 *
+	 * @throws CacheActorDoesNotExistException
+	 */
+	private function resolveAccount(string $id): Person {
+		$id = trim($id);
+
+		if (is_numeric($id)) {
+			if ((int)$id < 1) {
+				throw new CacheActorDoesNotExistException('Record not found');
+			}
+
+			$actors = $this->cacheActorService->getFromNids([(int)$id]);
+			if ($actors === []) {
+				throw new CacheActorDoesNotExistException('Record not found');
+			}
+
+			return $actors[0];
+		}
+
+		if (str_starts_with($id, 'http://') || str_starts_with($id, 'https://')) {
+			return $this->cacheActorService->getFromId($id);
+		}
+
+		if ($id === '') {
+			throw new CacheActorDoesNotExistException('Record not found');
+		}
+
+		return $this->cacheActorService->getFromAccount(ltrim($id, '@'));
+	}
+
+	/**
+	 * Resolves the viewer from the bearer token, or from the Nextcloud session
+	 * when there is none — the same order `ApiController` uses, because the
+	 * same clients call both.
+	 *
+	 * @param string[] $scopes any one of which satisfies a bearer token
+	 *
+	 * @throws ClientNotFoundException there is nobody to answer for
+	 * @throws InsufficientScopeException the token is fine, its grant is not
+	 */
+	private function initViewer(array $scopes): void {
+		try {
+			$userId = $this->currentSession($scopes);
+			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
+		} catch (InsufficientScopeException $e) {
+			throw $e;
+		} catch (Exception $e) {
+			// a missing, stale or made-up token is ordinary internet noise and
+			// is answered with a 401, not logged as a fault
+			$this->logger->debug('[RelationController] no usable credentials', [
+				'exception' => $e->getMessage(),
+			]);
+
+			throw new ClientNotFoundException('the access_token was revoked');
+		}
+	}
+
+	/**
+	 * @param string[] $scopes
+	 *
+	 * @throws ClientNotFoundException
+	 * @throws InsufficientScopeException
+	 */
+	private function currentSession(array $scopes): string {
+		if ($this->bearer !== '') {
+			$this->client = $this->clientService->getFromToken($this->bearer);
+			$this->checkTokenScope($scopes);
+
+			return $this->client->getAuthUserId();
+		}
+
+		$user = $this->userSession->getUser();
+		if ($user !== null && $this->request->passesCSRFCheck()) {
+			return $user->getUID();
+		}
+
+		throw new ClientNotFoundException('userId not defined');
+	}
+
+	/**
+	 * A granular scope is satisfied by itself or by the broad scope that
+	 * contains it: `read:blocks` by `read:blocks` or by `read`, and by nothing
+	 * else.
+	 *
+	 * Not by any other granular variant of the same parent — a token granted
+	 * `read:statuses` has not been granted the reader's block list, and none of
+	 * this is anybody's business but the account it belongs to.
+	 *
+	 * @param string[] $accepted
+	 *
+	 * @throws InsufficientScopeException
+	 */
+	private function checkTokenScope(array $accepted): void {
+		foreach ($accepted as $scope) {
+			$broad = strstr($scope, ':', true);
+			$broad = ($broad === false) ? $scope : $broad;
+
+			foreach ($this->client->getAuthScopes() as $granted) {
+				if ($granted === $scope || $granted === $broad) {
+					return;
+				}
+			}
+		}
+
+		throw new InsufficientScopeException(
+			'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
+		);
+	}
+
+	/**
+	 * A failure as a Mastodon client can act on it: `{"error": "..."}` with a
+	 * status that says what to do about it. An unrecognised failure is a bug on
+	 * this side, so it answers 500 and its message is not sent on — these are
+	 * `#[PublicPage]` routes, and echoing getMessage() publishes whatever the
+	 * failure happened to name.
+	 */
+	private function error(Throwable $e): DataResponse {
+		if ($e instanceof InsufficientScopeException) {
+			return new DataResponse(
+				['error' => $e->getMessage()],
+				Http::STATUS_FORBIDDEN,
+				['WWW-Authenticate' => 'Bearer error="insufficient_scope"']
+			);
+		}
+
+		if ($e instanceof ClientNotFoundException) {
+			$message = trim($e->getMessage());
+
+			return new DataResponse(
+				['error' => ($message === '') ? 'the access_token is invalid' : $message],
+				Http::STATUS_UNAUTHORIZED,
+				['WWW-Authenticate' => 'Bearer error="invalid_token"']
+			);
+		}
+
+		if ($e instanceof ItemNotFoundException || $e instanceof CacheActorDoesNotExistException) {
+			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
+		}
+
+		if ($e instanceof InvalidResourceException) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		$this->logger->error('[RelationController] unexpected failure answering the client API', [
+			'exception' => $e,
+			'route' => (string)$this->request->getParam('_route', ''),
+		]);
+
+		return new DataResponse(
+			['error' => 'internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR
+		);
+	}
+}
