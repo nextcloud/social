@@ -244,3 +244,45 @@ describe('the frontend is Vue 3, not Vue 2 with a Vue 3 runtime', () => {
 		}
 	})
 })
+
+describe('cards agree on how far off the page they sit', () => {
+	const app = files.find(({ name }) => name === 'App.vue').content
+
+	it('defines the two elevations once', () => {
+		expect(app).toContain('--social-elevation-resting:')
+		expect(app).toContain('--social-elevation-raised:')
+	})
+
+	it('thins Nextcloud\'s shadow colour instead of using it raw', () => {
+		// --color-box-shadow is built for modals: half-opaque grey in the light
+		// theme and solid black in the dark one. Straight under a timeline it
+		// puts a slab beneath every post.
+		const raw = app.match(/--social-elevation-[\w-]+:[^;]+;/g) ?? []
+		expect(raw.length).toBe(2)
+		for (const declaration of raw) {
+			expect(declaration).toContain('color-mix(in srgb, var(--color-box-shadow)')
+		}
+	})
+
+	it('gives every card the shared elevation rather than a shadow of its own', () => {
+		// one hand-rolled rgba here and the timeline stops looking like one surface
+		const offenders = files
+			.filter(({ name }) => name !== 'App.vue')
+			.flatMap(({ name, content }) =>
+				content.split('\n')
+					.map((line, index) => (
+						/box-shadow:\s*[^;]*\b\d+px[^;]*\b(rgba?|hsla?)\(/.test(line) ? `${name}:${index + 1}` : null
+					))
+					.filter(Boolean),
+			)
+
+		expect(offenders).toEqual([])
+	})
+
+	it('raises a card on hover rather than only bordering it', () => {
+		const post = files.find(({ name }) => name === 'components/TimelinePost.vue').content
+
+		expect(post).toContain('box-shadow: var(--social-elevation-resting)')
+		expect(post).toContain('box-shadow: var(--social-elevation-raised)')
+	})
+})

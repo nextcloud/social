@@ -771,11 +771,12 @@ function nodeToPlainText(node) {
 	border: 1px solid var(--color-border);
 	position: relative;
 	z-index: 1;
+	box-shadow: var(--social-elevation-resting);
 	transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
 
 	&:hover {
 		border-color: var(--color-primary-element);
-		box-shadow: 0 2px 10px rgb(0 0 0 / 7%);
+		box-shadow: var(--social-elevation-raised);
 		transform: translateY(-1px);
 	}
 
