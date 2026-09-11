@@ -101,7 +101,7 @@ export default {
 
 <style scoped lang="scss">
 .social__wrapper {
-	max-width: 600px;
+	max-width: var(--social-column);
 	margin: 0 auto;
 	padding: calc(var(--default-grid-baseline) * 4);
 

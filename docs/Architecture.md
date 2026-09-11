@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.62  
+**App version:** 0.11.63  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -480,7 +480,12 @@ predicate narrower, so nothing about visibility, blocks, mutes or silencing is
 decided twice.
 
 **One column, one owner.** `--social-column` in `App.vue` is the width of the
-timeline, stated once. The list keeps `--social-column-gutter` inside that, so a
+timeline — 900px — and every view that shows the same column reads it from
+there: the profile, the followers and follow-request lists, the blocked
+accounts, search, the welcome banner and the composer. They each used to carry
+their own `600px`, so widening the timeline alone would have made every other
+page snap back on navigation. (The OAuth consent card keeps its own narrow
+width; it is a dialog, not the column.) The list keeps `--social-column-gutter` inside that, so a
 post is narrower than the column by a gutter on each side; the composer takes the
 column whole and therefore stands that much proud of the posts beneath it, which
 is deliberate — the box you write in should read as the thing that makes them

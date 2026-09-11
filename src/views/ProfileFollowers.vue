@@ -158,7 +158,7 @@ export default {
 <style scoped>
 	.social__followers {
 		width: 100%;
-		max-width: 600px;
+		max-width: var(--social-column);
 		margin: 15px auto;
 		display: flex;
 		flex-direction: column;

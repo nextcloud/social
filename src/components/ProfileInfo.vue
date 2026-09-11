@@ -555,7 +555,7 @@ export default {
 	animation: profile-settle .4s cubic-bezier(.22, 1, .36, 1) both;
 	align-items: center;
 	width: 100%;
-	max-width: 600px;
+	max-width: var(--social-column);
 	margin: 0 auto calc(var(--default-grid-baseline) * 6);
 	text-align: center;
 	background: var(--color-main-background);

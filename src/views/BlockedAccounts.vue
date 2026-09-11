@@ -167,7 +167,7 @@ export default {
 
 <style scoped lang="scss">
 .social__blocked {
-	max-width: 600px;
+	max-width: var(--social-column);
 	margin: 15px auto;
 	padding: 0 10px;
 
