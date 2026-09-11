@@ -1138,6 +1138,7 @@ $composer-duration: 220ms;
 	position: sticky;
 	top: 0;
 	z-index: 100;
+	box-shadow: var(--social-elevation-resting);
 	transition:
 		padding $composer-duration $composer-ease,
 		border-color $composer-duration $composer-ease,
@@ -1147,7 +1148,7 @@ $composer-duration: 220ms;
 	// lifted, not outlined: the box the caret is in draws the ring, and two
 	// nested rings around the same caret is one too many
 	&:focus-within {
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
+		box-shadow: var(--social-elevation-raised);
 	}
 
 	&-form {
@@ -1230,7 +1231,7 @@ $composer-duration: 220ms;
 		color: var(--color-primary-element-text, var(--color-primary-text));
 		font-size: 13px;
 		font-weight: 600;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+		box-shadow: var(--social-elevation-raised);
 		animation: composer-drop-hint $composer-duration $composer-ease;
 	}
 }

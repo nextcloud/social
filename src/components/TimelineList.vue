@@ -574,7 +574,7 @@ export default {
 	color: var(--color-primary-element-text);
 	font-weight: bold;
 	cursor: pointer;
-	box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+	box-shadow: var(--social-elevation-raised);
 
 	&:hover,
 	&:focus-visible {

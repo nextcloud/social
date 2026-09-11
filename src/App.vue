@@ -248,6 +248,26 @@ a.external_link {
 }
 </style>
 <style lang="scss">
+/**
+ * Two levels of elevation, defined once, so every card in the app agrees about
+ * what "resting" and "lifted" look like.
+ *
+ * Nextcloud's own --color-box-shadow is built for modals: rgba(77,77,77,.5) in
+ * the light theme and solid black in the dark one. Used raw under a timeline it
+ * would put a hard slab under every post, so it is thinned with color-mix and
+ * split in two — a tight contact shadow that seats the card on the page, and a
+ * wider ambient one that gives it depth. A browser without color-mix drops the
+ * declaration and gets the borders, which is what the app looked like before.
+ */
+:root {
+	--social-elevation-resting:
+		0 1px 2px color-mix(in srgb, var(--color-box-shadow) 34%, transparent),
+		0 3px 10px color-mix(in srgb, var(--color-box-shadow) 22%, transparent);
+	--social-elevation-raised:
+		0 2px 4px color-mix(in srgb, var(--color-box-shadow) 40%, transparent),
+		0 10px 24px color-mix(in srgb, var(--color-box-shadow) 28%, transparent);
+}
+
 img.emoji {
 	margin: 3px;
 	width: 16px;
