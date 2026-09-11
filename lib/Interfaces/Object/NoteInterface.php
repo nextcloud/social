@@ -170,14 +170,17 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			if ($note->getVisibility() === '') {
 				$note->setVisibility($this->estimateVisibility($note));
 			}
-			// marked before the save, so the row carries what the queue has to fetch
+			// marked before the save, so the row carries what the queue has to fetch.
+			// Both, never one or the other: a quote of a reply brings two unknown
+			// posts, and they travel in the one cache the queue entry works through
 			$fetchParent = $this->markUnknownParent($note);
+			$fetchQuote = $this->markUnknownQuote($note);
 			$this->streamRequest->save($note);
 			$this->updateDetails($note);
 			$this->generateNotification($note);
 			$this->pushService->onNewStream($note->getId());
 			$this->queueLinkPreview($note);
-			if ($fetchParent) {
+			if ($fetchParent || $fetchQuote) {
 				$this->streamQueueService->generateStreamQueue(
 					$note->getRequestToken(), StreamQueue::TYPE_CACHE, $note->getId()
 				);
@@ -210,6 +213,36 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 
 		$note->addCacheItem($parent);
+
+		return true;
+	}
+
+	/**
+	 * The post an incoming quote names is as likely to be a stranger as a
+	 * reply's parent is, and is fetched the same way: into the note's cache and
+	 * through the stream queue, so nothing waits on the quoted author's server
+	 * inside the inbox request. Rendering depends on it — until the quoted post
+	 * is here the client is told the quote is `pending` — and the queue retries
+	 * where a single attempt would give up.
+	 *
+	 * The depth counter is shared with the reply climb on purpose: a quote of a
+	 * quote of a quote is the same unbounded walk through other people's
+	 * servers that the cap exists to stop.
+	 *
+	 * @return bool whether a queue entry is needed once the note is saved
+	 */
+	private function markUnknownQuote(Note $note): bool {
+		$quoted = $note->getQuote();
+		if ($quoted === '' || $this->isKnown($quoted)) {
+			return false;
+		}
+
+		if ($note->getDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH)
+			>= StreamQueueService::MAX_ANCESTOR_DEPTH) {
+			return false;
+		}
+
+		$note->addCacheItem($quoted);
 
 		return true;
 	}

@@ -51,6 +51,28 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const TYPE_ANNOUNCE = 'announce';
 
 	/**
+	 * The states Mastodon's Quote entity can be in. A quote is `accepted` once
+	 * the quoted author's server has approved it — and, here, once the quoted
+	 * post is one this instance holds and the reader may see; `pending` while
+	 * the approval or the post itself is still being waited for; `rejected`
+	 * when the author refused and `revoked` when they took the approval back.
+	 */
+	public const QUOTE_ACCEPTED = 'accepted';
+	public const QUOTE_PENDING = 'pending';
+	public const QUOTE_REJECTED = 'rejected';
+	public const QUOTE_REVOKED = 'revoked';
+
+	/**
+	 * Where a quote state that cannot be read off the wire object is kept.
+	 *
+	 * `quote` and `quoteAuthorization` are properties of the stored wire object
+	 * and come back with it, but a refusal leaves no trace there: the quoting
+	 * post is somebody else's document and this instance may not rewrite it.
+	 * The details column is local, derived data — exactly what a refusal is.
+	 */
+	public const DETAIL_QUOTE_STATE = 'quote_state';
+
+	/**
 	 * How many attachments a single post may bring in. Twice what Mastodon
 	 * lets an author attach, so nothing real is ever cut.
 	 */
@@ -140,6 +162,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $updated = '';
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
+	/** FEP-044f: the id of the object this post quotes, empty when it quotes none */
+	private string $quote = '';
+	/** FEP-044f: the quoted author's stamp of approval, once one has been granted */
+	private string $quoteAuthorization = '';
 	private array $attachments = [];
 	private array $mentions = [];
 	private array $emojis = [];
@@ -163,6 +189,28 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @var array<string, array{int, int}>
 	 */
 	private static array $replyParents = [];
+
+	/**
+	 * The quoted statuses already exported in this request, keyed by their
+	 * ActivityPub id **and the viewer it was resolved for**; `null` for one this
+	 * instance does not hold, or that the viewer may not see. A quote that goes
+	 * round tends to be quoted by several of the posts on one page.
+	 *
+	 * The viewer is half the key because the value is a filtered copy: one
+	 * request serves one reader under PHP-FPM, but a worker process or a queued
+	 * job exports timelines for several actors in a row, and a memo keyed by
+	 * post alone would hand the first reader's copy to the second.
+	 *
+	 * @var array<string, ?array>
+	 */
+	private static array $quotedStatuses = [];
+
+	/**
+	 * How deep the export currently is inside a chain of quotes. A quote of a
+	 * quote of a quote is a lookup and a nested entity per level; Mastodon
+	 * stops after the first and so does this.
+	 */
+	private static int $quoteDepth = 0;
 
 	/**
 	 * Stream constructor.
@@ -355,6 +403,57 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setInReplyTo(string $inReplyTo): Stream {
 		$this->inReplyTo = $inReplyTo;
+
+		return $this;
+	}
+
+	/**
+	 * The id of the post this one quotes, empty when it quotes none.
+	 *
+	 * FEP-044f calls this `quote`; Mastodon 4.5 emits that name and keeps
+	 * emitting the older `quoteUrl`/`_misskey_quote` aliases beside it, and
+	 * reads any of them. Only ever an id here: the quoted post is a row of its
+	 * own, fetched like a reply's parent, never a copy embedded in this one.
+	 */
+	public function getQuote(): string {
+		return $this->quote;
+	}
+
+	public function setQuote(string $quote): self {
+		$this->quote = $quote;
+
+		return $this;
+	}
+
+	/**
+	 * The quoted author's approval of this quote, as the URI their server
+	 * handed back in `Accept{QuoteRequest}`. Mastodon dereferences it before it
+	 * renders the quoted post inline, so a quote that has one is shown as a
+	 * card and one that has none is shown as a bare link.
+	 */
+	public function getQuoteAuthorization(): string {
+		return $this->quoteAuthorization;
+	}
+
+	public function setQuoteAuthorization(string $quoteAuthorization): self {
+		$this->quoteAuthorization = $quoteAuthorization;
+
+		return $this;
+	}
+
+	/**
+	 * A quote state that was decided elsewhere — a refusal or a withdrawal —
+	 * or an empty string when nothing was. Anything else is derived at export
+	 * time from what this instance actually holds; see exportQuoteAsLocal().
+	 */
+	public function getQuoteState(): string {
+		$state = $this->getDetailsAll()[self::DETAIL_QUOTE_STATE] ?? '';
+
+		return is_string($state) ? $state : '';
+	}
+
+	public function setQuoteState(string $state): self {
+		$this->setDetail(self::DETAIL_QUOTE_STATE, $state);
 
 		return $this;
 	}
@@ -598,6 +697,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setEmojis($this->extractEmojisFromTag($data));
 
 		$this->setInReplyTo($this->validate(self::AS_ID, 'inReplyTo', $data, ''));
+		$this->setQuote($this->quoteIdOf($data));
+		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setObjectId($this->get('object', $data, ''));
@@ -745,6 +846,11 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				// PostService::editPost()
 				$this->setLanguage(self::languageOf($sourceData));
 				$this->setUpdated($this->validate(self::AS_DATE, 'updated', $sourceData, ''));
+				// the quote and its approval have no column either, and are the
+				// same kind of thing: a property of the wire object, rewritten
+				// whenever the wire object is
+				$this->setQuote($this->quoteIdOf($sourceData));
+				$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $sourceData, ''));
 				$details = $this->getDetailsAll();
 				if (!array_key_exists('remote_likes', $details) && isset($sourceData['likes']['totalItems'])) {
 					$remoteLikes = (int)$sourceData['likes']['totalItems'];
@@ -855,6 +961,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				'conversation' => $this->getConversation(),
 				'updated' => $this->getUpdated(),
 			],
+			$this->exportQuoteAsActivityPub(),
+			$this->exportInteractionPolicy(),
 			$this->exportLanguageMaps()
 		);
 
@@ -936,6 +1044,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'language' => ($this->getLanguage() === '') ? null : $this->getLanguage(),
 			'in_reply_to_id' => $inReplyToId,
 			'in_reply_to_account_id' => $inReplyToAccountId,
+			'quote' => $this->exportQuoteAsLocal(),
 			'mentions' => $this->exportMentionsAsLocal(),
 			'emojis' => $this->getEmojis(),
 			'tags' => $this->exportTagsAsLocal(),
@@ -1016,6 +1125,166 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/** Forgets the memoised parents; for tests, which share one process. */
 	public static function resetReplyParentCache(): void {
 		self::$replyParents = [];
+	}
+
+	/** Forgets the memoised quoted statuses; for tests, which share one process. */
+	public static function resetQuoteCache(): void {
+		self::$quotedStatuses = [];
+		self::$quoteDepth = 0;
+	}
+
+	/**
+	 * The id of the quoted object, whichever of the four names a peer used for
+	 * it, and whether it arrived as a bare id, an embedded object or a Link.
+	 *
+	 * `quote` is FEP-044f and what Mastodon 4.5 reads first; `quoteUri` is
+	 * Fedibird's, `quoteUrl` Mastodon's own alias, `_misskey_quote` Misskey's.
+	 * Mastodon emits the last two beside `quote` to this day, and a server that
+	 * predates FEP-044f sends nothing else.
+	 */
+	private function quoteIdOf(array $data): string {
+		foreach (['quote', 'quoteUri', 'quoteUrl', '_misskey_quote'] as $key) {
+			$value = $data[$key] ?? null;
+			if (is_array($value)) {
+				// an embedded object names itself in `id`, a Link in `href`
+				$value = $value['id'] ?? $value['href'] ?? null;
+			}
+
+			if (!is_string($value) || trim($value) === '') {
+				continue;
+			}
+
+			$id = $this->validateEntryString(self::AS_ID, trim($value), false);
+			if ($id !== '') {
+				return $id;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * The quote as it goes onto the wire: FEP-044f's `quote`, the two aliases
+	 * Mastodon still emits for readers that predate it, and the approval once
+	 * there is one. Nothing at all for a post that quotes nothing — the keys
+	 * are dropped by cleanArray().
+	 *
+	 * @return array<string, string>
+	 */
+	private function exportQuoteAsActivityPub(): array {
+		$quote = $this->getQuote();
+		if ($quote === '') {
+			return [];
+		}
+
+		return [
+			'quote' => $quote,
+			'quoteUrl' => $quote,
+			'_misskey_quote' => $quote,
+			'quoteAuthorization' => $this->getQuoteAuthorization(),
+		];
+	}
+
+	/**
+	 * Who may quote this post, for our own posts only — somebody else's server
+	 * says who may quote theirs.
+	 *
+	 * Mastodon 4.5 offers no quote button at all for a post that carries no
+	 * `interactionPolicy.canQuote`, so a post from here would be unquotable
+	 * however open it is. The policy mirrors what QuoteRequestInterface
+	 * actually answers: anyone, automatically, for a post addressed to the
+	 * public collection, and nobody but the author for anything narrower.
+	 *
+	 * @return array<string, array<string, array<string, string[]>>>
+	 */
+	private function exportInteractionPolicy(): array {
+		if (!$this->isLocal()) {
+			return [];
+		}
+
+		$allowed = $this->isQuotable()
+			? [self::CONTEXT_PUBLIC]
+			: array_values(array_filter([$this->getAttributedTo()]));
+
+		return ['interactionPolicy' => ['canQuote' => ['automaticApproval' => $allowed]]];
+	}
+
+	/**
+	 * Whether this post is open enough to be quoted: addressed to the public
+	 * collection, which `public` and `unlisted` both are. The same rule
+	 * `PinService::pin()` and `BoostService::create()` apply, and for the same
+	 * reason — a quote carries the audience of the quoter, so anything
+	 * narrower would be handed to readers the author never addressed.
+	 */
+	public function isQuotable(): bool {
+		return $this->isPublic()
+			|| in_array($this->getVisibility(), [self::TYPE_PUBLIC, self::TYPE_UNLISTED], true);
+	}
+
+	/**
+	 * Mastodon's Quote entity, or null for a post that quotes nothing.
+	 *
+	 * `accepted` with the quoted status inline is what a client renders as a
+	 * card. `pending` is the honest answer while the quoted post is still being
+	 * fetched — and the only answer for a post this reader may not see, which
+	 * is why the lookup runs as the viewer: a quote must not become a way of
+	 * reading somebody's followers-only post.
+	 *
+	 * @return ?array{state: string, quoted_status: ?array}
+	 */
+	private function exportQuoteAsLocal(): ?array {
+		if ($this->getQuote() === '') {
+			return null;
+		}
+
+		$state = $this->getQuoteState();
+		if ($state === self::QUOTE_REJECTED || $state === self::QUOTE_REVOKED) {
+			return ['state' => $state, 'quoted_status' => null];
+		}
+
+		// What makes a quote accepted is the approval, not the lookup. The
+		// stamp is the quoted author's word that their post may be shown
+		// inside this one, and FEP-044f is explicit that a quote without one
+		// renders as a link. Holding the quoted post answers a different
+		// question — whether we *could* show it — and reading the state off
+		// that reported every quote as accepted the moment it was written,
+		// including ones the author went on to refuse.
+		if ($this->getQuoteAuthorization() === '') {
+			return ['state' => self::QUOTE_PENDING, 'quoted_status' => null];
+		}
+
+		// Approved, but the post may still be missing here or closed to this
+		// reader. That is not `pending`: pending says the author has not
+		// answered, and they have.
+		return ['state' => self::QUOTE_ACCEPTED, 'quoted_status' => $this->resolveQuoted()];
+	}
+
+	/**
+	 * The quoted post as a status entity, or null when this instance does not
+	 * hold it or the viewer may not see it.
+	 */
+	private function resolveQuoted(): ?array {
+		if (self::$quoteDepth > 0) {
+			return null;
+		}
+
+		$streamRequest = Server::get(StreamRequest::class);
+		$key = $streamRequest->getViewerId() . "\0" . $this->getQuote();
+		if (array_key_exists($key, self::$quotedStatuses)) {
+			return self::$quotedStatuses[$key];
+		}
+
+		self::$quoteDepth++;
+		try {
+			$quoted = $streamRequest->getStreamById($this->getQuote(), true, ACore::FORMAT_LOCAL);
+			self::$quotedStatuses[$key] = $quoted->exportAsLocal();
+		} catch (\Throwable $e) {
+			self::$quotedStatuses[$key] = null;
+		} finally {
+			self::$quoteDepth--;
+		}
+
+		return self::$quotedStatuses[$key];
 	}
 
 	/**

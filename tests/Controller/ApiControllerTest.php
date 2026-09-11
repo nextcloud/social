@@ -915,6 +915,25 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/**
+	 * `quote_id` is parsed off the body by `Status::import()`, but it only
+	 * becomes a quote if the controller carries it onto the `Post` — and a
+	 * client whose quote is dropped here is told the post succeeded, because
+	 * it did: it just quotes nothing.
+	 */
+	public function testStatusNewCarriesTheQuotedPostToThePost(): void {
+		$created = $this->postWith([
+			'status' => 'look at this',
+			'quote_id' => 'https://mastodon.social/users/bob/statuses/111',
+		]);
+
+		$this->assertSame('https://mastodon.social/users/bob/statuses/111', $created->getQuotedId());
+	}
+
+	public function testAStatusThatQuotesNothingCarriesNoQuote(): void {
+		$this->assertSame('', $this->postWith(['status' => 'just a post'])->getQuotedId());
+	}
+
+	/**
 	 * A status posted without a visibility used to become a direct message
 	 * addressed to nobody: the empty value fell through
 	 * `Stream::visibilityFromClient()` to `direct`, and a direct post with no

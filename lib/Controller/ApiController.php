@@ -615,6 +615,7 @@ class ApiController extends Controller {
 				}
 			}
 
+			$post->setQuotedId($status->getQuotedId());
 			$activity = $this->postService->createPost($post);
 
 			$item = $this->streamService->getStreamById(

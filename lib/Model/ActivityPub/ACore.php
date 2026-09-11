@@ -73,6 +73,26 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		'value' => 'schema:value',
 		'ostatus' => 'http://ostatus.org#',
 		'conversation' => 'ostatus:conversation',
+		// quote posts: FEP-044f defines `quote`, `quoteAuthorization` and the
+		// `QuoteRequest` activity; the interaction policy that says who may
+		// quote a post is GoToSocial's vocabulary, which Mastodon 4.5 adopted.
+		// `quoteUrl` and `_misskey_quote` are the pre-FEP aliases emitted
+		// beside `quote` — see Stream::exportQuoteAsActivityPub()
+		'fep044f' => 'https://w3id.org/fep/044f#',
+		'quote' => ['@id' => 'fep044f:quote', '@type' => '@id'],
+		'quoteAuthorization' => ['@id' => 'fep044f:quoteAuthorization', '@type' => '@id'],
+		'QuoteRequest' => 'fep044f:QuoteRequest',
+		'QuoteAuthorization' => 'fep044f:QuoteAuthorization',
+		'interactingObject' => ['@id' => 'fep044f:interactingObject', '@type' => '@id'],
+		'interactionTarget' => ['@id' => 'fep044f:interactionTarget', '@type' => '@id'],
+		'quoteUrl' => ['@id' => 'as:quoteUrl', '@type' => '@id'],
+		'misskey' => 'https://misskey-hub.net/ns#',
+		'_misskey_quote' => ['@id' => 'misskey:_misskey_quote', '@type' => '@id'],
+		'gts' => 'https://gotosocial.org/ns#',
+		'interactionPolicy' => ['@id' => 'gts:interactionPolicy', '@type' => '@id'],
+		'canQuote' => ['@id' => 'gts:canQuote', '@type' => '@id'],
+		'automaticApproval' => ['@id' => 'gts:automaticApproval', '@type' => '@id'],
+		'manualApproval' => ['@id' => 'gts:manualApproval', '@type' => '@id'],
 	];
 
 	public const AS_ID = 1;

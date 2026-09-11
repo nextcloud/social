@@ -245,6 +245,8 @@ An activity that is understood but has no handler is still answered 200 (see bel
 | `Undo` (Follow, Like, Announce) | The wrapped relation or action is deleted |
 | `Like` | Stored as an action, notification generated |
 | `Announce` | Stored as a boost, notification generated — unless the announced object is one this instance holds and is not public, in which case the activity is dropped. A boost carries the *booster's* audience, so storing it would republish a followers-only post to everyone the booster reaches; the local boost path has always refused to create one |
+| `QuoteRequest` | Somebody asks to quote a local post. Answered with an `Accept` carrying the approval, or a `Reject`, according to the post's own policy — see **Quote posts** below |
+| `Accept` / `Reject` (QuoteRequest) | The answer to a request of ours: the approval is written onto the quoting post, or the quote is marked rejected |
 | `Move` | Actions, follows, streams and cached documents are repointed to the target actor — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused |
 
 **Moderation.** `social_moderation` holds what the *instance* has decided about an account, as against `social_actor_relation`, which holds what one of its users has. Two levels: `silence` keeps the account reachable for its followers and drops it from the public and global timelines (`StreamRequest::filterSilencedActors()`, a small NOT IN rather than a join, because a moderator acts rarely); `suspend` deletes the account's streams and cached actor and makes `ImportService::parseIncomingRequest()` refuse everything it sends afterwards — without that last part a suspension would undo itself the next time the account posted. Lifting removes the record; it cannot undo a deletion, and the admin panel says so before suspending.
@@ -262,6 +264,75 @@ An activity whose type this app does not implement is logged at `notice` with it
 `Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied.
 
 An incoming `Block` targeting a local user is remembered as a `blocked_by` relation and severs the follow relationship in both directions; `Undo{Block}` lifts it. A `Follow` from an actor the target has blocked is answered with a `Reject`.
+
+### Quote posts
+
+A quote is a post that embeds another post rather than linking to it, and the
+part that needs agreeing on is not the embedding — it is consent. FEP-044f, and
+Mastodon 4.5 with it, treats a quote as something the quoted author grants, and
+a quote without that grant renders as a bare link no matter what the quoting
+server says about it. So the feature is a handshake, and this app is on both
+ends of it.
+
+**Quoting.** `Status::import()` reads a client's `quote_id`, `PostService`
+stores it on the post as `quote`, and the post is published straight away — the
+author should not wait on somebody else's server. In the same step
+`requestQuoteApproval()` sends a `QuoteRequest` to the quoted author's inbox
+naming the quoting post as its `instrument`. Until an answer comes back the
+quote's state is `pending`; a failure to even send the request is logged and
+nothing more, because the post is already out.
+
+**Being quoted.** `QuoteRequestInterface::processIncomingRequest()` answers for
+local posts. The policy is `Stream::isQuotable()` — public and unlisted, yes;
+anything narrower, no — which is the same rule `PinService::pin()` and
+`BoostService::create()` apply, and for the same reason: a quote carries the
+audience of the quoter, so a narrower post would reach readers its author never
+addressed. It is also exactly what `interactionPolicy.canQuote` advertises on
+our posts, and the two have to agree, because Mastodon offers its users a quote
+button on the strength of the advertisement and shows them an error if the
+request is then refused. A `Yes` is an `Accept` whose `result` is the URI of the
+approval.
+
+**Quoting a post of our own.** Then this server is the authority the request
+would be addressed to, and there is nobody to ask: a `QuoteRequest` would be the
+instance delivering to its own inbox and waiting for its own answer.
+`PostService::applyQuote()` grants the approval on the spot instead — the post
+was already checked against the same policy — and stamps it onto the note before
+the wire object is snapshotted, so the first delivery already carries it.
+
+**What a client is told.** The `quote` entity's state is read from the approval,
+not from whether the quoted post happens to be in the database: `accepted` means
+the author said yes, `pending` means no answer yet. Holding the quoted post
+answers a different question — whether we *could* show it — and deriving the
+state from that reported every quote as accepted the moment it was written,
+including ones the author went on to refuse. An accepted quote whose post is
+missing here, or closed to this particular reader, is still `accepted`, with a
+null `quoted_status`; calling that `pending` would report the author as not
+having answered when they have.
+
+**The approval.** That URI is `<quoted post>/quote_authorizations/<stamp>`,
+where the stamp is the quoting post's id in base64url. Carrying the id rather
+than a digest of it is what lets the endpoint be stateless: a peer that
+dereferences the URI — Mastodon does, before it will render the quote inline —
+gets a `QuoteAuthorization` document built from the stamp and the post's current
+policy, with nothing stored in between. Deriving the stamp from the id also
+means a request redelivered twice is answered with the same URI both times
+instead of two approvals that disagree.
+
+Answering from the *current* policy is deliberate, and it is the only way a
+grant is taken back on this side. An author who narrows a post has withdrawn the
+permission, and a peer that re-checks the approval finds the endpoint no longer
+answering. Nothing pushes that news: statelessness has a price, and this is it —
+approvals granted are not recorded, so there is no list of who to tell. A peer
+that never re-checks goes on showing the quote. Withdrawal in the other
+direction does arrive promptly: a `Reject` for a quote that was previously
+accepted is applied as a revocation, the stamp comes off the stored wire object
+so later deliveries stop claiming an approval, and the client sees the quote's
+state as `revoked` rather than `rejected`.
+
+**On the wire.** `quote` is FEP-044f's name and what Mastodon 4.5 reads first;
+`quoteUrl` and `_misskey_quote` are emitted beside it for the servers that
+predate the FEP. `quoteAuthorization` carries the approval once there is one.
 
 ### Discovery
 

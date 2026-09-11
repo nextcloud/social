@@ -305,6 +305,106 @@ describe('TimelinePost', () => {
 		})
 	})
 
+	describe('quoting', () => {
+		const quotedStatus = (overrides = {}) => ({
+			id: '77',
+			url: 'https://remote.example/@bob/77',
+			content: '<p>The post being quoted</p>',
+			visibility: 'public',
+			mentions: [],
+			tags: [],
+			emojis: [],
+			account: bob,
+			quote: null,
+			...overrides,
+		})
+		const quoting = (quote) => makeItem({ quote })
+
+		it('shows the quoted post inside the post that quotes it', () => {
+			const { wrapper } = mountPost({
+				item: quoting({ state: 'accepted', quoted_status: quotedStatus() }),
+			})
+
+			const quoted = wrapper.find('.quoted-post')
+			expect(quoted.exists()).toBe(true)
+			expect(quoted.text()).toContain('The post being quoted')
+			expect(quoted.find('.quoted-post__handle').text()).toBe('@bob@remote.example')
+			// nested, not merged into the post's own body
+			expect(wrapper.find('.post-message').element.contains(quoted.element)).toBe(false)
+		})
+
+		it.each([
+			['pending', 'This quote is waiting for the quoted author to approve it.'],
+			['rejected', 'The author of the quoted post did not allow this quote.'],
+			['revoked', 'The author of the quoted post withdrew their permission for this quote.'],
+		])('says what became of a %s quote instead of showing nothing', (state, said) => {
+			const { wrapper } = mountPost({ item: quoting({ state, quoted_status: null }) })
+
+			expect(wrapper.find('.quoted-post__notice').text()).toBe(said)
+		})
+
+		it('shows nothing of the kind for a post that quotes nothing', () => {
+			const quoter = mountPost({ item: quoting({ state: 'accepted', quoted_status: quotedStatus() }) })
+			const { wrapper } = mountPost({ item: quoting(null) })
+
+			expect(quoter.wrapper.find('.quoted-post').exists()).toBe(true)
+			expect(wrapper.find('.quoted-post').exists()).toBe(false)
+			expect(wrapper.find('.quoted-post__notice').exists()).toBe(false)
+		})
+
+		it('keeps the quote behind a content warning, like the rest of the post', async () => {
+			const { wrapper } = mountPost({
+				item: makeItem({
+					spoiler_text: 'politics',
+					quote: { state: 'accepted', quoted_status: quotedStatus() },
+				}),
+			})
+
+			expect(wrapper.find('.quoted-post').exists()).toBe(false)
+			expect(wrapper.text()).not.toContain('The post being quoted')
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show more').trigger('click')
+
+			expect(wrapper.find('.quoted-post').exists()).toBe(true)
+		})
+
+		it('keeps the quote behind the reveal of a post flagged sensitive', async () => {
+			const { wrapper } = mountPost({
+				item: makeItem({ sensitive: true, quote: { state: 'accepted', quoted_status: quotedStatus() } }),
+			})
+
+			expect(wrapper.find('.quoted-post').exists()).toBe(false)
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show sensitive content').trigger('click')
+
+			expect(wrapper.find('.quoted-post').exists()).toBe(true)
+		})
+
+		it.each(['public', 'unlisted'])('is offered on a %s post', (visibility) => {
+			const { wrapper } = mountPost({ item: makeItem({ visibility }) })
+
+			expect(menuItem(wrapper, 'Quote')).not.toBeUndefined()
+		})
+
+		it.each(['followers', 'direct'])('is not offered on a %s post, which the server would refuse', (visibility) => {
+			const { wrapper } = mountPost({ item: makeItem({ visibility }) })
+
+			expect(menuItem(wrapper, 'Quote')).toBeUndefined()
+		})
+
+		it('opens the composer and hands it the post to quote', async () => {
+			const onQuote = vi.fn()
+			eventBus.on('composer-quote', onQuote)
+			const { wrapper, item, $store } = mountPost()
+
+			await menuItem(wrapper, 'Quote').trigger('click')
+
+			expect($store.commit).toHaveBeenCalledWith('setComposerDisplayStatus', true)
+			expect(onQuote).toHaveBeenCalledTimes(1)
+			expect(onQuote.mock.calls[0][0]).toEqual(item)
+		})
+	})
+
 	describe('reachable without a mouse', () => {
 		it('is an article named after its author', () => {
 			const { wrapper } = mountPost()

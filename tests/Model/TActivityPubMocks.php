@@ -16,6 +16,7 @@ use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Interfaces\Activity\MoveInterface;
+use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
@@ -80,6 +81,7 @@ trait TActivityPubMocks {
 			RemoveInterface::class,
 			UndoInterface::class,
 			UpdateInterface::class,
+			QuoteRequestInterface::class,
 		];
 	}
 

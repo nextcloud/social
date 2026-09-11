@@ -138,6 +138,7 @@
  * @property {StatusTag[]} tags - Ex: []
  * @property {CustomEmoji[]} emojis - Ex: []
  * @property {Card?} card - the link preview, null when the post links nowhere
+ * @property {?{state: string, quoted_status: ?Status}} quote - the post this one quotes, null when it quotes none; `state` is pending, accepted, rejected or revoked
  * @property {Poll} [poll] - Ex: null
  */
 

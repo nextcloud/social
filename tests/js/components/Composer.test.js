@@ -55,6 +55,16 @@ const replyTo = (account = bob, overrides = {}) => ({
 	...overrides,
 })
 
+const quoteOf = (account = bob, overrides = {}) => ({
+	id: '77',
+	visibility: 'public',
+	content: '<p>The post being quoted</p>',
+	mentions: [],
+	tags: [],
+	account,
+	...overrides,
+})
+
 // What the mention autocomplete inserts into the contenteditable
 const MENTION_BOB = '<span class="mention" contenteditable="false">'
 	+ '<a href="https://remote.example/@bob" target="_blank"><img src="https://remote.example/avatar.png">@bob@remote.example</a>'
@@ -1111,6 +1121,95 @@ describe('Composer', () => {
 
 			expect(wrapper.find('.reply-to').exists()).toBe(false)
 			expect($store.commit).toHaveBeenCalledWith('setComposerDisplayStatus', false)
+		})
+	})
+
+	describe('quoting', () => {
+		it('shows which post is being quoted', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-quote', quoteOf(bob))
+			await flushPromises()
+
+			const banner = wrapper.find('.quote-of')
+			expect(banner.find('.quote-info').text()).toContain('Quoting')
+			expect(banner.find('strong').text()).toBe('bob@remote.example')
+			expect(banner.text()).toContain('The post being quoted')
+		})
+
+		it('leaves the audience of the new post alone, unlike a reply', async () => {
+			// the quote is addressed by whoever writes it; adopting the quoted
+			// post's visibility would be answering a question nobody asked
+			const { wrapper } = mountComposer({ defaultVisibility: 'followers' })
+
+			eventBus.emit('composer-quote', quoteOf(bob, { visibility: 'public' }))
+			await flushPromises()
+
+			expect(wrapper.find('.quote-of').exists()).toBe(true)
+			expect(currentVisibility(wrapper)).toBe('followers')
+		})
+
+		it('sends the quote with the post', async () => {
+			const { wrapper, $store } = mountComposer()
+			eventBus.emit('composer-quote', quoteOf(bob))
+			await flushPromises()
+			await setContent(wrapper, 'worth reading')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store)).toMatchObject({ quote_id: '77', status: 'worth reading' })
+			expect(wrapper.find('.quote-of').exists()).toBe(false)
+		})
+
+		it('can be taken back before posting, without losing what was written', async () => {
+			const { wrapper, $store } = mountComposer()
+			eventBus.emit('composer-quote', quoteOf(bob))
+			await flushPromises()
+			await setContent(wrapper, 'on second thoughts')
+
+			await wrapper.find('.quote-of button[aria-label="Remove quote"]').trigger('click')
+
+			expect(wrapper.find('.quote-of').exists()).toBe(false)
+			expect(typed(wrapper)).toBe('on second thoughts')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store).quote_id).toBeUndefined()
+			expect(postedStatus($store).status).toBe('on second thoughts')
+		})
+
+		it('quotes and replies in the same post', async () => {
+			const { wrapper, $store } = mountComposer()
+			eventBus.emit('composer-reply', replyTo(carol))
+			eventBus.emit('composer-quote', quoteOf(bob))
+			await flushPromises()
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store)).toMatchObject({ in_reply_to_id: '42', quote_id: '77' })
+		})
+
+		it('is open from the start when it carries a quote', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-quote', quoteOf(bob))
+			await wrapper.vm.$nextTick()
+
+			expect(wrapper.find('.new-post').classes()).not.toContain('new-post--collapsed')
+		})
+
+		it('listens for quotes only while mounted', () => {
+			const { wrapper } = mountComposer()
+			expect(eventBus.all.get('composer-quote')).toHaveLength(1)
+
+			wrapper.unmount()
+			wrappers.pop()
+
+			expect(eventBus.all.get('composer-quote') ?? []).toHaveLength(0)
+			expect(() => eventBus.emit('composer-quote', quoteOf(bob))).not.toThrow()
 		})
 	})
 

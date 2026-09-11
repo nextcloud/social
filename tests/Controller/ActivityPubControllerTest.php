@@ -24,9 +24,11 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\QuoteAuthorization;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -942,5 +944,157 @@ class ActivityPubControllerTest extends TestCase {
 
 		$this->assertInstanceOf(TemplateResponse::class, $response);
 		$this->assertSame(['serverData'], $keys);
+	}
+
+	// displayQuoteAuthorization()
+
+	private function quotablePost(string $token = 'abc123'): Note {
+		$post = new Note();
+		$post->setId(self::SOCIAL_URL . '@alice/' . $token);
+		$post->setAttributedTo(self::SOCIAL_URL . '@alice');
+		$post->setLocal(true);
+		$post->setVisibility(Stream::TYPE_PUBLIC);
+		$this->streamService->method('getStreamById')->with($post->getId())->willReturn($post);
+
+		return $post;
+	}
+
+	public function testQuoteAuthorizationNamesTheAuthorAndBothPosts(): void {
+		$quoted = $this->quotablePost();
+		$quoting = 'https://remote.example/users/bob/statuses/7';
+		$stamp = QuoteRequestInterface::stamp($quoting);
+
+		$response = $this->controller->displayQuoteAuthorization('alice', 'abc123', $stamp);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(self::LD_JSON, $response->getHeaders()['Content-Type']);
+		$authorization = $response->getData();
+		$this->assertInstanceOf(QuoteAuthorization::class, $authorization);
+		$this->assertSame($quoted->getAttributedTo(), $authorization->getAttributedTo());
+		$this->assertSame($quoting, $authorization->getInteractingObject());
+		$this->assertSame($quoted->getId(), $authorization->getInteractionTarget());
+	}
+
+	/**
+	 * The document has to be served from the URI it claims, or a verifier that
+	 * compares the two treats it as somebody else's approval.
+	 */
+	public function testQuoteAuthorizationIdIsTheUrlItWasFetchedFrom(): void {
+		$this->quotablePost();
+		$stamp = QuoteRequestInterface::stamp('https://remote.example/users/bob/statuses/7');
+
+		$response = $this->controller->displayQuoteAuthorization('alice', 'abc123', $stamp);
+
+		$this->assertSame(
+			self::SOCIAL_URL . '@alice/abc123/quote_authorizations/' . $stamp,
+			$response->getData()->getId()
+		);
+	}
+
+	/**
+	 * The `Accept` and this endpoint have to agree about what the URI in the
+	 * `Accept` means, or every approval we grant is a dead link.
+	 */
+	public function testTheApprovalUriWeFederateIsTheOneThisEndpointAnswers(): void {
+		$quoted = $this->quotablePost();
+		$quoting = 'https://remote.example/users/bob/statuses/7';
+		$granted = $quoted->getId() . '/quote_authorizations/' . QuoteRequestInterface::stamp($quoting);
+
+		$path = substr($granted, strlen(self::SOCIAL_URL));
+		$this->assertSame(1, preg_match('#^@(.+?)/(.+?)/quote_authorizations/(.+)$#', $path, $m));
+
+		$response = $this->controller->displayQuoteAuthorization($m[1], $m[2], $m[3]);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($granted, $response->getData()->getId());
+		$this->assertSame($quoting, $response->getData()->getInteractingObject());
+	}
+
+	public function testQuoteAuthorizationOfAnUnknownPostIs404(): void {
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$response = $this->controller->displayQuoteAuthorization('alice', 'missing', QuoteRequestInterface::stamp('https://remote.example/1'));
+
+		$this->assertFailure($response, StreamNotFoundException::class, Http::STATUS_NOT_FOUND);
+		$this->assertSame(self::SOCIAL_URL . '@alice/missing', $response->getData()['stream']);
+	}
+
+	/**
+	 * A post narrowed after the approval was granted stops being quotable, and
+	 * the approval has to stop with it — a verifier that re-checks is how the
+	 * author's change of mind reaches the other server.
+	 */
+	public function testQuoteAuthorizationIsWithdrawnOnceThePostIsNoLongerQuotable(): void {
+		$post = $this->quotablePost();
+		$post->setVisibility(Stream::TYPE_FOLLOWERS);
+
+		$response = $this->controller->displayQuoteAuthorization('alice', 'abc123', QuoteRequestInterface::stamp('https://remote.example/1'));
+
+		$this->assertFailure($response, ItemUnknownException::class, Http::STATUS_NOT_FOUND);
+	}
+
+	/** Somebody else's post is not ours to grant permission over. */
+	public function testQuoteAuthorizationIsNotServedForARemotePost(): void {
+		$post = $this->quotablePost();
+		$post->setLocal(false);
+
+		$response = $this->controller->displayQuoteAuthorization('alice', 'abc123', QuoteRequestInterface::stamp('https://remote.example/1'));
+
+		$this->assertFailure($response, ItemUnknownException::class, Http::STATUS_NOT_FOUND);
+	}
+
+	/** @return iterable<string, array{string}> */
+	public function unservableStamps(): iterable {
+		yield 'not base64 at all' => ['not a stamp'];
+		yield 'padded, which we never emit' => [rtrim(strtr(base64_encode('https://remote.example/1'), '+/', '-_'), '=') . '='];
+		yield 'base64 of something that is not an address' => [rtrim(strtr(base64_encode('../../admin'), '+/', '-_'), '=')];
+		// decodes to exactly the same URI as `aHR0cHM6Ly9yZW1vdGUuZXhhbXBsZS8xMg`,
+		// in the unused low bits of the last character: base64 spells some byte
+		// strings more than one way, and only one of those spellings is a URI
+		// this server ever handed out
+		yield 'a second spelling of a stamp we do emit' => ['aHR0cHM6Ly9yZW1vdGUuZXhhbXBsZS8xMh'];
+		yield 'empty' => [''];
+	}
+
+	/** @dataProvider unservableStamps */
+	public function testAStampWeNeverIssuedGetsNoApproval(string $stamp): void {
+		$this->quotablePost();
+
+		$response = $this->controller->displayQuoteAuthorization('alice', 'abc123', $stamp);
+
+		$this->assertFailure($response, ItemUnknownException::class, Http::STATUS_NOT_FOUND);
+	}
+
+	/**
+	 * The approval is a public statement about a public post; reading it must
+	 * not depend on, or reveal, who is asking.
+	 */
+	public function testQuoteAuthorizationIsServedWithoutAViewer(): void {
+		$this->quotablePost();
+		$this->streamService->expects($this->never())->method('setViewer');
+
+		$response = $this->controller->displayQuoteAuthorization('alice', 'abc123', QuoteRequestInterface::stamp('https://remote.example/1'));
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	public function testTheApprovalSerialisesAsAQuoteAuthorizationDocument(): void {
+		$this->quotablePost();
+		$quoting = 'https://remote.example/users/bob/statuses/7';
+
+		$exported = $this->controller
+			->displayQuoteAuthorization('alice', 'abc123', QuoteRequestInterface::stamp($quoting))
+			->getData()
+			->exportAsActivityPub();
+
+		$this->assertSame('QuoteAuthorization', $exported['type']);
+		$this->assertSame(self::SOCIAL_URL . '@alice', $exported['attributedTo']);
+		$this->assertSame($quoting, $exported['interactingObject']);
+		$this->assertSame(self::SOCIAL_URL . '@alice/abc123', $exported['interactionTarget']);
+		$this->assertContains(
+			'QuoteAuthorization',
+			array_keys(end($exported['@context'])),
+			'the document names a type no reader can resolve without the FEP-044f terms'
+		);
 	}
 }

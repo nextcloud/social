@@ -18,6 +18,7 @@ use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Interfaces\Activity\MoveInterface;
+use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
@@ -41,6 +42,7 @@ use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Move;
+use OCA\Social\Model\ActivityPub\Activity\QuoteRequest;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -100,6 +102,7 @@ class APTest extends TestCase {
 			'Like' => ['Like', Like::class],
 			'Note' => ['Note', Note::class],
 			'Question' => ['Question', Question::class],
+			'QuoteRequest' => ['QuoteRequest', QuoteRequest::class],
 			'OrderedCollection' => ['OrderedCollection', OrderedCollection::class],
 			'SocialAppNotification' => ['SocialAppNotification', SocialAppNotification::class],
 			'Stream' => ['Stream', Stream::class],
@@ -169,6 +172,7 @@ class APTest extends TestCase {
 			'Move' => ['Move', MoveInterface::class],
 			'Note' => ['Note', NoteInterface::class],
 			'Question' => ['Question', NoteInterface::class],
+			'QuoteRequest' => ['QuoteRequest', QuoteRequestInterface::class],
 			'SocialAppNotification' => ['SocialAppNotification', SocialAppNotificationInterface::class],
 			'Person' => ['Person', PersonInterface::class],
 			'Reject' => ['Reject', RejectInterface::class],

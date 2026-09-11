@@ -21,6 +21,7 @@ use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Interfaces\Activity\MoveInterface;
+use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
@@ -102,6 +103,7 @@ class ImportServiceTest extends TestCase {
 			$this->createMock(RemoveInterface::class),
 			$this->createMock(UndoInterface::class),
 			$this->createMock(UpdateInterface::class),
+			$this->createMock(QuoteRequestInterface::class),
 			$configService,
 		);
 		AP::$activityPub = $ap;

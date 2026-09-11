@@ -57,6 +57,22 @@
 			</p>
 			<MessageContent :item="replyTo" />
 		</div>
+		<div v-if="quoteOf" class="quote-of">
+			<p class="quote-info">
+				<span>{{ t('social', 'Quoting') }}</span>
+				<ActorAvatar :actor="quoteOf.account" :size="16" />
+				<strong>{{ quoteOf.account.acct }}</strong>
+				<NcButton variant="tertiary"
+					class="close-button"
+					:aria-label="t('social', 'Remove quote')"
+					@click="removeQuote">
+					<template #icon>
+						<Close :size="20" />
+					</template>
+				</NcButton>
+			</p>
+			<MessageContent :item="quoteOf" />
+		</div>
 		<form class="new-post-form" @submit.prevent>
 			<input v-if="showWarning"
 				v-model="spoilerText"
@@ -311,6 +327,8 @@ export default {
 			pollExpiresIn: 86400,
 			search: '',
 			replyTo: null,
+			/** the post this one quotes, as the timeline handed it over */
+			quoteOf: null,
 			tributeOptions: {
 				spaceSelectsMatch: true,
 				collection: [
@@ -472,6 +490,7 @@ export default {
 			return this.openedByHand
 				|| this.loading
 				|| this.replyTo !== null
+				|| this.quoteOf !== null
 				|| this.showPoll
 				|| this.showWarning
 				|| !this.statusIsEmpty
@@ -527,6 +546,14 @@ export default {
 		}
 		eventBus.on('composer-reply', this.onComposerReply)
 
+		// a quote carries no mention and does not take the quoted post's
+		// visibility: it is addressed by whoever writes it, not by whoever
+		// is being quoted
+		this.onComposerQuote = (data) => {
+			this.quoteOf = data
+		}
+		eventBus.on('composer-quote', this.onComposerQuote)
+
 		// the shortcuts help offers "n" to write a post; this is what answers it
 		this.onComposerFocus = () => this.focusInput()
 		eventBus.on('shortcut:compose', this.onComposerFocus)
@@ -554,6 +581,7 @@ export default {
 			this.tribute.detach(this.tributeTarget)
 		}
 		eventBus.off('composer-reply', this.onComposerReply)
+		eventBus.off('composer-quote', this.onComposerQuote)
 		eventBus.off('shortcut:compose', this.onComposerFocus)
 	},
 	methods: {
@@ -941,6 +969,7 @@ export default {
 				spoiler_text: warning,
 				status,
 				in_reply_to_id: this.replyTo?.id,
+				quote_id: this.quoteOf?.id,
 				visibility: this.visibility,
 			}
 
@@ -975,6 +1004,7 @@ export default {
 			}
 
 			this.replyTo = null
+			this.quoteOf = null
 			this.$refs.composerInput.innerText = ''
 			Object.keys(this.attachments).forEach((key) => this.releasePreview(key))
 			this.attachments = {}
@@ -1007,6 +1037,11 @@ export default {
 		closeReply() {
 			this.replyTo = null
 			this.$store.commit('setComposerDisplayStatus', false)
+		},
+		removeQuote() {
+			// only the quote goes, unlike closeReply(): the message is the
+			// reader's own and taking the embed back is no reason to lose it
+			this.quoteOf = null
 		},
 		remoteSearchAccounts(text) {
 			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search'), { params: { search: text } })
@@ -1312,6 +1347,38 @@ $composer-duration: 220ms;
 	}
 
 	.reply-info {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 13px;
+		color: var(--color-text-lighter);
+		margin-bottom: 4px;
+	}
+
+	.close-button {
+		margin-left: auto;
+		min-width: 28px;
+		min-height: 28px;
+		height: 28px;
+		width: 28px !important;
+	}
+}
+
+/* set in and ruled off, the same way a quote reads in the timeline */
+.quote-of {
+	background: var(--color-background-hover);
+	border-inline-start: 3px solid var(--color-border-dark);
+	border-radius: 8px;
+	padding: 12px;
+	margin-bottom: 12px;
+	font-size: 14px;
+
+	.avatardiv {
+		margin: 0 4px;
+		vertical-align: middle;
+	}
+
+	.quote-info {
 		display: flex;
 		align-items: center;
 		gap: 4px;

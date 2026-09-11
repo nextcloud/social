@@ -95,6 +95,7 @@
 			<MessageContent :item="item" />
 		</div>
 		<template v-if="mediaRevealed">
+			<QuotedPost v-if="item.quote" :quote="item.quote" />
 			<Poll v-if="localPoll" :poll="localPoll" @update:poll="updatePoll" />
 			<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 			<PostCard v-if="showCard" :card="item.card" />
@@ -159,6 +160,12 @@
 				<RollingCount :count="item.favourites_count || 0" />
 			</div>
 			<NcActions>
+				<NcActionButton v-if="canQuote" @click="quote">
+					<template #icon>
+						<FormatQuoteClose :size="20" />
+					</template>
+					{{ t('social', 'Quote') }}
+				</NcActionButton>
 				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
 					icon="icon-rename"
 					@click="editPost">
@@ -247,6 +254,7 @@ import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
+import FormatQuoteClose from 'vue-material-design-icons/FormatQuoteClose.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError, showSuccess } from '@nextcloud/dialogs'
@@ -260,6 +268,7 @@ import { onTick } from '../services/clock.js'
 import { originOf } from '../utils/instanceIdentity.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
+import QuotedPost from './QuotedPost.vue'
 import RollingCount from './RollingCount.vue'
 import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
@@ -285,12 +294,14 @@ export default {
 		BookmarkOutline,
 		Pin,
 		PinOff,
+		FormatQuoteClose,
 		Repeat,
 		Reply,
 		Heart,
 		HeartOutline,
 		MessageContent,
 		Poll,
+		QuotedPost,
 		RollingCount,
 		DisplayName,
 		VisibilityIcon,
@@ -336,7 +347,11 @@ export default {
 		},
 		/** @return {boolean} anything a warning is supposed to cover */
 		hasMedia() {
-			return this.hasAttachments || this.localPoll !== null || this.showCard
+			return this.hasAttachments || this.localPoll !== null || this.showCard || this.hasQuote
+		},
+		/** @return {boolean} the post embeds another one, whatever came of it */
+		hasQuote() {
+			return Boolean(this.item.quote)
 		},
 		/**
 		 * @return {boolean} whether the media sits behind a reveal. A warning
@@ -391,6 +406,15 @@ export default {
 			return this.item.account.acct === this.currentAccount?.acct
 				&& this.item.local !== false
 				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
+		},
+		/**
+		 * @return {boolean} whether this post may be quoted at all. A quote
+		 * carries the audience of the quoter, so the server grants one only for
+		 * a public or unlisted post — the same set a boost is allowed for — and
+		 * offering the action on anything narrower would be offering a refusal.
+		 */
+		canQuote() {
+			return this.item.visibility === 'public' || this.item.visibility === 'unlisted'
 		},
 		reportButtons() {
 			return [
@@ -569,6 +593,10 @@ export default {
 		reply() {
 			this.$store.commit('setComposerDisplayStatus', true)
 			eventBus.emit('composer-reply', this.item)
+		},
+		quote() {
+			this.$store.commit('setComposerDisplayStatus', true)
+			eventBus.emit('composer-quote', this.item)
 		},
 		async sendReport() {
 			try {

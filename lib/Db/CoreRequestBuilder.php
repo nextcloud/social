@@ -348,6 +348,16 @@ class CoreRequestBuilder {
 	}
 
 	/**
+	 * Who the rows now being read are being read for, or '' for nobody.
+	 *
+	 * Anything that caches a row after this has filtered it has to say which
+	 * reader the cached copy belongs to — see `Stream::$quotedStatuses`.
+	 */
+	public function getViewerId(): string {
+		return ($this->viewer === null) ? '' : $this->viewer->getId();
+	}
+
+	/**
 	 * Limit the request to the Id
 	 *
 	 * @param IQueryBuilder $qb

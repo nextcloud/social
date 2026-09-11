@@ -22,6 +22,13 @@ class Status implements \JsonSerializable {
 	private array $mediaIds = [];
 	private ?array $poll = null;
 	private int $inReplyToId = 0;
+	/**
+	 * The post this one quotes, as the client named it: the numeric status id
+	 * a Mastodon client sends, or an ActivityPub URI. Kept as a string for
+	 * exactly that reason — `(int)'https://…'` is 0, which is a quote of
+	 * whatever post happens to have that id.
+	 */
+	private string $quotedId = '';
 	private string $status = '';
 	/** BCP 47 as the client sent it, normalised; empty for "whatever the poster's default is" */
 	private string $language = '';
@@ -125,6 +132,16 @@ class Status implements \JsonSerializable {
 		return $this->inReplyToId;
 	}
 
+	public function setQuotedId(string $quotedId): self {
+		$this->quotedId = trim($quotedId);
+
+		return $this;
+	}
+
+	public function getQuotedId(): string {
+		return $this->quotedId;
+	}
+
 	/**
 	 * Validated loosely rather than against a list: an unusable value is
 	 * dropped so the poster's default language applies, see
@@ -165,6 +182,10 @@ class Status implements \JsonSerializable {
 		$this->setSpoilerText($this->get('spoiler_text', $data));
 		$this->setMediaIds($this->getArray('media_ids', $data));
 		$this->setInReplyToId($this->getInt('in_reply_to_id', $data));
+		// `quote_id` is what a Mastodon 4.5 client sends to quote a post; a
+		// client that sends something that is not a scalar quotes nothing
+		$quotedId = $data['quote_id'] ?? '';
+		$this->setQuotedId(is_scalar($quotedId) ? (string)$quotedId : '');
 		$this->setStatus($this->get('status', $data));
 		$this->setLanguage($this->get('language', $data));
 		$poll = $this->getArray('poll', $data);
