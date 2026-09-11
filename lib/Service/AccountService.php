@@ -286,6 +286,92 @@ class AccountService {
 	}
 
 	/**
+	 * Stores the directory flags of this user's actor and refreshes the actor
+	 * cache so they reach the actor document and the account entity.
+	 *
+	 * Accepted keys, each a bool (the string forms clients send — `'true'`,
+	 * `'1'` — are read as such): `discoverable`, whether the account may be
+	 * listed in directories and suggestions; `indexable`, whether its public
+	 * posts may be full-text indexed by other servers. Both are opt-in, like
+	 * Mastodon's. A key that is not sent is left as it is; anything else in
+	 * `$flags` is ignored, so the caller can hand over a whole
+	 * `update_credentials` body.
+	 *
+	 * @param array<string, mixed> $flags
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function setActorFlags(string $userId, array $flags): void {
+		$actor = $this->getActorFromUserId($userId);
+
+		$changed = false;
+		if (array_key_exists('discoverable', $flags)) {
+			$actor->setDiscoverable($this->flag($flags['discoverable']));
+			$changed = true;
+		}
+		if (array_key_exists('indexable', $flags)) {
+			$actor->setIndexable($this->flag($flags['indexable']));
+			$changed = true;
+		}
+
+		if (!$changed) {
+			return;
+		}
+
+		$this->actorsRequest->updateFlags($actor);
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+	}
+
+	/** A bool from whatever form a client put in a JSON or form body. */
+	private function flag(mixed $value): bool {
+		if (is_bool($value)) {
+			return $value;
+		}
+
+		return in_array($value, [1, '1', 'true', 'on'], true);
+	}
+
+	/**
+	 * Stores the actor ids this user's actor also answers to (`alsoKnownAs`)
+	 * and refreshes the actor cache so the list reaches the actor document.
+	 * A remote server accepts a Move *into* here only when this list names the
+	 * moving account, so it has to be set before the move is started there.
+	 *
+	 * @param string[] $alsoKnownAs
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function setAlsoKnownAs(string $userId, array $alsoKnownAs): void {
+		$actor = $this->getActorFromUserId($userId);
+		$actor->setAlsoKnownAs($alsoKnownAs);
+		$this->actorsRequest->updateAlsoKnownAs($actor);
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+	}
+
+	/**
+	 * Records where this user's actor moved to (`movedTo`; empty to clear) and
+	 * refreshes the actor cache so the actor document and the account entity
+	 * say so. The Move itself is federated by MigrationService.
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function setMovedTo(string $userId, string $movedTo): void {
+		$actor = $this->getActorFromUserId($userId);
+		$actor->setMovedTo($movedTo);
+		$this->actorsRequest->updateMovedTo($actor);
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+	}
+
+	/**
 	 * Stores the profile metadata fields (at most four name/value pairs) and
 	 * refreshes the actor cache so they reach the actor document as
 	 * PropertyValue attachments and the account entity as `fields`.

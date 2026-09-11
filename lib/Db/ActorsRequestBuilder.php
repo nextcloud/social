@@ -73,7 +73,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		$qb->select(
 			'a.id', 'a.id_prim', 'a.user_id', 'a.preferred_username', 'a.name', 'a.summary',
 			'a.public_key', 'a.avatar_version', 'a.private_key', 'a.creation', 'a.deleted',
-			'a.locked', 'a.fields'
+			'a.locked', 'a.fields', 'a.discoverable', 'a.indexable', 'a.also_known_as', 'a.moved_to'
 		)
 			->from(self::TABLE_ACTORS, 'a');
 

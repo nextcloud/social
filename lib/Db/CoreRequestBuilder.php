@@ -84,7 +84,13 @@ class CoreRequestBuilder {
 			'public_key',
 			'private_key',
 			'avatar_version',
-			'creation'
+			'creation',
+			'locked',
+			'fields',
+			'discoverable',
+			'indexable',
+			'also_known_as',
+			'moved_to'
 		],
 		self::TABLE_CACHE_ACTORS => [
 			'id_prim',

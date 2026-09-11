@@ -36,6 +36,8 @@ class ActorsRequest extends ActorsRequestBuilder {
 				'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 			)
 			->setValue('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0))
+			->setValue('discoverable', $qb->createNamedParameter($actor->isDiscoverable() ? 1 : 0))
+			->setValue('indexable', $qb->createNamedParameter($actor->isIndexable() ? 1 : 0))
 			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 			->setValue('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())))
 			->setValue(
@@ -73,6 +75,43 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function updateLocked(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0));
+		$this->limitToIdPrimString($qb, $actor->getId());
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Stores the directory flags: `discoverable` (may be listed in directories
+	 * and suggestions) and `indexable` (posts may be full-text indexed).
+	 */
+	public function updateFlags(Person $actor): void {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('discoverable', $qb->createNamedParameter($actor->isDiscoverable() ? 1 : 0))
+			->set('indexable', $qb->createNamedParameter($actor->isIndexable() ? 1 : 0));
+		$this->limitToIdPrimString($qb, $actor->getId());
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Stores the `alsoKnownAs` list — the actor ids this one also answers to,
+	 * which is what a remote server checks before it accepts a Move towards
+	 * here.
+	 */
+	public function updateAlsoKnownAs(Person $actor): void {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('also_known_as', $qb->createNamedParameter(json_encode($actor->getAlsoKnownAs())));
+		$this->limitToIdPrimString($qb, $actor->getId());
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Stores where the actor moved to; empty means it has not.
+	 */
+	public function updateMovedTo(Person $actor): void {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('moved_to', $qb->createNamedParameter($actor->getMovedTo()));
 		$this->limitToIdPrimString($qb, $actor->getId());
 
 		$qb->executeStatement();

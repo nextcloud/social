@@ -118,6 +118,54 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 * @return Person
 	 */
 	public function parseCacheActorsSelectSql(array $data, SocialQueryBuilder $qb): Person {
+		$actor = $this->parseCacheActorRow($data, $qb);
+		$this->attachMovedTarget($actor);
+
+		return $actor;
+	}
+
+	/**
+	 * Hands an actor that moved the cached copy of the account it moved to, so
+	 * the client entity's `moved` is a real account rather than a stub derived
+	 * from the id. An actor that did not move costs nothing here; a target
+	 * that is not cached leaves the model to derive the stub.
+	 */
+	public function attachMovedTarget(Person $actor): void {
+		if ($actor->getMovedTo() === '') {
+			return;
+		}
+
+		try {
+			$actor->setMovedToActor($this->cachedMovedTarget($actor->getMovedTo()));
+		} catch (RowNotFoundException $e) {
+			$actor->setMovedToActor(null);
+		}
+	}
+
+	/**
+	 * The cached row behind a `movedTo` id, parsed one hop deep: the target's
+	 * own target is deliberately not resolved, so two accounts pointing at
+	 * each other cannot send this round in circles.
+	 *
+	 * @throws RowNotFoundException
+	 */
+	protected function cachedMovedTarget(string $id): Person {
+		$qb = $this->getCacheActorsSelectSql(Stream::FORMAT_LOCAL);
+		$qb->limitToIdPrim($qb->prim($id));
+		$qb->leftJoinCacheDocuments('icon_id');
+
+		/** @var Person $target */
+		$target = $qb->getRow(
+			fn (array $data, SocialQueryBuilder $qb): Person => $this->parseCacheActorRow($data, $qb)
+		);
+
+		return $target;
+	}
+
+	/**
+	 * One cache row to one Person, without following `movedTo`.
+	 */
+	private function parseCacheActorRow(array $data, SocialQueryBuilder $qb): Person {
 		$actor = new Person();
 		$actor->setExportFormat($qb->getFormat());
 

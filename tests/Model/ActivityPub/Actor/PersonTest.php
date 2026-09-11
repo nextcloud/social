@@ -300,6 +300,14 @@ class PersonTest extends TestCase {
 		$this->assertSame([], $account['fields']);
 	}
 
+	public function testLastStatusAtIsNullUntilSomethingWasPosted(): void {
+		$person = new Person();
+		$this->assertNull($person->exportAsLocal()['last_status_at'], 'a date-or-null field, never the empty string');
+
+		$person->setDetail('last_post_creation', '2024-05-01');
+		$this->assertSame('2024-05-01', $person->exportAsLocal()['last_status_at']);
+	}
+
 	public function testExportAsLocalUsesTheUsernameAsAcctForLocalAccounts(): void {
 		$person = new Person();
 		$person->setPreferredUsername('alice')
@@ -579,5 +587,216 @@ class PersonTest extends TestCase {
 		]);
 
 		$this->assertSame(1546300800, $person->getDeleted(), 'the stored time, not the current one');
+	}
+
+	// --- discoverable / indexable ---------------------------------------
+
+	public function testImportReadsDiscoverableAndIndexable(): void {
+		$actor = $this->mastodonActor();
+		$actor['indexable'] = true;
+
+		$person = new Person();
+		$person->import($actor);
+
+		$this->assertTrue($person->isDiscoverable(), 'Mastodon says the profile may be listed in directories');
+		$this->assertTrue($person->isIndexable(), 'Mastodon says the posts may be full-text indexed');
+	}
+
+	public function testImportWithoutTheFlagsOrWithNullLeavesThemOff(): void {
+		$actor = $this->mastodonActor();
+		// Mastodon serialises an unset preference as null, not as false
+		$actor['discoverable'] = null;
+		unset($actor['indexable']);
+
+		$person = new Person();
+		$person->import($actor);
+
+		$this->assertFalse($person->isDiscoverable());
+		$this->assertFalse($person->isIndexable());
+	}
+
+	public function testTheFlagsAreAlwaysOnTheActorDocument(): void {
+		$export = $this->localActor()->exportAsActivityPub();
+
+		$this->assertFalse($export['discoverable'], 'opt-in: off until the user asks');
+		$this->assertFalse($export['indexable']);
+
+		$person = $this->localActor();
+		$person->setDiscoverable(true)->setIndexable(true);
+		$export = $person->exportAsActivityPub();
+
+		$this->assertTrue($export['discoverable']);
+		$this->assertTrue($export['indexable']);
+	}
+
+	public function testTheFlagsRoundTripThroughTheActivityPubExport(): void {
+		$person = $this->localActor();
+		$person->setDiscoverable(true)->setIndexable(true);
+
+		$copy = new Person();
+		$copy->import(json_decode(json_encode($person->exportAsActivityPub()), true));
+
+		$this->assertTrue($copy->isDiscoverable());
+		$this->assertTrue($copy->isIndexable());
+	}
+
+	public function testImportFromDatabaseReadsTheFlagColumnsOfTheActorRow(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://social.example/@alice',
+			'discoverable' => 1,
+			'indexable' => 1,
+		]);
+
+		$this->assertTrue($person->isDiscoverable());
+		$this->assertTrue($person->isIndexable());
+	}
+
+	public function testImportFromDatabaseReadsTheFlagsFromTheCachedSource(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'source' => '{"discoverable":true,"indexable":true}',
+		]);
+
+		$this->assertTrue($person->isDiscoverable(), 'cache actor rows carry the flag in their source document');
+		$this->assertTrue($person->isIndexable());
+	}
+
+	public function testIndexableReachesTheAccountEntity(): void {
+		$person = new Person();
+		$this->assertFalse($person->exportAsLocal()['indexable']);
+
+		$person->setIndexable(true);
+		$this->assertTrue($person->exportAsLocal()['indexable']);
+	}
+
+	public function testImportFromLocalReadsIndexable(): void {
+		$person = new Person();
+		$person->importFromLocal(['id' => '1', 'username' => 'alice', 'indexable' => true]);
+
+		$this->assertTrue($person->isIndexable());
+	}
+
+	// --- alsoKnownAs / movedTo -------------------------------------------
+
+	public function testAlsoKnownAsIsReadFromTheActorRowColumn(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://social.example/@alice',
+			'also_known_as' => '["https://old.example/users/alice"]',
+		]);
+
+		$this->assertSame(['https://old.example/users/alice'], $person->getAlsoKnownAs());
+	}
+
+	public function testAnUnreadableAlsoKnownAsColumnIsIgnored(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://social.example/@alice',
+			'also_known_as' => 'not json',
+		]);
+
+		$this->assertSame([], $person->getAlsoKnownAs());
+	}
+
+	public function testImportReadsMovedTo(): void {
+		$actor = $this->mastodonActor();
+		$actor['movedTo'] = 'https://new.example/users/alice';
+
+		$person = new Person();
+		$person->import($actor);
+
+		$this->assertSame('https://new.example/users/alice', $person->getMovedTo());
+	}
+
+	public function testImportWithoutMovedToLeavesItEmpty(): void {
+		$person = new Person();
+		$person->import($this->mastodonActor());
+
+		$this->assertSame('', $person->getMovedTo());
+	}
+
+	public function testMovedToIsExportedOnlyWhenSet(): void {
+		$person = $this->localActor();
+		$this->assertArrayNotHasKey('movedTo', $person->exportAsActivityPub());
+
+		$person->setMovedTo('https://new.example/users/alice');
+		$this->assertSame('https://new.example/users/alice', $person->exportAsActivityPub()['movedTo']);
+	}
+
+	public function testMovedToSurvivesTheActorCache(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'source' => '{"movedTo":"https://new.example/users/alice"}',
+		]);
+
+		$this->assertSame('https://new.example/users/alice', $person->getMovedTo());
+	}
+
+	public function testMovedToIsReadFromTheActorRowColumn(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://social.example/@alice',
+			'moved_to' => 'https://new.example/users/alice',
+		]);
+
+		$this->assertSame('https://new.example/users/alice', $person->getMovedTo());
+	}
+
+	public function testAnAccountThatHasNotMovedHasNoMovedEntry(): void {
+		$this->assertArrayNotHasKey('moved', (new Person())->exportAsLocal());
+	}
+
+	public function testMovedIsTheResolvedTargetAccountWhenKnown(): void {
+		$target = new Person();
+		$target->setNid(7)
+			->setId('https://new.example/users/alice')
+			->setPreferredUsername('alice')
+			->setAccount('alice@new.example');
+
+		$person = new Person();
+		$person->setMovedTo($target->getId());
+		$person->setMovedToActor($target);
+
+		$moved = $person->exportAsLocal()['moved'];
+		$this->assertSame('7', $moved['id']);
+		$this->assertSame('alice@new.example', $moved['acct']);
+		$this->assertSame('https://new.example/users/alice', $moved['url']);
+	}
+
+	public function testMovedIsDerivedFromTheTargetIdWhenTheTargetIsNotCached(): void {
+		$person = new Person();
+		$person->setMovedTo('https://new.example/users/alice');
+
+		$moved = $person->exportAsLocal()['moved'];
+		$this->assertSame('https://new.example/users/alice', $moved['url']);
+		$this->assertSame('alice', $moved['username']);
+		$this->assertSame('alice@new.example', $moved['acct']);
+		$this->assertArrayHasKey('display_name', $moved, 'a full account entity, so a strict client does not choke');
+		$this->assertArrayNotHasKey('moved', $moved, 'the stub does not chain');
+	}
+
+	public function testMovedNeverChainsPastTheFirstTarget(): void {
+		$target = new Person();
+		$target->setId('https://new.example/users/alice')->setMovedTo('https://newer.example/users/alice');
+
+		$person = new Person();
+		$person->setMovedTo($target->getId());
+		$person->setMovedToActor($target);
+
+		$this->assertArrayNotHasKey('moved', $person->exportAsLocal()['moved']);
+	}
+
+	public function testImportFromLocalReadsMovedFromTheTargetUrl(): void {
+		$person = new Person();
+		$person->importFromLocal([
+			'id' => '1',
+			'username' => 'alice',
+			'moved' => ['id' => '9', 'url' => 'https://new.example/users/alice', 'acct' => 'alice@new.example'],
+		]);
+
+		$this->assertSame('https://new.example/users/alice', $person->getMovedTo());
 	}
 }
