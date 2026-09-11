@@ -1,0 +1,605 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\Service;
+
+use OCA\Social\AP;
+use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Update;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
+use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Object\Mention;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Service\AccountRelationService;
+use OCA\Social\Service\NotificationService;
+use OCA\Social\Service\StreamService;
+use OCA\Social\Tests\Model\TActivityPubMocks;
+use OCP\Notification\IManager as INotificationManager;
+use OCP\Notification\INotification;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
+
+require_once __DIR__ . '/../Model/TActivityPubMocks.php';
+
+/**
+ * The fallback a Nextcloud user has instead of Web Push.
+ *
+ * What is asserted is what somebody is *told*: that each of the four things
+ * that can happen to an account reaches the bell once, that nothing is raised
+ * for an account acting on itself or for one the reader has blocked or muted,
+ * and that dismissing a notification takes both halves of it away — the stored
+ * row the client lists and the Nextcloud notification raised from it.
+ */
+class NotificationServiceTest extends TestCase {
+	use TActivityPubMocks;
+
+	private const ALICE = 'https://cloud.example/users/alice';
+	private const BOB = 'https://remote.example/users/bob';
+	private const CAROL = 'https://cloud.example/users/carol';
+	private const POST = 'https://cloud.example/@alice/post-1';
+
+	private StreamRequest|MockObject $streamRequest;
+	private StreamService|MockObject $streamService;
+	private ActorsRequest|MockObject $actorsRequest;
+	private CacheActorsRequest|MockObject $cacheActorsRequest;
+	private ActorRelationRequest|MockObject $actorRelationRequest;
+	private ActionsRequest|MockObject $actionsRequest;
+	private AccountRelationService|MockObject $accountRelationService;
+	private INotificationManager|MockObject $notificationManager;
+	private NotificationService $service;
+
+	/** @var array<string, string> local actor id => the Nextcloud user it belongs to */
+	private array $local = [];
+	/** @var array<string, ActorRelation[]> "reader|actor" => what the reader holds over them */
+	private array $relations = [];
+	/** @var string[] "reader|actor" pairs whose mute has run out */
+	private array $expired = [];
+	/** @var Stream[] the viewer's notifications, newest first */
+	private array $timeline = [];
+	/** @var ACore[] what is stored against the edited post */
+	private array $actions = [];
+	/** @var array<int, array> every notification handed to the notification manager */
+	private array $raised = [];
+	/** @var array<int, array> every notification withdrawn from the bell */
+	private array $withdrawn = [];
+	/** @var array<int, array{string, string}> [id, type] of every deleted row */
+	private array $deleted = [];
+	/** @var SocialAppNotification[] the rows onStatusEdited() stored */
+	private array $stored = [];
+	/** @var ProbeOptions[] every timeline query the service made */
+	private array $asked = [];
+	private bool $bellFails = false;
+
+	protected function setUp(): void {
+		$this->local = [self::ALICE => 'alice', self::CAROL => 'carol'];
+
+		$this->streamRequest = $this->createMock(StreamRequest::class);
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id): Stream {
+				if ($id !== self::POST) {
+					throw new StreamNotFoundException('stream not found');
+				}
+
+				return $this->post();
+			});
+		$this->streamRequest->method('deleteById')
+			->willReturnCallback(function (string $id, string $type = ''): void {
+				$this->deleted[] = [$id, $type];
+				$this->timeline = array_values(array_filter(
+					$this->timeline, static fn (Stream $row): bool => $row->getId() !== $id
+				));
+			});
+
+		$this->streamService = $this->createMock(StreamService::class);
+		$this->streamService->method('getTimeline')
+			->willReturnCallback(function (ProbeOptions $options): array {
+				$this->asked[] = $options;
+
+				$rows = array_filter($this->timeline, static function (Stream $row) use ($options): bool {
+					return ($options->getMaxId() === 0 || $row->getNid() < $options->getMaxId())
+						&& ($options->getMinId() === 0 || $row->getNid() > $options->getMinId());
+				});
+
+				return array_slice(array_values($rows), 0, $options->getLimit());
+			});
+
+		$this->actorsRequest = $this->createMock(ActorsRequest::class);
+		$this->actorsRequest->method('getFromId')
+			->willReturnCallback(function (string $id): Person {
+				if (!array_key_exists($id, $this->local)) {
+					throw new ActorDoesNotExistException('Actor not found');
+				}
+
+				return $this->person($id, $this->local[$id]);
+			});
+
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		$this->cacheActorsRequest->method('getFromId')
+			->willReturnCallback(function (string $id): Person {
+				if ($id !== self::BOB) {
+					throw new CacheActorDoesNotExistException('not cached');
+				}
+
+				$bob = $this->person($id, '');
+				$bob->setName('Bob');
+				$bob->setAccount('bob@remote.example');
+				$bob->setAvatar('https://remote.example/avatars/bob.png');
+
+				return $bob;
+			});
+
+		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
+		$this->actorRelationRequest->method('getBetween')
+			->willReturnCallback(
+				fn (string $reader, string $actor): array => $this->relations[$reader . '|' . $actor] ?? []
+			);
+
+		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->actionsRequest->method('getByObjectId')->willReturnCallback(fn (): array => $this->actions);
+
+		$this->accountRelationService = $this->createMock(AccountRelationService::class);
+		$this->accountRelationService->method('isMuteExpired')->willReturnCallback(
+			fn (string $reader, string $actor): bool
+				=> in_array($reader . '|' . $actor, $this->expired, true)
+		);
+
+		$this->notificationManager = $this->createMock(INotificationManager::class);
+		$this->notificationManager->method('createNotification')
+			->willReturnCallback(fn (): INotification => $this->notification());
+		$this->notificationManager->method('notify')
+			->willReturnCallback(function (INotification $notification): void {
+				if ($this->bellFails) {
+					throw new \RuntimeException('the notifications app is not there');
+				}
+
+				$this->raised[] = $this->fieldsOf($notification);
+			});
+		$this->notificationManager->method('markProcessed')
+			->willReturnCallback(function (INotification $notification): void {
+				$this->withdrawn[] = $this->fieldsOf($notification);
+			});
+
+		$this->service = new NotificationService(
+			$this->streamRequest,
+			$this->streamService,
+			$this->actorsRequest,
+			$this->cacheActorsRequest,
+			$this->actorRelationRequest,
+			$this->actionsRequest,
+			$this->accountRelationService,
+			$this->notificationManager,
+			new NullLogger()
+		);
+	}
+
+	protected function tearDown(): void {
+		AP::$activityPub = null;
+	}
+
+	/** @var array<string, array> what each notification mock was told, keyed by its spl id */
+	private array $fields = [];
+
+	private function notification(): INotification {
+		$notification = $this->createMock(INotification::class);
+		$key = spl_object_hash($notification);
+		$this->fields[$key] = [];
+
+		foreach (['setApp' => 'app', 'setUser' => 'user'] as $method => $field) {
+			$notification->method($method)->willReturnCallback(
+				function (string $value) use ($notification, $key, $field): INotification {
+					$this->fields[$key][$field] = $value;
+
+					return $notification;
+				}
+			);
+		}
+
+		$notification->method('setDateTime')->willReturn($notification);
+		$notification->method('setObject')->willReturnCallback(
+			function (string $type, string $id) use ($notification, $key): INotification {
+				$this->fields[$key]['object'] = [$type, $id];
+
+				return $notification;
+			}
+		);
+		$notification->method('setSubject')->willReturnCallback(
+			function (string $subject, array $parameters = []) use ($notification, $key): INotification {
+				$this->fields[$key]['subject'] = $subject;
+				$this->fields[$key]['parameters'] = $parameters;
+
+				return $notification;
+			}
+		);
+
+		return $notification;
+	}
+
+	private function fieldsOf(INotification $notification): array {
+		return $this->fields[spl_object_hash($notification)] ?? [];
+	}
+
+	private function person(string $id, string $userId): Person {
+		$person = new Person();
+		$person->setId($id);
+		$person->setUserId($userId);
+
+		return $person;
+	}
+
+	private function post(): Stream {
+		$post = new Note();
+		$post->setId(self::POST);
+		$post->setAttributedTo(self::BOB);
+		$post->setNid(90);
+
+		return $post;
+	}
+
+	/** A stored notification row as one of the four generating paths writes it. */
+	private function row(string $subType, string $to, string $attributedTo, int $nid = 5): SocialAppNotification {
+		$notification = new SocialAppNotification();
+		$notification->setSubType($subType);
+		$notification->setObjectId(self::POST);
+		$notification->setTo($to);
+		$notification->setAttributedTo($attributedTo);
+		$notification->setId(self::POST . '/notification+' . strtolower($subType));
+		$notification->setNid($nid);
+
+		return $notification;
+	}
+
+	/** A mention row, which is attributed to the account being told, not to the author. */
+	private function mention(string $to, ?Stream $post = null): SocialAppNotification {
+		$notification = $this->row(Mention::TYPE, $to, $to);
+		if ($post !== null) {
+			$notification->setDetailItem('post', $post);
+		}
+
+		return $notification;
+	}
+
+	private function relation(string $type, bool $notifications = true): ActorRelation {
+		$relation = new ActorRelation();
+		$relation->setType($type)
+			->setNotifications($notifications);
+
+		return $relation;
+	}
+
+	public function testAMentionTellsTheMentionedUser(): void {
+		$this->service->onNotification($this->mention(self::ALICE, $this->post()));
+
+		$this->assertCount(1, $this->raised);
+		$this->assertSame('social', $this->raised[0]['app']);
+		$this->assertSame('alice', $this->raised[0]['user']);
+		$this->assertSame('mention', $this->raised[0]['subject']);
+		$this->assertSame('Bob', $this->raised[0]['parameters']['account']);
+		$this->assertSame(self::POST, $this->raised[0]['parameters']['link']);
+		$this->assertSame(
+			'https://remote.example/avatars/bob.png', $this->raised[0]['parameters']['avatar']
+		);
+	}
+
+	public function testAMentionWithoutTheAuthorAtHandReadsItOffThePost(): void {
+		// the row as it comes back from the database: the post is an id, not an
+		// object, and the author is not the account the row is attributed to
+		$this->service->onNotification($this->mention(self::ALICE));
+
+		$this->assertCount(1, $this->raised);
+		$this->assertSame('Bob', $this->raised[0]['parameters']['account']);
+	}
+
+	public function testAFavouriteTellsThePostAuthor(): void {
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		$this->assertCount(1, $this->raised);
+		$this->assertSame('favourite', $this->raised[0]['subject']);
+		$this->assertSame('alice', $this->raised[0]['user']);
+	}
+
+	public function testABoostTellsThePostAuthor(): void {
+		$this->service->onNotification($this->row(Announce::TYPE, self::ALICE, self::BOB));
+
+		$this->assertCount(1, $this->raised);
+		$this->assertSame('reblog', $this->raised[0]['subject']);
+	}
+
+	public function testAFollowTellsTheFollowedUserAndLinksToTheProfile(): void {
+		$this->service->onNotification($this->row(Follow::TYPE, self::ALICE, self::BOB));
+
+		$this->assertCount(1, $this->raised);
+		$this->assertSame('follow', $this->raised[0]['subject']);
+		$this->assertSame(self::BOB, $this->raised[0]['parameters']['link']);
+	}
+
+	public function testAFollowRequestIsItsOwnSubject(): void {
+		$this->service->onNotification($this->row(Follow::TYPE_REQUEST, self::ALICE, self::BOB));
+
+		$this->assertCount(1, $this->raised);
+		$this->assertSame('follow_request', $this->raised[0]['subject']);
+	}
+
+	public function testNobodyIsToldAboutTheirOwnAction(): void {
+		// boosting your own post: the row is written, the bell is not rung
+		$this->service->onNotification($this->row(Announce::TYPE, self::ALICE, self::ALICE));
+
+		$this->assertSame([], $this->raised);
+	}
+
+	public function testNobodyIsToldTheyMentionedThemselves(): void {
+		$post = $this->post();
+		$post->setAttributedTo(self::ALICE);
+
+		$this->service->onNotification($this->mention(self::ALICE, $post));
+
+		$this->assertSame([], $this->raised);
+	}
+
+	public function testNothingIsRaisedForABlockedActor(): void {
+		$this->relations[self::ALICE . '|' . self::BOB] = [$this->relation(ActorRelation::TYPE_BLOCK)];
+
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		$this->assertSame([], $this->raised);
+	}
+
+	public function testNothingIsRaisedForAnActorWhoBlockedTheReader(): void {
+		$this->relations[self::ALICE . '|' . self::BOB] = [$this->relation(ActorRelation::TYPE_BLOCKED_BY)];
+
+		$this->service->onNotification($this->row(Announce::TYPE, self::ALICE, self::BOB));
+
+		$this->assertSame([], $this->raised);
+	}
+
+	public function testNothingIsRaisedForAMutedActorWhoseNotificationsAreHidden(): void {
+		$this->relations[self::ALICE . '|' . self::BOB] = [$this->relation(ActorRelation::TYPE_MUTE)];
+
+		$this->service->onNotification($this->mention(self::ALICE, $this->post()));
+
+		$this->assertSame([], $this->raised);
+	}
+
+	public function testAMuteThatKeepsNotificationsDoesNotStopOne(): void {
+		$this->relations[self::ALICE . '|' . self::BOB] = [$this->relation(ActorRelation::TYPE_MUTE, false)];
+
+		$this->service->onNotification($this->mention(self::ALICE, $this->post()));
+
+		$this->assertCount(1, $this->raised);
+	}
+
+	public function testAMuteThatHasRunOutDoesNotStopOne(): void {
+		$this->relations[self::ALICE . '|' . self::BOB] = [$this->relation(ActorRelation::TYPE_MUTE)];
+		$this->expired[] = self::ALICE . '|' . self::BOB;
+
+		$this->service->onNotification($this->mention(self::ALICE, $this->post()));
+
+		$this->assertCount(1, $this->raised);
+	}
+
+	public function testNothingIsRaisedForAReaderOfAnotherServer(): void {
+		$this->service->onNotification($this->row(Like::TYPE, self::BOB, self::ALICE));
+
+		$this->assertSame([], $this->raised);
+	}
+
+	public function testNothingIsRaisedForASubTypeThatHasNoSubject(): void {
+		$this->service->onNotification($this->row('Arrive', self::ALICE, self::BOB));
+
+		$this->assertSame([], $this->raised);
+	}
+
+	public function testTheObjectIdFitsTheColumnItIsWrittenTo(): void {
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		[$type, $id] = $this->raised[0]['object'];
+		$this->assertSame('notification', $type);
+		$this->assertLessThanOrEqual(64, strlen($id));
+		$this->assertLessThanOrEqual(64, strlen($type));
+	}
+
+	public function testAnIncomingActivityIsNotLostWhenTheBellFails(): void {
+		$this->bellFails = true;
+
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		$this->assertSame([], $this->raised);
+	}
+
+	public function testEverySubTypeTheClientApiNamesHasASubject(): void {
+		foreach (NotificationService::SUBJECTS as $subType => $subject) {
+			$named = Stream::notificationTypeOfSubType($subType);
+			if ($named === '') {
+				// a type the client API does not name yet; nothing is raised
+				// for it either, which testNothingIsRaised… covers
+				continue;
+			}
+
+			$this->assertSame(
+				$named,
+				$subject,
+				$subType . ' is called something else by the client API than by the bell'
+			);
+		}
+	}
+
+	public function testGetAnswersTheReadersNotification(): void {
+		$this->timeline = [$this->row(Like::TYPE, self::ALICE, self::BOB, 7)];
+
+		$found = $this->service->get($this->person(self::ALICE, 'alice'), 7);
+
+		$this->assertSame(7, $found->getNid());
+		// read through the notification timeline, not by id: that is what makes
+		// somebody else's notification not found rather than refused
+		$this->assertSame(ProbeOptions::NOTIFICATIONS, $this->asked[0]->getProbe());
+	}
+
+	public function testGetDoesNotFindANotificationOfSomebodyElses(): void {
+		// the notification timeline is the reader's own; an id that is not in
+		// it is not theirs, and is answered the same way as one that is gone
+		$this->timeline = [];
+
+		$this->expectException(ItemNotFoundException::class);
+
+		$this->service->get($this->person(self::ALICE, 'alice'), 7);
+	}
+
+	public function testGetDoesNotFindOneTheTimelineLeavesOut(): void {
+		$this->timeline = [$this->row('Arrive', self::ALICE, self::BOB, 7)];
+
+		$this->expectException(ItemNotFoundException::class);
+
+		$this->service->get($this->person(self::ALICE, 'alice'), 7);
+	}
+
+	public function testDismissRemovesTheRowAndTakesTheBellEntryWithIt(): void {
+		$row = $this->row(Like::TYPE, self::ALICE, self::BOB, 7);
+		$this->timeline = [$row];
+
+		$this->service->dismiss($this->person(self::ALICE, 'alice'), 7);
+
+		$this->assertSame([[$row->getId(), SocialAppNotification::TYPE]], $this->deleted);
+		$this->assertCount(1, $this->withdrawn);
+		$this->assertSame('alice', $this->withdrawn[0]['user']);
+		$this->assertSame(['notification', sha1($row->getId())], $this->withdrawn[0]['object']);
+	}
+
+	public function testTheBellEntryWithdrawnIsTheOneThatWasRaised(): void {
+		$row = $this->row(Like::TYPE, self::ALICE, self::BOB, 7);
+		$this->timeline = [$row];
+
+		$this->service->onNotification($row);
+		$this->service->dismiss($this->person(self::ALICE, 'alice'), 7);
+
+		$this->assertSame($this->raised[0]['object'], $this->withdrawn[0]['object']);
+	}
+
+	public function testDismissingANotificationOfSomebodyElsesRemovesNothing(): void {
+		$this->timeline = [];
+
+		try {
+			$this->service->dismiss($this->person(self::ALICE, 'alice'), 7);
+			$this->fail('a notification that is not the reader\'s was dismissed');
+		} catch (ItemNotFoundException $e) {
+		}
+
+		$this->assertSame([], $this->deleted);
+	}
+
+	public function testClearRemovesEveryNotificationOfTheReader(): void {
+		$this->timeline = [
+			$this->row(Like::TYPE, self::ALICE, self::BOB, 9),
+			$this->row(Announce::TYPE, self::ALICE, self::BOB, 8),
+			$this->row(Follow::TYPE, self::ALICE, self::BOB, 7),
+		];
+
+		$cleared = $this->service->clear($this->person(self::ALICE, 'alice'));
+
+		$this->assertSame(3, $cleared);
+		$this->assertCount(3, $this->deleted);
+		$this->assertCount(3, $this->withdrawn);
+		$this->assertSame([], $this->timeline);
+	}
+
+	public function testClearPagesDownwardsRatherThanAskingForTheSamePageAgain(): void {
+		$this->timeline = [
+			$this->row(Like::TYPE, self::ALICE, self::BOB, 9),
+			$this->row(Announce::TYPE, self::ALICE, self::BOB, 8),
+		];
+
+		$this->service->clear($this->person(self::ALICE, 'alice'));
+
+		$cursors = array_map(static fn (ProbeOptions $o): int => $o->getMaxId(), $this->asked);
+		$this->assertSame([0, 8], $cursors);
+	}
+
+	public function testAnEditTellsTheLocalAccountsThatBoostedThePost(): void {
+		$this->installActivityPub();
+		$this->captureStoredRows();
+
+		$post = $this->post();
+		$post->setUpdated('2026-09-11T10:00:00Z');
+		$this->actions = [
+			$this->action(Announce::TYPE, self::ALICE),
+			$this->action(Announce::TYPE, self::CAROL),
+			$this->action(Announce::TYPE, 'https://remote.example/users/dave'),
+			$this->action(Like::TYPE, self::ALICE),
+			$this->action(Announce::TYPE, self::BOB),
+		];
+
+		$this->service->onStatusEdited($post);
+
+		$told = array_map(static fn (SocialAppNotification $n): string => $n->getTo(), $this->stored);
+		$this->assertSame([self::ALICE, self::CAROL], $told);
+		$this->assertSame(Update::TYPE, $this->stored[0]->getSubType());
+		$this->assertSame(self::POST, $this->stored[0]->getObjectId());
+		$this->assertSame(self::BOB, $this->stored[0]->getAttributedTo());
+	}
+
+	public function testTheAuthorIsNotToldAboutTheirOwnEdit(): void {
+		$this->installActivityPub();
+		$this->captureStoredRows();
+
+		$post = $this->post();
+		$post->setAttributedTo(self::ALICE);
+		$this->actions = [$this->action(Announce::TYPE, self::ALICE)];
+
+		$this->service->onStatusEdited($post);
+
+		$this->assertSame([], $this->stored);
+	}
+
+	public function testASecondEditIsASecondNotification(): void {
+		$this->installActivityPub();
+		$this->captureStoredRows();
+
+		$post = $this->post();
+		$this->actions = [$this->action(Announce::TYPE, self::ALICE)];
+
+		$post->setUpdated('2026-09-11T10:00:00Z');
+		$this->service->onStatusEdited($post);
+		$post->setUpdated('2026-09-11T11:00:00Z');
+		$this->service->onStatusEdited($post);
+
+		$this->assertCount(2, $this->stored);
+		$this->assertNotSame($this->stored[0]->getId(), $this->stored[1]->getId());
+	}
+
+	private function captureStoredRows(): void {
+		$this->apInterface(SocialAppNotificationInterface::class)
+			->method('save')
+			->willReturnCallback(function (ACore $item): void {
+				$this->stored[] = $item;
+			});
+	}
+
+	private function action(string $type, string $actorId): ACore {
+		$action = ($type === Announce::TYPE) ? new Announce() : new Like();
+		$action->setActorId($actorId);
+		$action->setObjectId(self::POST);
+
+		return $action;
+	}
+}

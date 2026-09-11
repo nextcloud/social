@@ -30,6 +30,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\NotificationService;
 
 /**
  * Class LikeInterface
@@ -42,8 +43,10 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	private CacheActorService $cacheActorService;
 
 	public function __construct(
-		ActionsRequest $actionsRequest, StreamRequest $streamRequest,
+		ActionsRequest $actionsRequest,
+		StreamRequest $streamRequest,
 		CacheActorService $cacheActorService,
+		private NotificationService $notificationService,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->streamRequest = $streamRequest;
@@ -177,6 +180,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 
 			$notification->addDetail('accounts', $author->getAccount());
 			$notificationInterface->update($notification);
+			$this->notificationService->onNotification($notification, $author->getId());
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
 			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);

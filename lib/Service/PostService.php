@@ -71,6 +71,7 @@ class PostService {
 		IUserManager $userManager,
 		private ModerationService $moderationService,
 		private StatusRevisionService $revisionService,
+		private NotificationService $notificationService,
 		LoggerInterface $logger,
 	) {
 		$this->streamService = $streamService;
@@ -227,6 +228,7 @@ class PostService {
 			$this->logger->warning('Failed to federate post update', ['exception' => $e]);
 		}
 
+		$this->notificationService->onStatusEdited($updated);
 		return $updated;
 	}
 

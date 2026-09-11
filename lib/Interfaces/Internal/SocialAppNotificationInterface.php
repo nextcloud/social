@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\NotificationService;
 
 class SocialAppNotificationInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private StreamRequest $streamRequest;
@@ -25,8 +26,10 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 	private MiscService $miscService;
 
 	public function __construct(
-		StreamRequest $streamRequest, ActorRelationRequest $actorRelationRequest,
+		StreamRequest $streamRequest,
+		ActorRelationRequest $actorRelationRequest,
 		MiscService $miscService,
+		private NotificationService $notificationService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->actorRelationRequest = $actorRelationRequest;
@@ -51,6 +54,7 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 			'Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1
 		);
 		$this->streamRequest->save($notification);
+		$this->notificationService->onNotification($notification);
 	}
 
 	/**

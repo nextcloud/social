@@ -77,7 +77,8 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 			$this->pushService,
 			$this->streamQueueService,
 			$this->linkPreviewService,
-			$this->forwardService
+			$this->forwardService,
+			$this->createMock(\OCA\Social\Service\NotificationService::class)
 		);
 
 		$this->alice = $this->person(self::LOCAL_URL . '/users/alice', true);
@@ -442,9 +443,37 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->assertSame(Mention::TYPE, $notification->getSubType());
 		$this->assertSame($this->alice->getId(), $notification->getTo());
 		$this->assertSame(self::NOTE, $notification->getObjectId());
-		$this->assertSame(self::NOTE . '/notification+mention', $notification->getId());
+		$this->assertSame(
+			self::NOTE . '/notification+mention/' . md5($this->alice->getId()),
+			$notification->getId()
+		);
 		$this->assertSame(['bob@remote.example'], $notification->getDetails('account'));
+		// the author, not the reader: this is what the client shows as the
+		// acting account, and what the block and mute filter compares against
+		$this->assertSame($this->bob->getId(), $notification->getAttributedTo());
 		$this->assertTrue($notification->isLocal());
+	}
+
+	/**
+	 * One row per recipient. A post mentioning three people wrote the same id
+	 * three times, and only the first of them survived — so all but one of the
+	 * people named in a post were never told.
+	 */
+	public function testEveryoneMentionedInAPostIsNotified(): void {
+		$this->storedAfterSave();
+		$this->knownActors($this->alice, $this->dave ?? $this->alice);
+		$note = $this->incomingNote();
+		$note->addTag(['type' => 'Mention', 'href' => $this->alice->getId(), 'name' => '@alice']);
+
+		$saved = [];
+		$this->notificationInterface->method('save')
+			->willReturnCallback(static function ($item) use (&$saved): void {
+				$saved[] = $item->getId();
+			});
+
+		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
+
+		$this->assertSame(count($saved), count(array_unique($saved)), 'two recipients shared one id');
 	}
 
 	public function testMentioningARemoteActorDoesNotNotifyAnyone(): void {

@@ -67,6 +67,7 @@ class AnnounceInterfaceTest extends ActivityPubTestCase {
 			$this->streamQueueService,
 			$this->cacheActorService,
 			$this->miscService,
+			$this->createMock(\OCA\Social\Service\NotificationService::class)
 		);
 
 		$this->alice = $this->person(self::LOCAL_URL . '/users/alice', true);
