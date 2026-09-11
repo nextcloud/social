@@ -1049,9 +1049,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$username = basename(rtrim($path, '/'));
 			$username = ltrim($username, '@');
 			$host = (string)parse_url($this->movedTo, PHP_URL_HOST);
-			$target->setId($this->movedTo)
-				->setUrl($this->movedTo)
-				->setPreferredUsername($username)
+			$target->setId($this->movedTo);
+			$target->setUrl($this->movedTo);
+			$target->setPreferredUsername($username)
 				->setAccount($host === '' ? $username : $username . '@' . $host);
 		}
 

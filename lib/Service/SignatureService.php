@@ -345,7 +345,7 @@ class SignatureService {
 	 * the key decide — and the keys ActivityPub actors publish are RSA, for
 	 * which Mastodon signs `rsa-v1_5-sha256`.
 	 *
-	 * @param array{params: array<string, mixed>} $signature
+	 * @param array{params: array<string, mixed>, ...} $signature
 	 */
 	private function messageSignatureAlgorithm(array $signature): string {
 		$algorithm = $signature['params']['alg'] ?? HttpMessageSignatureParser::ALG_RSA_V1_5_SHA256;
@@ -360,7 +360,7 @@ class SignatureService {
 	 * Whatever is there has to hold; that one of `date` and `created` is there
 	 * at all is the coverage check's business.
 	 *
-	 * @param array{params: array<string, mixed>} $signature
+	 * @param array{params: array<string, mixed>, ...} $signature
 	 * @return int the request time: `created` when present, else the Date header
 	 * @throws DateTimeException
 	 * @throws SignatureException

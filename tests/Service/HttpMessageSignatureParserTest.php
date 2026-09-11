@@ -202,6 +202,22 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 		);
 	}
 
+	public function testAcceptsAMaximumLengthSaltAsOpenSslSometimesProducesIt(): void {
+		// RFC 9421 asks a signer for a 64-byte salt, but OpenSSL chooses the
+		// longest salt that fits on some builds — which is what CI runs. A
+		// verifier that insists on its own guess rejects a valid signature.
+		[$private, $public] = self::keyPair();
+		$signature = RsaPssSigner::sign('the base', $private, RsaPssSigner::SALT_MAX);
+
+		$this->assertTrue(
+			$this->parser->verify(HttpMessageSignatureParser::ALG_RSA_PSS_SHA512, $public, 'the base', $signature)
+		);
+		$this->assertFalse(
+			$this->parser->verify(HttpMessageSignatureParser::ALG_RSA_PSS_SHA512, $public, 'another base', $signature),
+			'a recovered salt length must not make the signature itself optional'
+		);
+	}
+
 	public function testVerifyRefusesAnAlgorithmItDoesNotImplement(): void {
 		[, $public] = self::keyPair();
 		$this->assertFalse($this->parser->isSupportedAlgorithm('ed25519'));

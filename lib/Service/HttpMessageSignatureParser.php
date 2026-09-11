@@ -277,10 +277,9 @@ class HttpMessageSignatureParser {
 		}
 
 		$hashLength = 64;
-		$saltLength = 64;
 		$emBits = $modulusBits - 1;
 		$emLength = intdiv($emBits + 7, 8);
-		if ($emLength < $hashLength + $saltLength + 2) {
+		if ($emLength < $hashLength + 2) {
 			return false;
 		}
 
@@ -309,12 +308,18 @@ class HttpMessageSignatureParser {
 			$db[0] = chr(ord($db[0]) & (0xff >> $unusedBits));
 		}
 
-		$paddingLength = $emLength - $hashLength - $saltLength - 2;
-		if (substr($db, 0, $paddingLength) !== str_repeat("\0", $paddingLength)
-			|| $db[$paddingLength] !== "\x01") {
+		// The salt is read out of the padding rather than assumed: DB is
+		// PS || 0x01 || salt, so where the 0x01 sits says how long the salt is.
+		// RFC 9421 asks a *signer* for 64 bytes, but OpenSSL picks the longest
+		// salt that fits on some builds and 64 on others — and a verifier that
+		// only accepts its own guess rejects signatures that are perfectly
+		// valid. This is what RSA_PSS_SALTLEN_AUTO does, and the padding is
+		// still checked byte for byte.
+		$paddingLength = strspn($db, "\0");
+		if ($paddingLength >= strlen($db) || $db[$paddingLength] !== "\x01") {
 			return false;
 		}
-		$salt = substr($db, $paddingLength + 1, $saltLength);
+		$salt = substr($db, $paddingLength + 1);
 
 		$expected = hash(
 			'sha512',

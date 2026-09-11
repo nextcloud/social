@@ -240,7 +240,7 @@ class MigrationService {
 		$alias = trim($alias);
 		$parts = parse_url($alias);
 		if ($parts === false
-			|| !in_array(strtolower((string)($parts['scheme'] ?? '')), ['http', 'https'], true)
+			|| !in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true)
 			|| ($parts['host'] ?? '') === '') {
 			throw new InvalidResourceException(
 				'"' . $alias . '" is not an actor id: expected the https:// address of the account,'

@@ -21,13 +21,18 @@ namespace OCA\Social\Tests\Helper;
  * what proves this signer.
  */
 final class RsaPssSigner {
-	public static function sign(string $message, string $privateKeyPem): string {
+	/** Ask for the longest salt that fits, the way some OpenSSL builds sign. */
+	public const SALT_MAX = -1;
+
+	public static function sign(string $message, string $privateKeyPem, int $saltLength = 64): string {
 		$key = openssl_pkey_get_private($privateKeyPem);
 		$bits = (int)openssl_pkey_get_details($key)['bits'];
 		$hashLength = 64;
-		$saltLength = 64;
 		$emBits = $bits - 1;
 		$emLength = intdiv($emBits + 7, 8);
+		if ($saltLength === self::SALT_MAX) {
+			$saltLength = $emLength - $hashLength - 2;
+		}
 
 		$salt = random_bytes($saltLength);
 		$hash = hash('sha512', str_repeat("\0", 8) . hash('sha512', $message, true) . $salt, true);

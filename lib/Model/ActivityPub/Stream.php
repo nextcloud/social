@@ -642,7 +642,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				continue;
 			}
 			foreach (array_keys($data[$map]) as $key) {
-				$language = self::normalizeLanguage((string)$key);
+				$language = self::normalizeLanguage(is_string($key) ? $key : (string)$key);
 				if ($language !== '') {
 					return $language;
 				}
