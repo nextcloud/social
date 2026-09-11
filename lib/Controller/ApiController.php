@@ -121,6 +121,12 @@ class ApiController extends Controller {
 	private const IDEMPOTENCY_CACHE = 'social_idempotency';
 	private const IDEMPOTENCY_TTL = 3600;
 
+	/**
+	 * How long `/media/{uuid}` may be cached: a year, the conventional
+	 * "forever" for content whose URL names its bytes and never changes.
+	 */
+	private const MEDIA_CACHE_SECONDS = 31536000;
+
 	private string $bearer = '';
 	private ?SocialClient $client = null;
 	private ?Person $viewer = null;
@@ -230,7 +236,7 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			return new DataResponse($this->viewer, Http::STATUS_OK);
+			return new DataResponse($this->accountEntity($this->viewer), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -238,8 +244,9 @@ class ApiController extends Controller {
 
 	/**
 	 * Minimal Mastodon-style profile update: `locked` (manually approve
-	 * followers) and `fields_attributes` (profile metadata) are supported.
-	 * Returns the updated account entity.
+	 * followers), `discoverable` and `indexable` (the actor flags) and
+	 * `fields_attributes` (profile metadata) are supported. Returns the
+	 * updated account entity.
 	 *
 	 */
 	#[NoCSRFRequired]
@@ -251,8 +258,20 @@ class ApiController extends Controller {
 			$changed = false;
 			$input = $this->convertInput(file_get_contents('php://input'));
 			if (array_key_exists('locked', $input)) {
-				$locked = in_array($input['locked'], [true, 1, '1', 'true'], true);
-				$this->accountService->setLocked($this->currentSession(), $locked);
+				$this->accountService->setLocked($this->currentSession(), $this->formBool($input['locked']));
+				$changed = true;
+			}
+
+			// only the flags that were sent: a client updating the display
+			// name must not reset the ones it did not mention
+			$flags = [];
+			foreach (['discoverable', 'indexable'] as $flag) {
+				if (array_key_exists($flag, $input)) {
+					$flags[$flag] = $this->formBool($input[$flag]);
+				}
+			}
+			if ($flags !== []) {
+				$this->accountService->setActorFlags($this->currentSession(), $flags);
 				$changed = true;
 			}
 
@@ -272,10 +291,72 @@ class ApiController extends Controller {
 				$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);
 			}
 
-			return new DataResponse($this->viewer, Http::STATUS_OK);
+			return new DataResponse($this->accountEntity($this->viewer), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/**
+	 * A boolean as a Mastodon client sends it in a form or JSON body:
+	 * `true`/`false`, `1`/`0`, or those as strings.
+	 */
+	private function formBool(mixed $value): bool {
+		return in_array($value, [true, 1, '1', 'true'], true);
+	}
+
+	/**
+	 * A local account as Mastodon's Account entity, with the gaps a brand-new
+	 * account has filled the way Mastodon fills them.
+	 *
+	 * `Person::exportAsLocal()` writes `""` where it has nothing: for
+	 * `last_status_at` when no post exists yet, for `avatar`/`header` while no
+	 * icon is cached. Mastodon sends `null` for the date and never an empty
+	 * image URL — a placeholder picture instead — and a strict decoder that
+	 * expects a date or a URL there fails the whole Account, which is the
+	 * first thing a client asks for after login. The stored source of the date
+	 * is `AccountService::addLocalActorDetailCount()`, the export is
+	 * `Person::exportAsLocal()`; until both emit what Mastodon does, this is
+	 * where the credentials routes put it right.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function accountEntity(Person $account): array {
+		// the viewer is already in local format, see initViewer()
+		$data = $account->jsonSerialize();
+
+		if (($data['last_status_at'] ?? null) === '') {
+			$data['last_status_at'] = null;
+		}
+
+		$placeholder = null;
+		foreach (['avatar', 'avatar_static', 'header', 'header_static'] as $image) {
+			if (($data[$image] ?? null) !== '') {
+				continue;
+			}
+
+			$placeholder ??= $this->placeholderImage($account);
+			$data[$image] = $placeholder;
+		}
+
+		return $data;
+	}
+
+	/**
+	 * The picture shown for an account that has none cached yet: for a local
+	 * account Nextcloud's own avatar, which every user has (generated from the
+	 * initials when nothing was uploaded), the app icon otherwise.
+	 */
+	private function placeholderImage(Person $account): string {
+		if ($account->isLocal()) {
+			return $this->urlGenerator->linkToRouteAbsolute(
+				'core.avatar.getAvatar', ['userId' => $account->getPreferredUsername(), 'size' => 128]
+			);
+		}
+
+		return $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->imagePath(Application::APP_ID, 'social.svg')
+		);
 	}
 
 	/**
@@ -507,6 +588,7 @@ class ApiController extends Controller {
 			$post->setSpoilerText($status->getSpoilerText());
 			$post->setSensitive($status->isSensitive());
 			$post->setType($this->visibilityOf($status));
+			$post->setLanguage($status->getLanguage());
 
 			if (!empty($status->getMediaIds())) {
 				$documents = $this->documentService->getMediaFromArray(
@@ -581,16 +663,16 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * Marks a post's attachments readable without a session only when the post
-	 * itself is.
+	 * Records on a post's attachments whether the post itself is world-readable.
 	 *
-	 * The `public` flag on a cached document is what decides whether
-	 * `/media/{uuid}` — an unauthenticated route — will hand the file over.
-	 * Every upload used to be stored with it set, direct messages and
-	 * followers-only posts included, so the row itself declared the attachment
-	 * world-readable and anyone who came by the uuid could fetch it. Which post
-	 * an upload belongs to is only known when that post is created, which is
-	 * where this runs.
+	 * The `public` flag on a cached document is a hint about the audience, not
+	 * access control: `/media/{uuid}` serves any local copy to whoever holds its
+	 * unguessable uuid, the way Mastodon does (see `mediaOpen()`), because that
+	 * is how remote servers fetch attachments for their own readers. What the
+	 * flag decides is how the bytes may be cached on the way — a shared proxy
+	 * may keep a public attachment, only the reader's browser a non-public one.
+	 * Which post an upload belongs to is only known when that post is created,
+	 * which is where this runs.
 	 *
 	 * @param Document[] $documents
 	 */
@@ -683,7 +765,8 @@ class ApiController extends Controller {
 				$actor,
 				$status->getStatus(),
 				$status->getSpoilerText() !== '' ? $status->getSpoilerText() : null,
-				$status->isSensitive()
+				$status->isSensitive(),
+				$status->getLanguage() !== '' ? $status->getLanguage() : null
 			);
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
@@ -850,15 +933,29 @@ class ApiController extends Controller {
 		}
 
 		try {
-			// Only public copies are served here: this route is unauthenticated, so a
-			// non-public document would otherwise be readable by anyone with the uuid.
-			[$file, $document] = $this->documentService->getFromUuid($uuid, true);
+			// Any local copy is served to whoever holds its uuid. The route is
+			// unauthenticated on purpose: this is how Mastodon and every other
+			// fediverse server fetch media — unsigned, on behalf of a reader they
+			// have already checked — so restricting it to rows flagged `public`
+			// (as this used to) only meant a broken image under every
+			// followers-only or direct post with a picture. The uuid is a v4 from
+			// random_bytes(), unguessable, handed only to the post's audience;
+			// see DocumentService::getFromUuid() for the model.
+			[$file, $document] = $this->documentService->getFromUuid($uuid);
 
 			// The stored media type was sniffed from the content at ingest; the
 			// extension in the URL is whatever the requester chose to write there.
-			return new FileDisplayResponse(
+			$response = new FileDisplayResponse(
 				$file, Http::STATUS_OK, ['Content-Type' => $document->getMediaType()]
 			);
+
+			// The bytes behind a uuid never change, so they may be kept for good —
+			// but only a browser's own cache may keep a non-public one: a shared
+			// proxy in front of this instance would otherwise answer the same URL
+			// to anyone, which is a wider audience than "whoever was sent it".
+			$response->cacheFor(self::MEDIA_CACHE_SECONDS, $document->isPublic(), true);
+
+			return $response;
 		} catch (NotFoundException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {

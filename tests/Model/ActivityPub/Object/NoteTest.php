@@ -235,4 +235,14 @@ class NoteTest extends TestCase {
 		$note->setCompleteDetails(true);
 		$this->assertSame(['nextcloud', 'fediverse'], $note->jsonSerialize()['hashtags']);
 	}
+
+	public function testTheLanguageComesFromTheContentMapAndGoesBackOut(): void {
+		$this->nobodyIsKnown();
+		$note = new Note();
+		$note->import($this->mastodonNote());
+
+		$this->assertSame('en', $note->getLanguage());
+		$this->assertSame('en', $note->exportAsLocal()['language']);
+		$this->assertSame(['en' => $note->getContent()], $note->exportAsActivityPub()['contentMap']);
+	}
 }

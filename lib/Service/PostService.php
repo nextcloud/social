@@ -29,6 +29,8 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCP\IUserManager;
+use OCP\L10N\IFactory;
 use Psr\Log\LoggerInterface;
 
 class PostService {
@@ -36,15 +38,27 @@ class PostService {
 	private StreamService $streamService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
+	private IFactory $l10nFactory;
+	private IUserManager $userManager;
 	private LoggerInterface $logger;
+
+	/**
+	 * The languages whose region subtag names a different written language,
+	 * and which Mastodon therefore offers as post languages of their own.
+	 * For every other language a Nextcloud locale's region describes the UI,
+	 * not the text: `en_GB` is English.
+	 */
+	private const REGIONAL_LANGUAGES = ['pt', 'zh'];
 
 	public function __construct(
 		StreamService $streamService, AccountService $accountService, ActivityService $activityService,
-		LoggerInterface $logger,
+		IFactory $l10nFactory, IUserManager $userManager, LoggerInterface $logger,
 	) {
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
+		$this->l10nFactory = $l10nFactory;
+		$this->userManager = $userManager;
 		$this->logger = $logger;
 	}
 
@@ -104,17 +118,18 @@ class PostService {
 		$note->setSensitive($post->isSensitive());
 		$note->setAttachments($post->getMedias());
 		$note->setVisibility($post->getType());
+		$note->setLanguage($this->languageFor($post->getLanguage(), $actor));
 
 		$this->streamService->replyTo($note, $post->getReplyTo());
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());
 		//		$this->streamService->addAttachments($note, $post->getDocuments());
 
-		if ($note instanceof Question) {
-			// the stored source is what survives the database and federates on
-			// Update: snapshot the fully assembled poll
-			$note->setSource(json_encode($note, JSON_UNESCAPED_SLASHES));
-		}
+		// the stored source is what survives the database and federates on
+		// Update — a poll's options and counts, and for every post the
+		// language, which has no column of its own: snapshot the assembled
+		// object
+		$this->snapshotSource($note);
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);
@@ -125,9 +140,16 @@ class PostService {
 	}
 
 	/**
+	 * @param ?string $language the language the client sent, null or empty to
+	 *                          keep the post's; a post that never had one gets
+	 *                          the poster's default
+	 *
 	 * @throws \Exception
 	 */
-	public function editPost(int $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null): Stream {
+	public function editPost(
+		int $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null,
+		?string $language = null,
+	): Stream {
 		$stream = $this->streamService->getStreamByNid($nid);
 
 		if ($stream->getAttributedTo() !== $actor->getId()) {
@@ -141,7 +163,14 @@ class PostService {
 		if ($sensitive !== null) {
 			$stream->setSensitive($sensitive);
 		}
-		$stream->setPublished(date('c'));
+		$stream->setLanguage($this->languageFor((string)$language, $actor, $stream->getLanguage()));
+
+		// `published` stays the creation time. The edit used to be stamped
+		// there instead, and Mastodon — which reads an Update without
+		// `updated` as an implicit one — refreshed the poll counters and threw
+		// the new content away. UTC and second-resolution like `published`.
+		$stream->setUpdated(gmdate('Y-m-d\TH:i:s\Z'));
+		$this->snapshotSource($stream);
 
 		$this->streamService->updateStream($stream);
 
@@ -159,6 +188,51 @@ class PostService {
 		}
 
 		return $updated;
+	}
+
+	/**
+	 * The stored wire object is what a reload reads the language and the edit
+	 * stamp from, and what a remote Update rewrites; a local edit has to
+	 * rewrite it the same way or the next re-export federates the old text.
+	 */
+	private function snapshotSource(Stream $stream): void {
+		$stream->setSource(json_encode($stream, JSON_UNESCAPED_SLASHES));
+	}
+
+	/**
+	 * The language a post is written in: what the client said, else what the
+	 * post already had, else the poster's default.
+	 */
+	private function languageFor(string $requested, Person $actor, string $current = ''): string {
+		$requested = Stream::normalizeLanguage($requested);
+		if ($requested !== '') {
+			return $requested;
+		}
+		if ($current !== '') {
+			return $current;
+		}
+
+		return $this->defaultLanguageOf($actor);
+	}
+
+	/**
+	 * The poster's Nextcloud language, which is the best guess this app has
+	 * for the language they write in. `IFactory::getUserLanguage()` already
+	 * falls back to the instance default and then to English; a locale's
+	 * region is dropped unless it names a different written language, so
+	 * Mastodon's per-language filters — keyed by plain `de`, not `de-DE` —
+	 * still match the post.
+	 */
+	private function defaultLanguageOf(Person $actor): string {
+		$user = ($actor->getUserId() !== '') ? $this->userManager->get($actor->getUserId()) : null;
+		$language = Stream::normalizeLanguage($this->l10nFactory->getUserLanguage($user));
+		if ($language === '') {
+			return 'en';
+		}
+
+		$primary = explode('-', $language, 2)[0];
+
+		return in_array($primary, self::REGIONAL_LANGUAGES, true) ? $language : $primary;
 	}
 
 	/**

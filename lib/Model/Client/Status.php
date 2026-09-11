@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\Client;
 
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class Status implements \JsonSerializable {
@@ -22,6 +23,8 @@ class Status implements \JsonSerializable {
 	private ?array $poll = null;
 	private int $inReplyToId = 0;
 	private string $status = '';
+	/** BCP 47 as the client sent it, normalised; empty for "whatever the poster's default is" */
+	private string $language = '';
 
 	//"media_ids": [],
 
@@ -123,6 +126,21 @@ class Status implements \JsonSerializable {
 	}
 
 	/**
+	 * Validated loosely rather than against a list: an unusable value is
+	 * dropped so the poster's default language applies, see
+	 * `Stream::normalizeLanguage()`.
+	 */
+	public function setLanguage(string $language): self {
+		$this->language = Stream::normalizeLanguage($language);
+
+		return $this;
+	}
+
+	public function getLanguage(): string {
+		return $this->language;
+	}
+
+	/**
 	 * @param string $status
 	 *
 	 * @return Status
@@ -148,6 +166,7 @@ class Status implements \JsonSerializable {
 		$this->setMediaIds($this->getArray('media_ids', $data));
 		$this->setInReplyToId($this->getInt('in_reply_to_id', $data));
 		$this->setStatus($this->get('status', $data));
+		$this->setLanguage($this->get('language', $data));
 		$poll = $this->getArray('poll', $data);
 		$this->setPoll($poll === [] ? null : $poll);
 
@@ -171,6 +190,7 @@ class Status implements \JsonSerializable {
 			'mediaIds' => $this->getMediaIds(),
 			'visibility' => $this->getVisibility(),
 			'spoilerText' => $this->getSpoilerText(),
+			'language' => $this->getLanguage(),
 			'status' => $this->getStatus()
 		];
 	}

@@ -30,6 +30,8 @@ use OCA\Social\Service\PostService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
+use OCP\IUserManager;
+use OCP\L10N\IFactory;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -51,6 +53,9 @@ class PostServiceTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	private PostService $service;
 
+	/** what the poster's Nextcloud is set to, as IFactory::getUserLanguage() reports it */
+	private string $userLanguage = 'de_DE';
+
 	protected function setUp(): void {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
@@ -61,8 +66,15 @@ class PostServiceTest extends TestCase {
 		$configService->method('generateId')->willReturn(self::GENERATED_ID);
 		$configService->method('getSocialUrl')->willReturn(self::SOCIAL_URL);
 
+		// hashtag hrefs are built through the router, the way the app's own
+		// timeline URLs are
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
+			fn (string $route, array $args = []): string => self::SOCIAL_URL . ($args['path'] ?? $route)
+		);
+
 		$streamService = new StreamService(
-			$this->createMock(IURLGenerator::class),
+			$urlGenerator,
 			$this->streamRequest,
 			$this->activityService,
 			$this->cacheActorService,
@@ -72,10 +84,15 @@ class PostServiceTest extends TestCase {
 			new NullLogger()
 		);
 
+		$l10nFactory = $this->createMock(IFactory::class);
+		$l10nFactory->method('getUserLanguage')->willReturnCallback(fn (): string => $this->userLanguage);
+
 		$this->service = new PostService(
 			$streamService,
 			$this->accountService,
 			$this->activityService,
+			$l10nFactory,
+			$this->createMock(IUserManager::class),
 			new NullLogger()
 		);
 	}
@@ -158,7 +175,7 @@ class PostServiceTest extends TestCase {
 		$this->assertSame(
 			[
 				['type' => 'Mention', 'href' => self::BOB_ID, 'name' => '@bob@remote.example'],
-				['type' => 'Hashtag', 'href' => self::SOCIAL_URL . 'tag/nextcloud', 'name' => '#Nextcloud'],
+				['type' => 'Hashtag', 'href' => self::SOCIAL_URL . 'tags/nextcloud', 'name' => '#Nextcloud'],
 			],
 			$note->getTags()
 		);
@@ -517,7 +534,8 @@ class PostServiceTest extends TestCase {
 		$this->assertSame('new', $stored->getContent());
 		$this->assertSame('new cw', $stored->getSpoilerText());
 		$this->assertTrue($stored->isSensitive());
-		$this->assertEqualsWithDelta(time(), (new DateTime($stored->getPublished()))->getTimestamp(), 5);
+		$this->assertSame('2020-01-01T00:00:00+00:00', $stored->getPublished(), 'published is when the post was written, not when it was last edited');
+		$this->assertEqualsWithDelta(time(), (new DateTime($stored->getUpdated()))->getTimestamp(), 5);
 
 		$paths = $reloaded->getInstancePaths();
 		$this->assertCount(1, $paths);
@@ -579,5 +597,181 @@ class PostServiceTest extends TestCase {
 		$this->activityService->method('updateActivity')->willThrowException(new \RuntimeException('remote down'));
 
 		$this->assertSame($reloaded, $this->service->editPost(7, $this->actor(), 'new'));
+	}
+
+	// language
+
+	public function testCreatePostDefaultsTheLanguageToThePostersNextcloudLanguage(): void {
+		$this->userLanguage = 'de_DE';
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post('Hallo Welt'));
+
+		$this->assertSame('de', $note->getLanguage(), 'the UI locale\'s region says nothing about the text');
+		$this->assertSame(['de' => 'Hallo Welt'], $note->exportAsActivityPub()['contentMap']);
+		$this->assertSame('de', $note->exportAsLocal()['language']);
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public function nextcloudLanguageProvider(): array {
+		return [
+			'a plain language' => ['fr', 'fr'],
+			'a locale loses its region' => ['en_GB', 'en'],
+			'Brazilian Portuguese keeps it: it is a different written language' => ['pt_BR', 'pt-BR'],
+			'so does Traditional Chinese' => ['zh_TW', 'zh-TW'],
+			'something unusable ends up English, like Nextcloud itself does' => ['sr@latin', 'en'],
+		];
+	}
+
+	/**
+	 * @dataProvider nextcloudLanguageProvider
+	 */
+	public function testTheDefaultLanguageIsDerivedFromTheNextcloudSetting(string $nextcloud, string $expected): void {
+		$this->userLanguage = $nextcloud;
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post('hi'));
+
+		$this->assertSame($expected, $note->getLanguage());
+	}
+
+	public function testCreatePostUsesTheLanguageTheClientSent(): void {
+		$this->userLanguage = 'de_DE';
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('Bonjour');
+		$post->setLanguage('fr');
+		$this->service->createPost($post);
+
+		$this->assertSame('fr', $note->getLanguage());
+		$this->assertSame(['fr' => 'Bonjour'], $note->exportAsActivityPub()['contentMap']);
+	}
+
+	public function testCreatePostSnapshotsTheNoteIntoTheSourceSoTheLanguageSurvivesTheDatabase(): void {
+		$this->userLanguage = 'de';
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post('Hallo'));
+
+		$source = json_decode($note->getSource(), true);
+		$this->assertSame(['de' => 'Hallo'], $source['contentMap']);
+
+		$reloaded = new Note();
+		$reloaded->importFromDatabase(['id' => $note->getId(), 'type' => 'Note', 'content' => 'Hallo', 'source' => $note->getSource()]);
+		$this->assertSame('de', $reloaded->getLanguage());
+	}
+
+	public function testEditPostAppliesTheLanguageTheClientSent(): void {
+		$stored = $this->storedNote();
+		$stored->setLanguage('fr');
+		$this->streamRequest->method('getStreamByNid')->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'nuovo', null, null, 'it');
+
+		$this->assertSame('it', $stored->getLanguage());
+	}
+
+	public function testEditPostKeepsTheStoredLanguageWhenTheClientSentNone(): void {
+		$this->userLanguage = 'de_DE';
+		$stored = $this->storedNote();
+		$stored->setLanguage('fr');
+		$this->streamRequest->method('getStreamByNid')->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'nouveau');
+
+		$this->assertSame('fr', $stored->getLanguage());
+	}
+
+	public function testEditPostGivesAPostThatHadNoLanguageTheDefault(): void {
+		$this->userLanguage = 'de_DE';
+		$stored = $this->storedNote();
+		$this->streamRequest->method('getStreamByNid')->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'neu');
+
+		$this->assertSame('de', $stored->getLanguage());
+	}
+
+	// the Update on the wire
+
+	/**
+	 * Mastodon treats an `Update{Note}` without `updated` as an implicit
+	 * update — poll counters are refreshed, the content change is discarded.
+	 * The edit used to move `published` instead, which Mastodon ignores.
+	 *
+	 * The reload is simulated faithfully: the second `getStreamByNid()` rebuilds
+	 * the Note from the row the update wrote, so this also proves that
+	 * `updated` and the language survive the database.
+	 */
+	public function testEditPostFederatesAnExplicitUpdate(): void {
+		$stored = $this->storedNote();
+		$stored->setLanguage('de');
+		$calls = 0;
+		$this->streamRequest->method('getStreamByNid')->willReturnCallback(
+			function () use ($stored, &$calls): Note {
+				if (++$calls === 1) {
+					return $stored;
+				}
+
+				$reloaded = new Note();
+				$reloaded->importFromDatabase([
+					'nid' => 7,
+					'id' => $stored->getId(),
+					'type' => 'Note',
+					'attributed_to' => $stored->getAttributedTo(),
+					'content' => $stored->getContent(),
+					'summary' => $stored->getSummary(),
+					'published' => $stored->getPublished(),
+					'published_time' => '2020-01-01 00:00:00',
+					'source' => $stored->getSource(),
+					'local' => 1,
+				]);
+
+				return $reloaded;
+			}
+		);
+		$this->activityService->expects($this->once())
+			->method('updateActivity')
+			->willReturnCallback(function (Person $actor, ACore $item) use (&$federated): string {
+				$federated = $item;
+
+				return 'token';
+			});
+
+		$this->service->editPost(7, $this->actor(), 'neu', 'neue CW');
+
+		$this->assertNotSame($stored, $federated, 'what federates is the reloaded row');
+		$wire = json_decode(json_encode($federated), true);
+
+		$this->assertSame('neu', $wire['content']);
+		$this->assertSame('2020-01-01T00:00:00+00:00', $wire['published'], 'published is untouched by an edit');
+		$this->assertArrayHasKey('updated', $wire, 'without `updated` Mastodon drops the content change');
+		$this->assertMatchesRegularExpression('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', $wire['updated'], 'ISO-8601, UTC');
+		$this->assertGreaterThan(strtotime($wire['published']), strtotime($wire['updated']));
+		$this->assertEqualsWithDelta(time(), strtotime($wire['updated']), 5);
+		$this->assertSame(['de' => 'neu'], $wire['contentMap']);
+		$this->assertSame(['de' => 'neue CW'], $wire['summaryMap']);
+
+		// and the client sees the same edit
+		$status = $federated->exportAsLocal();
+		$this->assertSame('2020-01-01T00:00:00.000Z', $status['created_at']);
+		$this->assertSame(gmdate('Y-m-d\TH:i:s', strtotime($wire['updated'])) . '.000Z', $status['edited_at']);
+	}
+
+	public function testEditPostSnapshotsTheEditedNoteIntoTheSource(): void {
+		$stored = $this->storedNote();
+		$this->streamRequest->method('getStreamByNid')->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'new');
+
+		$source = json_decode($stored->getSource(), true);
+		$this->assertSame('new', $source['content'], 'the source is what a re-export reads');
+		$this->assertSame($stored->getUpdated(), $source['updated']);
 	}
 }

@@ -35,6 +35,7 @@ class StatusTest extends TestCase {
 		$this->assertSame([12, 13], $status->getMediaIds());
 		$this->assertSame(99, $status->getInReplyToId());
 		$this->assertSame('text/markdown', $status->getContentType());
+		$this->assertSame('de', $status->getLanguage());
 	}
 
 	public function testImportAcceptsJsonEncodedMediaIdsAndBooleanSensitive(): void {
@@ -57,6 +58,7 @@ class StatusTest extends TestCase {
 		$this->assertFalse($status->isSensitive());
 		$this->assertSame([], $status->getMediaIds());
 		$this->assertSame(0, $status->getInReplyToId());
+		$this->assertSame('', $status->getLanguage());
 	}
 
 	public function testJsonSerializeExposesTheImportedValues(): void {
@@ -66,6 +68,7 @@ class StatusTest extends TestCase {
 			->setSpoilerText('')
 			->setSensitive(true)
 			->setMediaIds(['3'])
+			->setLanguage('en')
 			->setContentType('text/plain');
 
 		$this->assertSame([
@@ -74,7 +77,32 @@ class StatusTest extends TestCase {
 			'mediaIds' => [3],
 			'visibility' => 'public',
 			'spoilerText' => '',
+			'language' => 'en',
 			'status' => 'hi',
 		], $status->jsonSerialize());
+	}
+
+	public function testImportReadsTheLanguage(): void {
+		$status = new Status();
+
+		$status->import(['status' => 'Hallo', 'language' => 'de']);
+
+		$this->assertSame('de', $status->getLanguage());
+	}
+
+	public function testAnUnusableLanguageIsDroppedSoTheDefaultApplies(): void {
+		$status = new Status();
+
+		$status->import(['status' => 'x', 'language' => 'not a language']);
+
+		$this->assertSame('', $status->getLanguage());
+	}
+
+	public function testALanguageIsNormalisedTheWayItIsFederated(): void {
+		$this->assertSame('pt-BR', (new Status())->import(['language' => 'pt_br'])->getLanguage());
+	}
+
+	public function testANullLanguageIsNoLanguage(): void {
+		$this->assertSame('', (new Status())->import(['language' => null])->getLanguage());
 	}
 }

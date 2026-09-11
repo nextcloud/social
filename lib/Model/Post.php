@@ -38,6 +38,9 @@ class Post implements JsonSerializable {
 	/** whether the attachments are shown blurred until the reader asks for them */
 	private bool $sensitive = false;
 
+	/** BCP 47; empty means the poster's default, decided by PostService */
+	private string $language = '';
+
 	/** @var string[] */
 	private array $attachments = [];
 	/** @var MediaAttachment[] */
@@ -226,6 +229,21 @@ class Post implements JsonSerializable {
 		return $this->poll;
 	}
 
+	public function getLanguage(): string {
+		return $this->language;
+	}
+
+	/**
+	 * Normalised on the way in like the visibility is, so an unusable value
+	 * means "no language" rather than a nonsense `contentMap` key on every
+	 * other server.
+	 */
+	public function setLanguage(string $language): self {
+		$this->language = Stream::normalizeLanguage($language);
+
+		return $this;
+	}
+
 	public function hasPoll(): bool {
 		return $this->poll !== null && ($this->poll['options'] ?? []) !== [];
 	}
@@ -277,7 +295,8 @@ class Post implements JsonSerializable {
 			'content' => $this->getContent(),
 			'attachments' => $this->getAttachments(),
 			'hashtags' => $this->getHashtags(),
-			'type' => $this->getType()
+			'type' => $this->getType(),
+			'language' => $this->getLanguage()
 		];
 	}
 }

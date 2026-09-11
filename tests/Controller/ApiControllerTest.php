@@ -51,6 +51,7 @@ use OCA\Social\Service\ReportService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\Files\NotFoundException;
@@ -187,6 +188,10 @@ class ApiControllerTest extends TestCase {
 		$this->cacheFactory->method('createDistributed')->willReturn($cache);
 
 		\OC::$server->register(IRequest::class, $this->request);
+		// Response::cacheFor() stamps an Expires header from the clock
+		$clock = $this->createMock(ITimeFactory::class);
+		$clock->method('getTime')->willReturn(1700000000);
+		\OC::$server->register(ITimeFactory::class, $clock);
 	}
 
 	protected function tearDown(): void {
@@ -257,6 +262,8 @@ class ApiControllerTest extends TestCase {
 		$viewer = $this->createMock(Person::class);
 		$viewer->method('getPreferredUsername')->willReturn($uid);
 		$viewer->method('getId')->willReturn('https://cloud.example/apps/social/@' . $uid);
+		// the credentials routes answer with the serialised entity
+		$viewer->method('jsonSerialize')->willReturn(['id' => '7', 'username' => $uid]);
 		$this->cacheActorService->method('getFromLocalAccount')->with($uid)->willReturn($viewer);
 
 		return $viewer;
@@ -637,7 +644,7 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->verifyCredentials();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($viewer, $response->getData());
+		$this->assertSame($viewer->jsonSerialize(), $response->getData());
 	}
 
 	public function testVerifyCredentialsIsUnauthorizedForAnonymous(): void {
@@ -655,11 +662,12 @@ class ApiControllerTest extends TestCase {
 		$this->accountService->method('getActorFromUserId')->willReturn($account);
 
 		$viewer = $this->createMock(Person::class);
+		$viewer->method('jsonSerialize')->willReturn(['username' => 'alice']);
 		$this->cacheActorService->method('getFromLocalAccount')->with('alice')
 			->will($this->onConsecutiveCalls($this->throwException(new CacheActorDoesNotExistException()), $viewer));
 		$this->accountService->expects($this->once())->method('cacheLocalActorByUsername')->with('alice');
 
-		$this->assertSame($viewer, $this->controller()->verifyCredentials()->getData());
+		$this->assertSame(['username' => 'alice'], $this->controller()->verifyCredentials()->getData());
 	}
 
 	public function testSavedSearchesIsEmptyForAViewerAndUnauthorizedOtherwise(): void {
@@ -1290,7 +1298,7 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->updateCredentials();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($viewer, $response->getData());
+		$this->assertSame($viewer->jsonSerialize(), $response->getData());
 	}
 
 	public function testUpdateCredentialsCanUnlockTheAccount(): void {
@@ -1309,7 +1317,7 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->updateCredentials();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($viewer, $response->getData());
+		$this->assertSame($viewer->jsonSerialize(), $response->getData());
 	}
 
 	public function testUpdateCredentialsStoresProfileFields(): void {
@@ -1339,6 +1347,62 @@ class ApiControllerTest extends TestCase {
 			->with('alice', [['name' => 'Website', 'value' => 'https://example.org']]);
 
 		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsPersistsTheDiscoverableAndIndexableFlags(): void {
+		// Mastodon clients send these as form booleans: true/false/1/0, or the
+		// strings thereof; the service takes real bools
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['discoverable' => 'true', 'indexable' => '0']);
+		$this->accountService->expects($this->once())->method('setActorFlags')
+			->with('alice', ['discoverable' => true, 'indexable' => false]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsOnlyForwardsTheFlagsThatWereSent(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['indexable' => '1', 'locked' => 'false']);
+		$this->accountService->expects($this->once())->method('setActorFlags')->with('alice', ['indexable' => true]);
+		$this->accountService->expects($this->once())->method('setLocked')->with('alice', false);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsWithoutFlagsLeavesThemAlone(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['display_name' => 'Alice']);
+		$this->accountService->expects($this->never())->method('setActorFlags');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testVerifyCredentialsOfABrandNewAccountIsDecodableByAStrictClient(): void {
+		// Person::exportAsLocal() emits "" for a date that is not there and for
+		// images not yet cached; a strict decoder fails the whole Account on a
+		// "" date, and Mastodon never sends an empty avatar — it sends a
+		// placeholder URL
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('alice');
+		$this->userSession->method('getUser')->willReturn($user);
+		$account = $this->createMock(Person::class);
+		$account->method('getPreferredUsername')->willReturn('alice');
+		$this->accountService->method('getActorFromUserId')->willReturn($account);
+		$fresh = new Person();
+		$fresh->setPreferredUsername('alice')->setLocal(true)->setNid(7);
+		$this->cacheActorService->method('getFromLocalAccount')->with('alice')->willReturn($fresh);
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->with('core.avatar.getAvatar', ['userId' => 'alice', 'size' => 128])
+			->willReturn('https://cloud.example/avatar/alice/128');
+
+		$data = json_decode((string)json_encode($this->controller()->verifyCredentials()->getData()), true);
+
+		$this->assertSame('alice', $data['username']);
+		$this->assertNull($data['last_status_at']);
+		$this->assertSame('https://cloud.example/avatar/alice/128', $data['avatar']);
+		$this->assertSame('https://cloud.example/avatar/alice/128', $data['avatar_static']);
+		$this->assertSame('https://cloud.example/avatar/alice/128', $data['header']);
+		$this->assertSame('https://cloud.example/avatar/alice/128', $data['header_static']);
 	}
 
 	public function testUpdateCredentialsRequiresAViewer(): void {
@@ -2468,7 +2532,7 @@ class ApiControllerTest extends TestCase {
 		$file->method('getMTime')->willReturn(1700000000);
 		$document = $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class);
 		$document->method('getMediaType')->willReturn('image/png');
-		$this->documentService->expects($this->once())->method('getFromUuid')->with('abc', true)->willReturn([$file, $document]);
+		$this->documentService->expects($this->once())->method('getFromUuid')->with('abc')->willReturn([$file, $document]);
 
 		$response = $this->controller()->mediaOpen('abc.png');
 
@@ -2483,9 +2547,42 @@ class ApiControllerTest extends TestCase {
 		$file->method('getName')->willReturn('abc');
 		$document = $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class);
 		$document->method('getMediaType')->willReturn('image/png');
-		$this->documentService->method('getFromUuid')->with('abc', true)->willReturn([$file, $document]);
+		$this->documentService->method('getFromUuid')->with('abc')->willReturn([$file, $document]);
 
 		$this->assertSame('image/png', $this->controller()->mediaOpen('abc.svg')->getHeaders()['Content-Type']);
+	}
+
+	public function testMediaOpenServesAFollowersOnlyAttachmentByItsUuidWithoutSharedCaching(): void {
+		// Mastodon's model: media is a capability URL, reachable by whoever holds
+		// the unguessable uuid, whatever the post's visibility — Mastodon fetches
+		// it unsigned. The `public` flag only decides whether a shared proxy may
+		// keep a copy.
+		$file = $this->createMock(ISimpleFile::class);
+		$file->method('getName')->willReturn('abc');
+		$document = $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class);
+		$document->method('getMediaType')->willReturn('image/jpeg');
+		$document->method('isPublic')->willReturn(false);
+		$this->documentService->expects($this->once())->method('getFromUuid')->with('abc')->willReturn([$file, $document]);
+
+		$response = $this->controller()->mediaOpen('abc.jpg');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('image/jpeg', $response->getHeaders()['Content-Type']);
+		$this->assertSame('private, max-age=31536000, immutable', $response->getHeaders()['Cache-Control']);
+	}
+
+	public function testMediaOpenOfAPublicAttachmentMayBeKeptByASharedCache(): void {
+		$file = $this->createMock(ISimpleFile::class);
+		$file->method('getName')->willReturn('abc');
+		$document = $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class);
+		$document->method('getMediaType')->willReturn('image/png');
+		$document->method('isPublic')->willReturn(true);
+		$this->documentService->method('getFromUuid')->willReturn([$file, $document]);
+
+		$response = $this->controller()->mediaOpen('abc.png');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('public, max-age=31536000, immutable', $response->getHeaders()['Cache-Control']);
 	}
 
 	public function testMediaOpenOfUnknownFileIs404(): void {
