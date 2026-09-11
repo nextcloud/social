@@ -244,10 +244,13 @@ class ApiController extends Controller {
 
 	/**
 	 * Minimal Mastodon-style profile update: `locked` (manually approve
-	 * followers), `discoverable` and `indexable` (the actor flags) and
-	 * `fields_attributes` (profile metadata) are supported. Returns the
-	 * updated account entity.
+	 * followers), `note` (the bio), `discoverable` and `indexable` (the actor
+	 * flags) and `fields_attributes` (profile metadata) are supported.
+	 * `display_name` is not: the name belongs to the Nextcloud account and is
+	 * changed there. Returns the updated account entity.
 	 *
+	 * Every field is optional and only what was sent is written, which is what
+	 * lets a client that edits one thing leave the rest alone.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -259,6 +262,13 @@ class ApiController extends Controller {
 			$input = $this->convertInput(file_get_contents('php://input'));
 			if (array_key_exists('locked', $input)) {
 				$this->accountService->setLocked($this->currentSession(), $this->formBool($input['locked']));
+				$changed = true;
+			}
+
+			// an absent `note` is a client that did not mention the bio, not a
+			// client asking for an empty one
+			if (array_key_exists('note', $input)) {
+				$this->accountService->setSummary($this->currentSession(), (string)$input['note']);
 				$changed = true;
 			}
 

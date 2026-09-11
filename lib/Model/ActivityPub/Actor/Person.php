@@ -892,6 +892,36 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return array
 	 */
+	/**
+	 * The bio of a local actor as HTML.
+	 *
+	 * A local bio is stored as the plain text the user typed (see
+	 * `AccountService::setSummary()`), because that is the only form a client
+	 * can put back in an edit box. `summary` on the wire and `note` on the
+	 * client API are HTML everywhere else in the Fediverse, though — Mastodon
+	 * renders both, and this app's own profile card hands `note` to `v-html` —
+	 * so the stored text is rendered here: a blank line starts a paragraph, a
+	 * single newline is a `<br />`, and everything else is escaped, which is
+	 * what a bio reading `bees & goats` needs to survive the trip.
+	 *
+	 * A remote bio never goes through this: it arrived as HTML and was
+	 * sanitized on import, and is passed on as it is.
+	 */
+	private function bioAsHtml(): string {
+		$plain = trim(str_replace(["\r\n", "\r"], "\n", $this->getSummary()));
+		if ($plain === '') {
+			return '';
+		}
+
+		$html = '';
+		foreach (preg_split('/\n{2,}/', $plain) ?: [] as $paragraph) {
+			$escaped = htmlspecialchars($paragraph, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+			$html .= '<p>' . str_replace("\n", '<br />', $escaped) . '</p>';
+		}
+
+		return $html;
+	}
+
 	public function exportAsActivityPub(): array {
 		if ($this->getPublicKey() !== '') {
 			$this->setDisplayW3ContextSecurity(true);
@@ -916,6 +946,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'publicKeyPem' => $this->getPublicKey()
 			]
 		];
+
+		// a local bio is stored as plain text, and `summary` is HTML on the wire
+		if ($this->isLocal() && ($bio = $this->bioAsHtml()) !== '') {
+			$data['summary'] = $bio;
+		}
 
 		$data['manuallyApprovesFollowers'] = $this->isLocked();
 		// Both default to false on the receiving side (Mastodon), so an actor
@@ -1003,7 +1038,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'indexable' => $this->isIndexable(),
 				'group' => false,
 				'created_at' => gmdate('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
-				'note' => $this->getDescription(),
+				'note' => $this->isLocal() ? $this->bioAsHtml() : $this->getDescription(),
 				'url' => $this->getId(),
 				'avatar' => $avatar ?? $this->getAvatar(),
 				'avatar_static' => $avatar ?? $this->getAvatar(),
@@ -1019,7 +1054,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 					'privacy' => $this->getPrivacy(),
 					'sensitive' => $this->isSensitive(),
 					'language' => $this->getLanguage(),
-					'note' => $this->getDescription(),
+					// `source` is the account's own editable copy, so the bio is the
+					// plain text it is stored as, never the rendered HTML
+					'note' => $this->isLocal() ? $this->getSummary() : $this->getDescription(),
 					'fields' => $this->getFields(),
 					'follow_requests_count' => $this->getInt('count.follow_requests', $details)
 				],

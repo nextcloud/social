@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -627,6 +628,145 @@ class AccountServiceTest extends TestCase {
 			->with($this->identicalTo($alice));
 
 		$this->service->setAlsoKnownAs('alice', ['https://old.example/users/alice']);
+	}
+
+	// --- the bio ---------------------------------------------------------
+
+	public function testSetSummaryStoresThePlainTextAndRefreshesTheCache(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateSummary')
+			->willReturnCallback(function (Person $actor): void {
+				$this->assertSame('I keep bees.', $actor->getSummary());
+			});
+		// the refreshed cache document is what carries the bio to the actor
+		// document and to the account entity
+		$this->actorService->expects($this->once())->method('cacheLocalActor')
+			->with($this->identicalTo($alice));
+
+		$this->service->setSummary('alice', 'I keep bees.');
+
+		$this->assertSame('I keep bees.', $alice->getSummary());
+	}
+
+	public function testSetSummaryTrimsAndNormalisesNewlinesOnly(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateSummary');
+
+		$this->service->setSummary('alice', "  I keep bees.\r\n& goats.  ");
+
+		$this->assertSame("I keep bees.\n& goats.", $alice->getSummary());
+	}
+
+	/**
+	 * A bio is plain text, and `<` is a character people type. Stripping tags
+	 * on the way in read the bare `<` as the start of one and swallowed the
+	 * rest of the line: `Maths: a<b and b>c` was stored as `Maths: ac`.
+	 *
+	 * @dataProvider plainTextBios
+	 */
+	public function testSetSummaryStoresThePlainTextAsItWasTyped(string $typed): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateSummary');
+
+		$this->service->setSummary('alice', $typed);
+
+		$this->assertSame($typed, $alice->getSummary());
+	}
+
+	/** @return iterable<string, array{string}> */
+	public function plainTextBios(): iterable {
+		yield 'an unclosed angle bracket' => ['Maths: a<b and b>c'];
+		yield 'a bare less-than' => ['I <3 cats & dogs'];
+		yield 'an ampersand entity as typed' => ['bees &amp; goats'];
+		yield 'something that looks like markup' => ['<not a tag> and </neither>'];
+	}
+
+	/**
+	 * Nothing is stripped on the way in, so the escaping on the way out is the
+	 * whole of the defence: a bio is text, and must never become an element.
+	 */
+	public function testAStoredBioIsEscapedWhenItIsRendered(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateSummary');
+
+		$this->service->setSummary('alice', '<script>alert(1)</script>');
+
+		$rendered = $alice->exportAsActivityPub()['summary'] ?? '';
+		$this->assertStringNotContainsString('<script', $rendered);
+		$this->assertStringContainsString('&lt;script&gt;', $rendered);
+	}
+
+	public function testSetSummaryTruncatesAtTheMastodonLimit(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateSummary');
+
+		$this->service->setSummary('alice', str_repeat('é', 600));
+
+		$this->assertSame(500, mb_strlen($alice->getSummary()), 'counted in characters, not bytes');
+	}
+
+	public function testSetSummaryCanClearTheBio(): void {
+		$alice = $this->alice();
+		$alice->setSummary('I keep bees.');
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateSummary');
+
+		$this->service->setSummary('alice', '');
+
+		$this->assertSame('', $alice->getSummary());
+	}
+
+	public function testSetSummaryTellsTheFollowersAboutIt(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->activityService->expects($this->once())->method('updateActivity')
+			->willReturnCallback(function (Person $actor, Person $item): string {
+				$this->assertSame(self::ALICE, $actor->getId());
+				$this->assertSame('I keep bees.', $item->getSummary());
+				$paths = $item->getInstancePaths();
+				$this->assertCount(1, $paths);
+				$this->assertSame(InstancePath::TYPE_FOLLOWERS, $paths[0]->getType());
+				$this->assertSame(self::ALICE, $paths[0]->getUri());
+
+				return 'token';
+			});
+
+		$this->service->setSummary('alice', 'I keep bees.');
+	}
+
+	public function testSetSummarySurvivesAFailedFederation(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())->method('updateSummary');
+		$this->activityService->method('updateActivity')
+			->willThrowException(new Exception('no route to host'));
+
+		$this->service->setSummary('alice', 'I keep bees.');
+
+		$this->assertSame('I keep bees.', $alice->getSummary(), 'the bio is stored even if nobody could be told');
+	}
+
+	public function testCacheLocalActorByUsernameKeepsTheStoredBio(): void {
+		$alice = $this->alice();
+		$alice->setSummary('I keep bees.');
+		$this->userManager->method('get')->with('alice')->willReturn($this->user('alice'));
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+		$this->actorService->expects($this->once())->method('cacheLocalActor')
+			->willReturnCallback(function (Person $actor): void {
+				$this->assertSame(
+					'I keep bees.',
+					$actor->getSummary(),
+					'a re-sync rebuilds the actor from Nextcloud and must not blank the bio'
+				);
+			});
+
+		$this->service->cacheLocalActorByUsername('alice');
 	}
 
 	public function testSetMovedToStoresTheTargetAndRefreshesTheCache(): void {

@@ -70,6 +70,17 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
+	 * Stores the bio — the plain text an actor's `summary` is rendered from.
+	 */
+	public function updateSummary(Person $actor): void {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('summary', $qb->createNamedParameter($actor->getSummary()));
+		$this->limitToIdPrimString($qb, $actor->getId());
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * Stores a changed locked flag (manuallyApprovesFollowers).
 	 */
 	public function updateLocked(Person $actor): void {

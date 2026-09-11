@@ -484,6 +484,35 @@ class LocalControllerTest extends TestCase {
 		$this->assertNotLoggedIn($this->controller(null)->currentInfo());
 	}
 
+	public function testAccountSummaryStoresTheBioAndReturnsTheRefreshedAccount(): void {
+		$this->actorForUser();
+		$cached = $this->createMock(Person::class);
+		$this->accountService->expects($this->once())->method('setSummary')
+			->with('alice', 'I keep bees.');
+		$this->cacheActorService->method('getFromLocalAccount')->with('alice')->willReturn($cached);
+
+		$this->assertSuccess(
+			$this->controller()->accountSummary('I keep bees.'),
+			['account' => $cached]
+		);
+	}
+
+	public function testAccountSummaryRequiresALoggedInUser(): void {
+		$this->accountService->expects($this->never())->method('setSummary');
+
+		$this->assertNotLoggedIn($this->controller(null)->accountSummary('I keep bees.'));
+	}
+
+	public function testAccountSummaryReportsServiceFailures(): void {
+		$this->actorForUser();
+		$this->accountService->method('setSummary')
+			->willThrowException(new InvalidResourceException('nope'));
+
+		$this->assertFailure(
+			$this->controller()->accountSummary('I keep bees.'), InvalidResourceException::class
+		);
+	}
+
 	public function testCurrentFollowersAndFollowingListTheUsersRelations(): void {
 		$actor = $this->actorForUser();
 		$this->followService->method('getFollowers')->with($actor)->willReturn(['f1']);

@@ -334,9 +334,9 @@ describe('ProfileInfo', () => {
 			])
 		})
 
-		it('only offers the field editor on the own profile', () => {
-			expect(buttonByText(mountProfile('alice'), 'Edit profile fields')).toBeDefined()
-			expect(buttonByText(mountProfile('bob@remote.example'), 'Edit profile fields')).toBeUndefined()
+		it('only offers the profile editor on the own profile', () => {
+			expect(buttonByText(mountProfile('alice'), 'Edit profile')).toBeDefined()
+			expect(buttonByText(mountProfile('bob@remote.example'), 'Edit profile')).toBeUndefined()
 		})
 
 		it('prefills the editor with the own raw field values and saves the trimmed set', async () => {
@@ -351,7 +351,7 @@ describe('ProfileInfo', () => {
 			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
 			const wrapper = mountProfile('alice')
 
-			await buttonByText(wrapper, 'Edit profile fields').trigger('click')
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			const modal = wrapper.find('.modal-stub')
 			const inputs = modal.findAll('input')
 			expect(inputs).toHaveLength(2)
@@ -374,7 +374,7 @@ describe('ProfileInfo', () => {
 				],
 			})
 			expect(wrapper.find('.modal-stub').exists()).toBe(false)
-			expect(showSuccess).toHaveBeenCalledWith('Profile fields saved')
+			expect(showSuccess).toHaveBeenCalledWith('Profile saved')
 			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
 		})
 
@@ -383,7 +383,7 @@ describe('ProfileInfo', () => {
 			vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
 			const wrapper = mountProfile('alice')
 
-			await buttonByText(wrapper, 'Edit profile fields').trigger('click')
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			const modal = wrapper.find('.modal-stub')
 			await modal.findAll('input')[0].setValue('a label without a value')
 			await buttonByText(modal, 'Save').trigger('click')
@@ -408,7 +408,7 @@ describe('ProfileInfo', () => {
 			})
 			const wrapper = mountProfile('alice')
 
-			await buttonByText(wrapper, 'Edit profile fields').trigger('click')
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			const modal = wrapper.find('.modal-stub')
 			expect(modal.findAll('.user-profile__fields-row')).toHaveLength(4)
 			expect(buttonByText(modal, 'Add field')).toBeUndefined()
@@ -418,13 +418,165 @@ describe('ProfileInfo', () => {
 			vi.spyOn(axios, 'put').mockRejectedValue(new Error('500'))
 			const wrapper = mountProfile('alice')
 
-			await buttonByText(wrapper, 'Edit profile fields').trigger('click')
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
 			await buttonByText(wrapper.find('.modal-stub'), 'Save').trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Failed to save profile fields')
+			expect(showError).toHaveBeenCalledWith('Failed to save profile')
 			expect(wrapper.find('.modal-stub').exists()).toBe(true)
 			expect(buttonByText(wrapper.find('.modal-stub'), 'Save').attributes('disabled')).toBeUndefined()
+		})
+	})
+
+	describe('bio', () => {
+		const bioBox = (wrapper) => wrapper.find('#social-profile-bio')
+		const bioCount = (wrapper) => wrapper.find('#social-profile-bio-count')
+		const openEditor = async (wrapper) => {
+			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			return wrapper.find('.modal-stub')
+		}
+
+		it('renders the bio of the shown account and strips what is not safe to inject', () => {
+			store.commit('addAccount', {
+				actorId: bob.url,
+				data: { note: '<p>Hi <a href="https://example.org">there</a></p><script>alert(1)</script>' },
+			})
+
+			const note = mountProfile('bob@remote.example').find('.user-profile__note')
+			expect(note.text()).toContain('Hi there')
+			expect(note.html()).not.toContain('alert(1)')
+			expect(note.find('a').attributes('href')).toBe('https://example.org')
+		})
+
+		it('shows a bio block only for an account that has one', () => {
+			expect(mountProfile('bob@remote.example').find('.user-profile__note').exists()).toBe(false)
+
+			store.commit('addAccount', { actorId: bob.url, data: { note: '<p>Hello</p>' } })
+
+			expect(mountProfile('bob@remote.example').find('.user-profile__note').exists()).toBe(true)
+		})
+
+		it('fills the edit box with the stored plain text, never with the rendered HTML', async () => {
+			store.commit('addAccount', {
+				actorId: alice.url,
+				data: { note: '<p>Rendered <b>HTML</b></p>', source: { note: 'Plain <text> bio' } },
+			})
+			const wrapper = mountProfile('alice')
+
+			await openEditor(wrapper)
+
+			expect(bioBox(wrapper).element.value).toBe('Plain <text> bio')
+		})
+
+		it('sends the bio as the plain text it is stored as and refreshes the account', async () => {
+			store.commit('addAccount', {
+				actorId: alice.url,
+				data: { note: '<p>Old</p>', source: { note: 'Old' } },
+			})
+			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
+			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			const wrapper = mountProfile('alice')
+
+			const modal = await openEditor(wrapper)
+			await bioBox(wrapper).setValue('  A new bio\r\nover two lines  ')
+			await buttonByText(modal, 'Save').trigger('click')
+			await flushPromises()
+
+			expect(put).toHaveBeenCalledTimes(1)
+			expect(patch).toHaveBeenCalledTimes(1)
+			expect(patch.mock.calls[0][0]).toBe('/index.php/apps/social/api/v1/accounts/update_credentials')
+			expect(patch.mock.calls[0][1]).toEqual({ note: 'A new bio\nover two lines' })
+			expect(wrapper.find('.modal-stub').exists()).toBe(false)
+			expect(showSuccess).toHaveBeenCalledWith('Profile saved')
+			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
+		})
+
+		it('leaves the stored bio alone when only the other fields were edited', async () => {
+			store.commit('addAccount', {
+				actorId: alice.url,
+				data: { note: '<p>Old</p>', source: { note: 'Old' } },
+			})
+			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
+			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+			vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			const wrapper = mountProfile('alice')
+
+			const modal = await openEditor(wrapper)
+			await modal.findAll('input')[0].setValue('Pronouns')
+			await modal.findAll('input')[1].setValue('they/them')
+			await buttonByText(modal, 'Save').trigger('click')
+			await flushPromises()
+
+			expect(put).toHaveBeenCalledTimes(1)
+			expect(patch).not.toHaveBeenCalled()
+		})
+
+		it('counts what is stored, by code point, and refuses to send a bio over the limit', async () => {
+			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
+			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+			const wrapper = mountProfile('alice')
+			const modal = await openEditor(wrapper)
+
+			// one emoji is one character to the server, two UTF-16 units to JS
+			await bioBox(wrapper).setValue('x'.repeat(499) + '\u{1F600}')
+			expect(bioCount(wrapper).text()).toBe('0 characters left')
+			expect(bioBox(wrapper).attributes('aria-invalid')).toBe('false')
+			expect(buttonByText(modal, 'Save').attributes('disabled')).toBeUndefined()
+
+			await bioBox(wrapper).setValue('x'.repeat(500) + '\u{1F600}')
+			expect(bioCount(wrapper).text()).toBe('1 character too many')
+			expect(bioBox(wrapper).attributes('aria-invalid')).toBe('true')
+			expect(buttonByText(modal, 'Save').attributes('disabled')).toBeDefined()
+
+			await wrapper.vm.saveProfile()
+
+			expect(put).not.toHaveBeenCalled()
+			expect(patch).not.toHaveBeenCalled()
+			expect(wrapper.find('.modal-stub').exists()).toBe(true)
+		})
+
+		it('never has two saves in flight at once', async () => {
+			let release
+			const put = vi.spyOn(axios, 'put').mockImplementation(() => new Promise((resolve) => {
+				release = resolve
+			}))
+			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+			vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			const wrapper = mountProfile('alice')
+
+			const modal = await openEditor(wrapper)
+			await bioBox(wrapper).setValue('A new bio')
+			const save = buttonByText(modal, 'Save')
+			save.trigger('click')
+			save.trigger('click')
+			await flushPromises()
+
+			expect(put).toHaveBeenCalledTimes(1)
+
+			release({ data: {} })
+			await flushPromises()
+
+			expect(patch).toHaveBeenCalledTimes(1)
+		})
+
+		it('keeps the editor and the typed bio when the save fails', async () => {
+			vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
+			vi.spyOn(axios, 'patch').mockRejectedValue(new Error('500'))
+			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			const wrapper = mountProfile('alice')
+
+			const modal = await openEditor(wrapper)
+			await bioBox(wrapper).setValue('A new bio')
+			await buttonByText(modal, 'Save').trigger('click')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith('Failed to save profile')
+			expect(showSuccess).not.toHaveBeenCalled()
+			expect(wrapper.find('.modal-stub').exists()).toBe(true)
+			expect(bioBox(wrapper).element.value).toBe('A new bio')
+			expect(buttonByText(wrapper.find('.modal-stub'), 'Save').attributes('disabled')).toBeUndefined()
+			expect(dispatch).not.toHaveBeenCalled()
 		})
 	})
 

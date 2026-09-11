@@ -1339,6 +1339,33 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame($viewer->jsonSerialize(), $response->getData());
 	}
 
+	public function testUpdateCredentialsWritesTheBio(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['note' => 'Nextcloud, mostly.']);
+		$this->accountService->expects($this->once())->method('setSummary')
+			->with('alice', 'Nextcloud, mostly.');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsCanEmptyTheBioOnPurpose(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['note' => '']);
+		$this->accountService->expects($this->once())->method('setSummary')->with('alice', '');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsWithoutANoteLeavesTheBioAlone(): void {
+		// a client changing the display name says nothing about the bio, and
+		// must not wipe it on the way past
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['locked' => 'true']);
+		$this->accountService->expects($this->never())->method('setSummary');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
 	public function testUpdateCredentialsStoresProfileFields(): void {
 		$this->loggedInAs();
 		$this->request->method('getParams')->willReturn([
