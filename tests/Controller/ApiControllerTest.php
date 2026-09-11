@@ -1639,6 +1639,55 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([], $data['hashtags']);
 	}
 
+	/**
+	 * A reader who pasted a link is asking for a fetch; everybody else is not.
+	 */
+	public function testSearchV2OnlyFetchesARemotePostWhenAskedTo(): void {
+		$this->loggedInAs();
+		$this->searchService->method('searchUri')->willReturn([]);
+		$this->searchService->method('searchAccounts')->willReturn([]);
+		$this->searchService->method('searchStreamContent')->willReturn([]);
+		$this->searchService->method('searchHashtags')->willReturn([]);
+		$this->searchService->expects($this->never())->method('resolveStatus');
+
+		$data = $this->controller()->searchV2('https://remote.example/notes/1')->getData();
+
+		$this->assertSame([], $data['statuses']);
+	}
+
+	public function testSearchV2ResolvesARemotePostOnRequest(): void {
+		$this->loggedInAs();
+		$resolved = $this->createMock(Stream::class);
+		$resolved->method('setExportFormat')->willReturnSelf();
+		$this->searchService->method('searchUri')->willReturn([]);
+		$this->searchService->method('searchAccounts')->willReturn([]);
+		$this->searchService->method('searchStreamContent')->willReturn([]);
+		$this->searchService->method('searchHashtags')->willReturn([]);
+		$this->searchService->expects($this->once())
+			->method('resolveStatus')
+			->with('https://remote.example/notes/1')
+			->willReturn($resolved);
+
+		$data = $this->controller()->searchV2('https://remote.example/notes/1', '', 20, true)->getData();
+
+		$this->assertSame([$resolved], $data['statuses']);
+	}
+
+	/** What is already here is the answer; nothing goes out over the network. */
+	public function testSearchV2DoesNotFetchWhenTheSearchAlreadyFoundSomething(): void {
+		$this->loggedInAs();
+		$status = $this->createMock(Stream::class);
+		$this->searchService->method('searchUri')->willReturn([]);
+		$this->searchService->method('searchAccounts')->willReturn([]);
+		$this->searchService->method('searchStreamContent')->willReturn([$status]);
+		$this->searchService->method('searchHashtags')->willReturn([]);
+		$this->searchService->expects($this->never())->method('resolveStatus');
+
+		$data = $this->controller()->searchV2('https://remote.example/notes/1', '', 20, true)->getData();
+
+		$this->assertSame([$status], $data['statuses']);
+	}
+
 	public function testSearchV2RequiresAViewer(): void {
 		$this->searchService->expects($this->never())->method('searchAccounts');
 

@@ -1465,6 +1465,19 @@ class ApiController extends Controller {
 			$statuses = [];
 			if ($type === '' || $type === 'statuses') {
 				$statuses = array_slice($this->searchService->searchStreamContent($q), 0, $limit);
+
+				// `resolve` is the reader saying "I have a link, go and get
+				// it". Without it a post found in a browser cannot be replied
+				// to or boosted here, because nothing has ever had a reason to
+				// ask its server for it. Only on the reader's say-so: this
+				// fetches an address they chose.
+				if ($resolve && $statuses === []) {
+					$resolved = $this->searchService->resolveStatus($q);
+					if ($resolved !== null) {
+						$resolved->setExportFormat(ACore::FORMAT_LOCAL);
+						$statuses = [$resolved];
+					}
+				}
 			}
 
 			$hashtags = [];
