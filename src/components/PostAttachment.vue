@@ -4,7 +4,24 @@
 -->
 <template>
 	<div class="post-attachments">
-		<div class="attachments-container">
+		<!-- three pictures and up are a set, not a stack of thumbnails: they are
+		     paged through one at a time instead of shrunk until nothing in them
+		     can be made out -->
+		<GalleryCarousel v-if="isCarousel"
+			ref="carousel"
+			:attachments="attachments"
+			@open="showModal" />
+		<div v-else-if="mediaFirst" class="gallery-mosaic" :class="`gallery-mosaic--${attachments.length}`">
+			<GalleryMedia v-for="(item, index) in attachments"
+				:key="item.id ?? index"
+				ref="frames"
+				:attachment="item"
+				:index="index"
+				:total="attachments.length"
+				:ratio="mosaicRatio"
+				@open="showModal(index)" />
+		</div>
+		<div v-else class="attachments-container">
 			<template v-for="(item, index) in attachementsSlice" :key="index">
 				<!-- an image is opened by pressing it, so it gets a button.
 				     Video and audio carry their own controls: nesting those
@@ -46,8 +63,13 @@
 					:src="attachments[current].url"
 					:aria-label="attachments[current].description || ''"
 					controls />
-				<img v-else :src="attachments[current].url" :alt="attachments[current].description">
+				<!-- `description` is null for an attachment whose author gave it
+				     no alt text, and a null alt is no alt attribute at all -->
+				<img v-else :src="attachments[current].url" :alt="attachments[current].description || ''">
 			</div>
+			<p v-if="attachments[current].description" class="attachment__viewer-description">
+				{{ attachments[current].description }}
+			</p>
 		</NcModal>
 	</div>
 </template>
@@ -56,6 +78,9 @@
 import serverData from '../mixins/serverData.js'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import MediaAttachment from './MediaAttachment.vue'
+import GalleryCarousel from './GalleryCarousel.vue'
+import GalleryMedia from './GalleryMedia.vue'
+import { DEFAULT_RATIO, ratioOf } from './GalleryRatio.js'
 import { nameForTransition, withViewTransition } from '../utils/viewTransition.js'
 
 /** one name per document: only one lightbox is ever open */
@@ -63,11 +88,16 @@ import { translate, translatePlural } from '@nextcloud/l10n'
 
 const MEDIA_TRANSITION = 'social-media'
 
+/** from here on the set is paged through rather than laid out side by side */
+const CAROUSEL_FROM = 3
+
 export default {
 	name: 'PostAttachment',
 	components: {
 		NcModal,
 		MediaAttachment,
+		GalleryCarousel,
+		GalleryMedia,
 	},
 	mixins: [
 		serverData,
@@ -77,6 +107,15 @@ export default {
 		attachments: {
 			type: Array,
 			default: Array,
+		},
+		/**
+		 * Whether the media leads the post. The thumbnail grid stays for the
+		 * places where the text comes first, so nothing but a picture post
+		 * changes shape.
+		 */
+		mediaFirst: {
+			type: Boolean,
+			default: false,
 		},
 	},
 	data() {
@@ -95,6 +134,18 @@ export default {
 				: translate('social', 'Attachment {number} of {total}', {
 					number: this.current + 1, total: this.attachments.length,
 				})
+		},
+		/** @return {boolean} */
+		isCarousel() {
+			return this.mediaFirst && this.attachments.length >= CAROUSEL_FROM
+		},
+		/**
+		 * @return {number} the shape of a mosaic tile. A lone picture keeps its
+		 * own; a pair is squared off, because two tiles of different heights
+		 * beside one another read as two posts.
+		 */
+		mosaicRatio() {
+			return this.attachments.length === 1 ? ratioOf(this.attachments[0], DEFAULT_RATIO) : 1
 		},
 		/** @return {import('../types/Mastodon.js').MediaAttachment[]} */
 		attachementsSlice() {
@@ -130,6 +181,21 @@ export default {
 				: translate('social', 'Open attachment {number}', { number: index + 1 })
 		},
 		/**
+		 * The element the tapped picture is showing in, whichever layout it is.
+		 *
+		 * @param {number} index which attachment was tapped
+		 * @return {?HTMLElement}
+		 */
+		frameAt(index) {
+			if (this.isCarousel) {
+				return this.$refs.carousel?.frameAt(index) ?? null
+			}
+
+			const frame = this.$refs.frames?.[index] ?? this.$refs.thumbnails?.[index] ?? null
+
+			return frame?.$el ?? frame ?? null
+		},
+		/**
 		 * The tapped thumbnail and the opened viewer share a name for the
 		 * length of the transition, so the browser grows one into the other
 		 * instead of the picture appearing from nowhere.
@@ -137,7 +203,7 @@ export default {
 		 * @param {number} index which attachment was tapped
 		 */
 		async showModal(index) {
-			const thumbnail = this.$refs.thumbnails?.[index] ?? null
+			const thumbnail = this.frameAt(index)
 			const release = nameForTransition(thumbnail, MEDIA_TRANSITION)
 
 			await withViewTransition(async () => {
@@ -151,7 +217,7 @@ export default {
 		},
 		async closeModal() {
 			const release = nameForTransition(this.$refs.viewer ?? null, MEDIA_TRANSITION)
-			const thumbnail = this.$refs.thumbnails?.[this.current] ?? null
+			const thumbnail = this.frameAt(this.current)
 
 			await withViewTransition(async () => {
 				this.modal = false
@@ -199,6 +265,25 @@ export default {
 	}
 }
 
+/**
+ * A picture post is read picture first, so the media gets the width of the
+ * card and as much height as its own shape asks for, up to most of a screen.
+ */
+.gallery-mosaic {
+	display: grid;
+	gap: 4px;
+	margin-block: 12px 10px;
+	grid-template-columns: 1fr;
+
+	&--2 {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	:deep(.photo) {
+		max-height: 70vh;
+	}
+}
+
 .attachment__viewer {
 	display: flex;
 	height: 100%;
@@ -212,6 +297,18 @@ export default {
 		height: 100%;
 		width: 100%;
 		object-fit: contain;
+	}
+
+	&-description {
+		position: absolute;
+		inset-block-end: 0;
+		inset-inline: 0;
+		max-height: 25%;
+		overflow-y: auto;
+		padding: 12px 16px;
+		text-align: center;
+		color: var(--color-main-text);
+		background: var(--color-main-background);
 	}
 }
 </style>

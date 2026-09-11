@@ -7,6 +7,8 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PostAttachment from '../../../src/components/PostAttachment.vue'
 import MediaAttachment from '../../../src/components/MediaAttachment.vue'
+import GalleryCarousel from '../../../src/components/GalleryCarousel.vue'
+import GalleryMedia from '../../../src/components/GalleryMedia.vue'
 
 const attachment = (index) => ({
 	id: `a${index}`,
@@ -38,13 +40,15 @@ const NcModalStub = {
 	</div>`,
 }
 
-const mountAttachments = (items) => mount(PostAttachment, {
-	props: { attachments: items },
+const mountAttachments = (items, props = {}) => mount(PostAttachment, {
+	props: { attachments: items, ...props },
 	global: {
 		mocks: { $store: { getters: { getServerData: { public: false } } } },
 		stubs: { NcModal: NcModalStub },
 	},
 })
+
+const mountMediaFirst = (items) => mountAttachments(items, { mediaFirst: true })
 
 const viewerImage = (wrapper) => wrapper.find('.attachment__viewer img')
 
@@ -146,5 +150,92 @@ describe('PostAttachment', () => {
 
 		await tiles(wrapper)[1].trigger('click')
 		expect(viewerImage(wrapper).attributes('src')).toBe(items[1].url)
+	})
+	describe('the media-first layout', () => {
+		it('gives a lone picture the width of the post, in its own shape', () => {
+			const items = [{ ...attachment(1), meta: { original: { width: 1600, height: 1200 } } }]
+			const wrapper = mountMediaFirst(items)
+
+			expect(wrapper.find('.gallery-mosaic--1').exists()).toBe(true)
+			expect(wrapper.findComponent(GalleryCarousel).exists()).toBe(false)
+
+			const frames = wrapper.findAllComponents(GalleryMedia)
+			expect(frames).toHaveLength(1)
+			expect(frames[0].props('ratio')).toBe(1600 / 1200)
+			expect(frames[0].props('attachment')).toEqual(items[0])
+		})
+
+		it('sets a pair side by side, squared off so they are the same height', () => {
+			const wrapper = mountMediaFirst(attachments(2))
+
+			expect(wrapper.find('.gallery-mosaic--2').exists()).toBe(true)
+			expect(wrapper.findComponent(GalleryCarousel).exists()).toBe(false)
+
+			const frames = wrapper.findAllComponents(GalleryMedia)
+			expect(frames).toHaveLength(2)
+			expect(frames.map((frame) => frame.props('ratio'))).toEqual([1, 1])
+		})
+
+		it.each([3, 4, 5, 8])('pages through a set of %i rather than shrinking it into tiles', (count) => {
+			const items = attachments(count)
+			const wrapper = mountMediaFirst(items)
+
+			const carousel = wrapper.findComponent(GalleryCarousel)
+			expect(carousel.exists()).toBe(true)
+			expect(carousel.props('attachments')).toEqual(items)
+			expect(wrapper.find('.gallery-mosaic').exists()).toBe(false)
+			// nothing is dropped the way the thumbnail grid drops the fifth
+			expect(wrapper.findAllComponents(GalleryMedia)).toHaveLength(count)
+			expect(wrapper.find('.more-attachments').exists()).toBe(false)
+		})
+
+		it('leaves the thumbnail grid alone where the text comes first', () => {
+			const wrapper = mountAttachments(attachments(3))
+
+			expect(wrapper.find('.attachments-container').exists()).toBe(true)
+			expect(wrapper.findComponent(GalleryCarousel).exists()).toBe(false)
+			expect(wrapper.find('.gallery-mosaic').exists()).toBe(false)
+		})
+
+		it('opens the viewer on the picture that was pressed', async () => {
+			const items = attachments(2)
+			const wrapper = mountMediaFirst(items)
+
+			await wrapper.findAll('button.photo__open')[1].trigger('click')
+
+			expect(viewerImage(wrapper).attributes('src')).toBe(items[1].url)
+		})
+
+		it('opens the viewer on the picture the carousel has on stage', async () => {
+			const items = attachments(4)
+			const wrapper = mountMediaFirst(items)
+
+			wrapper.findComponent(GalleryCarousel).vm.$emit('open', 2)
+			await wrapper.vm.$nextTick()
+
+			expect(viewerImage(wrapper).attributes('src')).toBe(items[2].url)
+		})
+	})
+
+	describe('alt text in the viewer', () => {
+		it('shows the description under the picture it belongs to', async () => {
+			const wrapper = mountAttachments(attachments(2))
+
+			await tiles(wrapper)[0].trigger('click')
+
+			expect(wrapper.find('.attachment__viewer-description').text()).toBe('Picture 1')
+		})
+
+		it('still sets an alt attribute for a picture nobody described', async () => {
+			// `description` is null on the wire for media without alt text, and
+			// Vue drops a null attribute: the viewer image had no alt at all
+			const items = [{ ...attachment(1), description: null }]
+			const wrapper = mountAttachments(items)
+
+			await tiles(wrapper)[0].trigger('click')
+
+			expect(viewerImage(wrapper).attributes('alt')).toBe('')
+			expect(wrapper.find('.attachment__viewer-description').exists()).toBe(false)
+		})
 	})
 })

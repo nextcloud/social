@@ -108,6 +108,23 @@ const mountPost = ({
 	return { wrapper, item, $store, $router }
 }
 
+// the media-first layout is about order: the picture leads and the text reads
+// as its caption underneath
+const isBefore = (first, second) =>
+	Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+const photo = (index = 1) => ({
+	id: `m${index}`,
+	type: 'image',
+	url: `https://cloud.example.org/m${index}.jpg`,
+	preview_url: `https://cloud.example.org/m${index}-small.jpg`,
+	description: `Picture ${index}`,
+	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+	meta: { original: { width: 1600, height: 1200 } },
+})
+
+const attachmentsOf = (wrapper) => wrapper.findComponent({ name: 'PostAttachment' })
+
 const actionButton = (wrapper, label) => wrapper.find(`.post-actions button[aria-label="${label}"]`)
 const menuItem = (wrapper, label) => wrapper.findAll('.post-menu__item').find((button) => button.text() === label)
 
@@ -971,6 +988,118 @@ describe('TimelinePost', () => {
 			// the draft is not kept for the next edit
 			await menuItem(wrapper, 'Edit').trigger('click')
 			expect(wrapper.find('textarea').element.value).toBe('Hello world')
+		})
+	})
+	describe('the media-first layout', () => {
+		it('leads with the pictures and reads the text as their caption', () => {
+			const media = [photo(1), photo(2)]
+			const { wrapper } = mountPost({ item: makeItem({ media_attachments: media }) })
+
+			const attachments = attachmentsOf(wrapper)
+			expect(attachments.props('mediaFirst')).toBe(true)
+			expect(attachments.props('attachments')).toEqual(media)
+
+			const caption = wrapper.find('.post-message')
+			expect(caption.classes()).toContain('post-message--caption')
+			expect(isBefore(attachments.element, caption.element)).toBe(true)
+		})
+
+		it('leaves a post without media exactly as it was, text first and uncaptioned', () => {
+			const { wrapper } = mountPost()
+
+			expect(attachmentsOf(wrapper).exists()).toBe(false)
+			expect(wrapper.find('.post-message').exists()).toBe(true)
+			expect(wrapper.find('.post-message').classes()).not.toContain('post-message--caption')
+		})
+
+		it('shows a picture post with no text at all as the picture alone', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({ content: '', media_attachments: [photo(1)] }),
+			})
+
+			expect(attachmentsOf(wrapper).props('mediaFirst')).toBe(true)
+			expect(wrapper.find('.post-message').exists()).toBe(false)
+		})
+
+		it('puts the text back on top while the post is being edited', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ media_attachments: [photo(1)] }) })
+
+			await menuItem(wrapper, 'Edit').trigger('click')
+
+			// the editor is what is being worked on, and it is the text
+			expect(wrapper.find('.post-edit-textarea').exists()).toBe(true)
+			expect(attachmentsOf(wrapper).props('mediaFirst')).toBe(false)
+			expect(isBefore(wrapper.find('.post-edit-inline').element, attachmentsOf(wrapper).element)).toBe(true)
+		})
+
+		it('never renders the pictures twice, in either layout', () => {
+			const withMedia = mountPost({ item: makeItem({ media_attachments: [photo(1)] }) }).wrapper
+			const warned = mountPost({
+				item: makeItem({ spoiler_text: 'politics', media_attachments: [photo(1)] }),
+			}).wrapper
+
+			expect(withMedia.findAllComponents({ name: 'PostAttachment' })).toHaveLength(1)
+			expect(warned.findAllComponents({ name: 'PostAttachment' })).toHaveLength(0)
+		})
+	})
+
+	describe('the media-first layout and the reveals', () => {
+		const sensitive = () => makeItem({
+			sensitive: true,
+			content: '<p>look at this</p>',
+			media_attachments: [photo(1)],
+		})
+
+		it('keeps a picture post flagged sensitive covered, and offers one reveal', async () => {
+			const { wrapper } = mountPost({ item: sensitive() })
+
+			expect(attachmentsOf(wrapper).exists()).toBe(false)
+			const reveals = wrapper.findAll('button').filter((button) => button.text() === 'Show sensitive content')
+			expect(reveals).toHaveLength(1)
+			// the reveal stands where the pictures will be: the caption below it
+			// does not move when they arrive
+			const cover = wrapper.find('.post-sensitive--leading')
+			expect(cover.exists()).toBe(true)
+			expect(isBefore(cover.element, wrapper.find('.post-message').element)).toBe(true)
+
+			await reveals[0].trigger('click')
+
+			expect(attachmentsOf(wrapper).props('mediaFirst')).toBe(true)
+			expect(isBefore(attachmentsOf(wrapper).element, wrapper.find('.post-message').element)).toBe(true)
+		})
+
+		it('never lets a warned picture post lead with the picture', async () => {
+			const item = makeItem({
+				spoiler_text: 'politics',
+				content: '<p>the hidden part</p>',
+				media_attachments: [photo(1)],
+			})
+			const { wrapper } = mountPost({ item })
+
+			expect(attachmentsOf(wrapper).exists()).toBe(false)
+			expect(wrapper.find('.post-sensitive').exists()).toBe(false)
+			expect(wrapper.find('.post-warning').exists()).toBe(true)
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show more').trigger('click')
+
+			// the cover still leads the post, so the picture is not given the top
+			const attachments = attachmentsOf(wrapper)
+			expect(attachments.props('mediaFirst')).toBe(false)
+			expect(isBefore(wrapper.find('.post-warning').element, attachments.element)).toBe(true)
+		})
+
+		it('covers a warned picture post again when the warning is put back', async () => {
+			const item = makeItem({
+				spoiler_text: 'politics',
+				content: '<p>the hidden part</p>',
+				media_attachments: [photo(1)],
+			})
+			const { wrapper } = mountPost({ item })
+			await wrapper.findAll('button').find((button) => button.text() === 'Show more').trigger('click')
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show less').trigger('click')
+
+			expect(attachmentsOf(wrapper).exists()).toBe(false)
 		})
 	})
 })

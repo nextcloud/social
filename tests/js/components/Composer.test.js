@@ -5,6 +5,7 @@
 
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getFilePickerBuilder, showError } from '@nextcloud/dialogs'
 import Composer from '../../../src/components/Composer/Composer.vue'
 import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vue'
 import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusButton.vue'
@@ -15,6 +16,13 @@ import eventBus from '../../../src/services/eventBus.js'
 vi.mock('@nextcloud/auth', async (importOriginal) => ({
 	...(await importOriginal()),
 	getCurrentUser: () => ({ uid: 'alice', displayName: 'Alice', isAdmin: false }),
+}))
+
+// the Files dialog mounts itself into the document and talks WebDAV; what the
+// composer does with it is the builder it configures and the paths it gets back
+vi.mock('@nextcloud/dialogs', () => ({
+	getFilePickerBuilder: vi.fn(),
+	showError: vi.fn(),
 }))
 
 const media = {
@@ -77,7 +85,9 @@ const mountComposer = (props = {}) => {
 		// `post` resolves with the created status and with undefined when the
 		// server refused, which is how the composer tells the two apart
 		dispatch: vi.fn((action) => Promise.resolve(
-			action === 'createMedia' ? media : (action === 'post' ? { id: 'new-1' } : undefined),
+			action === 'createMedia' || action === 'createMediaFromFile'
+				? media
+				: (action === 'post' ? { id: 'new-1' } : undefined),
 		)),
 		commit: vi.fn(),
 		getters: { getServerData: { public: false, cloudAddress: 'https://cloud.example.org' } },
@@ -118,6 +128,29 @@ const attachFile = async (wrapper, file) => {
 	Object.defineProperty(fileInput.element, 'files', { value: [file], configurable: true })
 	await fileInput.trigger('change')
 }
+
+// What the composer holds the picker to: one dialog, several pictures, no
+// folders. `pick()` resolves with the paths, and rejects when it is closed.
+const filePicker = (result) => {
+	const builder = {
+		setMultiSelect: vi.fn(() => builder),
+		setMimeTypeFilter: vi.fn(() => builder),
+		allowDirectories: vi.fn(() => builder),
+		build: vi.fn(() => ({ pick: vi.fn(() => result) })),
+	}
+	getFilePickerBuilder.mockReturnValue(builder)
+
+	return builder
+}
+
+const addFromFiles = async (wrapper) => {
+	await wrapper.find('button[aria-label="Add from Files"]').trigger('click')
+	await flushPromises()
+}
+
+const pickedPaths = ($store) => $store.dispatch.mock.calls
+	.filter(([action]) => action === 'createMediaFromFile')
+	.map(([, payload]) => payload.path)
 
 // jsdom has neither DataTransfer nor DragEvent, and constructing one is not
 // what is being tested: what the composer reads off a drag is `types`, `files`
@@ -181,6 +214,9 @@ describe('Composer', () => {
 
 	beforeEach(() => {
 		localStorage.clear()
+		// module mocks, which restoreAllMocks() does not touch
+		showError.mockClear()
+		getFilePickerBuilder.mockReset()
 		vi.spyOn(console, 'debug').mockImplementation(() => {})
 		getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
 			createImageData: (width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }),
@@ -591,11 +627,233 @@ describe('Composer', () => {
 			expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-1')
 		})
 
+		it('uploads no more than the eight a post can carry', async () => {
+			const { wrapper, $store } = mountComposer()
+			const fileInput = wrapper.find('input[type="file"]')
+			Object.defineProperty(fileInput.element, 'files', {
+				value: Array.from({ length: 9 }, (unused, index) => new File(['x'], `${index}.png`, { type: 'image/png' })),
+				configurable: true,
+			})
+
+			await fileInput.trigger('change')
+			await flushPromises()
+
+			expect($store.dispatch.mock.calls.filter(([action]) => action === 'createMedia')).toHaveLength(8)
+			expect(showError).toHaveBeenCalledWith('A post can carry 8 attachments')
+		})
+
 		it('opens the file picker from the attachment button', async () => {
 			const { wrapper } = mountComposer()
 			const click = vi.spyOn(wrapper.find('input[type="file"]').element, 'click')
 			await wrapper.find('button[aria-label="Add attachment"]').trigger('click')
 			expect(click).toHaveBeenCalledTimes(1)
+		})
+	})
+
+	describe('attaching from Files', () => {
+		const beach = '/Photos/beach.jpg'
+
+		it('offers the pictures and videos the reader already has, several at a time', async () => {
+			const { wrapper, $store } = mountComposer()
+			const builder = filePicker(Promise.resolve([beach]))
+
+			await addFromFiles(wrapper)
+
+			expect(builder.setMultiSelect).toHaveBeenCalledWith(true)
+			expect(builder.setMimeTypeFilter).toHaveBeenCalledWith(['image/*', 'video/*'])
+			expect(builder.allowDirectories).toHaveBeenCalledWith(false)
+			expect($store.dispatch).toHaveBeenCalledWith('createMediaFromFile', { path: beach })
+		})
+
+		it('sends the path rather than the bytes', async () => {
+			// the whole point: a picture that is already on the server does not
+			// have to be downloaded and uploaded back
+			const { wrapper, $store } = mountComposer()
+			filePicker(Promise.resolve([beach]))
+
+			await addFromFiles(wrapper)
+
+			expect($store.dispatch).not.toHaveBeenCalledWith('createMedia', expect.anything())
+			expect(URL.createObjectURL).not.toHaveBeenCalled()
+		})
+
+		it('puts what came back where an upload would have put it', async () => {
+			const { wrapper } = mountComposer()
+			filePicker(Promise.resolve([beach]))
+
+			await addFromFiles(wrapper)
+
+			const preview = wrapper.findComponent(PreviewGridItem)
+			expect(preview.props('preview')).toMatchObject({ path: beach, data: media, failed: false })
+			expect(preview.find('img').attributes('src')).toBe(media.preview_url)
+		})
+
+		it('sends a picked picture with the post, like any other attachment', async () => {
+			const { wrapper, $store } = mountComposer()
+			filePicker(Promise.resolve([beach]))
+			await addFromFiles(wrapper)
+			await setContent(wrapper, 'the sea')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store)).toMatchObject({ status: 'the sea', media_ids: [media.id] })
+		})
+
+		it('keeps the pictures that worked when the server refuses one of them', async () => {
+			const { wrapper, $store } = mountComposer()
+			$store.dispatch.mockImplementation((action, payload) => {
+				if (action !== 'createMediaFromFile') {
+					return Promise.resolve(action === 'post' ? { id: 'new-1' } : undefined)
+				}
+				return Promise.resolve(payload.path === '/Photos/gone.jpg'
+					? undefined
+					: { ...media, id: payload.path })
+			})
+			filePicker(Promise.resolve([beach, '/Photos/gone.jpg', '/Photos/dunes.jpg']))
+
+			await addFromFiles(wrapper)
+
+			const previews = wrapper.findAllComponents(PreviewGridItem)
+			expect(previews).toHaveLength(3)
+			expect(previews[1].find('.preview-item__failed').exists()).toBe(true)
+
+			await setContent(wrapper, 'two of three')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store).media_ids).toEqual([beach, '/Photos/dunes.jpg'])
+		})
+
+		it('attaches no more than the eight a post can carry, and says so', async () => {
+			const { wrapper, $store } = mountComposer()
+			const paths = Array.from({ length: 10 }, (unused, index) => `/Photos/${index}.jpg`)
+			filePicker(Promise.resolve(paths))
+
+			await addFromFiles(wrapper)
+
+			// the server refuses the ninth outright, so the refusal has to be
+			// explained here, where the eight that fit are not lost with it
+			expect(pickedPaths($store)).toEqual(paths.slice(0, 8))
+			expect(showError).toHaveBeenCalledWith('A post can carry 8 attachments')
+		})
+
+		it('counts an upload already in the post against the same ceiling', async () => {
+			const { wrapper, $store } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+			filePicker(Promise.resolve(Array.from({ length: 8 }, (unused, index) => `/Photos/${index}.jpg`)))
+
+			await addFromFiles(wrapper)
+
+			expect(pickedPaths($store)).toHaveLength(7)
+			expect(wrapper.findAllComponents(PreviewGridItem)).toHaveLength(8)
+		})
+
+		it('offers neither way of attaching once the post is full', async () => {
+			const { wrapper } = mountComposer()
+			filePicker(Promise.resolve(Array.from({ length: 8 }, (unused, index) => `/Photos/${index}.jpg`)))
+
+			await addFromFiles(wrapper)
+
+			expect(wrapper.find('button[aria-label="Add from Files"]').attributes('disabled')).toBeDefined()
+			expect(wrapper.find('button[aria-label="Add attachment"]').attributes('disabled')).toBeDefined()
+		})
+
+		it('says the pictures are on their way while the requests are in flight', async () => {
+			const { wrapper, $store } = mountComposer()
+			let finish
+			$store.dispatch.mockImplementation((action) => (action === 'createMediaFromFile'
+				? new Promise((resolve) => { finish = resolve })
+				: Promise.resolve()))
+			filePicker(Promise.resolve([beach]))
+
+			await addFromFiles(wrapper)
+
+			const bar = wrapper.find('[role="progressbar"]')
+			expect(bar.exists()).toBe(true)
+			expect(bar.text()).toContain('Attaching from Files…')
+			expect(bar.attributes('aria-valuenow')).toBe('0')
+			expect(canPost(wrapper)).toBe(false)
+
+			finish(media)
+			await flushPromises()
+
+			expect(wrapper.find('[role="progressbar"]').exists()).toBe(false)
+		})
+
+		it('takes no for an answer when the dialog is closed', async () => {
+			const { wrapper, $store } = mountComposer()
+			filePicker(Promise.reject(new Error('FilePicker: No nodes selected')))
+
+			await addFromFiles(wrapper)
+
+			// changing one's mind is not a failure to report
+			expect($store.dispatch).not.toHaveBeenCalledWith('createMediaFromFile', expect.anything())
+			expect(showError).not.toHaveBeenCalled()
+			expect(wrapper.findComponent(PreviewGridItem).exists()).toBe(false)
+		})
+
+		it('has no object URL to let go of when the post is away', async () => {
+			const { wrapper } = mountComposer()
+			filePicker(Promise.resolve([beach]))
+			await addFromFiles(wrapper)
+			await setContent(wrapper, 'the sea')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			// the key of a picked attachment is its path, not a blob URL
+			expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+		})
+
+		it('lets the same picture be attached twice, since the path cannot tell them apart', async () => {
+			const { wrapper } = mountComposer()
+			filePicker(Promise.resolve([beach, beach]))
+
+			await addFromFiles(wrapper)
+
+			expect(wrapper.findAllComponents(PreviewGridItem)).toHaveLength(2)
+		})
+	})
+
+	describe('a post built around a picture', () => {
+		const mediaFirst = (wrapper) => wrapper.find('.new-post-form').classes().includes('new-post-form--media-first')
+
+		it('reads as a caption box only once there is something to caption', async () => {
+			const { wrapper } = mountComposer()
+			expect(mediaFirst(wrapper)).toBe(false)
+			expect(input(wrapper).attributes('placeholder')).toBe('What would you like to share?')
+
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			expect(mediaFirst(wrapper)).toBe(true)
+			expect(input(wrapper).attributes('placeholder')).toBe('Write a caption…')
+			expect(input(wrapper).attributes('aria-label')).toBe('Write a caption…')
+			expect(input(wrapper).classes()).toContain('message--caption')
+		})
+
+		it('puts the picture ahead of the box it is captioned in', async () => {
+			const { wrapper } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			const form = wrapper.find('.new-post-form').element
+			const order = [...form.querySelectorAll('.preview-grid, .message')].map((el) => el.className)
+			expect(order[0]).toContain('preview-grid')
+			expect(order[1]).toContain('message')
+		})
+
+		it('is a text box again once the last picture is taken out', async () => {
+			const { wrapper } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			await wrapper.findComponent(PreviewGridItem).find('button').trigger('click')
+
+			expect(mediaFirst(wrapper)).toBe(false)
+			expect(input(wrapper).attributes('placeholder')).toBe('What would you like to share?')
 		})
 	})
 
@@ -934,6 +1192,74 @@ describe('Composer', () => {
 				id: media.id,
 				description: 'a cat asleep on a keyboard',
 			})
+		})
+
+		it('saves a description as soon as the field is left', async () => {
+			const { wrapper, $store } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+			const field = wrapper.find('.preview-item__description')
+			field.element.value = '  a cat asleep on a keyboard  '
+
+			await field.trigger('input')
+			// a request per letter is what the local copy is kept to avoid
+			expect($store.dispatch).not.toHaveBeenCalledWith('describeMedia', expect.anything())
+
+			await field.trigger('change')
+			await flushPromises()
+
+			// a description written into a post that never went out is still
+			// worth keeping: it belongs to the attachment, not to the post
+			expect($store.dispatch).toHaveBeenCalledWith('describeMedia', {
+				id: media.id,
+				description: 'a cat asleep on a keyboard',
+			})
+		})
+
+		it('does not send the same description again when the post goes', async () => {
+			const { wrapper, $store } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+			const field = wrapper.find('.preview-item__description')
+			field.element.value = 'a cat asleep on a keyboard'
+			await field.trigger('change')
+			await flushPromises()
+			await setContent(wrapper, 'look at this')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect($store.dispatch.mock.calls.filter(([action]) => action === 'describeMedia')).toHaveLength(1)
+		})
+
+		it('describes a picture attached from Files the same way', async () => {
+			const { wrapper, $store } = mountComposer()
+			filePicker(Promise.resolve(['/Photos/beach.jpg']))
+			await addFromFiles(wrapper)
+			const field = wrapper.find('.preview-item__description')
+			field.element.value = 'the sea at dusk'
+
+			await field.trigger('change')
+			await flushPromises()
+
+			expect($store.dispatch).toHaveBeenCalledWith('describeMedia', {
+				id: media.id,
+				description: 'the sea at dusk',
+			})
+		})
+
+		it('marks a picture nobody described, and stops once one is written', async () => {
+			const { wrapper } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			// the marker Mastodon puts on the thumbnail: alt text nobody can
+			// see is alt text nobody writes
+			expect(wrapper.find('.preview-item__missing').text()).toBe('No description')
+
+			await describe(wrapper, 'a cat asleep on a keyboard')
+
+			expect(wrapper.find('.preview-item__missing').exists()).toBe(false)
 		})
 
 		it('sends nothing for an attachment left undescribed', async () => {

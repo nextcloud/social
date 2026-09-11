@@ -91,20 +91,44 @@
 				<MessageContent v-if="item.content" :item="item" />
 			</div>
 		</div>
+		<!--
+		  A post carrying pictures is read pictures first: they lead at the
+		  width of the card and the text reads as their caption. A warned post
+		  is not, because its cover has to come before anything it covers.
+		-->
+		<template v-else-if="mediaLeads">
+			<PostAttachment v-if="mediaRevealed"
+				media-first
+				:attachments="item.media_attachments || []" />
+			<div v-else class="post-sensitive post-sensitive--leading">
+				<NcButton variant="secondary"
+					@click="warningLifted = true">
+					<template #icon>
+						<EyeOff :size="20" />
+					</template>
+					{{ t('social', 'Show sensitive content') }}
+				</NcButton>
+			</div>
+			<div v-if="item.content" class="post-message post-message--caption">
+				<MessageContent :item="item" />
+			</div>
+		</template>
 		<div v-else-if="item.content" class="post-message">
 			<MessageContent :item="item" />
 		</div>
 		<template v-if="mediaRevealed">
 			<QuotedPost v-if="item.quote" :quote="item.quote" />
 			<Poll v-if="localPoll" :poll="localPoll" @update:poll="updatePoll" />
-			<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
+			<PostAttachment v-if="hasAttachments && !mediaLeads" :attachments="item.media_attachments || []" />
 			<PostCard v-if="showCard" :card="item.card" />
 		</template>
 		<!-- not when there is a content warning: that already renders a
 		     "Show more" for the very same flag, so a post with both offered
 		     two buttons for one reveal. No aria-expanded either — this
-		     control is gone the moment it would have to say "true". -->
-		<div v-else-if="!hasSpoiler" class="post-sensitive">
+		     control is gone the moment it would have to say "true". And not
+		     when the media leads, which shows this same reveal in the place
+		     the pictures will take. -->
+		<div v-else-if="!hasSpoiler && !mediaLeads" class="post-sensitive">
 			<NcButton variant="secondary"
 				@click="warningLifted = true">
 				<template #icon>
@@ -364,6 +388,15 @@ export default {
 		/** @return {boolean} */
 		mediaRevealed() {
 			return !this.hasGatedMedia || this.warningLifted
+		},
+		/**
+		 * @return {boolean} whether the post is laid out around its pictures.
+		 * Not while it is being edited, where the text is the thing being
+		 * worked on, and not under a content warning, which owns the top of
+		 * the post until the reader lifts it.
+		 */
+		mediaLeads() {
+			return this.hasAttachments && !this.hasSpoiler && !this.isEditing
 		},
 		/** @return {number} how many characters the edit has left */
 		editCharsLeft() {
@@ -1091,6 +1124,17 @@ function nodeToPlainText(node) {
 		margin-bottom: 8px;
 		font-weight: 600;
 	}
+}
+
+/* the text of a picture post is its caption: smaller, and nearer the picture */
+.post-message--caption {
+	margin-top: 2px;
+	font-size: 14.5px;
+	color: var(--color-main-text);
+}
+
+.post-sensitive--leading {
+	min-height: 180px;
 }
 
 .post-message--behind-warning {

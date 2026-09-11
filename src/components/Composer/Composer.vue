@@ -73,7 +73,9 @@
 			</p>
 			<MessageContent :item="quoteOf" />
 		</div>
-		<form class="new-post-form" @submit.prevent>
+		<form class="new-post-form"
+			:class="{ 'new-post-form--media-first': hasAttachments }"
+			@submit.prevent>
 			<input v-if="showWarning"
 				v-model="spoilerText"
 				type="text"
@@ -81,25 +83,29 @@
 				maxlength="200"
 				:aria-label="t('social', 'Content warning')"
 				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
+			<!-- above the box, not below it: once there is a picture the post
+			     is the picture, and what is typed underneath is its caption -->
+			<PreviewGrid :uploading="uploading"
+				:upload-progress="uploadProgress"
+				:progress-label="progressLabel"
+				:miniatures="attachments"
+				@deleted="deletePreview"
+				@describe="describeAttachment"
+				@commit-description="commitDescription" />
+
 			<div ref="composerInput"
 				:contenteditable="!loading"
 				class="message"
 				role="textbox"
 				aria-multiline="true"
-				:aria-label="t('social', 'What would you like to share?')"
+				:aria-label="prompt"
 				:aria-describedby="statusIsTooLong ? 'composer-length' : undefined"
-				:placeholder="t('social', 'What would you like to share?')"
-				:class="{'icon-loading': loading, 'too-long': statusIsTooLong}"
+				:placeholder="prompt"
+				:class="{'icon-loading': loading, 'too-long': statusIsTooLong, 'message--caption': hasAttachments}"
 				@keyup.prevent.enter="keyup"
 				@input="updateStatusContent"
 				@paste="handlePaste"
 				@tribute-replaced="updatePostFromTribute" />
-
-			<PreviewGrid :uploading="uploading"
-				:upload-progress="uploadProgress"
-				:miniatures="attachments"
-				@deleted="deletePreview"
-				@describe="describeAttachment" />
 
 			<div v-if="showPoll" class="poll-editor">
 				<div v-for="(option, index) in pollOptions" :key="index" class="poll-editor__option">
@@ -153,9 +159,20 @@
 				<NcButton :title="t('social', 'Add attachment')"
 					variant="tertiary"
 					:aria-label="t('social', 'Add attachment')"
+					:disabled="attachmentsFull"
 					@click.prevent="clickImportInput">
 					<template #icon>
 						<Paperclip :size="22" decorative title="" />
+					</template>
+				</NcButton>
+
+				<NcButton :title="t('social', 'Add from Files')"
+					variant="tertiary"
+					:aria-label="t('social', 'Add from Files')"
+					:disabled="attachmentsFull || picking"
+					@click.prevent="pickFromFiles">
+					<template #icon>
+						<FolderImage :size="22" decorative title="" />
 					</template>
 				</NcButton>
 
@@ -222,6 +239,7 @@
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
+import FolderImage from 'vue-material-design-icons/FolderImage.vue'
 import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
@@ -229,7 +247,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmojiPicker from '@nextcloud/vue/components/NcEmojiPicker'
 import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
-import { translatePlural } from '@nextcloud/l10n'
+import { translate, translatePlural } from '@nextcloud/l10n'
+import { getFilePickerBuilder, showError } from '@nextcloud/dialogs'
 import he from 'he'
 import CurrentUserMixin from '../../mixins/currentUserMixin.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
@@ -256,6 +275,16 @@ const MAX_LENGTH = 500
  */
 const ACCEPTED_MEDIA_TYPES = ['image/', 'video/', 'audio/']
 
+/**
+ * What the file picker offers. Narrower than what the composer takes from a
+ * drop or an upload: Files is where the pictures are, and an audio file picked
+ * out of a folder tree is not what this button is for.
+ */
+const PICKABLE_MEDIA_TYPES = ['image/*', 'video/*']
+
+/** what a post may carry, as Stream::MAX_ATTACHMENTS holds it server-side */
+const MAX_ATTACHMENTS = 8
+
 /** how long the card says no for, in step with the refusal in TimelinePost */
 const REFUSAL_DURATION = 400
 
@@ -269,6 +298,7 @@ export default {
 		Paperclip,
 		EmoticonOutline,
 		Close,
+		FolderImage,
 		AlertOutline,
 		PollIcon,
 		PreviewGrid,
@@ -314,6 +344,12 @@ export default {
 			uploading: false,
 			/** how far the current upload has got, 0..1 */
 			uploadProgress: 0,
+			/** what the progress bar is working on, in words */
+			progressLabel: '',
+			/** whether the Files dialog is open or its picks are being attached */
+			picking: false,
+			/** keeps two picks of the same file apart, since the path cannot */
+			pickCount: 0,
 			/** whether files are being dragged over the card right now */
 			draggingFiles: false,
 			/** briefly true after a drop of something the composer cannot take */
@@ -416,6 +452,25 @@ export default {
 		/** @return {string} the `accept` of the file dialog, from one list */
 		acceptedTypes() {
 			return ACCEPTED_MEDIA_TYPES.map((type) => `${type}*`).join(',')
+		},
+		/** @return {boolean} whether the composer holds a picture */
+		hasAttachments() {
+			return Object.keys(this.attachments).length > 0
+		},
+		/** @return {boolean} whether the post is carrying all the server takes */
+		attachmentsFull() {
+			return Object.keys(this.attachments).length >= MAX_ATTACHMENTS
+		},
+		/**
+		 * What the box asks for. With a picture above it, the post is the
+		 * picture and the words underneath it are its caption.
+		 *
+		 * @return {string}
+		 */
+		prompt() {
+			return this.hasAttachments
+				? translate('social', 'Write a caption…')
+				: translate('social', 'What would you like to share?')
 		},
 		/** Attachments that can carry a description and have not been given one. */
 		undescribed() {
@@ -860,12 +915,128 @@ export default {
 		},
 
 		/**
+		 * How many of these there is still room for, with a word about the rest.
+		 *
+		 * The server refuses the ninth attachment outright, so the refusal
+		 * belongs here, where it can still be explained and where the eight
+		 * that do fit are not lost with it.
+		 *
+		 * @param {Array} items files or paths, in the order they were offered
+		 * @return {Array} the ones the post can still carry
+		 */
+		roomFor(items) {
+			const room = Math.max(MAX_ATTACHMENTS - Object.keys(this.attachments).length, 0)
+			if (items.length > room) {
+				this.announceCeiling()
+			}
+
+			return items.slice(0, room)
+		},
+
+		/** Says that the post is carrying as much as it can. */
+		announceCeiling() {
+			showError(translatePlural(
+				'social',
+				'A post can carry %n attachment',
+				'A post can carry %n attachments',
+				MAX_ATTACHMENTS,
+			))
+		},
+
+		/**
+		 * Attaches pictures the reader already has in Nextcloud, without a trip
+		 * through the browser: the path is all that is sent.
+		 */
+		async pickFromFiles() {
+			if (this.attachmentsFull) {
+				this.announceCeiling()
+				return
+			}
+
+			let picked
+			this.picking = true
+			try {
+				picked = await getFilePickerBuilder(translate('social', 'Pick pictures to attach'))
+					.setMultiSelect(true)
+					.setMimeTypeFilter(PICKABLE_MEDIA_TYPES)
+					.allowDirectories(false)
+					.build()
+					.pick()
+			} catch (error) {
+				// closing the dialog without picking rejects, and changing one's
+				// mind is not a failure to report
+				logger.debug('The file picker was closed', { error })
+				return
+			} finally {
+				this.picking = false
+			}
+
+			const paths = (Array.isArray(picked) ? picked : [picked])
+				.filter((path) => typeof path === 'string' && path !== '' && path !== '/')
+
+			if (paths.length === 0) {
+				return
+			}
+
+			this.expand()
+			await this.attachPaths(paths)
+		},
+
+		/**
+		 * Asks the server for one attachment per path, in order, keeping the
+		 * ones it accepts. A path it refuses is marked and left in the grid:
+		 * the others are already attached and must not go down with it.
+		 *
+		 * @param {string[]} paths files in the reader's own storage
+		 */
+		async attachPaths(paths) {
+			const accepted = this.roomFor(paths)
+
+			this.picking = accepted.length > 0
+			this.progressLabel = translate('social', 'Attaching from Files…')
+			for (const [index, path] of accepted.entries()) {
+				// the same picture may be picked twice, and the path cannot
+				// tell those two attachments apart
+				const key = `nextcloud:${++this.pickCount}:${path}`
+				this.attachments = {
+					...this.attachments,
+					[key]: { file: null, path, data: null, failed: false },
+				}
+
+				this.uploading = true
+				this.uploadProgress = index / accepted.length
+				const mediaData = await this.$store.dispatch('createMediaFromFile', { path })
+				this.uploadProgress = (index + 1) / accepted.length
+
+				if (this.attachments[key] === undefined) {
+					// deleted while the server was fetching it
+					continue
+				}
+
+				this.attachments = {
+					...this.attachments,
+					[key]: {
+						...this.attachments[key],
+						data: mediaData?.id === undefined ? null : mediaData,
+						failed: mediaData?.id === undefined,
+					},
+				}
+			}
+			this.uploading = false
+			this.uploadProgress = 0
+			this.progressLabel = ''
+			this.picking = false
+		},
+
+		/**
 		 * Previews each file, uploads it, and remembers what came back. The one
 		 * road in: the file dialog, a drop and a paste all arrive here.
 		 *
-		 * @param {File[]} files the files to attach, in order
+		 * @param {File[]} allFiles the files to attach, in order
 		 */
-		async attachFiles(files) {
+		async attachFiles(allFiles) {
+			const files = this.roomFor(allFiles)
+			this.progressLabel = translate('social', 'Uploading…')
 			for (const [index, file] of files.entries()) {
 				const url = URL.createObjectURL(file)
 				this.attachments = {
@@ -906,6 +1077,7 @@ export default {
 					},
 				}
 			}
+			this.progressLabel = ''
 		},
 		insert(emoji) {
 			if (typeof emoji === 'object') {
@@ -1062,6 +1234,12 @@ export default {
 		 * @param {string} key the attachment key, which is that URL
 		 */
 		releasePreview(key) {
+			// an attachment picked out of Files is keyed by its path: there is
+			// no object URL behind it to let go of
+			if (!key.startsWith('blob:')) {
+				return
+			}
+
 			try {
 				URL.revokeObjectURL(key)
 			} catch (error) {
@@ -1084,13 +1262,37 @@ export default {
 		 */
 		async saveDescriptions() {
 			const described = Object.values(this.attachments).filter(
-				(attachment) => attachment.data?.id && (attachment.description || '').trim() !== '',
+				(attachment) => attachment.data?.id
+					&& (attachment.description || '').trim() !== ''
+					&& (attachment.description || '').trim() !== attachment.saved,
 			)
 
 			await Promise.all(described.map((attachment) => this.$store.dispatch('describeMedia', {
 				id: attachment.data.id,
 				description: attachment.description.trim(),
 			})))
+		},
+		/**
+		 * Saves what an attachment shows as soon as the field is left, so a
+		 * description outlives a post that never went out.
+		 *
+		 * @param {object} update what was written
+		 * @param {string} update.key which attachment
+		 * @param {string} update.description what it shows
+		 */
+		async commitDescription({ key, description }) {
+			const attachment = this.attachments[key]
+			const text = (description || '').trim()
+			if (attachment?.data?.id === undefined || text === '' || text === attachment.saved) {
+				return
+			}
+
+			this.attachments = {
+				...this.attachments,
+				[key]: { ...attachment, description, saved: text },
+			}
+
+			await this.$store.dispatch('describeMedia', { id: attachment.data.id, description: text })
 		},
 		describeAttachment({ key, description }) {
 			if (this.attachments[key] === undefined) {
@@ -1436,6 +1638,20 @@ $composer-duration: 220ms;
 			border-radius: 50%;
 			margin-right: 3px;
 		}
+	}
+}
+
+// Photo-first: the picture is the post and the box under it is its caption,
+// so the box gives up the height it was holding for a post that has no picture.
+// Nothing is moved or hidden — the same controls in the same order, weighted
+// the other way round.
+.new-post-form--media-first {
+	:deep(.preview-grid) {
+		margin-bottom: 10px;
+	}
+
+	.message--caption {
+		min-height: 44px;
 	}
 }
 

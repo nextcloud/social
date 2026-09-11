@@ -445,7 +445,17 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 
 ### Components
 
-`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+
+`Composer.vue` grows a second attach control beside the paperclip: the
+`@nextcloud/dialogs` file picker, so a picture already in the user's Nextcloud
+goes straight to `POST /api/v1/media/from-file` instead of being downloaded and
+uploaded back. Both sources fill the same attachment map and share one ceiling
+of eight, and with anything attached the preview grid moves above the text box —
+in the DOM, so the tab order follows the eye — and the box becomes a caption
+field. A picture with no alt text is marked as such on its own thumbnail, and a
+description is saved on leaving the field rather than only when the post goes
+out, so it survives a post that is never sent.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
 
@@ -455,6 +465,23 @@ an accepted quote the reader may not see each get a line saying which, because
 a quote that silently renders as nothing is indistinguishable from a bug. A
 quoted post that itself quotes something is not nested a second time — the
 component prints one line and stops, so no chain and no cycle can recurse.
+
+**Posts that are pictures.** A post carrying attachments and no content
+warning is laid out around them: `TimelinePost.vue`'s `mediaLeads` puts
+`PostAttachment` above the text, which then reads as a caption. A warning wins
+over that — its cover has to come before anything it covers — and so does edit
+mode, where the text is the thing being worked on. One or two pictures are a
+mosaic; from three (`CAROUSEL_FROM`) they become a `GalleryCarousel` paged with
+the arrow keys, Home and End, because eight thumbnails side by side are eight
+pictures in which nothing can be made out. The older thumbnail grid stays for
+every place the text still leads.
+
+`GalleryRatio.js` reserves each picture's box from `meta.original` before it
+loads, clamped between 3:4 and 16:9, so a photo timeline does not jump under the
+reader's thumb as images arrive; `MediaAttachment.vue` paints the `blurhash`
+into that box meanwhile. `GalleryMedia.vue` carries the ALT badge — the
+description is what the picture *is*, and a reader who cannot see it is not the
+only one who wants it — and sets the `alt` attribute from the same value.
 
 `HashtagFollowButton.vue` reads `/api/v1/tags/{tag}` on mount and whenever the
 route's tag changes, and takes its state from what the server answers rather
