@@ -41,6 +41,7 @@ class CoreRequestBuilder {
 	public const TABLE_CACHE_ACTORS = 'social_cache_actor';
 	public const TABLE_CACHE_DOCUMENTS = 'social_cache_doc';
 	public const TABLE_CLIENT = 'social_client';
+	public const TABLE_FOLLOWED_TAGS = 'social_followed_tag';
 	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_INSTANCE = 'social_instance';
@@ -148,6 +149,12 @@ class CoreRequestBuilder {
 			'auth_code',
 			'token',
 			'last_update',
+			'creation'
+		],
+		self::TABLE_FOLLOWED_TAGS => [
+			'id',
+			'actor_id_prim',
+			'hashtag',
 			'creation'
 		],
 		self::TABLE_FOLLOWS => [

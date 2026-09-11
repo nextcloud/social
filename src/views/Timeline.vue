@@ -32,11 +32,18 @@
 
 		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :default-visibility="type === 'direct' ? 'direct' : undefined" />
 
-		<!-- the page had no heading at all outside tags and notifications, so
-		     there was nothing to land on and nothing to say where you were -->
-		<h1 class="timeline-heading" :class="{ 'hidden-visually': !headingIsVisible }">
-			{{ heading }}
-		</h1>
+		<div class="timeline-heading-row">
+			<!-- the page had no heading at all outside tags and notifications, so
+			     there was nothing to land on and nothing to say where you were -->
+			<h1 class="timeline-heading" :class="{ 'hidden-visually': !headingIsVisible }">
+				{{ heading }}
+			</h1>
+			<HashtagFollowButton v-if="type === 'tags'"
+				:tag="$route.params.tag"
+				@changed="onHashtagFollowChanged" />
+		</div>
+
+		<HashtagFollowedList v-if="type === 'tags'" ref="followedHashtags" />
 
 		<TimelineList :type="type" />
 
@@ -50,6 +57,8 @@ import { defineAsyncComponent } from 'vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import TimelineList from './../components/TimelineList.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
+import HashtagFollowButton from './../components/HashtagFollowButton.vue'
+import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import eventBus from './../services/eventBus.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
@@ -59,6 +68,8 @@ export default {
 	components: {
 		Composer,
 		FirstPostCelebration,
+		HashtagFollowButton,
+		HashtagFollowedList,
 		TimelineList,
 	},
 	mixins: [
@@ -174,6 +185,10 @@ export default {
 		onPostPublished() {
 			this.$store.dispatch('celebrateFirstPost')
 		},
+		/** The list of followed hashtags is stale the moment one is followed. */
+		onHashtagFollowChanged() {
+			this.$refs.followedHashtags?.refresh()
+		},
 		endCelebration() {
 			this.$store.dispatch('endFirstPostCelebration')
 		},
@@ -193,6 +208,14 @@ export default {
 
 .social__timeline {
 	margin: 0;
+}
+
+.timeline-heading-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: calc(var(--default-grid-baseline) * 2);
+	margin-inline-end: calc(var(--default-grid-baseline) * 2);
 }
 
 .timeline-heading {

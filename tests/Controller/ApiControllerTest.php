@@ -1536,22 +1536,28 @@ class ApiControllerTest extends TestCase {
 	// trends
 
 	public function testTrendTagsReturnsTagEntitiesForWhatIsTrending(): void {
+		// the entity is built by HashtagService, which the tag lookup and the
+		// follow answers use too — the shape is pinned in HashtagServiceTest;
+		// what belongs here is that each trending tag is asked for, for the
+		// window that was requested, and without a `following` this public
+		// route has nobody to answer for
 		$this->loggedInAs();
-		$this->urlGenerator->method('linkToRouteAbsolute')
-			->willReturnCallback(static fn (string $route, array $args): string => 'https://cloud.example/' . $args['path']);
 		$this->hashtagService->method('getTrending')->with(5, '1h')->willReturn([
 			['hashtag' => 'nextcloud', 'trend' => ['1h' => 12, '1d' => 40]],
 			['hashtag' => 'fediverse', 'trend' => ['1h' => 3]],
 		]);
+		$this->hashtagService->expects($this->exactly(2))->method('tagEntity')
+			->willReturnCallback(static function (string $name, ?bool $following, string $period): array {
+				self::assertNull($following, 'a public route knows no viewer to answer `following` for');
+				self::assertSame('1h', $period);
+
+				return ['name' => $name, 'url' => 'https://cloud.example/tags/' . $name, 'history' => []];
+			});
 
 		$tags = $this->controller()->trendTags(5, '1h')->getData();
 
 		$this->assertSame(['nextcloud', 'fediverse'], array_column($tags, 'name'));
 		$this->assertSame('https://cloud.example/tags/nextcloud', $tags[0]['url']);
-		// the count is the one for the window that was asked for
-		$this->assertSame('12', $tags[0]['history'][0]['uses']);
-		// this instance counts uses, not distinct accounts
-		$this->assertSame('0', $tags[0]['history'][0]['accounts']);
 	}
 
 	public function testTrendTagsCapsTheLimit(): void {

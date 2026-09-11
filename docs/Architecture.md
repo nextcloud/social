@@ -93,8 +93,9 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_report` | Moderation reports, local and federated `Flag` activities, with a `resolved` flag |
 | `social_moderation` | The decision taken about an account: one row per silenced or suspended actor (`level`) |
 | `social_stream_card` | The link-preview card of a status (url, title, description, image, provider), one row per stream |
+| `social_followed_tag` | The hashtags an account follows: one row per (actor, lowercased tag), unique on the pair |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, and `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`.
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`, and `Version1000Date20260911000004` adds `social_followed_tag` (the hashtags an account follows, unique on (actor, tag) — which is also the index the home timeline reads).
 
 Two of those deserve a warning.
 
@@ -422,9 +423,22 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 
 ### Components
 
-`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
+
+`QuotedPost.vue` renders a status's `quote`. Only an `accepted` quote whose
+`quoted_status` came back becomes a card; `pending`, `rejected`, `revoked` and
+an accepted quote the reader may not see each get a line saying which, because
+a quote that silently renders as nothing is indistinguishable from a bug. A
+quoted post that itself quotes something is not nested a second time — the
+component prints one line and stops, so no chain and no cycle can recurse.
+
+`HashtagFollowButton.vue` reads `/api/v1/tags/{tag}` on mount and whenever the
+route's tag changes, and takes its state from what the server answers rather
+than from what was asked, so a refused follow does not leave the button lying.
+It renders nothing on the public page, where there is no viewer to follow
+anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 
 ---
 

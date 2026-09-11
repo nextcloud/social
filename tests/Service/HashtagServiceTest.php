@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\HashtagDoesNotExistException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MiscService;
+use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -27,14 +28,22 @@ use PHPUnit\Framework\TestCase;
 class HashtagServiceTest extends TestCase {
 	private HashtagsRequest|MockObject $hashtagsRequest;
 	private StreamRequest|MockObject $streamRequest;
+	private IURLGenerator|MockObject $urlGenerator;
 	private HashtagService $service;
 
 	protected function setUp(): void {
 		$this->hashtagsRequest = $this->createMock(HashtagsRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
+		$this->urlGenerator = $this->createMock(IURLGenerator::class);
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturnCallback(
+				static fn (string $route, array $args): string
+					=> 'https://cloud.example/apps/social/timeline/' . $args['path']
+			);
 		$this->service = new HashtagService(
 			$this->hashtagsRequest,
 			$this->streamRequest,
+			$this->urlGenerator,
 			$this->createMock(ConfigService::class),
 			$this->createMock(MiscService::class),
 		);
@@ -259,14 +268,19 @@ class HashtagServiceTest extends TestCase {
 		$this->assertContains(HashtagService::PERIOD_DEFAULT, HashtagService::PERIODS);
 	}
 
-	public function testGetHashtagPrependsTheHashSign(): void {
-		$this->hashtagsRequest->expects($this->exactly(2))
+	public function testGetHashtagLooksUpTheNameAsItIsStored(): void {
+		// this asserted the opposite, and the opposite could never match:
+		// social_hashtag is filled from social_stream_tag, and
+		// Note::fillHashtags() strips the '#' before either table sees one, so
+		// the exact-match half of a hashtag search always came up empty
+		$this->hashtagsRequest->expects($this->exactly(3))
 			->method('getHashtag')
-			->with('#nextcloud')
-			->willReturn(['hashtag' => '#nextcloud']);
+			->with('nextcloud')
+			->willReturn(['hashtag' => 'nextcloud']);
 
-		$this->assertSame(['hashtag' => '#nextcloud'], $this->service->getHashtag('nextcloud'));
-		$this->assertSame(['hashtag' => '#nextcloud'], $this->service->getHashtag('#nextcloud'));
+		$this->assertSame(['hashtag' => 'nextcloud'], $this->service->getHashtag('nextcloud'));
+		$this->assertSame(['hashtag' => 'nextcloud'], $this->service->getHashtag('#nextcloud'));
+		$this->assertSame(['hashtag' => 'nextcloud'], $this->service->getHashtag('  #nextcloud '));
 	}
 
 	public function testGetHashtagPropagatesMisses(): void {
@@ -284,5 +298,64 @@ class HashtagServiceTest extends TestCase {
 
 		$this->assertSame([['hashtag' => '#nextcloud']], $this->service->searchHashtags('next'));
 		$this->assertSame([], $this->service->searchHashtags('next', true));
+	}
+
+	public function testATagEntityIsTheShapeAClientReads(): void {
+		$this->hashtagsRequest->method('getHashtag')
+			->willReturn(['hashtag' => 'nextcloud', 'trend' => ['1h' => 1, '1d' => 7]]);
+
+		$tag = $this->service->tagEntity('nextcloud', true);
+
+		$this->assertSame('nextcloud', $tag['name']);
+		$this->assertSame('https://cloud.example/apps/social/timeline/tags/nextcloud', $tag['url']);
+		$this->assertTrue($tag['following']);
+		$this->assertSame('7', $tag['history'][0]['uses'], 'the default window');
+		// this instance counts uses, not distinct accounts, and says so rather
+		// than inventing a number
+		$this->assertSame('0', $tag['history'][0]['accounts']);
+	}
+
+	public function testTheTagIsLookedUpByTheNameItIsStoredUnder(): void {
+		// social_hashtag rows come from social_stream_tag, which holds the tag
+		// with no leading '#'; asking for '#nextcloud' matches no row
+		$asked = [];
+		$this->hashtagsRequest->method('getHashtag')
+			->willReturnCallback(function (string $hashtag) use (&$asked): array {
+				$asked[] = $hashtag;
+
+				return ['hashtag' => $hashtag, 'trend' => []];
+			});
+
+		$this->service->tagEntity('nextcloud');
+
+		$this->assertSame(['nextcloud'], $asked);
+	}
+
+	public function testATagNobodyHasUsedHasAnEmptyHistoryRatherThanANumber(): void {
+		$this->hashtagsRequest->method('getHashtag')
+			->willThrowException(new HashtagDoesNotExistException());
+
+		$tag = $this->service->tagEntity('brandnew', false);
+
+		$this->assertSame([], $tag['history']);
+		$this->assertFalse($tag['following']);
+	}
+
+	public function testFollowingIsLeftOutWhenNobodyIsAsking(): void {
+		// `/api/v1/trends/tags` is a public route with no viewer to answer it
+		// for, and Mastodon leaves the key out there
+		$this->hashtagsRequest->method('getHashtag')
+			->willThrowException(new HashtagDoesNotExistException());
+
+		$this->assertArrayNotHasKey('following', $this->service->tagEntity('anything'));
+	}
+
+	public function testAnUnknownWindowFallsBackToTheDefaultOne(): void {
+		$this->hashtagsRequest->method('getHashtag')
+			->willReturn(['hashtag' => 'nextcloud', 'trend' => ['1d' => 4, '10d' => 40]]);
+
+		$tag = $this->service->tagEntity('nextcloud', null, 'fortnight');
+
+		$this->assertSame('4', $tag['history'][0]['uses']);
 	}
 }

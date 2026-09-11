@@ -69,6 +69,14 @@ return [
 		['name' => 'Api#instanceV2', 'url' => '/api/v2/instance', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#trendTags', 'url' => '/api/v1/trends/tags', 'verb' => 'GET'],
+
+		// Following a hashtag. The two action routes are registered ahead of the
+		// lookup so that /api/v1/tags/foo/follow cannot be read as a tag named
+		// "foo/follow" if the lookup ever gains a `.+` requirement.
+		['name' => 'Tag#followedTags', 'url' => '/api/v1/followed_tags', 'verb' => 'GET'],
+		['name' => 'Tag#follow', 'url' => '/api/v1/tags/{hashtag}/follow', 'verb' => 'POST'],
+		['name' => 'Tag#unfollow', 'url' => '/api/v1/tags/{hashtag}/unfollow', 'verb' => 'POST'],
+		['name' => 'Tag#get', 'url' => '/api/v1/tags/{hashtag}', 'verb' => 'GET'],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#searchV2', 'url' => '/api/v2/search', 'verb' => 'GET'],
 		// Mastodon's own v1 search. This path used to be the app's web-UI search

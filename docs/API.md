@@ -6,7 +6,7 @@
 
 The Social app exposes four groups of endpoints, all registered in `appinfo/routes.php`:
 
-- **Mastodon-compatible REST API** (`ApiController`, `OAuthController`) — a partial implementation of the Mastodon client API. Several endpoints are stubs; each is marked below.
+- **Mastodon-compatible REST API** (`ApiController`, `TagController`, `OAuthController`) — a partial implementation of the Mastodon client API. Several endpoints are stubs; each is marked below.
 - **Custom Local API** (`LocalController`, `ConfigController`) — the endpoints the app's own Vue frontend calls. They are not Mastodon-compatible and their response envelope differs (see Error Responses).
 - **ActivityPub Federation API** (`ActivityPubController`, `SocialPubController`) — server-to-server ActivityPub, plus the HTML profile/post pages served on the same URLs.
 - **Frontend, document, OStatus and queue endpoints** (`NavigationController`, `OStatusController`, `QueueController`) — HTML pages and internal plumbing.
@@ -19,7 +19,7 @@ All URLs are relative to the app's route base, i.e. index.php/apps/social + the 
 
 Two mechanisms exist, and which one applies depends on the controller:
 
-1. **OAuth Bearer token** — only `ApiController` reads it. Its constructor parses the `Authorization` header, accepts a `bearer` auth type, and resolves the token through `ClientService::getFromToken()`. If no bearer token is present it falls back to the logged-in Nextcloud session user.
+1. **OAuth Bearer token** — `ApiController` and `TagController` read it. The constructor parses the `Authorization` header, accepts a `bearer` auth type, and resolves the token through `ClientService::getFromToken()`. If no bearer token is present it falls back to the logged-in Nextcloud session user. Both declare their routes `#[PublicPage]` with `#[NoCSRFRequired]` and then require a viewer inside the handler: a Mastodon client has no Nextcloud session and no CSRF token, so `#[NoAdminRequired]` would refuse every real caller before the handler ran.
 2. **Nextcloud session** — `LocalController`, `ConfigController`, `NavigationController`, `OAuthController` (authorize/authorizing) and `OStatusController` use the session `userId` only. They do **not** honour bearer tokens, so the Custom Local API is effectively usable only from the app's own frontend (or with a Nextcloud session cookie / app password + `OCS-APIRequest`).
 
 Access control is declared with **PHP attributes** (`#[PublicPage]`, `#[NoCSRFRequired]`, `#[NoAdminRequired]`, and `#[BruteForceProtection]` on the OAuth token/revoke endpoints); the legacy PHPDoc annotations are gone. The "Auth" column in the tables below records these attributes:
@@ -122,6 +122,23 @@ In that format, `in_reply_to_id` and `in_reply_to_account_id` carry the parent s
 
 All four return a bare JSON array of statuses (no envelope) together with a `Link` header — see Pagination.
 
+The home timeline is two pages, not one query. A post belongs there if the viewer follows its **author** or follows one of its **hashtags** and the post is public; each half is a query over `social_stream.nid`, and they are merged, deduplicated and cut to `limit` before the rows are read. Written as one query the two halves would be an OR across two different joins, which no index can serve. Merging is exact rather than approximate: both halves are cut to the same `limit`, so anything belonging in the top `limit` of the union is in the top `limit` of its own half. A post that is both followed and tagged appears once, and the visibility, block, mute, silence and duplicate-boost filters apply to both halves — the hashtag half additionally reaches no further than a stranger can read, since a followed hashtag is not a relationship with the author.
+
+### Followed hashtags
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/followed_tags` | public, no-csrf (viewer required) | `limit` (20, capped at 50), `max_id` (0), `min_id` (0) | The hashtags the viewer follows, as Mastodon `Tag` entities with `following: true`. Newest follow first. Sends a `Link` header whose cursor is the `social_followed_tag` row id, not the tag: a tag can be unfollowed and followed again, so its name does not move in one direction and cannot page. |
+| GET | `/api/v1/tags/{hashtag}` | public, no-csrf (viewer required) | — | One `Tag` entity — `name`, `url`, `history`, `following` — for `{hashtag}`, with or without its leading `#`. A tag nobody has posted is not a 404: it is a real tag with an empty `history` and `following: false`. |
+| POST | `/api/v1/tags/{hashtag}/follow` | public, no-csrf (viewer required, `write` or `follow` scope) | — | Follows the hashtag and returns the `Tag` with `following: true`. Following one that is already followed is not an error, so a client that lost the answer and retried gets the same tag back. |
+| POST | `/api/v1/tags/{hashtag}/unfollow` | public, no-csrf (viewer required, `write` or `follow` scope) | — | Unfollows it and returns the `Tag` with `following: false`. Unfollowing what was never followed is not an error either. |
+
+Following a hashtag is what puts its **public** posts into the viewer's home timeline, as if their authors were followed — that is the whole of the feature, and the rest of it is how a client says which tags.
+
+A hashtag is stored and compared in one form: the tag with no leading `#`, trimmed, lowercased, and cut to the 127 characters `social_stream_tag.hashtag` holds (`FollowedTagsRequest::normalise()`). So `#NextCloud` and `nextcloud` are one tag to follow, one tag to look up and one tag to unfollow, matching the case-insensitive comparison `/api/v1/timelines/tag/{hashtag}` already makes. Something that normalises to nothing — `#`, or spaces — is a **422**, not a stored row that no post could ever match.
+
+The `history` of a `Tag` from any of these routes is the one the trends endpoint sends: a single bucket for the default window (`1d`), `uses` from the counts the cron keeps, and `accounts` always `0` because this instance counts uses rather than distinct accounts. A hashtag nobody has posted has an empty `history` rather than a zeroed bucket, because a zero would be a claim about a day. `following` is present on every `Tag` these routes return and absent from `/api/v1/trends/tags`, which is a public route with no viewer to answer it for.
+
 ### Polls
 
 | Method | Route | Auth | Parameters | Description |
@@ -184,7 +201,7 @@ Link: <https://cloud.example/index.php/apps/social/api/v1/timelines/home?limit=2
       <https://cloud.example/index.php/apps/social/api/v1/timelines/home?limit=20&min_id=60>; rel="prev"
 ```
 
-`next` points below the lowest id on the page and is sent only while a further page may exist (a page shorter than `limit` is the last one); `prev` points above the highest id and is sent whenever the page is not empty. Every other filter the caller sent survives into both links. The routes that send one are `/api/v1/timelines/{timeline}/`, `/api/v1/timelines/tag/{hashtag}`, `/api/v1/notifications`, `/api/v1/favourites/`, `/api/v1/bookmarks`, `/api/v1/accounts/{account}/statuses`, `/api/v1/accounts/{account}/followers` and `/api/v1/accounts/{account}/following`. A remote follower collection fetched over HTTP has no local ids to page by and carries no header, and `/api/v1/blocks` and `/api/v1/mutes` send none because they take no cursor to page with.
+`next` points below the lowest id on the page and is sent only while a further page may exist (a page shorter than `limit` is the last one); `prev` points above the highest id and is sent whenever the page is not empty. Every other filter the caller sent survives into both links. The routes that send one are `/api/v1/timelines/{timeline}/`, `/api/v1/timelines/tag/{hashtag}`, `/api/v1/notifications`, `/api/v1/favourites/`, `/api/v1/bookmarks`, `/api/v1/followed_tags`, `/api/v1/accounts/{account}/statuses`, `/api/v1/accounts/{account}/followers` and `/api/v1/accounts/{account}/following`. `/api/v1/followed_tags` takes no `since_id` and pages on the followed-tag row id rather than a status id. A remote follower collection fetched over HTTP has no local ids to page by and carries no header, and `/api/v1/blocks` and `/api/v1/mutes` send none because they take no cursor to page with.
 
 "A page shorter than `limit` is the last one" is decided on what the *query* returned, not on what survived any filtering the controller then did. `/api/v1/notifications` drops entries whose sub-type has no Mastodon name; counting those out would have made a filtered page look like the end of the list and stopped a paging client with the rest of it still in the database.
 
@@ -389,13 +406,13 @@ on success (`success()`; `more` keys are merged in at the top level), and
 
 on failure (`fail()`) — the exception class and message go to the log, never into the response, since several callers are public pages. The HTTP status is whatever the caller passed — the default is **500**, callers also use 404, and `Config#remote` deliberately returns the failure envelope with HTTP 200. Failures are logged as warnings unless the caller disables it. Two related helpers bypass the envelope: `directSuccess()` returns the object as-is with HTTP 200, and `activityPubSuccess()` does the same while setting `Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"`.
 
-**2. `ApiController` errors** — a bare object, never the envelope:
+**2. `ApiController` and `TagController` errors** — a bare object, never the envelope:
 
 ```json
 {"error": "the access_token was revoked"}
 ```
 
-from its private `error()` helper, which maps the failure to a status a client can act on — see the table below. Failures raised with no message of their own get a wording that fits the status (`the access_token is invalid`, `not found`, `the request could not be processed`, `request failed`) rather than `{"error": ""}`. `mediaOpen()` is the one route that does not go through it: a missing or non-public document is a 404, any other failure a 400.
+from the private `error()` helper of each, which maps the failure to a status a client can act on — see the table below. `TagController` maps the same four cases it can raise: 403 for a token whose scope is too narrow (with `WWW-Authenticate: Bearer error="insufficient_scope"`), 401 for no or stale credentials (`Bearer error="invalid_token"`), 422 for something that is not a hashtag, and 500 for anything else — with the message withheld, since these are public routes. Failures raised with no message of their own get a wording that fits the status (`the access_token is invalid`, `not found`, `the request could not be processed`, `request failed`) rather than `{"error": ""}`. `mediaOpen()` is the one route that does not go through it: a missing or non-public document is a 404, any other failure a 400.
 
 Every handler catches `Throwable`, not `Exception`. A `TypeError` — an empty or truncated JSON body was the way to raise one, on seven public endpoints — used to escape as a Nextcloud HTML error page, with a stack trace where debug is on, to a client that can only read JSON.
 

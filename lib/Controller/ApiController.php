@@ -1326,18 +1326,13 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(false);
 			$limit = max(1, min(20, $limit));
-			$day = (string)strtotime('today midnight');
 
+			// the same builder the tag lookup and the follow answers use, so a
+			// Tag entity cannot mean one thing here and another there;
+			// `following` is left out, as it must be on a public route
 			$tags = [];
 			foreach ($this->hashtagService->getTrending($limit, $period) as $hashtag) {
-				$uses = (int)($hashtag['trend'][$period] ?? 0);
-				$tags[] = [
-					'name' => $hashtag['hashtag'],
-					'url' => $this->urlGenerator->linkToRouteAbsolute(
-						'social.Navigation.timeline', ['path' => 'tags/' . $hashtag['hashtag']]
-					),
-					'history' => [['day' => $day, 'uses' => (string)$uses, 'accounts' => '0']],
-				];
+				$tags[] = $this->hashtagService->tagEntity($hashtag['hashtag'], null, $period);
 			}
 
 			return new DataResponse($tags, Http::STATUS_OK);
