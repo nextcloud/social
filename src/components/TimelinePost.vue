@@ -41,7 +41,7 @@
 			<VisibilityIcon v-if="visibility"
 				:title="visibility.text"
 				class="post-visibility"
-				:size="16"
+				:size="14"
 				:visibility="visibility.id" />
 		</div>
 		<div v-if="isEditing" class="post-edit-inline">
@@ -878,18 +878,28 @@ function nodeToPlainText(node) {
 			}
 		}
 
+		// The row is aligned on the text baseline, which is right for the name
+		// and the handle and wrong for anything that is an icon: an icon has no
+		// text baseline of its own, so flexbox hangs it from its bottom edge and
+		// it sits below the line it belongs on. These two carry icons, so they
+		// are centred on the line instead.
 		.post-visibility {
 			color: var(--color-text-lighter);
 			flex-shrink: 0;
+			align-self: center;
 		}
 
 		.post-pinned {
 			display: inline-flex;
 			align-items: center;
-			gap: 2px;
+			align-self: center;
+			gap: 4px;
 			flex-shrink: 0;
 			font-size: 12px;
-			font-weight: 600;
+			// the same weight as the rest of the byline: the pin already says
+			// this is a state, and a bold word beside grey text reads as the
+			// loudest thing in a row that is all supporting detail
+			font-weight: normal;
 			color: var(--color-text-lighter);
 		}
 

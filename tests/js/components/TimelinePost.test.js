@@ -161,7 +161,16 @@ describe('TimelinePost', () => {
 		 */
 		it('draws the visibility icon no larger than the byline it sits in', () => {
 			const { wrapper } = mountPost()
-			expect(wrapper.find('.post-visibility svg').attributes('width')).toBe('16')
+			expect(wrapper.find('.post-visibility svg').attributes('width')).toBe('14')
+		})
+
+		/** two icons on one line at two different sizes read as a mistake */
+		it('draws both byline icons at the same size', () => {
+			const { wrapper } = mountPost({ item: makeItem({ pinned: true }) })
+			const globe = wrapper.find('.post-visibility svg').attributes('width')
+			const pin = wrapper.find('.post-pinned svg').attributes('width')
+
+			expect(pin).toBe(globe)
 		})
 
 		it('exposes the creation time on the timestamp', () => {
