@@ -869,6 +869,44 @@ class DocumentationTest extends TestCase {
 	}
 
 	/**
+	 * The two surveys stay in the repository, and stay reachable.
+	 *
+	 * `docs/Technical-Debt.md` was written once before and lived only in a
+	 * working tree, so it was lost without anything noticing. Their *contents*
+	 * are deliberately not asserted — a test over "45% of lib is older than
+	 * 2023" would either be brittle or be the fix — but a file that is deleted,
+	 * renamed, or quietly orphaned from the README is something a test can
+	 * catch, and those are the ways a document like this actually disappears.
+	 *
+	 * @return iterable<string, array{string, string}>
+	 */
+	public function surveyDocuments(): iterable {
+		yield 'technical debt' => ['docs/Technical-Debt.md', 'Technical debt and legacy code'];
+		yield 'performance' => ['docs/Performance.md', 'Performance and scalability'];
+	}
+
+	/** @dataProvider surveyDocuments */
+	public function testTheSurveysAreStillHereAndLinkedFromTheReadme(string $path, string $title): void {
+		$document = $this->read($path);
+		$this->assertStringContainsString(
+			'# ' . $title,
+			$document,
+			$path . ' has lost its title, so it is probably not the document it was.'
+		);
+		$this->assertStringContainsString(
+			'**Verified against:**',
+			$document,
+			$path . ' must say which version it was checked against: nothing else tells a'
+			. ' reader how far it has drifted.'
+		);
+		$this->assertStringContainsString(
+			$path,
+			$this->read('README.md'),
+			$path . ' is not linked from README.md, where somebody looking for it would start.'
+		);
+	}
+
+	/**
 	 * @param string[] $values
 	 * @return string[]
 	 */
