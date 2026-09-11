@@ -24,6 +24,7 @@ use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
+use OCA\Social\UserMigration\SocialMigrator;
 use OCA\Social\WellKnown\WebfingerHandler;
 use OCP\Accounts\UserUpdatedEvent;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -53,6 +54,8 @@ class ApplicationTest extends TestCase {
 		$context->expects($this->once())->method('registerSearchProvider')->with(UnifiedSearchProvider::class);
 		$context->expects($this->once())->method('registerWellKnownHandler')->with(WebfingerHandler::class);
 		$context->expects($this->once())->method('registerNotifierService')->with(Notifier::class);
+		// without this one an account export silently leaves out the whole app
+		$context->expects($this->once())->method('registerUserMigrator')->with(SocialMigrator::class);
 
 		$listeners = [];
 		$context->expects($this->exactly(3))->method('registerEventListener')

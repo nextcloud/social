@@ -42,6 +42,7 @@ social/
 │   ├── Service/                # Business logic services
 │   ├── Settings/               # Admin settings (moderation panel: reports + Fediverse access list)
 │   ├── Tools/                  # Vendored helper layer (query builder base, HTML sanitizer, traits, exceptions)
+│   ├── UserMigration/          # Account export/import (`SocialMigrator`, the Nextcloud user-migration framework)
 │   ├── Traits/                 # TDetails
 │   └── WellKnown/              # WebFinger / NodeInfo / host-meta handler and responses
 ├── src/                        # Vue 3 frontend
@@ -457,6 +458,7 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Dashboard | `SocialFederationHealthWidget` | `Application::register()` | Instances the outbound queue is failing to reach; conditional — admins only |
 | Unified Search | `UnifiedSearchProvider` | `Application::register()` | Searches URIs, accounts, hashtags and **status content** (case-insensitive substring over the statuses the viewer may see: own posts, public/unlisted, and what is addressed to them — the timeline viewer bound). Local hits link to the post page, remote hits to their origin. Honours the query's cursor and limit — each source is asked for one entry past the end of the page, and a further page is offered only when one of them supplied it. It used to advertise a next cursor unconditionally while reading neither, so "load more" served the first page for ever |
 | Notifications | `Notifier` | `Application::register()` | Prepares Social notifications for the NC notification system |
+| User migration | `UserMigration\SocialMigrator` | `Application::register()` | Puts the user's Social data in a Nextcloud account export, and reads it back on import. See "Account export and import" below |
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
@@ -479,6 +481,100 @@ the newest. A boost renders as the post it repeats, subtitled with who boosted
 it; a boost or notification whose subject did not resolve has no row.
 
 Seventeen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `ExtendedBase.php`, a shared base several of them extend; it calls no `setName()`, so it registers no command of its own. See `docs/OCC-Commands.md`.
+
+---
+
+## Account export and import
+
+`lib/UserMigration/SocialMigrator.php` implements the server's
+`OCP\UserMigration\IMigrator` (and `ISizeEstimationMigrator`), registered in
+`Application::register()`. It is what makes a user's Fediverse identity part of
+`occ user:export` / `occ user:import` and of the account-transfer UI; before it
+existed, an exported account carried nothing of this app at all.
+
+The migrator id is `social` and the export format version is `1`. Everything it
+writes lives under `social/` in the archive:
+
+| File | What it holds |
+|------|---------------|
+| `social/actor.json` | The actor: id, handle, display name, bio, profile fields, `locked`, `discoverable`, `indexable`, `bot`, `sensitive`, default privacy, language, avatar and header URLs, `alsoKnownAs`, `movedTo`, the **public** key and the creation date |
+| `social/following_accounts.csv` | Who the account follows, in Mastodon's `following_accounts.csv` shape (`Account address,Show boosts,Notify on new posts,Languages`) — written by `MigrationService::exportFollowsCsv()`, read by `MigrationService::parseFollowsCsv()`, and accepted by Mastodon's own "Import follows" |
+| `social/followers.csv` | Who follows the account, same shape. A record for the user; nothing imports it, because a follower is somebody else's decision |
+| `social/blocked_accounts.csv` | Blocked handles, one per line (the shape Mastodon exports) |
+| `social/muted_accounts.csv` | Muted handles with the `Hide notifications` column |
+| `social/bookmarks.csv` | The URLs of the bookmarked posts |
+| `social/likes.csv` | The URLs of the favourited posts |
+| `social/outbox.json` | The user's own posts as an ActivityPub `OrderedCollection`, written a page at a time through a temporary file so that an account with years of posts never has to fit in memory |
+
+Reads are paged everywhere (`SocialMigrator::PAGE`, 50 rows); the block and mute
+lists come from one capped query (`RELATIONS_LIMIT`, 5000), and reaching the cap
+is reported on the console rather than silently truncating. A follow whose
+account this server never cached is left out of the CSV instead of being written
+as a bare actor URL, which no reader of the format accepts.
+
+### What deliberately does not travel
+
+- **The actor's private key.** It is the only secret that lets anything speak as
+  that account, ActivityPub has no revocation for it, and the app encrypts it at
+  rest (`PrivateKeyCipher`, see Security above) precisely so that a copy of the
+  database is not enough to impersonate a local actor. An export archive is an
+  ordinary file the user downloads and keeps, so a plaintext key in it would
+  undo that — and for nothing: an account imported elsewhere is a *new* actor
+  with a new id, and `AccountService::createActor()` gives it a fresh pair.
+  Identity continuity is carried by `alsoKnownAs` plus a `Move` from the old
+  server (`MigrationService::move()`), which is why the import records the old
+  actor id as an alias. The public key is exported, because it is public and
+  says which actor this was.
+- **Other people's posts.** The local copies of remote statuses are a cache of
+  somebody else's content, re-fetched wherever they are needed.
+- **Moderation decisions taken against the account**, and reports. A suspension
+  deliberately outlives even the deletion of an actor (`PersonInterface::delete()`),
+  so it must not be something a user can shed by exporting and re-importing.
+- **Tokens, OAuth clients and client secrets**, and the outbound request queue.
+  A credential that survived a move would be one nobody can revoke.
+- **Media files.** Attachments are referenced by the URLs in `outbox.json`; the
+  cached files themselves are not copied into the archive.
+
+### What an import does
+
+An import is safe on a server where the account already exists: the actor is
+taken as found and only created when there is none
+(`AccountService::getActorFromUserId($uid, create: true)`), every write is
+idempotent, and nothing is ever deleted. A missing file is not a failure — an
+archive from an older version, or one assembled by hand, imports whatever it
+does carry, and an archive with no version for this migrator is skipped
+entirely (the migrator is not mandatory). An archive that carries a version but
+none of the files above — the export of a user who never used this app — creates
+no account either: a Fediverse identity is something a user asks for.
+
+- the profile — `locked`, `discoverable`/`indexable`, the fields and the bio —
+  goes back through `AccountService`, the same path the API uses. The **display
+  name** does not: it belongs to the Nextcloud account, the core `account`
+  migrator carries it, and `AccountService` re-derives the actor's name from it.
+- the old actor id is recorded in `alsoKnownAs`, so a `Move` from the old
+  account is accepted here. `movedTo` is **not** imported: it would point the
+  new account's own followers somewhere else.
+- the follows are re-created through the ordinary follow path
+  (`MigrationService::importFollows()`), one handle at a time, and a handle whose
+  server is unreachable is reported without stopping the rest.
+- blocks and mutes are written straight to the relation table. Resolving a
+  handle may fetch the remote actor (a signed GET), but no `Block` is federated:
+  the account on the other end was already blocked, and was never told about the
+  move.
+- bookmarks and favourites are re-marked on the posts this server already has.
+  A post nobody here has seen is skipped rather than fetched from its origin,
+  and a favourite is not re-federated as a `Like`.
+- the posts in `outbox.json` are **not** replayed into the timeline. Their ids
+  belong to the server they were written on, the threads around them are not
+  here, and minting new ids would either publish years of posts to the Fediverse
+  again or fill the timeline with statuses no remote server can resolve.
+  Mastodon's own import does not restore statuses either.
+
+So the only thing an import sends to other servers is a `Follow` per followed
+account — which is the only way a follow can exist at all — plus the single
+`Update{Person}` that any bio change sends to the account's followers, of which
+a freshly imported account has none. No `Delete`, no `Move`, no `Like`, no
+`Block`.
 
 ---
 

@@ -23,6 +23,7 @@ use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
+use OCA\Social\UserMigration\SocialMigrator;
 use OCA\Social\WellKnown\WebfingerHandler;
 use OCP\Accounts\UserUpdatedEvent;
 use OCP\AppFramework\App;
@@ -61,6 +62,7 @@ class Application extends App implements IBootstrap {
 		$context->registerDashboardWidget(SocialReportsWidget::class);
 		$context->registerDashboardWidget(SocialFederationHealthWidget::class);
 		$context->registerNotifierService(Notifier::class);
+		$context->registerUserMigrator(SocialMigrator::class);
 	}
 
 	#[\Override]
