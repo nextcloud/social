@@ -5,9 +5,11 @@ whether Mastodon's clients work against it, whether other fediverse servers can
 tell the difference, and whether an existing Mastodon instance could move onto
 it. Written for whoever has to decide what to build next.
 
-**Verified against:** app version 0.16.2, `master`, 2026-09-12 — after the
-federation wave of #2110 and the compatibility wave of #2126, and re-checked
-line by line for §9. Every claim was checked by reading the file it names.
+**Verified against:** app version 0.17.1, `master` plus PR #2136, 2026-09-12 —
+after the federation wave of #2110, the compatibility wave of #2126, the client
+and peer gaps of #2134 and #2135, and the moderation tier of #2136. Re-checked
+route by route against `appinfo/routes.php` and the handlers behind it. Every
+claim was checked by reading the file it names.
 
 **What #2126 changed**, since a reader who knew this document before will look
 for it: the `source` leak is closed, suspension federates a `Delete`,
@@ -29,8 +31,16 @@ of work.
 
 ## 1. The answer in one paragraph
 
-Social 0.16.0 is a capable, standards-correct ActivityPub server with a broad and
-largely genuine Mastodon client API. It is **not** a drop-in replacement for
+Social 0.17.1 is a capable, standards-correct ActivityPub server with a broad and
+largely genuine Mastodon client API — broader than it was. Walking Mastodon's
+109 documented client routes against `appinfo/routes.php`, ten are not answered:
+`push/subscription` and `streaming` (the two known weeks-long items),
+`statuses/{id}/mute` and `/unmute` (routed, and refused by name in
+`ActionService` rather than silently ignored), `statuses/{id}/card` (the card
+itself is inlined in the status entity, which is what clients read),
+`instance/rules`, `instance/domain_blocks` and `instance/extended_description`,
+`timelines/link`, and `emails/confirmations`, which belongs to a sign-up this
+app does not own. It is **not** a drop-in replacement for
 Mastodon, and three things stand between it and that goal. Two are small and
 mechanical, and both are still open: the API is not served at the domain root,
 and an OAuth app row holds exactly one token. The third is architectural: **an actor's identity is recomputed
@@ -120,8 +130,26 @@ and a real admin API.
 - **Streaming** — absent, and deliberately so. `InstanceService` returns an empty
   `urls` object so clients fall back to polling immediately rather than after a
   timeout.
-- `/api/v1/preferences`, `familiar_followers`, `instance/peers`,
-  `instance/activity`, and the v1 filter routes.
+- **Conversation mute** — `/api/v1/statuses/{id}/mute` and `/unmute`. The path
+  is routed (the catch-all action route) and `ActionService::action()` refuses
+  both by name, with a comment saying why: a silent no-op would have the client
+  display a state nothing stored.
+- **`/api/v1/timelines/link`** — the posts behind a trending link. The links
+  themselves are served at `/api/v1/trends/links`.
+- **`/api/v1/statuses/{id}/card`** — a 405, because the path matches the
+  POST-only action route. The card is inlined in the status entity, which is
+  what clients read, so this is the least of them.
+- **`/api/v1/instance/rules`, `/domain_blocks`, `/extended_description`** — the
+  rules are already served *inside* the instance entity, out of the `rules` app
+  value; the standalone routes are not registered. `domain_blocks` would
+  publish what `social:fediverse` holds, which is a disclosure decision rather
+  than a lookup.
+- **`/api/v1/emails/confirmations`** — part of a sign-up this app does not own.
+
+`/api/v1/preferences`, `familiar_followers`, `instance/peers`,
+`instance/activity` and the v1 filter routes were on this list and are here now
+(#2134); `/api/v1/custom_emojis` answers with the instance's own emoji rather
+than `[]` (#2136).
 
 Three that were on this list are here now (#2126): `/api/v1/accounts/search`,
 which is what a composer calls to complete a `@handle` and which no client
@@ -333,24 +361,32 @@ notices on the first signature check.
 Genuinely absent, in rough order of how much they would be missed:
 
 1. Web Push and streaming — every client polls.
-2. Registration management entirely: sign-up, approval queue, invites, email
+2. Registration management: sign-up, approval queue, invites, email
    confirmation. Accounts are Nextcloud users, so provisioning lives in the
-   server; but an approval queue and invite links have no equivalent anywhere.
-3. Warnings and strikes, and "email this user" — the two softest moderation
-   tools, so the ladder jumps from silence straight to suspend.
-4. An account browser in the admin UI. Only *reported* accounts are actionable
-   from the web (`AdminSettings`); everything else needs the
-   admin API. Post takedown has a route and a controller but no button anywhere.
-5. Custom emoji, and emoji import.
-6. Admin metrics: trends, measures, dimensions, retention.
-7. IP blocks, email-domain blocks, canonical email blocks.
-8. Graded domain blocks — it is block-outright or nothing, with no silence or
-   limit tier and no `reject_media`. A block does now remove what the instance
-   already sent; what is missing is the tiers between block and nothing.
-9. A moderator role distinct from Nextcloud admin.
-10. Full-text search; see [Performance.md](Performance.md).
-11. `tootctl` equivalents for `accounts cull/prune`, `preview_cards remove` and
-    media-only sweeps.
+   server, and an approval queue and invite links have no equivalent anywhere.
+   This one is not going to be built here; what changed is that
+   `POST /api/v1/accounts` now answers **403** with the server's registration
+   address instead of a 404 (#2136).
+3. Conversation mute — `ActionService` refuses `mute` and `unmute` on a status
+   by name. A thread cannot be silenced.
+4. Four of Mastodon's notification types: `poll` (a poll you voted in closed),
+   `status` (an account you asked about posted — with the `notify` flag on
+   follow that would write the subscription), `moderation_warning` (the warning
+   reaches a local account through Nextcloud's bell, which a Mastodon client
+   cannot see) and `severed_relationships`.
+5. Full-text search; see [Performance.md](Performance.md).
+6. `tootctl` equivalents for `accounts cull/prune`, `preview_cards remove` and
+   media-only sweeps.
+7. `instance/rules`, `instance/domain_blocks` and `instance/extended_description`
+   as standalone routes — the rules are served *inside* the instance entity and
+   the block list is a deliberate disclosure decision rather than a lookup.
+
+**No longer on this list**, and each verified in the code rather than assumed:
+warnings and strikes, an account browser and a post-takedown button, custom
+emoji, admin metrics, IP and email-domain blocks, the silence tier of a domain
+block, and a moderator role distinct from Nextcloud admin — all #2136. Only
+`reject_media` is missing from the graded-block item, and canonical email blocks
+from the block item; both are noted in the roadmap with why.
 
 The moderation gap that was a correctness bug rather than a missing feature —
 **suspending a local account purged its posts here and federated nothing**, so
@@ -393,32 +429,47 @@ actor, and a suspension of a local account federates its `Delete` (#2126).
 Notifications, called the largest functional gap in that review, now reach the
 Nextcloud bell.
 
+Since that paragraph was written, three more waves landed. **#2134** filled the
+small client gaps — the v1 filter routes, `instance/peers` and `instance/activity`,
+`preferences`, `familiar_followers`. **#2135** fixed what a peer would notice —
+`Add` and `Remove` federate a pin, `mediaType` is a real media type, the
+WebFinger profile link points at a Social profile. **#2136** is the admin and
+moderation tier almost entire: instance silencing, a moderator role that is
+Nextcloud's own settings delegation, an account browser and a takedown button,
+warnings and strikes, IP and email-domain blocks, admin metrics, the instance's
+own custom emoji, announcement reactions, and authorized fetch with secure mode.
+
+What that leaves is §9 and, ahead of all of it, the two tier-1 blockers — which
+have not moved.
+
 And of this document's own list, five items are done: the `source` leak, the
 suspension, the three dropped profile fields, the version string, and the three
-missing endpoints — all in #2126, all of them hours or days of work. What is
-left is what it was always going to be: the root path, per-user tokens, push,
-authorized fetch, and the takeover.
+missing endpoints — all in #2126, all of them hours or days of work. Authorized
+fetch has since joined them (#2136). What is left of that list is what it was
+always going to be: the root path, per-user tokens, push, and the takeover.
 
 ---
 
 ## 9. What is still to do
 
-The full list — thirty items in five tiers, each with a size and what it fixes
-— is [Mastodon-Roadmap.md](Mastodon-Roadmap.md). Its shape, because the shape
-is the answer to "how far is this from Mastodon":
+The full list — now thirty-eight items in six tiers, each with a size, what it
+fixes and whether it is done — is [Mastodon-Roadmap.md](Mastodon-Roadmap.md).
+Its shape, because the shape is the answer to "how far is this from Mastodon":
 
-| Tier | What it is | Why it sits there |
+| Tier | What it is | State |
 |---|---|---|
-| 1 | The API at the domain root; per-user OAuth tokens | Two blockers, days each. Until both land no stock client can reach *any* of the surface below, so nothing else is visible to a user |
-| 2 | Web Push, preferences, custom emoji, familiar followers, peers, activity, the v1 filter routes, streaming | What a client shows and cannot get |
-| 3 | Authorized fetch inbound, `Add`/`Remove` for pins, `mediaType`, the WebFinger profile link, emoji reactions | What a peer would notice |
-| 4 | Registration and invites, warnings and strikes, an account browser, graded domain blocks, IP and email blocks, a moderator role, metrics, the remaining tootctl equivalents | The admin and moderation surface |
-| 5 | Stored identity, the Mastodon URL space, key import, the id rename, the importers, reconciliation, the runbook | The takeover, which is a project of its own and depends on the first row of it |
+| 1 | The API at the domain root; per-user OAuth tokens | **Both open.** Two blockers, days each. Until both land no stock client can reach *any* of the surface below, so nothing else is visible to a user |
+| 2 | Web Push, preferences, custom emoji, familiar followers, peers, activity, the v1 filter routes, streaming | Five of eight done. **Web Push and streaming are open**, and both are weeks; the Twitter `saved_searches` route is a decision rather than a task |
+| 2b | Conversation mute, four notification types, three `instance` sub-routes, the link timeline, the standalone card | **All open.** What walking the route list turned up that nobody had written down — none of it large, and together most of what a client still finds absent |
+| 3 | Authorized fetch inbound, `Add`/`Remove` for pins, `mediaType`, the WebFinger profile link, emoji reactions | **Done**, across #2135 and #2136 |
+| 4 | Registration, warnings and strikes, an account browser, graded domain blocks, IP and email blocks, a moderator role, metrics, the remaining tootctl equivalents | **Done except registration**, which belongs to the server, and the tootctl sweeps |
+| 5 | Stored identity, the Mastodon URL space, key import, the id rename, the importers, reconciliation, the runbook | **Untouched.** The takeover, a project of its own, and every row of it waits on stored identity |
 
-Tiers 1 and 2 are what "usable as a Mastodon server" means. Tier 5 is what
-"replaces an existing Mastodon instance, on its own domain, without the network
-noticing" means, and should only be started if that is an actual product goal
-rather than an aspiration.
+Tiers 1 and 2 are what "usable as a Mastodon server" means, and tier 1 is the
+whole of what stands between this app and a stock client connecting to it. Tier
+5 is what "replaces an existing Mastodon instance, on its own domain, without
+the network noticing" means, and should only be started if that is an actual
+product goal rather than an aspiration.
 
 ---
 
