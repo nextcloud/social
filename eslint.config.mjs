@@ -39,7 +39,7 @@ const deferredStyleRules = {
 	'vue/multi-word-component-names': 'off',
 	'vue/no-reserved-component-names': 'off',
 	// 22: braces around every single-statement if/else
-	'curly': 'off',
+	curly: 'off',
 	// ~290 across eight rules: whitespace, indentation and line breaks
 	'@stylistic/indent': 'off',
 	'@stylistic/indent-binary-ops': 'off',
@@ -53,6 +53,14 @@ const deferredStyleRules = {
 
 export default [
 	...recommendedJavascript,
+	{
+		// The shared config ignores js/ wholesale, because for most apps it is
+		// webpack output. One file in there is not: social-adminSettings.js is
+		// hand-written, ships to administrators, and is exactly the code that
+		// should be linted. Unignoring a file inside an ignored directory takes
+		// all three patterns.
+		ignores: ['js/**', '!js/', '!js/social-adminSettings.js'],
+	},
 	{
 		languageOptions: {
 			globals: {
@@ -68,7 +76,7 @@ export default [
 			// this app mounts several roots; the rule is a Vue 2 leftover
 			'vue/no-multiple-template-root': 'off',
 			// the two webpack globals above are the only snake_case names allowed
-			'camelcase': ['error', {
+			camelcase: ['error', {
 				properties: 'never',
 				ignoreDestructuring: true,
 				allow: ['__webpack_nonce__', '__webpack_public_path__'],
@@ -81,6 +89,50 @@ export default [
 			// `classes` stays on — a class read before its declaration is a
 			// genuine temporal-dead-zone error.
 			'no-use-before-define': ['error', { functions: false, classes: true, variables: false }],
+		},
+	},
+	{
+		// The build and tooling configuration at the repository root: CommonJS
+		// modules Node runs directly, not browser code webpack bundles.
+		// vitest.config.js and this file are ESM and are covered below.
+		files: ['babel.config.js', 'stylelint.config.js', 'webpack.common.js'],
+		languageOptions: {
+			sourceType: 'commonjs',
+			globals: {
+				module: 'writable',
+				require: 'readonly',
+				process: 'readonly',
+				__dirname: 'readonly',
+			},
+		},
+	},
+	{
+		// the two root files that are ES modules
+		files: ['vitest.config.js', 'eslint.config.mjs'],
+		languageOptions: {
+			sourceType: 'module',
+			globals: { process: 'readonly', __dirname: 'readonly' },
+		},
+	},
+	{
+		// js/social-adminSettings.js is hand-written and deliberately outside
+		// the webpack build (templates/settings/admin.php loads it as-is), so
+		// it is a classic script with the browser and Nextcloud globals rather
+		// than a module. It ships to administrators; it should be linted.
+		files: ['js/social-adminSettings.js'],
+		languageOptions: {
+			sourceType: 'script',
+			globals: {
+				OC: 'readonly',
+				OCA: 'readonly',
+				document: 'readonly',
+				window: 'readonly',
+				fetch: 'readonly',
+				console: 'readonly',
+				alert: 'readonly',
+				confirm: 'readonly',
+				setTimeout: 'readonly',
+			},
 		},
 	},
 	{
