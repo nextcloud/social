@@ -85,11 +85,12 @@
 		"stylelint": "^17.15.0",
 		"stylelint-config-recommended-scss": "^17.0.1",
 		"stylelint-config-recommended-vue": "^1.6.1",
+		"terser-webpack-plugin": "^5.6.1",
 		"ts-loader": "^9.5.7",
 		"twemoji": "12.0.1",
 		"vitest": "^5.0.0",
 		"vue-loader": "^17.4.2",
-		"webpack": "^5.106.2",
+		"webpack": "^5.110.3",
 		"webpack-cli": "^6.0.1",
 		"webpack-dev-server": "^5.2.2"
 	},
