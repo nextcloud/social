@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -18,9 +19,12 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\PinService;
+use OCA\Social\Service\SignatureService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 class PinServiceTest extends TestCase {
 	private const AUTHOR = 'https://cloud.example/@alice';
@@ -28,6 +32,9 @@ class PinServiceTest extends TestCase {
 
 	private StreamRequest|MockObject $streamRequest;
 	private ActionsRequest|MockObject $actionsRequest;
+	private ActivityService|MockObject $activityService;
+	private SignatureService|MockObject $signatureService;
+	private ActorsRequest|MockObject $actorsRequest;
 	private PinService $service;
 	private Person $author;
 
@@ -36,7 +43,17 @@ class PinServiceTest extends TestCase {
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
 		$this->actionsRequest->method('getAction')
 			->willThrowException(new ActionDoesNotExistException());
-		$this->service = new PinService($this->streamRequest, $this->actionsRequest);
+		$this->activityService = $this->createMock(ActivityService::class);
+		$this->signatureService = $this->createMock(SignatureService::class);
+		$this->actorsRequest = $this->createMock(ActorsRequest::class);
+		$this->service = new PinService(
+			$this->streamRequest,
+			$this->actionsRequest,
+			$this->activityService,
+			$this->signatureService,
+			$this->actorsRequest,
+			new NullLogger()
+		);
 
 		$this->author = new Person();
 		$this->author->setId(self::AUTHOR);
@@ -75,6 +92,61 @@ class PinServiceTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A pin is not an activity of its own on the wire: what travels is an `Add`
+	 * whose `target` is the actor's featured collection. Without it a pin was
+	 * visible only to a peer that happened to re-read the collection, which
+	 * nothing prompts it to do — so a pin showed up on other instances late or
+	 * never, and an unpin never at all.
+	 */
+	public function testPinningTellsTheFollowers(): void {
+		$this->streamRequest->method('getStreamByNid')->willReturn($this->ownPost());
+		$this->actionsRequest->method('getAction')->willThrowException(new ActionDoesNotExistException());
+		$this->author->setFeatured(self::AUTHOR . '/collections/featured');
+
+		$sent = null;
+		$this->activityService->expects($this->once())
+			->method('request')
+			->willReturnCallback(function (ACore $activity) use (&$sent): string {
+				$sent = $activity;
+
+				return 'token';
+			});
+
+		$this->service->pin($this->author, 42);
+
+		$this->assertSame('Add', $sent->getType());
+		$this->assertSame(self::POST_ID, $sent->getObjectId());
+		$this->assertSame(self::AUTHOR . '/collections/featured', $sent->getTarget());
+		$this->assertSame(self::AUTHOR, $sent->getActorId());
+	}
+
+	public function testUnpinningTellsThemToo(): void {
+		$this->streamRequest->method('getStreamByNid')->willReturn($this->ownPost());
+		$sent = null;
+		$this->activityService->method('request')
+			->willReturnCallback(function (ACore $activity) use (&$sent): string {
+				$sent = $activity;
+
+				return 'token';
+			});
+
+		$this->service->unpin($this->author, 42);
+
+		$this->assertSame('Remove', $sent->getType());
+	}
+
+	/** The profile here is right either way; a pin is not worth failing on. */
+	public function testAPinStandsEvenIfItCannotBeFederated(): void {
+		$this->streamRequest->method('getStreamByNid')->willReturn($this->ownPost());
+		$this->actionsRequest->method('getAction')->willThrowException(new ActionDoesNotExistException());
+		$this->actionsRequest->expects($this->once())->method('save');
+		$this->activityService->method('request')
+			->willThrowException(new \RuntimeException('the queue is down'));
+
+		$this->assertTrue($this->service->pin($this->author, 42)->isPinned());
+	}
+
 	public function testPinStoresAPinRowForTheOwnPost(): void {
 		$this->streamRequest->method('getStreamByNid')->with(42)->willReturn($this->ownPost());
 		$this->actionsRequest->method('getActionsByActor')->willReturn([]);
@@ -97,7 +169,14 @@ class PinServiceTest extends TestCase {
 		$actionsRequest = $this->createMock(ActionsRequest::class);
 		$actionsRequest->method('getAction')->willReturn($this->pins(self::POST_ID)[0]);
 		$actionsRequest->expects($this->never())->method('save');
-		$service = new PinService($this->streamRequest, $actionsRequest);
+		$service = new PinService(
+			$this->streamRequest,
+			$actionsRequest,
+			$this->activityService,
+			$this->signatureService,
+			$this->actorsRequest,
+			new NullLogger()
+		);
 		$this->streamRequest->method('getStreamByNid')->willReturn($this->ownPost());
 
 		$this->assertTrue($service->pin($this->author, 42)->isPinned());

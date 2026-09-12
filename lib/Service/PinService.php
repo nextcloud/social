@@ -10,14 +10,19 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Add;
+use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\InstancePath;
+use Psr\Log\LoggerInterface;
 
 /**
  * Pinned posts: the handful of own posts an account keeps at the top of its
@@ -38,6 +43,10 @@ class PinService {
 	public function __construct(
 		private StreamRequest $streamRequest,
 		private ActionsRequest $actionsRequest,
+		private ActivityService $activityService,
+		private SignatureService $signatureService,
+		private ActorsRequest $actorsRequest,
+		private LoggerInterface $logger,
 	) {
 	}
 
@@ -72,6 +81,7 @@ class PinService {
 		$pin->setActorId($actor->getId());
 		$pin->setObjectId($post->getId());
 		$this->actionsRequest->save($pin);
+		$this->federate($actor, $post, new Add());
 
 		return $post->setPinned(true);
 	}
@@ -83,8 +93,48 @@ class PinService {
 	public function unpin(Person $actor, int $nid): Stream {
 		$post = $this->ownPost($actor, $nid);
 		$this->actionsRequest->deleteAction($actor->getId(), $post->getId(), self::TYPE);
+		$this->federate($actor, $post, new Remove());
 
 		return $post->setPinned(false);
+	}
+
+	/**
+	 * Tells the followers that a post entered or left the featured collection.
+	 *
+	 * A pin is not an activity of its own on the wire: what travels is an
+	 * `Add` or a `Remove` whose `target` is the actor's `featured` collection
+	 * and whose `object` is the post. Without it a pin was visible only to a
+	 * peer that happened to re-read the collection — which nothing prompts it
+	 * to do — so a pin made here appeared on other instances late or never,
+	 * and an unpin never at all.
+	 *
+	 * The pin itself is already stored. A failure to federate is logged and
+	 * nothing else: the profile here is correct either way, and a pin is not
+	 * worth failing a request over.
+	 */
+	private function federate(Person $actor, Stream $post, ACore $activity): void {
+		$activity->setId($post->getId() . '#' . strtolower($activity->getType()) . '/featured');
+		$activity->setActorId($actor->getId());
+		$activity->setObjectId($post->getId());
+		$activity->setTarget($actor->getFeatured());
+		$activity->setToArray([ACore::CONTEXT_PUBLIC]);
+		$activity->addInstancePath(
+			new InstancePath(
+				$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+			)
+		);
+
+		try {
+			$this->signatureService->signObject(
+				$this->actorsRequest->getFromId($actor->getId()), $activity
+			);
+			$this->activityService->request($activity);
+		} catch (\Exception $e) {
+			$this->logger->warning('could not federate a change to the featured collection', [
+				'actor' => $actor->getId(), 'post' => $post->getId(),
+				'activity' => $activity->getType(), 'exception' => $e,
+			]);
+		}
 	}
 
 	public function isPinned(string $actorId, string $objectId): bool {
