@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\Client\AdminAccount;
+use OCA\Social\Model\Strike;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -122,6 +123,12 @@ class ModerationController extends Controller {
 			$maxId,
 		);
 
+		// one query for the page rather than one an account: the column is a
+		// number, and forty of them are not worth forty round trips
+		$strikes = $this->moderationService->strikeCounts(array_map(
+			static fn (AdminAccount $account): string => $account->getActorId(), $page['accounts']
+		));
+
 		return new DataResponse([
 			'accounts' => array_map(
 				static fn (AdminAccount $account): array => [
@@ -131,6 +138,7 @@ class ModerationController extends Controller {
 					'domain' => $account->getDomain(),
 					'local' => $account->isLocal(),
 					'level' => $account->getLevel(),
+					'strikes' => $strikes[$account->getActorId()] ?? 0,
 				],
 				$page['accounts']
 			),
@@ -159,6 +167,34 @@ class ModerationController extends Controller {
 		}
 
 		return str_contains($query, '.') ? ['', strtolower($query)] : [$query, ''];
+	}
+
+	/**
+	 * What has been decided about one account before now, newest first.
+	 *
+	 * Reached from the strike count in the browser: a number is what a
+	 * moderator scans a page for, and the history is what they need once one
+	 * of them is not zero.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	public function accountHistory(string $actorId): DataResponse {
+		$actorId = trim($actorId);
+		if ($actorId === '') {
+			return new DataResponse(['error' => 'no account given'], Http::STATUS_BAD_REQUEST);
+		}
+
+		return new DataResponse([
+			'strikes' => array_map(
+				static fn (Strike $strike): array => [
+					'action' => $strike->getAction(),
+					'text' => $strike->getText(),
+					'moderator' => $strike->getModerator(),
+					'report_id' => $strike->getReportId(),
+					'creation' => $strike->getCreation(),
+				],
+				$this->moderationService->history($actorId)
+			),
+		]);
 	}
 
 	/** Takes one post down, whoever wrote it. */

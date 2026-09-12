@@ -24,6 +24,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\Moderation;
+use OCA\Social\Model\Strike;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -58,6 +59,7 @@ class ModerationService {
 		private DomainBlocksRequest $domainBlocksRequest,
 		private AccountNotesRequest $accountNotesRequest,
 		private MuteExpiryRequest $muteExpiryRequest,
+		private StrikeService $strikeService,
 	) {
 	}
 
@@ -100,17 +102,27 @@ class ModerationService {
 	/**
 	 * Records a decision and applies it.
 	 *
+	 * Two records, and they are not the same record. `social_moderation` holds
+	 * what stands *now* — one row an account, replaced by the next decision,
+	 * gone when it is lifted. The strike is the history: it is never replaced
+	 * and a lift does not remove it, so the third silence in a month can be
+	 * told from the first.
+	 *
 	 * @param string $actorId the account
 	 * @param string $level one of Moderation::LEVELS
 	 * @param string $comment why, for whoever reads the list later
+	 * @param int $reportId the report this came from, or 0
 	 */
-	public function decide(string $actorId, string $level, string $comment = ''): Moderation {
+	public function decide(
+		string $actorId, string $level, string $comment = '', int $reportId = 0,
+	): Moderation {
 		if (!in_array($level, Moderation::LEVELS, true)) {
 			throw new \InvalidArgumentException('unknown moderation level: ' . $level);
 		}
 
 		$moderation = new Moderation($actorId, $level, $comment, time());
 		$this->moderationRequest->save($moderation);
+		$this->strikeService->record($actorId, $level, $comment, $reportId);
 
 		if ($level === Moderation::SUSPEND) {
 			$this->purgeActor($actorId);
@@ -161,10 +173,53 @@ class ModerationService {
 	/**
 	 * Lifts a decision. What a suspension deleted stays deleted — this only
 	 * stops the instance refusing what the account sends from now on.
+	 *
+	 * The strikes stay too. A lift says the decision no longer stands, not
+	 * that it was never taken, and an account whose history is emptied by
+	 * lifting the last decision against it is an account nobody can tell has
+	 * been here before.
 	 */
 	public function lift(string $actorId): void {
 		$this->moderationRequest->delete($actorId);
 		$this->logger->info('moderation decision lifted', ['actor' => $actorId]);
+	}
+
+	/**
+	 * Says something and applies nothing: Mastodon's `none`.
+	 *
+	 * The step the ladder was missing. Without it the lightest thing a
+	 * moderator could do to an account was take it out of the timelines,
+	 * which is a great deal to reach for over a first offence — so nothing
+	 * was done at all, and the account was never told there was a problem.
+	 *
+	 * @param string $text what the account is shown
+	 * @param int $reportId the report this came from, or 0
+	 */
+	public function warn(string $actorId, string $text = '', int $reportId = 0): Strike {
+		$strike = $this->strikeService->record($actorId, Strike::WARNING, $text, $reportId);
+		$this->logger->info('account warned', ['actor' => $actorId]);
+
+		return $strike;
+	}
+
+	/**
+	 * What has been decided about an account before now, newest first.
+	 *
+	 * @return Strike[]
+	 */
+	public function history(string $actorId): array {
+		return $this->strikeService->history($actorId);
+	}
+
+	/**
+	 * How many strikes each of these accounts has, in one query.
+	 *
+	 * @param string[] $actorIds
+	 *
+	 * @return array<string, int> actor id => how many, missing when none
+	 */
+	public function strikeCounts(array $actorIds): array {
+		return $this->strikeService->countFor($actorIds);
 	}
 
 	/**

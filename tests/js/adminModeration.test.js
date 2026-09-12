@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { PAGE, mount, render, search, stateOf } from '../../src/adminModeration.js'
+import { PAGE, mount, render, search, stateOf, strikeLine } from '../../src/adminModeration.js'
 
 const SECTION = `
 	<table class="social-reports"><tbody>
@@ -34,6 +34,7 @@ const account = (overrides = {}) => ({
 	domain: 'remote.example',
 	local: false,
 	level: '',
+	strikes: 0,
 	...overrides,
 })
 
@@ -310,5 +311,84 @@ describe('rendering', () => {
 		render([])
 
 		expect(rows()).toHaveLength(0)
+	})
+})
+
+describe('the history behind a strike count', () => {
+	beforeEach(async () => {
+		document.body.innerHTML = SECTION
+		OC.Notification.showTemporary = vi.fn()
+		vi.restoreAllMocks()
+		answering({ accounts: [account({ strikes: 2 })], cursors: [9] })
+		mount()
+		await vi.waitFor(() => expect(rows()).toHaveLength(1))
+	})
+
+	it('shows the count as something to open', () => {
+		expect(rows()[0].querySelector('.social-account-history').textContent).toBe('2 strikes')
+	})
+
+	/**
+	 * `social_moderation` holds what stands now and is deleted by a lift, so
+	 * the third silence in a month looked exactly like the first.
+	 */
+	it('opens what was decided before now', async () => {
+		const fetch = answering({
+			strikes: [
+				{ action: 'silence', text: 'spam', moderator: 'mod', report_id: 4, creation: 1757548800 },
+				{ action: 'none', text: '', moderator: '', report_id: 0, creation: 1757462400 },
+			],
+		})
+
+		rows()[0].querySelector('.social-account-history').click()
+		await vi.waitFor(() =>
+			expect(document.querySelectorAll('.social-account-history-row li')).toHaveLength(2),
+		)
+
+		expect(fetch.mock.calls[0][0])
+			.toContain('actorId=https%3A%2F%2Fremote.example%2Fusers%2Fbob')
+	})
+
+	it('closes it again', async () => {
+		answering({ strikes: [{ action: 'none', text: '', moderator: '', report_id: 0, creation: 1 }] })
+
+		rows()[0].querySelector('.social-account-history').click()
+		await vi.waitFor(() =>
+			expect(document.querySelector('.social-account-history-row')).not.toBeNull(),
+		)
+
+		rows()[0].querySelector('.social-account-history').click()
+		expect(document.querySelector('.social-account-history-row')).toBeNull()
+	})
+
+	it('says so when the history cannot be read', async () => {
+		answering({ error: 'nope' }, false)
+
+		rows()[0].querySelector('.social-account-history').click()
+		await vi.waitFor(() =>
+			expect(OC.Notification.showTemporary).toHaveBeenCalledWith('Could not read the history'),
+		)
+	})
+
+	it('offers nothing to open for an account with no history', async () => {
+		answering({ accounts: [account()], cursors: [9] })
+		await search()
+
+		expect(rows()[0].querySelector('.social-account-history')).toBeNull()
+		expect(rows()[0].querySelectorAll('td')[3].textContent).toBe('None')
+	})
+})
+
+describe('one line of a history', () => {
+	it('says when, what, who and why', () => {
+		expect(strikeLine({
+			action: 'silence', text: 'spam', moderator: 'mod', report_id: 4, creation: 1757548800,
+		})).toBe('2025-09-11 — Silenced — mod: spam')
+	})
+
+	/** A decision taken by a command or a job was taken by nobody. */
+	it('names the server when no moderator took it', () => {
+		expect(strikeLine({ action: 'none', text: '', moderator: '', report_id: 0, creation: 1757548800 }))
+			.toBe('2025-09-11 — Warning — the server')
 	})
 })

@@ -14,6 +14,7 @@ use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Report;
+use OCA\Social\Model\Strike;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -38,6 +39,10 @@ class ModerationControllerTest extends TestCase {
 	private array $accountQuery = [];
 	/** @var AdminAccount[] what the account page answers */
 	private array $accounts = [];
+	/** @var array<string, int> how many strikes each account has */
+	private array $strikeCounts = [];
+	/** @var string[] the accounts the counts were asked for */
+	private array $countedFor = [];
 
 	protected function setUp(): void {
 		$this->reportService = $this->createMock(ReportService::class);
@@ -64,6 +69,14 @@ class ModerationControllerTest extends TestCase {
 				);
 
 				return ['accounts' => $this->accounts, 'cursors' => [9, 7]];
+			}
+		);
+
+		$this->moderationService->method('strikeCounts')->willReturnCallback(
+			function (array $actorIds): array {
+				$this->countedFor = $actorIds;
+
+				return $this->strikeCounts;
 			}
 		);
 	}
@@ -239,6 +252,7 @@ class ModerationControllerTest extends TestCase {
 			'domain' => 'remote.example',
 			'local' => false,
 			'level' => 'silence',
+			'strikes' => 0,
 		]], $data['accounts']);
 		$this->assertSame([9, 7], $data['cursors'], 'the cursors page the browser');
 	}
@@ -307,5 +321,59 @@ class ModerationControllerTest extends TestCase {
 		$this->assertSame('', $account['handle']);
 		$this->assertSame('carol', $account['username']);
 		$this->assertSame('https://gone.example/users/carol', $account['actor_id']);
+	}
+
+	/**
+	 * A page of forty accounts asked for forty-one queries when the count was
+	 * read a row at a time, and the column is only a number.
+	 */
+	public function testTheStrikeCountsForAPageAreAskedForOnce(): void {
+		$this->accounts = [
+			AdminAccount::fromPerson(
+				$this->remotePerson('https://remote.example/users/bob', 'bob@remote.example')
+			),
+			AdminAccount::fromPerson(
+				$this->remotePerson('https://remote.example/users/carol', 'carol@remote.example')
+			),
+		];
+		$this->strikeCounts = ['https://remote.example/users/bob' => 3];
+
+		$accounts = $this->controller->accounts()->getData()['accounts'];
+
+		$this->assertSame([
+			'https://remote.example/users/bob', 'https://remote.example/users/carol',
+		], $this->countedFor);
+		$this->assertSame(3, $accounts[0]['strikes']);
+		$this->assertSame(0, $accounts[1]['strikes'], 'an account with no history has none');
+	}
+
+	/**
+	 * `social_moderation` holds what stands now and is deleted by a lift, so
+	 * without this the third silence in a month looked exactly like the first.
+	 */
+	public function testTheHistoryIsWhatWasDecidedBeforeNow(): void {
+		$this->moderationService->expects($this->once())
+			->method('history')->with('https://remote.example/users/bob')
+			->willReturn([
+				new Strike('https://remote.example/users/bob', 'silence', 'spam', 'mod', 4, 1757548800),
+			]);
+
+		$data = $this->controller->accountHistory('https://remote.example/users/bob')->getData();
+
+		$this->assertSame([[
+			'action' => 'silence',
+			'text' => 'spam',
+			'moderator' => 'mod',
+			'report_id' => 4,
+			'creation' => 1757548800,
+		]], $data['strikes']);
+	}
+
+	public function testAHistoryOfNobodyIsRefused(): void {
+		$this->moderationService->expects($this->never())->method('history');
+
+		$response = $this->controller->accountHistory('  ');
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 	}
 }

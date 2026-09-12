@@ -479,13 +479,36 @@ class AdminApiServiceTest extends TestCase {
 		$this->assertTrue($this->service()->act($account, 'suspend', 'spamming')->isSuspended());
 	}
 
-	public function testNoneLiftsWhateverStands(): void {
+	/**
+	 * Mastodon's own meaning, which used to be unavailable here: a warning is
+	 * a strike in a history this app did not keep, so `none` lifted instead.
+	 */
+	public function testNoneWarnsAndAppliesNothing(): void {
+		$account = AdminAccount::fromPerson($this->known(self::REMOTE));
+
+		$this->moderationService->expects($this->once())
+			->method('warn')->with(self::REMOTE, 'stop that', 4);
+		$this->moderationService->expects($this->never())->method('decide');
+		$this->moderationService->expects($this->never())->method('lift');
+
+		$this->service()->act($account, 'none', 'stop that', 4);
+	}
+
+	/** Lifting is what the unsilence and unsuspend routes are for. */
+	public function testAWarningLeavesWhateverStandsStanding(): void {
 		$account = AdminAccount::fromPerson($this->known(self::REMOTE), Moderation::SILENCE);
 
-		$this->moderationService->expects($this->once())->method('lift')->with(self::REMOTE);
-		$this->moderationService->expects($this->never())->method('decide');
+		$this->assertTrue($this->service()->act($account, 'none')->isSilenced());
+	}
 
-		$this->assertFalse($this->service()->act($account, 'none')->isSilenced());
+	/** The report a decision came from is recorded with it. */
+	public function testADecisionCarriesTheReportItCameFrom(): void {
+		$account = AdminAccount::fromPerson($this->known(self::REMOTE));
+
+		$this->moderationService->expects($this->once())
+			->method('decide')->with(self::REMOTE, Moderation::SILENCE, 'spam', 4);
+
+		$this->service()->act($account, 'silence', 'spam', 4);
 	}
 
 	public function testAnActionThisAppHasNoStateForIsRefused(): void {

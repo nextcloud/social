@@ -270,28 +270,34 @@ class AdminApiService {
 	 * suspension that purges the account's posts and relationships here is the
 	 * same one the admin panel applies, because it is the same call.
 	 *
-	 * `none` lifts whatever stands against the account. Mastodon reads `none`
-	 * as "record a warning and take no action", but a warning is a strike
-	 * against an account in a history this app does not keep, so the only
-	 * thing `none` can honestly mean here is the decision the panel's own
-	 * "lift" button takes. `$text` is kept as the comment on a decision that
-	 * stands; there is nowhere to keep one on a decision that is lifted.
+	 * `none` is Mastodon's own: record a warning and take no action. It used
+	 * to lift whatever stood instead, because a warning is a strike in a
+	 * history this app did not keep — now that it does, `none` means what a
+	 * client sending it means, the account is told, and lifting is what the
+	 * `unsilence` and `unsuspend` routes are for. Whatever stands is left
+	 * standing, as it is on Mastodon.
+	 *
+	 * `$text` is what the moderator wrote: the comment on a decision that
+	 * stands, and the whole of a warning.
 	 *
 	 * @param string $type one of ACTION_NONE, ACTION_SILENCE, ACTION_SUSPEND
+	 * @param int $reportId the report this came from, or 0
 	 *
 	 * @throws \InvalidArgumentException `sensitive` and `disable`, which this
 	 *                                   app has no state for, and anything
 	 *                                   that is not an action at all
 	 */
-	public function act(AdminAccount $account, string $type, string $text = ''): AdminAccount {
+	public function act(
+		AdminAccount $account, string $type, string $text = '', int $reportId = 0,
+	): AdminAccount {
 		switch ($type) {
 			case self::ACTION_NONE:
-				$this->moderationService->lift($account->getActorId());
+				$this->moderationService->warn($account->getActorId(), $text, $reportId);
 
-				return $account->setLevel('');
+				return $account;
 			case self::ACTION_SILENCE:
 			case self::ACTION_SUSPEND:
-				$this->moderationService->decide($account->getActorId(), $type, $text);
+				$this->moderationService->decide($account->getActorId(), $type, $text, $reportId);
 
 				return $account->setLevel($type);
 			case 'sensitive':

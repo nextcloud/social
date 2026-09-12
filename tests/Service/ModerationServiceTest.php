@@ -26,9 +26,11 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Moderation;
+use OCA\Social\Model\Strike;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\StrikeService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -58,6 +60,10 @@ class ModerationServiceTest extends TestCase {
 	private DomainBlocksRequest|MockObject $domainBlocksRequest;
 	private AccountNotesRequest|MockObject $accountNotesRequest;
 	private MuteExpiryRequest|MockObject $muteExpiryRequest;
+	private StrikeService|MockObject $strikeService;
+
+	/** @var array<int, array<string, mixed>> the strikes that were recorded */
+	private array $strikes = [];
 	private ModerationService $service;
 
 	protected function setUp(): void {
@@ -75,6 +81,15 @@ class ModerationServiceTest extends TestCase {
 
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
+		$this->strikeService = $this->createMock(StrikeService::class);
+		$this->strikeService->method('record')->willReturnCallback(
+			function (string $actorId, string $action, string $text = '', int $reportId = 0): Strike {
+				$this->strikes[] = compact('actorId', 'action', 'text', 'reportId');
+
+				return new Strike($actorId, $action, $text, '', $reportId, 1757548800);
+			}
+		);
+
 		$this->service = new ModerationService(
 			$this->moderationRequest,
 			$this->streamRequest,
@@ -89,7 +104,8 @@ class ModerationServiceTest extends TestCase {
 			new NullLogger(),
 			$this->domainBlocksRequest,
 			$this->accountNotesRequest,
-			$this->muteExpiryRequest
+			$this->muteExpiryRequest,
+			$this->strikeService
 		);
 	}
 
@@ -187,7 +203,8 @@ class ModerationServiceTest extends TestCase {
 			$logger,
 			$this->domainBlocksRequest,
 			$this->accountNotesRequest,
-			$this->muteExpiryRequest
+			$this->muteExpiryRequest,
+			$this->strikeService
 		);
 
 		$this->actorsRequest->method('getFromId')
@@ -303,7 +320,8 @@ class ModerationServiceTest extends TestCase {
 			$this->followsRequest, $this->actorRelationRequest, $this->streamDestRequest,
 			$this->requestQueueRequest, $this->createMock(StreamService::class),
 			$this->actorsRequest, $this->accountService, $logger,
-			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest
+			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest,
+			$this->strikeService
 		);
 
 		$service->decide(self::SPAMMER, Moderation::SILENCE);

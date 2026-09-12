@@ -177,7 +177,7 @@ class AdminApiController extends Controller {
 			$this->initAdmin(['admin:write']);
 
 			$account = $this->adminApiService->account($id);
-			$this->adminApiService->act($account, $type, $text);
+			$this->adminApiService->act($account, $type, $text, $report_id);
 
 			if ($report_id > 0) {
 				$this->adminApiService->resolveReport($report_id, $this->userId);

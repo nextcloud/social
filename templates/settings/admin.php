@@ -145,6 +145,7 @@ $moderation = $_['moderation'];
 				<th><?php p($l->t('Account')); ?></th>
 				<th><?php p($l->t('Instance')); ?></th>
 				<th><?php p($l->t('State')); ?></th>
+				<th><?php p($l->t('History')); ?></th>
 				<th><?php p($l->t('Decision')); ?></th>
 			</tr>
 		</thead>

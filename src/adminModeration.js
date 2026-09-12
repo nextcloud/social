@@ -103,6 +103,88 @@ function decisionButton(level, label, current) {
 }
 
 /**
+ * The strike count, as a button when there is a history to open.
+ *
+ * A number is what a moderator scans a page for; the history is what they
+ * need once one of the numbers is not zero.
+ *
+ * @param {number} strikes how many
+ * @return {HTMLTableCellElement} the cell
+ */
+function strikeCell(strikes) {
+	const cell = document.createElement('td')
+	cell.className = 'social-account-strikes'
+	if (strikes === 0) {
+		cell.textContent = t('social', 'None')
+
+		return cell
+	}
+
+	const button = document.createElement('button')
+	button.type = 'button'
+	button.className = 'social-account-history'
+	button.textContent = n('social', '%n strike', '%n strikes', strikes)
+	cell.appendChild(button)
+
+	return cell
+}
+
+/**
+ * What one strike says, in one line.
+ *
+ * @param {object} strike as the route sends it
+ * @return {string} the line
+ */
+export function strikeLine(strike) {
+	const when = new Date(strike.creation * 1000).toISOString().slice(0, 10)
+	const what = strike.action === 'none' ? t('social', 'Warning') : stateOf(strike.action)
+	const who = strike.moderator || t('social', 'the server')
+
+	return when + ' — ' + what + ' — ' + who + (strike.text ? ': ' + strike.text : '')
+}
+
+/**
+ * Opens one account's history under its row, and closes it again.
+ *
+ * @param {Event} event the click
+ */
+export async function history(event) {
+	const button = event.target.closest('.social-account-history')
+	if (button === null) {
+		return
+	}
+
+	const row = button.closest('tr')
+	const open = row.nextElementSibling
+	if (open !== null && open.classList.contains('social-account-history-row')) {
+		open.remove()
+
+		return
+	}
+
+	try {
+		const data = await call(
+			'GET', '/accounts/history?actorId=' + encodeURIComponent(row.dataset.actorId),
+		)
+		const detail = document.createElement('tr')
+		detail.className = 'social-account-history-row'
+		const cell = document.createElement('td')
+		cell.colSpan = 5
+		const list = document.createElement('ul')
+		;(data.strikes || []).forEach((strike) => {
+			const item = document.createElement('li')
+			item.textContent = strikeLine(strike)
+			list.appendChild(item)
+		})
+		cell.appendChild(list)
+		detail.appendChild(cell)
+		row.after(detail)
+	} catch {
+		OC.Notification.showTemporary(t('social', 'Could not read the history'))
+	}
+}
+
+/**
  * Draws the accounts, appending when asked so "show more" does not redraw the
  * page under a moderator's cursor.
  *
@@ -136,6 +218,8 @@ export function render(accounts, append = false) {
 		level.className = 'social-account-state'
 		level.textContent = stateOf(account.level)
 		row.appendChild(level)
+
+		row.appendChild(strikeCell(account.strikes || 0))
 
 		const actions = document.createElement('td')
 		actions.appendChild(decisionButton('silence', t('social', 'Silence'), account.level))
@@ -267,6 +351,7 @@ export function mount() {
 	})
 	document.getElementById('social-accounts-more').addEventListener('click', () => search(true))
 	document.getElementById('social-accounts-list').addEventListener('click', moderate)
+	document.getElementById('social-accounts-list').addEventListener('click', history)
 	search(false)
 
 	return true
