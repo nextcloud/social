@@ -29,7 +29,7 @@ const STEPS = [
 const locale = () => {
 	try {
 		return getCanonicalLocale()
-	} catch (error) {
+	} catch {
 		return undefined
 	}
 }

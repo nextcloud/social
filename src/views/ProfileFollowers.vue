@@ -8,7 +8,7 @@
 		<div ref="sentinel" class="list-sentinel" />
 		<div v-if="loading" class="loading-indicator">
 			<NcLoadingIcon :size="24" />
-			<span>{{ t('social', 'Loading …') }}</span>
+			<span>{{ t('social', 'Loading …') }}</span>
 		</div>
 		<!-- a finished list with nobody in it used to be a blank panel -->
 		<NcEmptyContent v-else-if="users.length === 0"

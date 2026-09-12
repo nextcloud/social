@@ -53,7 +53,7 @@ export function saveDraft({ text, spoilerText = '', visibility = '' }) {
 			savedAt: Date.now(),
 		}))
 		return true
-	} catch (error) {
+	} catch {
 		// a private window, or storage that is full: losing the draft is bad,
 		// but not being able to write a post at all would be worse
 		return false
@@ -67,7 +67,7 @@ export function loadDraft() {
 	let raw
 	try {
 		raw = window.localStorage.getItem(KEY)
-	} catch (error) {
+	} catch {
 		return null
 	}
 
@@ -78,7 +78,7 @@ export function loadDraft() {
 	let draft
 	try {
 		draft = JSON.parse(raw)
-	} catch (error) {
+	} catch {
 		clearDraft()
 		return null
 	}
@@ -110,7 +110,7 @@ export function clearDraft() {
 	try {
 		window.localStorage.removeItem(KEY)
 		return true
-	} catch (error) {
+	} catch {
 		return false
 	}
 }

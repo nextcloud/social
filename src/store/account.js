@@ -203,12 +203,12 @@ const getters = {
 	getAllAccounts(state) {
 		return () => { return state.accounts }
 	},
-	getAccount(state, getters) {
+	getAccount(state) {
 		return (account) => {
 			return state.accounts[_getActorIdForAccount(account)]
 		}
 	},
-	getRelationshipWith(state, getters) {
+	getRelationshipWith(state) {
 		return (accountId) => {
 			return state.accountsRelationships[accountId]
 		}

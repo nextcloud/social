@@ -315,7 +315,7 @@ function matchMention(tags = [], mentionHref, mentionText) {
 function hostOf(url) {
 	try {
 		return new URL(url).host
-	} catch (e) {
+	} catch {
 		return null
 	}
 }
