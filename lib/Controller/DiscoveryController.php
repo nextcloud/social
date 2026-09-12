@@ -213,6 +213,40 @@ class DiscoveryController extends Controller {
 		}
 	}
 
+	/**
+	 * The pictures being looked at right now: `/api/v2/discover/posts`.
+	 *
+	 * Pixelfed's route, and the one its clients ask for the discover screen. It
+	 * is the trending statuses narrowed to the ones with a picture, because a
+	 * discover screen is a grid of squares and a text post is a poor thing to
+	 * put in one -- not a different ranking, so a post cannot trend here and not
+	 * there.
+	 *
+	 * Public statuses only, as the trends are: this is a shop window, and the
+	 * one rule a discovery surface must not break is showing somebody something
+	 * they would not have been shown anywhere else.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/discover/posts')]
+	public function discoverPosts(
+		int $limit = TrendService::LIMIT,
+		int $offset = 0,
+		string $period = HashtagService::PERIOD_DEFAULT,
+	): DataResponse {
+		try {
+			$this->initViewer(['read'], false);
+
+			$statuses = $this->trendService->trendingStatuses($period, $limit, $offset, true);
+			$this->linkPreviewService->attachCards($statuses);
+			$this->placeService->attachPlaces($statuses);
+
+			return new DataResponse($statuses, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
 	/** The links most often attached to a public status in the window. */
 	/**
 	 * The public posts carrying one link, newest first.

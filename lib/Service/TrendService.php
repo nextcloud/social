@@ -53,9 +53,9 @@ class TrendService {
 	 *
 	 * @return Stream[]
 	 */
-	public function trendingStatuses(string $period, int $limit, int $offset): array {
+	public function trendingStatuses(string $period, int $limit, int $offset, bool $onlyMedia = false): array {
 		$nids = $this->trendsRequest->trendingStatusNids(
-			$this->since($period), $this->limit($limit), max(0, $offset)
+			$this->since($period), $this->limit($limit), max(0, $offset), $onlyMedia
 		);
 
 		return $this->trendsRequest->statusesByNids($nids);
