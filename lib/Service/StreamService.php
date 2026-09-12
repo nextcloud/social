@@ -20,6 +20,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
@@ -500,13 +501,68 @@ class StreamService {
 	 * @return Note[]
 	 */
 	public function getTimeline(ProbeOptions $options): array {
-		$posts = $this->streamRequest->getTimeline($options);
+		$posts = $this->withoutRepeatsOfPostsAlreadyInThePage(
+			$this->streamRequest->getTimeline($options), $options
+		);
 		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
 			// one query for the whole page, and only for pages a client reads
 			$this->linkPreviewService->attachCards($posts);
 		}
 
 		return $posts;
+	}
+
+	/**
+	 * A page shows a post once.
+	 *
+	 * A boost is a row of its own that points at the post it repeats, so
+	 * following both an author and somebody who boosts them put the same post
+	 * in the timeline twice: once on its own and once again under "X boosted",
+	 * with the same text, the same picture and the same actions. The boost is
+	 * the one that goes, because the post is already there in the place its own
+	 * time gives it — which is what Mastodon does with a reblog of something
+	 * already in the feed. Two boosts of the same post by different people
+	 * collapse to the first as well.
+	 *
+	 * Notifications are left alone: a favourite and a boost of the same post
+	 * are two different things that happened to you, and a page of them is not
+	 * a page of posts.
+	 *
+	 * @param Stream[] $posts
+	 *
+	 * @return Stream[]
+	 */
+	private function withoutRepeatsOfPostsAlreadyInThePage(array $posts, ProbeOptions $options): array {
+		if ($options->getProbe() === ProbeOptions::NOTIFICATIONS || count($posts) < 2) {
+			return $posts;
+		}
+
+		$originals = [];
+		foreach ($posts as $post) {
+			if ($post->getType() !== Announce::TYPE && $post->getId() !== '') {
+				$originals[$post->getId()] = true;
+			}
+		}
+
+		$page = [];
+		$repeated = [];
+		foreach ($posts as $post) {
+			if ($post->getType() !== Announce::TYPE) {
+				$page[] = $post;
+				continue;
+			}
+
+			$of = $post->getObjectId();
+			if ($of !== '' && (isset($originals[$of]) || isset($repeated[$of]))) {
+				continue;
+			}
+			if ($of !== '') {
+				$repeated[$of] = true;
+			}
+			$page[] = $post;
+		}
+
+		return $page;
 	}
 
 	/**

@@ -730,6 +730,57 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame([$note], $this->service->getTimeline($options));
 	}
 
+	private function boostOf(string $id, string $of): Announce {
+		$boost = new Announce();
+		$boost->setId($id);
+		$boost->setObjectId($of);
+
+		return $boost;
+	}
+
+	/**
+	 * Following both an author and somebody who boosts them used to put the
+	 * same post in the timeline twice: once on its own and once again under
+	 * "X boosted", with the same text, the same picture and the same actions.
+	 */
+	public function testABoostOfAPostAlreadyInThePageIsDropped(): void {
+		$note = $this->note('https://social.example/@alice/1');
+		$boost = $this->boostOf('https://social.example/@bob/boost/1', $note->getId());
+		$this->streamRequest->method('getTimeline')->willReturn([$boost, $note]);
+
+		$this->assertSame([$note], $this->service->getTimeline(new ProbeOptions()));
+	}
+
+	public function testTwoBoostsOfTheSamePostCollapseToTheFirst(): void {
+		$first = $this->boostOf('https://social.example/@bob/boost/1', 'https://remote.example/notes/9');
+		$second = $this->boostOf('https://social.example/@carol/boost/1', 'https://remote.example/notes/9');
+		$this->streamRequest->method('getTimeline')->willReturn([$first, $second]);
+
+		$this->assertSame([$first], $this->service->getTimeline(new ProbeOptions()));
+	}
+
+	public function testABoostOfAPostThatIsNotInThePageIsKept(): void {
+		$note = $this->note('https://social.example/@alice/1');
+		$boost = $this->boostOf('https://social.example/@bob/boost/1', 'https://remote.example/notes/9');
+		$this->streamRequest->method('getTimeline')->willReturn([$boost, $note]);
+
+		$this->assertSame([$boost, $note], $this->service->getTimeline(new ProbeOptions()));
+	}
+
+	/**
+	 * A favourite and a boost of the same post are two different things that
+	 * happened to you, so a page of notifications is left alone.
+	 */
+	public function testNotificationsAreNotDeduplicated(): void {
+		$first = $this->boostOf('https://social.example/notif/1', 'https://social.example/@alice/1');
+		$second = $this->boostOf('https://social.example/notif/2', 'https://social.example/@alice/1');
+		$options = new ProbeOptions();
+		$options->setProbe(ProbeOptions::NOTIFICATIONS);
+		$this->streamRequest->method('getTimeline')->willReturn([$first, $second]);
+
+		$this->assertSame([$first, $second], $this->service->getTimeline($options));
+	}
+
 	/**
 	 * @return array<string, array{string, array, string, array}>
 	 */
