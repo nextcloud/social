@@ -33,11 +33,21 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	public const FOLLOWERS = 'followers';
 	public const FOLLOWING = 'following';
 
+	/**
+	 * What `media_type` may narrow `only_media` to.
+	 *
+	 * The first half of the attachment's MIME type, which is what
+	 * `Document::convertToMediaAttachment()` stores as its `type` — so these
+	 * are the only values the column can hold.
+	 */
+	public const MEDIA_TYPES = ['image', 'video', 'audio'];
+
 	private string $probe = '';
 	private bool $local = false;
 	private bool $remote = false;
 	private bool $onlyMedia = false;
 	private bool $onlyVideo = false;
+	private string $mediaType = '';
 	private int $minId = 0;
 	private int $maxId = 0;
 	private int $since = 0;
@@ -317,6 +327,35 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	 *
 	 * @return ProbeOptions
 	 */
+	/**
+	 * Narrows `only_media` to one kind of attachment.
+	 *
+	 * A Social extension rather than a Mastodon parameter: Mastodon has
+	 * `only_media` and nothing finer, and a profile that offers Photos and
+	 * Videos as separate tabs needs the difference asked of the database
+	 * rather than sorted out afterwards — a page filtered in the client is a
+	 * page that can come back empty while there are still videos to find.
+	 *
+	 * `media_type=video` is the same question `only_video` asks and gets the
+	 * same answer, PeerTube's `Video` objects included: the two are one
+	 * predicate in `StreamRequest::filterMedia()`, so a profile's Videos tab
+	 * and the Videos timeline cannot come to disagree about what a video is.
+	 *
+	 * Anything that is not one of the three kinds an attachment can be is read
+	 * as "no preference": the value arrives from a query string.
+	 *
+	 * @param string $mediaType `image`, `video`, `audio`, or '' for all of them
+	 */
+	public function setMediaType(string $mediaType): self {
+		$this->mediaType = in_array($mediaType, self::MEDIA_TYPES, true) ? $mediaType : '';
+
+		return $this;
+	}
+
+	public function getMediaType(): string {
+		return $this->mediaType;
+	}
+
 	public function setAccountId(string $accountId): self {
 		$this->accountId = $accountId;
 
@@ -340,6 +379,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		$this->setRemote($this->getBool('remote', $arr, $this->isRemote()));
 		$this->setOnlyMedia($this->getBool('only_media', $arr, $this->isOnlyMedia()));
 		$this->setOnlyVideo($this->getBool('only_video', $arr, $this->isOnlyVideo()));
+		$this->setMediaType($this->get('media_type', $arr, $this->getMediaType()));
 		$this->setMinId($this->getInt('min_id', $arr, $this->getMinId()));
 		$this->setMaxId($this->getInt('max_id', $arr, $this->getMaxId()));
 		$this->setSince($this->getInt('since', $arr, $this->getSince()));
@@ -362,6 +402,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 				'remote' => $this->isRemote(),
 				'only_media' => $this->isOnlyMedia(),
 				'only_video' => $this->isOnlyVideo(),
+				'media_type' => $this->getMediaType(),
 				'min_id' => $this->getMinId(),
 				'max_id' => $this->getMaxId(),
 				'since' => $this->getSince(),

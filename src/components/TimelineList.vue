@@ -271,6 +271,27 @@ export default {
 		 * @return {object} an image, a title and a description
 		 */
 		emptyContentData() {
+			// a filtered tab of a profile is empty for a different reason than
+			// an account that has never posted: they may have posted plenty,
+			// just none of this
+			const media = String(this.$route.query?.media ?? '')
+			const emptyTab = {
+				image: {
+					image: 'img/undraw/profile.svg',
+					title: t('social', 'No photos yet'),
+					description: t('social', 'Posts with pictures appear here.'),
+				},
+
+				video: {
+					image: 'img/undraw/profile.svg',
+					title: t('social', 'No videos yet'),
+					description: t('social', 'Posts with videos appear here.'),
+				},
+			}[media]
+			if (this.$route.name === 'profile' && emptyTab !== undefined) {
+				return emptyTab
+			}
+
 			const byType = this.emptyContent[this.$route.params.type]
 			if (byType !== undefined) {
 				return byType

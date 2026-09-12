@@ -6,11 +6,23 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TimelineSwitcher from '../../../src/components/TimelineSwitcher.vue'
 
-function mountSwitcher(type, page = '') {
+const IconStub = { name: 'IconStub', props: ['size'], template: '<span class="icon-stub" />' }
+
+/**
+ * Three of something, which is what every use of this is: the timelines a
+ * reader moves between, and what of an account a profile shows.
+ */
+const OPTIONS = [
+	{ value: 'first', label: 'First', icon: IconStub, to: { name: 'first' } },
+	{ value: 'second', label: 'Second', icon: IconStub, to: { name: 'second' } },
+	{ value: 'third', label: 'Third', icon: IconStub, to: { name: 'third', query: { q: '1' } } },
+]
+
+function mountSwitcher(value, options = OPTIONS) {
 	const push = vi.fn()
 
 	const wrapper = mount(TimelineSwitcher, {
-		props: { type, page },
+		props: { options, value, label: 'Which posts to show' },
 		global: { mocks: { $router: { push } } },
 		attachTo: document.body,
 	})
@@ -28,35 +40,25 @@ describe('TimelineSwitcher', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('offers the three timelines a reader moves between', () => {
-		const { wrapper } = mountSwitcher('home')
+	it('offers what it was given, in order', () => {
+		const { wrapper } = mountSwitcher('first')
 
 		expect(options(wrapper).map((option) => option.text()))
-			.toEqual(['My Feed', 'Local', 'Global'])
-	})
-
-	/**
-	 * Next to Local and Global, what distinguishes the home timeline is whose
-	 * posts it holds rather than where it sits in the sidebar.
-	 */
-	it('calls the home timeline My Feed', () => {
-		const { wrapper } = mountSwitcher('home')
-
-		expect(options(wrapper)[0].text()).toBe('My Feed')
+			.toEqual(['First', 'Second', 'Third'])
 	})
 
 	it('gives each one an icon of its own', () => {
-		const { wrapper } = mountSwitcher('home')
+		const { wrapper } = mountSwitcher('first')
 
 		expect(wrapper.findAll('.switcher__icon')).toHaveLength(3)
 	})
 
 	it.each([
-		['home', 0],
-		['timeline', 1],
-		['federated', 2],
-	])('marks %s as the one being shown', (type, index) => {
-		const { wrapper } = mountSwitcher(type)
+		['first', 0],
+		['second', 1],
+		['third', 2],
+	])('marks %s as the one being shown', (value, index) => {
+		const { wrapper } = mountSwitcher(value)
 
 		expect(options(wrapper)[index].attributes('aria-checked')).toBe('true')
 		expect(options(wrapper).filter((option) => option.attributes('aria-checked') === 'true')).toHaveLength(1)
@@ -70,11 +72,11 @@ describe('TimelineSwitcher', () => {
 	 * you where you came from.
 	 */
 	it.each([
-		['home', 'translateX(0%)'],
-		['timeline', 'translateX(100%)'],
-		['federated', 'translateX(200%)'],
-	])('slides the pill to %s', (type, transform) => {
-		const { wrapper } = mountSwitcher(type)
+		['first', 'translateX(0%)'],
+		['second', 'translateX(100%)'],
+		['third', 'translateX(200%)'],
+	])('slides the pill to %s', (value, transform) => {
+		const { wrapper } = mountSwitcher(value)
 
 		expect(wrapper.find('.switcher__glider').attributes('style'))
 			.toContain(transform)
@@ -85,126 +87,78 @@ describe('TimelineSwitcher', () => {
 	 * first; all the pill needs from here is how many options to divide by.
 	 */
 	it('leaves the pill to be sized from the number of options', () => {
-		const { wrapper } = mountSwitcher('home')
+		const { wrapper } = mountSwitcher('first')
 
 		expect(wrapper.find('.switcher__glider').attributes('style'))
 			.toContain('--switcher-count: 3')
 	})
 
+	it('divides the track by however many it was given', () => {
+		const { wrapper } = mountSwitcher('a', [
+			{ value: 'a', label: 'A', icon: IconStub, to: { name: 'a' } },
+			{ value: 'b', label: 'B', icon: IconStub, to: { name: 'b' } },
+		])
+
+		expect(wrapper.find('.switcher__glider').attributes('style'))
+			.toContain('--switcher-count: 2')
+	})
+
 	/** It is decoration: the state it shows is on the options themselves. */
 	it('hides the pill from a screen reader', () => {
-		const { wrapper } = mountSwitcher('home')
+		const { wrapper } = mountSwitcher('first')
 
 		expect(wrapper.find('.switcher__glider').attributes('aria-hidden')).toBe('true')
 	})
 
 	// routing
 
-	/**
-	 * `home` is the route with no `type` at all: passing `type: 'home'` would
-	 * ask for a timeline of that name, which nothing serves.
-	 */
-	it('routes to the bare timeline for My Feed', async () => {
-		const { wrapper, push } = mountSwitcher('federated')
-
-		await options(wrapper)[0].trigger('click')
-
-		expect(push).toHaveBeenCalledWith({ name: 'timeline' })
-	})
-
 	it.each([
-		['Local', 1, 'timeline'],
-		['Global', 2, 'federated'],
-	])('routes to %s', async (label, index, type) => {
-		const { wrapper, push } = mountSwitcher('home')
+		['Second', 1, { name: 'second' }],
+		['Third', 2, { name: 'third', query: { q: '1' } }],
+	])('pushes the route %s carries', async (label, index, to) => {
+		const { wrapper, push } = mountSwitcher('first')
 
 		await options(wrapper)[index].trigger('click')
 
-		expect(push).toHaveBeenCalledWith({ name: 'timeline', params: { type } })
+		expect(push).toHaveBeenCalledWith(to)
 	})
 
-	/** Choosing the timeline already on screen is not a navigation. */
+	/** Choosing the page already on screen is not a navigation. */
 	it('does not route to where it already is', async () => {
-		const { wrapper, push } = mountSwitcher('timeline')
+		const { wrapper, push } = mountSwitcher('second')
 
 		await options(wrapper)[1].trigger('click')
 
 		expect(push).not.toHaveBeenCalled()
 	})
 
-	// photos and videos: the same three, read as a scope on one page
-
-	/**
-	 * Photos and Videos are each one page with a scope on it rather than three
-	 * pages of their own, so the sidebar entry stays lit whichever is chosen.
-	 * The switcher is told which page it is scoping, so the two cannot send a
-	 * reader from one to the other.
-	 */
-	it.each([
-		['photos', 'Local', 1, 'timeline'],
-		['photos', 'Global', 2, 'federated'],
-		['videos', 'Local', 1, 'timeline'],
-		['videos', 'Global', 2, 'federated'],
-	])('scopes the %s feed to %s without leaving it', async (page, label, index, scope) => {
-		const { wrapper, push } = mountSwitcher('home', page)
-
-		await options(wrapper)[index].trigger('click')
-
-		expect(push).toHaveBeenCalledWith({
-			name: 'timeline',
-			params: { type: page },
-			query: { scope },
-		})
-	})
-
-	/** My Feed is the scoped page with no scope on it, not `scope=home`. */
-	it.each(['photos', 'videos'])('drops the scope for My Feed %s', async (page) => {
-		const { wrapper, push } = mountSwitcher('federated', page)
-
-		await options(wrapper)[0].trigger('click')
-
-		expect(push).toHaveBeenCalledWith({
-			name: 'timeline',
-			params: { type: page },
-			query: {},
-		})
-	})
-
-	it('says the same three things on the photo feeds', () => {
-		const { wrapper } = mountSwitcher('timeline', 'photos')
-
-		expect(options(wrapper).map((option) => option.text()))
-			.toEqual(['My Feed', 'Local', 'Global'])
-		expect(options(wrapper)[1].attributes('aria-checked')).toBe('true')
-	})
-
 	// the keyboard
 
-	/** A roving tabindex puts one stop on the control, not three. */
+	/** A roving tabindex puts one stop on the control, not one per option. */
 	it('is one tab stop', () => {
-		const { wrapper } = mountSwitcher('timeline')
+		const { wrapper } = mountSwitcher('second')
 
 		expect(options(wrapper).map((option) => option.attributes('tabindex')))
 			.toEqual(['-1', '0', '-1'])
 	})
 
 	it.each([
-		['ArrowRight', 'home', 'timeline'],
-		['ArrowDown', 'home', 'timeline'],
-		['ArrowLeft', 'timeline', 'home'],
-		['ArrowUp', 'timeline', 'home'],
-	])('%s moves from %s to %s', async (key, from, to) => {
+		['ArrowRight', 'first', { name: 'second' }],
+		['ArrowDown', 'first', { name: 'second' }],
+		['ArrowLeft', 'second', { name: 'first' }],
+		['ArrowUp', 'second', { name: 'first' }],
+	])('%s moves from %s', async (key, from, expected) => {
 		const { wrapper, push } = mountSwitcher(from)
 
 		await wrapper.find('.switcher').trigger('keydown', { key })
 
-		expect(push).toHaveBeenCalledWith(to === 'home' ? { name: 'timeline' } : { name: 'timeline', params: { type: to } })
+		expect(push).toHaveBeenCalledWith(expected)
 	})
 
 	/** The end of the group is never a dead stop. */
 	it.each([
-		['ArrowRight', 'federated', { name: 'timeline' }],
-		['ArrowLeft', 'home', { name: 'timeline', params: { type: 'federated' } }],
+		['ArrowRight', 'third', { name: 'first' }],
+		['ArrowLeft', 'first', { name: 'third', query: { q: '1' } }],
 	])('%s wraps round from %s', async (key, from, expected) => {
 		const { wrapper, push } = mountSwitcher(from)
 
@@ -214,7 +168,7 @@ describe('TimelineSwitcher', () => {
 	})
 
 	it('leaves every other key alone', async () => {
-		const { wrapper, push } = mountSwitcher('home')
+		const { wrapper, push } = mountSwitcher('first')
 
 		await wrapper.find('.switcher').trigger('keydown', { key: 'a' })
 		await wrapper.find('.switcher').trigger('keydown', { key: 'Tab' })
@@ -222,9 +176,9 @@ describe('TimelineSwitcher', () => {
 		expect(push).not.toHaveBeenCalled()
 	})
 
-	/** Arrowing to a timeline takes the focus with it, as a radio group does. */
+	/** Arrowing to an option takes the focus with it, as a radio group does. */
 	it('moves the focus with the selection', async () => {
-		const { wrapper } = mountSwitcher('home')
+		const { wrapper } = mountSwitcher('first')
 
 		await wrapper.find('.switcher').trigger('keydown', { key: 'ArrowRight' })
 
@@ -233,8 +187,8 @@ describe('TimelineSwitcher', () => {
 
 	// what a screen reader is told
 
-	it('is a radio group that names itself', () => {
-		const { wrapper } = mountSwitcher('home')
+	it('is a radio group that says what it is choosing', () => {
+		const { wrapper } = mountSwitcher('first')
 		const group = wrapper.find('.switcher')
 
 		expect(group.attributes('role')).toBe('radiogroup')
@@ -242,7 +196,7 @@ describe('TimelineSwitcher', () => {
 	})
 
 	it('makes each option a radio', () => {
-		const { wrapper } = mountSwitcher('home')
+		const { wrapper } = mountSwitcher('first')
 
 		expect(options(wrapper).map((option) => option.attributes('role')))
 			.toEqual(['radio', 'radio', 'radio'])
@@ -250,9 +204,20 @@ describe('TimelineSwitcher', () => {
 
 	/** Inside a form this must not submit it. */
 	it('never submits anything', () => {
-		const { wrapper } = mountSwitcher('home')
+		const { wrapper } = mountSwitcher('first')
 
 		expect(options(wrapper).map((option) => option.attributes('type')))
 			.toEqual(['button', 'button', 'button'])
+	})
+
+	/**
+	 * A value that names none of the options -- a query somebody typed -- must
+	 * still leave the control in a state that can be read and used.
+	 */
+	it('shows the first option when the value names none of them', () => {
+		const { wrapper } = mountSwitcher('nonsense')
+
+		expect(wrapper.find('.switcher__glider').attributes('style')).toContain('translateX(0%)')
+		expect(options(wrapper).filter((option) => option.attributes('aria-checked') === 'true')).toHaveLength(0)
 	})
 })

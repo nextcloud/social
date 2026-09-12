@@ -38,8 +38,9 @@
 		     reading, not something they navigate to -->
 		<TimelineSwitcher
 			v-if="isFeed"
-			:type="scope"
-			:page="isScopedPage ? type : ''" />
+			:options="scopes"
+			:value="scope"
+			:label="t('social', 'Which posts to show')" />
 
 		<div class="timeline-heading-row">
 			<!-- the page had no heading at all outside tags and notifications, so
@@ -64,6 +65,9 @@
 
 <script>
 import { defineAsyncComponent } from 'vue'
+import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
+import IconEarth from 'vue-material-design-icons/Earth.vue'
+import IconHome from 'vue-material-design-icons/Home.vue'
 import TimelineList from './../components/TimelineList.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
@@ -150,6 +154,44 @@ export default {
 		 */
 		isScopedPage() {
 			return this.type === 'photos' || this.type === 'videos'
+		},
+
+		/**
+		 * The three distances the same posts can be read at, as the switcher
+		 * above them offers them.
+		 *
+		 * On Photos and Videos they are the same three, so those stay one page
+		 * with a scope on it: the scope rides in the query, which keeps the
+		 * sidebar entry lit whichever is chosen and keeps each of them one
+		 * timeline rather than three that look alike. On the feed itself each
+		 * scope is its own route, and `home` is the route with no `type` at
+		 * all — passing `type: 'home'` would ask for a timeline of that name,
+		 * which nothing serves.
+		 *
+		 * @return {object[]} what to give the switcher
+		 */
+		scopes() {
+			const routeFor = (scope) => {
+				if (this.isScopedPage) {
+					return {
+						name: 'timeline',
+						params: { type: this.type },
+						query: scope === 'home' ? {} : { scope },
+					}
+				}
+
+				return scope === 'home'
+					? { name: 'timeline' }
+					: { name: 'timeline', params: { type: scope } }
+			}
+
+			return [
+				// "My Feed" rather than "Home": next to Local and Global, what
+				// distinguishes it is whose posts it holds, not where it sits
+				{ value: 'home', label: t('social', 'My Feed'), icon: IconHome, to: routeFor('home') },
+				{ value: 'timeline', label: t('social', 'Local'), icon: IconAccountMultiple, to: routeFor('timeline') },
+				{ value: 'federated', label: t('social', 'Global'), icon: IconEarth, to: routeFor('federated') },
+			]
 		},
 
 		/**

@@ -2180,6 +2180,38 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(20, $probe->getSince());
 	}
 
+	/**
+	 * What the profile's Photos and Videos tabs ask for. `only_media` is
+	 * Mastodon's own parameter on this route and had never been passed on;
+	 * `media_type` is the extension that tells the two tabs apart.
+	 */
+	public function testAccountStatusesPassesTheMediaFilterOn(): void {
+		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$options = $this->captureTimelineOptions(['p']);
+
+		$this->controller()->accountStatuses('bob@remote.example', 20, 0, 0, 0, false, true, 'video');
+
+		$probe = $options();
+		$this->assertTrue($probe->isOnlyMedia());
+		$this->assertSame('video', $probe->getMediaType());
+	}
+
+	/** A tab that asks for everything must not quietly filter. */
+	public function testAccountStatusesAsksForEverythingByDefault(): void {
+		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$options = $this->captureTimelineOptions(['p']);
+
+		$this->controller()->accountStatuses('bob@remote.example');
+
+		$probe = $options();
+		$this->assertFalse($probe->isOnlyMedia());
+		$this->assertSame('', $probe->getMediaType());
+	}
+
 	public function testAccountStatusesFlagsThePinnedPostsOfThePage(): void {
 		$actor = $this->createMock(Person::class);
 		$actor->method('getId')->willReturn('https://remote.example/users/bob');

@@ -98,6 +98,34 @@ class ProbeOptionsTest extends TestCase {
 		$this->assertSame(ProbeOptions::HOME, $options->getProbe());
 	}
 
+	/**
+	 * `media_type` narrows `only_media` to one kind of attachment, and arrives
+	 * from a query string: anything that is not a kind an attachment can be is
+	 * read as no preference rather than passed to a query.
+	 */
+	public function testMediaTypeTakesOnlyTheKindsAnAttachmentCanBe(): void {
+		$options = new ProbeOptions();
+
+		foreach (ProbeOptions::MEDIA_TYPES as $type) {
+			$this->assertSame($type, $options->setMediaType($type)->getMediaType());
+		}
+	}
+
+	public function testMediaTypeIgnoresAnythingElse(): void {
+		$options = new ProbeOptions();
+
+		foreach (['', 'photos', 'video/mp4', 'IMAGE', '"type":"image"'] as $rubbish) {
+			$this->assertSame('', $options->setMediaType($rubbish)->getMediaType());
+		}
+	}
+
+	public function testMediaTypeIsReadOffTheRequest(): void {
+		$request = $this->createMock(IRequest::class);
+		$request->method('getParams')->willReturn(['media_type' => 'video']);
+
+		$this->assertSame('video', (new ProbeOptions($request))->getMediaType());
+	}
+
 	public function testJsonSerializeExposesTheProbeState(): void {
 		$options = new ProbeOptions();
 		$options->setProbe(ProbeOptions::HASHTAG)
@@ -115,6 +143,7 @@ class ProbeOptionsTest extends TestCase {
 			'remote' => false,
 			'only_media' => false,
 			'only_video' => false,
+			'media_type' => '',
 			'min_id' => 0,
 			'max_id' => 0,
 			'since' => 0,
