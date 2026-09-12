@@ -434,7 +434,12 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   file wins — `video/mp4` up to 1080p, by height — and the playlist is taken
   only when there is no file at all, since Safari is the only browser that
   opens one. `magnet:` and the `rel: ["metadata"]` links are not something to
-  hand a `<video>` and are dropped.
+  hand a `<video>` and are dropped. The list is also **nested**, and that is
+  not decoration: an instance transcoding to HLS — the default, and what a
+  public PeerTube actually federates — publishes *one* top-level link, the
+  playlist, and hangs the playable file for each resolution off that link's
+  `tag`. Reading only the top level found a playlist and nothing else on the
+  majority of real videos, so `tag` is walked as well.
 - **`attributedTo` is a list of two actors**, the channel (a `Group`) and the
   account behind it (a `Person`), where every other server sends one id as a
   string. The channel wins: it is what the `Create` is signed by, what a reader
@@ -452,6 +457,14 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   rendering markdown as html would hand a remote server a way to put markup in a
   post that went through no sanitiser.
 
+  The little of markdown a description actually uses — links, bare urls, bold
+  and italic — is then rendered, because left alone it reads as asterisks and
+  brackets in the middle of a timeline (which is what Mastodon shows). The
+  order is the safety: the text is escaped *first*, so every tag in the result
+  is one this app wrote, and a link is only made of an `http(s)` target.
+  Headings, lists and code fences are deliberately not handled — rare in a
+  video description, and each one a way to get this wrong.
+
 **The video is referenced, not mirrored.** Every other attachment is copied into
 this instance's storage on the way in; a two-hour talk is not, and the row that
 represents it carries `Document::COPY_STREAMED` in `local_copy` instead of a
@@ -463,6 +476,12 @@ and it is mirrored, which is what lets a video timeline be scrolled without
 touching another server. Two rows rather than one: hanging the still off the
 video row's `resized_copy` would have put one uuid on two rows, and
 `getByCopy()` would answer with whichever the database felt like.
+
+The attachment's url is rebuilt for the instance a reader is actually on, the
+way the uuid links are (`MediaAttachment::onThisInstance()`): it names a cache
+row rather than a copy, but it was written under whichever `overwrite.cli.url`
+the inbox request ran under, which on many instances is not the address anybody
+browses.
 
 Playing it goes through **`GET /media/stream/{nid}`** (`ApiController::mediaStream()`),
 which opens the origin and copies it to the reader a chunk at a time, storing

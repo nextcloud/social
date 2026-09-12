@@ -103,6 +103,48 @@ class PeerTubeServiceTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The case a real PeerTube actually federates. Transcoding to HLS is the
+	 * default, and such an instance publishes *one* top-level link -- the
+	 * playlist -- and hangs the playable file for each resolution off that
+	 * link's `tag`. Reading only the top level found a playlist and nothing
+	 * else, which is to say nothing Chrome or Firefox can open, on the
+	 * majority of videos on the network.
+	 */
+	public function testTheFileInsideAnHlsPlaylistsTagIsFound(): void {
+		$data = $this->video();
+		$data['url'] = [
+			['type' => 'Link', 'mediaType' => 'text/html', 'href' => 'https://peertube.example/w/6f4c1e1a'],
+			[
+				'type' => 'Link',
+				'mediaType' => 'application/x-mpegURL',
+				'href' => 'https://peertube.example/hls/master.m3u8',
+				'tag' => [
+					['type' => 'Infohash', 'name' => '4363496f6e4630567a666b7a62756c6d43556f73'],
+					['type' => 'Link', 'mediaType' => 'application/json', 'href' => 'https://peertube.example/meta/720', 'height' => 720],
+					['type' => 'Link', 'mediaType' => 'video/mp4', 'href' => 'https://peertube.example/hls/720-fragmented.mp4', 'height' => 720],
+					['type' => 'Link', 'mediaType' => 'video/mp4', 'href' => 'https://peertube.example/hls/480-fragmented.mp4', 'height' => 480],
+					['type' => 'Link', 'mediaType' => 'application/x-bittorrent;x-scheme-handler/magnet', 'href' => 'magnet:?xt=urn:btih:dead'],
+				],
+			],
+		];
+
+		$source = $this->service->source($data);
+
+		$this->assertSame('https://peertube.example/hls/720-fragmented.mp4', $source?->getUrl());
+		$this->assertSame('video/mp4', $source?->getMediaType());
+	}
+
+	/** The watch page is still the `text/html` link, not something in a tag. */
+	public function testTheWatchPageSurvivesTheNestedLinks(): void {
+		$data = $this->video();
+		$data['url'][1]['tag'] = [
+			['type' => 'Link', 'mediaType' => 'text/html', 'href' => 'https://peertube.example/not-the-watch-page'],
+		];
+
+		$this->assertSame('https://peertube.example/w/6f4c1e1a', $this->service->watchUrl($data));
+	}
+
 	public function testAVideoWithNothingPlayableProducesNoSource(): void {
 		$data = $this->video();
 		$data['url'] = [
@@ -229,6 +271,46 @@ class PeerTubeServiceTest extends TestCase {
 
 		$this->assertStringContainsString('<p>&lt;b&gt;not html&lt;/b&gt;</p>', $content);
 		$this->assertStringContainsString('<p>second</p>', $content);
+	}
+
+	/**
+	 * Left alone a description reads as asterisks, brackets and a url in
+	 * parentheses in the middle of a timeline. The escaping comes first, so
+	 * every tag in the answer is one this app wrote.
+	 */
+	public function testTheLittleOfMarkdownADescriptionUsesIsRendered(): void {
+		$data = $this->video();
+		$data['content'] = '**Take back your videos! [#JoinPeertube](https://joinpeertube.org)** '
+			. 'and *nothing else*, see https://example.org/a';
+
+		$content = $this->service->content($data);
+
+		$this->assertStringContainsString(
+			'<strong>Take back your videos! <a href="https://joinpeertube.org"'
+			. ' rel="nofollow noopener noreferrer" target="_blank">#JoinPeertube</a></strong>',
+			$content
+		);
+		$this->assertStringContainsString('<em>nothing else</em>', $content);
+		$this->assertStringContainsString('>https://example.org/a</a>', $content);
+	}
+
+	public static function unsafeMarkdownProvider(): array {
+		return [
+			'a tag' => ['<script>alert(1)</script>', '&lt;script&gt;alert(1)&lt;/script&gt;'],
+			// only an http(s) target becomes a link; everything else stays text
+			'a javascript target' => ['[click](javascript:alert(1))', '[click](javascript:alert(1))'],
+			'a data target' => ['[click](data:text/html,x)', '[click](data:text/html,x)'],
+			// a quote in a url cannot end the attribute it is written into
+			'a quote in a url' => ['[x](https://ok.example/a"b)', 'href="https://ok.example/a&quot;b"'],
+		];
+	}
+
+	#[DataProvider('unsafeMarkdownProvider')]
+	public function testMarkdownIsRenderedOutOfEscapedTextOnly(string $description, string $expected): void {
+		$data = $this->video();
+		$data['content'] = $description;
+
+		$this->assertStringContainsString($expected, $this->service->content($data));
 	}
 
 	/** And the other way round: escaping html shows somebody their own tags. */

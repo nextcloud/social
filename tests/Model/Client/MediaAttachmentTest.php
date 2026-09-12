@@ -24,7 +24,9 @@ class MediaAttachmentTest extends TestCase {
 	private function withUrlGenerator(): void {
 		$urlGenerator = $this->createMock(IURLGenerator::class);
 		$urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
-			fn (string $route, array $args): string => 'https://cloud.example.org/media/' . ($args['uuid'] ?? '')
+			fn (string $route, array $args): string => isset($args['nid'])
+				? 'https://cloud.example.org/media/stream/' . $args['nid']
+				: 'https://cloud.example.org/media/' . ($args['uuid'] ?? '')
 		);
 		\OC::$server->register(IURLGenerator::class, $urlGenerator);
 	}
@@ -175,6 +177,40 @@ class MediaAttachmentTest extends TestCase {
 			'https://cloud.example.org/media/272c3a32-c626-45a0-b08f-a03e7bb4ab2d.png',
 			$local['preview_url'],
 		);
+	}
+
+	/**
+	 * A federated video's `url` names a cache row rather than a copy, so there
+	 * is no uuid in it -- and it has the same problem the uuid links had: it
+	 * was written under whichever `overwrite.cli.url` the inbox request ran
+	 * under, which on many instances is not the address a reader is on.
+	 */
+	public function testAStreamedVideoLinkIsRebuiltForThisInstanceToo(): void {
+		$this->withUrlGenerator();
+		$media = new MediaAttachment();
+		$media->import([
+			'id' => '711',
+			'type' => 'video',
+			'url' => 'http://devel/nextcloud/index.php/apps/social/media/stream/711',
+			'preview_url' => 'http://localhost/nextcloud/index.php/apps/social/media/272c3a32-c626-45a0-b08f-a03e7bb4ab2d.png',
+		]);
+
+		$local = $media->asLocal();
+
+		$this->assertSame('https://cloud.example.org/media/stream/711', $local['url']);
+		$this->assertSame(
+			'https://cloud.example.org/media/272c3a32-c626-45a0-b08f-a03e7bb4ab2d.png',
+			$local['preview_url'],
+		);
+	}
+
+	/** Somebody else's path that happens to end that way is not ours. */
+	public function testARemoteLinkEndingInStreamIsLeftAlone(): void {
+		$this->withUrlGenerator();
+		$media = new MediaAttachment();
+		$media->import(['id' => '1', 'url' => 'https://peertube.example/live/stream/42x']);
+
+		$this->assertSame('https://peertube.example/live/stream/42x', $media->asLocal()['url']);
 	}
 
 	public function testALinkThatIsNotOneOfOurUuidsIsLeftAlone(): void {

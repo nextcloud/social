@@ -63,6 +63,9 @@ class PeerTubeService {
 	/** Sources above this are ignored: nobody is streaming 4K through a proxy. */
 	private const MAX_HEIGHT = 1080;
 
+	/** How far into nested `tag` lists to look for a file. */
+	private const MAX_LINK_DEPTH = 2;
+
 	/**
 	 * The file to play, as a `Document` that is deliberately never mirrored.
 	 *
@@ -261,10 +264,55 @@ class PeerTubeService {
 				continue;
 			}
 
-			$content .= '<p>' . nl2br($this->escape($paragraph), false) . '</p>';
+			$content .= '<p>' . nl2br($this->markdown($paragraph), false) . '</p>';
 		}
 
 		return $content;
+	}
+
+	/**
+	 * The little of markdown a video description actually uses, as html.
+	 *
+	 * Left alone, a PeerTube description reads as `**Take back the control of
+	 * your videos! [#JoinPeertube](https://joinpeertube.org)**` -- asterisks,
+	 * brackets and a URL in parentheses, in the middle of a timeline. Mastodon
+	 * shows exactly that, and it is not a good reason to.
+	 *
+	 * The order is the safety: the text is **escaped first**, so every tag
+	 * below is one this method wrote and there is no path by which a remote
+	 * server's markup survives. A link is only made of an `http(s)` target --
+	 * `[click here](javascript:…)` stays the text it was -- and the href is the
+	 * escaped form, so a `"` in a url cannot end the attribute.
+	 *
+	 * Bold before italic, because `**` would otherwise be read as two `*`.
+	 * Block constructs (headings, lists, code fences) are deliberately not
+	 * handled: they are rare in a video description and each one is a way to
+	 * get this wrong.
+	 */
+	private function markdown(string $text): string {
+		$text = $this->escape($text);
+
+		// [label](https://…) -- the label may hold anything but a bracket
+		$text = (string)preg_replace_callback(
+			'/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/',
+			static fn (array $m): string
+				=> '<a href="' . $m[2] . '" rel="nofollow noopener noreferrer" target="_blank">'
+					. ($m[1] === '' ? $m[2] : $m[1]) . '</a>',
+			$text
+		);
+
+		// a bare url, but never one already inside the href or the label of a
+		// link this method just wrote
+		$text = (string)preg_replace(
+			'/(?<![">])\b(https?:\/\/[^\s<]+[^\s<.,;:!?)\]])/',
+			'<a href="$1" rel="nofollow noopener noreferrer" target="_blank">$1</a>',
+			$text
+		);
+
+		$text = (string)preg_replace('/\*\*(?=\S)(.+?)(?<=\S)\*\*/s', '<strong>$1</strong>', $text);
+		$text = (string)preg_replace('/(?<!\*)\*(?=\S)([^*]+?)(?<=\S)\*(?!\*)/s', '<em>$1</em>', $text);
+
+		return $text;
 	}
 
 	/** The title, as a link to the watch page when there is one. */
@@ -318,21 +366,43 @@ class PeerTubeService {
 	}
 
 	/**
-	 * `url` normalised to a list of links.
+	 * `url` normalised to a flat list of links.
 	 *
 	 * It is a string on every other kind of object, one `Link` on some, and on
 	 * a PeerTube `Video` a list that mixes the watch page, one file per
 	 * resolution, the HLS playlist, a torrent and a magnet URI. Only http(s)
 	 * survives -- `magnet:` is not something to hand a `<video>`.
 	 *
+	 * The nesting is not decoration. A PeerTube transcoding to HLS -- which is
+	 * the default, and what a public instance actually federates -- publishes
+	 * *one* top-level link, the `.m3u8` playlist, and hangs the playable file
+	 * for each resolution off that link's `tag` instead. Reading only the top
+	 * level therefore found nothing but a playlist, which is to say nothing
+	 * Chrome or Firefox can open, on the majority of real videos. So `tag` is
+	 * walked as well, and the files inside it are links like any other.
+	 *
+	 * @param int $depth guards against a `tag` that refers back to its own link
+	 *
 	 * @return array<int, array{href: string, mediaType: string, width: int, height: int}>
 	 */
-	private function links(array $data): array {
+	private function links(array $data, string $key = 'url', int $depth = 0): array {
+		if ($depth > self::MAX_LINK_DEPTH) {
+			return [];
+		}
+
 		$links = [];
 
-		foreach ($this->asList($data['url'] ?? null) as $link) {
+		foreach ($this->asList($data[$key] ?? null) as $link) {
 			if (is_string($link)) {
 				$link = ['href' => $link, 'mediaType' => 'text/html'];
+			}
+
+			if (!is_array($link)) {
+				continue;
+			}
+
+			if (isset($link['tag'])) {
+				$links = array_merge($links, $this->links($link, 'tag', $depth + 1));
 			}
 
 			$href = (string)($link['href'] ?? $link['url'] ?? '');
