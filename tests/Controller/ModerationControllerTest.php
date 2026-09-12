@@ -11,7 +11,10 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\ModerationController;
 use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Report;
+use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
@@ -28,19 +31,40 @@ class ModerationControllerTest extends TestCase {
 	private FediverseService|MockObject $fediverseService;
 	private ConfigService|MockObject $configService;
 	private ModerationService|MockObject $moderationService;
+	private AdminApiService|MockObject $adminApiService;
 	private ModerationController $controller;
+
+	/** The arguments the account page was asked for. */
+	private array $accountQuery = [];
+	/** @var AdminAccount[] what the account page answers */
+	private array $accounts = [];
 
 	protected function setUp(): void {
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->moderationService = $this->createMock(ModerationService::class);
+		$this->adminApiService = $this->createMock(AdminApiService::class);
 		$this->controller = new ModerationController(
 			$this->createMock(IRequest::class),
 			$this->reportService,
 			$this->fediverseService,
 			$this->configService,
-			$this->moderationService
+			$this->moderationService,
+			$this->adminApiService
+		);
+
+		$this->adminApiService->method('accountPage')->willReturnCallback(
+			function (
+				?bool $local, string $username, string $displayName, string $domain,
+				string $status, int $limit, int $maxId,
+			): array {
+				$this->accountQuery = compact(
+					'local', 'username', 'displayName', 'domain', 'status', 'limit', 'maxId'
+				);
+
+				return ['accounts' => $this->accounts, 'cursors' => [9, 7]];
+			}
 		);
 	}
 
@@ -184,5 +208,104 @@ class ModerationControllerTest extends TestCase {
 		$response = $this->controller->fediverseAccess('none_but');
 
 		$this->assertSame(['accessType' => 'none_but'], $response->getData());
+	}
+
+	private function remotePerson(string $id, string $handle): Person {
+		$person = new Person();
+		$person->setId($id)->setPreferredUsername(explode('@', $handle)[0]);
+		$person->setAccount($handle)->setLocal(false);
+
+		return $person;
+	}
+
+	/**
+	 * Only a *reported* account could be acted on from the web: an instance
+	 * with a problem nobody had filed a report about needed a moderation
+	 * client and a token.
+	 */
+	public function testTheAccountBrowserAnswersWhatTheTableDraws(): void {
+		$this->accounts = [
+			AdminAccount::fromPerson(
+				$this->remotePerson('https://remote.example/users/bob', 'bob@remote.example'), 'silence'
+			),
+		];
+
+		$data = $this->controller->accounts()->getData();
+
+		$this->assertSame([[
+			'actor_id' => 'https://remote.example/users/bob',
+			'handle' => 'bob@remote.example',
+			'username' => 'bob',
+			'domain' => 'remote.example',
+			'local' => false,
+			'level' => 'silence',
+		]], $data['accounts']);
+		$this->assertSame([9, 7], $data['cursors'], 'the cursors page the browser');
+	}
+
+	/**
+	 * @dataProvider provideWhatAModeratorWouldType
+	 */
+	public function testWhatWasTypedIsReadAsBothHalves(
+		string $query, string $username, string $domain,
+	): void {
+		$this->controller->accounts($query);
+
+		$this->assertSame($username, $this->accountQuery['username'], $query . ' names this account');
+		$this->assertSame($domain, $this->accountQuery['domain'], $query . ' names this instance');
+	}
+
+	public function provideWhatAModeratorWouldType(): iterable {
+		yield 'a handle' => ['bob@remote.example', 'bob', 'remote.example'];
+		yield 'a handle with the leading at' => ['@bob@remote.example', 'bob', 'remote.example'];
+		yield 'an instance' => ['remote.example', '', 'remote.example'];
+		yield 'a username anywhere' => ['bob', 'bob', ''];
+		yield 'nothing at all' => ['   ', '', ''];
+		yield 'mixed case' => ['Bob@Remote.Example', 'Bob', 'remote.example'];
+	}
+
+	/** @dataProvider provideOrigins */
+	public function testTheOriginNarrowsToOneSideOfTheFederation(string $origin, ?bool $local): void {
+		$this->controller->accounts('', $origin);
+
+		$this->assertSame($local, $this->accountQuery['local']);
+	}
+
+	public function provideOrigins(): iterable {
+		yield 'this instance' => ['local', true];
+		yield 'the rest' => ['remote', false];
+		yield 'both' => ['', null];
+		yield 'nonsense is both, not nothing' => ['elsewhere', null];
+	}
+
+	public function testTheStateFilterIsPassedThroughAsItIs(): void {
+		$this->controller->accounts('', '', 'suspended');
+
+		$this->assertSame('suspended', $this->accountQuery['status']);
+	}
+
+	/** A page the browser can draw, and a cursor it can go on from. */
+	public function testThePageIsBoundedAndCanBeContinued(): void {
+		$this->controller->accounts('', '', '', 7);
+
+		$this->assertSame(40, $this->accountQuery['limit']);
+		$this->assertSame(7, $this->accountQuery['maxId']);
+	}
+
+	/**
+	 * A suspension deletes the cached actor, so the accounts a moderator most
+	 * needs to find are the ones with no handle left to show.
+	 */
+	public function testAnAccountWithNothingLeftOfItStillNamesItself(): void {
+		$person = new Person();
+		$person->setId('https://gone.example/users/carol')->setPreferredUsername('carol');
+		$person->setLocal(false);
+		$this->accounts = [AdminAccount::fromPerson($person, 'suspend')];
+
+		$account = $this->controller->accounts()->getData()['accounts'][0];
+
+		$this->assertSame('', $account['handle']);
+		$this->assertSame('carol', $account['username']);
+		$this->assertSame('https://gone.example/users/carol', $account['actor_id']);
 	}
 }

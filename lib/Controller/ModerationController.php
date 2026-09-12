@@ -12,6 +12,8 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Model\Client\AdminAccount;
+use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
@@ -36,12 +38,16 @@ use OCP\IRequest;
  * because core gates it on the same delegation.
  */
 class ModerationController extends Controller {
+	/** What one page of the account browser holds. */
+	private const ACCOUNTS_PER_PAGE = 40;
+
 	public function __construct(
 		IRequest $request,
 		private ReportService $reportService,
 		private FediverseService $fediverseService,
 		private ConfigService $configService,
 		private ModerationService $moderationService,
+		private AdminApiService $adminApiService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -71,6 +77,88 @@ class ModerationController extends Controller {
 		} catch (\InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
+	}
+
+	/**
+	 * A page of the accounts this instance knows, for the browser on the
+	 * settings page.
+	 *
+	 * The same read the Mastodon admin API answers `GET
+	 * /api/v1/admin/accounts` with, narrowed to what a table needs: until
+	 * this, only a *reported* account could be acted on from the web, and
+	 * everything else needed a moderation client and a token.
+	 *
+	 * `query` is what a moderator would type — a username, a handle, or an
+	 * instance — and is tried as all three, because asking which of them it
+	 * was is a question the person already answered by typing it.
+	 *
+	 * @param string $query username, handle or instance
+	 * @param string $origin 'local', 'remote', or '' for both
+	 * @param string $status one of AdminApiService's statuses, or '' for any
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	public function accounts(
+		string $query = '',
+		string $origin = '',
+		string $status = '',
+		int $maxId = 0,
+	): DataResponse {
+		$query = trim($query);
+		$local = match ($origin) {
+			'local' => true,
+			'remote' => false,
+			default => null,
+		};
+
+		[$username, $domain] = $this->splitQuery($query);
+
+		$page = $this->adminApiService->accountPage(
+			$local,
+			$username,
+			'',
+			$domain,
+			$status,
+			self::ACCOUNTS_PER_PAGE,
+			$maxId,
+		);
+
+		return new DataResponse([
+			'accounts' => array_map(
+				static fn (AdminAccount $account): array => [
+					'actor_id' => $account->getActorId(),
+					'handle' => $account->getAccount()?->getAccount() ?? '',
+					'username' => $account->getUsername(),
+					'domain' => $account->getDomain(),
+					'local' => $account->isLocal(),
+					'level' => $account->getLevel(),
+				],
+				$page['accounts']
+			),
+			'cursors' => $page['cursors'],
+		]);
+	}
+
+	/**
+	 * What was typed, as the two halves the query takes.
+	 *
+	 * `@bob@noisy.test` and `bob@noisy.test` are an account on an instance,
+	 * `noisy.test` is the instance, and a bare `bob` is a username anywhere —
+	 * which is what somebody typing each of those means by it.
+	 *
+	 * @return array{0: string, 1: string} username, instance
+	 */
+	private function splitQuery(string $query): array {
+		$query = ltrim($query, '@');
+		if ($query === '') {
+			return ['', ''];
+		}
+
+		$at = strrpos($query, '@');
+		if ($at !== false) {
+			return [substr($query, 0, $at), strtolower(substr($query, $at + 1))];
+		}
+
+		return str_contains($query, '.') ? ['', strtolower($query)] : [$query, ''];
 	}
 
 	/** Takes one post down, whoever wrote it. */

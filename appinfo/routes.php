@@ -286,6 +286,7 @@ return [
 		['name' => 'Moderation#fediverseRemove', 'url' => '/moderation/fediverse/remove', 'verb' => 'POST'],
 		['name' => 'Moderation#fediverseAccess', 'url' => '/moderation/fediverse/access', 'verb' => 'POST'],
 		['name' => 'Moderation#retention', 'url' => '/moderation/retention', 'verb' => 'POST'],
+		['name' => 'Moderation#accounts', 'url' => '/moderation/accounts', 'verb' => 'GET'],
 		['name' => 'Moderation#accountModerate', 'url' => '/moderation/accounts', 'verb' => 'POST'],
 		['name' => 'Moderation#statusRemove', 'url' => '/moderation/statuses/remove', 'verb' => 'POST'],
 		['name' => 'Announcement#adminIndex', 'url' => '/admin/announcements', 'verb' => 'GET'],

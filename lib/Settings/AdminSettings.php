@@ -54,6 +54,10 @@ class AdminSettings implements IDelegatedSettings {
 		// the announcements section reads and writes its own routes, and
 		// nothing on the page above it is loaded any earlier for it
 		Util::addScript('social', 'social-adminAnnouncements');
+		// and the account browser, which is the same page's other half: the
+		// reports table is what somebody complained about, this is everything
+		// else the instance knows
+		Util::addScript('social', 'social-adminModeration');
 
 		return new TemplateResponse('social', 'settings/admin', [
 			'reports' => $this->reportService->getReports(true),
