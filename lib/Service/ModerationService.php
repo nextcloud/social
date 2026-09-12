@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Db\AccountNotesRequest;
 use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -50,6 +51,8 @@ class ModerationService {
 		private StreamDestRequest $streamDestRequest,
 		private RequestQueueRequest $requestQueueRequest,
 		private StreamService $streamService,
+		private ActorsRequest $actorsRequest,
+		private AccountService $accountService,
 		private LoggerInterface $logger,
 		private DomainBlocksRequest $domainBlocksRequest,
 		private AccountNotesRequest $accountNotesRequest,
@@ -110,6 +113,7 @@ class ModerationService {
 
 		if ($level === Moderation::SUSPEND) {
 			$this->purgeActor($actorId);
+			$this->federateSuspension($actorId);
 		}
 
 		// not 'level': the server's logger reads that key in a context as a log
@@ -117,6 +121,43 @@ class ModerationService {
 		$this->logger->info('moderation decision applied', ['actor' => $actorId, 'decision' => $level]);
 
 		return $moderation;
+	}
+
+	/**
+	 * Tells the fediverse about the suspension of a **local** account.
+	 *
+	 * Suspending deletes everything the account posted here and stops this
+	 * instance serving its actor. Without this, that is all it did: every
+	 * remote instance kept its copy of the account and of every post, so an
+	 * account removed by a moderator here carried on existing everywhere else,
+	 * and the takedown stopped at our own edge. The `Delete` is the same one
+	 * the account's own deletion sends, which is what a peer already knows how
+	 * to act on.
+	 *
+	 * Only for local accounts. A `Delete` this instance signed for somebody
+	 * else's actor is not one any other server would act on, and suspending a
+	 * remote account is a decision about what *this* instance shows.
+	 *
+	 * The decision stands whatever the fediverse makes of it: a failure here is
+	 * logged and nothing else. The account is already gone locally, and a
+	 * moderator waiting on a delivery queue is a moderator who cannot moderate.
+	 */
+	private function federateSuspension(string $actorId): void {
+		try {
+			$actor = $this->actorsRequest->getFromId($actorId);
+		} catch (\Exception $e) {
+			// not one of ours, which is the ordinary case for a suspension
+			return;
+		}
+
+		try {
+			$this->accountService->federateActorDelete($actor);
+			$this->logger->info('suspension federated', ['actor' => $actorId]);
+		} catch (\Exception $e) {
+			$this->logger->error('could not federate a suspension', [
+				'actor' => $actorId, 'exception' => $e,
+			]);
+		}
 	}
 
 	/**

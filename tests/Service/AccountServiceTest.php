@@ -615,6 +615,24 @@ class AccountServiceTest extends TestCase {
 		$this->actorsRequest->expects($this->never())->method('updateFlags');
 		$this->actorService->expects($this->never())->method('cacheLocalActor');
 
+		// `bot` is a flag now; this is about a key that is not one at all
+		$this->service->setActorFlags('alice', ['favourite_colour' => 'blue']);
+	}
+
+	/**
+	 * Mastodon's `bot`, which a client's profile editor sends with every save.
+	 * It was accepted and dropped, so an account marked as automated came back
+	 * unmarked on the next read — and the actor went on publishing `Person`,
+	 * which is the only thing that says so to a peer.
+	 */
+	public function testSetActorFlagsMarksAnAccountAutomated(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->once())
+			->method('updateFlags')
+			->with($this->callback(static fn (Person $actor): bool => $actor->isBot()
+				&& $actor->getType() === 'Service'));
+
 		$this->service->setActorFlags('alice', ['bot' => true]);
 	}
 

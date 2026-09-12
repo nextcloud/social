@@ -238,7 +238,19 @@ class AccountService {
 		$interface = AP::instance()->getInterfaceFromType(Person::TYPE);
 		$interface->delete($actor);
 
-		// broadcast delete event
+		$this->federateActorDelete($actor);
+	}
+
+	/**
+	 * Tells the fediverse an account is gone.
+	 *
+	 * Its own method because deletion is not the only thing that ends an
+	 * account here: a moderator suspending a local account deletes everything
+	 * it posted and stops serving its actor, and a suspension that federated
+	 * nothing left every remote instance holding a full copy of an account this
+	 * one had decided to remove — the takedown stopped at our own edge.
+	 */
+	public function federateActorDelete(Person $actor): void {
 		$delete = new Delete();
 		$delete->setId($actor->getId() . '#delete');
 		$delete->setActorId($actor->getId());
@@ -305,6 +317,11 @@ class AccountService {
 			$actor->setIndexable($this->flag($flags['indexable']));
 			$changed = true;
 		}
+		// this one changes the actor's *type* as well — see Person::setBot()
+		if (array_key_exists('bot', $flags)) {
+			$actor->setBot($this->flag($flags['bot']));
+			$changed = true;
+		}
 
 		if (!$changed) {
 			return;
@@ -312,6 +329,36 @@ class AccountService {
 
 		$this->actorsRequest->updateFlags($actor);
 		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+	}
+
+	/**
+	 * The account's display name, as a Mastodon client edits it.
+	 *
+	 * It belongs to the Nextcloud account rather than to the actor — the actor
+	 * copies it, and `updateCacheLocalActorName()` is what carries it over — so
+	 * this writes it where it lives and re-caches. A backend that will not have
+	 * it written (LDAP, SAML, anything provisioned from elsewhere) says so, and
+	 * that is a refusal the client should see rather than a silent success: the
+	 * name it shows afterwards would be the old one either way, and only one of
+	 * those two outcomes tells the user why.
+	 *
+	 * @throws InvalidActionException when the user's backend owns the name
+	 * @throws NoUserException
+	 */
+	public function setDisplayName(string $userId, string $displayName): void {
+		$user = $this->userManager->get($userId);
+		if ($user === null) {
+			throw new NoUserException();
+		}
+
+		if (!$user->canChangeDisplayName()) {
+			throw new InvalidActionException(
+				'the display name of this account is managed outside Nextcloud and cannot be changed here'
+			);
+		}
+
+		$user->setDisplayName($displayName);
+		$this->cacheLocalActorByUsername($this->getActorFromUserId($userId)->getPreferredUsername());
 	}
 
 	/** A bool from whatever form a client put in a JSON or form body. */

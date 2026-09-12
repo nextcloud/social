@@ -5,9 +5,15 @@ whether Mastodon's clients work against it, whether other fediverse servers can
 tell the difference, and whether an existing Mastodon instance could move onto
 it. Written for whoever has to decide what to build next.
 
-**Verified against:** app version 0.15.1, `master`, 2026-09-12 — after the
-federation wave of #2110 landed. Every claim was checked by reading the file it
-names.
+**Verified against:** app version 0.16.0, `master`, 2026-09-12 — after the
+federation wave of #2110 and the compatibility wave of #2126. Every claim was
+checked by reading the file it names.
+
+**What #2126 changed**, since a reader who knew this document before will look
+for it: the `source` leak is closed, suspension federates a `Delete`,
+`display_name` / `avatar` / `bot` are written instead of dropped, the version
+string says `4.2.0`, and `accounts/search`, `favourited_by` and `reblogged_by`
+exist. §9 tracks what is left.
 
 This document supersedes the parity reviews written against 0.11.51 and 0.11.63,
 and the "what can be improved" assessment written against 0.11.49: every item in
@@ -23,11 +29,11 @@ of work.
 
 ## 1. The answer in one paragraph
 
-Social 0.15.1 is a capable, standards-correct ActivityPub server with a broad and
+Social 0.16.0 is a capable, standards-correct ActivityPub server with a broad and
 largely genuine Mastodon client API. It is **not** a drop-in replacement for
 Mastodon, and three things stand between it and that goal. Two are small and
-mechanical: the API is not served at the domain root, and an OAuth app row holds
-exactly one token. The third is architectural: **an actor's identity is recomputed
+mechanical, and both are still open: the API is not served at the domain root,
+and an OAuth app row holds exactly one token. The third is architectural: **an actor's identity is recomputed
 from configuration on every read rather than stored**, and every URI the app mints
 lives under `/apps/social/`. That single decision is what makes taking over an
 existing Mastodon domain impossible rather than merely unimplemented.
@@ -60,14 +66,14 @@ Most of the value is in the first test. Most of the difficulty is in the third.
 Every route is registered under the app prefix (`appinfo/routes.php`), served at
 `https://host/index.php/apps/social/api/v1/...`. The only things the app
 registers at the server root are the WebFinger, NodeInfo and host-meta well-known
-handlers (`lib/AppInfo/Application.php:51`).
+handlers (`AppInfo\Application`).
 
 Ivory, Tusky, Mona, Elk, Ice Cubes and Phanpy all build request URLs as
 `https://<domain>/api/v1/...` from the domain the user types. The Mastodon client
 protocol has **no mechanism for a non-root API base**, so none of them can reach
 any endpoint. The app ships no rewrite, no webserver snippet and no setup
-guidance, and `README.md:41` nevertheless states that third-party clients can log
-in.
+guidance. `README.md` now says so plainly rather than promising that
+third-party clients can log in, which is what it used to say.
 
 Nothing else in this section matters until this is fixed. The fix is either a
 documented reverse-proxy rewrite from `/api` and `/oauth` to the app, or root
@@ -77,11 +83,10 @@ route registration from the app itself.
 
 `social_client` holds a single `token`, `auth_user_id`, `auth_account` and
 `auth_scopes` per row, and the whole OAuth flow keys on `client_id`
-(`lib/Controller/OAuthController.php:232,278,356,432`). `authClient()` blanks the
+(`OAuthController`). `authClient()` blanks the
 token on every authorization, with a comment explaining that leaving it would let
 the previous user's token act as the new one
-(`lib/Db/ClientRequest.php:58-79`), and `updateToken()` writes the row's one token
-(`:84-92`).
+(`ClientRequest::authClient()`), and `updateToken()` writes the row's one token.
 
 Mastodon's model is one application, many tokens. Here a second authorization
 against the same `client_id` silently revokes the first. Elk and Phanpy register
@@ -98,8 +103,8 @@ table. **Only two true stubs remain in the entire Mastodon surface:**
 
 | Endpoint | State | Evidence |
 |---|---|---|
-| `/api/v1/custom_emojis` | returns `[]` unconditionally | `lib/Controller/ApiController.php:567-569` |
-| `/api/saved_searches/list.json` | initialises the viewer, returns `[]` | `lib/Controller/ApiController.php:577-585` |
+| `/api/v1/custom_emojis` | returns `[]` unconditionally | `ApiController::customEmojis()` |
+| `/api/saved_searches/list.json` | initialises the viewer, returns `[]` | `ApiController::savedSearches()` |
 
 Everything else that exists as a route does real work, including subsystems the
 2026-09-11 review listed as absent: lists, v2 filters (applied server-side),
@@ -110,11 +115,6 @@ and a real admin API.
 
 ### 3.4 Genuinely missing endpoints
 
-- **`/api/v1/accounts/search`** — absent. Only Social's own
-  `/api/v1/global/accounts/search` exists (`appinfo/routes.php:234`). Mention
-  autocomplete in the composer fails in every client that uses it.
-- **`/api/v1/statuses/{id}/favourited_by` and `/reblogged_by`** — absent. Tapping
-  a favourite or boost count is a dead end.
 - **Web Push (`/api/v1/push/*`)** — absent. `lib/Service/PushService.php` is
   unrelated; it pokes the `notify_push` app so the *web* client refreshes.
   Third-party mobile apps get no push from this server.
@@ -124,28 +124,44 @@ and a real admin API.
 - `/api/v1/preferences`, `familiar_followers`, `instance/peers`,
   `instance/activity`, and the v1 filter routes.
 
-### 3.5 The version string now suppresses working features
+Three that were on this list are here now (#2126): `/api/v1/accounts/search`,
+which is what a composer calls to complete a `@handle` and which no client
+substitutes `/api/v2/search` for, and `favourited_by` / `reblogged_by`, which
+make a tap on a favourite or boost count something other than a dead end. Both
+reaction lists resolve the status through the visibility filter first: who
+liked a post is as private as the post.
 
-`Instance::COMPAT_VERSION = '3.5.0'` (`lib/Model/Instance.php:94`). Clients gate
-features on this string, so they will hide edit and history, call the v1 filter
-routes that 404 instead of v2, and never call `/api/v2/instance` or
-`/notifications/unread_count` — **all of which are implemented**. The only 4.x
-surface genuinely missing is push and streaming. The comment justifying 3.5.0 is
-now out of date. Raising this string is a one-line change that switches on
-several finished features.
+### 3.5 The version string
+
+`Instance::COMPAT_VERSION = '4.2.0'`. It said `3.5.0` until #2126, which was
+right when it was written and had stopped being: clients gate features on this
+string, so they were hiding edit and history, calling the v1 filter routes that
+404 instead of v2, and never asking for `/api/v2/instance` or
+`/notifications/unread_count` — all of which are implemented.
+
+The two 4.x features still missing are announced rather than left to fail.
+`configuration.translation.enabled` is `false`, `urls` is an empty object, which
+is how a client learns there is no streaming endpoint, and a client that tries
+Web Push gets a 404 and falls back to polling, which is what it does against any
+server with no VAPID key.
 
 ### 3.6 Entity shapes
 
-Good overall, with four issues a strict client would notice:
+Good overall. Two of the four issues this section used to list are fixed in
+#2126:
 
-- **`source` is emitted on every Account**, including other people's and to
-  anonymous callers, leaking `source.follow_requests_count`
-  (`lib/Model/ActivityPub/Actor/Person.php:1076-1086`). This is the known
-  master-branch leak and it is still present.
+- **`source` was emitted on every Account**, including other people's and to
+  anonymous callers, leaking `source.follow_requests_count` — how many people
+  are waiting on an account's approval. It is now built by the two credentials
+  routes, which are the two that know they are answering the account itself, and
+  the model no longer has it to leak.
+- **`poll` was absent rather than `null`** on non-poll statuses, against the
+  app's own rule that a client should never have to test for a missing key.
+
+Two remain:
+
 - `GET /accounts/{id}` can return `"avatar": ""` where the credentials routes
   patch it to a placeholder, so a client that declares the field a URL fails.
-- `poll` is absent rather than `null` on non-poll statuses, violating the app's
-  own "every key always present" rule.
 - `POST /api/v1/apps` omits `redirect_uri`, which Mastodon's Application entity
   always carries.
 
@@ -153,13 +169,21 @@ Good overall, with four issues a strict client would notice:
 neither `reblogs` nor `notify` is accepted by the follow route, so those two
 client toggles report state the server never stored.
 
-### 3.7 Profile editing silently does nothing
+### 3.7 Profile editing
 
-`update_credentials` now accepts `header` and `source[privacy]`, but ignores
-`avatar`, `display_name` and `bot` while returning 200
-(`lib/Controller/ApiController.php:271-337`). A client's profile editor sends all
-of them in one PATCH and shows the name and avatar unchanged. A 422 would be
-better than a silent success.
+Fixed in #2126. `update_credentials` used to accept `header` and
+`source[privacy]` and ignore `avatar`, `display_name` and `bot` while returning
+200 — and a client's profile editor sends all of them in one PATCH, so somebody
+changing their name, picture and bio together got a success and only the bio.
+
+All three are written now. The name and the picture belong to the Nextcloud
+account rather than to the actor, so they are written there and the actor cache
+is refreshed; `bot` needed a column of its own and sets the actor's *type* with
+it, because an account marked automated that went on publishing `Person` would
+tell a client and a peer different things. A backend that owns the name or the
+picture (LDAP, SAML, anything provisioned elsewhere) makes the request a **422**
+rather than a silent success — which is what this section asked for, applied to
+the fields that cannot be honoured rather than to the whole request.
 
 ---
 
@@ -187,7 +211,7 @@ the same host.
 **What a peer would still notice:**
 
 1. **No authorized fetch inbound.** Signature verification runs only on inbox
-   POSTs (`lib/Controller/ActivityPubController.php:213,273`). Every GET handler
+   POSTs (`ActivityPubController::sharedInbox()` and `inbox()`). Every GET handler
    is a public page with no signature check, and the viewer is resolved from the
    Nextcloud session only, so a signed remote fetcher is never identified. Social
    cannot serve a followers-only object to an authorized remote reader, and
@@ -196,11 +220,11 @@ the same host.
 2. **No `Add`, `Remove` or `Move` outbound.** A pin is only visible by re-polling
    `featured`, and an account can never be migrated away by announcement.
 3. **`mediaType` is emitted as an empty string** on every attachment
-   (`lib/Model/Client/MediaAttachment.php:230`). Mastodon sniffs the file;
+   (`MediaAttachment::exportAsActivityPub()`). Mastodon sniffs the file;
    stricter implementations may not.
 4. **The WebFinger profile-page link points at the Nextcloud user profile**
    (`/index.php/u/alice`), not at a Social or Mastodon-shaped profile
-   (`lib/WellKnown/WebfingerHandler.php:165-167`).
+   (`WebfingerHandler`).
 5. Emoji reactions and custom `Emoji` tags are not handled in either direction.
 
 ---
@@ -240,19 +264,19 @@ every read:
 $actor->setId($root . '@' . $actor->getPreferredUsername());
 ```
 
-(`lib/Db/ActorsRequestBuilder.php:110`, with inbox, outbox, followers, following,
-featured and sharedInbox all derived from it at `:112-125`.) Writing a
+(`ActorsRequestBuilder::parseActorsSelectSql()`, with inbox, outbox, followers,
+following, featured and sharedInbox all derived from it on the lines below.) Writing a
 Mastodon-shaped id into the column achieves nothing, because hydration discards
 it. Status ids are minted the same way in `StreamService::assignItem()`, and the
 serving routes **reconstruct** the id from the URL path rather than looking it up
-(`lib/Controller/ActivityPubController.php:744`), so a post stored under a foreign
+(`ActivityPubController::displayPost()`), so a post stored under a foreign
 id has no URL that serves it.
 
-Keys are always freshly generated (`lib/Service/AccountService.php:237`), and
+Keys are always freshly generated (`AccountService::createActor()`), and
 there is no setter reachable from outside. `SocialMigrator` refuses to carry a
 private key deliberately and explains why at length
-(`lib/UserMigration/SocialMigrator.php:52-64`). The cipher itself
-(`lib/Security/PrivateKeyCipher.php:38`) would seal any PEM handed to it, so this
+(`SocialMigrator`). The cipher itself
+(`PrivateKeyCipher`) would seal any PEM handed to it, so this
 is unimplemented rather than impossible.
 
 ### 5.3 What exists today is the lossy Move path
@@ -264,7 +288,7 @@ requires the old instance to still be running to send the Move, which contradict
 keeping the same domain.
 
 Follower import is the other half. Only *following* can be imported today
-(`lib/Service/MigrationService.php:164`, `occ social:account:import-follows`).
+(`MigrationService`, `occ social:account:import-follows`).
 Importing *followers* is impossible without identity continuity, because the
 relationship's other half lives on the follower's server pointing at the old id.
 With identity continuity it becomes easy, because nothing has to be federated at
@@ -315,7 +339,7 @@ Genuinely absent, in rough order of how much they would be missed:
 3. Warnings and strikes, and "email this user" — the two softest moderation
    tools, so the ladder jumps from silence straight to suspend.
 4. An account browser in the admin UI. Only *reported* accounts are actionable
-   from the web (`lib/Settings/AdminSettings.php:49`); everything else needs the
+   from the web (`AdminSettings`); everything else needs the
    admin API. Post takedown has a route and a controller but no button anywhere.
 5. Custom emoji, and emoji import.
 6. Admin metrics: trends, measures, dimensions, retention.
@@ -328,11 +352,13 @@ Genuinely absent, in rough order of how much they would be missed:
 11. `tootctl` equivalents for `accounts cull/prune`, `preview_cards remove` and
     media-only sweeps.
 
-One moderation gap is a correctness bug rather than a missing feature:
-**suspending a local account purges its posts locally and federates nothing**
-(`lib/Service/ModerationService.php`), so every remote instance keeps its copies.
-`AccountService::deleteActor()` builds a proper `Delete`; suspension does not use
-it.
+The moderation gap that was a correctness bug rather than a missing feature —
+**suspending a local account purged its posts here and federated nothing**, so
+every remote instance kept its copies and the takedown stopped at this
+instance's own edge — is fixed in #2126: a suspension now sends the same
+`Delete` the account's own deletion sends. Only for a local account, because a
+`Delete` this instance signed for somebody else's actor is not one any peer
+would act on.
 
 ---
 
@@ -344,7 +370,7 @@ deliberate no-op and there is no per-actor login to disable. Notifications go
 through the Nextcloud notification system — bell, mobile app, mail digest —
 rather than Web Push, and they are emitted for mention, favourite,
 reblog, follow, follow request and update from the single write path
-(`lib/Service/NotificationService.php:64-71`). There is no materialised home feed
+(`NotificationService`). There is no materialised home feed
 to rebuild, because timelines are queried live. Rules and retention are app
 values and occ commands. Moderation lives in Nextcloud admin settings.
 
@@ -360,51 +386,59 @@ surface.
 Credit where it is due. Of the nine defects listed at 0.11.63, seven are fully
 fixed and two partially: local poll voting, `scheduled_at`, the character limit,
 poll expiry, the single-choice duplicate vote, `?remote=true`, and notification
-dismiss and clear are all correct now. Of the four moderation findings, three are
-fixed outright — takedowns federate a `Delete`, domain blocks purge stored
-content through a background job, and reports are forwarded outbound signed by
-the instance actor. Notifications, called the largest functional gap in that
-review, now reach the Nextcloud bell.
+dismiss and clear are all correct now. Of the four moderation findings, all four
+are fixed — takedowns federate a `Delete`, domain blocks purge stored content
+through a background job, reports are forwarded outbound signed by the instance
+actor, and a suspension of a local account federates its `Delete` (#2126).
+Notifications, called the largest functional gap in that review, now reach the
+Nextcloud bell.
+
+And of this document's own list, five items are done: the `source` leak, the
+suspension, the three dropped profile fields, the version string, and the three
+missing endpoints — all in #2126, all of them hours or days of work. What is
+left is what it was always going to be: the root path, per-user tokens, push,
+authorized fetch, and the takeover.
 
 ---
 
 ## 9. Suggested order of work
 
-| # | Work | Effort | Unblocks |
-|---|---|---|---|
-| 1 | Root path for `/api` and `/oauth`, documented or served | Days | Every client. Nothing else matters first |
-| 2 | Per-user OAuth tokens | Days | Multi-user clients; re-authorization |
-| 3 | Raise `COMPAT_VERSION` past 4.0 | Minutes | Edit, history, v2 filters, v2 instance, unread count |
-| 4 | `accounts/search`, `favourited_by`, `reblogged_by` | Days | Mention autocomplete; engagement lists |
-| 5 | Stop leaking `source` on other people's accounts | Hours | A live privacy bug |
-| 6 | Federate a `Delete` when suspending a local account | Hours | A moderation correctness bug |
-| 7 | Reject rather than ignore unsupported `update_credentials` fields | Hours | Silent no-ops |
-| 8 | Web Push | Weeks | Mobile clients |
-| 9 | Authorized fetch inbound | Weeks | Secure-mode peers |
-| 10 | Stored identity + Mastodon URL space + key import | Months | The takeover test |
+| # | Work | Effort | Unblocks | State |
+|---|---|---|---|---|
+| 1 | Root path for `/api` and `/oauth`, documented or served | Days | Every client. Nothing else matters first | **open** |
+| 2 | Per-user OAuth tokens | Days | Multi-user clients; re-authorization | **open** |
+| 3 | Raise `COMPAT_VERSION` past 4.0 | Minutes | Edit, history, v2 filters, v2 instance, unread count | done (#2126) |
+| 4 | `accounts/search`, `favourited_by`, `reblogged_by` | Days | Mention autocomplete; engagement lists | done (#2126) |
+| 5 | Stop leaking `source` on other people's accounts | Hours | A live privacy bug | done (#2126) |
+| 6 | Federate a `Delete` when suspending a local account | Hours | A moderation correctness bug | done (#2126) |
+| 7 | Write rather than ignore `display_name`, `avatar` and `bot` | Hours | Silent no-ops | done (#2126) |
+| 8 | Web Push | Weeks | Mobile clients | open |
+| 9 | Authorized fetch inbound | Weeks | Secure-mode peers | open |
+| 10 | Stored identity + Mastodon URL space + key import | Months | The takeover test | open |
 
-Items 1 through 7 are days of work in total and would make Social usable by
-stock Mastodon clients with no visible malfunctions. That is the version of
-"drop-in" worth aiming at first. Item 10 is a different project, and should only
-be started if in-place instance migration is an actual product goal rather than
-an aspiration.
+**Items 1 and 2 are what is left of the short list, and they are the two that
+matter most**: until the API answers at the domain root, no stock Mastodon
+client can reach any of this, and until an app row can hold more than one token,
+a second person signing in through the same client signs the first one out.
+Everything else in items 3 to 7 is visible only through the API directly, which
+is to say only to somebody testing it.
+
+Item 10 is a different project, and should only be started if in-place instance
+migration is an actual product goal rather than an aspiration.
 
 ---
 
 ## 10. Documentation drift
 
 `tests/DocumentationTest.php` checks that the route set matches the tables, not
-that the prose around them is true, so four claims had drifted. All four were
-corrected in the change that added this file, and they are listed here because
-the *kind* of drift matters: every one of them was a sentence describing a
-limitation that had since been lifted, left behind by the change that lifted it.
+that the prose around them is true, so four claims had drifted. Three were
+corrected when this file was added (#2112, #2123): `docs/API.md` denying the
+existence of an account-note route two lines above the row documenting it,
+calling two instance counters permanently zero when they are counted and cached,
+and calling local poll votes and poll creation unsupported when both work.
 
-- `docs/API.md` said there was no `POST /api/v1/accounts/{id}/note` and that
-  `Relationship.note` was always empty, two lines above the table row
-  documenting that route.
-- It said `stats.status_count` and `stats.domain_count` were always zero. Both
-  are counted and cached.
-- The Polls section said voting on a local poll was a 422 and that creating
-  polls was unsupported. Both were wrong.
-- `README.md` said third-party clients can log in. They cannot, until §3.1 is
-  fixed — that one was a promise rather than a stale limitation, which is worse.
+The fourth is the opposite kind and is **still true**: `README.md` says
+third-party clients can log in. They cannot, until §3.1 is fixed — and that is a
+promise the code does not keep rather than a stale limitation, which is the
+worse of the two. The README now says what stands in the way, but the sentence
+is only honest because it says so.

@@ -103,6 +103,7 @@ class CoreRequestBuilder {
 			'fields',
 			'discoverable',
 			'indexable',
+			'bot',
 			'also_known_as',
 			'moved_to'
 		],
