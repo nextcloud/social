@@ -103,6 +103,201 @@ class FilterController extends Controller {
 		}
 	}
 
+	/**
+	 * Mastodon's **v1** filters, over the v2 ones.
+	 *
+	 * v1 has no notion of a filter with several keywords: each filter *is* a
+	 * phrase. So a v1 filter here is a v2 keyword, carrying its parent's
+	 * contexts and expiry — which is the mapping Mastodon itself serves for
+	 * clients that have not moved, and why the ids in the two APIs are
+	 * different things.
+	 *
+	 * Absent, these routes 404'd, and a client that has not moved to v2 reads a
+	 * 404 as "this server has no filters at all" rather than "none configured".
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function indexV1(): DataResponse {
+		try {
+			$this->initViewer(['read:filters', 'read']);
+
+			$filters = [];
+			foreach ($this->filtersRequest->getByActor($this->viewer->getId()) as $filter) {
+				foreach ($filter->getKeywords() as $keyword) {
+					$filters[] = self::asV1($filter, $keyword);
+				}
+			}
+
+			return new DataResponse($filters, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** One v1 filter, which is one keyword of one of the viewer's filters. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function getV1(int $id): DataResponse {
+		try {
+			$this->initViewer(['read:filters', 'read']);
+			[$filter, $keyword] = $this->keywordOfViewer($id);
+
+			return new DataResponse(self::asV1($filter, $keyword), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Creates a v1 filter: a v2 filter whose title is the phrase, holding that
+	 * one keyword.
+	 *
+	 * `irreversible` is Mastodon's older name for what v2 calls
+	 * `filter_action: hide` — the filtered status is dropped rather than
+	 * blurred — so it maps onto the action rather than being stored twice.
+	 *
+	 * @param array<mixed> $context
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function createV1(
+		string $phrase = '',
+		array $context = [],
+		mixed $irreversible = false,
+		mixed $whole_word = false,
+		mixed $expires_in = null,
+	): DataResponse {
+		try {
+			$this->initViewer(['write:filters', 'write']);
+
+			$filter = (new Filter())
+				->setActorId($this->viewer->getId())
+				->setTitle($this->keyword($phrase))
+				->setContexts($this->contexts($context))
+				->setAction($this->flag($irreversible) ? Filter::ACTION_HIDE : Filter::ACTION_WARN)
+				->setExpiresAt($this->expiry($expires_in));
+			$filter->addKeyword(
+				(new FilterKeyword())
+					->setKeyword($this->keyword($phrase))
+					->setWholeWord($this->flag($whole_word))
+			);
+			$this->filtersRequest->save($filter);
+
+			$keywords = $filter->getKeywords();
+
+			return new DataResponse(self::asV1($filter, $keywords[0]), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Changes a v1 filter. What is not named is left alone, as everywhere else
+	 * here — a client that sends only `phrase` must not thereby clear the
+	 * contexts or the expiry.
+	 *
+	 * @param array<mixed>|null $context
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function updateV1(
+		int $id,
+		?string $phrase = null,
+		?array $context = null,
+		mixed $irreversible = null,
+		mixed $whole_word = null,
+		mixed $expires_in = null,
+	): DataResponse {
+		try {
+			$this->initViewer(['write:filters', 'write']);
+			[$filter, $keyword] = $this->keywordOfViewer($id);
+
+			if ($phrase !== null) {
+				$keyword->setKeyword($this->keyword($phrase));
+				$filter->setTitle($this->keyword($phrase));
+			}
+			if ($whole_word !== null) {
+				$keyword->setWholeWord($this->flag($whole_word));
+			}
+			if ($context !== null) {
+				$filter->setContexts($this->contexts($context));
+			}
+			if ($irreversible !== null) {
+				$filter->setAction($this->flag($irreversible) ? Filter::ACTION_HIDE : Filter::ACTION_WARN);
+			}
+			if ($expires_in !== null) {
+				$filter->setExpiresAt($this->expiry($expires_in));
+			}
+
+			$this->filtersRequest->update($filter);
+			$this->filtersRequest->updateKeyword($keyword);
+
+			return new DataResponse(self::asV1($filter, $keyword), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Removes a v1 filter: the keyword, and the filter with it when that was
+	 * its last one — a v2 filter with no keywords matches nothing, and leaving
+	 * one behind would show up in the v2 list as an empty filter the user never
+	 * made.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function deleteV1(int $id): DataResponse {
+		try {
+			$this->initViewer(['write:filters', 'write']);
+			[$filter, $keyword] = $this->keywordOfViewer($id);
+
+			$this->filtersRequest->deleteKeyword($keyword->getId(), $this->viewer->getId());
+			if (count($filter->getKeywords()) <= 1) {
+				$this->filtersRequest->delete($filter->getId(), $this->viewer->getId());
+			}
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The v1 entity: the keyword's id and phrase, with its parent's contexts,
+	 * expiry and action.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function asV1(Filter $filter, FilterKeyword $keyword): array {
+		return [
+			'id' => (string)$keyword->getId(),
+			'phrase' => $keyword->getKeyword(),
+			'context' => $filter->getContexts(),
+			'whole_word' => $keyword->isWholeWord(),
+			'expires_at' => $filter->jsonSerialize()['expires_at'],
+			'irreversible' => $filter->getAction() === Filter::ACTION_HIDE,
+		];
+	}
+
+	/**
+	 * The keyword behind a v1 id, and the filter holding it — both resolved
+	 * against the viewer, so somebody else's is a 404 rather than a 403.
+	 *
+	 * @return array{Filter, FilterKeyword}
+	 * @throws ItemNotFoundException
+	 */
+	private function keywordOfViewer(int $keywordId): array {
+		foreach ($this->filtersRequest->getByActor($this->viewer->getId()) as $filter) {
+			foreach ($filter->getKeywords() as $keyword) {
+				if ($keyword->getId() === $keywordId) {
+					return [$filter, $keyword];
+				}
+			}
+		}
+
+		throw new ItemNotFoundException('no such filter');
+	}
+
 	/** One filter of the viewer. Somebody else's is a 404, not a 403. */
 	#[NoCSRFRequired]
 	#[PublicPage]

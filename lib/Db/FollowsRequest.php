@@ -328,6 +328,46 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 *
 	 * @return string[] the shared inbox where there is one, the personal inbox otherwise
 	 */
+	/**
+	 * The accounts that follow `$targetId` and are also followed by
+	 * `$viewerId` — Mastodon's "familiar followers".
+	 *
+	 * One query with a self-join rather than two follower lists intersected in
+	 * PHP: the viewer's following list and the target's follower list can each
+	 * be tens of thousands of rows, and what is wanted is the overlap, which
+	 * the database can find without either of them leaving it.
+	 *
+	 * @return string[] actor ids
+	 */
+	public function getFamiliarFollowers(string $viewerId, string $targetId, int $limit): array {
+		$qb = $this->getFollowsSelectSql();
+		$qb->limitToType(Follow::TYPE);
+		$this->limitToPrim($qb, 'object_id_prim', $targetId);
+		// the builder's own, not `CoreRequestBuilder::limitToAccepted()`: that
+		// one takes the builder by reference as an `IQueryBuilder`, which
+		// re-types `$qb` for the rest of the method and loses `prim()` below
+		$qb->limitToAccepted(true);
+
+		// the same table again: a row saying the viewer follows whoever follows
+		// the target
+		$qb->innerJoin(
+			'f', self::TABLE_FOLLOWS, 'mine',
+			$qb->expr()->andX(
+				$qb->expr()->eq('mine.object_id_prim', 'f.actor_id_prim'),
+				$qb->expr()->eq('mine.actor_id_prim', $qb->createNamedParameter($qb->prim($viewerId))),
+				$qb->expr()->eq('mine.accepted', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT))
+			)
+		);
+		$qb->setMaxResults(max(1, $limit));
+
+		$ids = [];
+		foreach ($this->getFollowsFromRequest($qb) as $follow) {
+			$ids[] = $follow->getActorId();
+		}
+
+		return $ids;
+	}
+
 	public function getFollowerInboxes(string $actorId): array {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();

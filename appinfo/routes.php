@@ -72,6 +72,9 @@ return [
 		['name' => 'Api#pollVote', 'url' => '/api/v1/polls/{nid}/votes', 'verb' => 'POST'],
 		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
 		['name' => 'Api#instanceV2', 'url' => '/api/v2/instance', 'verb' => 'GET'],
+		['name' => 'Api#instancePeers', 'url' => '/api/v1/instance/peers', 'verb' => 'GET'],
+		['name' => 'Api#instanceActivity', 'url' => '/api/v1/instance/activity', 'verb' => 'GET'],
+		['name' => 'Api#preferences', 'url' => '/api/v1/preferences', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#trendTags', 'url' => '/api/v1/trends/tags', 'verb' => 'GET'],
 		['name' => 'Discovery#trendStatuses', 'url' => '/api/v1/trends/statuses', 'verb' => 'GET'],
@@ -120,6 +123,14 @@ return [
 		// Keyword filters, Mastodon's v2 API. The v1 routes are deprecated
 		// there and are deliberately not served: a v1 client cannot express
 		// `hide`, an expiry, or a keyword id.
+		// Mastodon's v1 filters, over the v2 ones: a v1 filter is one keyword.
+		// A client that has not moved reads a 404 here as "this server has no
+		// filters", which is a different thing from "none configured".
+		['name' => 'Filter#indexV1', 'url' => '/api/v1/filters', 'verb' => 'GET'],
+		['name' => 'Filter#createV1', 'url' => '/api/v1/filters', 'verb' => 'POST'],
+		['name' => 'Filter#getV1', 'url' => '/api/v1/filters/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#updateV1', 'url' => '/api/v1/filters/{id}', 'verb' => 'PUT', 'requirements' => ['id' => '\d+']],
+		['name' => 'Filter#deleteV1', 'url' => '/api/v1/filters/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
 		['name' => 'Filter#index', 'url' => '/api/v2/filters', 'verb' => 'GET'],
 		['name' => 'Filter#create', 'url' => '/api/v2/filters', 'verb' => 'POST'],
 		['name' => 'Filter#getKeyword', 'url' => '/api/v2/filters/keywords/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
@@ -199,6 +210,7 @@ return [
 		['name' => 'Discovery#accountFeaturedTags', 'url' => '/api/v1/accounts/{account}/featured_tags', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'List#accountLists', 'url' => '/api/v1/accounts/{account}/lists', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'Api#accountFollowing', 'url' => '/api/v1/accounts/{account}/following', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
+		['name' => 'Api#familiarFollowers', 'url' => '/api/v1/accounts/familiar_followers', 'verb' => 'GET'],
 		['name' => 'Api#accountsSearch', 'url' => '/api/v1/accounts/search', 'verb' => 'GET'],
 		// Last of the /accounts routes on purpose, and it has to stay last:
 		// {id} accepts slashes (a client may hold an actor URI rather than a

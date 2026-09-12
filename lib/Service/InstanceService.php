@@ -61,6 +61,10 @@ class InstanceService {
 	public const STATS_CACHE_KEY = 'instance_stats';
 	public const STATS_CACHE_SECONDS = 300;
 
+	/** Weeks of history `/api/v1/instance/activity` answers; Mastodon's is 12. */
+	private const ACTIVITY_WEEKS = 12;
+	private const WEEK = 7 * 24 * 3600;
+
 	/** @var string[]|null memoised: filterMimeTypes() does not change mid-request */
 	private ?array $supportedMimeTypes = null;
 
@@ -165,6 +169,47 @@ class InstanceService {
 	 * `countedStats()`. Nothing is read back from the stored row: it holds
 	 * whatever was true on the day the instance was set up.
 	 */
+	/**
+	 * The instances this one has heard of, for `/api/v1/instance/peers`.
+	 *
+	 * @return string[]
+	 */
+	public function getPeers(): array {
+		return $this->instanceStatsRequest->getRemoteDomains();
+	}
+
+	/**
+	 * Twelve weeks of activity, newest first, in Mastodon's shape: every value
+	 * a string, every week keyed by the unix time its Monday began.
+	 *
+	 * `logins` and `registrations` are `0` and cannot be otherwise: an account
+	 * here is a Nextcloud user, so both belong to the server rather than to
+	 * this app. `statuses` is real.
+	 *
+	 * @return array<int, array<string, string>>
+	 */
+	public function getWeeklyActivity(): array {
+		$weeks = [];
+		$startOfWeek = strtotime('monday this week 00:00:00');
+		if ($startOfWeek === false) {
+			return [];
+		}
+
+		for ($week = 0; $week < self::ACTIVITY_WEEKS; $week++) {
+			$from = $startOfWeek - ($week * self::WEEK);
+			$weeks[] = [
+				'week' => (string)$from,
+				'statuses' => (string)$this->instanceStatsRequest->countLocalStatusesBetween(
+					$from, $from + self::WEEK
+				),
+				'logins' => '0',
+				'registrations' => '0',
+			];
+		}
+
+		return $weeks;
+	}
+
 	private function stats(): array {
 		$counted = $this->countedStats();
 
