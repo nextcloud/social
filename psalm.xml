@@ -24,16 +24,6 @@
 		</ignoreFiles>
 	</extraFiles>
 	<issueHandlers>
-		<UndefinedDocblockClass>
-			<errorLevel type="suppress">
-				<referencedClass name="Doctrine\DBAL\Schema\Schema" />
-				<referencedClass name="Doctrine\DBAL\Schema\SchemaException" />
-				<referencedClass name="Doctrine\DBAL\Driver\Statement" />
-				<referencedClass name="Doctrine\DBAL\Schema\Table" />
-				<referencedClass name="OC\DB\Connection" />
-				<referencedClass name="Symfony\Component\EventDispatcher\EventDispatcherInterface" />
-			</errorLevel>
-		</UndefinedDocblockClass>
 		<TypeDoesNotContainNull>
 			<errorLevel type="suppress">
 				<file name="lib/Service/StreamService.php"/>

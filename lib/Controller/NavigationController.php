@@ -10,9 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use Exception;
-use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
+use OCA\Social\Exceptions\NoUserException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;

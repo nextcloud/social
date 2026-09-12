@@ -10,8 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Migration;
 
 use Closure;
-use Doctrine\DBAL\Schema\SchemaException;
 use OCP\DB\ISchemaWrapper;
+use OCP\DB\Schema\SchemaException;
 use OCP\DB\Types;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;

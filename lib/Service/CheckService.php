@@ -9,7 +9,6 @@ namespace OCA\Social\Service;
 
 use Exception;
 use GuzzleHttp\Exception\ClientException;
-use OC\User\NoUserException;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -18,6 +17,7 @@ use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
+use OCA\Social\Exceptions\NoUserException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Follow;

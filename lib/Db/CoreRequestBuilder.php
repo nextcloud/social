@@ -12,8 +12,6 @@ namespace OCA\Social\Db;
 use DateInterval;
 use DateTime;
 use Exception;
-use OC\DB\Connection;
-use OC\DB\SchemaWrapper;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -25,7 +23,6 @@ use OCA\Social\Tools\IExtendedQueryBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
-use OCP\Server;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -1348,10 +1345,9 @@ class CoreRequestBuilder {
 	/**
 	 * this just empty all tables from the app.
 	 */
-	public function emptyAll() {
-		$schema = new SchemaWrapper(Server::get(Connection::class));
+	public function emptyAll(): void {
 		foreach (array_keys(self::$tables) as $table) {
-			if ($schema->hasTable($table)) {
+			if ($this->dbConnection->tableExists($table)) {
 				$qb = $this->getQueryBuilder();
 				$qb->delete($table);
 				$qb->executeStatement();
@@ -1362,15 +1358,12 @@ class CoreRequestBuilder {
 	/**
 	 * this just empty all tables from the app.
 	 */
-	public function uninstallSocialTables() {
-		$schema = new SchemaWrapper(Server::get(Connection::class));
+	public function uninstallSocialTables(): void {
 		foreach (array_keys(self::$tables) as $table) {
-			if ($schema->hasTable($table)) {
-				$schema->dropTable($table);
+			if ($this->dbConnection->tableExists($table)) {
+				$this->dbConnection->dropTable($table);
 			}
 		}
-
-		$schema->performDropTableCalls();
 	}
 
 	/**
