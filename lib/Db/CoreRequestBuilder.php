@@ -50,6 +50,7 @@ class CoreRequestBuilder {
 	public const TABLE_ANNOUNCEMENTS = 'social_announcement';
 	public const TABLE_ANNOUNCEMENT_READS = 'social_announce_read';
 	public const TABLE_ANNOUNCEMENT_REACTIONS = 'social_announce_react';
+	public const TABLE_ACCESS_BLOCKS = 'social_access_block';
 	public const TABLE_ACCOUNT_NOTES = 'social_account_note';
 	public const TABLE_CONVERSATION_STATE = 'social_convo_state';
 	public const TABLE_DOMAIN_BLOCKS = 'social_domain_block';
@@ -312,6 +313,15 @@ class CoreRequestBuilder {
 			'actor_id',
 			'level',
 			'comment',
+			'creation'
+		],
+		self::TABLE_ACCESS_BLOCKS => [
+			'id',
+			'type',
+			'value',
+			'severity',
+			'comment',
+			'expires',
 			'creation'
 		],
 		self::TABLE_ANNOUNCEMENT_REACTIONS => [

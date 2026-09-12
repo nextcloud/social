@@ -17,7 +17,9 @@ use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Model\AccessBlock;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
 use OCP\AppFramework\Controller;
@@ -77,6 +79,7 @@ class AdminApiController extends Controller {
 		private IUserSession $userSession,
 		private LoggerInterface $logger,
 		private AdminApiService $adminApiService,
+		private AccessBlockService $accessBlockService,
 		private ClientService $clientService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -415,6 +418,177 @@ class AdminApiController extends Controller {
 			$this->initAdmin(['admin:write']);
 
 			return new DataResponse($this->adminApiService->unblockDomain($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	// IP blocks and email-domain blocks
+
+	/**
+	 * The addresses this instance answers nothing from.
+	 *
+	 * Mastodon's list, with one severity: `no_access`. The other two police a
+	 * sign-up this instance has not — an account here is a Nextcloud account,
+	 * and the server decides who gets one.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlocks(): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->accessBlockService->ipBlocks(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlock(int $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->accessBlockService->ipBlock($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Refuses an address or a range everything this app serves.
+	 *
+	 * `expires_in` is Mastodon's: seconds from now, or absent for a block that
+	 * does not lift itself. A severity this instance cannot honour is a
+	 * **422** rather than a row nothing will ever read — an admin told their
+	 * rule was stored would believe sign-ups from that range were being turned
+	 * away.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlockCreate(
+		string $ip = '',
+		string $severity = AccessBlock::SEVERITY_NO_ACCESS,
+		string $comment = '',
+		int $expires_in = 0,
+	): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->accessBlockService->blockIp(
+					$ip, $severity, $comment, $expires_in > 0 ? time() + $expires_in : 0
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Changes one. The address is not among what can change: a block on a
+	 * different range is a different block, and Mastodon's own PUT keeps it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlockUpdate(
+		int $id,
+		string $severity = AccessBlock::SEVERITY_NO_ACCESS,
+		string $comment = '',
+		int $expires_in = 0,
+	): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$block = $this->accessBlockService->ipBlock($id);
+
+			return new DataResponse(
+				$this->accessBlockService->blockIp(
+					$block->getValue(), $severity, $comment,
+					$expires_in > 0 ? time() + $expires_in : 0
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlockRemove(int $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$this->accessBlockService->unblockIp($id);
+
+			return new DataResponse((object)[], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The email domains this instance does not give fediverse accounts to.
+	 *
+	 * Mastodon refuses a sign-up at one of these. There is no sign-up here, so
+	 * what it refuses is the decision this app does make: whether a Nextcloud
+	 * account gets a fediverse identity — the same question one step later.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emailDomainBlocks(): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->accessBlockService->emailDomainBlocks(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emailDomainBlock(int $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->accessBlockService->emailDomainBlock($id), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emailDomainBlockCreate(string $domain = ''): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->accessBlockService->blockEmailDomain($domain), Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emailDomainBlockRemove(int $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$this->accessBlockService->unblockEmailDomain($id);
+
+			return new DataResponse((object)[], Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

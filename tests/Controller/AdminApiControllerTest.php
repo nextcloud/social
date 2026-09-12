@@ -16,6 +16,7 @@ use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Client\AdminDomainBlock;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Moderation;
+use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
 use OCP\AppFramework\Http;
@@ -52,6 +53,7 @@ class AdminApiControllerTest extends TestCase {
 	/** @var IRequest&MockObject */
 	private $request;
 	private AdminApiService|MockObject $adminApiService;
+	private AccessBlockService|MockObject $accessBlockService;
 	private ClientService|MockObject $clientService;
 	private IUserSession|MockObject $userSession;
 
@@ -88,6 +90,15 @@ class AdminApiControllerTest extends TestCase {
 			'domainBlockCreate' => ['domainBlockCreate', ['evil.example', 'suspend']],
 			'domainBlockUpdate' => ['domainBlockUpdate', ['evil.example', 'suspend']],
 			'domainBlockRemove' => ['domainBlockRemove', ['evil.example']],
+			'ipBlocks' => ['ipBlocks', []],
+			'ipBlock' => ['ipBlock', [4]],
+			'ipBlockCreate' => ['ipBlockCreate', ['1.2.3.0/24', 'no_access', '', 0]],
+			'ipBlockUpdate' => ['ipBlockUpdate', [4, 'no_access', '', 0]],
+			'ipBlockRemove' => ['ipBlockRemove', [4]],
+			'emailDomainBlocks' => ['emailDomainBlocks', []],
+			'emailDomainBlock' => ['emailDomainBlock', [4]],
+			'emailDomainBlockCreate' => ['emailDomainBlockCreate', ['throwaway.example']],
+			'emailDomainBlockRemove' => ['emailDomainBlockRemove', [4]],
 		];
 	}
 
@@ -132,6 +143,7 @@ class AdminApiControllerTest extends TestCase {
 		\OC::$server->register(IRequest::class, $this->request);
 
 		$this->adminApiService = $this->createMock(AdminApiService::class);
+		$this->accessBlockService = $this->createMock(AccessBlockService::class);
 		$this->adminApiService->method('isAdministrator')
 			->willReturnCallback(fn (string $userId): bool => $this->isAdmin && $userId === self::ADMIN);
 	}
@@ -142,6 +154,7 @@ class AdminApiControllerTest extends TestCase {
 			$this->userSession,
 			new NullLogger(),
 			$this->adminApiService,
+			$this->accessBlockService,
 			$this->clientService
 		);
 	}

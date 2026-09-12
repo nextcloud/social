@@ -21,6 +21,7 @@ use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
+use OCA\Social\Middleware\AccessBlockMiddleware;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\UserMigration\SocialMigrator;
@@ -47,6 +48,9 @@ class Application extends App implements IBootstrap {
 
 	#[\Override]
 	public function register(IRegistrationContext $context): void {
+		// before anything else it registers: an address at `no_access` is
+		// refused whatever it was asking for
+		$context->registerMiddleware(AccessBlockMiddleware::class);
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);

@@ -22,6 +22,7 @@ use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
+use OCA\Social\Middleware\AccessBlockMiddleware;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\UserMigration\SocialMigrator;
@@ -91,11 +92,30 @@ class ApplicationTest extends TestCase {
 
 	public function testRegisterDoesNotTouchOtherRegistrationApis(): void {
 		$context = $this->createMock(IRegistrationContext::class);
-		$context->expects($this->never())->method('registerMiddleware');
 		$context->expects($this->never())->method('registerService');
 		$context->expects($this->never())->method('registerCapability');
 
 		$this->application()->register($context);
+	}
+
+	/**
+	 * An IP block at `no_access` is a statement about the whole app, so it is
+	 * enforced in the one place every request passes through. A block that
+	 * held on the inbox but not on the API — or on last month's routes but not
+	 * on the ones added since — is not what an admin switched on.
+	 */
+	public function testTheAccessBlockIsEnforcedForEveryRoute(): void {
+		$registered = [];
+		$context = $this->createMock(IRegistrationContext::class);
+		$context->method('registerMiddleware')->willReturnCallback(
+			static function (string $class) use (&$registered): void {
+				$registered[] = $class;
+			}
+		);
+
+		$this->application()->register($context);
+
+		$this->assertSame([AccessBlockMiddleware::class], $registered);
 	}
 
 	public function testBootDoesNothing(): void {

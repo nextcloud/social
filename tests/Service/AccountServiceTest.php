@@ -27,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
@@ -57,6 +58,10 @@ class AccountServiceTest extends TestCase {
 	private DocumentService|MockObject $documentService;
 	private SignatureService|MockObject $signatureService;
 	private ConfigService|MockObject $configService;
+	private AccessBlockService|MockObject $accessBlockService;
+
+	/** @var string[] the addresses this instance gives no fediverse account to */
+	private array $blockedEmails = [];
 	private AccountService $service;
 	private int $errorReporting;
 
@@ -77,6 +82,11 @@ class AccountServiceTest extends TestCase {
 		// "Creation of dynamic property" for each of them, which PHPUnit would treat as
 		// unexpected output. Silence that single known deprecation around construction.
 		$this->errorReporting = error_reporting(E_ALL & ~E_DEPRECATED);
+		$this->accessBlockService = $this->createMock(AccessBlockService::class);
+		$this->accessBlockService->method('isBlockedEmail')->willReturnCallback(
+			fn (string $email): bool => in_array($email, $this->blockedEmails, true)
+		);
+
 		$this->service = new AccountService(
 			$this->userManager,
 			$this->userSession,
@@ -89,6 +99,7 @@ class AccountServiceTest extends TestCase {
 			$this->documentService,
 			$this->signatureService,
 			$this->configService,
+			$this->accessBlockService,
 			new NullLogger(),
 		);
 		error_reporting($this->errorReporting);
@@ -99,9 +110,10 @@ class AccountServiceTest extends TestCase {
 		error_reporting($this->errorReporting);
 	}
 
-	private function user(string $uid): IUser|MockObject {
+	private function user(string $uid, string $email = ''): IUser|MockObject {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
+		$user->method('getEMailAddress')->willReturn($email);
 
 		return $user;
 	}
@@ -858,4 +870,39 @@ class AccountServiceTest extends TestCase {
 		$this->service->setDefaultPrivacy('alice', 'friends');
 	}
 
+	// email-domain blocks
+
+	/**
+	 * Mastodon's email-domain block refuses a sign-up. There is no sign-up
+	 * here — the server decides who gets a Nextcloud account — so what it
+	 * refuses is the one decision this app makes: whether that account gets a
+	 * fediverse identity at all.
+	 */
+	public function testAnAccountAtABlockedDomainIsGivenNoFediverseIdentity(): void {
+		$this->userManager->method('get')->with('alice')
+			->willReturn($this->user('alice', 'alice@throwaway.example'));
+		$this->blockedEmails = ['alice@throwaway.example'];
+		$this->actorsRequest->expects($this->never())->method('create');
+
+		$this->expectException(InvalidHandleException::class);
+		$this->expectExceptionMessage('addresses at that domain');
+
+		$this->service->createActor('alice', 'alice');
+	}
+
+	/**
+	 * A server that stores no addresses would otherwise hand out no fediverse
+	 * accounts at all.
+	 */
+	public function testAnAccountWithNoAddressIsNotRefused(): void {
+		$this->userManager->method('get')->with('alice')->willReturn($this->user('alice'));
+		$this->actorsRequest->method('getFromUsername')
+			->willThrowException(new ActorDoesNotExistException());
+		$this->actorsRequest->method('getFromUserId')
+			->willThrowException(new ActorDoesNotExistException());
+		$this->blockedEmails = ['alice@throwaway.example'];
+
+		$this->service->createActor('alice', 'alice');
+		$this->addToAssertionCount(1);
+	}
 }
