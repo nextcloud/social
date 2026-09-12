@@ -28,6 +28,7 @@ use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\StarterPackService;
 use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Controller;
@@ -35,6 +36,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -82,6 +84,7 @@ class DiscoveryController extends Controller {
 		private FeaturedTagService $featuredTagService,
 		private LinkPreviewService $linkPreviewService,
 		private PlaceService $placeService,
+		private StarterPackService $starterPackService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -242,6 +245,75 @@ class DiscoveryController extends Controller {
 			$this->placeService->attachPlaces($statuses);
 
 			return new DataResponse($statuses, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The starter packs: named handfuls of accounts worth following.
+	 *
+	 * The index resolves nobody. A handle becomes a profile through a WebFinger
+	 * lookup and an actor fetch against somebody else's server, and doing that
+	 * for every handle of every pack in order to draw a list of pack *names*
+	 * would make this page wait on the internet for nothing.
+	 *
+	 * Public: what this instance suggests is something it publishes about
+	 * itself, and a signed-out visitor deciding whether to join deserves to see
+	 * it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/starter_packs')]
+	public function starterPacks(): DataResponse {
+		try {
+			return new DataResponse($this->starterPackService->packs(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * One pack, with its handles resolved to profiles.
+	 *
+	 * This one does reach other servers, which is why it is a route of its own
+	 * rather than a fatter index: the cost is paid when somebody opens a pack,
+	 * not when they glance at the page.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/starter_packs/{slug}', requirements: ['slug' => '[a-z0-9-]+'])]
+	public function starterPack(string $slug): DataResponse {
+		try {
+			return new DataResponse($this->starterPackService->pack($slug), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Follows everyone in a pack that can be reached.
+	 *
+	 * The whole point of the button is that nobody has to follow six accounts by
+	 * hand, so one unreachable host skips that account rather than failing the
+	 * lot. The answer says who was actually followed.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 10, period: 60)]
+	#[FrontpageRoute(
+		verb: 'POST',
+		url: '/api/v1/starter_packs/{slug}/follow',
+		requirements: ['slug' => '[a-z0-9-]+']
+	)]
+	public function followStarterPack(string $slug): DataResponse {
+		try {
+			$this->initViewer(['write:follows'], true);
+
+			return new DataResponse(
+				['followed' => $this->starterPackService->followAll($this->viewer, $slug)],
+				Http::STATUS_OK
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

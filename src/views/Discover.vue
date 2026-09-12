@@ -3,12 +3,12 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="explore">
-		<h2 class="explore__heading">
-			{{ t('social', 'Explore') }}
+	<div class="discover">
+		<h2 class="discover__heading">
+			{{ t('social', 'Discover') }}
 		</h2>
 
-		<div class="explore__tabs" role="tablist" :aria-label="t('social', 'Explore')">
+		<div class="discover__tabs" role="tablist" :aria-label="t('social', 'Discover')">
 			<NcButton
 				v-for="tab in tabs"
 				:key="tab.id"
@@ -20,7 +20,7 @@
 			</NcButton>
 		</div>
 
-		<div v-if="error" class="explore__error" role="alert">
+		<div v-if="error" class="discover__error" role="alert">
 			<p>{{ error }}</p>
 			<NcButton variant="primary" :disabled="loading" @click="load(active, true)">
 				<template #icon>
@@ -38,7 +38,7 @@
 				:loading="loading" />
 			<NcEmptyContent
 				v-else
-				:name="t('social', 'Nothing to explore yet')"
+				:name="t('social', 'Nothing to discover yet')"
 				:description="t('social', 'Pictures people are looking at will appear here.')">
 				<template #icon>
 					<Compass />
@@ -47,11 +47,11 @@
 		</template>
 
 		<template v-else-if="active === 'tags'">
-			<ul v-if="tags.length" class="explore__tags">
+			<ul v-if="tags.length" class="discover__tags">
 				<li v-for="tag in tags" :key="tag.name">
-					<router-link class="explore__tag" :to="{ name: 'tags', params: { tag: tag.name } }">
-						<span class="explore__tag-name">#{{ tag.name }}</span>
-						<span v-if="tagUses(tag)" class="explore__tag-count">
+					<router-link class="discover__tag" :to="{ name: 'tags', params: { tag: tag.name } }">
+						<span class="discover__tag-name">#{{ tag.name }}</span>
+						<span v-if="tagUses(tag)" class="discover__tag-count">
 							{{ n('social', '%n post', '%n posts', tagUses(tag)) }}
 						</span>
 					</router-link>
@@ -67,20 +67,97 @@
 			</NcEmptyContent>
 		</template>
 
+		<template v-else-if="active === 'packs'">
+			<!-- one pack open: its accounts, with a follow-all -->
+			<div v-if="openPack" class="discover__pack">
+				<NcButton variant="tertiary" @click="closePack">
+					<template #icon>
+						<ArrowLeft :size="20" />
+					</template>
+					{{ t('social', 'All starter packs') }}
+				</NcButton>
+
+				<h3 class="discover__pack-name">
+					{{ openPack.name }}
+				</h3>
+				<p v-if="openPack.description" class="discover__pack-description">
+					{{ openPack.description }}
+				</p>
+
+				<NcButton
+					variant="primary"
+					:disabled="followingPack === openPack.id || !openPack.accounts.length"
+					@click="followPack(openPack.id)">
+					<template #icon>
+						<NcLoadingIcon v-if="followingPack === openPack.id" :size="20" />
+						<AccountMultiplePlusOutline v-else :size="20" />
+					</template>
+					{{ t('social', 'Follow everyone') }}
+				</NcButton>
+
+				<NcLoadingIcon v-if="packLoading" class="discover__loading" :size="32" />
+				<ul v-else class="discover__accounts">
+					<li v-for="account in openPack.accounts" :key="account.id" class="discover__account">
+						<router-link
+							class="discover__account-link"
+							:to="{ name: 'profile', params: { account: account.acct } }">
+							<img
+								class="discover__avatar"
+								:src="account.avatar"
+								alt=""
+								loading="lazy">
+							<span class="discover__account-names">
+								<span class="discover__account-name">{{ account.display_name || account.username }}</span>
+								<span class="discover__account-handle">@{{ account.acct }}</span>
+							</span>
+						</router-link>
+					</li>
+				</ul>
+
+				<!-- a pack that quietly shrinks looks like one somebody wrote
+				     badly; say which handles could not be reached -->
+				<p v-if="openPack.unresolved && openPack.unresolved.length" class="discover__unresolved">
+					{{ n('social', 'One account could not be reached: %n', 'Some accounts could not be reached: %n', openPack.unresolved.length) }}
+					<span>{{ openPack.unresolved.join(', ') }}</span>
+				</p>
+			</div>
+
+			<ul v-else-if="packs.length" class="discover__packs">
+				<li v-for="pack in packs" :key="pack.id">
+					<button type="button" class="discover__pack-card" @click="loadPack(pack.id)">
+						<span class="discover__pack-card-name">{{ pack.name }}</span>
+						<span class="discover__pack-card-description">{{ pack.description }}</span>
+						<span class="discover__pack-card-size">
+							{{ n('social', '%n account', '%n accounts', pack.size) }}
+						</span>
+					</button>
+				</li>
+			</ul>
+
+			<NcEmptyContent
+				v-else-if="!loading"
+				:name="t('social', 'No starter packs')"
+				:description="t('social', 'An administrator can add some with the starter_packs app setting.')">
+				<template #icon>
+					<AccountMultipleOutline />
+				</template>
+			</NcEmptyContent>
+		</template>
+
 		<template v-else>
-			<ul v-if="accounts.length" class="explore__accounts">
-				<li v-for="account in accounts" :key="account.id" class="explore__account">
+			<ul v-if="accounts.length" class="discover__accounts">
+				<li v-for="account in accounts" :key="account.id" class="discover__account">
 					<router-link
-						class="explore__account-link"
+						class="discover__account-link"
 						:to="{ name: 'profile', params: { account: account.acct } }">
 						<img
-							class="explore__avatar"
+							class="discover__avatar"
 							:src="account.avatar"
 							alt=""
 							loading="lazy">
-						<span class="explore__account-names">
-							<span class="explore__account-name">{{ account.display_name || account.username }}</span>
-							<span class="explore__account-handle">@{{ account.acct }}</span>
+						<span class="discover__account-names">
+							<span class="discover__account-name">{{ account.display_name || account.username }}</span>
+							<span class="discover__account-handle">@{{ account.acct }}</span>
 						</span>
 					</router-link>
 				</li>
@@ -95,12 +172,14 @@
 			</NcEmptyContent>
 		</template>
 
-		<NcLoadingIcon v-if="loading && active !== 'posts'" class="explore__loading" :size="32" />
+		<NcLoadingIcon v-if="loading && active !== 'posts'" class="discover__loading" :size="32" />
 	</div>
 </template>
 
 <script>
 import AccountMultipleOutline from 'vue-material-design-icons/AccountMultipleOutline.vue'
+import AccountMultiplePlusOutline from 'vue-material-design-icons/AccountMultiplePlusOutline.vue'
+import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import Compass from 'vue-material-design-icons/Compass.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -109,13 +188,19 @@ import Pound from 'vue-material-design-icons/Pound.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import axios from '@nextcloud/axios'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import logger from '../services/logger.js'
 import { generateUrl } from '@nextcloud/router'
 import { n, t } from '@nextcloud/l10n'
 
 /**
- * Explore: the pictures being looked at, the hashtags being used, and the
- * accounts this server knows about.
+ * Discover: who to follow, and what is being looked at.
+ *
+ * People comes first, because it is the question somebody opening this page
+ * actually has. A timeline is empty until you follow somebody, and "who?" is
+ * unanswerable from a graph you are not yet part of -- which is what the starter
+ * packs are for: a human answer where the suggestion engine structurally has
+ * none.
  *
  * Every one of these was already answered by the server and none of them was
  * reachable from the interface -- the whole discovery backend existed and there
@@ -126,10 +211,12 @@ import { n, t } from '@nextcloud/l10n'
  * empty list that cannot be told apart from "there is nothing here".
  */
 export default {
-	name: 'Explore',
+	name: 'Discover',
 
 	components: {
 		AccountMultipleOutline,
+		AccountMultiplePlusOutline,
+		ArrowLeft,
 		Compass,
 		NcButton,
 		NcEmptyContent,
@@ -141,12 +228,17 @@ export default {
 
 	data() {
 		return {
-			active: 'posts',
+			active: 'accounts',
 			loading: false,
 			error: null,
 			posts: [],
 			tags: [],
 			accounts: [],
+			packs: [],
+			/** which pack is open, and the accounts it resolved to */
+			openPack: null,
+			packLoading: false,
+			followingPack: '',
 			/** which tabs have been asked for, so a second visit does not re-ask */
 			loaded: [],
 		}
@@ -155,9 +247,10 @@ export default {
 	computed: {
 		tabs() {
 			return [
+				{ id: 'accounts', name: t('social', 'People') },
+				{ id: 'packs', name: t('social', 'Starter packs') },
 				{ id: 'posts', name: t('social', 'Pictures') },
 				{ id: 'tags', name: t('social', 'Hashtags') },
-				{ id: 'accounts', name: t('social', 'Accounts') },
 			]
 		},
 	},
@@ -192,6 +285,8 @@ export default {
 					this.posts = await this.get('api/v2/discover/posts')
 				} else if (tab === 'tags') {
 					this.tags = await this.get('api/v1/trends/tags')
+				} else if (tab === 'packs') {
+					this.packs = await this.get('api/v1/starter_packs')
 				} else {
 					this.accounts = await this.get('api/v2/suggestions')
 						.then((suggestions) => suggestions
@@ -203,10 +298,66 @@ export default {
 					this.loaded.push(tab)
 				}
 			} catch (error) {
-				logger.error('Could not load the explore page', { error, tab })
+				logger.error('Could not load the discover page', { error, tab })
 				this.error = t('social', 'Could not load this. The server may be busy.')
 			} finally {
 				this.loading = false
+			}
+		},
+
+		/**
+		 * Opens one pack, which is where the handles are resolved.
+		 *
+		 * The index deliberately resolves nobody — turning a handle into a
+		 * profile is a WebFinger lookup and an actor fetch against somebody
+		 * else's server, so the cost is paid here, when a pack is actually
+		 * opened, rather than on the way past.
+		 *
+		 * @param {string} slug the pack's id
+		 */
+		async loadPack(slug) {
+			this.packLoading = true
+			this.error = null
+			// shown at once so the name and description are on screen while the
+			// accounts are still being fetched
+			this.openPack = this.packs.find((pack) => pack.id === slug) ?? null
+			try {
+				const { data } = await axios.get(generateUrl(`apps/social/api/v1/starter_packs/${slug}`))
+				this.openPack = data
+			} catch (error) {
+				logger.error('Could not open the starter pack', { error, slug })
+				this.error = t('social', 'Could not open this pack. The server may be busy.')
+				this.openPack = null
+			} finally {
+				this.packLoading = false
+			}
+		},
+
+		closePack() {
+			this.openPack = null
+			this.error = null
+		},
+
+		/**
+		 * Follows everyone in the pack who can be reached.
+		 *
+		 * The server skips whoever it cannot reach rather than failing the lot,
+		 * and answers with who it actually followed — so the message says that
+		 * number rather than the number in the pack.
+		 *
+		 * @param {string} slug the pack's id
+		 */
+		async followPack(slug) {
+			this.followingPack = slug
+			try {
+				const { data } = await axios.post(generateUrl(`apps/social/api/v1/starter_packs/${slug}/follow`))
+				const followed = Array.isArray(data?.followed) ? data.followed.length : 0
+				showSuccess(n('social', 'Followed %n account', 'Followed %n accounts', followed))
+			} catch (error) {
+				logger.error('Could not follow the starter pack', { error, slug })
+				showError(t('social', 'Could not follow these accounts'))
+			} finally {
+				this.followingPack = ''
 			}
 		},
 
@@ -239,7 +390,7 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.explore {
+.discover {
 	padding: calc(var(--default-grid-baseline) * 4);
 	max-width: 1000px;
 	margin-inline: auto;

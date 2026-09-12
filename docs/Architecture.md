@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.5  
+**App version:** 0.19.6  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -242,6 +242,7 @@ The business logic lives in `lib/Service/`.
 - **DomainBlockService** — Per-account blocks of a whole instance, stored as a domain and applied to the host of an account's actor id. Not `FediverseService`, which is the admin's instance-wide access list. Nothing is federated; the timelines enforce it from inside `filterHiddenActors()`, so a domain block reaches everything a per-account block reaches
 - **AccountRelationService** — The private note, the endorsement and the mute expiry of one account towards another, and `decorate()`, which is where `FollowService::generateRelationship()` fills in `domain_blocking`, `note` and a mute that has run out. A timed mute stops applying because the read says so, not because anything ran to delete it
 - **StatusRevisionService** — The versions a status has been through. The first edit records the version being replaced as well as the new one, so the first entry of a history is always what was posted
+- **StarterPackService** — Named handfuls of accounts worth following, answering the question `SuggestionService` structurally cannot: suggestions work off the follow graph, and a new account has none, so the fallback is whoever posted recently — a list of strangers sorted by luck. A pack is a list of `user@host` handles and nothing else; no table, because the accounts are not this instance's to own and the handles are the only durable reference to them. The index resolves nobody (a handle costs a WebFinger lookup and an actor fetch), so resolution happens only when a pack is opened, and a handle that will not resolve is *reported* rather than dropped — a pack that quietly shrinks looks like one somebody wrote badly. The shipped packs are the official accounts of the projects this app federates with, which is the one editorial line defensible without becoming a directory nobody agreed to be in; the `starter_packs` app value replaces or extends them, and a configured pack whose slug matches a shipped one replaces it
 - **DirectoryService / SuggestionService / TrendService / FeaturedTagService** — Discovery. The directory is opt-in through `discoverable`, applied as a predicate of the deciding query rather than as a filter over rows already read; suggestions are two counted facts (friends of friends, then locally active accounts) rather than a scoring model; trends count from the rows a like, a boost and a link preview already write, so a trend cannot drift from the counts a status reports
 - **BannerService** — The banner across the top of a profile. Three routes set one — a picked file, a URL, and `header` on `update_credentials` — and all three end in the same work: store the bytes, point the cached actor at them, tell the followers. It is one service so those three cannot drift on the parts that matter, which are the banner being public where an attachment is not, and the `Update{Person}` that is the only reason anybody else ever sees it
 

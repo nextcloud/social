@@ -328,12 +328,6 @@ export default {
 						to: { name: 'timeline', params: { type: 'photos' } },
 					},
 					{
-						key: 'social-explore',
-						icon: IconCompass,
-						title: t('social', 'Explore'),
-						to: { name: 'explore' },
-					},
-					{
 						key: 'social-notifications',
 						icon: IconBell,
 						title: t('social', 'Notifications'),
@@ -345,6 +339,12 @@ export default {
 						icon: IconCommentAccount,
 						title: t('social', 'Direct messages'),
 						to: { name: 'timeline', params: { type: 'direct' } },
+					},
+					{
+						key: 'social-discover',
+						icon: IconCompass,
+						title: t('social', 'Discover'),
+						to: { name: 'discover' },
 					},
 				],
 

@@ -97,9 +97,9 @@ describe('Navigation', () => {
 		expect(itemNames(mountNavigation())).toEqual([
 			'Home',
 			'Photos',
-			'Explore',
 			'Notifications',
 			'Direct messages',
+			'Discover',
 			'Alice',
 			'Follow requests',
 			'Liked posts',
@@ -128,9 +128,9 @@ describe('Navigation', () => {
 		expect(topLevel).toEqual([
 			'Home',
 			'Photos',
-			'Explore',
 			'Notifications',
 			'Direct messages',
+			'Discover',
 			'Alice',
 		])
 	})
