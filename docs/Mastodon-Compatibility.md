@@ -103,7 +103,6 @@ table. **Only two true stubs remain in the entire Mastodon surface:**
 
 | Endpoint | State | Evidence |
 |---|---|---|
-| `/api/v1/custom_emojis` | returns `[]` unconditionally | `ApiController::customEmojis()` |
 | `/api/saved_searches/list.json` | initialises the viewer, returns `[]` | `ApiController::savedSearches()` |
 
 Everything else that exists as a route does real work, including subsystems the

@@ -27,6 +27,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
@@ -90,6 +91,7 @@ class PostServiceTest extends TestCase {
 			$configService,
 			$this->createMock(CurlService::class),
 			$this->createMock(LinkPreviewService::class),
+			$this->createMock(EmojiService::class),
 			new NullLogger()
 		);
 

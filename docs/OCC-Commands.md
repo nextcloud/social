@@ -561,6 +561,54 @@ by the same exact comparison.
   `jailed()`, which refuses service when the instance is in `none_but` mode with an
   empty list.
 
+### `social:emoji`
+
+The custom emoji this instance publishes.
+
+```
+php occ social:emoji [-c|--category CATEGORY] [--hidden] [<action>] [<shortcode>] [<file>]
+```
+
+| Argument | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `action` | No | `list` | One of `list`, `add`, `remove` |
+| `shortcode` | No | `''` | Required by `add` and `remove`. The name between the colons: 2–64 characters of `a-z`, `0-9` and `_`. Read lowercase and trimmed, so `BlobCat` and `blobcat` are the same emoji |
+| `file` | No | `''` | Required by `add`. A readable path to the picture |
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-c`, `--category` | required | Group it under this in a client's picker |
+| `--hidden` | none | Store it usable by name but not offered in a picker (Mastodon's `visible_in_picker: false`) |
+
+| Action | Effect |
+|--------|--------|
+| `list` _(the default)_ | Print every emoji with its category, whether a picker offers it, and the URL it is served from |
+| `add <shortcode> <file>` | Publish the picture under that shortcode |
+| `remove <shortcode>` | Stop publishing it |
+
+An unknown action throws `specify action: list, add, remove`; removing one that
+is not there throws `no emoji is published as :<shortcode>:`.
+
+**What is accepted.** A PNG, GIF, WebP or JPEG of at most **256 KiB** — the
+bytes decide, not the extension, because this is served to every reader of
+every post that uses it. Anything else is refused with a reason.
+
+**What `add` does to a shortcode already in use.** Replaces the picture. A
+shortcode names one emoji, and an admin re-uploading under a name in use means
+to replace it rather than to be told it exists.
+
+**What a post carries.** The shortcode stays in the content as text, and an
+`Emoji` tag beside it says where the picture is — which is how every fediverse
+server does it, and why an instance that has never heard of `:blobcat:` still
+renders the post. A shortcode this instance has no picture for is left as the
+text it already was. Editing a post rebuilds its tags, so a shortcode added by
+an edit renders and one removed by an edit takes its tag with it.
+
+**What `remove` does to posts that used it.** Nothing. What they carry is the
+tag they were federated with; this instance no longer offering the picture does
+not rewrite what was already said. Locally, the picture stops being served, so
+the shortcode shows as text again.
+
 ### `social:domain:purge`
 
 Delete everything an instance already sent this one. Blocking the domain

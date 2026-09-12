@@ -28,6 +28,7 @@ use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\SignatureService;
@@ -87,6 +88,7 @@ class BoostServiceTest extends TestCase {
 			$configService,
 			$this->createMock(CurlService::class),
 			$this->createMock(LinkPreviewService::class),
+			$this->createMock(EmojiService::class),
 			new NullLogger()
 		);
 

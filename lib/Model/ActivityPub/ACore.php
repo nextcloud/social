@@ -621,8 +621,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	public function validateEntryArray(int $as, array $values): array {
 		switch ($as) {
 			case self::AS_TAGS:
-
-				return [
+				$tag = [
 					'type' => $this->validateEntryString(
 						self::AS_TYPE, $this->get('type', $values, ''), false
 					),
@@ -633,9 +632,55 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 						self::AS_STRING, $this->get('name', $values, ''), false
 					)
 				];
+
+				// An Emoji tag is nothing without its icon: the shortcode in
+				// the content is text, and the icon is the only thing that
+				// says what to draw instead. Dropping it — which is what
+				// keeping only these three keys did — left every emoji, ours
+				// and every peer's, unrenderable the moment the post went
+				// through this.
+				$icon = $this->validateIconEntry($this->getArray('icon', $values, []));
+				if ($icon !== []) {
+					$tag['icon'] = $icon;
+				}
+
+				return $tag;
 		}
 
 		throw new InvalidResourceEntryException($as . ' ' . json_encode($values));
+	}
+
+	/**
+	 * The icon of a tag, reduced to the three keys a reader needs.
+	 *
+	 * Validated like everything else off the wire: the URL is a URL or the
+	 * icon is not kept, since an icon with no address is a broken image on
+	 * every instance the post reaches.
+	 */
+	private function validateIconEntry(array $icon): array {
+		if ($icon === []) {
+			return [];
+		}
+
+		try {
+			$url = $this->validateEntryString(self::AS_URL, $this->get('url', $icon, ''));
+		} catch (InvalidResourceEntryException $e) {
+			return [];
+		}
+
+		if ($url === '') {
+			return [];
+		}
+
+		return [
+			'type' => $this->validateEntryString(
+				self::AS_TYPE, $this->get('type', $icon, 'Image'), false
+			),
+			'mediaType' => $this->validateEntryString(
+				self::AS_STRING, $this->get('mediaType', $icon, ''), false
+			),
+			'url' => $url,
+		];
 	}
 
 	/**
@@ -654,7 +699,13 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			}
 			$shortcode = trim((string)($tag['name'] ?? ''), ':');
 			$url = (string)($tag['icon']['url'] ?? '');
-			if ($shortcode === '' || !str_starts_with($url, 'https://')) {
+			// the scheme is the guard, not the transport: this URL becomes the
+			// `src` of an image in every reader's browser, so `javascript:`
+			// and `data:` have no business here — while an instance served
+			// over plain http, which is every instance somebody is still
+			// setting up, has to be able to render its own emoji
+			if ($shortcode === ''
+				|| !(str_starts_with($url, 'https://') || str_starts_with($url, 'http://'))) {
 				continue;
 			}
 			$emojis[$shortcode] = [

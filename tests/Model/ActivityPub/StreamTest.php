@@ -398,6 +398,10 @@ class StreamTest extends TestCase {
 				['type' => 'Emoji', 'name' => ':blobcat:', 'icon' => ['type' => 'Image', 'url' => 'https://remote.example/emoji/blobcat.png']],
 				['type' => 'Emoji', 'name' => ':broken:'],
 				['type' => 'Emoji', 'name' => ':evil:', 'icon' => ['url' => 'javascript:alert(1)']],
+				['type' => 'Emoji', 'name' => ':data:', 'icon' => ['url' => 'data:image/svg+xml,<svg/>']],
+				// an instance still being set up is served over plain http,
+				// and has to be able to render its own emoji
+				['type' => 'Emoji', 'name' => ':plain:', 'icon' => ['url' => 'http://local.test/emoji/plain.png']],
 			],
 		]);
 
@@ -406,7 +410,12 @@ class StreamTest extends TestCase {
 			'url' => 'https://remote.example/emoji/blobcat.png',
 			'static_url' => 'https://remote.example/emoji/blobcat.png',
 			'visible_in_picker' => false,
-		]], $stream->getEmojis(), 'icon-less and non-https emoji are dropped');
+		], [
+			'shortcode' => 'plain',
+			'url' => 'http://local.test/emoji/plain.png',
+			'static_url' => 'http://local.test/emoji/plain.png',
+			'visible_in_picker' => false,
+		]], $stream->getEmojis(), 'an icon-less emoji, or one whose icon is not a web URL, is dropped');
 	}
 
 	public function testCustomEmojiSurviveTheDatabaseRoundTripViaTheStoredSource(): void {

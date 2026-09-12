@@ -137,6 +137,9 @@ class PostService {
 		$quotedAuthor = $this->applyQuote($note, $post->getQuotedId());
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());
+		$this->streamService->addCustomEmojis(
+			$note, $post->getContent(), $post->getSpoilerText()
+		);
 		//		$this->streamService->addAttachments($note, $post->getDocuments());
 
 		// Last, because the links are built out of the `tag` array the three
@@ -196,6 +199,11 @@ class PostService {
 		if ($spoilerText !== null) {
 			$stream->setSpoilerText(strip_tags($spoilerText));
 		}
+
+		// an edit may write a shortcode that was not there before, and the tag
+		// is what makes it render — here and on every instance the Update
+		// reaches. Not an address, so this does not widen the audience.
+		$this->streamService->addCustomEmojis($stream, $content, $stream->getSpoilerText());
 		if ($sensitive !== null) {
 			$stream->setSensitive($sensitive);
 		}

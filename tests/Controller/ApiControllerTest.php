@@ -28,6 +28,7 @@ use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\ScheduledStatus;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Model\CustomEmoji;
 use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Relationship;
@@ -43,6 +44,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
@@ -128,6 +130,7 @@ class ApiControllerTest extends TestCase {
 	private ICacheFactory|MockObject $cacheFactory;
 	private AccountRelationService|MockObject $accountRelationService;
 	private ScheduledStatusService|MockObject $scheduledStatusService;
+	private EmojiService|MockObject $emojiService;
 	private BannerService|MockObject $bannerService;
 	private AvatarService|MockObject $avatarService;
 	private FilterService|MockObject $filterService;
@@ -215,6 +218,7 @@ class ApiControllerTest extends TestCase {
 		// and a filter that removed anything would rewrite what they assert
 		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
+		$this->emojiService = $this->createMock(EmojiService::class);
 		$this->accountRelationService->method('withoutExpiredMutes')->willReturnArgument(1);
 		$this->bannerService = $this->createMock(BannerService::class);
 		$this->avatarService = $this->createMock(AvatarService::class);
@@ -294,7 +298,8 @@ class ApiControllerTest extends TestCase {
 			$this->bannerService,
 			$this->avatarService,
 			$this->accountRelationService,
-			$this->scheduledStatusService
+			$this->scheduledStatusService,
+			$this->emojiService
 		);
 	}
 
@@ -3338,5 +3343,44 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 		$this->assertSame(['error' => 'boom'], $response->getData());
+	}
+
+	// custom emoji
+
+	/**
+	 * The route answered `[]` unconditionally: emoji from every other instance
+	 * rendered here and this one could publish none.
+	 */
+	public function testTheCustomEmojiRouteListsWhatTheInstancePublishes(): void {
+		$blobcat = (new CustomEmoji('blobcat', 'blobcat.png', 'image/png', 'blobs'))
+			->setUrl('https://cloud.example/apps/social/emoji/blobcat');
+		$this->emojiService->method('visible')->willReturn([$blobcat]);
+
+		$data = $this->controller()->customEmojis()->getData();
+
+		$this->assertSame([[
+			'shortcode' => 'blobcat',
+			'url' => 'https://cloud.example/apps/social/emoji/blobcat',
+			'static_url' => 'https://cloud.example/apps/social/emoji/blobcat',
+			'visible_in_picker' => true,
+			'category' => 'blobs',
+		]], array_map(
+			static fn (CustomEmoji $emoji): array => $emoji->jsonSerialize(), $data
+		));
+	}
+
+	public function testAnInstanceWithNoEmojiPublishesNone(): void {
+		$this->emojiService->method('visible')->willReturn([]);
+
+		$this->assertSame([], $this->controller()->customEmojis()->getData());
+	}
+
+	/** A shortcode nobody published is a 404, not a broken image forever. */
+	public function testAskingForAPictureNobodyPublishedIsNotFound(): void {
+		$this->emojiService->method('byShortcode')->willReturn(null);
+
+		$response = $this->controller()->emojiOpen('blobcat');
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 	}
 }

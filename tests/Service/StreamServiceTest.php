@@ -25,6 +25,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -45,6 +46,12 @@ class StreamServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private CurlService|MockObject $curlService;
 	private LinkPreviewService|MockObject $linkPreviewService;
+	private EmojiService|MockObject $emojiService;
+
+	/** @var array[] the Emoji tags the instance has for whatever it is handed */
+	private array $emojiTags = [];
+	/** The text the emoji service was asked to find shortcodes in. */
+	private string $emojiScanned = '';
 	private IURLGenerator|MockObject $urlGenerator;
 	private StreamService $service;
 
@@ -65,6 +72,15 @@ class StreamServiceTest extends TestCase {
 		$this->configService->method('generateId')->willReturn(self::GENERATED_ID);
 		$this->configService->method('getSocialUrl')->willReturn(self::SOCIAL_URL);
 
+		$this->emojiService = $this->createMock(EmojiService::class);
+		$this->emojiService->method('tagsFor')->willReturnCallback(
+			function (string $text): array {
+				$this->emojiScanned = $text;
+
+				return $this->emojiTags;
+			}
+		);
+
 		$this->service = new StreamService(
 			$this->urlGenerator,
 			$this->streamRequest,
@@ -73,6 +89,7 @@ class StreamServiceTest extends TestCase {
 			$this->configService,
 			$this->curlService,
 			$this->linkPreviewService,
+			$this->emojiService,
 			new NullLogger()
 		);
 	}
@@ -516,6 +533,7 @@ class StreamServiceTest extends TestCase {
 			$configService,
 			$this->curlService,
 			$this->linkPreviewService,
+			$this->emojiService,
 			new NullLogger()
 		);
 
@@ -1313,5 +1331,59 @@ class StreamServiceTest extends TestCase {
 
 		$this->assertCount(40, $page->getOrderedItems());
 		$this->assertSame(self::GENERATED_ID . '/replies?page=2', $page->getNext());
+	}
+
+	// the Emoji tags a post carries
+
+	/**
+	 * The shortcode stays in the content as text; the tag beside it says where
+	 * the picture is, which is why an instance that has never heard of
+	 * `:blobcat:` still renders the post.
+	 */
+	public function testAPostCarriesATagForEachEmojiWrittenInIt(): void {
+		$this->emojiTags = [
+			['type' => 'Emoji', 'name' => ':blobcat:', 'icon' => ['url' => 'https://cloud.example/e/1']],
+		];
+		$note = new Note();
+
+		$this->service->addCustomEmojis($note, 'hello :blobcat:');
+
+		$this->assertSame($this->emojiTags, $note->getTags('Emoji'));
+	}
+
+	/** An edit that takes a shortcode out must take its tag with it. */
+	public function testTheEmojiTagsAreRebuiltRatherThanAppendedTo(): void {
+		$note = new Note();
+		$note->addTag(['type' => 'Emoji', 'name' => ':gone:', 'icon' => []]);
+		$this->emojiTags = [['type' => 'Emoji', 'name' => ':kept:', 'icon' => []]];
+
+		$this->service->addCustomEmojis($note, ':kept:');
+
+		$this->assertSame([':kept:'], array_column($note->getTags('Emoji'), 'name'));
+	}
+
+	/** Everything else the post named is still named. */
+	public function testRebuildingTheEmojiTagsLeavesTheOtherTagsAlone(): void {
+		$note = new Note();
+		$note->addTag(['type' => 'Mention', 'href' => 'https://remote.example/users/bob', 'name' => '@bob']);
+		$note->addTag(['type' => 'Hashtag', 'href' => 'https://cloud.example/t/x', 'name' => '#x']);
+		$this->emojiTags = [['type' => 'Emoji', 'name' => ':blobcat:', 'icon' => []]];
+
+		$this->service->addCustomEmojis($note, ':blobcat:');
+
+		$this->assertCount(1, $note->getTags('Mention'));
+		$this->assertCount(1, $note->getTags('Hashtag'));
+		$this->assertCount(1, $note->getTags('Emoji'));
+	}
+
+	/**
+	 * A content warning is written by the same person in the same composer,
+	 * and was the one place a shortcode showed through unrendered.
+	 */
+	public function testTheSpoilerTextIsScannedTogetherWithTheContent(): void {
+		$this->service->addCustomEmojis(new Note(), 'body :a:', 'warning :b:');
+
+		$this->assertStringContainsString(':a:', $this->emojiScanned);
+		$this->assertStringContainsString(':b:', $this->emojiScanned);
 	}
 }

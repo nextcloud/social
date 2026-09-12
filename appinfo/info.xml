@@ -63,6 +63,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<command>OCA\Social\Command\Benchmark</command>
 		<command>OCA\Social\Command\CacheRefresh</command>
 		<command>OCA\Social\Command\CheckInstall</command>
+		<command>OCA\Social\Command\Emoji</command>
 		<command>OCA\Social\Command\Fediverse</command>
 		<command>OCA\Social\Command\NoteLike</command>
 		<command>OCA\Social\Command\NoteCreate</command>

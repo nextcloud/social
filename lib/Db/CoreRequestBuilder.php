@@ -41,6 +41,7 @@ class CoreRequestBuilder {
 	public const TABLE_CACHE_ACTORS = 'social_cache_actor';
 	public const TABLE_CACHE_DOCUMENTS = 'social_cache_doc';
 	public const TABLE_CLIENT = 'social_client';
+	public const TABLE_EMOJI = 'social_emoji';
 	public const TABLE_FOLLOWED_TAGS = 'social_followed_tag';
 	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_HASHTAGS = 'social_hashtag';
@@ -310,6 +311,15 @@ class CoreRequestBuilder {
 			'actor_id',
 			'level',
 			'comment',
+			'creation'
+		],
+		self::TABLE_EMOJI => [
+			'id',
+			'shortcode',
+			'category',
+			'filename',
+			'media_type',
+			'visible',
 			'creation'
 		],
 		self::TABLE_STRIKES => [

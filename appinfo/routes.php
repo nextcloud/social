@@ -76,6 +76,7 @@ return [
 		['name' => 'Api#instanceActivity', 'url' => '/api/v1/instance/activity', 'verb' => 'GET'],
 		['name' => 'Api#preferences', 'url' => '/api/v1/preferences', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
+		['name' => 'Api#emojiOpen', 'url' => '/emoji/{shortcode}', 'verb' => 'GET'],
 		['name' => 'Api#trendTags', 'url' => '/api/v1/trends/tags', 'verb' => 'GET'],
 		['name' => 'Discovery#trendStatuses', 'url' => '/api/v1/trends/statuses', 'verb' => 'GET'],
 		['name' => 'Discovery#trendLinks', 'url' => '/api/v1/trends/links', 'verb' => 'GET'],
