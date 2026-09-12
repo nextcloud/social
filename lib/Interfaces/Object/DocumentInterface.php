@@ -48,10 +48,7 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 
 		try {
 			$known = $this->cacheDocumentsRequest->getById($item->getId());
-			// the row's own key, which only the stored copy knows: without it
-			// every re-imported attachment went back to a client with `id: 0`,
-			// and a streamed one would name row zero to the media proxy
-			$item->setNid($known->getNid());
+			$this->keepWhatOnlyTheRowKnows($item, $known);
 			$this->cacheDocumentsRequest->update($item);
 		} catch (CacheDocumentDoesNotExistException $e) {
 			// a streamed document is a pointer at somebody else's file and
@@ -66,6 +63,34 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 				|| !$this->cacheDocumentsRequest->isDuplicate($item)) {
 				$this->cacheDocumentsRequest->save($item);
 			}
+		}
+	}
+
+	/**
+	 * Moves onto an incoming document the two things that exist only in the
+	 * stored row: its key, and where its bytes were put.
+	 *
+	 * A document arriving off the wire a second time -- a redelivery, an
+	 * `Update` of the post it hangs off -- describes a file on somebody else's
+	 * server and knows nothing about the copy this instance made of it. Written
+	 * as it arrived, it *cleared* `local_copy` and `resized_copy`: the cached
+	 * file was orphaned and every post showing that picture broke until the
+	 * caching cron happened to fetch it again. The row is the only thing that
+	 * knows, so the row is asked.
+	 *
+	 * The key has the same shape of problem. Without it a re-imported
+	 * attachment went back to a client with `id: 0`, and a streamed one would
+	 * name row zero to the media proxy -- some other video, or nothing at all.
+	 */
+	private function keepWhatOnlyTheRowKnows(Document $item, Document $known): void {
+		$item->setNid($known->getNid());
+
+		if ($item->getLocalCopy() === '') {
+			$item->setLocalCopy($known->getLocalCopy());
+		}
+
+		if ($item->getResizedCopy() === '') {
+			$item->setResizedCopy($known->getResizedCopy());
 		}
 	}
 }

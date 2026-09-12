@@ -64,6 +64,64 @@ class DocumentInterfaceTest extends ActivityPubTestCase {
 		$this->handler->save($document);
 	}
 
+	/**
+	 * A document arriving a second time -- a redelivery, an `Update` of the
+	 * post it hangs off -- describes a file on somebody else's server and knows
+	 * nothing about the copy made of it here. Written as it arrived, it cleared
+	 * the copy: the cached file was orphaned and every post showing the picture
+	 * broke until the caching cron happened to fetch it again.
+	 */
+	public function testAReDeliveredDocumentKeepsTheCopyTheRowAlreadyHas(): void {
+		$stored = $this->document();
+		$stored->setNid(42);
+		$stored->setLocalCopy('a0a962e5-7e98-433b-80e2-09106a0b074f');
+		$stored->setResizedCopy('272c3a32-c626-45a0-b08f-a03e7bb4ab2d');
+		$this->cacheDocumentsRequest->method('getById')->with(self::DOCUMENT)->willReturn($stored);
+
+		// the same document as it arrives off the wire: no copy, no key
+		$incoming = $this->document();
+
+		$this->cacheDocumentsRequest->expects($this->once())->method('update')
+			->with($this->identicalTo($incoming));
+
+		$this->handler->save($incoming);
+
+		$this->assertSame('a0a962e5-7e98-433b-80e2-09106a0b074f', $incoming->getLocalCopy());
+		$this->assertSame('272c3a32-c626-45a0-b08f-a03e7bb4ab2d', $incoming->getResizedCopy());
+		// without the key a re-imported attachment went back to a client as
+		// `id: 0`, and a streamed one would name row zero to the media proxy
+		$this->assertSame(42, $incoming->getNid());
+	}
+
+	/** A streamed video deliberately has no copy, and must not gain one. */
+	public function testAReDeliveredStreamedDocumentStaysStreamed(): void {
+		$stored = $this->document();
+		$stored->setNid(7);
+		$stored->setLocalCopy(Document::COPY_STREAMED);
+		$this->cacheDocumentsRequest->method('getById')->willReturn($stored);
+
+		$incoming = $this->document();
+		$incoming->setLocalCopy(Document::COPY_STREAMED);
+
+		$this->handler->save($incoming);
+
+		$this->assertTrue($incoming->isStreamed());
+		$this->assertSame(7, $incoming->getNid());
+	}
+
+	/** Fetching it is the one thing that must not happen to a streamed row. */
+	public function testANewStreamedDocumentIsRecordedWithoutBeingFetched(): void {
+		$this->nothingCached();
+		$this->cacheDocumentsRequest->method('isDuplicate')->willReturn(false);
+		$document = $this->document();
+		$document->setLocalCopy(Document::COPY_STREAMED);
+
+		$this->cacheDocumentService->expects($this->never())->method('saveRemoteFileToCache');
+		$this->cacheDocumentsRequest->expects($this->once())->method('save')->with($this->identicalTo($document));
+
+		$this->handler->save($document);
+	}
+
 	public function testNewRemoteDocumentIsFetchedIntoTheCacheAndStored(): void {
 		$this->nothingCached();
 		$this->cacheDocumentsRequest->method('isDuplicate')->willReturn(false);

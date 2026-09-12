@@ -465,6 +465,16 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   Headings, lists and code fences are deliberately not handled — rare in a
   video description, and each one a way to get this wrong.
 
+A document arriving a **second** time — a redelivery, an `Update` of the post it
+hangs off — describes a file on somebody else's server and knows nothing about
+the copy this instance made of it. Written as it arrived it *cleared*
+`local_copy` and `resized_copy`, orphaning the cached file and breaking every
+post that showed the picture until the caching cron happened to fetch it again;
+`DocumentInterface::keepWhatOnlyTheRowKnows()` moves the stored copies and the
+row's key onto the incoming document first. That is a bug older than video —
+every re-delivered Mastodon picture hit it — but a streamed row depends on it
+twice over, since the key is what the media proxy is addressed by.
+
 **The video is referenced, not mirrored.** Every other attachment is copied into
 this instance's storage on the way in; a two-hour talk is not, and the row that
 represents it carries `Document::COPY_STREAMED` in `local_copy` instead of a
