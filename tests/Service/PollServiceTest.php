@@ -27,6 +27,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamActionService;
@@ -46,6 +47,13 @@ class PollServiceTest extends TestCase {
 	private ActivityService|MockObject $activityService;
 	private StreamActionService|MockObject $streamActionService;
 	private StreamActionsRequest|MockObject $streamActionsRequest;
+	private NotificationService|MockObject $notificationService;
+	private ConfigService|MockObject $configService;
+
+	/** @var array<int, array<string, mixed>> the polls that were announced closed */
+	private array $announced = [];
+	/** @var array<string, string> the app values the sweep reads and writes */
+	private array $stored = [];
 	private ActionsRequest|MockObject $actionsRequest;
 	private AccountService|MockObject $accountService;
 	private PollService $service;
@@ -66,6 +74,22 @@ class PollServiceTest extends TestCase {
 		$this->actionsRequest->method('getAction')
 			->willThrowException(new ActionDoesNotExistException());
 		$this->accountService = $this->createMock(AccountService::class);
+		$this->notificationService = $this->createMock(NotificationService::class);
+		$this->notificationService->method('onPollClosed')->willReturnCallback(
+			function (Question $poll, array $voters): void {
+				$this->announced[] = ['poll' => $poll->getId(), 'voters' => $voters];
+			}
+		);
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => $this->stored[$key] ?? ''
+		);
+		$this->configService->method('setAppValue')->willReturnCallback(
+			function (string $key, string $value): void {
+				$this->stored[$key] = $value;
+			}
+		);
+
 		$this->service = new PollService(
 			$this->streamRequest,
 			$this->actionsRequest,
@@ -75,6 +99,8 @@ class PollServiceTest extends TestCase {
 			$this->createMock(SignatureService::class),
 			$this->streamActionService,
 			$this->streamActionsRequest,
+			$this->notificationService,
+			$this->configService,
 			new NullLogger()
 		);
 	}
@@ -297,11 +323,28 @@ class PollServiceTest extends TestCase {
 		$poll = $this->localPoll();
 		// every dedupe lookup finds an existing vote row
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->notificationService = $this->createMock(NotificationService::class);
+		$this->notificationService->method('onPollClosed')->willReturnCallback(
+			function (Question $poll, array $voters): void {
+				$this->announced[] = ['poll' => $poll->getId(), 'voters' => $voters];
+			}
+		);
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => $this->stored[$key] ?? ''
+		);
+		$this->configService->method('setAppValue')->willReturnCallback(
+			function (string $key, string $value): void {
+				$this->stored[$key] = $value;
+			}
+		);
+
 		$this->service = new PollService(
 			$this->streamRequest, $this->actionsRequest, $this->accountService,
 			$this->cacheActorService, $this->activityService,
 			$this->createMock(SignatureService::class),
-			$this->streamActionService, $this->streamActionsRequest, new NullLogger()
+			$this->streamActionService, $this->streamActionsRequest,
+			$this->notificationService, $this->configService, new NullLogger()
 		);
 		$this->actionsRequest->method('getAction')->willReturn(new Note());
 		$this->streamRequest->expects($this->never())->method('update');
@@ -338,11 +381,28 @@ class PollServiceTest extends TestCase {
 	/** An ActionsRequest that only knows about the votes named here. */
 	private function votesAlreadyCast(array $options): void {
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->notificationService = $this->createMock(NotificationService::class);
+		$this->notificationService->method('onPollClosed')->willReturnCallback(
+			function (Question $poll, array $voters): void {
+				$this->announced[] = ['poll' => $poll->getId(), 'voters' => $voters];
+			}
+		);
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => $this->stored[$key] ?? ''
+		);
+		$this->configService->method('setAppValue')->willReturnCallback(
+			function (string $key, string $value): void {
+				$this->stored[$key] = $value;
+			}
+		);
+
 		$this->service = new PollService(
 			$this->streamRequest, $this->actionsRequest, $this->accountService,
 			$this->cacheActorService, $this->activityService,
 			$this->createMock(SignatureService::class),
-			$this->streamActionService, $this->streamActionsRequest, new NullLogger()
+			$this->streamActionService, $this->streamActionsRequest,
+			$this->notificationService, $this->configService, new NullLogger()
 		);
 		$this->actionsRequest->method('getAction')
 			->willReturnCallback(function (string $actorId, string $objectId) use ($options) {
@@ -388,5 +448,99 @@ class PollServiceTest extends TestCase {
 		$this->expectException(StreamNotFoundException::class);
 
 		$this->service->getPoll(42);
+	}
+
+	// the closed-poll sweep
+
+	private function closedPoll(string $id, int $endedAt): Question {
+		$poll = new Question();
+		$poll->setId($id)->setAttributedTo('https://cloud.example/users/alice');
+		// the end time is set by setPollData() relative to now, which is the
+		// only way in: a poll that ended a minute ago was given a lifetime of
+		// minus a minute
+		$poll->setPollData(['yes', 'no'], false, $endedAt - time());
+
+		return $poll;
+	}
+
+	/**
+	 * A poll closes by its end time passing, so nothing happens at the moment
+	 * it does: without a sweep, a voter never learns the result arrived.
+	 */
+	public function testTheSweepAnnouncesEveryPollThatClosed(): void {
+		$poll = $this->closedPoll('https://cloud.example/polls/1', time() - 60);
+		$this->streamRequest->method('getPollsClosedSince')->willReturn([$poll]);
+		$this->actionsRequest->method('votersOf')->willReturn(['https://cloud.example/users/bob']);
+
+		$this->assertSame(1, $this->service->announceClosedPolls());
+		$this->assertSame([[
+			'poll' => 'https://cloud.example/polls/1',
+			'voters' => ['https://cloud.example/users/bob'],
+		]], $this->announced);
+	}
+
+	/** How far the sweep got is remembered, so the next one starts there. */
+	public function testTheSweepRecordsHowFarItGot(): void {
+		$this->streamRequest->method('getPollsClosedSince')->willReturn([]);
+
+		$this->service->announceClosedPolls();
+
+		$this->assertGreaterThan(
+			time() - 5, (int)$this->stored[\OCA\Social\Service\ConfigService::SOCIAL_POLLS_SWEPT]
+		);
+	}
+
+	/**
+	 * Without a floor, the first sweep on an instance that has never run one
+	 * would announce every poll that ever closed, to everybody who ever voted.
+	 */
+	public function testAFirstSweepDoesNotReachBackForEver(): void {
+		$asked = 0;
+		$this->streamRequest->method('getPollsClosedSince')->willReturnCallback(
+			function (int $since) use (&$asked): array {
+				$asked = $since;
+
+				return [];
+			}
+		);
+
+		$this->service->announceClosedPolls();
+
+		$this->assertGreaterThanOrEqual(time() - PollService::SWEEP_FLOOR - 5, $asked);
+	}
+
+	/** A sweep that has run before starts where it left off. */
+	public function testALaterSweepStartsWhereTheLastOneStopped(): void {
+		$this->stored[\OCA\Social\Service\ConfigService::SOCIAL_POLLS_SWEPT] = (string)(time() - 600);
+		$asked = 0;
+		$this->streamRequest->method('getPollsClosedSince')->willReturnCallback(
+			function (int $since) use (&$asked): array {
+				$asked = $since;
+
+				return [];
+			}
+		);
+
+		$this->service->announceClosedPolls();
+
+		$this->assertEqualsWithDelta(time() - 600, $asked, 5);
+	}
+
+	/** One poll failing does not stop the rest of the sweep. */
+	public function testOnePollThatCannotBeAnnouncedDoesNotStopTheOthers(): void {
+		$first = $this->closedPoll('https://cloud.example/polls/1', time() - 60);
+		$second = $this->closedPoll('https://cloud.example/polls/2', time() - 30);
+		$this->streamRequest->method('getPollsClosedSince')->willReturn([$first, $second]);
+		$this->actionsRequest->method('votersOf')->willReturnCallback(
+			static function (string $pollId): array {
+				if (str_ends_with($pollId, '/1')) {
+					throw new \Exception('no voters to be had');
+				}
+
+				return [];
+			}
+		);
+
+		$this->assertSame(1, $this->service->announceClosedPolls());
 	}
 }

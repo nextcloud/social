@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Model\Strike;
+use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\StrikeService;
 use OCP\IUser;
 use OCP\IUserSession;
@@ -50,6 +51,9 @@ class StrikeServiceTest extends TestCase {
 	private ?array $notified = null;
 	/** Who is taking the decision. */
 	private ?string $currentUser = 'mod';
+	private NotificationService|MockObject $notificationService;
+	/** @var array<int, array<string, mixed>> the warnings a client would see */
+	private array $clientWarnings = [];
 
 	protected function setUp(): void {
 		$this->strikesRequest = $this->createMock(StrikesRequest::class);
@@ -103,9 +107,16 @@ class StrikeServiceTest extends TestCase {
 			}
 		);
 
+		$this->notificationService = $this->createMock(NotificationService::class);
+		$this->notificationService->method('onModerationWarning')->willReturnCallback(
+			function (string $actorId, string $action, string $text): void {
+				$this->clientWarnings[] = compact('actorId', 'action', 'text');
+			}
+		);
+
 		$this->service = new StrikeService(
 			$this->strikesRequest, $this->actorsRequest, $this->notificationManager,
-			$this->userSession, new NullLogger()
+			$this->userSession, $this->notificationService, new NullLogger()
 		);
 	}
 
@@ -261,5 +272,22 @@ class StrikeServiceTest extends TestCase {
 		$this->service->record(self::REMOTE, Moderation::SILENCE);
 		$this->service->history(self::REMOTE);
 		$this->service->countFor([self::REMOTE]);
+	}
+
+	/**
+	 * The warning reached a local account through Nextcloud's bell, which a
+	 * Mastodon client cannot see — so somebody moderated through a client was
+	 * told nothing a client could show them.
+	 */
+	public function testAWarningIsAlsoRaisedWhereAClientCanSeeIt(): void {
+		$this->remoteOnly();
+
+		$this->service->record(self::REMOTE, Moderation::SILENCE, 'spam');
+
+		$this->assertSame([[
+			'actorId' => self::REMOTE,
+			'action' => Moderation::SILENCE,
+			'text' => 'spam',
+		]], $this->clientWarnings);
 	}
 }

@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Migration\HashClientSecrets;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\ConfigService;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Server;
@@ -34,6 +35,7 @@ class ClientCredentialStorageTest extends TestCase {
 	private ClientRequest $clientRequest;
 	private ClientService $clientService;
 	private IDBConnection $connection;
+	private string $clientId = '';
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -50,9 +52,51 @@ class ClientCredentialStorageTest extends TestCase {
 
 	private function cleanup(): void {
 		$qb = $this->connection->getQueryBuilder();
-		$qb->delete(CoreRequestBuilder::TABLE_CLIENT)
+		$qb->select('id')
+			->from(CoreRequestBuilder::TABLE_CLIENT)
 			->where($qb->expr()->eq('app_name', $qb->createNamedParameter(self::APP_NAME)));
-		$qb->executeStatement();
+		$cursor = $qb->executeQuery();
+		$ids = array_column($cursor->fetchAll(), 'id');
+		$cursor->closeCursor();
+
+		foreach ($ids as $id) {
+			$auth = $this->connection->getQueryBuilder();
+			$auth->delete(CoreRequestBuilder::TABLE_CLIENT_AUTH)
+				->where($auth->expr()->eq('client_id', $auth->createNamedParameter($id)));
+			$auth->executeStatement();
+		}
+
+		$delete = $this->connection->getQueryBuilder();
+		$delete->delete(CoreRequestBuilder::TABLE_CLIENT)
+			->where($delete->expr()->eq('app_name', $delete->createNamedParameter(self::APP_NAME)));
+		$delete->executeStatement();
+	}
+
+	/** The authorization row of one account against our client. */
+	private function authRow(string $userId): array {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select('a.id', 'a.code', 'a.token')
+			->from(CoreRequestBuilder::TABLE_CLIENT_AUTH, 'a')
+			->innerJoin('a', CoreRequestBuilder::TABLE_CLIENT, 'cl', $qb->expr()->eq('a.client_id', 'cl.id'))
+			->where($qb->expr()->eq('cl.app_name', $qb->createNamedParameter(self::APP_NAME)))
+			->andWhere($qb->expr()->eq('a.user_id', $qb->createNamedParameter($userId)));
+		$result = $qb->executeQuery();
+		$row = $result->fetch();
+		$result->closeCursor();
+		$this->assertNotFalse($row, 'authorization row exists for ' . $userId);
+
+		return $row;
+	}
+
+	/** Authorizes our client for one account and exchanges the code. */
+	private function signIn(string $userId): SocialClient {
+		$client = $this->clientRequest->getFromClientId($this->clientId);
+		$client->setAuthScopes(['read'])->setAuthAccount($userId)->setAuthUserId($userId);
+		$this->clientService->authClient($client);
+
+		return $this->clientService->exchangeCode(
+			$this->clientRequest->getFromClientId($this->clientId), $client->getAuthCode()
+		);
 	}
 
 	private function registeredClient(): SocialClient {
@@ -61,6 +105,7 @@ class ClientCredentialStorageTest extends TestCase {
 		$client->setAppRedirectUris(['urn:ietf:wg:oauth:2.0:oob']);
 		$client->setAppScopes(['read', 'write']);
 		$this->clientService->createApp($client);
+		$this->clientId = $client->getAppClientId();
 
 		return $client;
 	}
@@ -87,68 +132,86 @@ class ClientCredentialStorageTest extends TestCase {
 		$qb->executeStatement();
 	}
 
+	/** Devolves one column of an authorization row to the pre-hashing format. */
+	private function setRawAuth(string $userId, string $column, string $value): void {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->update(CoreRequestBuilder::TABLE_CLIENT_AUTH)
+			->set($column, $qb->createNamedParameter($value))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($this->authRow($userId)['id'])));
+		$qb->executeStatement();
+	}
+
 	public function testTheFullAuthorizationFlowStoresOnlyDigests(): void {
 		$client = $this->registeredClient();
 		$this->assertStringStartsWith('sha256:', $this->rawRow()['app_client_secret']);
 		$this->assertStringNotContainsString($client->getAppClientSecret(), $this->rawRow()['app_client_secret']);
 
-		$client->setAuthScopes(['read'])->setAuthAccount(self::APP_NAME)->setAuthUserId(self::APP_NAME);
+		$client->setAuthScopes(['read'])->setAuthAccount('alice')->setAuthUserId('alice');
 		$this->clientService->authClient($client);
-		$this->assertStringStartsWith('sha256:', $this->rawRow()['auth_code']);
+		$this->assertStringStartsWith('sha256:', $this->authRow('alice')['code']);
 
-		$this->clientService->generateToken($client);
-		$row = $this->rawRow();
+		$granted = $this->clientService->exchangeCode(
+			$this->clientRequest->getFromClientId($this->clientId), $client->getAuthCode()
+		);
+		$row = $this->authRow('alice');
 		$this->assertStringStartsWith('sha256:', $row['token']);
-		$this->assertSame('', $row['auth_code'], 'the code is single-use');
+		$this->assertSame('', $row['code'], 'the code is single-use');
 
 		// the plaintext token the client holds resolves through the hashed lookup
-		$resolved = $this->clientService->getFromToken($client->getToken());
-		$this->assertSame(self::APP_NAME, $resolved->getAuthUserId());
+		$resolved = $this->clientService->getFromToken($granted->getToken());
+		$this->assertSame('alice', $resolved->getAuthUserId());
 	}
 
-	public function testAFreshAuthorizationInvalidatesThePreviousToken(): void {
-		$client = $this->registeredClient();
-		$client->setAuthScopes(['read'])->setAuthAccount('first')->setAuthUserId('first');
-		$this->clientService->authClient($client);
-		$this->clientService->generateToken($client);
-		$firstToken = $client->getToken();
+	/**
+	 * The same person authorizing again is saying "start again". A *different*
+	 * person authorizing is not, which is what the separate table is for —
+	 * that case is `ClientAuthMultiUserTest`.
+	 */
+	public function testAFreshAuthorizationByTheSameAccountInvalidatesItsPreviousToken(): void {
+		$this->registeredClient();
+		$first = $this->signIn('alice')->getToken();
 
-		$client->setAuthAccount('second')->setAuthUserId('second');
-		$this->clientService->authClient($client);
+		$this->signIn('alice');
 
 		$this->expectException(ClientNotFoundException::class);
-		$this->clientService->getFromToken($firstToken);
+		$this->clientService->getFromToken($first);
 	}
 
 	public function testRevokeTokenEndsTheSession(): void {
-		$client = $this->registeredClient();
-		$client->setAuthScopes(['read'])->setAuthAccount('a')->setAuthUserId('a');
-		$this->clientService->authClient($client);
-		$this->clientService->generateToken($client);
-		$token = $client->getToken();
+		$this->registeredClient();
+		$granted = $this->signIn('alice');
 
-		$this->clientService->revokeToken($client, $token);
+		$this->clientService->revokeToken($granted, $granted->getToken());
 
 		$this->expectException(ClientNotFoundException::class);
-		$this->clientService->getFromToken($token);
+		$this->clientService->getFromToken($granted->getToken());
 	}
 
+	/**
+	 * A token carried into `social_client_auth` by the migration is still in
+	 * whatever form it was stored in, so the repair has to find it there too —
+	 * reading only `social_client` would leave it in the clear for ever.
+	 */
 	public function testALegacyPlaintextTokenStillResolvesUntilTheRepairRuns(): void {
-		$client = $this->registeredClient();
-		$client->setAuthScopes(['read'])->setAuthAccount('a')->setAuthUserId('legacy-user');
-		$this->clientService->authClient($client);
-		$this->clientService->generateToken($client);
+		$this->registeredClient();
+		$granted = $this->signIn('legacy-user');
 
 		// devolve the row to the pre-hashing format
-		$this->setRaw('token', $client->getToken());
+		$this->setRawAuth('legacy-user', 'token', $granted->getToken());
 
-		$resolved = $this->clientService->getFromToken($client->getToken());
+		$resolved = $this->clientService->getFromToken($granted->getToken());
 		$this->assertSame('legacy-user', $resolved->getAuthUserId());
 
+		// the step is one-shot and its marker is set on any instance that has
+		// upgraded, so clearing it is what makes this a test of the repair
+		// rather than of the marker
+		Server::get(ConfigService::class)->setAppValue('migration_client_secrets_hashed', '0');
 		Server::get(HashClientSecrets::class)->run($this->createMock(IOutput::class));
 
-		$this->assertStringStartsWith('sha256:', $this->rawRow()['token'], 'the repair hashed the legacy token');
-		$resolved = $this->clientService->getFromToken($client->getToken());
+		$this->assertStringStartsWith(
+			'sha256:', $this->authRow('legacy-user')['token'], 'the repair hashed the legacy token'
+		);
+		$resolved = $this->clientService->getFromToken($granted->getToken());
 		$this->assertSame('legacy-user', $resolved->getAuthUserId(), 'and the plaintext still resolves');
 	}
 

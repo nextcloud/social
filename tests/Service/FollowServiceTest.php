@@ -645,7 +645,21 @@ class FollowServiceTest extends TestCase {
 			],
 			'no relation' => [
 				[],
-				['blocking' => false, 'blocked_by' => false, 'muting' => false, 'muting_notifications' => false],
+				['blocking' => false, 'blocked_by' => false, 'muting' => false, 'muting_notifications' => false, 'notifying' => false],
+			],
+			// `notifying` was hardcoded false, so a client that had turned the
+			// bell on was told it was off and drew it that way
+			'the bell is on' => [
+				[[AccountRelationService::TYPE_NOTIFY, true]],
+				['notifying' => true, 'blocking' => false, 'muting' => false],
+			],
+			'endorsed and subscribed to' => [
+				[[AccountRelationService::TYPE_ENDORSE, true], [AccountRelationService::TYPE_NOTIFY, true]],
+				['notifying' => true, 'endorsed' => true],
+			],
+			'endorsed without the bell' => [
+				[[AccountRelationService::TYPE_ENDORSE, true]],
+				['notifying' => false, 'endorsed' => true],
 			],
 		];
 	}

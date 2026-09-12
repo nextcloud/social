@@ -5,7 +5,7 @@ whether Mastodon's clients work against it, whether other fediverse servers can
 tell the difference, and whether an existing Mastodon instance could move onto
 it. Written for whoever has to decide what to build next.
 
-**Verified against:** app version 0.17.1, `master` plus PR #2136, 2026-09-12 —
+**Verified against:** app version 0.17.3, `master` plus PR #2136, 2026-09-12 —
 after the federation wave of #2110, the compatibility wave of #2126, the client
 and peer gaps of #2134 and #2135, and the moderation tier of #2136. Re-checked
 route by route against `appinfo/routes.php` and the handlers behind it. Every
@@ -31,7 +31,7 @@ of work.
 
 ## 1. The answer in one paragraph
 
-Social 0.17.1 is a capable, standards-correct ActivityPub server with a broad and
+Social 0.17.3 is a capable, standards-correct ActivityPub server with a broad and
 largely genuine Mastodon client API — broader than it was. Walking Mastodon's
 109 documented client routes against `appinfo/routes.php`, ten are not answered:
 `push/subscription` and `streaming` (the two known weeks-long items),
@@ -41,9 +41,11 @@ itself is inlined in the status entity, which is what clients read),
 `instance/rules`, `instance/domain_blocks` and `instance/extended_description`,
 `timelines/link`, and `emails/confirmations`, which belongs to a sign-up this
 app does not own. It is **not** a drop-in replacement for
-Mastodon, and three things stand between it and that goal. Two are small and
-mechanical, and both are still open: the API is not served at the domain root,
-and an OAuth app row holds exactly one token. The third is architectural: **an actor's identity is recomputed
+Mastodon, and two things stand between it and that goal. One is small and
+mechanical and still open: the API is not served at the domain root. (The
+other of that pair — an OAuth app row holding exactly one token — is fixed:
+authorizations are their own table, so two people can use the same client.)
+The second is architectural: **an actor's identity is recomputed
 from configuration on every read rather than stored**, and every URI the app mints
 lives under `/apps/social/`. That single decision is what makes taking over an
 existing Mastodon domain impossible rather than merely unimplemented.
@@ -90,22 +92,30 @@ Nothing else in this section matters until this is fixed. The fix is either a
 documented reverse-proxy rewrite from `/api` and `/oauth` to the app, or root
 route registration from the app itself.
 
-### 3.2 Blocker — one access token per registered app
+### 3.2 Fixed — one access token per registered app
 
-`social_client` holds a single `token`, `auth_user_id`, `auth_account` and
-`auth_scopes` per row, and the whole OAuth flow keys on `client_id`
-(`OAuthController`). `authClient()` blanks the
-token on every authorization, with a comment explaining that leaving it would let
-the previous user's token act as the new one
-(`ClientRequest::authClient()`), and `updateToken()` writes the row's one token.
+`social_client` used to hold a single `token`, `auth_user_id`, `auth_account`
+and `auth_scopes` per row, and the whole OAuth flow keyed on `client_id`.
+`authClient()` blanked the token on every authorization — with a comment
+explaining that leaving it would let the previous user's token act as the new
+one — so a second authorization against the same `client_id` silently revoked
+the first. Elk and Phanpy register one app per instance and serve several
+users from it, so user B signing in logged user A out, and a single user adding
+the same account twice did the same thing.
 
-Mastodon's model is one application, many tokens. Here a second authorization
-against the same `client_id` silently revokes the first. Elk and Phanpy register
-one app per instance and serve multiple users from it, so user B signing in logs
-user A out. A single user adding the same account twice does the same thing.
+Mastodon's model is one application, many tokens, and that is now the model
+here: `social_client_auth` holds one authorization per (app, account) — the
+code, the token, the scopes granted and the account they were granted to. The
+app registration stays where it was, and every read joins it, so the rest of
+the app still sees one `SocialClient` carrying both halves.
 
-This is a visible malfunction rather than a missing feature, and it needs a
-separate token table keyed to `(client, user)`.
+Three things went with it. Revoking a token took the app row's only token, so
+revoking on one device signed out everybody who had authorized that client; it
+now takes one authorization. The expiry sweep deleted the whole `social_client`
+row, so an idle token took the app's registration with it and the client had to
+register again; it now deletes authorizations. And a code is spent in the same
+statement that writes the token, so two requests arriving together cannot both
+exchange it.
 
 ### 3.3 The endpoint surface is now broad and mostly real
 

@@ -15,6 +15,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\PollService;
 use OCA\Social\Service\StreamPruneService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -40,6 +41,7 @@ class Cache extends TimedJob {
 		StreamService $streamService,
 		StreamPruneService $streamPruneService,
 		CacheActorsRequest $cacheActorsRequest,
+		private PollService $pollService,
 		LoggerInterface $logger,
 	) {
 		parent::__construct($time);
@@ -78,6 +80,12 @@ class Cache extends TimedJob {
 
 		$this->step('manageHashtags', function (): void {
 			$this->hashtagService->manageHashtags();
+		});
+
+		$this->step('announceClosedPolls', function (): void {
+			// a poll closes by its end time passing, so nothing happens at the
+			// moment it does and something has to look
+			$this->pollService->announceClosedPolls();
 		});
 
 		$this->step('prune', function (): void {

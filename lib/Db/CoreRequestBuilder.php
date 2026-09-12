@@ -209,6 +209,7 @@ class CoreRequestBuilder {
 			'root_id_prim',
 			'read_nid',
 			'hidden_nid',
+			'muted',
 			'creation'
 		],
 		self::TABLE_ANNOUNCEMENTS => [

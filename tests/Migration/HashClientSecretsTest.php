@@ -49,16 +49,24 @@ class HashClientSecretsTest extends TestCase {
 	public function testTheDatabasePicksOutThePlaintextRows(): void {
 		// this runs on every upgrade, and on all but the first there is nothing
 		// left to convert — which must not cost the whole table hydrated here
-		$connection = new FakeConnection([[]]);
+		$connection = new FakeConnection([[], []]);
 
 		(new HashClientSecrets($connection, $this->secretHasher, $this->configService))->run($this->output);
 
-		$this->assertCount(1, $connection->queries, 'one select that comes back empty');
+		// one select a table: the app registration keeps its own secret, and
+		// the code and token live with the authorization
+		$this->assertCount(2, $connection->queries, 'one select a table, both empty');
 		$this->assertSame(
 			["((app_client_secret <> '' AND app_client_secret NOT LIKE sha256:%)"
 				. " OR (auth_code <> '' AND auth_code NOT LIKE sha256:%)"
 				. " OR (token <> '' AND token NOT LIKE sha256:%))"],
 			$connection->queries[0]->wheres
+		);
+		$this->assertSame(
+			["((code <> '' AND code NOT LIKE sha256:%)"
+				. " OR (token <> '' AND token NOT LIKE sha256:%))"],
+			$connection->queries[1]->wheres,
+			'a legacy token carried into social_client_auth is still plaintext'
 		);
 	}
 

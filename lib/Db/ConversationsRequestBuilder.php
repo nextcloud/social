@@ -38,7 +38,10 @@ class ConversationsRequestBuilder extends CoreRequestBuilder {
 
 	protected function getConversationStateSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->select('cs.id', 'cs.actor_id', 'cs.actor_id_prim', 'cs.root_id', 'cs.root_id_prim', 'cs.read_nid', 'cs.hidden_nid')
+		$qb->select(
+			'cs.id', 'cs.actor_id', 'cs.actor_id_prim', 'cs.root_id', 'cs.root_id_prim',
+			'cs.read_nid', 'cs.hidden_nid', 'cs.muted'
+		)
 			->from(self::TABLE_CONVERSATION_STATE, 'cs');
 
 		$this->defaultSelectAlias = 'cs';

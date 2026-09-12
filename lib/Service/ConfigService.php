@@ -66,6 +66,26 @@ class ConfigService {
 	 */
 	public const SOCIAL_SECURE_MODE = 'secure_mode';
 
+	/**
+	 * Whether `/api/v1/instance/domain_blocks` publishes the deny list.
+	 *
+	 * Off by default. Mastodon publishes the list so somebody choosing a
+	 * server can see who it will not talk to; whether *this* server wants that
+	 * read by anybody is a disclosure decision its admin makes, not a default.
+	 */
+	public const SOCIAL_PUBLISH_BLOCKS = 'publish_blocks';
+
+	/**
+	 * How far the closed-poll sweep has got, as a timestamp.
+	 *
+	 * A poll closes by its end time passing, so nothing happens at the moment
+	 * it does and something has to look. This is where that look left off.
+	 */
+	public const SOCIAL_POLLS_SWEPT = 'polls_swept';
+
+	/** The long form of what this instance is, for `instance/extended_description`. */
+	public const SOCIAL_EXTENDED_DESCRIPTION = 'extended_description';
+
 	public array $defaults = [
 		self::CLOUD_URL => '',
 		self::SOCIAL_URL => '',
@@ -78,7 +98,10 @@ class ConfigService {
 		self::SOCIAL_INBOX_THROTTLE => '300',
 		self::SOCIAL_RETENTION_DAYS => '0',
 		self::SOCIAL_SILENCED_LIST => '[]',
-		self::SOCIAL_SECURE_MODE => '0'
+		self::SOCIAL_SECURE_MODE => '0',
+		self::SOCIAL_PUBLISH_BLOCKS => '0',
+		self::SOCIAL_EXTENDED_DESCRIPTION => '',
+		self::SOCIAL_POLLS_SWEPT => '0'
 	];
 
 	public array $accessTypeList = [

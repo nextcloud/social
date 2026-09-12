@@ -142,6 +142,42 @@ class ActorRelationRequest extends ActorRelationRequestBuilder {
 		return $this->fetchAll($qb);
 	}
 
+	/**
+	 * The **local** accounts on the other end of a relation of that type — the
+	 * subscribers to one account rather than what one account subscribes to.
+	 *
+	 * Local only, and that is a join rather than a filter: the table stores the
+	 * subscriber as an md5 and nothing else, so the actor id has to be read
+	 * from somewhere that holds it, and `social_actor` holds exactly the
+	 * accounts worth reading. A remote subscriber is told by their own server
+	 * from the same post, so there is nothing here to do for one.
+	 *
+	 * Bounded: an account with more subscribers than this is one where a
+	 * notification fan-out is the wrong shape anyway, and walking an unbounded
+	 * set on every post is worse than walking a bounded one.
+	 *
+	 * @return string[] actor ids
+	 */
+	public function getLocalByObject(string $objectId, string $type, int $limit = 500): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('a.id')
+			->from(self::TABLE_ACTOR_RELATION, 'ar')
+			->innerJoin('ar', self::TABLE_ACTORS, 'a', $qb->expr()->eq('a.id_prim', 'ar.actor_id_prim'))
+			->where($qb->expr()->eq('ar.object_id_prim', $qb->createNamedParameter($qb->prim($objectId))))
+			->andWhere($qb->expr()->eq('ar.type', $qb->createNamedParameter($type)))
+			->orderBy('ar.id', 'desc')
+			->setMaxResults($limit);
+
+		$actors = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$actors[] = (string)$data['id'];
+		}
+		$cursor->closeCursor();
+
+		return $actors;
+	}
+
 	/** Removes every relation owned by or targeting the actor (account deletion). */
 	public function deleteRelatedId(string $actorId): void {
 		$qb = $this->getActorRelationDeleteSql();

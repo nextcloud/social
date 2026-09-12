@@ -37,6 +37,16 @@ class AccountRelationService {
 	 */
 	public const TYPE_ENDORSE = 'endorse';
 
+	/**
+	 * The bell on a profile: "tell me when this account posts".
+	 *
+	 * The same shape as an endorsement, and in the same table for the same
+	 * reasons. Separate from the follow, because Mastodon's is: somebody may
+	 * follow an account without wanting to be told every time it writes, and
+	 * `POST /accounts/{id}/follow` carries `notify` for exactly that.
+	 */
+	public const TYPE_NOTIFY = 'notify';
+
 	/** What Mastodon caps a note at. */
 	public const MAX_NOTE = 2000;
 
@@ -133,6 +143,43 @@ class AccountRelationService {
 	}
 
 	/** Unfeaturing an account that was not featured is not an error. */
+	/**
+	 * Turns the bell on a profile on or off.
+	 *
+	 * Writing it needs no follow: Mastodon sends `notify` *with* the follow, so
+	 * demanding an accepted follow first would refuse the one call that ever
+	 * sets it. What it subscribes to is the account posting, which is public
+	 * of anybody whose posts the subscriber can already see.
+	 */
+	public function setNotify(Person $viewer, Person $target, bool $notify): void {
+		if ($viewer->getId() === $target->getId()) {
+			// being told about your own posts is a notification nobody wants
+			return;
+		}
+
+		if ($notify) {
+			$this->actorRelationRequest->save($viewer->getId(), $target->getId(), self::TYPE_NOTIFY);
+
+			return;
+		}
+
+		$this->actorRelationRequest->delete($viewer->getId(), $target->getId(), self::TYPE_NOTIFY);
+	}
+
+	/** Whether the viewer has asked to be told when this account posts. */
+	public function isNotified(string $viewerId, string $targetId): bool {
+		return $this->actorRelationRequest->exists($viewerId, $targetId, self::TYPE_NOTIFY);
+	}
+
+	/**
+	 * Who asked to be told when this account posts.
+	 *
+	 * @return string[] actor ids
+	 */
+	public function subscribersOf(string $targetId): array {
+		return $this->actorRelationRequest->getLocalByObject($targetId, self::TYPE_NOTIFY);
+	}
+
 	public function unendorse(Person $viewer, Person $target): void {
 		$this->actorRelationRequest->delete($viewer->getId(), $target->getId(), self::TYPE_ENDORSE);
 	}

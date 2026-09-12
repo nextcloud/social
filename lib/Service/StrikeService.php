@@ -49,6 +49,7 @@ class StrikeService {
 		private ActorsRequest $actorsRequest,
 		private INotificationManager $notificationManager,
 		private IUserSession $userSession,
+		private NotificationService $notificationService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -72,6 +73,9 @@ class StrikeService {
 		);
 		$this->strikesRequest->save($strike);
 		$this->notify($strike);
+		// and again where a Mastodon client can see it: the bell above is
+		// Nextcloud's, which a client reading /api/v1/notifications cannot
+		$this->notificationService->onModerationWarning($actorId, $action, $text);
 
 		return $strike;
 	}

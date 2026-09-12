@@ -426,4 +426,43 @@ class AccountRelationServiceTest extends TestCase {
 		$this->assertTrue($relationship->isBlockedBy());
 		$this->assertTrue($relationship->isEndorsed());
 	}
+
+	// the bell on a profile
+
+	/**
+	 * Mastodon sends `notify` *with* the follow, so demanding an accepted
+	 * follow first would refuse the one call that ever sets it.
+	 */
+	public function testTheBellCanBeTurnedOnWithoutAFollow(): void {
+		$alice = $this->person(self::ALICE);
+		$bob = $this->person(self::BOB);
+
+		$this->service()->setNotify($alice, $bob, true);
+
+		$this->assertTrue($this->service()->isNotified(self::ALICE, self::BOB));
+	}
+
+	public function testTheBellCanBeTurnedOffAgain(): void {
+		$alice = $this->person(self::ALICE);
+		$bob = $this->person(self::BOB);
+		$service = $this->service();
+		$service->setNotify($alice, $bob, true);
+
+		$service->setNotify($alice, $bob, false);
+
+		$this->assertFalse($service->isNotified(self::ALICE, self::BOB));
+	}
+
+	/** Being told about your own posts is a notification nobody wants. */
+	public function testAnAccountCannotSubscribeToItself(): void {
+		$alice = $this->person(self::ALICE);
+
+		$this->service()->setNotify($alice, $alice, true);
+
+		$this->assertFalse($this->service()->isNotified(self::ALICE, self::ALICE));
+		$this->assertSame([], array_filter(
+			$this->writes,
+			static fn (array $write): bool => $write[0] === 'relation'
+		));
+	}
 }

@@ -33,7 +33,20 @@ use Throwable;
  * lookup, so the client keeps working and the next upgrade tries again.
  */
 class HashClientSecrets implements IRepairStep {
-	private const COLUMNS = ['app_client_secret', 'auth_code', 'token'];
+	/**
+	 * The secrets each table holds, by table.
+	 *
+	 * `social_client` is the app registration and keeps its own secret; the
+	 * code and the token moved to `social_client_auth` when an app row stopped
+	 * holding one person's authorization. A legacy plaintext token carried
+	 * across by that migration is still plaintext, and is still understood on
+	 * lookup, so it is this step that has to find it — reading only the first
+	 * table would leave it in the clear for ever.
+	 */
+	private const TABLES = [
+		CoreRequestBuilder::TABLE_CLIENT => ['app_client_secret', 'auth_code', 'token'],
+		CoreRequestBuilder::TABLE_CLIENT_AUTH => ['code', 'token'],
+	];
 
 	private const MARKER = 'migration_client_secrets_hashed';
 
@@ -55,28 +68,23 @@ class HashClientSecrets implements IRepairStep {
 			return;
 		}
 
-		$rows = $this->unhashedRows();
-		if ($rows === []) {
-			$this->configService->setAppValue(self::MARKER, '1');
-
-			return;
-		}
-
 		$converted = 0;
 		$failed = [];
-		foreach ($rows as $row) {
-			// one row that cannot be written must not end the upgrade with the
-			// instance in maintenance mode. A row left behind still works — the
-			// plaintext form is understood on lookup — and the next upgrade
-			// picks it up again.
-			try {
-				$converted += $this->hashRow($row);
-			} catch (Throwable $t) {
-				$failed[] = (string)$row['id'];
-				$output->warning(
-					'could not hash the credentials of the Social OAuth client ' . $row['id']
-					. ': ' . $t->getMessage()
-				);
+		foreach (self::TABLES as $table => $columns) {
+			foreach ($this->unhashedRows($table, $columns) as $row) {
+				// one row that cannot be written must not end the upgrade with
+				// the instance in maintenance mode. A row left behind still
+				// works — the plaintext form is understood on lookup — and the
+				// next upgrade picks it up again.
+				try {
+					$converted += $this->hashRow($table, $columns, $row);
+				} catch (Throwable $t) {
+					$failed[] = $table . '#' . $row['id'];
+					$output->warning(
+						'could not hash the credentials of the Social OAuth client ' . $row['id']
+						. ': ' . $t->getMessage()
+					);
+				}
 			}
 		}
 
@@ -96,16 +104,17 @@ class HashClientSecrets implements IRepairStep {
 	}
 
 	/**
+	 * @param string[] $columns
 	 * @param array<string, mixed> $row
 	 *
 	 * @return int 1 if the row was rewritten
 	 */
-	private function hashRow(array $row): int {
+	private function hashRow(string $table, array $columns, array $row): int {
 		$update = $this->connection->getQueryBuilder();
-		$update->update(CoreRequestBuilder::TABLE_CLIENT);
+		$update->update($table);
 
 		$dirty = false;
-		foreach (self::COLUMNS as $column) {
+		foreach ($columns as $column) {
 			$value = (string)($row[$column] ?? '');
 			if ($value === '' || $this->secretHasher->isHashed($value)) {
 				continue;
@@ -134,10 +143,10 @@ class HashClientSecrets implements IRepairStep {
 	 *
 	 * @return array<array<string, mixed>>
 	 */
-	private function unhashedRows(): array {
+	private function unhashedRows(string $table, array $columns): array {
 		$qb = $this->connection->getQueryBuilder();
-		$qb->select('id', ...self::COLUMNS)
-			->from(CoreRequestBuilder::TABLE_CLIENT);
+		$qb->select('id', ...$columns)
+			->from($table);
 
 		$prefix = $this->hashedPrefix();
 		if ($prefix !== '') {
@@ -146,7 +155,7 @@ class HashClientSecrets implements IRepairStep {
 			);
 
 			$plaintext = [];
-			foreach (self::COLUMNS as $column) {
+			foreach ($columns as $column) {
 				$plaintext[] = $qb->expr()->andX(
 					$qb->expr()->nonEmptyString($column),
 					$qb->expr()->notLike($column, $pattern)

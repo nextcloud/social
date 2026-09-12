@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DomainPurgeService;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\NotificationService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -37,6 +38,10 @@ class DomainPurgeServiceTest extends TestCase {
 	private FollowsRequest|MockObject $followsRequest;
 	private ModerationService|MockObject $moderationService;
 	private ConfigService|MockObject $configService;
+	private NotificationService|MockObject $notificationService;
+
+	/** @var array<int, array<string, mixed>> who was told their follows were cut */
+	private array $severed = [];
 	private DomainPurgeService $service;
 	/** what the tables still hold, keyed by the source that reads them */
 	private array $state = ['cached' => [], 'authors' => [], 'follows' => []];
@@ -50,12 +55,20 @@ class DomainPurgeServiceTest extends TestCase {
 		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
 		$this->configService->method('getCloudHost')->willReturn('cloud.example');
 
+		$this->notificationService = $this->createMock(NotificationService::class);
+		$this->notificationService->method('onRelationshipsSevered')->willReturnCallback(
+			function (string $actorId, string $domain, int $lost): void {
+				$this->severed[] = compact('actorId', 'domain', 'lost');
+			}
+		);
+
 		$this->service = new DomainPurgeService(
 			$this->cacheActorsRequest,
 			$this->streamRequest,
 			$this->followsRequest,
 			$this->moderationService,
 			$this->configService,
+			$this->notificationService,
 			new NullLogger()
 		);
 	}

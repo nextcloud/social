@@ -62,6 +62,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\EmojiService;
+use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
@@ -184,6 +185,7 @@ class ApiController extends Controller {
 		private ScheduledStatusService $scheduledStatusService,
 		private EmojiService $emojiService,
 		private IAppManager $appManager,
+		private FediverseService $fediverseService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -745,6 +747,83 @@ class ApiController extends Controller {
 		$local = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
 
 		return new DataResponse($local, Http::STATUS_OK);
+	}
+
+	/**
+	 * The instance's rules, as their own resource.
+	 *
+	 * They were already served *inside* the instance entity, out of the `rules`
+	 * app value — so the data was here and the route a client reads it from was
+	 * a 404. An instance that has set none answers `[]`, which is the truthful
+	 * answer and not an error.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/rules')]
+	public function instanceRules(): DataResponse {
+		return new DataResponse(
+			$this->instanceService->getLocal(Stream::FORMAT_LOCAL)->getRules(),
+			Http::STATUS_OK
+		);
+	}
+
+	/**
+	 * The instances this one has decided not to federate with.
+	 *
+	 * Mastodon publishes the deny list so that somebody choosing a server can
+	 * see who it will not talk to. That is a disclosure decision rather than a
+	 * lookup, so it is one an admin makes: with `publish_blocks` unset — the
+	 * default — this answers `[]`, which is what an instance that has not opted
+	 * in should say rather than refusing and inviting a client to guess.
+	 *
+	 * Only ever the deny list. In allow-list mode the same column holds the
+	 * instances this server *does* talk to, and publishing that as a block list
+	 * would be exactly backwards.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/domain_blocks')]
+	public function instanceDomainBlocks(): DataResponse {
+		if ($this->configService->getAppValue(ConfigService::SOCIAL_PUBLISH_BLOCKS) !== '1'
+			|| $this->fediverseService->getAccessType() !== 'all_but') {
+			return new DataResponse([], Http::STATUS_OK);
+		}
+
+		$blocks = [];
+		foreach ($this->fediverseService->getListedAddresses() as $domain) {
+			// `digest` is Mastodon's sha256 of the domain, `severity` the only
+			// one this list has, and `comment` is not stored here
+			$blocks[] = [
+				'domain' => $domain,
+				'digest' => hash('sha256', $domain),
+				'severity' => 'suspend',
+				'comment' => '',
+			];
+		}
+
+		return new DataResponse($blocks, Http::STATUS_OK);
+	}
+
+	/**
+	 * The long form of what this instance is, as Mastodon's
+	 * `ExtendedDescription`.
+	 *
+	 * Taken from the `extended_description` app value, and falling back to the
+	 * short description the instance entity already carries — an empty page
+	 * where a server has written a description elsewhere is worse than
+	 * repeating it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/extended_description')]
+	public function instanceExtendedDescription(): DataResponse {
+		$text = trim($this->configService->getAppValue(ConfigService::SOCIAL_EXTENDED_DESCRIPTION));
+		$instance = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
+
+		return new DataResponse([
+			'updated_at' => gmdate('Y-m-d\TH:i:s') . '.000Z',
+			'content' => $text === '' ? $instance->getDescription() : $text,
+		], Http::STATUS_OK);
 	}
 
 	/**
@@ -1428,6 +1507,32 @@ class ApiController extends Controller {
 	}
 
 	/**
+	 * The link preview of one status, on its own.
+	 *
+	 * The card is already inlined in the status entity, which is what most
+	 * clients read; this route was a **405** rather than a 404, because the
+	 * path matched the POST-only action route below and nothing answered a
+	 * GET. A status with no link answers `{}` — Mastodon's own answer, and not
+	 * an error: most statuses have no card.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/card')]
+	public function statusCard(int $nid): DataResponse {
+		try {
+			$this->initViewer(false);
+
+			$card = $this->streamService
+				->attachCard($this->streamService->getStreamByNid($nid))
+				->getCard();
+
+			return new DataResponse($card ?? (object)[], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
 	 *
 	 * @param int $nid
 	 *
@@ -1866,13 +1971,20 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/follow', requirements: ['id' => '.+'])]
-	public function accountFollow(string $id): DataResponse {
+	public function accountFollow(string $id, ?bool $notify = null): DataResponse {
 		try {
 			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
 
 			$this->followService->followAccount($this->viewer, $target->getAccount());
 			$this->accountService->cacheLocalActorDetailCount($this->viewer);
+
+			// the bell on a profile, which Mastodon sends *with* the follow.
+			// Absent means "leave it as it is": a client re-following to change
+			// nothing else must not silently turn the bell off
+			if ($notify !== null) {
+				$this->accountRelationService->setNotify($this->viewer, $target, $notify);
+			}
 
 			return new DataResponse(
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK

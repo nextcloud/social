@@ -345,10 +345,12 @@ class StreamTest extends TestCase {
 	}
 
 	public function testAnUnknownNotificationTypeSelectsNothing(): void {
-		$this->assertSame([], Stream::subTypesOfNotificationTypes(['status']));
+		// `status` used to be one of these; it is a real type now, so the
+		// unknown one here is a type Mastodon has and this app does not
+		$this->assertSame([], Stream::subTypesOfNotificationTypes(['admin.sign_up']));
 		$this->assertSame(
 			['Mention'],
-			Stream::subTypesOfNotificationTypes(['mention', 'status']),
+			Stream::subTypesOfNotificationTypes(['mention', 'admin.sign_up']),
 			'an unknown type alongside a known one does not widen the filter'
 		);
 		$this->assertSame([], Stream::subTypesOfNotificationTypes([]));

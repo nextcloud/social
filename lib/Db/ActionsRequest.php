@@ -190,6 +190,44 @@ class ActionsRequest extends ActionsRequestBuilder {
 	}
 
 	/**
+	 * Who voted in a poll.
+	 *
+	 * A vote is a `Vote` action whose object is the poll's id with an option
+	 * suffix, so the poll is matched by prefix — the one place in this app
+	 * where a `LIKE` on an id is the right shape, because the suffix is this
+	 * app's own and the prefix is an exact id rather than a host.
+	 *
+	 * @return string[] actor ids, each once however many options they chose
+	 */
+	public function votersOf(string $pollId, int $limit = 1000): array {
+		$qb = $this->getQueryBuilder();
+		$qb->selectDistinct('actor_id')
+			->from(self::TABLE_ACTIONS)
+			->where($qb->expr()->eq('type', $qb->createNamedParameter('Vote')))
+			->andWhere($qb->expr()->like(
+				'object_id',
+				$qb->createNamedParameter(
+					$this->escapeLikeValue($pollId) . '#option-%'
+				)
+			))
+			->setMaxResults(max(1, $limit));
+
+		$voters = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$voters[] = (string)$data['actor_id'];
+		}
+		$cursor->closeCursor();
+
+		return $voters;
+	}
+
+	/** `%`, `_` and the escape itself are literals inside an id. */
+	private function escapeLikeValue(string $value): string {
+		return str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $value);
+	}
+
+	/**
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {

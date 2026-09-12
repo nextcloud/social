@@ -62,6 +62,27 @@ class TrendService {
 	}
 
 	/**
+	 * The public posts carrying one link, newest first.
+	 *
+	 * Mastodon's link timeline: what a reader gets by tapping a trending link
+	 * rather than following it off the instance. The links themselves were
+	 * already served at `/api/v1/trends/links`, so the data was here and the
+	 * timeline that reads it was not.
+	 *
+	 * @return Stream[]
+	 */
+	public function linkTimeline(string $url, int $limit, int $maxId = 0, int $minId = 0): array {
+		$url = trim($url);
+		if ($url === '') {
+			return [];
+		}
+
+		return $this->trendsRequest->statusesByNids(
+			$this->trendsRequest->statusNidsForUrl($url, $limit, $maxId, $minId)
+		);
+	}
+
+	/**
 	 * The links most often attached to a public status in the window.
 	 *
 	 * A link whose preview row has gone — the post it was fetched for was

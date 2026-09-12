@@ -4,7 +4,7 @@ The complete list of work between this app and being a drop-in replacement for
 Mastodon: thirty items in five tiers, each checked in the code rather than
 remembered, each with a rough size and what it actually fixes.
 
-**Verified against:** app version 0.17.1, `master` plus PR #2136, 2026-09-12.
+**Verified against:** app version 0.17.3, `master` plus PR #2136, 2026-09-12.
 Every status below was re-checked against the code — the route table, the
 service that answers it, and the entity it returns — rather than carried over
 from the last edit.
@@ -26,7 +26,7 @@ those a test can catch.
 | # | Work | Effort | Why it is first | Status |
 |---|---|---|---|---|
 | 1 | **Serve `/api` and `/oauth` at the domain root**, or document the reverse-proxy rewrite and ship a setup check for it | Days | Every route lives under `/apps/social/`, and the Mastodon client protocol has no way to be told about a non-root API base. No stock client can reach *any* of the surface below | open |
-| 2 | **Per-user OAuth tokens** — a token table keyed to (client, user) instead of one `token` column on `social_client` | Days | A second authorization against the same `client_id` revokes the first. Elk and Phanpy register one app per instance, so user B signing in signs user A out | open |
+| 2 | **Per-user OAuth tokens** — a token table keyed to (client, user) instead of one `token` column on `social_client` | Days | A second authorization against the same `client_id` revokes the first. Elk and Phanpy register one app per instance, so user B signing in signs user A out | **done — PR #2136** |
 
 ## Tier 2 — days of work each, and each one a thing a client shows
 
@@ -74,14 +74,14 @@ absent once the tiers above are cleared.
 
 | # | Work | Effort | What it fixes | Status |
 |---|---|---|---|---|
-| 31 | **Conversation mute** — `/api/v1/statuses/{id}/mute` and `/unmute` | Days | `ActionService::action()` refuses both by name. A thread cannot be muted, and the refusal is at least honest: a silent no-op would have the client show a state nothing stored | open |
-| 32 | **The `poll` notification** — tell the people who voted that a poll has closed | Days | `Stream::NOTIFICATION_TYPES` maps six activity types; a closing poll is not one of them, so a voter never learns the result arrived | open |
-| 33 | **The `status` notification and `notify` on follow** | Days | Mastodon's bell on a profile. `POST /accounts/{id}/follow` ignores `notify`, and there is no per-account subscription for it to write | open |
-| 34 | **`moderation_warning` as a client notification** | Hours | A warning reaches a local account through Nextcloud's notifications (`Notifier`), which a Mastodon client cannot see. The same event has a documented type in the client API | open |
-| 35 | **`severed_relationships`** | Days | When a domain block cuts follows, Mastodon tells the accounts that lost them. `DomainPurge` deletes the rows and nobody is told | open |
-| 36 | **The three `instance` sub-routes** — `/rules`, `/domain_blocks`, `/extended_description` | Hours | The rules already exist in the `rules` app value and are served **inside** the instance entity; the standalone routes a client reads them from are 404. `domain_blocks` would publish what `social:fediverse` holds, which is a deliberate disclosure decision rather than a lookup | open |
-| 37 | **`/api/v1/timelines/link`** | Days | The posts behind a trending link. The links themselves are served at `/api/v1/trends/links`, so the data is there and the timeline that reads it is not | open |
-| 38 | **`/api/v1/statuses/{id}/card`** | Hours | The card is already inlined in the status entity, which is what most clients read; the standalone route is a 405 because the path matches the POST-only action route | open |
+| 31 | **Conversation mute** — `/api/v1/statuses/{id}/mute` and `/unmute` | Days | `ActionService::action()` refuses both by name. A thread cannot be muted, and the refusal is at least honest: a silent no-op would have the client show a state nothing stored | **done — PR #2136** |
+| 32 | **The `poll` notification** — tell the people who voted that a poll has closed | Days | `Stream::NOTIFICATION_TYPES` maps six activity types; a closing poll is not one of them, so a voter never learns the result arrived | **done — PR #2136** |
+| 33 | **The `status` notification and `notify` on follow** | Days | Mastodon's bell on a profile. `POST /accounts/{id}/follow` ignores `notify`, and there is no per-account subscription for it to write | **done — PR #2136** |
+| 34 | **`moderation_warning` as a client notification** | Hours | A warning reaches a local account through Nextcloud's notifications (`Notifier`), which a Mastodon client cannot see. The same event has a documented type in the client API | **done — PR #2136** |
+| 35 | **`severed_relationships`** | Days | When a domain block cuts follows, Mastodon tells the accounts that lost them. `DomainPurge` deletes the rows and nobody is told | **done — PR #2136** |
+| 36 | **The three `instance` sub-routes** — `/rules`, `/domain_blocks`, `/extended_description` | Hours | The rules already exist in the `rules` app value and are served **inside** the instance entity; the standalone routes a client reads them from are 404. `domain_blocks` would publish what `social:fediverse` holds, which is a deliberate disclosure decision rather than a lookup | **done — PR #2136** |
+| 37 | **`/api/v1/timelines/link`** | Days | The posts behind a trending link. The links themselves are served at `/api/v1/trends/links`, so the data is there and the timeline that reads it is not | **done — PR #2136** |
+| 38 | **`/api/v1/statuses/{id}/card`** | Hours | The card is already inlined in the status entity, which is what most clients read; the standalone route is a 405 because the path matches the POST-only action route | **done — PR #2136** |
 
 Not on this list, and deliberately: `/api/v1/emails/confirmations`,
 `/api/v1/notifications/requests`, `/api/v2/notifications/policy`,
@@ -145,16 +145,19 @@ carries this list.
 
 ## Where to start
 
-**Two things block everything else, and they are both in tier 1.** Until the
-API answers at the domain root, no stock client reaches *any* of the surface
-below it; until an app row can hold more than one token, the second user to
-sign in with a given client signs the first one out. Neither is hard — days
-each — and neither has been started. Everything below them is polish on a
-server nobody can connect to.
+**One thing blocks everything else, and it is item 1.** Until the API answers
+at the domain root, no stock client reaches *any* of the surface below it: the
+Mastodon client protocol has no way to be told about a non-root API base.
+Everything else is polish on a server nobody can connect to. It is days of
+work — a documented reverse-proxy rewrite and a setup check, or root route
+registration from the app — and it has not been started.
 
-**After those, in the order a user would notice:** Web Push (3), streaming
-(10), conversation mute (31), the four missing notification types (32 to 35).
-Tier 4 is done apart from registration, which is the server's. Tier 3 is done.
+Item 2 was the other one and is now done: an app registration no longer holds
+a single authorization, so two people can use the same client.
+
+**After item 1, in the order a user would notice:** Web Push (3) and streaming
+(10), which are the two weeks-long items left. Tiers 2b, 3 and 4 are done,
+tier 4 apart from registration, which is the server's.
 
 **Tier 5 has not been touched** and should not be until somebody decides that
 "replace an existing Mastodon instance on its own domain" is a product goal.

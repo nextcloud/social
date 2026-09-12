@@ -45,6 +45,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\EmojiService;
+use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
@@ -134,6 +135,14 @@ class ApiControllerTest extends TestCase {
 	private ScheduledStatusService|MockObject $scheduledStatusService;
 	private EmojiService|MockObject $emojiService;
 	private IAppManager|MockObject $appManager;
+	private FediverseService|MockObject $fediverseService;
+
+	/** How this instance reads its access list, and what is on it. */
+	private string $accessType = 'all_but';
+	/** @var array<string, string> the app values the routes under test read */
+	private array $appValues = [];
+	/** @var string[] */
+	private array $blockedInstances = [];
 
 	/** Whether the server has a sign-up app of its own. */
 	private bool $registrationApp = false;
@@ -205,6 +214,9 @@ class ApiControllerTest extends TestCase {
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->searchService = $this->createMock(SearchService::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => $this->appValues[$key] ?? ''
+		);
 		$this->curlService = $this->createMock(CurlService::class);
 		$this->cacheDocumentsRequest = $this->createMock(CacheDocumentsRequest::class);
 		$this->instanceService->method('maxUploadSize')->willReturn(10 * 1048576);
@@ -226,6 +238,9 @@ class ApiControllerTest extends TestCase {
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
 		$this->emojiService = $this->createMock(EmojiService::class);
 		$this->appManager = $this->createMock(IAppManager::class);
+		$this->fediverseService = $this->createMock(FediverseService::class);
+		$this->fediverseService->method('getAccessType')->willReturnCallback(fn (): string => $this->accessType);
+		$this->fediverseService->method('getListedAddresses')->willReturnCallback(fn (): array => $this->blockedInstances);
 		$this->appManager->method('isEnabledForUser')->willReturnCallback(
 			fn (string $app): bool => $app === 'registration' && $this->registrationApp
 		);
@@ -310,7 +325,8 @@ class ApiControllerTest extends TestCase {
 			$this->accountRelationService,
 			$this->scheduledStatusService,
 			$this->emojiService,
-			$this->appManager
+			$this->appManager,
+			$this->fediverseService
 		);
 	}
 
@@ -3433,5 +3449,82 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertArrayHasKey('error', $data);
 		$this->assertSame('ERR_BLOCKED', $data['details']->base[0]->error);
+	}
+
+	// the three instance sub-routes
+
+	/**
+	 * The rules were already served *inside* the instance entity, so the data
+	 * was here and the route a client reads it from was a 404.
+	 */
+	public function testTheRulesHaveARouteOfTheirOwn(): void {
+		$instance = new Instance();
+		$instance->setRules([['id' => '1', 'text' => 'be kind']]);
+		$this->instanceService->method('getLocal')->willReturn($instance);
+
+		$this->assertSame(
+			[['id' => '1', 'text' => 'be kind']],
+			$this->controller()->instanceRules()->getData()
+		);
+	}
+
+	/**
+	 * Whether this server wants its deny list read by anybody is a disclosure
+	 * decision its admin makes, not a default.
+	 */
+	public function testTheBlockListIsNotPublishedUnlessAnAdminSaysSo(): void {
+		$this->blockedInstances = ['evil.example'];
+
+		$this->assertSame([], $this->controller()->instanceDomainBlocks()->getData());
+	}
+
+	public function testWithTheOptInTheBlockListIsPublished(): void {
+		$this->appValues[ConfigService::SOCIAL_PUBLISH_BLOCKS] = '1';
+		$this->blockedInstances = ['evil.example'];
+
+		$this->assertSame([[
+			'domain' => 'evil.example',
+			'digest' => hash('sha256', 'evil.example'),
+			'severity' => 'suspend',
+			'comment' => '',
+		]], $this->controller()->instanceDomainBlocks()->getData());
+	}
+
+	/**
+	 * In allow-list mode the same column holds the instances this server
+	 * *does* talk to, and publishing that as a block list would be exactly
+	 * backwards.
+	 */
+	public function testAnAllowListIsNeverPublishedAsABlockList(): void {
+		$this->appValues[ConfigService::SOCIAL_PUBLISH_BLOCKS] = '1';
+		$this->accessType = 'none_but';
+		$this->blockedInstances = ['friend.example'];
+
+		$this->assertSame([], $this->controller()->instanceDomainBlocks()->getData());
+	}
+
+	/**
+	 * An empty page where a server has written a description elsewhere is
+	 * worse than repeating it.
+	 */
+	public function testTheExtendedDescriptionFallsBackToTheShortOne(): void {
+		$instance = new Instance();
+		$instance->setDescription('a safe home for your data');
+		$this->instanceService->method('getLocal')->willReturn($instance);
+
+		$this->assertSame(
+			'a safe home for your data',
+			$this->controller()->instanceExtendedDescription()->getData()['content']
+		);
+	}
+
+	public function testTheExtendedDescriptionIsWhatWasWritten(): void {
+		$this->appValues[ConfigService::SOCIAL_EXTENDED_DESCRIPTION] = 'the long version';
+		$this->instanceService->method('getLocal')->willReturn(new Instance());
+
+		$this->assertSame(
+			'the long version',
+			$this->controller()->instanceExtendedDescription()->getData()['content']
+		);
 	}
 }
