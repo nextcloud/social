@@ -187,12 +187,12 @@ import { generateUrl } from '@nextcloud/router'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
-import currentuserMixin from '../mixins/currentUserMixin.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useErrorsStore } from '../store/errors.js'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
 
 // the composer pulls the emoji picker and the attachment stack with it:
 // its own chunk keeps all of that out of the entry bundle
@@ -231,7 +231,11 @@ export default {
 		IconAlertCircle,
 	},
 	emits: ['search'],
-	mixins: [currentuserMixin],
+	setup() {
+		const { currentUser } = useCurrentUser()
+
+		return { currentUser }
+	},
 	data() {
 		return {
 			/** the hashtags the instance is using most, newest counts first */

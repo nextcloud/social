@@ -223,15 +223,15 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import { generateUrl } from '@nextcloud/router'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
-import accountMixins from '../mixins/accountMixins.js'
-import serverData from '../mixins/serverData.js'
-import currentUser from '../mixins/currentUserMixin.js'
 import FollowButton from './FollowButton.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import logger from '../services/logger.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useAccount } from '../composables/useAccount.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /** Mirrors `AccountService::SUMMARY_MAX_LENGTH`, which truncates beyond it. */
 const BIO_MAX_LENGTH = 500
@@ -263,16 +263,18 @@ export default {
 		VolumeHigh,
 		VolumeOff,
 	},
-	mixins: [
-		accountMixins,
-		currentUser,
-		serverData,
-	],
 	props: {
 		uid: {
 			type: String,
 			default: '',
 		},
+	},
+	setup(props) {
+		const { serverData } = useServerData()
+		const { currentUser } = useCurrentUser()
+		const { profileAccount, accountInfo, isLocal, relationship } = useAccount(() => props.uid)
+
+		return { serverData, currentUser, profileAccount, accountInfo, isLocal, relationship }
 	},
 	data() {
 		return {

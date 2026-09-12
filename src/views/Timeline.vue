@@ -54,7 +54,6 @@
 
 <script>
 import { defineAsyncComponent } from 'vue'
-import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import TimelineList from './../components/TimelineList.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
@@ -64,6 +63,7 @@ import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
 import { useTimelineStore } from '../store/timeline.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -76,9 +76,11 @@ export default {
 		HashtagFollowedList,
 		TimelineList,
 	},
-	mixins: [
-		CurrentUserMixin,
-	],
+	setup() {
+		const { socialId } = useCurrentUser()
+
+		return { socialId }
+	},
 	data() {
 		return {
 			infoHidden: false,

@@ -43,12 +43,13 @@
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
-import currentUser from '../mixins/currentUserMixin.js'
 import DisplayName from './DisplayName.js'
 import FollowButton from './FollowButton.vue'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 export default {
 	name: 'UserEntry',
@@ -57,9 +58,6 @@ export default {
 		FollowButton,
 		NcAvatar,
 	},
-	mixins: [
-		currentUser,
-	],
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Account>} */
 		item: {
@@ -70,6 +68,12 @@ export default {
 			type: Boolean,
 			default: true,
 		},
+	},
+	setup() {
+		const { serverData } = useServerData()
+		const { currentUser } = useCurrentUser()
+
+		return { serverData, currentUser }
 	},
 	data() {
 		return {

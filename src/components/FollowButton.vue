@@ -80,8 +80,6 @@
 </template>
 
 <script>
-import accountMixins from '../mixins/accountMixins.js'
-import currentUser from '../mixins/currentUserMixin.js'
 import Check from 'vue-material-design-icons/Check.vue'
 import CloseOctagon from 'vue-material-design-icons/CloseOctagon.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -90,6 +88,9 @@ import { translate } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useAccount } from '../composables/useAccount.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /** how long the confirmation plays, the same window a liked post celebrates for */
 const CELEBRATION_MS = 600
@@ -104,15 +105,18 @@ export default {
 		NcButton,
 		NcDialog,
 	},
-	mixins: [
-		accountMixins,
-		currentUser,
-	],
 	props: {
 		uid: {
 			type: String,
 			default: '',
 		},
+	},
+	setup(props) {
+		const { serverData } = useServerData()
+		const { cloudId } = useCurrentUser()
+		const { profileAccount, relationship } = useAccount(() => props.uid)
+
+		return { serverData, cloudId, profileAccount, relationship }
 	},
 	data() {
 		return {

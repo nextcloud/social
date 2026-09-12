@@ -38,15 +38,13 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import CommentRemoveOutline from 'vue-material-design-icons/CommentRemoveOutline.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
-import currentUserMixin from '../mixins/currentUserMixin.js'
-import accountMixins from '../mixins/accountMixins.js'
-import serverData from '../mixins/serverData.js'
 import { loadState } from '@nextcloud/initial-state'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useTimelineStore } from '../store/timeline.js'
+import { useServerData } from '../composables/useServerData.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -59,15 +57,10 @@ export default {
 		TimelineEntry,
 		TimelineList,
 	},
-	mixins: [
-		accountMixins,
-		currentUserMixin,
-		serverData,
-	],
-	data() {
-		return {
-			uid: this.$route.params.account,
-		}
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
 	},
 	computed: {
 		...mapStores(useAccountStore, useTimelineStore),
@@ -147,9 +140,10 @@ export default {
 			})
 			this.timelineStore.addToStatuses(singlePost)
 
+			// the account is loaded for the post's author card; nothing here
+			// reads the answer, which is why it is not kept
 			const fetchMethod = this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo'
-			const response = await this.accountStore[fetchMethod](this.account)
-			this.uid = response?.username ?? this.uid
+			await this.accountStore[fetchMethod](this.account)
 		},
 		/**
 		 * The post the server rendered into the page, for a permalink opened

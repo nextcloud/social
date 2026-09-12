@@ -8,7 +8,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
 
-import accountMixins from '../../../src/mixins/accountMixins.js'
+import { useAccount } from '../../../src/composables/useAccount.js'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 
@@ -16,12 +16,14 @@ const alice = { id: '11', acct: 'alice', username: 'alice', display_name: 'Alice
 const bob = { id: '22', acct: 'bob@remote.tld', username: 'bob', display_name: 'Bob', url: 'https://remote.tld/@bob' }
 
 const Probe = {
-	mixins: [accountMixins],
 	props: { uid: { type: String, default: '' } },
+	setup(props) {
+		return useAccount(() => props.uid)
+	},
 	render: () => h('div'),
 }
 
-describe('accountMixins', () => {
+describe('useAccount', () => {
 	let pinia
 	let accountStore
 	let settingsStore
@@ -58,7 +60,9 @@ describe('accountMixins', () => {
 		expect(mountWith('').profileAccount).toBe('')
 	})
 
-	it('accountInfo and accountLoaded reflect whether the account is in the store', async () => {
+	// the two were a store getter each, and the second one's comment called it
+	// "somewhat duplicate with accountInfo(), but needed (for some reason)"
+	it('accountInfo and accountLoaded are the same lookup, asked once', async () => {
 		const vm = mountWith('alice')
 		expect(vm.accountLoaded).toBe(false)
 		expect(vm.accountInfo).toBeUndefined()

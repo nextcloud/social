@@ -75,7 +75,6 @@
 </template>
 
 <script>
-import serverData from '../mixins/serverData.js'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import MediaAttachment from './MediaAttachment.vue'
 import GalleryCarousel from './GalleryCarousel.vue'
@@ -85,6 +84,7 @@ import { nameForTransition, withViewTransition } from '../utils/viewTransition.j
 
 /** one name per document: only one lightbox is ever open */
 import { translate, translatePlural } from '@nextcloud/l10n'
+import { useServerData } from '../composables/useServerData.js'
 
 const MEDIA_TRANSITION = 'social-media'
 
@@ -99,9 +99,6 @@ export default {
 		GalleryCarousel,
 		GalleryMedia,
 	},
-	mixins: [
-		serverData,
-	],
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').MediaAttachment[]>} */
 		attachments: {
@@ -117,6 +114,11 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+	},
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
 	},
 	data() {
 		return {

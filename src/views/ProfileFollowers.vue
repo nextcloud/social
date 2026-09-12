@@ -29,9 +29,9 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AccountMultipleOutline from 'vue-material-design-icons/AccountMultipleOutline.vue'
 import UserEntry from '../components/UserEntry.vue'
-import serverData from '../mixins/serverData.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useServerData } from '../composables/useServerData.js'
 
 export default {
 	name: 'ProfileFollowers',
@@ -41,9 +41,11 @@ export default {
 		NcLoadingIcon,
 		UserEntry,
 	},
-	mixins: [
-		serverData,
-	],
+	setup() {
+		const { serverData, hostname } = useServerData()
+
+		return { serverData, hostname }
+	},
 	data() {
 		return {
 			observer: null,

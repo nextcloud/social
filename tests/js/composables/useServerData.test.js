@@ -9,17 +9,21 @@ import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
 import { loadState } from '@nextcloud/initial-state'
 
-import serverData from '../../../src/mixins/serverData.js'
+import { useServerData } from '../../../src/composables/useServerData.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 
 const { setInitialState } = globalThis
 
+// a component is what a composable needs to live in; this one exposes what it
+// returns so the assertions can read it
 const Probe = {
-	mixins: [serverData],
+	setup() {
+		return useServerData()
+	},
 	render: () => h('div'),
 }
 
-describe('serverData mixin', () => {
+describe('useServerData', () => {
 	let pinia
 	let settingsStore
 	let wrapper

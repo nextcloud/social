@@ -277,7 +277,6 @@
 import { fromNow, fullDateTime } from '../utils/relativeTime.js'
 import 'linkify-plugin-mention'
 import 'linkify-string'
-import currentUser from './../mixins/currentUserMixin.js'
 import PostAttachment from './PostAttachment.vue'
 import PostCard from './PostCard.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -314,6 +313,8 @@ import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useTimelineStore } from '../store/timeline.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /** what the server accepts in one status, the same limit the composer shows */
 const MAX_LENGTH = 500
@@ -347,7 +348,6 @@ export default {
 		DisplayName,
 		VisibilityIcon,
 	},
-	mixins: [currentUser],
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status>} */
 		item: {
@@ -358,6 +358,12 @@ export default {
 			type: String,
 			required: true,
 		},
+	},
+	setup() {
+		const { serverData } = useServerData()
+		const { currentUser } = useCurrentUser()
+
+		return { serverData, currentUser }
 	},
 	data() {
 		return {

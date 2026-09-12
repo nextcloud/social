@@ -49,14 +49,13 @@
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import axios from '@nextcloud/axios'
-import accountMixins from '../mixins/accountMixins.js'
-import currentuserMixin from '../mixins/currentUserMixin.js'
 import ActorAvatar from '../components/ActorAvatar.vue'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
+import { useServerData } from '../composables/useServerData.js'
 
 export default {
 	name: 'OStatus',
@@ -65,10 +64,11 @@ export default {
 		NcAvatar,
 		NcButton,
 	},
-	mixins: [
-		accountMixins,
-		currentuserMixin,
-	],
+	setup() {
+		const { serverData, hostname } = useServerData()
+
+		return { serverData, hostname }
+	},
 	data() {
 		return {
 			remote: '',
@@ -83,8 +83,19 @@ export default {
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.account.id)
 		},
+		/**
+		 * This page is public, so the reader is not the page's user: the
+		 * server puts whoever is signed in into the initial state, and the
+		 * handle is built from that rather than from @nextcloud/auth.
+		 *
+		 * @return {object} the signed-in user
+		 */
 		currentUser() {
 			return window.oc_current_user
+		},
+		/** @return {string} the signed-in reader's own handle */
+		cloudId() {
+			return this.currentUser.uid + '@' + this.hostname
 		},
 		/**
 		 * The logged-in user rendered as a (local) actor for ActorAvatar.

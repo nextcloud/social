@@ -9,17 +9,19 @@ import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
 import { getCurrentUser } from '@nextcloud/auth'
 
-import currentUserMixin from '../../../src/mixins/currentUserMixin.js'
+import { useCurrentUser } from '../../../src/composables/useCurrentUser.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.mock('@nextcloud/auth', () => ({ getCurrentUser: vi.fn() }))
 
 const Probe = {
-	mixins: [currentUserMixin],
+	setup() {
+		return useCurrentUser()
+	},
 	render: () => h('div'),
 }
 
-describe('currentUserMixin', () => {
+describe('useCurrentUser', () => {
 	let pinia
 	let settingsStore
 	let wrapper

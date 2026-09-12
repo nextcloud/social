@@ -9,8 +9,8 @@
 		<Composer v-if="accountInfo && currentAccount && $route.name === 'profile'" :initial-mention="accountInfo.acct === currentAccount.acct ? null : accountInfo" default-visibility="direct" />
 
 		<router-view v-if="accountLoaded && accountInfo" name="details" />
-		<!-- the lookup is what says an account is missing: `accountLoaded` is
-		     `accountInfo !== undefined`, so pairing the two never said anything -->
+		<!-- the lookup is what says an account is missing: `accountLoaded` only
+		     says the store has it (see useAccount), so it cannot say it has not -->
 		<NcEmptyContent v-if="lookupFinished && !accountInfo"
 			:name="t('social', 'User not found')"
 			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: uid })">
@@ -27,13 +27,13 @@
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { generateFilePath } from '@nextcloud/router'
 import ProfileInfo from './../components/ProfileInfo.vue'
-import { defineAsyncComponent } from 'vue'
-import accountMixins from '../mixins/accountMixins.js'
-import serverData from '../mixins/serverData.js'
+import { defineAsyncComponent, ref } from 'vue'
 import logger from '../services/logger.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useTimelineStore } from '../store/timeline.js'
+import { useAccount } from '../composables/useAccount.js'
+import { useServerData } from '../composables/useServerData.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -44,15 +44,17 @@ export default {
 		ProfileInfo,
 		Composer,
 	},
-	mixins: [
-		accountMixins,
-		serverData,
-	],
+	setup() {
+		const { serverData } = useServerData()
+		/** the handle on screen: the route's, or the one a public page carries */
+		const uid = ref(null)
+		const { profileAccount, accountInfo, accountLoaded } = useAccount(uid)
+
+		return { serverData, uid, profileAccount, accountInfo, accountLoaded }
+	},
 	data() {
 		return {
 			state: [],
-			/** @type {string|null} */
-			uid: null,
 			/** whether a lookup for the handle on screen has come back, either way */
 			lookupFinished: false,
 		}

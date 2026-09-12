@@ -9,6 +9,8 @@ import PostAttachment from '../../../src/components/PostAttachment.vue'
 import MediaAttachment from '../../../src/components/MediaAttachment.vue'
 import GalleryCarousel from '../../../src/components/GalleryCarousel.vue'
 import GalleryMedia from '../../../src/components/GalleryMedia.vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 const attachment = (index) => ({
 	id: `a${index}`,
@@ -40,13 +42,19 @@ const NcModalStub = {
 	</div>`,
 }
 
-const mountAttachments = (items, props = {}) => mount(PostAttachment, {
-	props: { attachments: items, ...props },
-	global: {
-		mocks: { $store: { getters: { getServerData: { public: false } } } },
-		stubs: { NcModal: NcModalStub },
-	},
-})
+const mountAttachments = (items, props = {}) => {
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	useSettingsStore().setServerData({ public: false })
+
+	return mount(PostAttachment, {
+		props: { attachments: items, ...props },
+		global: {
+			plugins: [pinia],
+			stubs: { NcModal: NcModalStub },
+		},
+	})
+}
 
 const mountMediaFirst = (items) => mountAttachments(items, { mediaFirst: true })
 

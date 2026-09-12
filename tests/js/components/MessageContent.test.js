@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
 import MessageContent from '../../../src/components/MessageContent.js'
+import { createPinia } from 'pinia'
 
 const Empty = { template: '<div />' }
 
@@ -31,7 +32,7 @@ const makeRouter = () => createRouter({
 
 const mountContent = (content, extra = {}) => mount(MessageContent, {
 	props: { item: { content, mentions: [], ...extra } },
-	global: { plugins: [makeRouter()] },
+	global: { plugins: [makeRouter(), createPinia()] },
 })
 
 describe('MessageContent', () => {

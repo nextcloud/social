@@ -86,10 +86,10 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { emojifyPlain } from './MessageContent.js'
-import serverData from '../mixins/serverData.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /**
  * A display name with its custom emoji as inline images — what DisplayName.js
@@ -162,9 +162,6 @@ export default {
 		NcAvatar,
 		NcPopover,
 	},
-	mixins: [
-		serverData,
-	],
 	props: {
 		/** The account handle to preview, as it appears after the `@` */
 		handle: {
@@ -194,6 +191,11 @@ export default {
 			type: String,
 			default: 'bottom-start',
 		},
+	},
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
 	},
 	data() {
 		return {

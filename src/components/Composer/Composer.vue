@@ -250,7 +250,6 @@ import PollIcon from 'vue-material-design-icons/Poll.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { getFilePickerBuilder, showError } from '@nextcloud/dialogs'
 import he from 'he'
-import CurrentUserMixin from '../../mixins/currentUserMixin.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
@@ -266,6 +265,8 @@ import logger from '../../services/logger.js'
 import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 import { mapStores } from 'pinia'
 import { useTimelineStore } from '../../store/timeline.js'
+import { useCurrentUser } from '../../composables/useCurrentUser.js'
+import { useServerData } from '../../composables/useServerData.js'
 
 /** what the server accepts in one status */
 const MAX_LENGTH = 500
@@ -311,7 +312,6 @@ export default {
 	directives: {
 		FocusOnCreate,
 	},
-	mixins: [CurrentUserMixin],
 	props: {
 		initialMention: {
 			type: Object,
@@ -332,6 +332,12 @@ export default {
 		},
 	},
 	emits: ['posted'],
+	setup() {
+		const { hostname } = useServerData()
+		const { currentUser } = useCurrentUser()
+
+		return { hostname, currentUser }
+	},
 	data() {
 		return {
 			statusContent: '',

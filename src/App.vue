@@ -60,13 +60,14 @@ import { listenForShortcuts } from './services/shortcuts.js'
 import eventBus from './services/eventBus.js'
 
 import axios from '@nextcloud/axios'
-import currentuserMixin from './mixins/currentUserMixin.js'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 import { mapStores } from 'pinia'
 import { useAccountStore } from './store/account.js'
 import { useSettingsStore } from './store/settings.js'
 import { useTimelineStore } from './store/timeline.js'
+import { useCurrentUser } from './composables/useCurrentUser.js'
+import { useServerData } from './composables/useServerData.js'
 
 export default {
 	name: 'App',
@@ -78,7 +79,12 @@ export default {
 		ShortcutHelp,
 		SetupChecks,
 	},
-	mixins: [currentuserMixin],
+	setup() {
+		const { serverData } = useServerData()
+		const { cloudId } = useCurrentUser()
+
+		return { serverData, cloudId }
+	},
 	data() {
 		return {
 			infoHidden: false,

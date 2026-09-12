@@ -62,13 +62,14 @@ import Refresh from 'vue-material-design-icons/Refresh.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import TimelineEntry from './TimelineEntry.vue'
 import TimelineSkeleton from './TimelineSkeleton.vue'
-import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
 import eventBus from '../services/eventBus.js'
 import { mapStores } from 'pinia'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /**
  * How many times fetchNewStatuses() may follow itself in one tick. It recursed
@@ -87,7 +88,6 @@ export default {
 		TimelineSkeleton,
 		EmptyContent,
 	},
-	mixins: [CurrentUserMixin],
 	props: {
 		type: {
 			type: String,
@@ -101,6 +101,12 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+	},
+	setup() {
+		const { serverData } = useServerData()
+		const { currentUser } = useCurrentUser()
+
+		return { serverData, currentUser }
 	},
 	data() {
 		return {

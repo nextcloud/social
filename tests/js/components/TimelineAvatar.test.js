@@ -6,6 +6,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
 import TimelineAvatar from '../../../src/components/TimelineAvatar.vue'
+import { createPinia } from 'pinia'
 
 const NcAvatarStub = {
 	name: 'NcAvatar',
@@ -17,7 +18,7 @@ const NcAvatarStub = {
 
 const mountAvatar = (item) => mount(TimelineAvatar, {
 	props: { item },
-	global: { stubs: { NcAvatar: NcAvatarStub } },
+	global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
 })
 
 const localStatus = {

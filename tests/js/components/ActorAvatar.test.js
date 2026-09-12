@@ -6,6 +6,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
 import ActorAvatar from '../../../src/components/ActorAvatar.vue'
+import { createPinia } from 'pinia'
 
 // NcAvatar loads images asynchronously and never renders an <img> in jsdom,
 // so assert on what the component hands to it instead.
@@ -17,7 +18,7 @@ const NcAvatarStub = {
 
 const mountAvatar = (props) => mount(ActorAvatar, {
 	props,
-	global: { stubs: { NcAvatar: NcAvatarStub } },
+	global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
 })
 
 const local = { username: 'bob', acct: 'bob', avatar: 'https://cloud.example.org/avatar/bob/128' }

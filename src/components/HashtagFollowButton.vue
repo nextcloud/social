@@ -28,8 +28,8 @@ import { generateUrl } from '@nextcloud/router'
 import Check from 'vue-material-design-icons/Check.vue'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import serverDataMixin from '../mixins/serverData.js'
 import logger from '../services/logger.js'
+import { useServerData } from '../composables/useServerData.js'
 
 export default {
 	name: 'HashtagFollowButton',
@@ -38,9 +38,6 @@ export default {
 		NcButton,
 		Pound,
 	},
-	mixins: [
-		serverDataMixin,
-	],
 	props: {
 		/** the hashtag, without its '#', as the API names it */
 		tag: {
@@ -49,6 +46,11 @@ export default {
 		},
 	},
 	emits: ['changed'],
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
+	},
 	data() {
 		return {
 			following: false,

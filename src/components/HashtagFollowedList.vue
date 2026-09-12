@@ -44,8 +44,8 @@ import { translate } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import serverDataMixin from '../mixins/serverData.js'
 import logger from '../services/logger.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /** what the server caps a page of this list at anyway */
 const PAGE_SIZE = 50
@@ -56,9 +56,11 @@ export default {
 		NcButton,
 		Pound,
 	},
-	mixins: [
-		serverDataMixin,
-	],
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
+	},
 	data() {
 		return {
 			open: false,
