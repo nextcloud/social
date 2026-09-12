@@ -115,7 +115,11 @@ describe('router', () => {
 		expect(router.resolve('/search/nextcloud').name).toBe('search')
 		expect(router.resolve('/search/nextcloud').params.term).toBe('nextcloud')
 		expect(router.resolve('/search').name).toBe('search')
-		expect(router.resolve('/search').params.term).toBe('')
+		// vue-router 4 materialised an absent optional param as '', vue-router 5
+		// leaves it out. Search declares `term` with a default of '', so Vue
+		// supplies the empty string either way and /search is unaffected; the
+		// prop default is asserted in tests/js/components/Search.test.js.
+		expect(router.resolve('/search').params.term).toBeUndefined()
 	})
 
 	it('does not match unknown paths', () => {

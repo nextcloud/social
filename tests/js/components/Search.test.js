@@ -98,6 +98,16 @@ describe('Search', () => {
 		vi.restoreAllMocks()
 	})
 
+	// vue-router 5 no longer materialises an absent optional param as '': the
+	// /search route resolves with no `term` at all, so the view is mounted
+	// without the prop and the declared default is what it runs on.
+	it('searches for nothing when the route carries no term', () => {
+		const wrapper = mountSearch(undefined)
+
+		expect(wrapper.vm.term).toBe('')
+		expect(get).not.toHaveBeenCalled()
+	})
+
 	it('asks the server rather than filtering the posts already loaded', () => {
 		get.mockReturnValue(new Promise(() => {}))
 		const wrapper = mountSearch('nextcloud')
