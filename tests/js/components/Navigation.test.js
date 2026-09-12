@@ -101,7 +101,7 @@ describe('Navigation', () => {
 			'Notifications',
 			'Direct messages',
 			'Discover',
-			'Alice',
+			'My profile',
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
@@ -111,14 +111,14 @@ describe('Navigation', () => {
 
 	/**
 	 * The top level is for the timelines a reader moves between all day. The
-	 * three below are things they go looking for, and eight equal-weight
-	 * entries made the first five harder to pick out.
+	 * rest are things they go looking for, including their own profile, and
+	 * eight equal-weight entries made the first five harder to pick out.
 	 */
-	it('keeps the timelines at the top level and the rest under More', () => {
+	it('keeps the timelines at the top level and the rest under the account', () => {
 		const wrapper = mountNavigation()
 
-		expect(moreMenu(wrapper).attributes('data-name')).toBe('More')
 		expect(moreNames(wrapper)).toEqual([
+			'My profile',
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
@@ -133,8 +133,41 @@ describe('Navigation', () => {
 			'Notifications',
 			'Direct messages',
 			'Discover',
-			'Alice',
 		])
+	})
+
+	// the account at the bottom
+
+	/**
+	 * The way out of every app in Nextcloud is the thing at the bottom with
+	 * your face on it, so the menu hangs off the reader's own account rather
+	 * than off the word "More".
+	 */
+	it('names the menu at the bottom after the reader, not "More"', () => {
+		expect(moreMenu(mountNavigation()).attributes('data-name')).toBe('Alice')
+	})
+
+	/**
+	 * `NcAppNavigationSettings` draws a cog and has no slot to replace it, so
+	 * the picture is handed to the stylesheet instead.
+	 */
+	it('puts the reader\'s face on it', () => {
+		const style = moreMenu(mountNavigation()).attributes('style') ?? ''
+
+		expect(style).toContain('--social-face')
+		expect(style).toContain('/avatar/alice/64')
+	})
+
+	/** Their own page is the first thing behind their own face. */
+	it('keeps a way to their own profile in the menu', async () => {
+		const wrapper = mountNavigation()
+		const profile = item(wrapper, 'My profile')
+
+		expect(profile.attributes('data-href')).toBe(router.resolve({ name: 'profile', params: { account: 'alice' } }).href)
+
+		await profile.trigger('click')
+
+		expect(router.push).toHaveBeenCalledWith({ name: 'profile', params: { account: 'alice' } })
 	})
 
 	/**
@@ -156,7 +189,7 @@ describe('Navigation', () => {
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
-		['Alice', { name: 'profile', params: { account: 'alice' } }],
+		['My profile', { name: 'profile', params: { account: 'alice' } }],
 	])('points the %s entry at its route', async (name, to) => {
 		// an href so it is a real link, and a click that stays in the app: with
 		// `to` the component ORs vue-router's own idea of active into the entry,
@@ -251,9 +284,9 @@ describe('Navigation', () => {
 		['/timeline/favourites', 'Liked posts'],
 		['/timeline/bookmarks', 'Bookmarks'],
 		['/follow_requests', 'Follow requests'],
-		['/@alice', 'Alice'],
-		['/@alice/followers', 'Alice'],
-		['/@alice/following', 'Alice'],
+		['/@alice', 'My profile'],
+		['/@alice/followers', 'My profile'],
+		['/@alice/following', 'My profile'],
 	])('marks only one entry active on %s', (path, active) => {
 		const wrapper = mountNavigation({}, appRouter.resolve(path))
 		expect(activeNames(wrapper)).toEqual([active])
@@ -271,20 +304,18 @@ describe('Navigation', () => {
 		expect(activeNames(wrapper)).toEqual([])
 	})
 
-	it('names the profile entry after the reader, not after their login', () => {
+	it('calls the reader by the name they publish under, not by their login', () => {
 		// it read "Profile" with the Nextcloud login name pushed to the far right
 		// of the row, which is neither the name they publish under nor their handle
-		const profile = item(mountNavigation(), 'Alice')
+		const menu = moreMenu(mountNavigation())
 
-		expect(profile.attributes('data-name')).toBe('Alice')
-		expect(profile.text()).not.toContain('@alice')
+		expect(menu.attributes('data-name')).toBe('Alice')
+		expect(menu.attributes('data-name')).not.toContain('@alice')
 	})
 
-	it('gives the profile entry a portrait big enough to recognise', () => {
-		const avatar = item(mountNavigation(), 'Alice').find('.nc-avatar-stub')
-
-		expect(avatar.attributes('data-user')).toBe('alice')
-		expect(Number(avatar.attributes('data-size'))).toBeGreaterThanOrEqual(32)
+	/** One account row, not two: the list above it has none. */
+	it('does not also keep the account in the list above', () => {
+		expect(itemNames(mountNavigation())).not.toContain('Alice')
 	})
 
 	it('emits the search term once the typing settles, not per keystroke', async () => {
@@ -361,7 +392,7 @@ describe('Navigation', () => {
 
 	it('offers nothing more in the footer menu than what it says it does', () => {
 		const wrapper = mountNavigation()
-		expect(moreMenu(wrapper).attributes('data-name')).toBe('More')
+		expect(moreMenu(wrapper).attributes('data-name')).toBe('Alice')
 
 		// the cache reset posted to a route that never existed, and the help
 		// link pointed at a personal fork; both are gone
@@ -471,7 +502,7 @@ describe('Navigation entries are links', () => {
 		['Follow requests', '/index.php/apps/social/follow_requests'],
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
-		['Alice', '/index.php/apps/social/@alice'],
+		['My profile', '/index.php/apps/social/@alice'],
 		['Blocked and muted accounts', '/index.php/apps/social/blocked'],
 	])('gives %s a real href', async (name, href) => {
 		expect(link(await mountReal(), name).attributes('href')).toBe(href)

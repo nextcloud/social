@@ -89,31 +89,20 @@
 			</NcAppNavigationItem>
 
 			<NcAppNavigationSpacer v-if="trending.length > 0" />
-
-			<!-- the account, as an account: the name people know the reader by,
-			     next to a portrait large enough to recognise. What stood here was
-			     the Nextcloud login name, pushed to the far edge of the row by the
-			     slot it was in — neither the name they publish under nor their
-			     handle, and aligned with nothing. -->
-			<NcAppNavigationItem
-				class="navigation__profile"
-				:name="profileName"
-				:href="hrefFor(menu.profile.to)"
-				:active="isActive(menu.profile)"
-				@click="navigate(menu.profile.to, $event)">
-				<template #icon>
-					<NcAvatar
-						:user="currentUser?.uid"
-						:displayName="currentUser?.displayName"
-						:size="36"
-						:disableTooltip="true"
-						:disableMenu="true" />
-				</template>
-			</NcAppNavigationItem>
 		</template>
 		<template #footer>
 			<div class="navigation__footer">
-				<NcAppNavigationSettings :name="t('social', 'More')">
+				<!-- The way out of every app in Nextcloud is the thing at the
+				     bottom with your face on it, so that is what this is: the
+				     name the reader publishes under, their portrait, and
+				     everything they go looking for rather than read, behind it.
+				     `NcAppNavigationSettings` draws a cog and offers no slot to
+				     replace it, so the picture is set as that icon's background
+				     and the cog itself is hidden. -->
+				<NcAppNavigationSettings
+					class="navigation__more"
+					:style="{ '--social-face': `url(${avatarUrl})` }"
+					:name="profileName">
 					<NcAppNavigationItem
 						v-for="item in menu.more"
 						:key="item.key"
@@ -196,6 +185,7 @@ import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
+import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
@@ -240,6 +230,7 @@ export default {
 		NcCounterBubble,
 		Composer,
 		IconHome,
+		IconAccountCircle,
 		IconBell,
 		IconCommentAccount,
 		IconHeart,
@@ -297,6 +288,25 @@ export default {
 				|| this.currentUser?.displayName
 				|| this.currentUser?.uid
 				|| ''
+		},
+
+		/**
+		 * The reader's own face, as a URL for the button at the bottom.
+		 *
+		 * The server's avatar endpoint rather than the account's `avatar`
+		 * field: it answers for every account — a generated set of initials
+		 * when nobody has uploaded a picture — so the button is never a blank
+		 * circle, and it is the same picture the rest of Nextcloud shows.
+		 *
+		 * @return {string} where the picture is
+		 */
+		avatarUrl() {
+			const uid = this.currentUser?.uid
+			if (!uid) {
+				return ''
+			}
+
+			return generateUrl('/avatar/{uid}/64', { uid })
 		},
 
 		currentAccount() {
@@ -366,6 +376,17 @@ export default {
 				// pick out. They keep their routes, their icons and their
 				// active state — only where they are drawn changes.
 				more: [
+					// first, because it is the reader's own page rather than
+					// somewhere they go looking: the button this menu hangs off
+					// used to *be* the link to it, and moving that button here
+					// without putting the link back would have left a profile
+					// nobody could reach
+					{
+						key: 'social-profile',
+						icon: IconAccountCircle,
+						title: t('social', 'My profile'),
+						to: { name: 'profile', params: { account: this.currentUser?.uid } },
+					},
 					{
 						key: 'social-follow-requests',
 						icon: IconAccountClock,
@@ -386,12 +407,6 @@ export default {
 					},
 				],
 
-				profile: {
-					key: 'social-profile',
-					icon: 'user',
-					title: t('social', 'Profile'),
-					to: { name: 'profile', params: { account: this.currentUser?.uid } },
-				},
 			}
 		},
 	},
@@ -567,18 +582,30 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.navigation__profile :deep(.app-navigation-entry-link),
-.navigation__profile :deep(.app-navigation-entry-button) {
-	// the icon box is one clickable area wide and the portrait is larger than
-	// the icon it replaces, so the row grows with it instead of clipping it
-	height: auto;
-	min-height: 48px;
-	align-items: center;
+/* The button the More menu hangs off is the reader's own account: their
+   portrait where the cog was, and the name they publish under beside it.
+   `NcAppNavigationSettings` renders that cog from a hard-coded path with no
+   slot to replace it, so the icon box carries the picture as its background
+   and the cog inside it is hidden rather than fought with. */
+.navigation__more :deep(.button-vue__icon) {
+	background-image: var(--social-face);
+	background-position: center;
+	background-size: cover;
+	border-radius: 50%;
+	// the picture is the icon, so the glyph that was there must not show
+	// through it — including its own background, which is not transparent
+	overflow: hidden;
+
+	svg {
+		visibility: hidden;
+	}
 }
 
-.navigation__profile :deep(.app-navigation-entry-icon) {
-	width: 44px;
-	min-width: 44px;
+.navigation__more :deep(.button-vue__text) {
+	// the button's wrapper has no gap of its own, so the name sits against the
+	// portrait unless it is given one
+	margin-inline-start: 8px;
+	font-weight: 600;
 }
 
 .navigation__subname {
