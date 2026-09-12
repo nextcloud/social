@@ -130,10 +130,12 @@ class SocialReportsWidget implements IAPIWidgetV2, IIconWidget, IButtonWidget, I
 				);
 			}
 
+			// the dashboard prints the half-empty message above the rows, so a
+			// widget with rows must not send one
 			return new WidgetItems(
 				$items,
 				$this->l10n->t('No reports to review'),
-				$this->l10n->t('No open reports'),
+				$items === [] ? $this->l10n->t('No open reports') : '',
 			);
 		} catch (Exception $e) {
 			$this->logger->warning('could not build the social_reports dashboard widget', [

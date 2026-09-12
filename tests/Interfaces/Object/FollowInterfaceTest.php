@@ -368,15 +368,23 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->assertSame($this->bob->getInbox(), $paths[0]->getUri());
 	}
 
-	public function testFailedAcceptDeliveryIsLoggedAndLeavesTheFollowPending(): void {
+	/**
+	 * Whether the Accept reached the follower's server is a question for the
+	 * delivery queue, not for whether this server considers the follow
+	 * accepted. Delivery used to run first and take the accepted flag, the
+	 * follower count and the notification down with it when it threw, so a
+	 * peer that was briefly unreachable left the row pending for ever with
+	 * nothing to retry it.
+	 */
+	public function testAFailedAcceptDeliveryIsLoggedButTheFollowIsStillAccepted(): void {
 		$this->noKnownFollow();
 		$this->activityService->method('request')->willThrowException(new \RuntimeException('inbox unreachable'));
 
 		$this->followsRequest->expects($this->once())->method('save');
-		$this->followsRequest->expects($this->never())->method('accepted');
-		$this->notificationInterface->expects($this->never())->method('save');
+		$this->followsRequest->expects($this->once())->method('accepted');
+		$this->notificationInterface->expects($this->once())->method('save');
 		$this->miscService->expects($this->once())
-			->method('log')->with($this->stringContains('confirmFollowRequest'));
+			->method('log')->with($this->stringContains('sending an Accept'));
 
 		$this->handler->processIncomingRequest($this->incomingFollow());
 	}

@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.15.2  
+**App version:** 0.15.3  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -244,7 +244,7 @@ Every local note carries a `replies` collection at `<post id>/replies`, served p
 1. A user action (post, edit, delete, follow, unfollow, like, boost) has a service build the activity
 2. `SignatureService::signObject()` adds a Linked Data Signature — for Create, Update, Delete, Like, Announce and their Undos. Follow, Accept, Reject, Block and `Undo{Block}` are **not** LD-signed; they travel with the HTTP signature only
 3. `ActivityService::request()` expands the activity's instance paths into concrete target inboxes
-4. Targets on this instance are dropped: everyone here already has the item, because recipients are written into `social_stream_dest` when it is saved, which is what puts it in a local timeline. Posting to our own inbox would only hand us back what we wrote, and it is a request the server has to be able to make to its own public address — behind a reverse proxy, split-horizon DNS or an SSRF guard it often cannot, and the delivery then fails its way to being abandoned while remote instances queue up behind it
+4. Targets on this instance are dropped: everyone here already has the item, because recipients are written into `social_stream_dest` when it is saved, which is what puts it in a local timeline. Posting to our own inbox would only hand us back what we wrote, and it is a request the server has to be able to make to its own public address — behind a reverse proxy, split-horizon DNS or an SSRF guard it often cannot, and the delivery then fails its way to being abandoned while remote instances queue up behind it. This holds only for activities whose effect is already applied when the item is saved. A **Follow** has no such path, so `FollowService::followAccount()` detects a local target and runs `FollowInterface::processIncomingRequest()` in process instead — setting the activity's origin to this host first, because that handler is the inbox's and checks it. Without that the row stayed `accepted = 0` for ever and no local follow ever completed
 5. `RequestQueueService::generateRequestQueue()` writes one `social_req_queue` row per remaining target
 6. At most one row is delivered inline: `RequestQueueService::getPriorityRequest()` hands back the first row only when its priority is `TOP`, or `HIGH`/`MEDIUM` under narrow conditions, and otherwise throws `NoHighPriorityRequestException` so nothing is sent synchronously. If rows remain on standby, `CurlService::asyncWithToken()` fires a request at the app's own `/async/request/{token}` route to drain them
 7. `Cron\Queue` (12-minute interval) retries whatever the query says is due, with the backoff above, after returning rows a dead worker left `running` to standby

@@ -140,7 +140,16 @@ abstract class TimelineWidget implements IAPIWidgetV2, IIconWidget, IButtonWidge
 				}
 			}
 
-			return new WidgetItems($items, $this->getEmptyMessage(), $this->getHalfEmptyMessage());
+			// The half-empty message is what the dashboard puts *above* the
+			// rows when a widget supplies one, so sending it unconditionally
+			// printed "No recent posts" directly on top of the posts this
+			// widget had just listed. It belongs to the empty case only: with
+			// rows to show there is nothing half empty about the widget.
+			return new WidgetItems(
+				$items,
+				$this->getEmptyMessage(),
+				$items === [] ? $this->getHalfEmptyMessage() : ''
+			);
 		} catch (Exception $e) {
 			$this->logger->warning('could not build the {widget} dashboard widget', [
 				'widget' => $this->getId(),

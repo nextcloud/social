@@ -173,6 +173,34 @@ class FollowService {
 				'object' => $remoteActor->getId(),
 			]);
 
+			if ($remoteActor->isLocal()) {
+				// Both sides live in this database, and a delivery addressed to
+				// this instance is dropped before it is sent (see
+				// ActivityService::isOurs()) — the server would otherwise have
+				// to reach its own public address, which behind a reverse proxy
+				// or split-horizon DNS it often cannot. A post loses nothing by
+				// that, because its recipients are written into
+				// social_stream_dest when it is saved; a Follow has no such
+				// path, so the row stayed `accepted = 0` for ever, nobody's
+				// home timeline changed, and the follower saw a request that
+				// was never answered. Run what the inbox would have run, here.
+				//
+				// The origin has to be set first: that handler is the inbox's,
+				// and the inbox only ever sees activities that arrived over the
+				// wire with an origin already verified. This one was made here
+				// a moment ago, so say so — otherwise checkOrigin() compares
+				// the actor's host against an empty origin and refuses it.
+				$follow->setOrigin(
+					$this->configService->getCloudHost(),
+					SignatureService::ORIGIN_REQUEST,
+					time()
+				);
+				$this->followInterface->processIncomingRequest($follow);
+				$this->logger->info('FollowService::followAccount - local follow handled in process');
+
+				return;
+			}
+
 			$follow->addInstancePath(
 				new InstancePath(
 					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
