@@ -762,6 +762,54 @@ class DocumentationTest extends TestCase {
 	}
 
 	/**
+	 * Two route attributes on one method need two names.
+	 *
+	 * A route is keyed by controller, method and postfix, so a second
+	 * registration without a postfix replaces the first rather than joining
+	 * it. That is how GET `/@{username}/outbox` disappeared behind its own
+	 * POST: both were named `ActivityPub#outbox`, first in the array table and
+	 * then in the attributes that replaced it, and a remote server fetching an
+	 * outbox got nothing.
+	 */
+	public function testRoutesOnTheSameMethodHaveDistinctNames(): void {
+		$collisions = [];
+
+		foreach (glob(__DIR__ . '/../lib/Controller/*.php') as $file) {
+			$source = (string)file_get_contents($file);
+			preg_match_all(
+				'/((?:\t#\[(?:Frontpage|Api)Route\([^\]]*\)\]\n)+)\tpublic function (\w+)/',
+				$source,
+				$matches,
+				PREG_SET_ORDER
+			);
+
+			foreach ($matches as $match) {
+				preg_match_all('/#\[(?:Frontpage|Api)Route\((.*?)\)\]/', $match[1], $routes);
+				if (count($routes[1]) < 2) {
+					continue;
+				}
+
+				$names = array_map(
+					static fn (string $route): string
+						=> preg_match("/postfix:\s*'([^']*)'/", $route, $postfix) ? $postfix[1] : '',
+					$routes[1]
+				);
+
+				if (count(array_unique($names)) !== count($names)) {
+					$collisions[] = basename($file) . '::' . $match[2];
+				}
+			}
+		}
+
+		$this->assertSame(
+			[],
+			$collisions,
+			'These methods carry route attributes that register under the same name,'
+			. ' so all but the last are silently dropped: give each a distinct postfix.'
+		);
+	}
+
+	/**
 	 * Every route url the app registers, normalised and sorted.
 	 *
 	 * Both places a route can be declared are read, because the server reads

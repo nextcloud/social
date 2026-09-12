@@ -487,8 +487,11 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	// Two verbs on one method need two route names: a route is keyed by
+	// controller, method and postfix, so without one the POST registration
+	// replaced the GET and remote servers fetching an outbox got nothing.
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/outbox')]
-	#[FrontpageRoute(verb: 'POST', url: '/@{username}/outbox')]
+	#[FrontpageRoute(verb: 'POST', url: '/@{username}/outbox', postfix: 'post')]
 	public function outbox(string $username, string $page = ''): Response {
 		//		if (!$this->checkSourceActivityStreams()) {
 		//			return $this->socialPubController->outbox($username);
