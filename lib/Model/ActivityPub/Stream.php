@@ -1256,7 +1256,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$allowed = $this->isQuotable()
 			? [self::CONTEXT_PUBLIC]
-			: array_values(array_filter([$this->getAttributedTo()]));
+			: array_filter([$this->getAttributedTo()]);
 
 		return ['interactionPolicy' => ['canQuote' => ['automaticApproval' => $allowed]]];
 	}

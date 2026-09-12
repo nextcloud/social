@@ -313,7 +313,7 @@ class ApiController extends Controller {
 			// name is — see the note in docs/API.md.
 			$header = $_FILES['header'] ?? [];
 			if ($header !== [] && ($header['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-				$this->bannerService->setFromTempFile($this->currentSession(), (string)$header['tmp_name']);
+				$this->bannerService->setFromTempFile($this->currentSession(), $header['tmp_name']);
 				$changed = true;
 			}
 

@@ -50,7 +50,7 @@ class Item {
 		return $this->id;
 	}
 
-	public function setId(string $id): Item {
+	public function setId(string $id): static {
 		$this->id = $id;
 
 		return $this;
@@ -90,7 +90,7 @@ class Item {
 		return $this->url;
 	}
 
-	public function setUrl(string $url): Item {
+	public function setUrl(string $url): static {
 		$this->url = $url;
 
 		return $this;

@@ -183,7 +183,7 @@ class DomainBlockService {
 	private function isLocal(string $domain): bool {
 		return in_array(
 			$domain,
-			[strtolower($this->configService->getSocialAddress()), strtolower((string)$this->configService->getCloudHost())],
+			[strtolower($this->configService->getSocialAddress()), strtolower($this->configService->getCloudHost())],
 			true
 		);
 	}

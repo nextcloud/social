@@ -26,12 +26,7 @@ class CoreOptions {
 		return $this->format;
 	}
 
-	/**
-	 * @param int $format
-	 *
-	 * @return CoreOptions
-	 */
-	public function setFormat(int $format): self {
+	public function setFormat(int $format): static {
 		$this->format = $format;
 
 		return $this;
