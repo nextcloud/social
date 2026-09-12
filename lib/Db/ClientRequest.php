@@ -154,6 +154,31 @@ class ClientRequest extends ClientRequestBuilder {
 	}
 
 	/**
+	 * Removes an app registration, and with it every authorization against it.
+	 *
+	 * Nothing in the app calls this on its own: a registration is a thing a
+	 * client made and may come back to. It exists so that an operator, and the
+	 * tests, can take one away without leaving authorizations pointing at a
+	 * row that is gone.
+	 */
+	public function deleteApp(string $appClientId): void {
+		try {
+			$client = $this->getFromClientId($appClientId);
+		} catch (ClientNotFoundException $e) {
+			return;
+		}
+
+		$auth = $this->getQueryBuilder();
+		$auth->delete(self::TABLE_CLIENT_AUTH)
+			->where($auth->expr()->eq('client_id', $auth->createNamedParameter($client->getId(), IQueryBuilder::PARAM_INT)));
+		$auth->executeStatement();
+
+		$qb = $this->getClientDeleteSql();
+		$qb->limitToId($client->getId());
+		$qb->executeStatement();
+	}
+
+	/**
 	 * @throws Exception
 	 */
 	public function deprecateToken() {

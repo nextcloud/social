@@ -362,8 +362,10 @@ class OAuthController extends Controller {
 					return new DataResponse(['error' => 'missing code'], Http::STATUS_BAD_REQUEST);
 				}
 
-				$this->clientService->confirmData($client, ['code' => $code]);
-				$this->clientService->generateToken($client);
+				// the code names the authorization, so what comes back is the
+				// account that granted it rather than whatever the app row
+				// last held
+				$client = $this->clientService->exchangeCode($client, $code);
 			} elseif ($grant_type === 'client_credentials') {
 				// Falling through would return the token column of the client row —
 				// whatever token the last user's authorization-code grant put there.

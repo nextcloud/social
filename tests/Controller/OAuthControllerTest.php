@@ -422,8 +422,15 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->method('confirmData')->willReturnCallback(function (SocialClient $c, array $data) use (&$confirmations): void {
 			$confirmations[] = $data;
 		});
-		$this->clientService->expects($this->once())->method('generateToken')
-			->willReturnCallback(fn (SocialClient $c) => $c->setToken('bearer-token'));
+		$exchanged = [];
+		$this->clientService->expects($this->once())->method('exchangeCode')
+			->willReturnCallback(
+				function (SocialClient $c, string $code) use (&$exchanged): SocialClient {
+					$exchanged[] = $code;
+
+					return $c->setToken('bearer-token');
+				}
+			);
 
 		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code', 'read', 'auth-code-1');
 
@@ -434,10 +441,12 @@ class OAuthControllerTest extends TestCase {
 			'scope' => 'read',
 			'created_at' => 1700000000,
 		], $response->getData());
+		// the code is no longer one of the things confirmData compares: it is
+		// what finds the authorization, so exchangeCode() is handed it
 		$this->assertSame([
 			['client_secret' => 'secret', 'redirect_uri' => self::OOB, 'auth_scopes' => 'read'],
-			['code' => 'auth-code-1'],
 		], $confirmations);
+		$this->assertSame(['auth-code-1'], $exchanged);
 	}
 
 	/**
@@ -451,8 +460,8 @@ class OAuthControllerTest extends TestCase {
 		$client->setAuthScopes(['read', 'write', 'follow']);
 		$client->setCreation(1700000000);
 		$this->clientService->method('confirmData');
-		$this->clientService->method('generateToken')
-			->willReturnCallback(fn (SocialClient $c) => $c->setToken('bearer-token'));
+		$this->clientService->method('exchangeCode')
+			->willReturnCallback(fn (SocialClient $c): SocialClient => $c->setToken('bearer-token'));
 
 		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code', 'read', 'auth-code-1');
 
@@ -483,7 +492,7 @@ class OAuthControllerTest extends TestCase {
 
 	public function testTokenRequiresACodeForTheAuthorizationCodeGrant(): void {
 		$this->knownClient();
-		$this->clientService->expects($this->never())->method('generateToken');
+		$this->clientService->expects($this->never())->method('exchangeCode');
 
 		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code');
 
@@ -502,7 +511,7 @@ class OAuthControllerTest extends TestCase {
 
 	public function testTokenClientCredentialsGrantIsRefused(): void {
 		$this->knownClient();
-		$this->clientService->expects($this->never())->method('generateToken');
+		$this->clientService->expects($this->never())->method('exchangeCode');
 
 		$response = $this->controller->token('client-1', 'secret', self::OOB, 'client_credentials');
 
@@ -524,7 +533,7 @@ class OAuthControllerTest extends TestCase {
 	public function testTokenRejectsAWrongClientSecret(): void {
 		$this->knownClient();
 		$this->clientService->method('confirmData')->willThrowException(new ClientException('wrong client_secret'));
-		$this->clientService->expects($this->never())->method('generateToken');
+		$this->clientService->expects($this->never())->method('exchangeCode');
 
 		$response = $this->controller->token('client-1', 'wrong', self::OOB, 'authorization_code', 'read', 'c');
 
