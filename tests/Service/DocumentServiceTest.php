@@ -512,6 +512,27 @@ class DocumentServiceTest extends TestCase {
 		$this->assertSame(1, $this->service->manageCacheDocuments());
 	}
 
+	/**
+	 * A streamed file is played from the instance that published it, and the
+	 * cache job passes over it the way it passes over an avatar.
+	 *
+	 * Belt and braces, and deliberately so: such a row should never reach the
+	 * loop, because `getNotCachedDocuments()` asks for an empty `local_copy`
+	 * and `PeerTubeService` names it `stream` before the row is written. This
+	 * pins the guard that holds if either of those ever changes, because the
+	 * cost is not symmetric -- the file on the other side of it is a video of
+	 * hundreds of megabytes.
+	 */
+	public function testManageCacheDocumentsDoesNotDownloadAStreamedFile(): void {
+		$streamed = $this->document(Document::COPY_STREAMED);
+		$streamed->setId('https://peertube.example/videos/watch/abc');
+		$this->cacheDocumentsRequest->method('getNotCachedDocuments')->willReturn([$streamed]);
+		$this->cacheDocumentsRequest->expects($this->never())->method('getById');
+		$this->cacheService->expects($this->never())->method('saveRemoteFileToCache');
+
+		$this->assertSame(0, $this->service->manageCacheDocuments());
+	}
+
 	private function alice(int $avatarVersion): Person {
 		$alice = new Person();
 		$alice->setId('https://cloud.example.com/apps/social/@alice');

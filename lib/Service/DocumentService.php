@@ -441,7 +441,16 @@ class DocumentService {
 
 		$count = 0;
 		foreach ($update as $item) {
-			if ($item->getLocalCopy() === 'avatar' || $item->getLocalCopy() === 'header') {
+			// None of these three should reach here at all: the query asks for
+			// an *empty* `local_copy` and all three name theirs before the row
+			// is written. They are checked anyway because the cost of the
+			// invariant breaking is not symmetric -- a missed avatar is a
+			// wasted request, while a streamed file is a PeerTube video, and
+			// fetching one would spend hundreds of megabytes of disk to hand
+			// back exactly the bytes the publishing instance already streams.
+			if ($item->getLocalCopy() === 'avatar'
+				|| $item->getLocalCopy() === 'header'
+				|| $item->isStreamed()) {
 				continue;
 			}
 
