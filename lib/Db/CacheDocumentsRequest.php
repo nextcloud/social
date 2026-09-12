@@ -102,6 +102,18 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Writes the focal point back, which means rewriting the whole `meta` blob
+	 * it rides in -- there is no column of its own to set.
+	 */
+	public function updateFocus(Document $document): void {
+		$qb = $this->getCacheDocumentsUpdateSql();
+		$qb->limitToIdString($document->getId());
+		$qb->set('meta', $qb->createNamedParameter(json_encode($document->getMeta())));
+
+		$qb->executeStatement();
+	}
+
 	public function initCaching(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$qb->limitToIdString($document->getId());

@@ -18,6 +18,7 @@ use OCA\Social\Service\BlurService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\ImageConversionService;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
@@ -34,10 +35,17 @@ class CacheDocumentServiceTest extends TestCase {
 	private IAppData|MockObject $appData;
 	private CurlService|MockObject $curlService;
 	private BlurService|MockObject $blurService;
+	private ImageConversionService|MockObject $imageConversionService;
 	private CacheDocumentService $service;
 
 	protected function setUp(): void {
 		$this->appData = $this->createMock(IAppData::class);
+		// The conversion is exercised by its own test; here it stands in as the
+		// identity it is for a picture that needs neither turning nor
+		// converting, so these tests keep asserting what they were written for.
+		$this->imageConversionService = $this->createMock(ImageConversionService::class);
+		$this->imageConversionService->method('prepareForStorage')
+			->willReturnCallback(static fn (string $content, string $mime): array => [$content, $mime]);
 		$this->curlService = $this->createMock(CurlService::class);
 		$this->blurService = $this->createMock(BlurService::class);
 		$this->service = new CacheDocumentService(
@@ -45,6 +53,7 @@ class CacheDocumentServiceTest extends TestCase {
 			$this->curlService,
 			$this->blurService,
 			$this->createMock(ConfigService::class),
+			$this->imageConversionService,
 		);
 	}
 
@@ -106,6 +115,10 @@ class CacheDocumentServiceTest extends TestCase {
 			'gif' => ['image/gif'],
 			'png' => ['image/png'],
 			'webp' => ['image/webp'],
+			// converted on the way in rather than refused
+			'avif' => ['image/avif'],
+			'heic' => ['image/heic'],
+			'heif' => ['image/heif'],
 			'mp4 video' => ['video/mp4'],
 			'webm' => ['video/webm'],
 			'quicktime' => ['video/quicktime'],

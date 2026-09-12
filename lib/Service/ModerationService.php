@@ -13,11 +13,13 @@ use OCA\Social\Db\AccountNotesRequest;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -60,6 +62,8 @@ class ModerationService {
 		private AccountNotesRequest $accountNotesRequest,
 		private MuteExpiryRequest $muteExpiryRequest,
 		private StrikeService $strikeService,
+		private CollectionsRequest $collectionsRequest,
+		private StoriesRequest $storiesRequest,
 	) {
 	}
 
@@ -299,6 +303,12 @@ class ModerationService {
 			'dest' => fn () => $this->streamDestRequest->deleteRelatedToActor($actorId),
 			// deliveries still queued towards it
 			'queue' => fn () => $this->requestQueueRequest->deleteByAuthor($actorId),
+			// the albums it curated, which are pages of its own posts and have
+			// nothing left to show once those are gone
+			'collections' => fn () => $this->collectionsRequest->deleteRelatedId($actorId),
+			// and its live stories, which were going to expire anyway but must
+			// not outlive the account that posted them
+			'stories' => fn () => $this->storiesRequest->deleteRelatedId($actorId),
 		] as $what => $delete) {
 			try {
 				$delete();

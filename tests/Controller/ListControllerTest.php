@@ -24,6 +24,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\PlaceService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
 use OCP\IUser;
@@ -257,6 +258,7 @@ class ListControllerTest extends TestCase {
 			$this->followService,
 			$this->linkPreviewService,
 			$this->listsRequest,
+			$this->createMock(PlaceService::class)
 		);
 	}
 

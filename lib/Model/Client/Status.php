@@ -168,6 +168,14 @@ class Status implements \JsonSerializable {
 		$this->setQuotedId(is_scalar($quotedId) ? (string)$quotedId : '');
 		$this->setStatus($this->get('status', $data));
 		$this->setLanguage($this->get('language', $data));
+
+		// Where the post was taken, if the client said. Either an id it got
+		// from /api/v1/places/search, or a name it already had.
+		$this->setPlaceId($this->getInt('place_id', $data));
+		$this->setPlaceName($this->get('place_name', $data));
+		$this->setPlaceCountry($this->get('place_country', $data));
+		$this->setPlaceLat($this->get('place_lat', $data));
+		$this->setPlaceLon($this->get('place_long', $data));
 		$poll = $this->getArray('poll', $data);
 		$this->setPoll($poll === [] ? null : $poll);
 
@@ -182,6 +190,62 @@ class Status implements \JsonSerializable {
 
 	public function getPoll(): ?array {
 		return $this->poll;
+	}
+
+	private int $placeId = 0;
+	private string $placeName = '';
+	private string $placeCountry = '';
+	private string $placeLat = '';
+	private string $placeLon = '';
+
+	public function getPlaceId(): int {
+		return $this->placeId;
+	}
+
+	public function setPlaceId(int $placeId): self {
+		$this->placeId = $placeId;
+
+		return $this;
+	}
+
+	public function getPlaceName(): string {
+		return $this->placeName;
+	}
+
+	public function setPlaceName(string $placeName): self {
+		$this->placeName = $placeName;
+
+		return $this;
+	}
+
+	public function getPlaceCountry(): string {
+		return $this->placeCountry;
+	}
+
+	public function setPlaceCountry(string $placeCountry): self {
+		$this->placeCountry = $placeCountry;
+
+		return $this;
+	}
+
+	public function getPlaceLat(): string {
+		return $this->placeLat;
+	}
+
+	public function setPlaceLat(string $placeLat): self {
+		$this->placeLat = $placeLat;
+
+		return $this;
+	}
+
+	public function getPlaceLon(): string {
+		return $this->placeLon;
+	}
+
+	public function setPlaceLon(string $placeLon): self {
+		$this->placeLon = $placeLon;
+
+		return $this;
 	}
 
 	#[\Override]

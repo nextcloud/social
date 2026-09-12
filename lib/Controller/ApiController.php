@@ -69,6 +69,7 @@ use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\PinService;
+use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
@@ -186,6 +187,7 @@ class ApiController extends Controller {
 		private EmojiService $emojiService,
 		private IAppManager $appManager,
 		private FediverseService $fediverseService,
+		private PlaceService $placeService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -896,6 +898,15 @@ class ApiController extends Controller {
 			$post->setSensitive($status->isSensitive());
 			$post->setType($this->visibilityOf($status));
 			$post->setLanguage($status->getLanguage());
+			$post->setPlaceId(
+				$this->placeService->resolve(
+					$status->getPlaceId(),
+					$status->getPlaceName(),
+					$status->getPlaceCountry(),
+					$status->getPlaceLat(),
+					$status->getPlaceLon()
+				)?->getId() ?? 0
+			);
 
 			if (!empty($status->getMediaIds())) {
 				$documents = $this->documentService->getMediaFromArray(
@@ -1127,7 +1138,11 @@ class ApiController extends Controller {
 			$this->logger->debug('[ApiController] mediaNew: ' . json_encode($file));
 
 			return new DataResponse(
-				$this->storeAttachment($name, (string)$this->request->getParam('description', '')),
+				$this->storeAttachment(
+					$name,
+					(string)$this->request->getParam('description', ''),
+					(string)$this->request->getParam('focus', '')
+				),
 				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
@@ -1238,7 +1253,7 @@ class ApiController extends Controller {
 	 *
 	 * @return MediaAttachment the entity a client is answered with
 	 */
-	private function storeAttachment(string $tmpPath, string $description): MediaAttachment {
+	private function storeAttachment(string $tmpPath, string $description, string $focus = ''): MediaAttachment {
 		$document = new Document();
 		$document->setLocal(true);
 		$document->setAccount($this->viewer->getPreferredUsername());
@@ -1250,8 +1265,16 @@ class ApiController extends Controller {
 		// was, by the row's own account, readable by anybody. The visibility
 		// is applied when the status is created; see scopeMediaToVisibility().
 		$document->setPublic(false);
-		// the alt text; `focus` is accepted but not stored (no focal-point support)
 		$document->setDescription($description);
+
+		// Where the subject is, so a crop keeps it in frame. Nonsense is
+		// ignored rather than refused: a client that sends a malformed focus
+		// has still sent a picture, and losing the upload over it would be a
+		// worse answer than centring it.
+		$parsed = ($focus === '') ? null : Document::parseFocus($focus);
+		if ($parsed !== null) {
+			$document->setFocus($parsed[0], $parsed[1]);
+		}
 
 		$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
 		$service = AP::instance()->getInterfaceForItem($document);
@@ -1295,8 +1318,7 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * Updates the alt text of the viewer's own attachment.
-	 *
+	 * Updates the alt text or the focal point of the viewer's own attachment.
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
@@ -1310,6 +1332,12 @@ class ApiController extends Controller {
 			if (array_key_exists('description', $input)) {
 				$document->setDescription((string)$input['description']);
 				$this->documentService->updateDescription($document);
+			}
+			if (array_key_exists('focus', $input)) {
+				$parsed = Document::parseFocus((string)$input['focus']);
+				if ($parsed !== null) {
+					$this->documentService->updateFocus($document, $parsed[0], $parsed[1]);
+				}
 			}
 
 			return new DataResponse(

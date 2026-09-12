@@ -20,7 +20,16 @@
 				{{ n('social', '%n new post', '%n new posts', arrived) }}
 			</button>
 		</transition>
-		<transition-group name="list" tag="ul">
+		<!-- The grid is a different way of drawing the same timeline, not a
+		     different timeline: paging, the new-post pill, the error state and
+		     the empty state all stay here, because otherwise the grid would
+		     have to reimplement every one of them. -->
+		<ProfileMediaGrid
+			v-if="display === 'grid'"
+			:posts="timeline"
+			:account="account"
+			:loading="loading" />
+		<transition-group v-else name="list" tag="ul">
 			<TimelineEntry
 				v-for="(entry, index) in timeline"
 				:key="entry.id"
@@ -28,7 +37,7 @@
 				:item="entry"
 				:type="type" />
 		</transition-group>
-		<TimelineSkeleton v-if="loading && timeline.length === 0" />
+		<TimelineSkeleton v-if="display !== 'grid' && loading && timeline.length === 0" />
 		<!--
 		  A failure used to set allLoaded, so the reader was shown "No posts
 		  found / Posts from people you follow will show up here" for what was
@@ -49,7 +58,7 @@
 		<div ref="sentinel" class="list-sentinel">
 			<div v-if="loading && timeline.length > 0" class="icon-loading" />
 			<div v-else-if="!loading && !allLoaded" class="list-end" />
-			<EmptyContent v-if="showEmptyContent" :item="emptyContentData" />
+			<EmptyContent v-if="showEmptyContent && display !== 'grid'" :item="emptyContentData" />
 		</div>
 	</div>
 </template>
@@ -62,6 +71,7 @@ import { translate, translatePlural } from '@nextcloud/l10n'
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import ProfileMediaGrid from './ProfileMediaGrid.vue'
 import TimelineEntry from './TimelineEntry.vue'
 import TimelineSkeleton from './TimelineSkeleton.vue'
 import EmptyContent from './EmptyContent.vue'
@@ -83,6 +93,7 @@ const MAX_CATCHUP_PAGES = 10
 export default {
 	name: 'TimelineList',
 	components: {
+		ProfileMediaGrid,
 		ArrowUp,
 		Refresh,
 		NcButton,
@@ -105,6 +116,23 @@ export default {
 		reverseOrder: {
 			type: Boolean,
 			default: false,
+		},
+
+		/**
+		 * How to draw the posts: as a list of entries, or as the grid of
+		 * squares a profile shows on Pixelfed. Only the drawing differs --
+		 * the timeline, its paging and its states are the same.
+		 */
+		display: {
+			type: String,
+			default: 'list',
+			validator: (value) => ['list', 'grid'].includes(value),
+		},
+
+		/** Whose profile the grid links its tiles into. */
+		account: {
+			type: String,
+			default: '',
 		},
 	},
 

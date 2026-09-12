@@ -13,6 +13,7 @@ const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/P
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers.vue')
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
+const Explore = () => import('./views/Explore.vue')
 const Search = () => import('./components/Search.vue')
 
 /**
@@ -108,6 +109,13 @@ const router = createRouter({
 					},
 				},
 			],
+		},
+		{
+			path: '/explore',
+			components: {
+				default: Explore,
+			},
+			name: 'explore',
 		},
 		{
 			path: '/follow_requests',

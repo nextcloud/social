@@ -99,7 +99,8 @@
 				:miniatures="attachments"
 				@deleted="deletePreview"
 				@describe="describeAttachment"
-				@commitDescription="commitDescription" />
+				@commitDescription="commitDescription"
+				@filter="applyFilter" />
 
 			<div
 				ref="composerInput"
@@ -284,6 +285,7 @@ import logger from '../../services/logger.js'
 import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 import { mapStores } from 'pinia'
 import { useTimelineStore } from '../../store/timeline.js'
+import { applyFilterToFile } from '../../utils/imageFilters.js'
 import { useCurrentUser } from '../../composables/useCurrentUser.js'
 import { useServerData } from '../../composables/useServerData.js'
 
@@ -305,7 +307,14 @@ const ACCEPTED_MEDIA_TYPES = ['image/', 'video/', 'audio/']
 const PICKABLE_MEDIA_TYPES = ['image/*', 'video/*']
 
 /** what a post may carry, as Stream::MAX_ATTACHMENTS holds it server-side */
-const MAX_ATTACHMENTS = 8
+const MAX_ATTACHMENTS = 10
+
+/**
+ * How long to wait before uploading a filtered copy. Flicking through the
+ * filters to see them is the normal way to use them, and each stop should not
+ * be an upload.
+ */
+const FILTER_DEBOUNCE = 600
 
 /** how long the card says no for, in step with the refusal in TimelinePost */
 const REFUSAL_DURATION = 400
@@ -383,6 +392,8 @@ export default {
 			picking: false,
 			/** keeps two picks of the same file apart, since the path cannot */
 			pickCount: 0,
+			/** pending re-uploads, one per attachment, keyed by its object URL */
+			filterTimers: {},
 			/** whether files are being dragged over the card right now */
 			draggingFiles: false,
 			/** briefly true after a drop of something the composer cannot take */
@@ -1092,6 +1103,80 @@ export default {
 		 *
 		 * @param {File[]} allFiles the files to attach, in order
 		 */
+		/**
+		 * Bakes a filter into an attachment and replaces the uploaded copy.
+		 *
+		 * The picture was uploaded the moment it was attached, so choosing a
+		 * filter has to replace what is on the server -- the alternative, baking
+		 * every filter in at send time, would upload each picture twice and make
+		 * pressing Post the slow part.
+		 *
+		 * Debounced, because flicking through eight filters to see them is the
+		 * normal way to use this and should not be eight uploads. The preview is
+		 * CSS and updates immediately either way, so the wait is invisible.
+		 *
+		 * @param {object} change what was chosen
+		 * @param {string} change.key the attachment's object URL
+		 * @param {string} change.filter the filter id
+		 */
+		applyFilter({ key, filter }) {
+			const attachment = this.attachments[key]
+			if (attachment === undefined) {
+				return
+			}
+
+			this.attachments = {
+				...this.attachments,
+				[key]: { ...attachment, filter },
+			}
+
+			window.clearTimeout(this.filterTimers[key])
+			this.filterTimers[key] = window.setTimeout(() => {
+				this.reuploadFiltered(key)
+			}, FILTER_DEBOUNCE)
+		},
+
+		/**
+		 * @param {string} key the attachment's object URL
+		 */
+		async reuploadFiltered(key) {
+			const attachment = this.attachments[key]
+			if (attachment?.file === undefined) {
+				return
+			}
+
+			const filtered = await applyFilterToFile(attachment.file, attachment.filter || 'none')
+			// still there? the reader may have deleted it while this ran
+			if (this.attachments[key] === undefined) {
+				return
+			}
+
+			const mediaData = await this.timelineStore.createMedia({ file: filtered })
+			if (this.attachments[key] === undefined) {
+				return
+			}
+
+			if (mediaData?.id === undefined) {
+				// the filtered copy would not upload; the unfiltered one is
+				// still attached and still perfectly postable
+				logger.warn('Could not upload the filtered copy; keeping the original')
+
+				return
+			}
+
+			// the description was typed against this picture and belongs to it
+			// rather than to the upload it happened to be stored as
+			const description = (attachment.description || '').trim()
+			if (description !== '') {
+				this.timelineStore.describeMedia({ id: mediaData.id, description })
+			}
+
+			this.attachments = {
+				...this.attachments,
+				[key]: { ...this.attachments[key], data: mediaData, failed: false },
+			}
+		},
+
 		async attachFiles(allFiles) {
 			const files = this.roomFor(allFiles)
 			this.progressLabel = translate('social', 'Uploading…')

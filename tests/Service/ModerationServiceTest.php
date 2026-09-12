@@ -13,11 +13,13 @@ use OCA\Social\Db\AccountNotesRequest;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -60,6 +62,8 @@ class ModerationServiceTest extends TestCase {
 	private DomainBlocksRequest|MockObject $domainBlocksRequest;
 	private AccountNotesRequest|MockObject $accountNotesRequest;
 	private MuteExpiryRequest|MockObject $muteExpiryRequest;
+	private CollectionsRequest|MockObject $collectionsRequest;
+	private StoriesRequest|MockObject $storiesRequest;
 	private StrikeService|MockObject $strikeService;
 
 	/** @var array<int, array<string, mixed>> the strikes that were recorded */
@@ -70,6 +74,8 @@ class ModerationServiceTest extends TestCase {
 		$this->domainBlocksRequest = $this->createMock(DomainBlocksRequest::class);
 		$this->accountNotesRequest = $this->createMock(AccountNotesRequest::class);
 		$this->muteExpiryRequest = $this->createMock(MuteExpiryRequest::class);
+		$this->collectionsRequest = $this->createMock(CollectionsRequest::class);
+		$this->storiesRequest = $this->createMock(StoriesRequest::class);
 		$this->moderationRequest = $this->createMock(ModerationRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
@@ -105,7 +111,9 @@ class ModerationServiceTest extends TestCase {
 			$this->domainBlocksRequest,
 			$this->accountNotesRequest,
 			$this->muteExpiryRequest,
-			$this->strikeService
+			$this->strikeService,
+			$this->collectionsRequest,
+			$this->storiesRequest
 		);
 	}
 
@@ -204,7 +212,9 @@ class ModerationServiceTest extends TestCase {
 			$this->domainBlocksRequest,
 			$this->accountNotesRequest,
 			$this->muteExpiryRequest,
-			$this->strikeService
+			$this->strikeService,
+			$this->collectionsRequest,
+			$this->storiesRequest
 		);
 
 		$this->actorsRequest->method('getFromId')
@@ -321,7 +331,7 @@ class ModerationServiceTest extends TestCase {
 			$this->requestQueueRequest, $this->createMock(StreamService::class),
 			$this->actorsRequest, $this->accountService, $logger,
 			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest,
-			$this->strikeService
+			$this->strikeService, $this->collectionsRequest, $this->storiesRequest
 		);
 
 		$service->decide(self::SPAMMER, Moderation::SILENCE);

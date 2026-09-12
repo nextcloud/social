@@ -4,36 +4,86 @@
 -->
 <template>
 	<div>
-		<ul v-if="pinned.length" class="profile-pinned">
+		<!-- A profile is a grid on Pixelfed and a timeline here. Both, then,
+		     with the choice remembered: somebody who came for the grid should
+		     not have to ask for it on every profile they open. -->
+		<div class="profile-views" role="tablist" :aria-label="t('social', 'Profile view')">
+			<NcButton
+				role="tab"
+				:aria-selected="String(view === 'grid')"
+				:variant="view === 'grid' ? 'secondary' : 'tertiary'"
+				:aria-label="t('social', 'Grid')"
+				@click="setView('grid')">
+				<template #icon>
+					<ViewGridOutline :size="20" />
+				</template>
+			</NcButton>
+			<NcButton
+				role="tab"
+				:aria-selected="String(view === 'timeline')"
+				:variant="view === 'timeline' ? 'secondary' : 'tertiary'"
+				:aria-label="t('social', 'Timeline')"
+				@click="setView('timeline')">
+				<template #icon>
+					<FormatListBulletedSquare :size="20" />
+				</template>
+			</NcButton>
+		</div>
+
+		<ul v-if="pinned.length && view === 'timeline'" class="profile-pinned">
 			<TimelineEntry
 				v-for="entry in pinned"
 				:key="`pinned-${entry.id}`"
 				:item="entry"
 				type="account" />
 		</ul>
-		<TimelineList />
+
+		<TimelineList :display="view" :account="$route.params.account" />
 	</div>
 </template>
 
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import FormatListBulletedSquare from 'vue-material-design-icons/FormatListBulletedSquare.vue'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import TimelineEntry from './../components/TimelineEntry.vue'
 import TimelineList from './../components/TimelineList.vue'
+import ViewGridOutline from 'vue-material-design-icons/ViewGridOutline.vue'
+import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 import { mapStores } from 'pinia'
 import { useTimelineStore } from '../store/timeline.js'
 
+const VIEW_KEY = 'social-profile-view'
+
+/**
+ * @return {string} the remembered choice, defaulting to the timeline -- which
+ *                  is what this app has always shown and what somebody who
+ *                  never asks for the grid should keep getting.
+ */
+function readStoredView() {
+	try {
+		return window.localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'timeline'
+	} catch {
+		return 'timeline'
+	}
+}
+
 export default {
 	name: 'ProfileTimeline',
 	components: {
+		FormatListBulletedSquare,
+		NcButton,
 		TimelineEntry,
 		TimelineList,
+		ViewGridOutline,
 	},
 
 	data() {
 		return {
 			pinnedIds: [],
+			view: readStoredView(),
 		}
 	},
 
@@ -67,6 +117,24 @@ export default {
 	},
 
 	methods: {
+		t,
+
+		/**
+		 * Remembered across profiles and reloads. A failure to write is
+		 * ignored: the choice is a convenience, and a browser that refuses
+		 * storage should still get a working profile.
+		 *
+		 * @param {string} view either 'grid' or 'timeline'
+		 */
+		setView(view) {
+			this.view = view
+			try {
+				window.localStorage.setItem(VIEW_KEY, view)
+			} catch (error) {
+				logger.debug('Could not remember the profile view', { error })
+			}
+		},
+
 		load() {
 			this.loadTimeline()
 			this.loadPinned()
@@ -110,5 +178,12 @@ export default {
 .profile-pinned {
 	list-style: none;
 	margin-bottom: calc(var(--default-grid-baseline) * 4);
+}
+
+.profile-views {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--default-grid-baseline);
+	margin-bottom: calc(var(--default-grid-baseline) * 2);
 }
 </style>

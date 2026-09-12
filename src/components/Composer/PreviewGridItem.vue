@@ -7,7 +7,9 @@
 		<div class="preview-item">
 			<!-- a refused attachment has no picture behind it, and the spinner
 			     MediaAttachment shows for `null` would never stop -->
-			<MediaAttachment v-if="!preview.failed" :attachment="preview.data" />
+			<div class="preview-item__filtered" :style="{ filter: filterCss(preview.filter) }">
+				<MediaAttachment v-if="!preview.failed" :attachment="preview.data" />
+			</div>
 
 			<div class="preview-item__actions">
 				<NcButton variant="tertiary-no-background" @click="$emit('delete', randomKey)">
@@ -30,6 +32,18 @@
 			</span>
 		</div>
 
+		<!-- Pictures only: there is nothing a filter could do to a video or an
+		     audio file, and offering one would be a button that does nothing.
+		     Not until the upload has landed either: choosing a filter replaces
+		     the uploaded copy, and starting that while the first upload is
+		     still in flight is a race with no winner. -->
+		<FilterPicker
+			v-if="!preview.failed && isPicture && preview.data"
+			class="preview-item__filters"
+			:modelValue="preview.filter || 'none'"
+			:preview="previewUrl"
+			@update:modelValue="$emit('filter', { key: randomKey, filter: $event })" />
+
 		<label v-if="!preview.failed" class="preview-item__label" :for="fieldId">
 			{{ t('social', 'Describe this for people who cannot see it') }}
 		</label>
@@ -48,7 +62,9 @@
 
 <script>
 import Close from 'vue-material-design-icons/Close.vue'
+import FilterPicker from './FilterPicker.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import { filterCss } from '../../utils/imageFilters.js'
 import { translate } from '@nextcloud/l10n'
 import MediaAttachment from '../MediaAttachment.vue'
 
@@ -56,6 +72,7 @@ export default {
 	name: 'PreviewGridItem',
 	components: {
 		Close,
+		FilterPicker,
 		NcButton,
 		MediaAttachment,
 	},
@@ -84,10 +101,30 @@ export default {
 		fieldId() {
 			return 'composer-alt-' + this.randomKey
 		},
+
+		/**
+		 * Whether a filter would do anything. Video and audio have no filter
+		 * to apply, and an animated picture would come back as its first frame.
+		 *
+		 * @return {boolean}
+		 */
+		isPicture() {
+			const type = this.preview?.file?.type || this.preview?.data?.type || ''
+
+			return type.startsWith('image/')
+				? !['image/gif', 'image/webp'].includes(type)
+				: type === 'image'
+		},
+
+		/** @return {string} the object URL the swatches draw, which is the key */
+		previewUrl() {
+			return this.randomKey
+		},
 	},
 
 	methods: {
 		t: translate,
+		filterCss,
 	},
 }
 </script>

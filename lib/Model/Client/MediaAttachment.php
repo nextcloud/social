@@ -243,9 +243,10 @@ class MediaAttachment implements JsonSerializable {
 	 */
 	public function asDocument(): array {
 		$original = $this->getMeta()?->getOriginal();
+		$focus = $this->getMeta()?->getFocus();
 
-		return
-			[
+		$document
+			= [
 				'type' => Document::TYPE,
 				'mediaType' => $this->getMediaType(),
 				'url' => $this->getUrl(),
@@ -255,5 +256,14 @@ class MediaAttachment implements JsonSerializable {
 				'width' => ($original === null) ? 0 : $original->getWidth() ?? 0,
 				'height' => ($original === null) ? 0 : $original->getHeight() ?? 0
 			];
+
+		// Added only when it points somewhere. `[0, 0]` is the centre, which is
+		// what a peer assumes when the field is absent, so sending it says
+		// nothing and costs a field on every attachment of every post.
+		if ($focus !== null && ($focus->getX() !== 0.0 || $focus->getY() !== 0.0)) {
+			$document['focalPoint'] = [$focus->getX(), $focus->getY()];
+		}
+
+		return $document;
 	}
 }

@@ -188,6 +188,75 @@ A list is private to the account that made it, and that is the whole of its acce
 
 `replies_policy` and `exclusive` are stored and handed back faithfully, and **neither yet changes which posts a timeline selects**: `exclusive` does not remove members from the home timeline, and `replies_policy` does not filter replies out of the list timeline.
 
+### Pixelfed's own routes
+
+Pixelfed speaks the Mastodon client API for almost everything; what follows is the small surface that is its own. **This is not all of Pixelfed's `v1.1`** — it is the part its official app calls to start up and to draw discover. Routes are added when something asks for them, not to fill in a namespace.
+
+Nothing here ranks or selects anything of its own: discover is the same `TrendService` the Mastodon trend routes use and the same `SuggestionService` behind `/api/v2/suggestions`, so a post or an account cannot be popular on one route and absent from the other.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v2/config` | public, no-csrf | — | The numbers and switches the Pixelfed app reads once, on launch, before it will draw anything. Answered without a viewer, because the app asks before anybody has signed in. **Every value is derived, never restated**: the ceilings come from the constants the server enforces and the mime list is asked of `CacheDocumentService::filterMimeTypes()`, so the client cannot be told a limit the server does not keep. `open_registration` is always `false` — an account here exists because a Nextcloud user does. The `features` block says what *this* app does, including the things it does not (`live_streaming`, `push_notifications`, `circles` are `false`): announcing a screen that is not there is worse than not announcing it. |
+| GET | `/api/v1.1/discover/accounts/popular` | public, no-csrf (viewer required, `read` scope) | `limit` (20, max 20) | The same suggestions `/api/v2/suggestions` answers, unwrapped — Mastodon wraps each account in a `{source, account}` suggestion and Pixelfed sends the accounts themselves. Needs a viewer, as the Mastodon route does: there is no anonymous "accounts you might follow". |
+| GET | `/api/v1.1/discover/posts` | public, no-csrf | `limit` (20, max 20), `offset` (0), `period` | The same answer as `/api/v2/discover/posts`, at the path the app asks for — a second route onto one implementation, not a second implementation. |
+| GET | `/api/v1.1/discover/posts/hashtags` | public, no-csrf | `limit` (20, max 20), `period` | The trending tags `/api/v1/trends/tags` answers, for the row of tags above the discover grid. |
+
+### Collections
+
+Pixelfed's albums: a set of the owner's own posts, in an order the owner chooses. Mastodon defines nothing equivalent, so these are Pixelfed's route shapes — a client that knows Pixelfed finds them where it expects them.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/collections` | public, no-csrf (viewer required, `read:collections` scope) | — | Every collection the viewer owns, newest first, each with its first three posts as a cover. |
+| POST | `/api/v1/collections` | public, no-csrf (viewer required, `write:collections` scope) | `title` (required), `description`, `visibility` (`public`) | Creates a collection and returns it. A blank or whitespace-only title is a **422**. A `visibility` outside `public`/`followers` is stored as `public` rather than refused — there are only two meaningful values and neither is destructive. An account may hold 200 collections. |
+| GET | `/api/v1/collections/{id}` | public, no-csrf | — | One collection with its cover. A public one is answered to a signed-out visitor, which is the point of publishing one; a `followers` one is answered to its owner and to accounts that follow them, and is a **404** to everybody else — the same 404 as an id that does not exist. |
+| PUT | `/api/v1/collections/{id}` | public, no-csrf (viewer required, `write:collections` scope) | `title`, `description`, `visibility` | Updates only the fields that are sent, and returns the collection. Somebody else's collection is a **404**. |
+| DELETE | `/api/v1/collections/{id}` | public, no-csrf (viewer required, `write:collections` scope) | — | Removes the collection and its contents. The posts themselves are untouched. |
+| GET | `/api/v1/collections/{id}/items` | public, no-csrf | `limit` (40, max 40), `offset` (0) | The posts of a collection in the owner's order, as `Status` entities. Same visibility rule as the collection itself. |
+| POST | `/api/v1/collections/{id}/items` | public, no-csrf (viewer required, `write:collections` scope) | `status_id` (required) | Adds one of the viewer's **own** posts, at the end. Adding a post that is already in the collection is a no-op rather than a second entry, so the route is safe to retry. A collection holds at most 100 posts. |
+| DELETE | `/api/v1/collections/{id}/items/{status_id}` | public, no-csrf (viewer required, `write:collections` scope) | — | Takes a post out. Removing one that is not in the collection is a no-op. |
+| GET | `/api/v1/accounts/{account_id}/collections` | public, no-csrf | — | The collections of an account, as the caller may see them: the public ones to anybody, all of them to the owner and to a follower. This is what a profile draws. |
+
+A collection may only hold posts its **owner wrote**. A collection of other people's pictures would re-publish them on a page with a visibility they never agreed to, and no amount of checking at read time takes that back off the peers that already mirrored the page. Pixelfed has the same rule.
+
+Collections are local. They are not federated as ActivityPub collections and a peer does not see them; what a peer sees is the posts, which it already had.
+
+A post that is deleted leaves every collection holding it, through the same cascade that removes its recipient and tag rows. Suspending or deleting an account removes its collections.
+
+### Places
+
+Where a post was taken. **Nothing here geocodes anything** — no call goes to Nominatim, Google or anyone else. Sending somebody's location to a third party at the moment they are deciding whether to publish it is the same failure the Exif stripping exists to prevent, and doing it deliberately would be worse than doing it by accident.
+
+A place is therefore either one this instance has already seen, or one the client names outright with coordinates it already had. The search is over `social_place`, which holds one row per distinct place anyone here has posted from.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/places/search` | public, no-csrf (viewer required, `read` scope) | `q` (required), `limit` (20, max 20) | Places whose name **begins with** `q`. A prefix match, not a substring one: `LIKE '%term%'` cannot use an index and this is called on every keystroke. A viewer is required because the set of places an instance knows is a rough map of where its people go. |
+| GET | `/api/v1/places/{id}` | public, no-csrf (viewer required, `read` scope) | — | One place. |
+
+A post carries one by sending either `place_id` (from the search route) or `place_name` with optional `place_country`, `place_lat` and `place_long` to `POST /api/v1/statuses`. A `place_id` that no longer exists means "nowhere" rather than an error — a post is worth more than its location, and refusing to publish over a stale id is the wrong trade. Coordinates outside ±90/±180 are dropped, and a `place_country` that is not two letters is dropped, because a country column holding "United Kingdom" in one row and "GB" in another cannot group anything.
+
+The `Status` entity gains `place`, which is `null` for almost every post: a place is never inferred, only stated. It is filled in one query per page, like the link preview card, rather than joined into every timeline query — almost no post has one, and the join would cost every page regardless.
+
+Places are local and are not federated: a peer sees the post, not where it was taken.
+
+### Stories
+
+Pixelfed's stories: one picture that stops existing after a day. Local only — a story has no `social_stream` row, no ActivityPub identity and no recipients, and is never federated. Giving one an identity would mean answering for what a peer did with its copy after the day was up.
+
+Every route requires a viewer. There is no public story, so there is nothing here to answer a signed-out caller with, and whether an account even *has* a story up is told only to its followers — which is why "not yours to see" and "there are none" are the same **404**.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/stories/carousel` | public, no-csrf (viewer required, `read:stories` scope) | — | The viewer's own live stories, then those of the accounts they follow, oldest first — the order a carousel plays them in. Each carries `seen` for this viewer. |
+| GET | `/api/v1/stories/self` | public, no-csrf (viewer required, `read:stories` scope) | — | The viewer's own live stories. Only here and in the carousel is `view_count` filled in: how many accounts watched is told to the poster and to nobody else. |
+| POST | `/api/v1/stories` | public, no-csrf (viewer required, `write:stories` scope) | `media_id` (required), `caption`, `duration` (5) | Posts one of the viewer's own uploads. `duration` is clamped to 3–30 seconds and `caption` to 500 characters. An account may have 40 live at once. An unknown or someone else's `media_id` is a **422**. |
+| DELETE | `/api/v1/stories/{id}` | public, no-csrf (viewer required, `write:stories` scope) | — | Removes it early, with the record of who saw it. Somebody else's is a **404**. |
+| POST | `/api/v1/stories/{id}/seen` | public, no-csrf (viewer required, `write:stories` scope) | — | Marks it seen. Called as a client scrolls, so a repeat is a no-op rather than a second view. |
+| GET | `/api/v1/accounts/{account_id}/stories` | public, no-csrf (viewer required, `read:stories` scope) | — | The live stories of one account: its own, or those of somebody the viewer follows. Anything else is a **404**. |
+
+The expiry is enforced twice, by design. Every read filters on `expires_at`, and `Cron\ExpiredStories` deletes what is due, hourly. If the job never runs nothing expired is ever shown; if a read is ever written without the filter, the job has already removed the row. For a feature whose promise is that the thing goes away, "what you can see" and "what is stored" have to be the same statement.
+
 ### Conversations
 
 | Method | Route | Auth | Parameters | Description |
@@ -234,6 +303,7 @@ A filter stops applying the moment its `expires_at` passes: the expiry is a pred
 |--------|-------|------|------------|-------------|
 | GET | `/api/v1/trends/statuses` | public, no-csrf | `limit` (20, capped at 40), `offset` (0), `period` (`1h`, `12h`, `1d` — the default —, `3d`, `10d`) | The public statuses interacted with most in that window, most interactions first, with their link previews attached. Counted live from `social_action` — the rows a like and a boost already write — rather than from a stored counter, so the trend cannot drift from the counts a status reports. Public `Note`s only: this is an unauthenticated route, and an aggregate over followers-only posts would report on them to the whole internet even if it never showed one. A status nobody touched in the window is absent rather than a zero at the end. `period` is this app's own parameter, shared with `/api/v1/trends/tags` so an explore page sees one stretch of time; Mastodon has none and gets the default. |
 | GET | `/api/v1/timelines/link` | public, no-csrf | `url` (required), `limit` (20, capped at 40), `max_id` (0), `min_id` (0) | The public posts carrying one link, newest first — what a reader gets by tapping a trending link rather than following it off the instance. The links themselves were already served at `/api/v1/trends/links`, so the data was here and the timeline that reads it was not. The url is matched **exactly** rather than by prefix: two pages of the same site are two links, and a prefix match would fold a whole domain into whichever of its pages happened to trend. A missing or unknown `url` is an empty timeline, not an error — the link a client holds may be one nobody here has posted since. |
+| GET | `/api/v2/discover/posts` | public, no-csrf | `limit`, `offset` (0), `period` | Pixelfed's discover route: the trending statuses narrowed to the ones with a picture, because a discover screen is a grid of squares and a text post is a poor thing to put in one. The *same* ranking as `/api/v1/trends/statuses`, not a second one, so a post cannot trend there and not here. Public statuses only. |
 | GET | `/api/v1/trends/links` | public, no-csrf | `limit` (20, capped at 40), `offset` (0), `period` (as above) | The links most often attached to a public status in that window, as Mastodon `Trends::Link` entities. Counted by url, not by card row: the same article posted by five accounts is one trending link. The card half is the stored preview, serialised by the same class the card on a status uses, so the two cannot disagree about a page. A url still being shared whose preview row went with the post it was fetched for is answered as a bare link rather than dropped. `history` carries a single bucket and `accounts` in it is always `0`: this instance counts uses, not distinct accounts. |
 | GET | `/api/v1/directory` | public, no-csrf | `offset` (0), `limit` (40, capped at 80), `order` (`active` default, or `new`), `local` (accepted, no effect) | The local profile directory: the accounts that set `discoverable`. **Opt-in, and that is the whole access rule** — the flag has been stored and federated since `Version1000Date20260911000002` and was read by nothing, so turning it off changed nothing because there was no listing to be kept out of. It is a predicate of the deciding query, so an account that did not opt in is never read and then dropped. `active` orders by when the account last posted in public, accounts that never have at the end; `new` by when it was created. Silenced and suspended accounts are not listed — removing an account from the public timeline and leaving it in the shop window is the same mistake twice. Remote accounts are never listed, which is why `local` makes no difference. |
 | GET | `/api/v2/suggestions` | public, no-csrf (viewer required, `read` scope) | `limit` (40, capped at 80) | Accounts to follow, as Mastodon `Suggestion` entities. Derived from two things the app already has: the accounts followed by the accounts the viewer follows, ranked by how many of them do (`friends_of_friends`), then — for a viewer whose graph has nothing to say — local accounts that opted in to the directory, most recently active first. No scoring model: both halves are facts that can be counted. The deprecated `source` field is sent beside `sources`, because clients in the wild read one or the other. Never the viewer, an account they already follow **or have a pending request to**, one they have blocked or muted, one that has blocked them, or one under a moderation decision — every exclusion applies to both halves, since they come from different queries. |
@@ -611,6 +681,7 @@ These serve HTML or files for the app's own UI; they are not client API endpoint
 | GET | `/timeline/{path}` | user, no-csrf | `path` (default `''`, `requirements: .+`) | Same page; `path` is accepted and then ignored — the method just calls `navigate()`. |
 | GET | `/follow_requests` | user, no-csrf | — | Same page. The path belongs to the client-side router; the server answers it so that reloading or bookmarking the follow-requests page works instead of 404ing. |
 | GET | `/blocked` | user, no-csrf | — | Same page, for the blocked-and-muted-accounts view (**Settings → Blocked and muted accounts** in the app's sidebar). |
+| GET | `/explore` | user, no-csrf | — | Same page, for the Explore view — the pictures being looked at, the hashtags being used and the accounts this server knows about. The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
 | GET | `/document/get` | user, no-csrf | `id` (required) | Streams a cached document with its stored mime type. Errors: error envelope, HTTP 500. |
 | GET | `/document/public` | public, no-csrf | `id` (required) | Same for documents marked public. |
 | GET | `/document/get/resized` | user, no-csrf | `id` (required) | Streams the resized/preview variant. |

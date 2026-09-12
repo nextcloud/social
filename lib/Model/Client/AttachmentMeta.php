@@ -215,7 +215,10 @@ class AttachmentMeta implements JsonSerializable {
 		$small->import($this->getArray('small', $data));
 		$this->setSmall($small);
 
-		$focus = new AttachmentMetaFocus($this->getInt('focus.x', $data), $this->getInt('focus.y', $data));
+		// Floats, not integers. A focal point is a fraction of the way from the
+		// centre to each edge, so every value a client ever sends is between
+		// -1 and 1 and `getInt()` rounded all of them to the centre.
+		$focus = new AttachmentMetaFocus($this->getFloat('focus.x', $data), $this->getFloat('focus.y', $data));
 		$this->setFocus($focus);
 
 		return $this;

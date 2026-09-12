@@ -35,7 +35,8 @@
 				:randomKey="randomKey"
 				@delete="deletePreview"
 				@describe="$emit('describe', $event)"
-				@commitDescription="$emit('commitDescription', $event)" />
+				@commitDescription="$emit('commitDescription', $event)"
+				@filter="$emit('filter', $event)" />
 		</div>
 	</div>
 </template>
@@ -76,7 +77,7 @@ export default {
 		},
 	},
 
-	emits: ['deleted', 'describe', 'commitDescription'],
+	emits: ['deleted', 'describe', 'commitDescription', 'filter'],
 
 	computed: {
 		/** @return {number} how many pictures the post is carrying */

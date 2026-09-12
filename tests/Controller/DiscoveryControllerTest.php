@@ -27,6 +27,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
@@ -212,7 +213,8 @@ class DiscoveryControllerTest extends TestCase {
 			$this->suggestionService,
 			$this->trendService,
 			$this->featuredTagService,
-			$this->linkPreviewService
+			$this->linkPreviewService,
+			$this->createMock(PlaceService::class)
 		);
 	}
 

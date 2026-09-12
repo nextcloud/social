@@ -361,10 +361,34 @@ class DocumentService {
 	}
 
 	/**
+	 * One cached document by its ActivityPub id.
+	 *
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getDocumentById(string $id): Document {
+		return $this->cacheDocumentsRequest->getById($id);
+	}
+
+	/**
 	 * Stores a changed alt text.
 	 */
 	public function updateDescription(Document $document): void {
 		$this->cacheDocumentsRequest->updateDescription($document);
+	}
+
+	/**
+	 * Stores the focal point a client just set.
+	 *
+	 * The document's cached `meta` is dropped first so that
+	 * `convertToMediaAttachment()` rebuilds it from the new focus rather than
+	 * handing back the blob it was loaded with.
+	 */
+	public function updateFocus(Document $document, float $x, float $y): void {
+		$document->setFocus($x, $y);
+		$document->setMeta(null);
+		$document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->cacheDocumentsRequest->updateFocus($document);
 	}
 
 	/**

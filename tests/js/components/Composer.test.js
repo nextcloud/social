@@ -630,19 +630,19 @@ describe('Composer', () => {
 			expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-1')
 		})
 
-		it('uploads no more than the eight a post can carry', async () => {
+		it('uploads no more than the ten a post can carry', async () => {
 			const { wrapper, store } = mountComposer()
 			const fileInput = wrapper.find('input[type="file"]')
 			Object.defineProperty(fileInput.element, 'files', {
-				value: Array.from({ length: 9 }, (unused, index) => new File(['x'], `${index}.png`, { type: 'image/png' })),
+				value: Array.from({ length: 11 }, (unused, index) => new File(['x'], `${index}.png`, { type: 'image/png' })),
 				configurable: true,
 			})
 
 			await fileInput.trigger('change')
 			await flushPromises()
 
-			expect(store.createMedia.mock.calls).toHaveLength(8)
-			expect(showError).toHaveBeenCalledWith('A post can carry 8 attachments')
+			expect(store.createMedia.mock.calls).toHaveLength(10)
+			expect(showError).toHaveBeenCalledWith('A post can carry 10 attachments')
 		})
 
 		it('opens the file picker from the attachment button', async () => {
@@ -721,34 +721,34 @@ describe('Composer', () => {
 			expect(postedStatus(store).media_ids).toEqual([beach, '/Photos/dunes.jpg'])
 		})
 
-		it('attaches no more than the eight a post can carry, and says so', async () => {
+		it('attaches no more than the ten a post can carry, and says so', async () => {
 			const { wrapper, store } = mountComposer()
-			const paths = Array.from({ length: 10 }, (unused, index) => `/Photos/${index}.jpg`)
+			const paths = Array.from({ length: 12 }, (unused, index) => `/Photos/${index}.jpg`)
 			filePicker(Promise.resolve(paths))
 
 			await addFromFiles(wrapper)
 
-			// the server refuses the ninth outright, so the refusal has to be
-			// explained here, where the eight that fit are not lost with it
-			expect(pickedPaths(store)).toEqual(paths.slice(0, 8))
-			expect(showError).toHaveBeenCalledWith('A post can carry 8 attachments')
+			// the server refuses the eleventh outright, so the refusal has to be
+			// explained here, where the ten that fit are not lost with it
+			expect(pickedPaths(store)).toEqual(paths.slice(0, 10))
+			expect(showError).toHaveBeenCalledWith('A post can carry 10 attachments')
 		})
 
 		it('counts an upload already in the post against the same ceiling', async () => {
 			const { wrapper, store } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
-			filePicker(Promise.resolve(Array.from({ length: 8 }, (unused, index) => `/Photos/${index}.jpg`)))
+			filePicker(Promise.resolve(Array.from({ length: 10 }, (unused, index) => `/Photos/${index}.jpg`)))
 
 			await addFromFiles(wrapper)
 
-			expect(pickedPaths(store)).toHaveLength(7)
-			expect(wrapper.findAllComponents(PreviewGridItem)).toHaveLength(8)
+			expect(pickedPaths(store)).toHaveLength(9)
+			expect(wrapper.findAllComponents(PreviewGridItem)).toHaveLength(10)
 		})
 
 		it('offers neither way of attaching once the post is full', async () => {
 			const { wrapper } = mountComposer()
-			filePicker(Promise.resolve(Array.from({ length: 8 }, (unused, index) => `/Photos/${index}.jpg`)))
+			filePicker(Promise.resolve(Array.from({ length: 10 }, (unused, index) => `/Photos/${index}.jpg`)))
 
 			await addFromFiles(wrapper)
 

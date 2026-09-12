@@ -1648,6 +1648,9 @@ class StreamRequest extends StreamRequestBuilder {
 			[self::TABLE_STATUS_REVISIONS, 'stream_id_prim'],
 			// the Like and Announce activities pointing at the post
 			[self::TABLE_ACTIONS, 'object_id_prim'],
+			// and its place in any album its author put it in: a collection
+			// entry pointing at a post that is gone would draw a gap
+			[self::TABLE_COLLECTION_ITEMS, 'stream_id_prim'],
 		] as [$table, $field]) {
 			$qb = $this->getQueryBuilder();
 			$qb->delete($table)
@@ -1804,6 +1807,7 @@ class StreamRequest extends StreamRequestBuilder {
 			->setValue('id', $qb->createNamedParameter($stream->getId()))
 			->setValue('visibility', $qb->createNamedParameter($stream->getVisibility()))
 			->setValue('sensitive', $qb->createNamedParameter($stream->isSensitive() ? 1 : 0))
+			->setValue('place_id', $qb->createNamedParameter($stream->getPlaceId()))
 			->setValue('type', $qb->createNamedParameter($stream->getType()))
 			->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 			->setValue('to', $qb->createNamedParameter($stream->getTo()))

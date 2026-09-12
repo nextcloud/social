@@ -53,11 +53,16 @@ class CoreRequestBuilder {
 	public const TABLE_STATUS_REVISIONS = 'social_stream_rev';
 	public const TABLE_LISTS = 'social_list';
 	public const TABLE_LIST_MEMBERS = 'social_list_member';
+	public const TABLE_COLLECTIONS = 'social_collection';
+	public const TABLE_COLLECTION_ITEMS = 'social_collection_item';
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_SCHEDULED = 'social_scheduled';
+	public const TABLE_PLACES = 'social_place';
+	public const TABLE_STORIES = 'social_story';
+	public const TABLE_STORY_VIEWS = 'social_story_view';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_CARDS = 'social_stream_card';
@@ -198,6 +203,49 @@ class CoreRequestBuilder {
 			'id',
 			'list_id',
 			'actor_id',
+			'actor_id_prim',
+			'creation'
+		],
+		self::TABLE_COLLECTIONS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'title',
+			'description',
+			'visibility',
+			'creation',
+			'updated'
+		],
+		self::TABLE_COLLECTION_ITEMS => [
+			'id',
+			'collection_id',
+			'stream_id_prim',
+			'position',
+			'creation'
+		],
+		self::TABLE_PLACES => [
+			'id',
+			'name',
+			'name_prim',
+			'country',
+			'lat',
+			'lon',
+			'creation'
+		],
+		self::TABLE_STORIES => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'document_id',
+			'document_id_prim',
+			'caption',
+			'duration',
+			'creation',
+			'expires_at'
+		],
+		self::TABLE_STORY_VIEWS => [
+			'id',
+			'story_id',
 			'actor_id_prim',
 			'creation'
 		],
@@ -411,7 +459,8 @@ class CoreRequestBuilder {
 			'language',
 			'updated',
 			'quote',
-			'quote_authorization'
+			'quote_authorization',
+			'place_id'
 		],
 		self::TABLE_STREAM_ACTIONS => [
 			'id',

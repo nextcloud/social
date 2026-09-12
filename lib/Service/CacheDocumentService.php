@@ -54,6 +54,7 @@ class CacheDocumentService {
 		private CurlService $curlService,
 		private BlurService $blurService,
 		private ConfigService $configService,
+		private ImageConversionService $imageConversionService,
 	) {
 	}
 
@@ -133,11 +134,16 @@ class CacheDocumentService {
 
 		$this->filterMimeTypes($mime);
 
-		$document->setMediaType($mime);
-		$document->setMimeType($mime);
-
 		$file = fopen($tmpPath, 'r');
 		$content = fread($file, filesize($tmpPath));
+
+		// Before anything is written: the camera's metadata comes off, and a
+		// format no browser can draw becomes one it can. Both can change the
+		// mime, so the document is told afterwards rather than before.
+		[$content, $mime] = $this->imageConversionService->prepareForStorage($content, $mime);
+
+		$document->setMediaType($mime);
+		$document->setMimeType($mime);
 
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
@@ -195,6 +201,14 @@ class CacheDocumentService {
 			'image/gif',
 			'image/png',
 			'image/webp',
+			// A browser cannot draw these two, but a phone produces them: HEIC
+			// is the iPhone camera default. They are accepted here and
+			// converted on the way in -- see ImageConversionService. Refusing
+			// them meant telling most of an iPhone's owners to convert their
+			// own photos before posting.
+			'image/avif',
+			'image/heic',
+			'image/heif',
 			'video/mp4',
 			'video/webm',
 			'video/quicktime',

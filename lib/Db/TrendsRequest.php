@@ -43,7 +43,7 @@ class TrendsRequest extends TrendsRequestBuilder {
 	 *
 	 * @return int[]
 	 */
-	public function trendingStatusNids(int $since, int $limit, int $offset): array {
+	public function trendingStatusNids(int $since, int $limit, int $offset, bool $onlyMedia = false): array {
 		$qb = $this->getTrendingStatusNidsSelectSql();
 		$expr = $qb->expr();
 
@@ -60,6 +60,12 @@ class TrendsRequest extends TrendsRequestBuilder {
 		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
 		// a boost and a notification are not statuses that can trend
 		$qb->andWhere($expr->eq('s.type', $qb->createNamedParameter(Note::TYPE)));
+
+		// what a picture-first discover screen shows: a text post is a fine
+		// trending status and a poor thing to put in a grid of squares
+		if ($onlyMedia) {
+			$qb->limitToMedia();
+		}
 
 		$qb->selectAlias($qb->createFunction('COUNT(a.id_prim)'), 'interactions');
 		$qb->groupBy('s.nid');

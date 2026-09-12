@@ -26,6 +26,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\HttpSignatureService;
+use OCA\Social\Service\ImageConversionService;
 use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\ReportForwardService;
@@ -648,6 +649,7 @@ class OutboundFederationWireTest extends TestCase {
 			$this->curlService(),
 			$this->createMock(BlurService::class),
 			$this->configService,
+			$this->createMock(ImageConversionService::class),
 		);
 
 		$service->retrieveContent('https://' . self::REMOTE . '/media/1.png?sig=abc');
