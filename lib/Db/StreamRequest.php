@@ -41,7 +41,26 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Db
  */
 class StreamRequest extends StreamRequestBuilder {
-	private const NID_LIMIT = 1000000;
+	/**
+	 * The width of the random half of a nid.
+	 *
+	 * A nid is `published_time * NID_LIMIT + random`, which keeps it sortable by
+	 * publication time -- cursor pagination relies on that -- while staying
+	 * opaque within a second. It is also the primary key of social_stream, so a
+	 * collision is a rejected insert, and save() used to swallow exactly that
+	 * error: the post was silently lost.
+	 *
+	 * At the previous width of 1e6 the birthday bound put an even chance of a
+	 * collision at about 1,200 posts sharing a second. 1e9 moves that to roughly
+	 * 37,000, and published_time * 1e9 still fits a BIGINT for any date this app
+	 * will see. Widening does not disturb the ordering of ids issued under the
+	 * old width: every new nid is larger than every old one, and both halves
+	 * stay monotonic in time.
+	 */
+	private const NID_LIMIT = 1000000000;
+
+	/** How many fresh nids to try before giving up on an insert. */
+	private const NID_ATTEMPTS = 4;
 	/** How many posts one pass of deleteByAuthor() removes. */
 	public const DELETE_BATCH = 500;
 	private StreamDestRequest $streamDestRequest;
@@ -66,33 +85,79 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	public function save(Stream $stream): void {
-		$qb = $this->saveStream($stream);
-		if ($stream->getType() === Note::TYPE) {
-			/** @var Note $stream */
+		for ($attempt = 1; ; $attempt++) {
+			$qb = $this->saveStream($stream);
+			if ($stream->getType() === Note::TYPE) {
+				/** @var Note $stream */
 
-			$attachments = [];
-			foreach ($stream->getAttachments() as $item) {
-				$attachments[] = $item->asLocal(); // get attachment ready for local
+				$attachments = [];
+				foreach ($stream->getAttachments() as $item) {
+					$attachments[] = $item->asLocal(); // get attachment ready for local
+				}
+
+				$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
+					->setValue(
+						'attachments', $qb->createNamedParameter(json_encode($attachments, JSON_UNESCAPED_SLASHES)
+						)
+					);
 			}
 
-			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
-				->setValue(
-					'attachments', $qb->createNamedParameter(json_encode($attachments, JSON_UNESCAPED_SLASHES)
-					)
-				);
+			try {
+				$qb->executeStatement();
+
+				$this->streamDestRequest->generateStreamDest($stream);
+				$this->streamTagsRequest->generateStreamTags($stream);
+
+				return;
+			} catch (DBException $e) {
+				if ($e->getReason() !== DBException::REASON_CONSTRAINT_VIOLATION) {
+					$this->logger->error("Couldn't save stream: " . $e->getMessage(), [
+						'exception' => $e,
+					]);
+
+					return;
+				}
+
+				// Two different constraints reach here and they want opposite
+				// things. A second save of the same status trips the unique
+				// index on id_prim, and dropping it is right -- that is what
+				// makes an inbox delivery idempotent. A nid collision trips the
+				// primary key, and dropping that loses a post that was never
+				// stored. The databases do not agree on how to tell the two
+				// apart from the exception, so ask instead whether the status is
+				// already there; if it is not, the clash was on the nid.
+				if ($attempt >= self::NID_ATTEMPTS || $this->has($stream->getId())) {
+					if ($attempt >= self::NID_ATTEMPTS) {
+						$this->logger->error(
+							'Could not find a free nid for stream ' . $stream->getId()
+							. ' in ' . self::NID_ATTEMPTS . ' attempts; the post was not stored.',
+							['exception' => $e]
+						);
+					}
+
+					return;
+				}
+
+				// force saveStream() to draw a fresh one
+				$stream->setNid(0);
+			}
+		}
+	}
+
+	/** Whether a status with this ActivityPub id is already stored. */
+	private function has(string $id): bool {
+		if ($id === '') {
+			return false;
 		}
 
 		try {
-			$qb->executeStatement();
+			$qb = $this->getStreamSelectSql();
+			$qb->limitToIdPrim($qb->prim($id));
+			$this->getStreamFromRequest($qb);
 
-			$this->streamDestRequest->generateStreamDest($stream);
-			$this->streamTagsRequest->generateStreamTags($stream);
-		} catch (DBException $e) {
-			if ($e->getReason() !== DBException::REASON_CONSTRAINT_VIOLATION) {
-				$this->logger->error("Couldn't save stream: " . $e->getMessage(), [
-					'exception' => $e,
-				]);
-			}
+			return true;
+		} catch (StreamNotFoundException) {
+			return false;
 		}
 	}
 
@@ -1520,7 +1585,9 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		if ($stream->getNid() === 0) {
-			$stream->setNid($stream->getPublishedTime() * self::NID_LIMIT + rand(1, self::NID_LIMIT));
+			$stream->setNid(
+				$stream->getPublishedTime() * self::NID_LIMIT + random_int(1, self::NID_LIMIT)
+			);
 		}
 
 		$qb = $this->getStreamInsertSql();
