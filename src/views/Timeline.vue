@@ -33,6 +33,11 @@
 
 		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :defaultVisibility="type === 'direct' ? 'direct' : undefined" />
 
+		<!-- the three timelines that are the same place seen from three
+		     distances: switching between them is something a reader does while
+		     reading, not something they navigate to -->
+		<TimelineSwitcher v-if="isFeed" :type="type" />
+
 		<div class="timeline-heading-row">
 			<!-- the page had no heading at all outside tags and notifications, so
 			     there was nothing to land on and nothing to say where you were -->
@@ -57,6 +62,7 @@
 <script>
 import { defineAsyncComponent } from 'vue'
 import TimelineList from './../components/TimelineList.vue'
+import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
@@ -77,6 +83,7 @@ export default {
 		HashtagFollowButton,
 		HashtagFollowedList,
 		TimelineList,
+		TimelineSwitcher,
 	},
 
 	setup() {
@@ -119,6 +126,13 @@ export default {
 				default:
 					return t('social', 'Home timeline')
 			}
+		},
+
+		/**
+		 * @return {boolean} whether this is one of the three the switcher offers
+		 */
+		isFeed() {
+			return ['home', 'timeline', 'federated'].includes(this.type)
 		},
 
 		/**

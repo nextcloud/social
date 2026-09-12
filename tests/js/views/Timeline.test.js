@@ -11,6 +11,7 @@ import Timeline from '../../../src/views/Timeline.vue'
 import FirstPostCelebration from '../../../src/components/FirstPostCelebration.vue'
 import HashtagFollowButton from '../../../src/components/HashtagFollowButton.vue'
 import HashtagFollowedList from '../../../src/components/HashtagFollowedList.vue'
+import TimelineSwitcher from '../../../src/components/TimelineSwitcher.vue'
 import eventBus from '../../../src/services/eventBus.js'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
@@ -440,5 +441,47 @@ describe('Timeline', () => {
 			expect(wrapper.findAllComponents(RouterLinkStub).map((link) => link.text()))
 				.toEqual(['#fediverse', '#nextcloud'])
 		})
+	})
+
+	// the switcher
+
+	/**
+	 * The three timelines a reader moves between all day are on the page
+	 * rather than only in the sidebar, because switching between them is
+	 * something you do while reading.
+	 */
+	it.each([
+		['home', {}],
+		['local', { params: { type: 'timeline' } }],
+		['global', { params: { type: 'federated' } }],
+	])('offers the switcher on the %s timeline', (name, route) => {
+		const wrapper = mountTimeline(route)
+
+		expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(true)
+	})
+
+	it('tells the switcher which of the three is on screen', () => {
+		const wrapper = mountTimeline({ params: { type: 'federated' } })
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe('federated')
+	})
+
+	/**
+	 * Everywhere else it would be a switch between three places you are not:
+	 * these views are reached from the sidebar and are not one of the three.
+	 */
+	it.each(['notifications', 'direct', 'photos', 'favourites', 'bookmarks'])(
+		'does not offer the switcher on %s',
+		(type) => {
+			const wrapper = mountTimeline({ params: { type } })
+
+			expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(false)
+		},
+	)
+
+	it('does not offer the switcher on a hashtag timeline', () => {
+		const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
+
+		expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(false)
 	})
 })
