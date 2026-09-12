@@ -120,10 +120,13 @@ class SocialTrendingWidget implements IAPIWidgetV2, IIconWidget, IButtonWidget, 
 				);
 			}
 
+			// the dashboard prints the half-empty message *above* the rows, so
+			// sending one with rows present put "Nothing is trending" directly
+			// on top of the hashtags this widget had just listed
 			return new WidgetItems(
 				$items,
 				$this->l10n->t('Nothing is trending yet'),
-				$this->l10n->t('Nothing is trending'),
+				$items === [] ? $this->l10n->t('Nothing is trending') : '',
 			);
 		} catch (Exception $e) {
 			$this->logger->warning('could not build the social_trending dashboard widget', [

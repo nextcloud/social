@@ -141,10 +141,12 @@ class SocialFederationHealthWidget implements IAPIWidgetV2, IIconWidget, IButton
 				);
 			}
 
+			// the dashboard prints the half-empty message above the rows, so a
+			// widget with rows must not send one
 			return new WidgetItems(
 				$items,
 				$this->l10n->t('Everything is being delivered'),
-				$this->l10n->t('Everything is being delivered'),
+				$items === [] ? $this->l10n->t('Everything is being delivered') : '',
 			);
 		} catch (Exception $e) {
 			$this->logger->warning('could not build the social_federation_health dashboard widget', [
