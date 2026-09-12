@@ -63,7 +63,7 @@ export function isTyping(event) {
 		return true
 	}
 
-	const target = event.target
+	const target = /** @type {HTMLElement|null} */ (event.target)
 	if (!target || typeof target.tagName !== 'string') {
 		return false
 	}
@@ -87,7 +87,7 @@ export function belongsToElement(event) {
 		return false
 	}
 
-	const target = event.target
+	const target = /** @type {HTMLElement|null} */ (event.target)
 	if (!target || typeof target.tagName !== 'string') {
 		return false
 	}

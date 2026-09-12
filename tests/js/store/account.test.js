@@ -50,6 +50,10 @@ function defaultRelationship(id, following) {
 	return {
 		id,
 		following,
+		// the server sends both on every relationship it answers with, so the
+		// placeholder the store invents has to carry them too
+		note: '',
+		languages: [],
 		showing_reblogs: false,
 		notifying: false,
 		followed_by: false,

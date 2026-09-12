@@ -25,6 +25,11 @@ function emptyRelationship(id, following) {
 	return {
 		id,
 		following,
+		// `note` and `languages` were missing here while `Relationship::jsonSerialize()`
+		// has always sent both, so a component reading the placeholder saw a
+		// different shape from the one the server answers with
+		note: '',
+		languages: [],
 		showing_reblogs: false,
 		notifying: false,
 		followed_by: false,
@@ -94,11 +99,13 @@ function indexAccount(state, { actorId, data }) {
  *
  * @param {object} state the store state
  * @param {import('../types/Mastodon.js').Account[]} data the page
- * @return {{users: string[], lastId: number}} the actor URLs and the last id seen
+ * @return {{users: string[], lastId: string}} the actor URLs and the last id seen
  */
 function collectActors(state, data) {
 	const users = []
-	let lastId = 0
+	// a string, like every id on the wire: `Relationship::jsonSerialize()` casts
+	// it, and the only reader falls back to 0 for an empty page either way
+	let lastId = ''
 	for (const actor of data) {
 		users.push(actor.url)
 		indexAccount(state, { actorId: actor.url, data: actor })
@@ -494,6 +501,7 @@ export const useAccountStore = defineStore('account', {
 				logger.error('Failed to unmute the account', { error })
 			}
 		},
+		/** @param {{account?: string, maxId?: string}} options */
 		async fetchAccountFollowers({ account, maxId } = {}) {
 			const key = keyFor(this, account)
 			if (this.accountsFollowersLoading[key]) {
@@ -522,6 +530,7 @@ export const useAccountStore = defineStore('account', {
 				this.setFollowersLoading({ actorId: key, loading: false })
 			}
 		},
+		/** @param {{account?: string, maxId?: string}} options */
 		async fetchAccountFollowing({ account, maxId } = {}) {
 			const key = keyFor(this, account)
 			if (this.accountsFollowingsLoading[key]) {

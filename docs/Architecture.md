@@ -504,6 +504,11 @@ The OStatus bundle and `src/views/OStatus.vue` are therefore dead code today: `O
 
 Server-side state is not a store: it is passed through Nextcloud's initial state as `serverData` and read by `useServerData`.
 
+The Mastodon and ActivityPub entities the app exchanges are described as JSDoc
+typedefs in `src/types/`, and `npm run typecheck` holds the stores, services and
+utilities to them (`jsconfig.json`). Single-file components are outside that
+check: `tsc` cannot resolve a `.vue` import without `vue-tsc`.
+
 Each store is installed per Pinia instance rather than per module registration, which is the difference that matters for tests — two Pinias give two sets of state, where the Vuex modules shared one object literal between them.
 
 ### Routes and views

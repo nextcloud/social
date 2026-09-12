@@ -1,0 +1,31 @@
+{
+	"//": "Type checking for the plain-JavaScript half of src/. The JSDoc typedefs in src/types/ describe the Mastodon and ActivityPub entities this app exchanges; before this file nothing checked the code against them. .vue files are not included: tsc cannot resolve a single-file component without vue-tsc, and every entry point imports one.",
+	"compilerOptions": {
+		"checkJs": true,
+		"allowJs": true,
+		"noEmit": true,
+		"target": "ES2022",
+		"lib": [
+			"ES2022",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": false,
+		"skipLibCheck": true,
+		"maxNodeModuleJsDepth": 0
+	},
+	"include": [
+		"src/types/**/*.js",
+		"src/types/**/*.d.ts",
+		"src/services/**/*.js",
+		"src/store/**/*.js",
+		"src/utils/**/*.js"
+	],
+	"exclude": [
+		"node_modules",
+		"**/*.test.js",
+		"**/*.spec.js"
+	]
+}

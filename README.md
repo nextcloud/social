@@ -137,6 +137,7 @@ composer run test:unit      # PHP: vendor/bin/phpunit -c tests/phpunit.xml
 npm ci
 npm test                    # JS: vitest run (tests/js/** and src/**/*.test.js)
 npm run test:coverage       # with a coverage report in coverage/js
+npm run typecheck           # tsc over the plain-JS half of src/, against src/types/
 ```
 
 PHP tests live in `tests/` mirroring `lib/` (`lib/Service/PostService.php` →

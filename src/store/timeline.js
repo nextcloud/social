@@ -89,6 +89,7 @@ export const useTimelineStore = defineStore('timeline', {
 		/** which list a removed status came from, so a rollback restores it there */
 		removedFrom: {},
 		type: 'home',
+		/** @type {{tag?: string, id?: string, account?: string}} */
 		params: {},
 		account: '',
 		composerDisplayStatus: false,
