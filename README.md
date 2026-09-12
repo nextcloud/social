@@ -140,9 +140,13 @@ npm run test:coverage       # with a coverage report in coverage/js
 ```
 
 PHP tests live in `tests/` mirroring `lib/` (`lib/Service/PostService.php` →
-`tests/Service/PostServiceTest.php`). Everything a class needs is mocked; code that
-reaches the container statically finds a `TestContainer` behind `\OC::$server`
-(see `tests/Helper/TestContainer.php`). Frontend tests use Vitest with
+`tests/Service/PostServiceTest.php`). Everything a class needs is mocked; the
+server code that resolves a service statically — `OCP\Server::get()`, which
+`Response` itself calls on every render — finds a `TestContainer` instead, which
+knows a silent logger and a session with nobody in it and raises a named error
+for anything else (see `tests/Helper/TestContainer.php`). Migration steps are
+given a `FakeTable` that records the schema they ask for rather than building it
+(`tests/Migration/`). Frontend tests use Vitest with
 `@vue/test-utils` and jsdom; `tests/js/setup.js` provides the Nextcloud globals
 (`t`, `n`, `OC`, `OCA`, `localStorage`, router webroots).
 
