@@ -65,7 +65,7 @@ class ActorCleanup extends QueuedJob {
 
 		try {
 			/** @var PersonInterface $interface */
-			$interface = AP::$activityPub->getInterfaceFromType(Person::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(Person::TYPE);
 			if ($interface->detachRecipient($actor, self::ROWS_PER_RUN)) {
 				$interface->forgetRecipient($actorId);
 				$this->logger->info('[Cron\\ActorCleanup] detached a deleted account', [

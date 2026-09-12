@@ -46,30 +46,35 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	/**
 	 * A dest row is what puts a post in a timeline, so a failure here is a post
 	 * that exists and is in nobody's timeline — permanently, and until now
-	 * invisibly. The duplicate case is expected (the same recipient can appear
-	 * in both `to` and `cc`) and stays quiet; anything else is logged.
+	 * invisibly. Anything that is not the expected duplicate is raised, not
+	 * swallowed: the caller writes these inside the transaction that stores the
+	 * post, where throwing rolls the whole save back and the post can be saved
+	 * again.
+	 *
+	 * The duplicate is expected and must not reach the database as an error.
+	 * The same recipient routinely appears twice in one post -- `getToAll()`
+	 * returns `to` alongside `toArray`, and the unique index does not include
+	 * the subtype, so a recipient in both `to` and `cc` collides as well.
+	 * Catching that violation and returning quietly is enough on MySQL and
+	 * SQLite but not on PostgreSQL, which aborts the whole transaction on any
+	 * failed statement: the remaining inserts and then the commit fail, and the
+	 * post is lost. `insertIgnoreConflict()` asks the database to skip the row
+	 * instead, so nothing fails in the first place.
 	 */
-	public function create(string $streamId, string $actorId, string $type, string $subType = '') {
-		$qb = $this->getStreamDestInsertSql();
-
-		$qb->setValue('stream_id', $qb->createNamedParameter($qb->prim($streamId)));
-		$qb->setValue('actor_id', $qb->createNamedParameter($qb->prim($actorId)));
-		$qb->setValue('type', $qb->createNamedParameter($type));
-		$qb->setValue('subtype', $qb->createNamedParameter($subType));
+	public function create(string $streamId, string $actorId, string $type, string $subType = ''): void {
+		$qb = $this->getQueryBuilder();
 
 		try {
-			$qb->executeStatement();
+			$this->dbConnection->insertIgnoreConflict(
+				self::TABLE_STREAM_DEST,
+				[
+					'stream_id' => $qb->prim($streamId),
+					'actor_id' => $qb->prim($actorId),
+					'type' => $type,
+					'subtype' => $subType,
+				]
+			);
 		} catch (DBException $e) {
-			if ($e->getReason() === DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-				return;
-			}
-
-			// Raised, not swallowed. A recipient row is what puts a post in a
-			// timeline, so a post saved without one exists and is in nobody's
-			// timeline — and the log line was the only trace of it. Its caller
-			// writes these inside the transaction that stores the post, where
-			// throwing rolls the whole save back and the post can be saved
-			// again. A duplicate is still not an error: that is the line above.
 			$this->logger->error('could not store the recipient of a stream', [
 				'streamId' => $streamId,
 				'actorId' => $actorId,

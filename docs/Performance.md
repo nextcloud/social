@@ -34,6 +34,15 @@ raises instead of logging a failure and carrying on. It was the one place where
 a partial write was both permanent and silent — the recipient rows are what put
 a post in a timeline, so the post existed and was in nobody's.
 
+Inside a transaction, a *tolerated* failure is not free either. Recipients and
+hashtags repeat in ordinary posts — `getToAll()` returns `to` alongside
+`toArray`, the unique index on the recipient rows does not include the subtype
+so the same actor in `to` and `cc` collides too — and both inserts used to
+catch the violation and carry on. PostgreSQL aborts the whole transaction on
+any refused statement, so that caught violation took the commit with it and the
+post was lost. Both now use `insertIgnoreConflict()`: the database skips the
+duplicate row, nothing fails, and the raise is left to mean what it says.
+
 Two places still have no transaction and want one:
 
 - `StreamActionService::saveAction()` — update, and insert if no row was
@@ -117,7 +126,7 @@ here so a reader who finds that report knows why the code no longer matches it.
 | A page of relationships cost six queries per account — two follow rows, the blocks and mutes, the note, the mute's expiry | Five queries for any number of accounts (`getBetweenMany()`, `getNotes()`, `getExpiries()`), and the single-account route goes down the same path so the two cannot disagree |
 | `HashtagService::manageHashtags()` read every hashtag the instance had ever seen on every cron run | `getWithAnyTrend()` reads only the rows that claim a trend — the only ones it can change |
 | `FollowService::getFollowers()` hydrated every follower for a route with no cursor | Bounded at `FOLLOWERS_PAGE`; the paging route is `/api/v1/accounts/{account}/followers` |
-| `StreamRequest::save()` wrote the post, then its recipients, then its tags, outside any transaction, and the recipient insert swallowed its failure | One transaction, and `StreamDestRequest::create()` raises. A post that cannot have recipients is not stored at all, so the delivery can be retried into a clean state |
+| `StreamRequest::save()` wrote the post, then its recipients, then its tags, outside any transaction, and the recipient insert swallowed its failure | One transaction, and `StreamDestRequest::create()` raises. A post that cannot have recipients is not stored at all, so the delivery can be retried into a clean state. The duplicate recipient and hashtag rows an ordinary post produces are skipped by the database rather than caught, which a transaction on PostgreSQL does not survive |
 
 ## What to do next
 

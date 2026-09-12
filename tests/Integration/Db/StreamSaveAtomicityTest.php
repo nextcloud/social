@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Db;
 
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -27,8 +28,10 @@ use PHPUnit\Framework\TestCase;
  * exists, is in nobody's timeline, and that nothing ever notices: the recipient
  * insert logged its failure and carried on.
  *
- * This is an integration test because a transaction is a database behaviour;
- * there is nothing to assert about it without one.
+ * These are integration tests because a transaction is a database behaviour;
+ * there is nothing to assert about it without one, and the two halves of it —
+ * a failure must roll the post back, a duplicate must not — cannot both be
+ * checked against a double.
  */
 class StreamSaveAtomicityTest extends TestCase {
 	private const BASE = 'https://remote.example/atomic';
@@ -48,22 +51,27 @@ class StreamSaveAtomicityTest extends TestCase {
 		parent::tearDown();
 	}
 
+	/** @return string[] */
+	private function suffixes(): array {
+		return ['whole', 'repeated', 'partial'];
+	}
+
 	private function id(string $suffix): string {
 		return self::BASE . '/notes/' . $suffix;
 	}
 
 	private function cleanup(): void {
+		$prims = array_map(fn (string $suffix): string => md5($this->id($suffix)), $this->suffixes());
+
 		foreach ([
 			CoreRequestBuilder::TABLE_STREAM => 'id_prim',
 			CoreRequestBuilder::TABLE_STREAM_DEST => 'stream_id',
+			CoreRequestBuilder::TABLE_STREAM_TAGS => 'stream_id',
 		] as $table => $field) {
 			$qb = $this->connection->getQueryBuilder();
 			$qb->delete($table)->where($qb->expr()->in(
 				$field,
-				$qb->createNamedParameter(
-					[md5($this->id('whole')), md5($this->id('partial'))],
-					IQueryBuilder::PARAM_STR_ARRAY
-				)
+				$qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
 			));
 			$qb->executeStatement();
 		}
@@ -108,34 +116,72 @@ class StreamSaveAtomicityTest extends TestCase {
 	}
 
 	/**
+	 * The ordinary post that the transaction must not cost us.
+	 *
+	 * Recipients and hashtags repeat all the time — `getToAll()` hands back
+	 * `to` alongside `toArray`, the unique index on the recipient rows does not
+	 * include the subtype so the same actor in `to` and `cc` collides too, and
+	 * a post can simply carry a hashtag twice. Each of those is a refused
+	 * insert, and PostgreSQL aborts the whole transaction on any refused
+	 * statement: catching the violation and carrying on is not enough there,
+	 * the commit fails afterwards and the post is lost. The inserts have to ask
+	 * the database to skip the row instead.
+	 */
+	public function testARepeatedRecipientOrHashtagDoesNotLoseThePost(): void {
+		$note = $this->note('repeated');
+		$note->setCcArray([Stream::CONTEXT_PUBLIC, self::BASE . '/users/author']);
+		$note->setHashtags(['repeated', 'repeated']);
+
+		$this->streamRequest->save($note);
+
+		$this->assertSame(
+			1,
+			$this->countRows(CoreRequestBuilder::TABLE_STREAM, 'id_prim', md5($note->getId())),
+			'a post whose recipients or hashtags repeat was refused by the database'
+		);
+		$this->assertGreaterThan(
+			0,
+			$this->countRows(CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id', md5($note->getId())),
+			'a post with no recipient rows is a post in nobody timeline'
+		);
+	}
+
+	/**
 	 * The failure this exists for: the recipient rows cannot be written, and
-	 * the post must not survive on its own. Provoked by holding the recipient
-	 * row it is about to insert — the unique index refuses the second one, and
-	 * `StreamDestRequest::create()` raises rather than logging and carrying on.
+	 * the post must not survive on its own.
+	 *
+	 * The failure is injected rather than provoked through the schema. Every
+	 * collision the schema can be made to produce is a duplicate, and a
+	 * duplicate is the one case these writes are meant to shrug off — see the
+	 * test above. What is left is a recipient write that fails for a reason
+	 * nobody anticipated, which is exactly the case the transaction is for.
 	 */
 	public function testAPostWhoseRecipientsFailIsNotLeftBehind(): void {
 		$note = $this->note('partial');
 
-		// a recipient row that will collide, written before the save
-		$qb = $this->connection->getQueryBuilder();
-		$qb->insert(CoreRequestBuilder::TABLE_STREAM_DEST)
-			->setValue('stream_id', $qb->createNamedParameter(md5($note->getId())))
-			->setValue('actor_id', $qb->createNamedParameter(md5(Stream::CONTEXT_PUBLIC)))
-			->setValue('type', $qb->createNamedParameter('recipient'))
-			->setValue('subtype', $qb->createNamedParameter('to'));
-		$qb->executeStatement();
+		$failing = $this->createMock(StreamDestRequest::class);
+		$failing->method('generateStreamDest')
+			->willThrowException(new \RuntimeException('the recipient rows could not be written'));
 
-		// whether this raises or is swallowed is the caller's business; what
-		// matters is what is left behind
+		$property = new \ReflectionProperty(StreamRequest::class, 'streamDestRequest');
+		$property->setAccessible(true);
+		$original = $property->getValue($this->streamRequest);
+		$property->setValue($this->streamRequest, $failing);
+
 		try {
-			$this->streamRequest->save($note);
-		} catch (\Throwable $e) {
+			// whether this raises or is swallowed is the caller's business;
+			// what matters is what is left behind
+			try {
+				$this->streamRequest->save($note);
+			} catch (\Throwable $e) {
+			}
+		} finally {
+			$property->setValue($this->streamRequest, $original);
 		}
 
-		$stream = $this->countRows(CoreRequestBuilder::TABLE_STREAM, 'id_prim', md5($note->getId()));
 		$this->assertSame(
 			0,
-			$stream,
+			$this->countRows(CoreRequestBuilder::TABLE_STREAM, 'id_prim', md5($note->getId())),
 			'the post was stored without its recipients: it exists and is in nobody timeline'
 		);
 	}
