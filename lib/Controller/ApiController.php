@@ -81,6 +81,7 @@ use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TNCDataResponse;
+use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
@@ -181,6 +182,7 @@ class ApiController extends Controller {
 		private AccountRelationService $accountRelationService,
 		private ScheduledStatusService $scheduledStatusService,
 		private EmojiService $emojiService,
+		private IAppManager $appManager,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -600,6 +602,56 @@ class ApiController extends Controller {
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/**
+	 * Mastodon's sign-up route, which this server does not have.
+	 *
+	 * An account here is a Nextcloud account: the server creates it, through
+	 * whatever provisioning it is configured with, and this app is given one
+	 * that already exists. So there is nothing for this route to create — and
+	 * a **404** was the wrong way to say so, because a client reads it as "this
+	 * server is broken" and shows nothing a person can act on.
+	 *
+	 * A 403 in Mastodon's own error shape is read, shown, and says where to go
+	 * instead: the server's registration page when it has one, and otherwise
+	 * that an administrator creates accounts here. `registrations: false` in
+	 * the instance entity already says the same thing to a client that looks
+	 * before it asks; this is for the one that asks.
+	 *
+	 * The approval queue, the invites and the email confirmation Mastodon
+	 * builds on top of its sign-up are the server's too, for the same reason.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accountNew(): DataResponse {
+		return new DataResponse(
+			[
+				'error' => 'Account registration is not handled by this application',
+				'details' => (object)[
+					'base' => [
+						(object)[
+							'error' => 'ERR_BLOCKED',
+							'description' => $this->registrationAdvice(),
+						],
+					],
+				],
+			],
+			Http::STATUS_FORBIDDEN
+		);
+	}
+
+	/** Where somebody who wanted to sign up should be sent instead. */
+	private function registrationAdvice(): string {
+		if ($this->appManager->isEnabledForUser('registration')) {
+			return 'An account on this server is a Nextcloud account. Sign up at '
+				. $this->urlGenerator->getAbsoluteURL('/apps/registration/')
+				. ' and this application will give that account a fediverse identity.';
+		}
+
+		return 'An account on this server is a Nextcloud account, created by an '
+			. 'administrator. Once it exists, this application gives it a fediverse '
+			. 'identity; there is nothing to sign up for here.';
 	}
 
 	/**

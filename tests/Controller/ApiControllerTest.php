@@ -58,6 +58,7 @@ use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCP\App\IAppManager;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
@@ -131,6 +132,10 @@ class ApiControllerTest extends TestCase {
 	private AccountRelationService|MockObject $accountRelationService;
 	private ScheduledStatusService|MockObject $scheduledStatusService;
 	private EmojiService|MockObject $emojiService;
+	private IAppManager|MockObject $appManager;
+
+	/** Whether the server has a sign-up app of its own. */
+	private bool $registrationApp = false;
 	private BannerService|MockObject $bannerService;
 	private AvatarService|MockObject $avatarService;
 	private FilterService|MockObject $filterService;
@@ -219,6 +224,10 @@ class ApiControllerTest extends TestCase {
 		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
 		$this->emojiService = $this->createMock(EmojiService::class);
+		$this->appManager = $this->createMock(IAppManager::class);
+		$this->appManager->method('isEnabledForUser')->willReturnCallback(
+			fn (string $app): bool => $app === 'registration' && $this->registrationApp
+		);
 		$this->accountRelationService->method('withoutExpiredMutes')->willReturnArgument(1);
 		$this->bannerService = $this->createMock(BannerService::class);
 		$this->avatarService = $this->createMock(AvatarService::class);
@@ -299,7 +308,8 @@ class ApiControllerTest extends TestCase {
 			$this->avatarService,
 			$this->accountRelationService,
 			$this->scheduledStatusService,
-			$this->emojiService
+			$this->emojiService,
+			$this->appManager
 		);
 	}
 
@@ -3382,5 +3392,46 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->emojiOpen('blobcat');
 
 		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+	}
+
+	// registration, which is the server's and not this app's
+
+	/**
+	 * A 404 reads as "this server is broken" and shows a person nothing they
+	 * can act on. A 403 in Mastodon's error shape is read, shown, and says
+	 * where to go instead.
+	 */
+	public function testSigningUpSaysWhereToSignUpInstead(): void {
+		$response = $this->controller()->accountNew();
+
+		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+		$this->assertStringContainsString(
+			'not handled by this application', $response->getData()['error']
+		);
+		$this->assertStringContainsString(
+			'administrator',
+			$response->getData()['details']->base[0]->description
+		);
+	}
+
+	/** With a sign-up app on the server, there is somewhere to point at. */
+	public function testWithARegistrationAppTheAdviceIsItsAddress(): void {
+		$this->registrationApp = true;
+		$this->urlGenerator->method('getAbsoluteURL')->willReturnCallback(
+			static fn (string $path): string => 'https://cloud.example' . $path
+		);
+
+		$description = $this->controller()->accountNew()
+			->getData()['details']->base[0]->description;
+
+		$this->assertStringContainsString('/apps/registration/', $description);
+	}
+
+	/** Mastodon's shape, so a client can decode and show it. */
+	public function testTheRefusalIsShapedAsMastodonsRegistrationError(): void {
+		$data = $this->controller()->accountNew()->getData();
+
+		$this->assertArrayHasKey('error', $data);
+		$this->assertSame('ERR_BLOCKED', $data['details']->base[0]->error);
 	}
 }

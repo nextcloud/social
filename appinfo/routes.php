@@ -64,6 +64,7 @@ return [
 		['name' => 'Api#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
 		['name' => 'Api#verifyCredentials', 'url' => '/api/v1/accounts/verify_credentials', 'verb' => 'GET'],
 		['name' => 'Api#updateCredentials', 'url' => '/api/v1/accounts/update_credentials', 'verb' => 'PATCH'],
+		['name' => 'Api#accountNew', 'url' => '/api/v1/accounts', 'verb' => 'POST'],
 		['name' => 'Api#followRequests', 'url' => '/api/v1/follow_requests', 'verb' => 'GET'],
 		['name' => 'Api#followRequestAuthorize', 'url' => '/api/v1/follow_requests/{id}/authorize', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#followRequestReject', 'url' => '/api/v1/follow_requests/{id}/reject', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
