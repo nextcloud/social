@@ -126,7 +126,7 @@ describe('HashtagFollowButton', () => {
 		await nextTick()
 
 		expect(axios.post).toHaveBeenCalledTimes(1)
-		expect(wrapper.find('button').text()).toBe('Following …')
+		expect(wrapper.find('button').text()).toBe('Following …')
 		expect(wrapper.find('button').attributes('disabled')).toBeDefined()
 
 		release({ data: tagEntity('nextcloud', true) })

@@ -77,7 +77,7 @@ export default {
 
 			if (!this.uid) return
 
-			let fetchMethod = ''
+			let fetchMethod
 			if (this.serverData.public) {
 				fetchMethod = 'fetchPublicAccountInfo'
 			} else {

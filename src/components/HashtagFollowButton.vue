@@ -70,8 +70,8 @@ export default {
 		label() {
 			if (this.loading) {
 				return this.following
-					? translate('social', 'Unfollowing …')
-					: translate('social', 'Following …')
+					? translate('social', 'Unfollowing …')
+					: translate('social', 'Following …')
 			}
 
 			return this.following

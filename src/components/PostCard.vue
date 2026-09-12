@@ -11,7 +11,7 @@
 		<img v-if="image"
 			class="post-card__image"
 			:src="image"
-			:alt="''"
+			alt=""
 			loading="lazy"
 			@error="image = ''">
 		<div class="post-card__text">
@@ -45,7 +45,7 @@ export default {
 			}
 			try {
 				return new URL(this.card.url).host
-			} catch (e) {
+			} catch {
 				return this.card.url
 			}
 		},

@@ -35,7 +35,7 @@ export async function withViewTransition(change) {
 	const transition = document.startViewTransition(() => change())
 	try {
 		await transition.updateCallbackDone
-	} catch (error) {
+	} catch {
 		// a transition that cannot run must not swallow the change
 	}
 }
