@@ -182,6 +182,81 @@ class WireCompatibilityTest extends TestCase {
 		$this->assertSame('', $note->getSpoilerText(), 'a JSON null summary is no content warning');
 	}
 
+	/**
+	 * Pixelfed is the peer this app most resembles, and until this fixture
+	 * existed it was the only major one with no test at all -- which is exactly
+	 * why a one-line regression that emptied `mediaType` on the way out
+	 * survived for weeks. Pixelfed validates an attachment with
+	 * `in_array($media['mediaType'], $allowed)`, so an empty one meant every
+	 * photo this app sent arrived there with no photo. Mastodon hid it by
+	 * sniffing the URL.
+	 */
+	public function testAPixelfedAlbumImportsEveryPicture(): void {
+		/** @var Create $item */
+		$item = AP::instance()->getItemFromData($this->fixture('pixelfed-create-note'));
+		/** @var Note $note */
+		$note = $item->getObject();
+
+		$this->assertInstanceOf(Note::class, $note);
+		$this->assertSame('<p>three from the coast</p>', $note->getContent());
+		$this->assertTrue($note->isPublic());
+
+		$attachments = $note->getAttachments();
+		$this->assertCount(3, $attachments, 'an album lost a picture');
+		$this->assertSame('image', $attachments[0]->getType());
+		$this->assertSame('a pier at low tide', $attachments[0]->getDescription());
+		$this->assertSame('image', $attachments[1]->getType());
+		$this->assertSame('video', $attachments[2]->getType(), 'a video in an album is not an image');
+	}
+
+	/** The focal point Pixelfed sends is read rather than dropped to the centre. */
+	public function testAPixelfedFocalPointSurvivesTheImport(): void {
+		/** @var Create $item */
+		$item = AP::instance()->getItemFromData($this->fixture('pixelfed-create-note'));
+		/** @var Note $note */
+		$note = $item->getObject();
+
+		// the attachment is parsed as a Document, which reads `focalPoint`, and
+		// carried into the client entity's `meta.focus`
+		$attachments = $note->getAttachments();
+		$this->assertSame(-0.25, $attachments[0]->getMeta()?->getFocus()?->getX());
+		$this->assertSame(0.5, $attachments[0]->getMeta()?->getFocus()?->getY());
+
+		// the second picture sent none, so it stays centred
+		$this->assertSame(0.0, $attachments[1]->getMeta()?->getFocus()?->getX());
+		$this->assertSame(0.0, $attachments[1]->getMeta()?->getFocus()?->getY());
+	}
+
+	/**
+	 * The regression itself, pinned in the direction it broke: what this app
+	 * hands back must carry a real mime, because that is the field Pixelfed
+	 * validates before it will draw anything.
+	 */
+	public function testWhatGoesBackToPixelfedStatesItsMediaType(): void {
+		/** @var Create $item */
+		$item = AP::instance()->getItemFromData($this->fixture('pixelfed-create-note'));
+		/** @var Note $note */
+		$note = $item->getObject();
+
+		foreach ($note->getAttachments() as $attachment) {
+			$wire = $attachment->asDocument();
+
+			$this->assertArrayHasKey('mediaType', $wire);
+			$this->assertNotSame('', $wire['mediaType'], 'an empty mediaType is a photo Pixelfed will not draw');
+			$this->assertMatchesRegularExpression('#^(image|video|audio)/#', $wire['mediaType']);
+		}
+	}
+
+	/** A hashtag from Pixelfed is a hashtag here. */
+	public function testAPixelfedHashtagIsRead(): void {
+		/** @var Create $item */
+		$item = AP::instance()->getItemFromData($this->fixture('pixelfed-create-note'));
+		/** @var Note $note */
+		$note = $item->getObject();
+
+		$this->assertContains('coast', $note->getHashtags());
+	}
+
 	public function testAPleromaFollowersOnlyNoteImportsAsNonPublic(): void {
 		/** @var Create $item */
 		$item = AP::instance()->getItemFromData($this->fixture('pleroma-create-note'));

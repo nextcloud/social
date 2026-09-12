@@ -1,0 +1,65 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    {
+      "sensitive": "as:sensitive",
+      "toot": "http://joinmastodon.org/ns#",
+      "blurhash": "toot:blurhash",
+      "focalPoint": { "@container": "@list", "@id": "toot:focalPoint" }
+    }
+  ],
+  "id": "https://pixelfed.social/users/carol/statuses/712000000000000031/activity",
+  "type": "Create",
+  "actor": "https://pixelfed.social/users/carol",
+  "published": "2026-09-12T11:20:00Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://pixelfed.social/users/carol/followers"],
+  "object": {
+    "id": "https://pixelfed.social/p/carol/712000000000000031",
+    "type": "Note",
+    "summary": null,
+    "content": "<p>three from the coast</p>",
+    "inReplyTo": null,
+    "published": "2026-09-12T11:20:00Z",
+    "url": "https://pixelfed.social/p/carol/712000000000000031",
+    "attributedTo": "https://pixelfed.social/users/carol",
+    "to": ["https://www.w3.org/ns/activitystreams#Public"],
+    "cc": ["https://pixelfed.social/users/carol/followers"],
+    "sensitive": false,
+    "attachment": [
+      {
+        "type": "Document",
+        "mediaType": "image/jpeg",
+        "url": "https://pixelfed.social/storage/m/one.jpg",
+        "name": "a pier at low tide",
+        "blurhash": "U6Pj0^jE.AyE_3t7t7R**0o#DgR4",
+        "width": 1620,
+        "height": 1080,
+        "focalPoint": [-0.25, 0.5]
+      },
+      {
+        "type": "Document",
+        "mediaType": "image/png",
+        "url": "https://pixelfed.social/storage/m/two.png",
+        "name": null,
+        "width": 1080,
+        "height": 1080
+      },
+      {
+        "type": "Document",
+        "mediaType": "video/mp4",
+        "url": "https://pixelfed.social/storage/m/three.mp4",
+        "name": "waves",
+        "width": 1280,
+        "height": 720
+      }
+    ],
+    "tag": [
+      {
+        "type": "Hashtag",
+        "href": "https://pixelfed.social/discover/tags/coast",
+        "name": "#coast"
+      }
+    ]
+  }
+}

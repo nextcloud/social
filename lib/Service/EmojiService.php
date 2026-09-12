@@ -65,6 +65,7 @@ class EmojiService {
 		private IAppData $appData,
 		private IURLGenerator $urlGenerator,
 		private LoggerInterface $logger,
+		private ImageMetadataService $imageMetadataService,
 	) {
 	}
 
@@ -178,6 +179,15 @@ class EmojiService {
 		if ($content === false) {
 			throw new InvalidActionException('the picture could not be read');
 		}
+
+		// The same stripping every other upload gets. An emoji is usually a
+		// drawing with nothing in it to remove, but it is uploaded from a
+		// filesystem like anything else and is then served to every reader of
+		// every post that uses it -- on this instance and on every peer that
+		// mirrors it. A guarantee that holds for photographs and not for this
+		// is not a guarantee, and the cost when there is nothing to strip is
+		// that the bytes come back unchanged.
+		$content = $this->imageMetadataService->strip($content, $mediaType);
 
 		// named after the shortcode: one picture per shortcode, and replacing
 		// it overwrites rather than leaving the old bytes behind

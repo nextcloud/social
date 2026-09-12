@@ -13,6 +13,7 @@ use OCA\Social\Db\EmojiRequest;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Model\CustomEmoji;
 use OCA\Social\Service\EmojiService;
+use OCA\Social\Service\ImageMetadataService;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -90,7 +91,8 @@ class EmojiServiceTest extends TestCase {
 		);
 
 		$this->service = new EmojiService(
-			$this->emojiRequest, $this->appData, $urlGenerator, new NullLogger()
+			$this->emojiRequest, $this->appData, $urlGenerator, new NullLogger(),
+			new ImageMetadataService()
 		);
 	}
 
@@ -232,6 +234,40 @@ class EmojiServiceTest extends TestCase {
 		$this->assertArrayHasKey('blobcat.png', $this->files);
 		$this->assertSame(
 			'https://cloud.example/apps/social/emoji/blobcat', $emoji->getUrl()
+		);
+	}
+
+	/**
+	 * An emoji is usually a drawing with nothing in it to remove, but it is
+	 * uploaded from a filesystem like anything else and is then served to every
+	 * reader of every post that uses it, here and on every peer that mirrors
+	 * it. A stripping guarantee that holds for photographs and not for this is
+	 * not a guarantee.
+	 */
+	public function testThePictureIsStrippedLikeAnyOtherUpload(): void {
+		$path = tempnam(sys_get_temp_dir(), 'emoji') . '.jpg';
+		$image = imagecreatetruecolor(8, 8);
+		imagejpeg($image, $path);
+
+		// a JPEG with an Exif block carrying a coordinate, straight after SOI
+		$payload = "Exif\x00\x00" . 'II' . "\x2A\x00" . pack('V', 8)
+			. pack('v', 1) . pack('v', 0x0001) . pack('v', 3) . pack('V', 1) . pack('v', 4) . "\x00\x00"
+			. pack('V', 0);
+		$jpeg = file_get_contents($path);
+		file_put_contents(
+			$path,
+			substr($jpeg, 0, 2) . "\xFF\xE1" . pack('n', strlen($payload) + 2) . $payload . substr($jpeg, 2)
+		);
+		$this->assertStringContainsString("Exif\x00\x00", (string)file_get_contents($path));
+
+		$this->service->add('blobcat', $path);
+
+		$this->assertArrayHasKey('blobcat.jpg', $this->files);
+		$this->assertStringNotContainsString(
+			"Exif\x00\x00", $this->files['blobcat.jpg'], 'the emoji kept its Exif block'
+		);
+		$this->assertNotFalse(
+			@imagecreatefromstring($this->files['blobcat.jpg']), 'the stripped emoji no longer decodes'
 		);
 	}
 
