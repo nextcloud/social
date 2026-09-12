@@ -32,6 +32,7 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\ReportForwardService;
 use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Config\IUserConfig;
@@ -650,6 +651,7 @@ class OutboundFederationWireTest extends TestCase {
 			$this->createMock(BlurService::class),
 			$this->configService,
 			$this->createMock(ImageConversionService::class),
+			$this->createMock(VideoThumbnailService::class),
 		);
 
 		$service->retrieveContent('https://' . self::REMOTE . '/media/1.png?sig=abc');

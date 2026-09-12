@@ -491,6 +491,41 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
+	 * Limit to posts that are a video.
+	 *
+	 * Two ways of being one, because there are two ways a video reaches this
+	 * app. Somebody here -- or on Mastodon, or on Pixelfed -- posts a file,
+	 * and it is an attachment whose Mastodon type is `video`. PeerTube
+	 * publishes a `Video` object instead, whose whole existence is the video;
+	 * that arrives as a `Note` carrying `Video` in `subtype` (see
+	 * `AP::NOTE_LIKE_TYPES`), and it counts whether or not this instance found
+	 * a file in it that a browser can play.
+	 *
+	 * The attachment half is a substring test rather than a JSON function, for
+	 * the same reason `limitToMedia()` is one: the predicate has to run on
+	 * MySQL, PostgreSQL and SQLite alike. It is exact rather than approximate
+	 * -- `json_encode` writes no spaces, and a `"` inside a *value* is escaped
+	 * as `\"`, so the seven characters `"video"` preceded by `"type":` cannot
+	 * occur anywhere but in the field this is asking about.
+	 */
+	public function limitToVideo(): self {
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->andWhere(
+			$expr->orX(
+				$expr->like(
+					$pf . '.attachments',
+					$this->createNamedParameter('%"type":"video"%')
+				),
+				$expr->eq($pf . '.subtype', $this->createNamedParameter('Video'))
+			)
+		);
+
+		return $this;
+	}
+
+	/**
 	 * Limit to posts carrying a hashtag the viewer follows.
 	 *
 	 * Two inner joins: the post's tags, and the ones this account follows. It

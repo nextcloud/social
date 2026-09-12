@@ -39,10 +39,12 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\PeerTubeService;
 use OCA\Social\Service\SignatureService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * Shared fixture for the incoming-federation handlers.
@@ -170,6 +172,13 @@ abstract class ActivityPubTestCase extends TestCase {
 			$this->updateInterface,
 			$this->quoteRequestInterface,
 			$this->configService,
+			// the real one: reading a PeerTube `Video` is parsing, and only
+			// the two things it writes through are doubles
+			new PeerTubeService(
+				$this->documentInterface,
+				$this->createMock(IURLGenerator::class),
+				$this->createMock(LoggerInterface::class),
+			),
 		);
 		AP::set($this->ap);
 

@@ -203,4 +203,29 @@ class DocumentTest extends TestCase {
 		$this->assertSame([0, 0], $document->getLocalCopySize());
 		$this->assertSame([0, 0], $document->getResizedCopySize());
 	}
+
+	/**
+	 * A video is given its duration when it is stored, before anything knows
+	 * its dimensions. The meta block used to be built only when the document
+	 * carried none at all, so that one field suppressed the rest and the video
+	 * went onto the wire with a running time and no size.
+	 */
+	public function testAPartialMetaIsFilledInRatherThanSkipped(): void {
+		$meta = new \OCA\Social\Model\Client\AttachmentMeta();
+		$meta->setDuration(113.0);
+
+		$document = new Document();
+		$document->setMediaType('video/mp4');
+		$document->setLocalCopy('a0a962e5-7e98-433b-80e2-09106a0b074f');
+		$document->setResizedCopy('272c3a32-c626-45a0-b08f-a03e7bb4ab2d');
+		$document->setLocalCopySize(1920, 1080);
+		$document->setResizedCopySize(1280, 720);
+		$document->setMeta($meta);
+
+		$media = $document->convertToMediaAttachment();
+
+		$this->assertSame(113.0, $media->getMeta()?->getDuration());
+		$this->assertSame(1920, $media->getMeta()?->getOriginal()?->getWidth());
+		$this->assertSame(720, $media->getMeta()?->getSmall()?->getHeight());
+	}
 }

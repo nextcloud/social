@@ -97,6 +97,7 @@ describe('Navigation', () => {
 		expect(itemNames(mountNavigation())).toEqual([
 			'Home',
 			'Photos',
+			'Videos',
 			'Notifications',
 			'Direct messages',
 			'Discover',
@@ -128,6 +129,7 @@ describe('Navigation', () => {
 		expect(topLevel).toEqual([
 			'Home',
 			'Photos',
+			'Videos',
 			'Notifications',
 			'Direct messages',
 			'Discover',
@@ -245,6 +247,7 @@ describe('Navigation', () => {
 		['/timeline/timeline', 'Home'],
 		['/timeline/federated', 'Home'],
 		['/timeline/photos', 'Photos'],
+		['/timeline/videos', 'Videos'],
 		['/timeline/favourites', 'Liked posts'],
 		['/timeline/bookmarks', 'Bookmarks'],
 		['/follow_requests', 'Follow requests'],
@@ -481,7 +484,7 @@ describe('Navigation entries are links', () => {
 		// timeline the reader had actually chosen.
 		const entry = (wrapper, name) => wrapper.findAll('li').find((li) => li.text().startsWith(name))
 		const lit = (wrapper, names) => names.filter((name) => entry(wrapper, name)?.find('.app-navigation-entry').classes().includes('active'))
-		const names = ['Home', 'Photos', 'Notifications', 'Direct messages', 'Liked posts', 'Bookmarks']
+		const names = ['Home', 'Photos', 'Videos', 'Notifications', 'Direct messages', 'Liked posts', 'Bookmarks']
 
 		expect(lit(await mountReal('/timeline/direct'), names)).toEqual(['Direct messages'])
 		expect(lit(await mountReal('/timeline'), names)).toEqual(['Home'])

@@ -66,6 +66,7 @@ use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\PeerTubeService;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\Server;
 
@@ -134,6 +135,7 @@ class AP {
 		public UpdateInterface $updateInterface,
 		public QuoteRequestInterface $quoteRequestInterface,
 		public ConfigService $configService,
+		public PeerTubeService $peerTubeService,
 	) {
 	}
 
@@ -222,7 +224,12 @@ class AP {
 		if (in_array($type, self::NOTE_LIKE_TYPES, true)) {
 			$item->setSubType($type);
 			$item->setType(Note::TYPE);
-			$this->fillNoteLikeContent($item, $data);
+
+			if ($type === PeerTubeService::TYPE) {
+				$this->fillVideo($item, $data);
+			} else {
+				$this->fillNoteLikeContent($item, $data);
+			}
 		}
 
 		$item->setSource(json_encode($data, JSON_UNESCAPED_SLASHES));
@@ -260,6 +267,52 @@ class AP {
 		}
 
 		$item->setContent($content);
+	}
+
+	/**
+	 * A `Video` is the one note-like type this app understands in detail,
+	 * because it is the one whose whole point is a file to play. PeerTube --
+	 * which is what publishes them -- writes four things somewhere an ordinary
+	 * `Note` does not look:
+	 *
+	 * - `url` is a *list*: the watch page, one link per transcoded resolution,
+	 *   the HLS playlist, a torrent and a magnet URI. `Item::setUrl()` asked
+	 *   for a string and got none of them.
+	 * - `attributedTo` is a list of two actors, the channel and the account
+	 *   behind it, where every other server sends one id.
+	 * - the title is in `name`, and `content` is the description in *markdown*
+	 *   (the object says so in its own `mediaType`).
+	 * - the thumbnail is in `icon`.
+	 *
+	 * So a federated video used to arrive as a post attributed to nobody,
+	 * pointing nowhere, with a wall of unrendered markdown for a body and no
+	 * picture. What it becomes here is a post with a title that links to the
+	 * video, its description under it, and one attachment: the video itself,
+	 * streamed from the instance that holds it rather than copied here.
+	 *
+	 * @see PeerTubeService
+	 */
+	private function fillVideo(ACore $item, array $data): void {
+		if (!$item instanceof Note) {
+			return;
+		}
+
+		$attributedTo = $this->peerTubeService->attributedTo($data);
+		if ($attributedTo !== '') {
+			$item->setAttributedTo($attributedTo);
+		}
+
+		$watch = $this->peerTubeService->watchUrl($data);
+		if ($watch !== '') {
+			$item->setUrl($watch);
+		}
+
+		$item->setContent($this->peerTubeService->content($data));
+
+		$attachments = $this->peerTubeService->attachments($data, $item);
+		if ($attachments !== []) {
+			$item->setAttachments($attachments);
+		}
 	}
 
 	public function getItemFromType(string $type): ACore {

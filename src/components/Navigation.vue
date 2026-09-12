@@ -193,6 +193,7 @@ import { defineAsyncComponent } from 'vue'
 import IconHome from 'vue-material-design-icons/Home.vue'
 import IconCompass from 'vue-material-design-icons/Compass.vue'
 import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
+import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
@@ -326,6 +327,17 @@ export default {
 						icon: IconImageMultiple,
 						title: t('social', 'Photos'),
 						to: { name: 'timeline', params: { type: 'photos' } },
+					},
+					// its own entry rather than a filter inside Photos: a video
+					// is watched rather than glanced at, and the two are mixed
+					// together nowhere else on the fediverse either — PeerTube
+					// publishes nothing but videos and Pixelfed nothing but
+					// pictures
+					{
+						key: 'social-videos',
+						icon: IconPlayBoxMultiple,
+						title: t('social', 'Videos'),
+						to: { name: 'timeline', params: { type: 'videos' } },
 					},
 					{
 						key: 'social-notifications',

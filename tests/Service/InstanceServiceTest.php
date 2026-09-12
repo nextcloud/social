@@ -237,8 +237,10 @@ class InstanceServiceTest extends TestCase {
 
 	public function testTheConfigurationBlockCarriesTheRealLimits(): void {
 		$this->theming([]);
-		$this->configService->method('getAppValueInt')
-			->with(ConfigService::SOCIAL_MAX_SIZE)->willReturn(20);
+		$this->configService->method('getAppValueInt')->willReturnMap([
+			[ConfigService::SOCIAL_MAX_SIZE, 20],
+			[ConfigService::SOCIAL_MAX_VIDEO_SIZE, 2048],
+		]);
 		$this->allowMimeTypes(['image/png', 'video/mp4']);
 
 		$configuration = $this->service->createLocal()->getConfiguration();
@@ -261,6 +263,11 @@ class InstanceServiceTest extends TestCase {
 		);
 		$this->assertSame(
 			20 * 1048576, $configuration['media_attachments']['image_size_limit']
+		);
+		// video has a ceiling of its own, and a client reads this one to decide
+		// whether to offer the upload at all
+		$this->assertSame(
+			2048 * 1048576, $configuration['media_attachments']['video_size_limit']
 		);
 	}
 

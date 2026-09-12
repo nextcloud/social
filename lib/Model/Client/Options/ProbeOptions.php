@@ -37,6 +37,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private bool $local = false;
 	private bool $remote = false;
 	private bool $onlyMedia = false;
+	private bool $onlyVideo = false;
 	private int $minId = 0;
 	private int $maxId = 0;
 	private int $since = 0;
@@ -142,6 +143,25 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	 */
 	public function setOnlyMedia(bool $onlyMedia): self {
 		$this->onlyMedia = $onlyMedia;
+
+		return $this;
+	}
+
+	/**
+	 * Whether the caller wants only the posts that are a video.
+	 *
+	 * This app's own, where Mastodon has only `only_media`: a video timeline
+	 * asking that question would answer with every holiday photo on the
+	 * instance. It is a narrowing of `only_media` and not a replacement for
+	 * it -- a client that sends both gets the same answer as one that sends
+	 * this alone.
+	 */
+	public function isOnlyVideo(): bool {
+		return $this->onlyVideo;
+	}
+
+	public function setOnlyVideo(bool $onlyVideo): self {
+		$this->onlyVideo = $onlyVideo;
 
 		return $this;
 	}
@@ -319,6 +339,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		$this->setLocal($this->getBool('local', $arr, $this->isLocal()));
 		$this->setRemote($this->getBool('remote', $arr, $this->isRemote()));
 		$this->setOnlyMedia($this->getBool('only_media', $arr, $this->isOnlyMedia()));
+		$this->setOnlyVideo($this->getBool('only_video', $arr, $this->isOnlyVideo()));
 		$this->setMinId($this->getInt('min_id', $arr, $this->getMinId()));
 		$this->setMaxId($this->getInt('max_id', $arr, $this->getMaxId()));
 		$this->setSince($this->getInt('since', $arr, $this->getSince()));
@@ -340,6 +361,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 				'local' => $this->isLocal(),
 				'remote' => $this->isRemote(),
 				'only_media' => $this->isOnlyMedia(),
+				'only_video' => $this->isOnlyVideo(),
 				'min_id' => $this->getMinId(),
 				'max_id' => $this->getMaxId(),
 				'since' => $this->getSince(),

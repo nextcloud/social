@@ -16,6 +16,10 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\PeerTubeService;
+use OCP\Server;
+use Throwable;
 
 class Note extends Stream implements JsonSerializable {
 	private string $name = '';
@@ -126,8 +130,58 @@ class Note extends Stream implements JsonSerializable {
 			$result['hashtags'] = $this->getHashtags();
 		}
 
+		$result = $this->asVideoIfItIsOne($result);
+
 		$this->cleanArray($result);
 
 		return $result;
+	}
+
+	/**
+	 * A post that is a video goes onto the wire as a `Video`, not a `Note`.
+	 *
+	 * This is the outbound half of what `PeerTubeService` reads. PeerTube --
+	 * and every other video-native server -- ingests `Video` objects and
+	 * nothing else, so a Social instance publishing `Note`s had, from their
+	 * side, no videos at all: not badly-formatted ones, none. Only the
+	 * serialisation changes; the row stays a `Note`, exactly as an incoming
+	 * `Video` is stored as one.
+	 *
+	 * Three guards, in cost order so the cheap ones decide first:
+	 *
+	 * - only for the wire. The client API is Mastodon's and has no `Video`.
+	 * - only for **local** posts. A remote note is somebody else's document and
+	 *   is re-serialised as it arrived.
+	 * - only when the post *is* a video: one attachment, and it a video. See
+	 *   `PeerTubeService::soleVideo()`.
+	 *
+	 * The app value is last because it costs a container lookup, and it exists
+	 * because this cannot be proven from here: whether a Mastodon-family server
+	 * renders a `Video` as well as it rendered the `Note` is a question only a
+	 * real one can answer. `attachment` is published either way to make that
+	 * as likely as possible, and an admin who finds otherwise turns it off with
+	 * `occ config:app:set social publish_video_objects --value 0`.
+	 */
+	private function asVideoIfItIsOne(array $result): array {
+		if ($this->getExportFormat() === self::FORMAT_LOCAL || !$this->isLocal()) {
+			return $result;
+		}
+
+		$video = PeerTubeService::soleVideo($this->getAttachments());
+		if ($video === null) {
+			return $result;
+		}
+
+		try {
+			if (!Server::get(ConfigService::class)->getAppValueBool(ConfigService::SOCIAL_PUBLISH_VIDEO)) {
+				return $result;
+			}
+		} catch (Throwable $e) {
+			// nothing to resolve it from: publish the post as it was rather
+			// than lose it over a setting
+			return $result;
+		}
+
+		return PeerTubeService::asVideo($result, $video, $this->getId());
 	}
 }

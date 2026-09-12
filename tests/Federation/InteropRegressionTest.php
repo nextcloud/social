@@ -191,7 +191,16 @@ class InteropRegressionTest extends TestCase {
 	public function testAVideoKeepsItsDescriptionAndAnEventFallsBackToItsTitle(): void {
 		/** @var Note $video */
 		$video = AP::instance()->getItemFromData($this->fixture('peertube-create-video'))->getObject();
-		$this->assertSame('<p>A talk about federation.</p>', $video->getContent());
+		// what a video is called lives in `name`, which a Note has no use for,
+		// so a timeline that read `content` alone showed the description of a
+		// video whose title it never mentioned. The description is markdown --
+		// the object says so in its own `mediaType` -- so it is escaped rather
+		// than passed through as html.
+		$this->assertSame(
+			'<p><a href="https://peertube.example/w/6f4c1e1a">The state of the Fediverse</a></p>'
+			. '<p>A talk about federation.</p>',
+			$video->getContent()
+		);
 		// a video's watch page is a different URL from its id, so it is linked
 		$this->assertSame('https://peertube.example/w/6f4c1e1a', $video->getUrl());
 
@@ -201,6 +210,41 @@ class InteropRegressionTest extends TestCase {
 		/** @var Note $event */
 		$event = AP::instance()->getItemFromData($this->fixture('mobilizon-create-event'))->getObject();
 		$this->assertSame('<p>Fediverse meetup</p>', $event->getContent());
+	}
+
+	/**
+	 * PeerTube sends `url` as a list -- the watch page, one link per transcoded
+	 * resolution, the HLS playlist, a torrent and a magnet URI -- and the video
+	 * itself is in there rather than in `attachment`, where every other server
+	 * puts its media. Without this the post arrived with nothing to play.
+	 */
+	public function testAVideoArrivesWithSomethingToPlay(): void {
+		/** @var Note $video */
+		$video = AP::instance()->getItemFromData($this->fixture('peertube-create-video'))->getObject();
+
+		$attachments = $video->getAttachments();
+		$this->assertCount(1, $attachments, 'the video itself is the attachment');
+		$this->assertSame('video', $attachments[0]->getType());
+		// the best resolution this app is willing to proxy, and never the
+		// `rel: ["metadata"]` link beside it, which is json
+		$this->assertSame(
+			'https://peertube.example/static/web-videos/6f4c1e1a-720.mp4',
+			$attachments[0]->getRemoteUrl()
+		);
+		$this->assertSame(3723.0, $attachments[0]->getMeta()?->getDuration());
+	}
+
+	/**
+	 * `attributedTo` is a list of two actors on a PeerTube video -- the channel
+	 * and the account behind it -- where every other server sends one id as a
+	 * string. `Stream::import()` asks for a string, so a federated video used
+	 * to arrive attributed to nobody at all.
+	 */
+	public function testAVideoIsAttributedToItsChannel(): void {
+		/** @var Note $video */
+		$video = AP::instance()->getItemFromData($this->fixture('peertube-create-video'))->getObject();
+
+		$this->assertSame('https://peertube.example/video-channels/news', $video->getAttributedTo());
 	}
 
 	public function testAVideosTitleIsLinkedWhenItCarriesNoDescription(): void {

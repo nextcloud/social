@@ -25,6 +25,12 @@ class MediaAttachment implements JsonSerializable {
 	 */
 	private const MEDIA_UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[a-z0-9]+)?$/i';
 
+	/**
+	 * The tail of a streamed link, which names a cache row rather than a copy:
+	 * `stream/{nid}`. A federated video's `url` is one of these.
+	 */
+	private const MEDIA_STREAM = '/(?:^|\/)stream\/([0-9]+)$/';
+
 	private string $id = '';
 	private string $type = '';
 	private string $mediaType = '';
@@ -225,6 +231,14 @@ class MediaAttachment implements JsonSerializable {
 	private function onThisInstance(?string $stored): ?string {
 		if ($stored === null || $stored === '') {
 			return $stored;
+		}
+
+		// a streamed video names a row, not a copy, and is rebuilt the same
+		// way and for the same reason: the link was written by whichever
+		// `overwrite.cli.url` the inbox request ran under
+		if (preg_match(self::MEDIA_STREAM, $stored, $matches) === 1) {
+			return Server::get(IURLGenerator::class)
+				->linkToRouteAbsolute('social.Api.mediaStream', ['nid' => $matches[1]]);
 		}
 
 		$uuid = substr($stored, (int)strrpos($stored, '/') + 1);

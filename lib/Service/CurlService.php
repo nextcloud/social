@@ -353,6 +353,68 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
+	/**
+	 * Opens a remote file for reading without reading it.
+	 *
+	 * Every other call here wants the body: a JSON document, an actor, a
+	 * picture small enough to hold. This one is for a file whose whole point
+	 * is that it is too big to hold -- a federated video -- and hands back the
+	 * open stream, the status and the headers so the caller can pass the bytes
+	 * on as they arrive.
+	 *
+	 * The client's own `Range` is forwarded verbatim and the origin's answer,
+	 * `206` and all, is handed back as it came: that is what makes seeking in
+	 * a two-hour video cost a two-hour video's worth of nothing.
+	 *
+	 * Everything that guards an outbound request still guards this one -- the
+	 * domain has to be one this instance federates with, local addresses are
+	 * refused here and again on every redirect. What is deliberately *not*
+	 * applied is the download ceiling, which is a limit on what may be stored
+	 * and this stores nothing.
+	 *
+	 * @param array<string, string> $headers
+	 *
+	 * @return array{stream: resource, status: int, headers: array<string, string[]>}
+	 *
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
+	 */
+	public function openStream(string $url, array $headers = []): array {
+		$host = (string)parse_url($url, PHP_URL_HOST);
+		$this->fediverseService->authorized($host);
+
+		$clientOptions = $this->clientOptions('get', ['json_headers' => false, 'headers' => $headers]);
+		if (!($clientOptions['nextcloud']['allow_local_address'] ?? false) && RemoteAddress::isLocalHost($host)) {
+			throw new RequestServerException('host resolves to a local address: ' . $host);
+		}
+
+		try {
+			$response = $this->clientService->newClient()->get($url, $clientOptions);
+		} catch (Exception $e) {
+			throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
+		}
+
+		$status = $response->getStatusCode();
+		if ($status >= 300) {
+			throw new RequestContentException($url, $status);
+		}
+
+		$stream = $response->getBody();
+		if (!is_resource($stream)) {
+			// a client that does not stream -- a test double -- hands the body
+			// over whole; it is still something to read from
+			$whole = fopen('php://temp', 'r+');
+			fwrite($whole, (string)$stream);
+			rewind($whole);
+			$stream = $whole;
+		}
+
+		return ['stream' => $stream, 'status' => $status, 'headers' => $response->getHeaders()];
+	}
+
 	public function doRequest(
 		string $method,
 		string $url,

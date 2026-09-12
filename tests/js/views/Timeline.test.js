@@ -455,6 +455,7 @@ describe('Timeline', () => {
 		['local', { params: { type: 'timeline' } }],
 		['global', { params: { type: 'federated' } }],
 		['photos', { params: { type: 'photos' } }],
+		['videos', { params: { type: 'videos' } }],
 	])('offers the switcher on the %s timeline', (name, route) => {
 		const wrapper = mountTimeline(route)
 
@@ -465,23 +466,30 @@ describe('Timeline', () => {
 		const wrapper = mountTimeline({ params: { type: 'federated' } })
 
 		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe('federated')
-		expect(wrapper.findComponent(TimelineSwitcher).props('photos')).toBe(false)
+		expect(wrapper.findComponent(TimelineSwitcher).props('page')).toBe('')
 	})
 
-	// photos: the same three scopes, read as a query on one page
+	// photos and videos: the same three scopes, read as a query on one page
 
-	it('tells the switcher that the photo feeds are photo feeds', () => {
-		const wrapper = mountTimeline({ params: { type: 'photos' } })
+	/**
+	 * The switcher is told which page it is scoping rather than a photos flag,
+	 * so Photos and Videos cannot send a reader from one to the other.
+	 */
+	it.each(['photos', 'videos'])('tells the switcher it is scoping %s', (type) => {
+		const wrapper = mountTimeline({ params: { type } })
 
-		expect(wrapper.findComponent(TimelineSwitcher).props('photos')).toBe(true)
+		expect(wrapper.findComponent(TimelineSwitcher).props('page')).toBe(type)
 	})
 
 	it.each([
-		[{}, 'home'],
-		[{ scope: 'timeline' }, 'timeline'],
-		[{ scope: 'federated' }, 'federated'],
-	])('reads the photo scope %o as %s', (query, scope) => {
-		const wrapper = mountTimeline({ params: { type: 'photos' }, query })
+		['photos', {}, 'home'],
+		['photos', { scope: 'timeline' }, 'timeline'],
+		['photos', { scope: 'federated' }, 'federated'],
+		['videos', {}, 'home'],
+		['videos', { scope: 'timeline' }, 'timeline'],
+		['videos', { scope: 'federated' }, 'federated'],
+	])('reads the %s scope %o as %s', (type, query, scope) => {
+		const wrapper = mountTimeline({ params: { type }, query })
 
 		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe(scope)
 	})
@@ -495,11 +503,11 @@ describe('Timeline', () => {
 
 	/** The scope is part of what identifies the timeline, or the previous
 	 *  photos would stay on screen when it changes. */
-	it('refetches the photos when the scope changes', () => {
-		mountTimeline({ params: { type: 'photos' }, query: { scope: 'federated' } })
+	it.each(['photos', 'videos'])('refetches the %s when the scope changes', (type) => {
+		mountTimeline({ params: { type }, query: { scope: 'federated' } })
 
 		expect(timelineStore.changeTimelineType)
-			.toHaveBeenCalledWith({ type: 'photos', params: { scope: 'federated' } })
+			.toHaveBeenCalledWith({ type, params: { scope: 'federated' } })
 	})
 
 	/**

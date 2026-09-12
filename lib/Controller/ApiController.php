@@ -50,6 +50,8 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
+use OCA\Social\Response\RangedFileResponse;
+use OCA\Social\Response\StreamedRemoteResponse;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
@@ -77,6 +79,7 @@ use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
@@ -1128,12 +1131,7 @@ class ApiController extends Controller {
 			// to what it is handed: without it an upload was bounded only by
 			// PHP's own limits, and the file is read into memory to be hashed,
 			// sniffed and (for an image) decoded.
-			$maxSize = $this->instanceService->maxUploadSize();
-			if ($size > $maxSize) {
-				throw new InvalidActionException(
-					'file is larger than the ' . (int)($maxSize / 1048576) . 'MB limit'
-				);
-			}
+			$this->refuseOversized($size, $type);
 
 			$this->logger->debug('[ApiController] mediaNew: ' . json_encode($file));
 
@@ -1179,15 +1177,7 @@ class ApiController extends Controller {
 			}
 
 			$file = $this->ownFile($this->currentSession(), $path);
-
-			// the ceiling an upload is held to, applied to the same bytes: the
-			// file is read into memory to be hashed, sniffed and decoded
-			$maxSize = $this->instanceService->maxUploadSize();
-			if ($file->getSize() > $maxSize) {
-				throw new InvalidActionException(
-					'file is larger than the ' . (int)($maxSize / 1048576) . 'MB limit'
-				);
-			}
+			$this->refuseOversized((int)$file->getSize(), $file->getMimeType());
 
 			$description = (string)($input['description'] ?? $this->request->getParam('description', ''));
 
@@ -1394,10 +1384,14 @@ class ApiController extends Controller {
 			// see DocumentService::getFromUuid() for the model.
 			[$file, $document] = $this->documentService->getFromUuid($uuid);
 
-			// The stored media type was sniffed from the content at ingest; the
-			// extension in the URL is whatever the requester chose to write there.
-			$response = new FileDisplayResponse(
-				$file, Http::STATUS_OK, ['Content-Type' => $document->getMediaType()]
+			// Range-capable, because a picture is not the only thing served
+			// here: a video a reader cannot seek is a video with a scrub bar
+			// that does nothing, and asking for its duration alone used to cost
+			// the whole file.
+			$response = new RangedFileResponse(
+				$file,
+				$this->servedMediaType($document, $uuid),
+				$this->request->getHeader('Range')
 			);
 
 			// The bytes behind a uuid never change, so they may be kept for good —
@@ -1414,6 +1408,123 @@ class ApiController extends Controller {
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
+	}
+
+	/**
+	 * A federated video, passed through from the instance that holds it.
+	 *
+	 * The page may not point a `<video>` at another server -- Nextcloud's
+	 * content security policy says `media-src 'self'` -- and even where it
+	 * could, every reader who pressed play would be introducing themselves to
+	 * a host they had never chosen to talk to. So the bytes come through here
+	 * instead, a chunk at a time, stored nowhere; see `StreamedRemoteResponse`.
+	 *
+	 * Unauthenticated, like `mediaOpen()` and for the same reason: this is a
+	 * media url, and it is handed out with the post it belongs to. What keeps
+	 * it from being a proxy for the whole internet is that it takes a row id
+	 * rather than a url, and the row has to be one this app wrote as streamed.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	// generous, because one video is many requests: a player asks for the
+	// first megabyte, then the moov atom at the other end of the file, then a
+	// range per seek. A limit sized for an API call would stop playback in the
+	// middle, which is indistinguishable from a broken video
+	#[AnonRateLimit(limit: 120, period: 60)]
+	#[UserRateLimit(limit: 600, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/stream/{nid}')]
+	public function mediaStream(int $nid): Response {
+		try {
+			$opened = $this->documentService->openStreamed(
+				$nid, $this->request->getHeader('Range')
+			);
+			/** @var Document $document */
+			$document = $opened['document'];
+
+			$headers = [
+				'Content-Type' => $document->getMediaType(),
+				// what makes a player offer a seek bar at all
+				'Accept-Ranges' => 'bytes',
+				// the bytes behind a row never change, and the row is only
+				// named by the post it hangs off
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				// this is a file to play, never a document to interpret: the
+				// origin's own type is not repeated to the browser as a
+				// licence to sniff
+				'X-Content-Type-Options' => 'nosniff',
+			];
+
+			// the two the origin answered that a player needs to make sense of
+			// a partial answer, and nothing else it happened to send
+			foreach (['Content-Length', 'Content-Range'] as $header) {
+				$value = $opened['headers'][$header] ?? $opened['headers'][strtolower($header)] ?? [];
+				if ($value !== []) {
+					$headers[$header] = (string)$value[0];
+				}
+			}
+
+			return new StreamedRemoteResponse($opened['stream'], $opened['status'], $headers);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaStream', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
+		}
+	}
+
+	/**
+	 * The ceiling an upload is held to, which is not one number.
+	 *
+	 * `max_size` was written for a picture: one is read whole into memory to
+	 * have its metadata stripped and a preview made of it, so a low ceiling is
+	 * what keeps that honest. A video goes nowhere near memory — it is copied
+	 * to storage a chunk at a time — and 10 MB of video is about forty seconds,
+	 * which is not a video anybody meant to post. So video has a ceiling of its
+	 * own, `max_video_size`.
+	 *
+	 * The mime is the one the *client* stated, which is not yet the one the
+	 * file will be stored under: the real type is sniffed from the content
+	 * afterwards, and a file that lied about being a video is still refused
+	 * then by `filterMimeTypes()`. What a lie buys here is a larger upload of
+	 * something that is then thrown away, which is why the sniffed type is what
+	 * decides whether it is *kept*.
+	 *
+	 * @throws InvalidActionException
+	 */
+	private function refuseOversized(int $size, string $declaredMime): void {
+		$max = str_starts_with(strtolower($declaredMime), 'video/')
+			? $this->instanceService->maxVideoUploadSize()
+			: $this->instanceService->maxUploadSize();
+
+		if ($size > $max) {
+			throw new InvalidActionException(
+				'file is larger than the ' . (int)($max / 1048576) . 'MB limit'
+			);
+		}
+	}
+
+	/**
+	 * What the bytes behind a uuid actually are.
+	 *
+	 * A document's media type describes the *file*, and for every image that is
+	 * also what both of its copies are. A video's resized copy is not: it is
+	 * the poster frame, a JPEG, and served as `video/mp4` a browser with
+	 * `nosniff` on — which is every Nextcloud — refuses to draw it. So the
+	 * answer depends on which copy the uuid named.
+	 *
+	 * The stored media type was sniffed from the content at ingest; the
+	 * extension in the URL is whatever the requester chose to write there and
+	 * is not consulted.
+	 */
+	private function servedMediaType(Document $document, string $uuid): string {
+		$mediaType = $document->getMediaType();
+
+		if ($uuid === $document->getResizedCopy() && !str_starts_with($mediaType, 'image/')) {
+			return VideoThumbnailService::MEDIA_TYPE;
+		}
+
+		return $mediaType;
 	}
 
 	/**
@@ -1440,6 +1551,7 @@ class ApiController extends Controller {
 		int $min_id = 0,
 		int $since_id = 0,
 		bool $only_media = false,
+		bool $only_video = false,
 	): DataResponse {
 		$this->logger->info('[ApiController] timelines called', [
 			'timeline' => $timeline,
@@ -1487,7 +1599,8 @@ class ApiController extends Controller {
 				->setMaxId($max_id)
 				->setMinId($min_id)
 				->setSince($since_id)
-				->setOnlyMedia($only_media);
+				->setOnlyMedia($only_media)
+				->setOnlyVideo($only_video);
 
 			$posts = $this->streamService->getTimeline($options);
 			$this->logger->info('[ApiController] Timeline retrieved', [
@@ -2801,6 +2914,7 @@ class ApiController extends Controller {
 		int $since_id = 0,
 		bool $local = false,
 		bool $only_media = false,
+		bool $only_video = false,
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -2814,6 +2928,7 @@ class ApiController extends Controller {
 				->setSince($since_id)
 				->setLocal($local)
 				->setOnlyMedia($only_media)
+				->setOnlyVideo($only_video)
 				->setArgument($hashtag);
 
 			$posts = $this->streamService->getTimeline($options);

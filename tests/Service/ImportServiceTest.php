@@ -47,11 +47,13 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\PeerTubeService;
 use OCA\Social\Service\SignatureService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 class ImportServiceTest extends TestCase {
 	private const CLOUD_URL = 'https://cloud.example.com';
@@ -106,6 +108,11 @@ class ImportServiceTest extends TestCase {
 			$this->createMock(UpdateInterface::class),
 			$this->createMock(QuoteRequestInterface::class),
 			$configService,
+			new PeerTubeService(
+				$this->createMock(DocumentInterface::class),
+				$this->createMock(IURLGenerator::class),
+				$this->createMock(LoggerInterface::class),
+			),
 		);
 		AP::set($ap);
 

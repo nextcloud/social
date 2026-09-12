@@ -35,7 +35,10 @@ use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\PeerTubeService;
+use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
+use Psr\Log\LoggerInterface;
 
 /**
  * Builds an AP dispatcher whose 23 interfaces are mocks, so model code that
@@ -99,6 +102,15 @@ trait TActivityPubMocks {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudUrl')->willReturn($cloudUrl);
 		$args[] = $configService;
+
+		// the real one, not a double: reading a PeerTube `Video` is parsing,
+		// and a test that stubbed it would be asserting against its own stub.
+		// Only the two things it *writes* through are mocks.
+		$args[] = new PeerTubeService(
+			$this->apInterfaces[DocumentInterface::class],
+			$this->createMock(IURLGenerator::class),
+			$this->createMock(LoggerInterface::class),
+		);
 
 		return new AP(...$args);
 	}

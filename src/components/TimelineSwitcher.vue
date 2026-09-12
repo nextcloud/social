@@ -62,8 +62,8 @@ import IconHome from 'vue-material-design-icons/Home.vue'
  * the route's own words rather than the labels: `timeline` is what the store
  * calls the local one and `federated` the global one, and translating between
  * two vocabularies in a component that only routes would be one more place for
- * them to disagree. Photos uses the same three words in its `scope` query for
- * the same reason.
+ * them to disagree. Photos and Videos use the same three words in their
+ * `scope` query for the same reason.
  */
 export default {
 	name: 'TimelineSwitcher',
@@ -76,16 +76,17 @@ export default {
 		},
 
 		/**
-		 * Whether the three are the *photo* feeds rather than the whole ones.
+		 * The page the three scopes are scopes *of*, when it is not the whole
+		 * feed: `photos`, `videos`, or '' for the feed itself.
 		 *
-		 * Photos is one page with a scope on it rather than three pages, so
-		 * the scope rides in the query: the sidebar's Photos entry stays lit
+		 * Each of those is one page with a scope on it rather than three
+		 * pages, so the scope rides in the query: the sidebar entry stays lit
 		 * whichever of the three is chosen, which it would not if each were a
 		 * `type` of its own.
 		 */
-		photos: {
-			type: Boolean,
-			default: false,
+		page: {
+			type: String,
+			default: '',
 		},
 	},
 
@@ -150,11 +151,11 @@ export default {
 		 * @return {object} where to go for it
 		 */
 		routeFor(type) {
-			if (this.photos) {
+			if (this.page !== '') {
 				// the page is the same one; only the scope on it changes
 				return {
 					name: 'timeline',
-					params: { type: 'photos' },
+					params: { type: this.page },
 					query: type === 'home' ? {} : { scope: type },
 				}
 			}

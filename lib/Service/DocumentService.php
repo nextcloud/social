@@ -351,6 +351,47 @@ class DocumentService {
 	}
 
 	/**
+	 * The remote file behind `/media/stream/{nid}`, open and ready to be
+	 * passed on -- see `StreamedRemoteResponse` for why this instance stands
+	 * in the middle at all.
+	 *
+	 * The row is the allowlist. A proxy that took a url would be an open one,
+	 * so what the route accepts is a key into `social_cache_doc`, and only a
+	 * row this app itself wrote as streamable answers: anything with a local
+	 * copy is served from disk by `/media/{uuid}` and has no business here.
+	 *
+	 * @param string $range the client's own `Range` header, forwarded verbatim
+	 *
+	 * @return array{document: Document, stream: resource, status: int, headers: array<string, string[]>}
+	 *
+	 * @throws NotFoundException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
+	 */
+	public function openStreamed(int $nid, string $range = ''): array {
+		if ($nid < 1) {
+			throw new NotFoundException('invalid document');
+		}
+
+		try {
+			$document = $this->cacheDocumentsRequest->getByNid($nid);
+		} catch (CacheDocumentDoesNotExistException $e) {
+			throw new NotFoundException('unknown document');
+		}
+
+		if (!$document->isStreamed()) {
+			throw new NotFoundException('document is not streamed');
+		}
+
+		$opened = $this->cacheService->openRemoteFile($document, $range);
+
+		return array_merge(['document' => $document], $opened);
+	}
+
+	/**
 	 * @param array $getMediaIds
 	 * @param string $account
 	 *

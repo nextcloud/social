@@ -715,15 +715,25 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * Applies `only_media` when the caller asked for it.
+	 * Applies `only_media` and `only_video` when the caller asked for them.
 	 *
-	 * The option has been parsed off the request since the hashtag timeline
+	 * The first has been parsed off the request since the hashtag timeline
 	 * gained it and was never applied to a query, so `only_media=true` quietly
 	 * returned everything. Every timeline that can carry media runs it through
 	 * here, so the dedicated photo timeline and a client asking Mastodon's
 	 * question of any other list get the same answer.
+	 *
+	 * `only_video` is this app's own and narrower; the video timeline sends
+	 * it. Both may be sent at once -- the narrower one then decides, since
+	 * every video is media.
 	 */
 	private function filterMedia(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		if ($options->isOnlyVideo()) {
+			$qb->limitToVideo();
+
+			return;
+		}
+
 		if ($options->isOnlyMedia()) {
 			$qb->limitToMedia();
 		}

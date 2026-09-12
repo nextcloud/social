@@ -114,6 +114,7 @@ class ProbeOptionsTest extends TestCase {
 			'local' => false,
 			'remote' => false,
 			'only_media' => false,
+			'only_video' => false,
 			'min_id' => 0,
 			'max_id' => 0,
 			'since' => 0,

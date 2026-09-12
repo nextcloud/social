@@ -39,7 +39,7 @@
 		<TimelineSwitcher
 			v-if="isFeed"
 			:type="scope"
-			:photos="type === 'photos'" />
+			:page="isScopedPage ? type : ''" />
 
 		<div class="timeline-heading-row">
 			<!-- the page had no heading at all outside tags and notifications, so
@@ -111,6 +111,8 @@ export default {
 					return '#' + this.$route.params.tag
 				case 'photos':
 					return t('social', 'Photos')
+				case 'videos':
+					return t('social', 'Videos')
 				case 'notifications':
 					return t('social', 'Notifications')
 				case 'direct':
@@ -135,21 +137,33 @@ export default {
 		 * @return {boolean} whether the three scopes are what this page shows
 		 */
 		isFeed() {
-			return ['home', 'timeline', 'federated', 'photos'].includes(this.type)
+			return ['home', 'timeline', 'federated', 'photos', 'videos'].includes(this.type)
+		},
+
+		/**
+		 * Whether this page is one page read at three scopes rather than three
+		 * pages. Photos and Videos both are: the sidebar entry stays lit
+		 * whichever of the three the reader chose, which it would not if each
+		 * scope were a `type` of its own.
+		 *
+		 * @return {boolean}
+		 */
+		isScopedPage() {
+			return this.type === 'photos' || this.type === 'videos'
 		},
 
 		/**
 		 * Which of the three scopes is being read.
 		 *
-		 * Photos is one page with a scope on it rather than three pages, so on
-		 * it the scope comes from the query; everywhere else the type *is* the
-		 * scope. A query that says anything else is read as the default rather
-		 * than trusted: it arrives from the address bar.
+		 * Photos and Videos are each one page with a scope on it rather than
+		 * three pages, so on them the scope comes from the query; everywhere
+		 * else the type *is* the scope. A query that says anything else is read
+		 * as the default rather than trusted: it arrives from the address bar.
 		 *
 		 * @return {string} `home`, `timeline` or `federated`
 		 */
 		scope() {
-			if (this.type !== 'photos') {
+			if (!this.isScopedPage) {
 				return this.type
 			}
 
@@ -163,9 +177,10 @@ export default {
 		 * the view for a screen reader without changing what anyone sees.
 		 */
 		headingIsVisible() {
-			// Photos is a view of its own rather than a filter of a list you
-			// were already on, so it says which one you are looking at
-			return this.type === 'tags' || this.type === 'notifications' || this.type === 'photos'
+			// Photos and Videos are views of their own rather than a filter of
+			// a list you were already on, so they say which one you are
+			// looking at
+			return this.type === 'tags' || this.type === 'notifications' || this.isScopedPage
 		},
 
 		/** @return {string} what identifies this timeline, params included */
@@ -178,7 +193,7 @@ export default {
 				return { tag: this.$route.params.tag }
 			} else if (this.$route.name === 'single-post') {
 				return this.$route.params
-			} else if (this.type === 'photos') {
+			} else if (this.isScopedPage) {
 				// part of what identifies this timeline, so that changing the
 				// scope refetches rather than leaving the previous photos up
 				return { scope: this.scope }
