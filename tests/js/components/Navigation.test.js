@@ -95,14 +95,11 @@ describe('Navigation', () => {
 
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {
 		expect(itemNames(mountNavigation())).toEqual([
-			'New post',
 			'Home',
 			'Photos',
 			'Explore',
 			'Notifications',
 			'Direct messages',
-			'Local',
-			'Global',
 			'Alice',
 			'Follow requests',
 			'Liked posts',
@@ -129,24 +126,31 @@ describe('Navigation', () => {
 
 		const topLevel = itemNames(wrapper).filter((name) => !moreNames(wrapper).includes(name))
 		expect(topLevel).toEqual([
-			'New post',
 			'Home',
 			'Photos',
 			'Explore',
 			'Notifications',
 			'Direct messages',
-			'Local',
-			'Global',
 			'Alice',
 		])
+	})
+
+	/**
+	 * They are scopes of the Home page, set by the switcher above the posts,
+	 * rather than places of their own — and two ways to reach the same list,
+	 * one of which says it is somewhere else, is one too many.
+	 */
+	it('does not list Local and Global, which the switcher sets', () => {
+		const names = itemNames(mountNavigation())
+
+		expect(names).not.toContain('Local')
+		expect(names).not.toContain('Global')
 	})
 
 	it.each([
 		['Home', { name: 'timeline' }],
 		['Notifications', { name: 'timeline', params: { type: 'notifications' } }],
 		['Direct messages', { name: 'timeline', params: { type: 'direct' } }],
-		['Local', { name: 'timeline', params: { type: 'timeline' } }],
-		['Global', { name: 'timeline', params: { type: 'federated' } }],
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
@@ -238,8 +242,9 @@ describe('Navigation', () => {
 		['/timeline/', 'Home'],
 		['/timeline/notifications', 'Notifications'],
 		['/timeline/direct', 'Direct messages'],
-		['/timeline/timeline', 'Local'],
-		['/timeline/federated', 'Global'],
+		['/timeline/timeline', 'Home'],
+		['/timeline/federated', 'Home'],
+		['/timeline/photos', 'Photos'],
 		['/timeline/favourites', 'Liked posts'],
 		['/timeline/bookmarks', 'Bookmarks'],
 		['/follow_requests', 'Follow requests'],
@@ -295,10 +300,45 @@ describe('Navigation', () => {
 		}
 	})
 
+	// the call to action
+
+	/**
+	 * The one thing in the sidebar that is not a place to go. It was a
+	 * navigation row with `href="#"`, which needed a `.prevent` to stop the
+	 * bare fragment becoming a history entry; a button has nowhere to go.
+	 */
+	it('offers New post as a button rather than as a row', () => {
+		const wrapper = mountNavigation()
+		const button = wrapper.find('.navigation__compose')
+
+		expect(button.element.tagName).toBe('BUTTON')
+		expect(button.text()).toContain('New post')
+		expect(itemNames(wrapper)).not.toContain('New post')
+	})
+
+	/** It is what the app is for, so it comes before the places to go. */
+	it('puts it above everything else in the sidebar', () => {
+		const wrapper = mountNavigation()
+		const first = wrapper.find('nav').element.querySelector('.navigation__compose, .nav-item')
+
+		expect(first.classList.contains('navigation__compose')).toBe(true)
+	})
+
+	/**
+	 * The primary variant, which is what a call to action looks like here, and
+	 * the full width of the sidebar rather than a button floating in it.
+	 */
+	it('looks like the call to action it is', () => {
+		const button = mountNavigation().find('.navigation__compose')
+
+		expect(button.classes()).toContain('button-vue--primary')
+		expect(button.classes()).toContain('button-vue--wide')
+	})
+
 	it('opens the composer modal from "New post"', async () => {
 		const wrapper = mountNavigation()
 		expect(wrapper.find('.modal-stub').exists()).toBe(false)
-		await item(wrapper, 'New post').trigger('click')
+		await wrapper.find('.navigation__compose').trigger('click')
 		const modal = wrapper.find('.modal-stub')
 		expect(modal.attributes('data-name')).toBe('New post')
 		expect(modal.find('.composer-stub').exists()).toBe(true)
@@ -306,7 +346,7 @@ describe('Navigation', () => {
 
 	it('closes the composer modal once the post is away', async () => {
 		const wrapper = mountNavigation()
-		await item(wrapper, 'New post').trigger('click')
+		await wrapper.find('.navigation__compose').trigger('click')
 		expect(wrapper.find('.modal-stub').exists()).toBe(true)
 
 		// the composer cleared its box and the modal stayed open, which reads
@@ -335,7 +375,7 @@ describe('Navigation', () => {
 
 		it('adds an errors entry with the error count', () => {
 			const wrapper = mountNavigation()
-			expect(itemNames(wrapper).slice(0, 3)).toEqual(['New post', 'Errors', 'Home'])
+			expect(itemNames(wrapper).slice(0, 2)).toEqual(['Errors', 'Home'])
 			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('2')
 		})
 
@@ -425,8 +465,6 @@ describe('Navigation entries are links', () => {
 		['Home', '/index.php/apps/social/timeline'],
 		['Notifications', '/index.php/apps/social/timeline/notifications'],
 		['Direct messages', '/index.php/apps/social/timeline/direct'],
-		['Local', '/index.php/apps/social/timeline/timeline'],
-		['Global', '/index.php/apps/social/timeline/federated'],
 		['Follow requests', '/index.php/apps/social/follow_requests'],
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
@@ -443,7 +481,7 @@ describe('Navigation entries are links', () => {
 		// timeline the reader had actually chosen.
 		const entry = (wrapper, name) => wrapper.findAll('li').find((li) => li.text().startsWith(name))
 		const lit = (wrapper, names) => names.filter((name) => entry(wrapper, name)?.find('.app-navigation-entry').classes().includes('active'))
-		const names = ['Home', 'Notifications', 'Direct messages', 'Local', 'Global', 'Liked posts', 'Bookmarks']
+		const names = ['Home', 'Photos', 'Notifications', 'Direct messages', 'Liked posts', 'Bookmarks']
 
 		expect(lit(await mountReal('/timeline/direct'), names)).toEqual(['Direct messages'])
 		expect(lit(await mountReal('/timeline'), names)).toEqual(['Home'])
@@ -468,14 +506,21 @@ describe('Navigation entries are links', () => {
 		await vi.waitFor(() => expect(appRouter.currentRoute.value.name).toBe('follow-requests'))
 	})
 
+	/**
+	 * It is a button rather than a link with `href="#"`, so there is no
+	 * fragment to land in the address bar and nothing to prevent: the composer
+	 * opens and the page the reader was on stays the page they are on.
+	 */
 	it('opens the composer without navigating anywhere', async () => {
 		const wrapper = await mountReal()
-		const event = new MouseEvent('click', { bubbles: true, cancelable: true })
-		link(wrapper, 'New post').element.dispatchEvent(event)
+
+		await wrapper.find('.navigation__compose').trigger('click')
 		await flushPromises()
 
-		// nothing to route to, so the bare href="#" must not become a history entry
-		expect(event.defaultPrevented).toBe(true)
+		expect(wrapper.find('.navigation__compose').element.tagName).toBe('BUTTON')
+		// the modal is teleported out of the component, so it is looked for
+		// where it actually lands
+		expect(document.querySelector('.modal-composer')).not.toBeNull()
 		expect(appRouter.currentRoute.value.name).toBe('timeline')
 	})
 })

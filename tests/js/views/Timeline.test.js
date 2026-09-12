@@ -11,6 +11,7 @@ import Timeline from '../../../src/views/Timeline.vue'
 import FirstPostCelebration from '../../../src/components/FirstPostCelebration.vue'
 import HashtagFollowButton from '../../../src/components/HashtagFollowButton.vue'
 import HashtagFollowedList from '../../../src/components/HashtagFollowedList.vue'
+import TimelineSwitcher from '../../../src/components/TimelineSwitcher.vue'
 import eventBus from '../../../src/services/eventBus.js'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
@@ -68,7 +69,7 @@ function mountTimeline(route = {}) {
 	return mount(Timeline, {
 		global: {
 			plugins: [pinia],
-			mocks: { $route: { name: 'timeline', params: {}, ...route } },
+			mocks: { $route: { name: 'timeline', params: {}, query: {}, ...route } },
 			stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
 		},
 	})
@@ -440,5 +441,84 @@ describe('Timeline', () => {
 			expect(wrapper.findAllComponents(RouterLinkStub).map((link) => link.text()))
 				.toEqual(['#fediverse', '#nextcloud'])
 		})
+	})
+
+	// the switcher
+
+	/**
+	 * The three timelines a reader moves between all day are on the page
+	 * rather than only in the sidebar, because switching between them is
+	 * something you do while reading.
+	 */
+	it.each([
+		['home', {}],
+		['local', { params: { type: 'timeline' } }],
+		['global', { params: { type: 'federated' } }],
+		['photos', { params: { type: 'photos' } }],
+	])('offers the switcher on the %s timeline', (name, route) => {
+		const wrapper = mountTimeline(route)
+
+		expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(true)
+	})
+
+	it('tells the switcher which of the three is on screen', () => {
+		const wrapper = mountTimeline({ params: { type: 'federated' } })
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe('federated')
+		expect(wrapper.findComponent(TimelineSwitcher).props('photos')).toBe(false)
+	})
+
+	// photos: the same three scopes, read as a query on one page
+
+	it('tells the switcher that the photo feeds are photo feeds', () => {
+		const wrapper = mountTimeline({ params: { type: 'photos' } })
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('photos')).toBe(true)
+	})
+
+	it.each([
+		[{}, 'home'],
+		[{ scope: 'timeline' }, 'timeline'],
+		[{ scope: 'federated' }, 'federated'],
+	])('reads the photo scope %o as %s', (query, scope) => {
+		const wrapper = mountTimeline({ params: { type: 'photos' }, query })
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe(scope)
+	})
+
+	/** It arrives from the address bar, so it is read rather than trusted. */
+	it.each(['', 'home', 'notifications', 'nonsense'])('falls back to My Feed for the scope %s', (scope) => {
+		const wrapper = mountTimeline({ params: { type: 'photos' }, query: { scope } })
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe('home')
+	})
+
+	/** The scope is part of what identifies the timeline, or the previous
+	 *  photos would stay on screen when it changes. */
+	it('refetches the photos when the scope changes', () => {
+		mountTimeline({ params: { type: 'photos' }, query: { scope: 'federated' } })
+
+		expect(timelineStore.changeTimelineType)
+			.toHaveBeenCalledWith({ type: 'photos', params: { scope: 'federated' } })
+	})
+
+	/**
+	 * Everywhere else it would be a switch between three places you are not:
+	 * these views are reached from the sidebar and are not read at three
+	 * distances.
+	 */
+	it.each(['notifications', 'direct', 'favourites', 'bookmarks'])(
+		'does not offer the switcher on %s',
+		(type) => {
+			const wrapper = mountTimeline({ params: { type } })
+
+			expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(false)
+		},
+	)
+
+	it('does not offer the switcher on a hashtag timeline', () => {
+		const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
+
+		expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(false)
 	})
 })

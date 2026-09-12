@@ -89,7 +89,7 @@ export const useTimelineStore = defineStore('timeline', {
 		/** which list a removed status came from, so a rollback restores it there */
 		removedFrom: {},
 		type: 'home',
-		/** @type {{tag?: string, id?: string, account?: string}} */
+		/** @type {{tag?: string, id?: string, account?: string, scope?: string}} */
 		params: {},
 		account: '',
 		composerDisplayStatus: false,
@@ -649,9 +649,19 @@ export const useTimelineStore = defineStore('timeline', {
 					url = generateUrl('apps/social/api/v1/timelines/public')
 					break
 				case 'photos':
-				// the home timeline with the text-only posts left out: the people
-				// you follow, but only what they showed rather than what they said
-					url = generateUrl('apps/social/api/v1/timelines/home')
+				// a timeline with the text-only posts left out: what people
+				// showed rather than what they said. Which people is the scope
+				// the switcher sets — the ones you follow by default, this
+				// instance, or everywhere — so this is the same three feeds
+				// above, one predicate narrower.
+					if (this.params.scope === 'timeline' || this.params.scope === 'federated') {
+						url = generateUrl('apps/social/api/v1/timelines/public')
+						if (this.params.scope === 'timeline') {
+							params.local = true
+						}
+					} else {
+						url = generateUrl('apps/social/api/v1/timelines/home')
+					}
 					params.only_media = true
 					break
 				case 'notifications':

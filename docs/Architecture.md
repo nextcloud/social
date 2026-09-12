@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.1  
+**App version:** 0.19.5  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -387,6 +387,12 @@ for it, since registration stores whatever scope string arrives.
 
 **Blocks that are about an address.** Mastodon keeps three lists for this — IP blocks, email-domain blocks, canonical email blocks — and all three exist to police a sign-up. This app has no sign-up: an account is a Nextcloud account and the server decides who gets one. So two of the three are given the only meanings they can honestly have, and the third is not implemented rather than stored and never consulted. An **IP block** at `no_access` is enforced in `AccessBlockMiddleware`, which every request this app serves passes through — "no access" is a statement about the whole app, and a block that held on the inbox but not on the API, or on last month's routes but not on the ones added since, is not what an admin switched on; it answers **403**, so a peer stops redelivering. The two sign-up severities are refused at the API rather than stored. An **email-domain block** is checked once, in `AccountService::createActor()`: whether a Nextcloud account gets a fediverse identity at all, which is the same question Mastodon asks one step earlier and is the only one left that is this app's to answer. A **canonical email block** is a hash of the address of a deleted Mastodon account, kept so the same person cannot sign up again; nothing here holds an account's address after deletion, because the address is not this app's to hold. Ranges are matched on packed bytes (`inet_pton`) rather than on text, which is the only way `::1` and `0:0:0:0:0:0:0:1` are the same address and the only way a prefix that falls inside a byte means anything.
 
+**The timeline switcher.** `TimelineSwitcher.vue` sits above the posts on the three timelines that are the same place seen from three distances — the home timeline (`My Feed`), `timeline` (Local) and `federated` (Global) — and on no others: everywhere else it would be a switch between three places the reader is not. It routes rather than fetching, so `Timeline.vue` and the store go on being the single answer to "which timeline is this". The values are the route's own words rather than the labels, because `timeline` is what the store calls the local one and `federated` the global one, and a second vocabulary in a component that only routes would be one more place for the two to disagree; `home` is the route with no `type` at all, so it is pushed as the bare route rather than as `type: 'home'`, which names a timeline nothing serves. Local and Global have **left the sidebar**: they are scopes of the page the switcher sets rather than places of their own, and two entries that lead to the same list while saying it is somewhere else are two too many. The Home entry stays lit while either is being read — `isActive()` honours a `covers` list on a menu entry, which is the set of `type` params that entry owns — so the sidebar never shows nothing chosen.
+
+It is built from plain buttons rather than from `NcCheckboxRadioSwitch`, for the one thing that component cannot do: a single indicator that *travels* between the three. Three controls that light up tell you where you landed; one pill that slides tells you where you came from, which is what makes a switch feel like a switch. The cost is that the accessibility is hand-written rather than inherited, so it is written in full — a `radiogroup` of `radio` buttons, `aria-checked`, arrow keys in both axes that wrap at the ends, a roving tabindex so the control is one tab stop rather than three, and the focus following the selection the way it does in a radio group. The pill itself is `aria-hidden`: what it shows is already on the options. Every option is `flex: 1 1 0` so all three are as wide as the widest, which is what lets a pill of one third of the track land exactly on one of them whatever the labels translate to; below 500px the labels go and the icons stay. The states are written as `.switcher .switcher__option` rather than as one class because the server styles bare `button` elements and its `button:not(.button-vue, [class^="vs__"]):hover` is the more specific selector — left alone, Nextcloud's hover colour paints over the pill on the option you just chose. The movement — the slide, the overshoot, the kick the chosen icon gives, the turn the globe makes — is all inside `@media (prefers-reduced-motion: reduce)`, which switches every bit of it off.
+
+**New post.** The one thing in the sidebar that is not a place to go, so it is not a row among rows: an `NcButton` in the primary colour across the width of the sidebar, above the places. It carries the app's resting elevation, lifts on hover, presses in, gives its `+` a disc that kicks the way the switcher's icons do, and lets one band of light cross it on the way in — all of it inside `prefers-reduced-motion: reduce`, which switches every bit of it off. It was an `NcAppNavigationItem` with no `to`, which renders `href="#"` and needed a `.prevent` to stop the bare fragment becoming a history entry; a button has nowhere to go by construction. `NcButton` rather than a bare `<button>` because the server's own rules for bare buttons all exclude `.button-vue`: a hand-rolled one has to win an argument with them in every state, and loses the pressed one — Nextcloud's `button:not(.button-vue, [class^="vs__"]):not(:disabled, .primary):not(.app-navigation-entry-button):active` sets the background back to the page colour, and outspecifies anything a single class can say. Its class is `navigation__compose` rather than `new-post`, which the composer card already is.
+
 **The moderation panel.** The Social section of the administration settings is server-rendered PHP (`templates/settings/admin.php`) with three scripts behind it: the hand-written `js/social-adminSettings.js` for the reports table and the access list, `src/adminAnnouncements.js`, and `src/adminModeration.js` for the account browser and the **Take down** button beside each reported post. The browser reads `GET /moderation/accounts`, which is `AdminApiService::accountPage()` — the same read the Mastodon admin API answers — narrowed to the six fields a table draws; before it, only a *reported* account could be acted on from the web, and everything else needed a moderation client and a token. Every cell is written with `textContent`: a handle and an instance name are whatever a remote server sent, and this is the page whose buttons delete accounts.
 
 **Custom emoji.** `/api/v1/custom_emojis` answered `[]` unconditionally and outbound posts carried no `Emoji` tags, so emoji from every other instance rendered here and this one could publish none — the asymmetry somebody moving here notices first, because their own instance's emoji stop working. `EmojiService` holds the set: the row is in `social_emoji`, the picture in appdata under `emoji/`, and both a local client and a remote server dereference the same URL (`/emoji/{shortcode}`, unauthenticated like `/media/{uuid}` and for the same reason). What a post carries is the shortcode as text plus an `Emoji` tag saying where the picture is, added by `StreamService::addCustomEmojis()` on creation *and* on edit — rebuilt rather than appended to, so an edit that removes a shortcode removes its tag. The scan is Mastodon's own pattern: a colon on each side, neither of them against a word character or another colon, which is what stops `12:30:45` carrying an emoji called `30`. A shortcode this instance has no picture for stays the text it already was. Managed with `occ social:emoji`.
@@ -604,11 +610,23 @@ a quote that silently renders as nothing is indistinguishable from a bug. A
 quoted post that itself quotes something is not nested a second time — the
 component prints one line and stops, so no chain and no cycle can recurse.
 
-**The Photos view.** The sidebar's `Photos`, directly under Home, is the home
-timeline with `only_media` — the people you follow, but only what they showed
-rather than what they said. It is the same query and the same filters, one
-predicate narrower, so nothing about visibility, blocks, mutes or silencing is
-decided twice.
+**The Photos view.** The sidebar's `Photos`, directly under Home, is a timeline
+with `only_media` — what people showed rather than what they said. It is the
+same query and the same filters, one predicate narrower, so nothing about
+visibility, blocks, mutes or silencing is decided twice.
+
+Which people is the same switcher: Photos carries it too, so the photos of the
+people you follow, of this instance and of everywhere are one control apart.
+The scope rides in the **query** (`/timeline/photos?scope=timeline`) rather than
+in a `type` of its own, for two reasons: the sidebar's Photos entry stays lit
+whichever scope is being read, and the page is one page with a filter on it
+rather than three pages that happen to look alike. It is the route's own three
+words there as well (`timeline`, `federated`, and nothing at all for My Feed),
+so no part of this translates between two vocabularies. The scope arrives from
+the address bar, so `Timeline.vue` reads it rather than trusting it: anything
+that is not one of the two named scopes is the default. It is also part of what
+`Timeline.vue` reports as the timeline's params, which is what makes changing it
+refetch instead of leaving the previous photos on screen.
 
 **One column, one owner.** `--social-column` in `App.vue` is the width of the
 timeline — 900px — and every view that shows the same column reads it from

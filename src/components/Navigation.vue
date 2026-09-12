@@ -11,16 +11,26 @@
 				@update:modelValue="onSearchInput" />
 		</template>
 		<template #list>
-			<!-- no `to`, so NcAppNavigationItem renders href="#" and leaves the
-			     default action alone: without .prevent the click also pushes a
-			     bare fragment onto the history -->
-			<NcAppNavigationItem
-				:name="t('social', 'New post')"
-				@click.prevent="showComposer = true">
+			<!-- The one thing in the sidebar that is not a place to go: it is
+			     what the app is for, so it is a call to action rather than a
+			     row among rows. It was an NcAppNavigationItem with no `to`,
+			     which renders href="#" and needed a .prevent to stop the bare
+			     fragment becoming a history entry; a button has nowhere to go
+			     by construction. NcButton rather than a bare <button> because
+			     the server's own button rules all exclude `.button-vue` — a
+			     hand-rolled one has to win an argument with them in every
+			     state, and loses the pressed one. -->
+			<NcButton
+				class="navigation__compose"
+				variant="primary"
+				wide
+				alignment="start"
+				@click="showComposer = true">
 				<template #icon>
 					<IconPlus :size="20" />
 				</template>
-			</NcAppNavigationItem>
+				{{ t('social', 'New post') }}
+			</NcButton>
 
 			<NcAppNavigationItem
 				v-if="hasErrors"
@@ -186,8 +196,6 @@ import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
-import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
-import IconEarth from 'vue-material-design-icons/Earth.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
@@ -233,8 +241,6 @@ export default {
 		IconHome,
 		IconBell,
 		IconCommentAccount,
-		IconAccountMultiple,
-		IconEarth,
 		IconHeart,
 		IconPlus,
 		IconBookmark,
@@ -309,6 +315,11 @@ export default {
 						icon: IconHome,
 						title: t('social', 'Home'),
 						to: { name: 'timeline' },
+						// Local and Global are scopes of this page rather than
+						// pages of their own now that the switcher sets them,
+						// so the entry stays lit while the reader is on one:
+						// otherwise the sidebar shows nothing chosen at all
+						covers: ['', 'timeline', 'federated'],
 					},
 					{
 						key: 'social-photos',
@@ -334,18 +345,6 @@ export default {
 						icon: IconCommentAccount,
 						title: t('social', 'Direct messages'),
 						to: { name: 'timeline', params: { type: 'direct' } },
-					},
-					{
-						key: 'social-local',
-						icon: IconAccountMultiple,
-						title: t('social', 'Local'),
-						to: { name: 'timeline', params: { type: 'timeline' } },
-					},
-					{
-						key: 'social-global',
-						icon: IconEarth,
-						title: t('social', 'Global'),
-						to: { name: 'timeline', params: { type: 'federated' } },
 					},
 				],
 
@@ -530,6 +529,13 @@ export default {
 				return false
 			}
 
+			// an entry whose page is read at more than one scope owns all of
+			// them: the type says which, and the switcher on the page says
+			// which one of the entry's own scopes is being read
+			if (item.covers !== undefined) {
+				return item.covers.includes(String(route.params.type ?? ''))
+			}
+
 			// An optional param the URL leaves out still arrives as '', so the
 			// two sides are compared value by value across both key sets:
 			// counting keys makes /timeline, whose params are {type: ''}, look
@@ -606,6 +612,102 @@ export default {
 
 	&.active {
 		background: var(--color-background-dark);
+	}
+}
+
+/* The call to action: the app's one shadow under it, a lift when you reach
+   for it, and a light that crosses it once on the way in. */
+.navigation__compose {
+	position: relative;
+	overflow: hidden;
+	margin: 2px 4px 8px;
+	box-shadow: var(--social-elevation-resting);
+	font-weight: 600;
+	transition: transform .25s cubic-bezier(.22, 1.2, .48, 1), box-shadow .25s ease;
+
+	&:hover {
+		transform: translateY(-2px);
+		box-shadow: var(--social-elevation-raised);
+	}
+
+	&:active {
+		transform: translateY(0) scale(.98);
+		box-shadow: var(--social-elevation-resting);
+	}
+}
+
+/* the plus sits in a disc of its own, which kicks when you reach for it — the
+   same kick the timeline switcher's icons give. It grows rather than turns: a
+   plus is the same plus at every right angle, so a rotation of one is movement
+   nobody can see. */
+/* the glyph rather than the icon box it sits in, which is nearly as tall as
+   the button and would make a disc the size of the whole end of it */
+.navigation__compose :deep(.plus-icon) {
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	// a wash of the label's own colour, so the disc belongs to the button
+	// whatever the instance's primary colour is
+	background: color-mix(in srgb, var(--color-primary-element-text) 22%, transparent);
+	transition: background-color .2s ease;
+}
+
+/* the wrapper has no gap of its own, and the label sits against the disc */
+.navigation__compose :deep(.button-vue__text) {
+	margin-inline-start: 4px;
+}
+
+.navigation__compose:hover :deep(.plus-icon) {
+	background: color-mix(in srgb, var(--color-primary-element-text) 32%, transparent);
+	animation: compose-pop .45s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* the light, as a layer of the button rather than an element in it */
+.navigation__compose::after {
+	content: '';
+	position: absolute;
+	z-index: 0;
+	inset-block: 0;
+	inset-inline-start: -60%;
+	width: 50%;
+	background: linear-gradient(
+		100deg,
+		transparent,
+		color-mix(in srgb, var(--color-primary-element-text) 26%, transparent),
+		transparent
+	);
+	transform: skewX(-18deg);
+	pointer-events: none;
+}
+
+.navigation__compose:hover::after {
+	animation: compose-sheen .7s ease-out;
+}
+
+@keyframes compose-pop {
+	0% { transform: scale(1); }
+	55% { transform: scale(1.25); }
+	100% { transform: scale(1); }
+}
+
+@keyframes compose-sheen {
+	0% { inset-inline-start: -60%; }
+	100% { inset-inline-start: 130%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.navigation__compose {
+		transition: none;
+	}
+
+	.navigation__compose:hover,
+	.navigation__compose:active {
+		transform: none;
+	}
+
+	.navigation__compose:hover :deep(.plus-icon),
+	.navigation__compose:hover::after {
+		animation: none;
 	}
 }
 </style>

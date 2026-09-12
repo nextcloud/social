@@ -816,8 +816,12 @@ describe('timeline store actions', () => {
 			['timeline', {}, `${API}/timelines/public`, { limit: 15, local: true }],
 			['federated', {}, `${API}/timelines/public`, { limit: 15 }],
 			['tags', { tag: 'nextcloud' }, `${API}/timelines/tag/nextcloud`, { limit: 15 }],
-			// the same list as home, with the text-only posts left out
+			// the same three feeds as above, with the text-only posts left out
 			['photos', {}, `${API}/timelines/home`, { limit: 15, only_media: true }],
+			['photos', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_media: true, local: true }],
+			['photos', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_media: true }],
+			// a scope from the address bar that names nothing is read as the default
+			['photos', { scope: 'favourites' }, `${API}/timelines/home`, { limit: 15, only_media: true }],
 		])('requests the %s timeline from its endpoint and appends the result', async (type, params, url, query) => {
 			await store.changeTimelineType({ type, params })
 
