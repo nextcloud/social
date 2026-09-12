@@ -79,7 +79,7 @@ class InstanceTest extends TestCase {
 			'title' => 'Nextcloud Social',
 			// Pleroma-style: clients gate features on the advertised version,
 			// so the claim has to be one this app can honour
-			'version' => '3.5.0 (compatible; Nextcloud Social 0.7.0)',
+			'version' => '4.2.0 (compatible; Nextcloud Social 0.7.0)',
 			'short_description' => 'short',
 			'description' => 'long',
 			'email' => 'admin@cloud.example.org',
@@ -117,7 +117,7 @@ class InstanceTest extends TestCase {
 
 		$this->assertSame('cloud.example.org', $v2->domain);
 		$this->assertSame('Nextcloud Social', $v2->title);
-		$this->assertSame('3.5.0 (compatible; Nextcloud Social 0.7.0)', $v2->version);
+		$this->assertSame('4.2.0 (compatible; Nextcloud Social 0.7.0)', $v2->version);
 		$this->assertSame('short', $v2->description);
 		$this->assertSame('https://cloud.example.org/thumb.png', $v2->thumbnail->url);
 		$this->assertSame(3, $v2->usage->users->active_month);
@@ -127,11 +127,30 @@ class InstanceTest extends TestCase {
 		$this->assertSame([['id' => '1', 'text' => 'Be kind.']], json_decode(json_encode($v2->rules), true));
 	}
 
+	/**
+	 * The string is a promise, and the promise has to be kept in both
+	 * directions: claiming too much makes a client offer a broken button,
+	 * claiming too little makes it hide a finished one. This app has editing
+	 * with `/source` and `/history`, v2 filters, `/api/v2/instance` and
+	 * `notifications/unread_count` — all of them 4.x, all of them hidden while
+	 * it said 3.5.0.
+	 */
 	public function testTheAdvertisedVersionIsOneTheAppCanHonour(): void {
-		// 4.1.0 switched clients onto features that do not exist here (editing
-		// with /source and /history, v2 filters, push), turning each of them
-		// into a broken button rather than an absent one
-		$this->assertSame('3.5.0', Instance::COMPAT_VERSION);
+		$this->assertSame('4.2.0', Instance::COMPAT_VERSION);
+	}
+
+	/**
+	 * What it does *not* have, it says so rather than letting a client find
+	 * out by calling: translation off, and no streaming URL to connect to.
+	 */
+	public function testTheFourPointXFeaturesThatAreMissingAreAnnouncedAsMissing(): void {
+		// not the populated fixture: what `InstanceService::getLocal()` builds
+		// for a real instance carries no streaming URL, because there is no
+		// streaming endpoint to name
+		$v2 = json_decode((string)json_encode((new Instance())->asV2()), false);
+
+		$this->assertFalse($v2->configuration->translation->enabled);
+		$this->assertSame([], (array)$v2->configuration->urls, 'no streaming endpoint to hand out');
 	}
 
 	public function testContactAccountIsExposedWhenSet(): void {

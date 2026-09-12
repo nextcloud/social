@@ -38,6 +38,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 			->setValue('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0))
 			->setValue('discoverable', $qb->createNamedParameter($actor->isDiscoverable() ? 1 : 0))
 			->setValue('indexable', $qb->createNamedParameter($actor->isIndexable() ? 1 : 0))
+			->setValue('bot', $qb->createNamedParameter($actor->isBot() ? 1 : 0))
 			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 			->setValue('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())))
 			->setValue(
@@ -93,12 +94,15 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 	/**
 	 * Stores the directory flags: `discoverable` (may be listed in directories
-	 * and suggestions) and `indexable` (posts may be full-text indexed).
+	 * and suggestions), `indexable` (posts may be full-text indexed) and `bot`
+	 * (an automated account, which the actor document publishes as a `Service`
+	 * rather than a `Person`).
 	 */
 	public function updateFlags(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('discoverable', $qb->createNamedParameter($actor->isDiscoverable() ? 1 : 0))
-			->set('indexable', $qb->createNamedParameter($actor->isIndexable() ? 1 : 0));
+			->set('indexable', $qb->createNamedParameter($actor->isIndexable() ? 1 : 0))
+			->set('bot', $qb->createNamedParameter($actor->isBot() ? 1 : 0));
 		$this->limitToIdPrimString($qb, $actor->getId());
 
 		$qb->executeStatement();

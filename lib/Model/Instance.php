@@ -83,15 +83,25 @@ class Instance implements IQueryRow, JsonSerializable {
 	 * NodeInfo keeps reporting the real app version.
 	 *
 	 * The claim has to be one this app can honour, because a client believes
-	 * it: `4.1.0` switched Tusky and Ivory onto the 4.x feature set — editing
-	 * with `GET /statuses/{id}/source` and `/history`, v2 filters, translation,
-	 * `/api/v1/push/subscription` — most of which does not exist here, so
-	 * every one of those became a broken button rather than an absent one.
-	 * `3.5.0` is the last Mastodon release whose client-visible surface this
-	 * app actually covers: statuses with polls and media, timelines,
-	 * notifications, markers, relationships, bookmarks, reports and trends.
+	 * it. It said `3.5.0` for a long time, and the reason was sound when it was
+	 * written: `4.x` switches Tusky and Ivory onto a feature set this app did
+	 * not have, and a feature a client offers and the server cannot do is a
+	 * broken button rather than an absent one.
+	 *
+	 * That is no longer where the app is. Everything `4.x` turns on is here:
+	 * editing with `GET /statuses/{id}/source` and `/history`, v2 filters
+	 * applied server-side, `/api/v2/instance`, and
+	 * `/api/v1/notifications/unread_count`. Claiming 3.5.0 was hiding all of
+	 * them — a client that believes the string never asks.
+	 *
+	 * The two 4.x features still missing are announced as missing rather than
+	 * left to fail: `configuration.translation.enabled` is `false`, and `urls`
+	 * is an empty object, which is how a client learns there is no streaming
+	 * endpoint. Web Push is absent, and a client that tries
+	 * `/api/v1/push/subscription` gets a 404 and falls back to polling, which
+	 * is what it does against any server without a VAPID key.
 	 */
-	public const COMPAT_VERSION = '3.5.0';
+	public const COMPAT_VERSION = '4.2.0';
 
 	public function getCompatVersion(): string {
 		return self::COMPAT_VERSION . ' (compatible; Nextcloud Social ' . $this->version . ')';

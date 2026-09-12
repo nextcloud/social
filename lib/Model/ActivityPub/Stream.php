@@ -1104,6 +1104,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'bookmarked' => $bookmarked,
 			'pinned' => $this->isPinned(),
 			'card' => $this->card?->jsonSerialize(),
+			// null, not absent. A Question overwrites this with the real poll;
+			// every other status has to carry the key, because the entity's
+			// rule here is that a client never has to test for a missing one
+			'poll' => null,
 			'uri' => $this->getId(),
 			'url' => $this->getId(),
 			'reblog' => null,

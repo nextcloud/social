@@ -152,14 +152,22 @@ class QuestionTest extends TestCase {
 		$this->assertSame(1, $question->getOptions()[1]['votes_count']);
 	}
 
-	public function testANoteWithoutPollDataExportsNoPollEntity(): void {
+	/**
+	 * `null`, not absent. Every status carries the key — the Stream entity sets
+	 * it and a poll overwrites it — because a client should never have to test
+	 * whether a key exists before reading it.
+	 */
+	public function testANoteWithoutPollDataExportsANullPoll(): void {
 		$question = new Question();
 		$question->importFromDatabase([
 			'id' => 'https://mastodon.social/users/alice/statuses/1',
 			'source' => json_encode(['type' => 'Question']),
 		]);
 
-		$this->assertArrayNotHasKey('poll', $question->exportAsLocal());
+		$exported = $question->exportAsLocal();
+
+		$this->assertArrayHasKey('poll', $exported);
+		$this->assertNull($exported['poll']);
 	}
 
 	public function testAPollCarriesItsLanguageOnTheWireLikeANote(): void {

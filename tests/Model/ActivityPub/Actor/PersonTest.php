@@ -295,7 +295,15 @@ class PersonTest extends TestCase {
 		$this->assertSame(10, $account['followers_count']);
 		$this->assertSame(5, $account['following_count']);
 		$this->assertSame(42, $account['statuses_count']);
-		$this->assertSame(['privacy' => 'unlisted', 'sensitive' => true, 'language' => 'fr', 'note' => '<p>bio</p>', 'fields' => [], 'follow_requests_count' => 0], $account['source']);
+		$this->assertArrayNotHasKey(
+			'source',
+			$account,
+			'source belongs to the credentials routes, not to every Account this app emits'
+		);
+		$this->assertSame(
+			['privacy' => 'unlisted', 'sensitive' => true, 'language' => 'fr', 'note' => '<p>bio</p>', 'fields' => [], 'follow_requests_count' => 0],
+			$person->exportSourceAsLocal()
+		);
 		$this->assertSame([], $account['emojis']);
 		$this->assertSame([], $account['fields']);
 	}
@@ -507,8 +515,25 @@ class PersonTest extends TestCase {
 		);
 		$this->assertSame(
 			[['name' => 'Website', 'value' => 'https://example.org']],
-			$exported['source']['fields']
+			$person->exportSourceAsLocal()['fields']
 		);
+	}
+
+	/**
+	 * `source` carries `follow_requests_count`, which is how many people are
+	 * waiting on an account's approval — nobody's business but that account's.
+	 * It used to come out of `exportAsLocal()`, so every Account this app
+	 * emitted carried it: somebody else's profile, a search result, a page of
+	 * followers, and an anonymous read of any of them.
+	 */
+	public function testSourceIsNotPartOfAnOrdinaryAccountEntity(): void {
+		$person = new Person();
+		$person->setId('https://cloud.example.org/apps/social/@alice');
+		$person->setLocal(true);
+		$person->setDetailInt('count.follow_requests', 7);
+
+		$this->assertArrayNotHasKey('source', $person->exportAsLocal());
+		$this->assertSame(7, $person->exportSourceAsLocal()['follow_requests_count']);
 	}
 
 	public function testCustomEmojiInTheDisplayNameReachTheAccountEntity(): void {
@@ -825,7 +850,7 @@ class PersonTest extends TestCase {
 		$this->assertSame('<p>I keep bees &amp; goats.</p>', $account['note'], 'note is HTML, the client feeds it to v-html');
 		$this->assertSame(
 			'I keep bees & goats.',
-			$account['source']['note'],
+			$person->exportSourceAsLocal()['note'],
 			'source.note is the plain text a client puts back in its edit box'
 		);
 	}
@@ -844,7 +869,7 @@ class PersonTest extends TestCase {
 
 		$this->assertArrayNotHasKey('summary', $person->exportAsActivityPub());
 		$this->assertSame('', $person->exportAsLocal()['note']);
-		$this->assertSame('', $person->exportAsLocal()['source']['note']);
+		$this->assertSame('', $person->exportSourceAsLocal()['note']);
 	}
 
 	public function testALocalBioSurvivesTheActorCacheWithoutBeingEscapedTwice(): void {
@@ -862,7 +887,7 @@ class PersonTest extends TestCase {
 		]);
 
 		$this->assertSame('<p>I keep bees &amp; goats.</p>', $cached->exportAsActivityPub()['summary']);
-		$this->assertSame('I keep bees & goats.', $cached->exportAsLocal()['source']['note']);
+		$this->assertSame('I keep bees & goats.', $cached->exportSourceAsLocal()['note']);
 	}
 
 	public function testARemoteBioIsPassedThroughAsTheHtmlItArrivedAs(): void {

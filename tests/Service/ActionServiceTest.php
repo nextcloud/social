@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -30,6 +31,7 @@ class ActionServiceTest extends TestCase {
 	private LikeService|MockObject $likeService;
 	private StreamActionService|MockObject $streamActionService;
 	private PinService|MockObject $pinService;
+	private ActionsRequest|MockObject $actionsRequest;
 	private ActionService $service;
 	private Person $actor;
 	private Note $post;
@@ -40,12 +42,14 @@ class ActionServiceTest extends TestCase {
 		$this->likeService = $this->createMock(LikeService::class);
 		$this->streamActionService = $this->createMock(StreamActionService::class);
 		$this->pinService = $this->createMock(PinService::class);
+		$this->actionsRequest = $this->createMock(ActionsRequest::class);
 		$this->service = new ActionService(
 			$this->streamService,
 			$this->boostService,
 			$this->likeService,
 			$this->streamActionService,
 			$this->pinService,
+			$this->actionsRequest,
 		);
 
 		$this->actor = new Person();

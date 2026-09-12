@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamAction;
@@ -51,7 +53,37 @@ class ActionService {
 		private LikeService $likeService,
 		private StreamActionService $streamActionService,
 		private PinService $pinService,
+		private ActionsRequest $actionsRequest,
 	) {
+	}
+
+	/**
+	 * The accounts that favourited or boosted a post, newest first.
+	 *
+	 * Mastodon's `favourited_by` and `reblogged_by`, and the reason a tap on a
+	 * favourite or boost count is not a dead end. The caller has already
+	 * resolved the post through the visibility filter, so whoever may read the
+	 * post may see who reacted to it — which is Mastodon's rule too.
+	 *
+	 * An action whose actor this instance never cached is left out rather than
+	 * sent half-filled: a page of accounts with no handle and no avatar is one
+	 * a client can do nothing with.
+	 *
+	 * @return Person[]
+	 */
+	public function reactedBy(Stream $post, string $type, int $limit, int $offset = 0): array {
+		$accounts = [];
+		foreach ($this->actionsRequest->getActionsOnObject($post->getId(), $type, $limit, $offset) as $action) {
+			if (!$action->hasActor()) {
+				continue;
+			}
+
+			$actor = $action->getActor();
+			$actor->setExportFormat(ACore::FORMAT_LOCAL);
+			$accounts[] = $actor;
+		}
+
+		return $accounts;
 	}
 
 	/**
