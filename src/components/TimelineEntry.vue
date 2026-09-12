@@ -5,7 +5,7 @@
 <template>
 	<component :is="element"
 		class="timeline-entry"
-		:class="{ 'notification': isNotification, 'with-header': isNotification }"
+		:class="{ notification: isNotification, 'with-header': isNotification }"
 		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">

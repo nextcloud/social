@@ -98,7 +98,7 @@ describe('ProfileFollowers', () => {
 
 		store.commit('setFollowersLoading', { actorId: bob.url, loading: true })
 		await nextTick()
-		expect(wrapper.find('.loading-indicator').text()).toBe('Loading …')
+		expect(wrapper.find('.loading-indicator').text()).toBe('Loading …')
 
 		store.commit('setFollowersLoading', { actorId: bob.url, loading: false })
 		await nextTick()

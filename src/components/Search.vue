@@ -20,7 +20,7 @@
 		     that survive the new term should stay where they are -->
 		<div v-if="loading && isEmpty" class="social__search-loading">
 			<NcLoadingIcon :size="32" />
-			<span>{{ t('social', 'Searching …') }}</span>
+			<span>{{ t('social', 'Searching …') }}</span>
 		</div>
 
 		<div v-else-if="error !== null" class="social__search-error" role="alert">
@@ -166,7 +166,7 @@ export default {
 		query() {
 			try {
 				return decodeURIComponent(this.term)
-			} catch (error) {
+			} catch {
 				return this.term
 			}
 		},

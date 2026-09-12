@@ -8,7 +8,7 @@
 			<div class="post-author-wrapper" :title="item.account.acct">
 				<router-link v-if="item.account"
 					:to="{ name: 'profile',
-						params: { account: item.account.acct }
+						params: { account: item.account.acct },
 					}">
 					<span class="post-author">
 						<DisplayName :text="item.account.display_name" :emojis="item.account.emojis" />
@@ -188,7 +188,7 @@
 						:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
 						@click="like">
 						<template #icon>
-							<Heart v-if="isLiked" :size="20" :fill-color="'var(--color-element-error)'" />
+							<Heart v-if="isLiked" :size="20" fill-color="var(--color-element-error)" />
 							<HeartOutline v-else :size="20" />
 						</template>
 					</NcButton>
@@ -561,7 +561,7 @@ export default {
 	watch: {
 		// a vote cast elsewhere (or reloaded from the server) has to reach the
 		// copy this component renders, or navigating back shows the poll unvoted
-		'item.poll'(poll) {
+		'item.poll': function(poll) {
 			this.localPoll = poll ?? null
 		},
 	},

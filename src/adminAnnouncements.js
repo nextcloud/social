@@ -122,7 +122,7 @@ export function render(announcements) {
 export async function load() {
 	try {
 		render((await call('GET', '')).announcements)
-	} catch (error) {
+	} catch {
 		OC.Notification.showTemporary(t('social', 'Could not read the announcements'))
 	}
 }
@@ -184,7 +184,7 @@ export async function remove(event) {
 
 	try {
 		render((await call('DELETE', '/' + row.dataset.announcementId)).announcements)
-	} catch (error) {
+	} catch {
 		OC.Notification.showTemporary(t('social', 'Could not remove the announcement'))
 	}
 }

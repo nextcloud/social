@@ -20,7 +20,7 @@
 		<div id="followed-hashtags-list" class="followed-hashtags__panel">
 			<template v-if="open">
 				<p v-if="loading" class="followed-hashtags__hint">
-					{{ t('social', 'Loading …') }}
+					{{ t('social', 'Loading …') }}
 				</p>
 				<ul v-else-if="tags.length > 0" class="followed-hashtags__list">
 					<li v-for="tag in tags" :key="tag.name">
