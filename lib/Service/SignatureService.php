@@ -742,7 +742,74 @@ class SignatureService {
 	 * @throws UnauthorizedFediverseException
 	 * @throws SignatureException
 	 */
-	private function checkRequestSignature(IRequest $request, string $data, string &$signer = ''): string {
+	/**
+	 * Who signed a **GET**, or '' for a request that carried no signature.
+	 *
+	 * Authorized fetch, the inbound half. Signature verification ran on inbox
+	 * POSTs only, so this instance could not tell one remote reader from
+	 * another and had nothing to serve a followers-only object to — it failed
+	 * closed, which is safe and is also why a follower on another server saw
+	 * an empty profile.
+	 *
+	 * A GET has no body, so the two checks that bind one — the digest and the
+	 * content length — have nothing to bind and are not asked for. Everything
+	 * else is the POST path's: the signature has to cover `(request-target)`,
+	 * `host` and `date`, the date has to be inside the replay window, and the
+	 * key is fetched from the actor the `keyId` names.
+	 *
+	 * An unsigned request is not an error here. It is the ordinary case —
+	 * every crawler, every link preview, every fediverse server not running
+	 * authorized fetch — and what it gets is what an anonymous reader gets.
+	 * A signature that is *present and wrong* is an error, because the sender
+	 * is claiming to be somebody.
+	 *
+	 * @param string $signer set to the actor whose key signed, when one did
+	 *
+	 * @return string the instance the signature came from, or ''
+	 *
+	 * @throws SignatureException the signature is there and does not verify
+	 * @throws DateTimeException
+	 * @throws SignatureIsGoneException
+	 */
+	public function checkGetRequest(IRequest $request, string &$signer = ''): string {
+		if ($request->getHeader('Signature') === ''
+			&& $request->getHeader('Signature-Input') === '') {
+			return '';
+		}
+
+		$messageSignature = $this->selectMessageSignature($request);
+
+		if ($messageSignature === null) {
+			$this->checkDateHeader($request);
+		} else {
+			$this->checkMessageSignatureTime($request, $messageSignature);
+		}
+
+		try {
+			return $messageSignature === null
+				? $this->checkRequestSignature($request, '', $signer, false)
+				: $this->checkMessageSignature($request, '', $messageSignature, $signer);
+		} catch (RequestContentException $e) {
+			if ($e->getCode() === Http::STATUS_GONE) {
+				throw new SignatureIsGoneException();
+			}
+
+			throw new SignatureException(
+				'signing key could not be retrieved: ' . get_class($e) . ' ' . $e->getMessage(),
+				0,
+				$e
+			);
+		}
+	}
+
+	/**
+	 * @param bool $requireDigest whether the signed set must cover a digest.
+	 *                            False for a GET, which has no body for one to
+	 *                            be computed over.
+	 */
+	private function checkRequestSignature(
+		IRequest $request, string $data, string &$signer = '', bool $requireDigest = true,
+	): string {
 		$signatureHeader = $request->getHeader('Signature');
 
 		$sign = $this->parseSignatureHeader($signatureHeader);
@@ -768,7 +835,8 @@ class SignatureService {
 
 		// whichever of the two digest headers the sender used, one of them has
 		// to be inside the signature or the digest binds nothing
-		if (!in_array('digest', $signedHeaders, true)
+		if ($requireDigest
+			&& !in_array('digest', $signedHeaders, true)
 			&& !in_array('content-digest', $signedHeaders, true)) {
 			throw new SignatureException('header is not signed: digest');
 		}

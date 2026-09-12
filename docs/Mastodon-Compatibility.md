@@ -209,22 +209,23 @@ the same host.
 
 **What a peer would still notice:**
 
-1. **No authorized fetch inbound.** Signature verification runs only on inbox
-   POSTs (`ActivityPubController::sharedInbox()` and `inbox()`). Every GET handler
-   is a public page with no signature check, and the viewer is resolved from the
-   Nextcloud session only, so a signed remote fetcher is never identified. Social
-   cannot serve a followers-only object to an authorized remote reader, and
-   cannot run secure mode. It fails safe rather than leaking — those objects 404
-   — but a peer expecting secure mode gets nothing.
-2. **No `Add`, `Remove` or `Move` outbound.** A pin is only visible by re-polling
+1. **No `Add`, `Remove` or `Move` outbound.** A pin is only visible by re-polling
    `featured`, and an account can never be migrated away by announcement.
-3. **`mediaType` is emitted as an empty string** on every attachment
+2. **`mediaType` is emitted as an empty string** on every attachment
    (`MediaAttachment::exportAsActivityPub()`). Mastodon sniffs the file;
    stricter implementations may not.
-4. **The WebFinger profile-page link points at the Nextcloud user profile**
+3. **The WebFinger profile-page link points at the Nextcloud user profile**
    (`/index.php/u/alice`), not at a Social or Mastodon-shaped profile
    (`WebfingerHandler`).
-5. Emoji reactions and custom `Emoji` tags are not handled in either direction.
+
+Authorized fetch inbound is **no longer** among them: a signed GET is verified
+and resolved to the account behind it (`AuthorizedFetchService`), so a
+followers-only object is served to a remote reader who follows it, and secure
+mode — refusing an unsigned ActivityPub GET outright — is available behind the
+`secure_mode` app value. Custom `Emoji` tags are emitted and reactions to an
+announcement are stored and served; emoji reactions to a *status* are a
+Misskey and Pleroma extension that Mastodon itself does not handle, and are
+not implemented here either.
 
 ---
 

@@ -34,6 +34,7 @@ use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\AuthorizedFetchService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -99,6 +100,12 @@ class ActivityPubControllerTest extends TestCase {
 	private $pinService;
 	/** @var InstanceActorService&MockObject */
 	private $instanceActorService;
+	private $authorizedFetchService;
+
+	/** The remote account a signed GET resolved to, if a test says so. */
+	private ?Person $signedReader = null;
+	/** Whether this instance answers only signed GETs. */
+	private bool $secureMode = false;
 	/** @var ConfigService&MockObject */
 	private $configService;
 	/** @var IInitialState&MockObject */
@@ -133,6 +140,18 @@ class ActivityPubControllerTest extends TestCase {
 		// Response::getHeaders() stamps X-Request-Id from the container's request
 		\OC::$server->register(IRequest::class, $this->request);
 
+		$this->authorizedFetchService = $this->createMock(AuthorizedFetchService::class);
+		$this->authorizedFetchService->method('reader')->willReturnCallback(
+			fn (): ?Person => $this->signedReader
+		);
+		$this->authorizedFetchService->method('assertReadable')->willReturnCallback(
+			function (IRequest $request, ?Person $reader): void {
+				if ($this->secureMode && $reader === null) {
+					throw new SignatureException('signed requests only');
+				}
+			}
+		);
+
 		$this->controller = new AsyncFreeActivityPubController(
 			$this->request,
 			$this->socialPubController,
@@ -148,6 +167,7 @@ class ActivityPubControllerTest extends TestCase {
 			$this->streamRequest,
 			$this->pinService,
 			$this->instanceActorService,
+			$this->authorizedFetchService,
 			$this->configService,
 			$this->initialState,
 			$this->logger
@@ -1188,5 +1208,100 @@ class ActivityPubControllerTest extends TestCase {
 			array_keys(end($exported['@context'])),
 			'the document names a type no reader can resolve without the FEP-044f terms'
 		);
+	}
+
+	// authorized fetch, and secure mode
+
+	/**
+	 * Signature verification ran on inbox POSTs only, so this instance could
+	 * not tell one remote reader from another: every ActivityPub GET served
+	 * what an anonymous reader gets, and a follower on another server saw a
+	 * profile with nothing on it.
+	 */
+	public function testASignedFetchIsTheViewerAPostIsReadAs(): void {
+		$this->acceptHeader('application/activity+json');
+		$this->accountService->method('getCurrentViewer')
+			->willThrowException(new AccountDoesNotExistException());
+		$this->signedReader = $this->createMock(Person::class);
+		$this->streamService->expects($this->once())->method('setViewer')->with($this->signedReader);
+		$stream = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamById')->willReturn($stream);
+
+		$this->assertActivityPubResponse($this->controller->displayPost('alice', 'abc123'), $stream);
+	}
+
+	/** An unsigned GET is the ordinary case and gets what it always got. */
+	public function testAnUnsignedFetchReadsAsNobody(): void {
+		$this->acceptHeader('application/activity+json');
+		$this->accountService->method('getCurrentViewer')
+			->willThrowException(new AccountDoesNotExistException());
+		$this->streamService->expects($this->never())->method('setViewer');
+		$this->streamService->method('getStreamById')->willReturn($this->createMock(Stream::class));
+
+		$this->controller->displayPost('alice', 'abc123');
+	}
+
+	/** A local session wins: the person at the keyboard is who is asking. */
+	public function testALocalViewerIsNotReplacedByASignedFetch(): void {
+		$this->acceptHeader('application/activity+json');
+		$viewer = $this->createMock(Person::class);
+		$this->accountService->method('getCurrentViewer')->willReturn($viewer);
+		$this->signedReader = $this->createMock(Person::class);
+		$this->streamService->expects($this->once())->method('setViewer')->with($viewer);
+		$this->streamService->method('getStreamById')->willReturn($this->createMock(Stream::class));
+
+		$this->controller->displayPost('alice', 'abc123');
+	}
+
+	/**
+	 * Secure mode is off by default, because turning it on makes this instance
+	 * invisible to every peer that does not sign its fetches.
+	 */
+	public function testWithoutSecureModeAnUnsignedActorFetchIsAnswered(): void {
+		$this->acceptHeader('application/activity+json');
+		$actor = $this->localActor('alice');
+
+		$this->assertActivityPubResponse($this->controller->actor('alice'), $actor);
+	}
+
+	public function testInSecureModeAnUnsignedActorFetchIsRefused(): void {
+		$this->acceptHeader('application/activity+json');
+		$this->secureMode = true;
+		$this->localActor('alice');
+
+		$response = $this->controller->actor('alice');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	public function testInSecureModeASignedActorFetchIsAnswered(): void {
+		$this->acceptHeader('application/activity+json');
+		$this->secureMode = true;
+		$this->signedReader = $this->createMock(Person::class);
+		$actor = $this->localActor('alice');
+
+		$this->assertActivityPubResponse($this->controller->actor('alice'), $actor);
+	}
+
+	public function testInSecureModeAnUnsignedPostFetchIsRefused(): void {
+		$this->acceptHeader('application/activity+json');
+		$this->secureMode = true;
+		$this->streamService->expects($this->never())->method('getStreamById');
+
+		$response = $this->controller->displayPost('alice', 'abc123');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	/** A browser asking for the page is not making an ActivityPub fetch. */
+	public function testSecureModeDoesNotRefuseABrowser(): void {
+		$this->acceptHeader('text/html');
+		$this->secureMode = true;
+		$this->cacheActorService->method('getFromLocalAccount')
+			->willReturn($this->createMock(Person::class));
+		$this->socialPubController->method('actor')
+			->willReturn(new \OCP\AppFramework\Http\TemplateResponse('social', 'main'));
+
+		$this->assertNotSame(Http::STATUS_UNAUTHORIZED, $this->controller->actor('alice')->getStatus());
 	}
 }

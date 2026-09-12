@@ -35,6 +35,7 @@ use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\AuthorizedFetchService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -83,6 +84,10 @@ class ActivityPubController extends Controller {
 	private IInitialState $initialState;
 	private LoggerInterface $logger;
 
+	/** The account behind a signed GET, resolved at most once a request. */
+	private ?Person $fetchReader = null;
+	private bool $readerResolved = false;
+
 	public function __construct(
 		IRequest $request,
 		SocialPubController $socialPubController,
@@ -98,6 +103,7 @@ class ActivityPubController extends Controller {
 		private StreamRequest $streamRequest,
 		private PinService $pinService,
 		private InstanceActorService $instanceActorService,
+		private AuthorizedFetchService $authorizedFetchService,
 		ConfigService $configService,
 		IInitialState $initialState,
 		LoggerInterface $logger,
@@ -153,13 +159,45 @@ class ActivityPubController extends Controller {
 		}
 
 		try {
+			$this->assertReadable();
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$actor->setDisplayW3ContextSecurity(true);
 
 			return $this->activityPubSuccess($actor);
+		} catch (SignatureException $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
 		} catch (Exception $e) {
 			return $this->fail($e, [], 404);
 		}
+	}
+
+	/**
+	 * The remote account behind a signed GET, resolved once a request.
+	 *
+	 * Signature verification ran on inbox POSTs only, so this instance could
+	 * not tell one remote reader from another: every ActivityPub GET served
+	 * what an anonymous reader gets. That failed closed, which is safe, and is
+	 * also why a follower on another server saw a profile with nothing on it.
+	 */
+	private function reader(): ?Person {
+		if ($this->readerResolved) {
+			return $this->fetchReader;
+		}
+
+		$this->readerResolved = true;
+		$this->fetchReader = $this->authorizedFetchService->reader($this->request);
+
+		return $this->fetchReader;
+	}
+
+	/**
+	 * Refuses the request when this instance is in secure mode and nothing
+	 * signed it.
+	 *
+	 * @throws SignatureException
+	 */
+	private function assertReadable(): void {
+		$this->authorizedFetchService->assertReadable($this->request, $this->reader());
 	}
 
 	/**
@@ -736,9 +774,24 @@ class ActivityPubController extends Controller {
 
 		if ($this->checkSourceActivityStreams()) {
 			try {
+				$this->assertReadable();
+			} catch (SignatureException $e) {
+				return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+			}
+
+			try {
 				$viewer = $this->accountService->getCurrentViewer();
 				$this->streamService->setViewer($viewer);
 			} catch (AccountDoesNotExistException $e) {
+				// nobody local is asking. Whoever signed the fetch is the
+				// reader instead, which is what lets a followers-only post
+				// reach the people who follow it from another server — the
+				// follow rows this instance holds are the same ones the local
+				// timelines are built from
+				$reader = $this->reader();
+				if ($reader !== null) {
+					$this->streamService->setViewer($reader);
+				}
 			}
 
 			$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;

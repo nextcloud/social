@@ -57,6 +57,16 @@ class ConfigService {
 	 */
 	public const SOCIAL_SILENCED_LIST = 'silenced_list';
 
+	/**
+	 * Whether an ActivityPub GET must be signed to be answered.
+	 *
+	 * Mastodon's secure mode. Off by default, and deliberately: turning it on
+	 * makes this instance invisible to every peer that does not sign its
+	 * fetches, which is a decision about who an instance federates with rather
+	 * than something to arrive at by upgrading.
+	 */
+	public const SOCIAL_SECURE_MODE = 'secure_mode';
+
 	public array $defaults = [
 		self::CLOUD_URL => '',
 		self::SOCIAL_URL => '',
@@ -68,7 +78,8 @@ class ConfigService {
 		self::SOCIAL_SELF_SIGNED => '0',
 		self::SOCIAL_INBOX_THROTTLE => '300',
 		self::SOCIAL_RETENTION_DAYS => '0',
-		self::SOCIAL_SILENCED_LIST => '[]'
+		self::SOCIAL_SILENCED_LIST => '[]',
+		self::SOCIAL_SECURE_MODE => '0'
 	];
 
 	public array $accessTypeList = [

@@ -1396,4 +1396,143 @@ class SignatureServiceTest extends TestCase {
 		$this->expectException(InvalidOriginException::class);
 		$this->service->assertSignerSpeaksFor('', $activity);
 	}
+
+	// authorized fetch: the signature on a GET
+
+	/**
+	 * A GET as a peer running authorized fetch sends one: no body, so no
+	 * digest and no content length, and `(request-target)` naming the object
+	 * being fetched.
+	 */
+	private function signedGetHeaders(
+		string $privateKey,
+		array $overrides = [],
+		string $headerList = '(request-target) host date',
+		string $target = '/apps/social/@alice/abc123',
+	): array {
+		$headers = array_merge([
+			'date' => gmdate(SignatureService::DATE_HEADER),
+			'host' => self::CLOUD_HOST,
+		], $overrides);
+
+		$lines = [];
+		foreach (explode(' ', $headerList) as $key) {
+			$lines[] = $key === '(request-target)'
+				? '(request-target): get ' . $target
+				: $key . ': ' . $headers[$key];
+		}
+		openssl_sign(implode("\n", $lines), $signed, $privateKey, OPENSSL_ALGO_SHA256);
+
+		$headers['signature'] = sprintf(
+			'keyId="%s",algorithm="rsa-sha256",headers="%s",signature="%s"',
+			self::REMOTE_KEY_ID, $headerList, base64_encode($signed)
+		);
+
+		return $headers;
+	}
+
+	private function incomingGet(array $headers, string $target = '/apps/social/@alice/abc123'): IRequest|MockObject {
+		$request = $this->createMock(IRequest::class);
+		$request->method('getHeader')->willReturnCallback(
+			static fn (string $name) => $headers[strtolower($name)] ?? ''
+		);
+		$request->method('getMethod')->willReturn('GET');
+		$request->method('getRequestUri')->willReturn($target);
+		$request->method('getServerProtocol')->willReturn('https');
+
+		return $request;
+	}
+
+	/**
+	 * Signature verification ran on inbox POSTs only, so this instance could
+	 * not tell one remote reader from another.
+	 */
+	public function testCheckGetRequestNamesWhoSignedAFetch(): void {
+		$headers = $this->signedGetHeaders(self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$signer = '';
+		$origin = $this->service->checkGetRequest($this->incomingGet($headers), $signer);
+
+		$this->assertSame('remote.example', $origin);
+		$this->assertSame(self::REMOTE_ACTOR, $signer);
+	}
+
+	/**
+	 * The ordinary case — every crawler, every link preview, every server not
+	 * running authorized fetch — and it is not an error.
+	 */
+	public function testCheckGetRequestIsQuietForAnUnsignedFetch(): void {
+		$signer = '';
+
+		$this->assertSame('', $this->service->checkGetRequest($this->incomingGet([]), $signer));
+		$this->assertSame('', $signer);
+	}
+
+	/** A GET has no body, so there is no digest for the signature to bind. */
+	public function testCheckGetRequestDoesNotAskForADigest(): void {
+		$headers = $this->signedGetHeaders(self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertArrayNotHasKey('digest', $headers);
+		$this->assertSame('remote.example', $this->service->checkGetRequest($this->incomingGet($headers)));
+	}
+
+	/**
+	 * A signature that is present and wrong is an error: the sender is
+	 * claiming to be somebody.
+	 */
+	public function testCheckGetRequestRefusesASignatureFromAnotherKey(): void {
+		$headers = $this->signedGetHeaders(self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+
+		$this->expectException(SignatureException::class);
+
+		$this->service->checkGetRequest($this->incomingGet($headers));
+	}
+
+	/**
+	 * Without a date inside the signature, a captured fetch can be replayed
+	 * for as long as the key lives.
+	 */
+	public function testCheckGetRequestRefusesASignatureThatCoversNoDate(): void {
+		$headers = $this->signedGetHeaders(
+			self::$privateKey, [], '(request-target) host'
+		);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('date');
+
+		$this->service->checkGetRequest($this->incomingGet($headers));
+	}
+
+	/** And a date outside the replay window is refused on its own. */
+	public function testCheckGetRequestRefusesAStaleDate(): void {
+		$headers = $this->signedGetHeaders(
+			self::$privateKey, ['date' => gmdate(SignatureService::DATE_HEADER, time() - 86400)]
+		);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->expectException(SignatureException::class);
+
+		$this->service->checkGetRequest($this->incomingGet($headers));
+	}
+
+	/** A captured fetch must not be replayable against another instance. */
+	public function testCheckGetRequestRefusesASignatureThatCoversNoTarget(): void {
+		$headers = $this->signedGetHeaders(self::$privateKey, [], 'host date');
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('(request-target)');
+
+		$this->service->checkGetRequest($this->incomingGet($headers));
+	}
 }
