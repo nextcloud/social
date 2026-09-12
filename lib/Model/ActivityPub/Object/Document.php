@@ -536,14 +536,24 @@ class Document extends ACore implements JsonSerializable {
 
 		$media->setRemoteUrl($this->getUrl());
 
-		if ($this->getMeta() === null) {
-			$meta = new AttachmentMeta();
-			$meta->setOriginal(new AttachmentMetaDim($this->getLocalCopySize()))
-				->setSmall(new AttachmentMetaDim($this->getResizedCopySize()))
-				->setFocus(new AttachmentMetaFocus($this->getFocusX(), $this->getFocusY()));
-
-			$this->setMeta($meta);
+		// Filled in rather than built only when absent. A document may already
+		// carry *part* of a meta -- a video is given its duration when it is
+		// stored, before anything knows its dimensions -- and the whole block
+		// used to be skipped whenever anything at all was there, so the video
+		// went out with a running time and no size. Each half is only supplied
+		// where the document has nothing.
+		$meta = $this->getMeta() ?? new AttachmentMeta();
+		if ($meta->getOriginal() === null) {
+			$meta->setOriginal(new AttachmentMetaDim($this->getLocalCopySize()));
 		}
+		if ($meta->getSmall() === null) {
+			$meta->setSmall(new AttachmentMetaDim($this->getResizedCopySize()));
+		}
+		if ($meta->getFocus() === null) {
+			$meta->setFocus(new AttachmentMetaFocus($this->getFocusX(), $this->getFocusY()));
+		}
+
+		$this->setMeta($meta);
 
 		$media->setMeta($this->getMeta())
 			->setDescription($this->getDescription())
