@@ -28,31 +28,28 @@ Re-measure before quoting it. Query and scalability behaviour lives in
 
 ## The shape of what is left
 
-The app is 77,200 lines of PHP across 418 files in `lib/`, and 17,762 lines of
+The app is 76,325 lines of PHP across 415 files in `lib/`, and 17,762 lines of
 JavaScript and Vue across 81 files in `src/`.
 
 | Theme | Severity | Size |
 |---|---|---|
-| The hand-rolled HTTP request model in front of the OCP client | Medium | 856 LOC |
 | The superseded half of the Custom Local API | Medium | 18 routes |
-| Every occ command extends a private core class | Medium | 20 commands |
-| Routes as an array rather than attributes | Low | 202 routes |
-| The 2022–2023 migration block, now testable | Low | 1,654 LOC |
+| Delivery re-encodes the bytes it was asked to preserve | Medium | 1 call |
 | Translation catalogue covers under 40 % of source strings | Low | — |
 | PHPUnit 12 | Low | ~3,100 stub migrations |
 
-The largest item in every previous version of this document — a vendored toolkit
-whose query builder extended a private core class — is gone, and with it the
-argument that `lib/Tools/` is load-bearing. What is left of that directory is
-helpers and traits: 3,495 lines that no longer reach outside `OCP\`, and one
-model (`Request`) that is genuinely worth replacing rather than merely old.
+The two largest items in every previous version of this document are both gone.
+The vendored toolkit's query builder no longer extends a private core class, and
+the 856-line request model in front of the OCP HTTP client has been deleted
+rather than ported. `lib/Tools/` is 25 files and 2,657 lines of helpers and
+traits now — a third of what it was, and nothing in it reaches outside `OCP\`.
 
-**One name from outside `OCP\` is left in `lib/`,** and it is in the next
-section. `\OC::$server`, `OC\SystemConfig`, `OC\DB\Connection`,
+**Nothing in `lib/` names a class outside `OCP\` any more,** and a unit test
+holds it there. `\OC::$server`, `OC\SystemConfig`, `OC\DB\Connection`,
 `OC\DB\SchemaWrapper`, `OC\DB\QueryBuilder\QueryBuilder`,
-`OC\User\NoUserException` and every `Doctrine\` class are gone from lib/; the
-matches that remain for those are sentences in docblocks explaining what used
-to be there.
+`OC\User\NoUserException`, `OC\Core\Command\Base` and every `Doctrine\`
+class are gone; the matches that remain for those names are sentences in
+docblocks explaining what used to be there.
 
 ---
 
@@ -80,47 +77,6 @@ recent share.
 
 ---
 
-## Every occ command extends a private core class
-
-All twenty commands in `lib/Command/` extend `OC\Core\Command\Base`, which
-lives in the server's `core/` and carries no stability promise — the same shape
-of dependency the query builder had, with the same failure mode: a signature
-change upstream is a fatal on somebody's `occ`, with no deprecation first.
-
-It is a smaller problem than the query builder was, because the blast radius is
-the command line rather than every database call, and because what `Base`
-provides is easy to name: `parent::configure()` adds the `--output` option, and
-21 call sites use `writeArrayInOutputFormat()` and its siblings to honour it.
-The public alternative is Symfony's own `Command`, which the server itself is
-moving towards, plus a small trait of this app's own for the three output
-formats — the app already writes tables by hand in several of these commands.
-
-Doing it means deciding what `occ social:* --output=json` prints, which is a
-published interface of its own. That is why it is listed rather than done.
-
-## The federation transport is modelled twice
-
-`lib/Tools/Model/Request` and `NCRequest` are 856 lines describing an HTTP
-request — protocol, host, port, path, headers, cookies, query-string flavour,
-timeouts, whether errors are allowed — which `CurlService` then translates into
-options for `OCP\Http\Client\IClient`. It is an OCP client wrapped in a pre-OCP
-abstraction: the app is not making its own HTTP calls, it is making its own
-description of them first.
-
-Nine services build an `NCRequest`, and one of them is `SignatureService`, which
-signs outbound activities over the request's method, path and headers. That is
-what makes this the most delicate item in the report rather than the largest.
-A wrong header name, a path normalised differently, a header written in another
-order, and signatures still verify locally while every peer rejects them —
-and nothing in the test suite talks to a real peer.
-
-So it wants a change of its own with interop testing behind it, against a real
-Mastodon and a real Pixelfed, not a refactor folded into a cleanup wave. It is
-listed here at medium severity because the code works; what it costs is that
-every change to outbound HTTP has to be made in two places.
-
----
-
 ## Two API generations in one URL namespace
 
 The app serves two API designs, and they share the `/api/v1/` prefix.
@@ -144,21 +100,18 @@ surface. Retiring them retires that whole query layer; it needs a deprecation
 cycle and a release note, which is a decision about the app's compatibility
 promise rather than a cleanup.
 
-### Routes are still an array
+### Routes are attributes now
 
-199 of the 202 routes in `appinfo/routes.php` could be `#[FrontpageRoute]` and
-`#[ApiRoute]` attributes on the methods they belong to. The attributes are
-`@since 29.0.0`, so the old Nextcloud 28 floor ruled them out; the floor is 35
-now and nothing blocks them.
+199 of the 202 routes moved onto the methods they belong to; one stays in
+`appinfo/routes.php`, and the file explains why. `/api/v1/accounts/{id}` accepts
+slashes, so it also matches two routes that live in other controllers and has to
+be offered to the matcher after them — and attribute routes are contributed one
+controller at a time in filesystem order, so no arrangement of attributes can
+put it last. The array file is loaded after every attribute route, which is the
+guarantee that one route needs.
 
-It is still last on the list, and one detail is worth knowing before starting:
-`tests/DocumentationTest.php` derives the documented route table by `require`-ing
-`appinfo/routes.php` and reading the array. Moving the routes to attributes
-without rewriting that test to reflect over the controllers would leave the API
-documentation checked against an empty list — the test would pass while
-asserting nothing. The URL would move next to the method, which is the whole
-benefit, and 202 opportunities for a silent typo in a published path is the
-cost.
+`tests/DocumentationTest.php` reads the attributes by reflection the way the
+server does, and treats an empty route table as a failure rather than a pass.
 
 ---
 
@@ -167,23 +120,31 @@ cost.
 `Performance.md` covers query behaviour and the index and schema-shape hazards.
 What follows is the debt in the migration set itself.
 
-All 33 schema steps use the frozen prefix `Version1000Date`, so only the date
+All 30 schema steps use the frozen prefix `Version1000Date`, so only the date
 orders them:
 
 | Era | Steps |
 |---|---|
-| 2022-11-18 | 1 (creates all 14 original tables, 1,451 lines) |
-| 2023-02 to 2023-04 | 3 (all repairs of the 2022 one) |
+| 2022-11-18 | 1 (creates all 14 original tables) |
 | 2026-06-11 | 1 (drops 14 legacy `social_3_*` tables) |
 | 2026-09-07 onward | 28 |
 
 There are numbering gaps at `20260911000003`, `000012` and `000015`–`000019`,
 and most steps were authored in a six-day window.
 
-Two squash candidates are clean: the 2022 creation plus its three 2023 repairs
-(1,654 lines, two of them chasing the same `social_cache_actor` primary-key
-defect), and `Version1000Date20260908000001`, which widens a column introduced
-one day earlier in the same burst.
+The 2023 block is gone: its three steps repaired instances the 2022 step had
+created, and the 2022 step had been edited over the years to produce the
+repaired shape directly, so what they still did for a new instance was one
+column. Running both paths through the test doubles and diffing the schemas is
+what established that.
+
+One squash candidate is left and is deliberately not taken.
+`Version1000Date20260908000001` widens a column introduced one day earlier, and
+both shipped in 0.16.0 — but an instance on 0.15 running Nextcloud 35 has run
+neither, so folding the width into the creating step would leave it with a
+column too narrow for its own client secrets. The argument that retired the 2023
+steps does not transfer: the Nextcloud floor says which server an instance is
+on, not which version of this app.
 
 `Version1000Date20260611000001` drops fourteen `social_3_*` tables that **no
 other file in the tree ever creates** — the creating migrations were deleted and
@@ -191,13 +152,9 @@ only the drop survives, so it is dead weight on every fresh install. The legacy
 naming split it addresses is finished: there is no `social_a2_*` prefix
 anywhere, and all 32 current tables are both read and written.
 
-**Squashing is no longer blocked, and is still not done.** The stated blocker was
-that the 2022–2023 era had no test coverage, so a mistake would surface as a
-failed `occ upgrade` rather than a red build; `tests/Migration/InitialSchemaTest`
-and `SchemaRepairs2023Test` now record what those four steps produce between
-them, which is exactly what a squash has to preserve. What remains is not a
-coverage problem: squashing rewrites the upgrade path for every existing
-instance, and that is a release decision.
+`tests/Migration/InitialSchemaTest` records what the creation step produces,
+including the columns and keys the retired repairs used to add. That is what any
+further squash has to preserve.
 
 ### Two columns written and never read
 
@@ -217,11 +174,11 @@ nothing reads. The keys are still worth having — this is a note on the cost.
 need them, but no `<script setup>` and no wholesale move to composition. That is
 a style question rather than debt: the components are consistent with each other.
 
-**JSDoc typedefs that nothing checks.** `src/types/ActivityPub.js` and
-`src/types/Mastodon.js` (237 lines) are imported as types by 22 files — up from
-ten a week ago, so the habit is spreading — but there is no root `tsconfig.json`
-and no `checkJs`, so nothing validates them against the real API shapes. Turning
-on `checkJs` for `src/types/` and its importers is the smallest useful step.
+**The JSDoc typedefs are checked.** `jsconfig.json` runs `checkJs` over the
+types, services, stores and utilities, and `npm run typecheck` is a script.
+Single-file components are outside it, because `tsc` cannot resolve a `.vue`
+import without `vue-tsc` and every entry point imports one — that is the next
+step here, and it needs a dependency rather than a decision.
 
 **Three ESLint rules are switched off**, and `eslint.config.mjs` says why next to
 each. Sorting imports (247 reports) detaches the comments that explain the
@@ -261,23 +218,23 @@ more places than that one.
 
 ## Remaining odds and ends
 
-**32 `@deprecated` markers in `lib/`, 20 of them on methods with live callers**,
-led by `Request::getUrl` (55 callers, deprecated in favour of `getPath()` by
-toolkit version 19), `CoreRequestBuilder::leftJoinStreamAction` (17) and
-`limitToId` (12). Most of them are in the two places this report keeps pointing
-at: the request model and `CoreRequestBuilder`. A marker with fifty-five callers
-is not a plan; it is a note that a plan was intended.
+**20 `@deprecated` markers in `lib/`, 12 of them on methods with live callers**,
+led by `CoreRequestBuilder::leftJoinStreamAction` (17) and
+`SocialLimitsQueryBuilder::limitPaginate` (8). The worst of them went with the
+request model — `Request::getUrl` had 55 callers and had been deprecated since
+toolkit version 19 — and what is left is concentrated in the query layer.
+`ACore::verify` still carries its `// TODO - Compare this with checkOrigin() -
+and delete this method.` and is down to three callers.
 
-**`CoreRequestBuilder` still reimplements ten helpers** that also exist on
-`ExtendedQueryBuilder` — one copy takes `IQueryBuilder &$qb` by reference, the
-other is a method on the builder — and
-`CoreRequestBuilder::leftJoinCacheActors()` and
-`SocialCrossQueryBuilder::leftJoinCacheActor()` are two implementations of one
-join. Now that the builder is a plain object over `IQueryBuilder`, collapsing
-the two is a mechanical change; it was not one while the builder was also a
-private core class.
+**Two joins that look like one.** `CoreRequestBuilder::leftJoinCacheActors()`
+joins case-insensitively on the full ActivityPub URL with a hand-written column
+list; `SocialCrossQueryBuilder::leftJoinCacheActor()` joins on the indexed
+hashed id, generates its column list from the schema, and pulls the actor's icon
+with it. The first is the older, slower path — `LOWER()` on unindexed text, as
+`Performance.md` describes. Collapsing them changes which rows match, in
+timeline queries, so it wants a database to check against.
 
-**Constructor promotion is at 150 of 206 (73 %).** The remaining 56 are the ones
+**Constructor promotion is at 151 of 206 (73 %).** The remaining 56 are the ones
 an automated pass should not touch: constructors that do real work in the body,
 that forward a parameter to a parent as well as storing it, or whose property
 name differs from the parameter.
@@ -429,27 +386,34 @@ sixty when twenty survive the check.
 | 35 untyped properties | Zero. Six mutable public statics became constants. |
 | The 2022–2023 migrations, untested | `InitialSchemaTest` and `SchemaRepairs2023Test`. |
 | Private core classes elsewhere in lib/ | `OC\DB\Connection` (a dead import), `OC\DB\SchemaWrapper` (two `occ social:reset` paths, now `IDBConnection::tableExists()`/`dropTable()`), `Doctrine\DBAL\Schema\SchemaException` (the OCP one exists) and `OC\User\NoUserException` (thrown by this app at this app, now its own). Six analysis suppressions went with them. |
-| Two real defects found on the way | An instance's `local` flag was bound as a string because a parameter type was passed to the wrong function; `Profile.vue`'s "User not found" panel could never appear because one query was being asked twice under two names. |
+| Every occ command on a private core class | All twenty-one extend Symfony's `Command` through the app's own `SocialCommand`, whose output is byte-identical to the server's `Base` across 109 diffed cases and the rendered `--help` of every command. |
+| Routes as an array | 201 of 202 moved onto the methods; `DocumentationTest` reads the attributes by reflection and fails on an empty table. |
+| The 2023 migration repairs | Squashed into the step they repair, after measuring that the whole difference they still made was one column. |
+| `CoreRequestBuilder` reimplementing the builder's helpers | 36 methods gone — eleven with no caller, twenty-five identical to the builder's — and 84 call sites now say `$qb->limitToId($id)`. The file lost 450 lines. |
+| Typedefs nothing checked | `jsconfig.json` plus `npm run typecheck`, which found a placeholder relationship missing two fields the server always sends, and a pagination cursor typed as a number while ids are strings. |
+| The hand-rolled HTTP request model | Deleted. Requests go to `IClient` directly, and the signing string was pinned by a test run against both trees before and after — byte for byte identical. |
+| Real defects found on the way | An instance's `local` flag was bound as a string because a parameter type was passed to the wrong function. `Profile.vue`'s "User not found" panel could never appear because one query was being asked twice under two names. And GET `/@{username}/outbox` was shadowed by its own POST, because two route attributes on one method registered under one name — the endpoint a remote server fetches an outbox from was served by the registration the documentation calls not implemented. Pinning the federation wire found five more: a delivery that signed one path and sent to another, a non-default port silently dropped when fetching a remote object, a `?tag[]=` in an id that was a TypeError, a report forward whose digest covered different bytes from the ones sent, and a webfinger response with no subject writing a garbage account name. |
 
 ---
 
 ## Rough order of value for what is left
 
-1. Replace `Tools\Model\Request` and `NCRequest` with `IClientService`, with
-   interop testing behind it.
-2. Take the twenty occ commands off `OC\Core\Command\Base`, once what
-   `--output=json` prints is settled.
-3. Collapse the ten helpers `CoreRequestBuilder` and `ExtendedQueryBuilder` both
-   implement, and the two implementations of the cache-actor join.
-4. Retire the 18 uncalled Custom Local API routes on a deprecation cycle, and
-   the five `getStream*()` / `getTimeline*_dep()` methods with them.
-5. Finish the l10n round trip.
-6. `checkJs` for the JSDoc typedefs, so the 22 files importing them are checked
-   against the API shapes.
-7. PHPUnit 12, which means `createMock` -> `createStub` across the suite.
-8. Squash the 2022–2023 migration block, if the upgrade-path rewrite is
-   acceptable.
-9. Routes as attributes, and `DocumentationTest` rewritten to read them.
+1. **Send a queued activity's stored bytes.** Delivery decodes and re-encodes
+   the activity it queued, which defeats `ForwardService` on purpose-built
+   input: that service queues `getSource()` precisely so a third party's
+   signature survives, and the transport re-encodes it anyway. It is a wire
+   change, so it wants a real peer to test against.
+2. **Retire the 18 uncalled Custom Local API routes**, and the five
+   `getStream*()` / `getTimeline*_dep()` methods with them. A decision rather
+   than a task: they are a published surface, so either the URLs go with a
+   release note, or they stay and are re-pointed at the modern query path,
+   which changes their paging semantics.
+3. Collapse the two cache-actor joins, with a database to check against.
+4. Finish the l10n round trip — a Transifex round trip, not a code change.
+5. `vue-tsc`, so the single-file components are type-checked too.
+6. PHPUnit 12, which means `createMock` -> `createStub` across the suite.
+7. The last migration squash candidate, if an instance upgrading from 0.15 is
+   no longer a case worth supporting.
 
 ---
 
