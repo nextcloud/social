@@ -107,7 +107,7 @@ webfinger both land there.
   JSON is unqueryable.
 - Five post fields used to be readable only by `json_decode`ing `source` once
   per timeline row: `tag`, `language`, `updated`, `quote` and
-  `quoteAuthorization`. `Version1000Date20260912000003` gave each a column, so
+  `quoteAuthorization`. `Version1000Date20260912000007` gave each a column, so
   `language` is now an indexed equality (`social_s_lang`) and the other four are
   read without parsing. `tags` stayed JSON, because the one facet of the `tag`
   array worth querying — the hashtags — is already `social_stream_tag`, and a

@@ -133,6 +133,7 @@ class AnnouncementController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/announcements/{id}/reactions/{name}', requirements: ['id' => '\\d+', 'name' => '.+'])]
 	public function react(int $id, string $name): DataResponse {
 		try {
 			$this->initViewer(['write:favourites']);
@@ -153,6 +154,7 @@ class AnnouncementController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/announcements/{id}/reactions/{name}', requirements: ['id' => '\\d+', 'name' => '.+'])]
 	public function unreact(int $id, string $name): DataResponse {
 		try {
 			$this->initViewer(['write:favourites']);

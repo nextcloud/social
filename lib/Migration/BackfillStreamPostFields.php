@@ -21,7 +21,7 @@ use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
 
 /**
- * Fills in the five post columns `Version1000Date20260912000003` added, for the
+ * Fills in the five post columns `Version1000Date20260912000007` added, for the
  * rows that predate them.
  *
  * The columns are empty on every existing row, and `tags`, `language`,

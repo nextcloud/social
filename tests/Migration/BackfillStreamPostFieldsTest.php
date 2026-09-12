@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * The repair step that fills in the five post columns for the rows written
- * before `Version1000Date20260912000003` added them.
+ * before `Version1000Date20260912000007` added them.
  *
  * Every one of those rows still carries the fields inside its stored wire
  * object, which is what the step reads — through `Stream::importFromDatabase()`

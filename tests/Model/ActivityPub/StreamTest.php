@@ -440,7 +440,7 @@ class StreamTest extends TestCase {
 	 * Update and every outbox entry told the peers that the people the post
 	 * mentions are not mentioned by it, and a hashtag stopped reaching any tag
 	 * timeline after the first reload. `tag` has had a column of its own since
-	 * `Version1000Date20260912000003`; this is the fallback for a row written
+	 * `Version1000Date20260912000007`; this is the fallback for a row written
 	 * before it, which is still the only thing an un-backfilled row has.
 	 */
 	public function testMentionsAndHashtagsSurviveTheDatabaseRoundTripViaTheStoredSource(): void {

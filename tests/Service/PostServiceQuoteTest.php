@@ -229,7 +229,7 @@ class PostServiceQuoteTest extends TestCase {
 	}
 
 	/**
-	 * The quote has a column since `Version1000Date20260912000003`, and the
+	 * The quote has a column since `Version1000Date20260912000007`, and the
 	 * stored wire object is still what federates on the next Update — so the
 	 * snapshot taken at creation has to hold it too. Both copies are written
 	 * from this one assembled note, which is what keeps them from disagreeing.

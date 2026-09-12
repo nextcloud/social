@@ -119,6 +119,7 @@ class FilterController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/filters')]
 	public function indexV1(): DataResponse {
 		try {
 			$this->initViewer(['read:filters', 'read']);
@@ -139,6 +140,7 @@ class FilterController extends Controller {
 	/** One v1 filter, which is one keyword of one of the viewer's filters. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/filters/{id}', requirements: ['id' => '\\d+'])]
 	public function getV1(int $id): DataResponse {
 		try {
 			$this->initViewer(['read:filters', 'read']);
@@ -162,6 +164,7 @@ class FilterController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/filters')]
 	public function createV1(
 		string $phrase = '',
 		array $context = [],
@@ -202,6 +205,7 @@ class FilterController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/filters/{id}', requirements: ['id' => '\\d+'])]
 	public function updateV1(
 		int $id,
 		?string $phrase = null,
@@ -248,6 +252,7 @@ class FilterController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/filters/{id}', requirements: ['id' => '\\d+'])]
 	public function deleteV1(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:filters', 'write']);

@@ -95,6 +95,7 @@ class Strike implements JsonSerializable {
 	 * `appeal` is always null: an appeal is something the account writes back,
 	 * and there is nowhere here for a remote account to write it.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->id,

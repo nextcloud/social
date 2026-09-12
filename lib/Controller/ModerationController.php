@@ -100,6 +100,7 @@ class ModerationController extends Controller {
 	 * @param string $status one of AdminApiService's statuses, or '' for any
 	 */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/accounts')]
 	public function accounts(
 		string $query = '',
 		string $origin = '',
@@ -179,6 +180,7 @@ class ModerationController extends Controller {
 	 * of them is not zero.
 	 */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/accounts/history')]
 	public function accountHistory(string $actorId): DataResponse {
 		$actorId = trim($actorId);
 		if ($actorId === '') {

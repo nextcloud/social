@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
  *
  * All five used to be readable only by `json_decode`ing the stored wire object
  * once per timeline row, because none of them had a column;
- * `Version1000Date20260912000003` gave each one its own. Two kinds of row exist
+ * `Version1000Date20260912000007` gave each one its own. Two kinds of row exist
  * on an upgraded instance and both have to work: one written before that step,
  * whose columns are empty and whose `source` still carries everything, and one
  * written after it. The schema change lands during `occ upgrade` and the

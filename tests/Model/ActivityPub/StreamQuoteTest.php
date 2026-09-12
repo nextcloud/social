@@ -136,7 +136,7 @@ class StreamQuoteTest extends TestCase {
 
 	/**
 	 * The quote also rides in the stored wire object, and is read back out of it
-	 * for a row written before `Version1000Date20260912000003` gave it a column
+	 * for a row written before `Version1000Date20260912000007` gave it a column
 	 * — the fallback `Stream::importFromDatabase()` keeps for exactly that, and
 	 * the only path a row the backfill has not reached is read through.
 	 */

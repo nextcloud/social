@@ -99,6 +99,7 @@ class AdminSettings implements IDelegatedSettings {
 	 * The name this section is offered under in Administration privileges.
 	 * The section has one panel, so it names what is being handed over.
 	 */
+	#[\Override]
 	public function getName(): ?string {
 		return $this->l10n->t('Moderation');
 	}
@@ -110,6 +111,7 @@ class AdminSettings implements IDelegatedSettings {
 	 * `AuthorizedAdminSetting` and validates what it is given. A delegate can
 	 * change those and nothing else under `social`.
 	 */
+	#[\Override]
 	public function getAuthorizedAppConfig(): array {
 		return [];
 	}

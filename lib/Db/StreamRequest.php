@@ -190,7 +190,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->set('sensitive', $qb->createNamedParameter($stream->isSensitive() ? 1 : 0));
 		$qb->set('source', $qb->createNamedParameter($stream->getSource()));
 		// the five fields an Update rewrites, in their own columns since
-		// Version1000Date20260912000003. They are still inside the wire object
+		// Version1000Date20260912000007. They are still inside the wire object
 		// this same statement stores, and still read from there for a row
 		// written before that step — but an edit that changed the language or
 		// took an approval back has to change the column too, or the column and
@@ -1628,7 +1628,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 	/**
 	 * The five fields that used to live only inside the stored wire object,
-	 * written to the columns Version1000Date20260912000003 added.
+	 * written to the columns Version1000Date20260912000007 added.
 	 *
 	 * One helper for both write paths on purpose: an insert and an edit have to
 	 * agree about what the columns hold, and `sensitive` is the reminder of

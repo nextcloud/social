@@ -463,6 +463,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/ip_blocks')]
 	public function ipBlocks(): DataResponse {
 		try {
 			$this->initAdmin();
@@ -475,6 +476,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/ip_blocks/{id}', requirements: ['id' => '\\d+'])]
 	public function ipBlock(int $id): DataResponse {
 		try {
 			$this->initAdmin();
@@ -496,6 +498,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/ip_blocks')]
 	public function ipBlockCreate(
 		string $ip = '',
 		string $severity = AccessBlock::SEVERITY_NO_ACCESS,
@@ -524,6 +527,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/admin/ip_blocks/{id}', requirements: ['id' => '\\d+'])]
 	public function ipBlockUpdate(
 		int $id,
 		string $severity = AccessBlock::SEVERITY_NO_ACCESS,
@@ -550,6 +554,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/admin/ip_blocks/{id}', requirements: ['id' => '\\d+'])]
 	public function ipBlockRemove(int $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -570,6 +575,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/email_domain_blocks')]
 	public function emailDomainBlocks(): DataResponse {
 		try {
 			$this->initAdmin();
@@ -582,6 +588,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/email_domain_blocks/{id}', requirements: ['id' => '\\d+'])]
 	public function emailDomainBlock(int $id): DataResponse {
 		try {
 			$this->initAdmin();
@@ -596,6 +603,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/email_domain_blocks')]
 	public function emailDomainBlockCreate(string $domain = ''): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -612,6 +620,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/admin/email_domain_blocks/{id}', requirements: ['id' => '\\d+'])]
 	public function emailDomainBlockRemove(int $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -639,6 +648,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/trends/tags')]
 	public function trendTags(int $limit = 10): DataResponse {
 		try {
 			$this->initAdmin();
@@ -656,6 +666,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/trends/statuses')]
 	public function trendStatuses(int $limit = 10, int $offset = 0): DataResponse {
 		try {
 			$this->initAdmin();
@@ -673,6 +684,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/trends/links')]
 	public function trendLinks(int $limit = 10, int $offset = 0): DataResponse {
 		try {
 			$this->initAdmin();
@@ -702,6 +714,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/measures')]
 	public function measures(
 		array $keys = [],
 		string $start_at = '',
@@ -732,6 +745,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/dimensions')]
 	public function dimensions(
 		array $keys = [],
 		string $start_at = '',
@@ -764,6 +778,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/retention')]
 	public function retention(string $start_at = '', string $end_at = ''): DataResponse {
 		try {
 			$this->initAdmin();

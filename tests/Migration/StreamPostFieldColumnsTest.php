@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Migration;
 
 use Closure;
-use OCA\Social\Migration\Version1000Date20260912000003;
+use OCA\Social\Migration\Version1000Date20260912000007;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\Types;
 use OCP\Migration\IOutput;
@@ -51,7 +51,7 @@ class StreamPostFieldColumnsTest extends TestCase {
 		array $existingColumns = [],
 		array $existingIndexes = [],
 	): ?ISchemaWrapper {
-		$schema = (new Version1000Date20260912000003())->changeSchema(
+		$schema = (new Version1000Date20260912000007())->changeSchema(
 			$this->createMock(IOutput::class),
 			$this->schemaClosure($hasTable, $existingColumns, $existingIndexes),
 			[]

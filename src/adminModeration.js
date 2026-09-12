@@ -164,7 +164,8 @@ export async function history(event) {
 
 	try {
 		const data = await call(
-			'GET', '/accounts/history?actorId=' + encodeURIComponent(row.dataset.actorId),
+			'GET',
+			'/accounts/history?actorId=' + encodeURIComponent(row.dataset.actorId),
 		)
 		const detail = document.createElement('tr')
 		detail.className = 'social-account-history-row'
@@ -278,8 +279,7 @@ export async function moderate(event) {
 
 	const row = button.closest('tr')
 	const level = button.dataset.level
-	if (level === 'suspend' && !window.confirm(t('social',
-		'Suspending deletes every post this account has here and refuses anything it sends afterwards. '
+	if (level === 'suspend' && !window.confirm(t('social', 'Suspending deletes every post this account has here and refuses anything it sends afterwards. '
 		+ 'Lifting the suspension later will not bring the posts back. Continue?'))) {
 		return
 	}

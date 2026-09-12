@@ -108,6 +108,7 @@ class CustomEmoji implements JsonSerializable {
 		];
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		$emoji = [
 			'shortcode' => $this->shortcode,

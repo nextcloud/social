@@ -871,7 +871,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		// Five fields that used to be read out of the stored wire object and
 		// nowhere else, because none of them had a column;
-		// Version1000Date20260912000003 gave each one its own, and the column
+		// Version1000Date20260912000007 gave each one its own, and the column
 		// is what is read now. The reasoning that put them in the JSON is kept
 		// below, at the fallback, because the fallback is still what a row
 		// written before that step is read through.

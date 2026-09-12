@@ -27,16 +27,18 @@ const SECTION = `
 	</div>
 `
 
-const account = (overrides = {}) => ({
-	actor_id: 'https://remote.example/users/bob',
-	handle: 'bob@remote.example',
-	username: 'bob',
-	domain: 'remote.example',
-	local: false,
-	level: '',
-	strikes: 0,
-	...overrides,
-})
+function account(overrides = {}) {
+	return {
+		actor_id: 'https://remote.example/users/bob',
+		handle: 'bob@remote.example',
+		username: 'bob',
+		domain: 'remote.example',
+		local: false,
+		level: '',
+		strikes: 0,
+		...overrides,
+	}
+}
 
 /**
  * Answers every fetch with one body.
@@ -45,7 +47,7 @@ const account = (overrides = {}) => ({
  * @param {boolean} ok whether it answered 2xx
  * @return {object} the mocked fetch
  */
-const answering = (body, ok = true) => {
+function answering(body, ok = true) {
 	const fetch = vi.fn().mockResolvedValue({ ok, json: () => Promise.resolve(body) })
 	globalThis.fetch = fetch
 
@@ -206,9 +208,7 @@ describe('moderating from the account browser', () => {
 		answering({ error: 'nope' }, false)
 
 		buttons(rows()[0])[0].click()
-		await vi.waitFor(() =>
-			expect(OC.Notification.showTemporary).toHaveBeenCalledWith('Could not apply the decision'),
-		)
+		await vi.waitFor(() => expect(OC.Notification.showTemporary).toHaveBeenCalledWith('Could not apply the decision'))
 
 		expect(cells(rows()[0])[2]).toBe('Nothing')
 	})
@@ -232,9 +232,7 @@ describe('taking a reported post down', () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true)
 
 		document.querySelector('.social-status-remove').click()
-		await vi.waitFor(() =>
-			expect(document.querySelector('.social-report-status').textContent).toBe('Taken down'),
-		)
+		await vi.waitFor(() => expect(document.querySelector('.social-report-status').textContent).toBe('Taken down'))
 
 		expect(fetch.mock.calls[0][0]).toContain('/moderation/statuses/remove')
 		expect(JSON.parse(fetch.mock.calls[0][1].body))
@@ -255,9 +253,7 @@ describe('taking a reported post down', () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true)
 
 		document.querySelector('.social-status-remove').click()
-		await vi.waitFor(() =>
-			expect(OC.Notification.showTemporary).toHaveBeenCalledWith('Could not take the post down'),
-		)
+		await vi.waitFor(() => expect(OC.Notification.showTemporary).toHaveBeenCalledWith('Could not take the post down'))
 
 		expect(document.querySelector('.social-report-status').textContent).not.toBe('Taken down')
 	})
@@ -341,9 +337,7 @@ describe('the history behind a strike count', () => {
 		})
 
 		rows()[0].querySelector('.social-account-history').click()
-		await vi.waitFor(() =>
-			expect(document.querySelectorAll('.social-account-history-row li')).toHaveLength(2),
-		)
+		await vi.waitFor(() => expect(document.querySelectorAll('.social-account-history-row li')).toHaveLength(2))
 
 		expect(fetch.mock.calls[0][0])
 			.toContain('actorId=https%3A%2F%2Fremote.example%2Fusers%2Fbob')
@@ -353,9 +347,7 @@ describe('the history behind a strike count', () => {
 		answering({ strikes: [{ action: 'none', text: '', moderator: '', report_id: 0, creation: 1 }] })
 
 		rows()[0].querySelector('.social-account-history').click()
-		await vi.waitFor(() =>
-			expect(document.querySelector('.social-account-history-row')).not.toBeNull(),
-		)
+		await vi.waitFor(() => expect(document.querySelector('.social-account-history-row')).not.toBeNull())
 
 		rows()[0].querySelector('.social-account-history').click()
 		expect(document.querySelector('.social-account-history-row')).toBeNull()
@@ -365,9 +357,7 @@ describe('the history behind a strike count', () => {
 		answering({ error: 'nope' }, false)
 
 		rows()[0].querySelector('.social-account-history').click()
-		await vi.waitFor(() =>
-			expect(OC.Notification.showTemporary).toHaveBeenCalledWith('Could not read the history'),
-		)
+		await vi.waitFor(() => expect(OC.Notification.showTemporary).toHaveBeenCalledWith('Could not read the history'))
 	})
 
 	it('offers nothing to open for an account with no history', async () => {
@@ -382,7 +372,11 @@ describe('the history behind a strike count', () => {
 describe('one line of a history', () => {
 	it('says when, what, who and why', () => {
 		expect(strikeLine({
-			action: 'silence', text: 'spam', moderator: 'mod', report_id: 4, creation: 1757548800,
+			action: 'silence',
+			text: 'spam',
+			moderator: 'mod',
+			report_id: 4,
+			creation: 1757548800,
 		})).toBe('2025-09-11 — Silenced — mod: spam')
 	})
 

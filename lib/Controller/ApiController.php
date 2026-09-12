@@ -634,6 +634,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts')]
 	public function accountNew(): DataResponse {
 		return new DataResponse(
 			[
@@ -691,6 +692,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/emoji/{shortcode}')]
 	public function emojiOpen(string $shortcode): Response {
 		try {
 			$emoji = $this->emojiService->byShortcode($shortcode);
@@ -1755,6 +1757,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 10, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/peers')]
 	public function instancePeers(): DataResponse {
 		try {
 			return new DataResponse($this->instanceService->getPeers(), Http::STATUS_OK);
@@ -1776,6 +1779,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 10, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/activity')]
 	public function instanceActivity(): DataResponse {
 		try {
 			return new DataResponse($this->instanceService->getWeeklyActivity(), Http::STATUS_OK);
@@ -1795,6 +1799,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/preferences')]
 	public function preferences(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1829,6 +1834,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/familiar_followers')]
 	public function familiarFollowers(array|string $id = []): DataResponse {
 		try {
 			$this->initViewer(true);

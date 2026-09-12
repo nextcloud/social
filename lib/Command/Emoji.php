@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\EmojiService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -24,13 +23,14 @@ use Symfony\Component\Console\Output\OutputInterface;
  * carried no `Emoji` tags, so emoji from every other instance rendered here
  * and this one could publish none.
  */
-class Emoji extends Base {
+class Emoji extends SocialCommand {
 	public function __construct(
 		private EmojiService $emojiService,
 	) {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure(): void {
 		parent::configure();
 		$this->setName('social:emoji')
@@ -45,6 +45,7 @@ class Emoji extends Base {
 	/**
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$shortcode = (string)$input->getArgument('shortcode');
 

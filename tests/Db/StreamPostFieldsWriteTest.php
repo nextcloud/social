@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
  * The five post fields are only worth a column if every write path fills it.
  *
  * Reading them back out of `social_stream` is the whole point of
- * `Version1000Date20260912000003`, and a column an insert leaves empty parses as
+ * `Version1000Date20260912000007`, and a column an insert leaves empty parses as
  * "this post has no language" — indistinguishable from the honest answer, and
  * invisible until a language filter reports the post as having none. An edit
  * that does not write it is worse: the column then holds what the post used to

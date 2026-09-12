@@ -44,6 +44,7 @@ class AccessBlockMiddleware extends Middleware {
 	) {
 	}
 
+	#[\Override]
 	public function beforeController(Controller $controller, string $methodName): void {
 		$ip = $this->request->getRemoteAddress();
 		if ($ip === '' || !$this->accessBlockService->isBlockedIp($ip)) {
@@ -57,6 +58,7 @@ class AccessBlockMiddleware extends Middleware {
 		throw new AccessBlockedException();
 	}
 
+	#[\Override]
 	public function afterException(
 		Controller $controller, string $methodName, \Exception $exception,
 	): Response {
