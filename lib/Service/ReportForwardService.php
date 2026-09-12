@@ -17,8 +17,6 @@ use OCA\Social\Model\ActivityPub\Object\Flag;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Report;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -113,9 +111,11 @@ class ReportForwardService {
 		$body = json_encode($this->flag($report, $target, $actor), JSON_UNESCAPED_SLASHES);
 
 		try {
-			$request = $this->request($inbox, (string)$body);
-			$this->sign($request, $actor, $inbox, (string)$body);
-			$this->curlService->retrieveJson($request);
+			$this->curlService->retrieveJson('post', $inbox, [
+				'headers' => $this->sign($actor, $inbox, (string)$body),
+				'body' => (string)$body,
+				'timeout' => self::TIMEOUT,
+			]);
 		} catch (RequestResultNotJsonException $e) {
 			// an inbox answers 202 with an empty body, which is a success and
 			// not a document — the delivery queue reads it the same way
@@ -151,30 +151,21 @@ class ReportForwardService {
 		return $flag;
 	}
 
-	private function request(string $inbox, string $body): NCRequest {
-		$path = new InstancePath($inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH);
-
-		$request = new NCRequest($path->getPath(), Request::TYPE_POST);
-		$request->setTimeout(self::TIMEOUT);
-		$request->setDataJson($body);
-		$request->setHost($path->getAddress());
-		$request->setProtocol($path->getProtocol());
-
-		return $request;
-	}
-
 	/**
 	 * The HTTP signature, built here rather than by `HttpSignatureService`:
 	 * every signing path there takes either a `RequestQueue` row or a local
 	 * actor, and this request has neither. Only the assembly is local — the
-	 * digest is the same one every other delivery uses.
+	 * digest is the same one every other delivery uses, and it covers the very
+	 * bytes that are sent.
+	 *
+	 * @return array<string, string> the headers to send
 	 *
 	 * @throws SignatureException an unusable key must fail loudly rather than
 	 *                            send an empty signature that the peer would
 	 *                            reject for the wrong reason
 	 * @throws SocialAppConfigException
 	 */
-	private function sign(NCRequest $request, InstanceActor $actor, string $inbox, string $body): void {
+	private function sign(InstanceActor $actor, string $inbox, string $body): array {
 		$path = new InstancePath($inbox);
 		$values = [
 			'(request-target)' => 'post ' . $path->getPath(),
@@ -185,10 +176,11 @@ class ReportForwardService {
 		];
 
 		$signing = [];
+		$headers = [];
 		foreach (self::DELIVERY_HEADERS as $element) {
 			$signing[] = $element . ': ' . $values[$element];
 			if ($element !== '(request-target)') {
-				$request->addHeader($element, $values[$element]);
+				$headers[$element] = $values[$element];
 			}
 		}
 
@@ -198,12 +190,14 @@ class ReportForwardService {
 			);
 		}
 
-		$request->addHeader('Signature', implode(',', [
+		$headers['Signature'] = implode(',', [
 			'keyId="' . $actor->getKeyId() . '"',
 			'algorithm="rsa-sha256"',
 			'headers="' . implode(' ', self::DELIVERY_HEADERS) . '"',
 			'signature="' . base64_encode($signed) . '"',
-		]));
+		]);
+
+		return $headers;
 	}
 
 	/**

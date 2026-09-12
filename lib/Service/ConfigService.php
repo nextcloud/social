@@ -11,8 +11,6 @@ namespace OCA\Social\Service;
 
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use OCP\Config\IUserConfig;
@@ -89,6 +87,9 @@ class ConfigService {
 	];
 
 	private ?string $userId = null;
+
+	/** Seconds a federation request may take when nobody asks for anything else. */
+	public const DEFAULT_REQUEST_TIMEOUT = 10;
 
 	/** Seconds; 0 leaves each request its own default. See withRequestTimeout(). */
 	private int $requestTimeout = 0;
@@ -459,36 +460,57 @@ class ConfigService {
 		}
 	}
 
-	public function configureRequest(NCRequest $request): void {
-		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
-
+	/**
+	 * The transport options every federation request goes out with, as
+	 * `OCP\Http\Client\IClient` takes them: how long it may take, whether the
+	 * peer's certificate has to check out, and whether it may be on this
+	 * instance's own network.
+	 *
+	 * Federation reaches arbitrary public hosts, but must not be pointed at the
+	 * instance's own network. Local targets are permitted only where the admin
+	 * has opted in through the standard Nextcloud setting (default off).
+	 *
+	 * @param int $timeout what the caller asks for; a bounded call
+	 *                     (withRequestTimeout()) overrides it
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function requestOptions(int $timeout = self::DEFAULT_REQUEST_TIMEOUT): array {
 		if ($this->requestTimeout > 0) {
-			$request->setTimeout($this->requestTimeout);
+			$timeout = $this->requestTimeout;
 		}
 
-		if ($this->requestConnectTimeout > 0) {
-			$request->setConnectTimeout($this->requestConnectTimeout);
+		$options = [
+			'timeout' => $timeout,
+			// reaching the peer has no budget of its own unless one was asked
+			// for, and may then use the whole read timeout
+			'connect_timeout' => ($this->requestConnectTimeout > 0) ? $this->requestConnectTimeout : $timeout,
+			'nextcloud' => ['allow_local_address' => $this->isLocalNetworkAllowed()],
+		];
+
+		if ($this->getAppValue(self::SOCIAL_SELF_SIGNED) === '1') {
+			$options['verify'] = false;
 		}
 
-		// do not add json headers if required
-		if (!$this->getBool('ignoreJsonHeaders', $request->getClientOptions())) {
-			if ($request->getType() === Request::TYPE_GET) {
-				$request->addHeader(
-					'Accept', 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-				);
-			}
+		return $options;
+	}
 
-			if ($request->getType() === Request::TYPE_POST) {
-				$request->addHeader(
-					'Content-Type', 'application/activity+json'
-				);
-			}
-		}
-
-		// Federation reaches arbitrary public hosts, but must not be pointed at the
-		// instance's own network. Local targets are permitted only where the admin has
-		// opted in through the standard Nextcloud setting (default off).
-		$request->setLocalAddressAllowed($this->isLocalNetworkAllowed());
-		$request->setFollowLocation(true);
+	/**
+	 * The ActivityPub content negotiation a federation request carries: what
+	 * this app is willing to read back, and what it is sending.
+	 *
+	 * WebFinger, host-meta and cached media are not ActivityPub and ask for
+	 * none of it — those callers pass `json_headers: false`.
+	 *
+	 * @return array<string, string>
+	 */
+	public function activityPubHeaders(string $method): array {
+		return match (strtolower($method)) {
+			'get' => [
+				'Accept' => 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+			],
+			'post' => ['Content-Type' => 'application/activity+json'],
+			default => [],
+		};
 	}
 }

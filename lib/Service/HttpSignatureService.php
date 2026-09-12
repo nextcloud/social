@@ -15,7 +15,6 @@ use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\RequestQueue;
-use OCA\Social\Tools\Model\NCRequest;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -58,24 +57,35 @@ class HttpSignatureService {
 	 * The delivery signature: signs a POST to a peer's inbox as the local actor
 	 * the activity belongs to.
 	 *
+	 * @param string $url the URL the request is actually sent to; the signature
+	 *                    covers the path and query of that very URL, so the two
+	 *                    cannot drift apart
+	 * @param string $body the bytes that go on the wire, which is what `digest`
+	 *                     and `content-length` have to describe
+	 *
+	 * @return array<string, string> the headers to send, in the order they are
+	 *                               signed, with `Signature` last
+	 *
 	 * @throws ActorDoesNotExistException
 	 * @throws SignatureException
 	 * @throws SocialAppConfigException
 	 */
-	public function signDelivery(NCRequest $request, RequestQueue $queue): void {
-		$path = $queue->getInstance();
+	public function signDelivery(string $url, string $body, RequestQueue $queue): array {
 		$localActor = $this->actorsRequest->getFromId($queue->getAuthor());
 
-		$this->sign(
-			$request,
+		return $this->sign(
 			$localActor,
 			self::DELIVERY_HEADERS,
 			[
-				'(request-target)' => 'post ' . $path->getPath(),
+				// a queued delivery is a POST; the only queue rows that are not
+				// are unreachable (every InstancePath that reaches the queue is
+				// an inbox or a shared inbox), and were signed as a POST here
+				// before this was written down
+				'(request-target)' => $this->requestTarget('post', $url),
 				'date' => gmdate(self::DATE_HEADER),
-				'host' => $path->getAddress(),
-				'digest' => $this->digest($request->getDataBody()),
-				'content-length' => (string)strlen($request->getDataBody()),
+				'host' => $this->authority($url),
+				'digest' => $this->digest($body),
+				'content-length' => (string)strlen($body),
 			]
 		);
 	}
@@ -100,24 +110,24 @@ class HttpSignatureService {
 	 * An instance whose users have not created Social accounts yet has no such
 	 * account to borrow at all, and could not sign anything.
 	 *
-	 * @return bool whether a signature was added; false means the request goes
-	 *              out exactly as it did before, which is what a peer that does
-	 *              not demand one still answers
+	 * @return array<string, string> the headers to add; empty means the request
+	 *                               goes out exactly as it did before, which is
+	 *                               what a peer that does not demand a
+	 *                               signature still answers
 	 */
-	public function signFetch(NCRequest $request): bool {
+	public function signFetch(string $url): array {
 		$actor = $this->instanceActorService->getSigningActor();
 		if ($actor === null) {
-			return false;
+			return [];
 		}
 
 		try {
-			$this->sign(
-				$request,
+			return $this->sign(
 				$actor,
 				self::FETCH_HEADERS,
 				[
-					'(request-target)' => 'get ' . $request->getParsedUrl() . $request->getQueryString(),
-					'host' => $request->getHost(),
+					'(request-target)' => $this->requestTarget('get', $url),
+					'host' => $this->authority($url),
 					'date' => gmdate(self::DATE_HEADER),
 				]
 			);
@@ -128,21 +138,56 @@ class HttpSignatureService {
 				'actor' => $actor->getId(), 'exception' => $e,
 			]);
 
-			return false;
+			return [];
 		}
-
-		return true;
 	}
 
 	/**
+	 * What the signature says the request is: the method and the path — with
+	 * the query string, when there is one — of the URL the request is sent to.
+	 *
+	 * Derived from that URL and from nothing else, so that a peer rebuilding
+	 * this string from the request it received arrives at the same bytes.
+	 */
+	private function requestTarget(string $method, string $url): string {
+		$parts = parse_url($url);
+		$target = $parts['path'] ?? '';
+		if (($parts['query'] ?? '') !== '') {
+			$target .= '?' . $parts['query'];
+		}
+
+		return strtolower($method) . ' ' . $target;
+	}
+
+	/**
+	 * The `host` a peer will compare against the one it serves: the hostname,
+	 * plus the port when the URL names one that is not the scheme's default.
+	 */
+	private function authority(string $url): string {
+		$parts = parse_url($url);
+		$host = $parts['host'] ?? '';
+		$port = $parts['port'] ?? null;
+		$default = (($parts['scheme'] ?? '') === 'https') ? 443 : 80;
+
+		return ($port === null || $port === $default) ? $host : $host . ':' . $port;
+	}
+
+	/**
+	 * @param string[] $elements the header names the signature covers, in the
+	 *                           order they are signed in
+	 * @param array<string, string> $values
+	 *
+	 * @return array<string, string>
+	 *
 	 * @throws SignatureException
 	 */
-	private function sign(NCRequest $request, Person $actor, array $elements, array $values): void {
+	private function sign(Person $actor, array $elements, array $values): array {
 		$signing = [];
+		$headers = [];
 		foreach ($elements as $element) {
 			$signing[] = $element . ': ' . $values[$element];
 			if ($element !== '(request-target)') {
-				$request->addHeader($element, (string)$values[$element]);
+				$headers[$element] = (string)$values[$element];
 			}
 		}
 
@@ -155,12 +200,14 @@ class HttpSignatureService {
 			);
 		}
 
-		$request->addHeader('Signature', implode(',', [
+		$headers['Signature'] = implode(',', [
 			'keyId="' . $actor->getId() . '#main-key"',
 			'algorithm="rsa-sha256"',
 			'headers="' . implode(' ', $elements) . '"',
 			'signature="' . base64_encode($signed) . '"',
-		]));
+		]);
+
+		return $headers;
 	}
 
 	public function digest(string $data): string {

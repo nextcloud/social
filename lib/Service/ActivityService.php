@@ -37,8 +37,6 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
 use Psr\Log\LoggerInterface;
@@ -259,11 +257,16 @@ class ActivityService {
 			return;
 		}
 
-		$request = $this->generateRequestFromQueue($queue);
+		$url = $queue->getInstance()->getUri();
+		$body = $this->bodyFromQueue($queue);
 
 		try {
-			$this->signatureService->signRequest($request, $queue);
-			$this->curlService->retrieveJson($request);
+			$headers = $this->signatureService->signRequest($url, $body, $queue);
+			$this->curlService->retrieveJson(
+				$this->methodFromQueue($queue),
+				$url,
+				['headers' => $headers, 'body' => $body, 'timeout' => $queue->getTimeout()]
+			);
 			$this->requestQueueService->endRequest($queue, true);
 		} catch (UnauthorizedFediverseException|RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
@@ -275,7 +278,7 @@ class ActivityService {
 			if ($this->isTransientHttpStatus($e->getCode())) {
 				$this->logger->notice(
 					'Temporary error while managing request: HTTP ' . $e->getCode() . ' - '
-					. json_encode($request) . ' - ' . $e->getMessage()
+					. $url . ' - ' . $e->getMessage()
 				);
 				$this->requestQueueService->endRequest($queue, false);
 				$this->failInstances[] = $host;
@@ -285,18 +288,18 @@ class ActivityService {
 
 			$this->logger->notice(
 				'Permanent error while managing request: HTTP ' . $e->getCode() . ' - '
-				. json_encode($request) . ' - ' . $e->getMessage()
+				. $url . ' - ' . $e->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
 		} catch (ActorDoesNotExistException|RequestResultSizeException $e) {
 			$this->logger->notice(
-				'Error while managing request: ' . json_encode($request) . ' ' . get_class($e) . ': '
+				'Error while managing request: ' . $url . ' ' . get_class($e) . ': '
 				. $e->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
 		} catch (RequestNetworkException|RequestServerException $e) {
 			$this->logger->notice(
-				'Temporary error while managing request: RequestServerException - ' . json_encode($request)
+				'Temporary error while managing request: RequestServerException - ' . $url
 				. ' - ' . get_class($e) . ': ' . $e->getMessage()
 			);
 			$this->requestQueueService->endRequest($queue, false);
@@ -399,23 +402,28 @@ class ActivityService {
 		return $instancePaths;
 	}
 
-	private function generateRequestFromQueue(RequestQueue $queue): NCRequest {
-		$path = $queue->getInstance();
+	/**
+	 * Whether the queued delivery is a POST. Every row that reaches the queue
+	 * is addressed at an inbox or a shared inbox, so in practice they all are;
+	 * the other InstancePath types are expanded into those before queueing.
+	 */
+	private function methodFromQueue(RequestQueue $queue): string {
+		$type = $queue->getInstance()->getType();
 
-		$requestType = Request::TYPE_GET;
-		if ($path->getType() === InstancePath::TYPE_INBOX
-			|| $path->getType() === InstancePath::TYPE_GLOBAL
-			|| $path->getType() === InstancePath::TYPE_FOLLOWERS) {
-			$requestType = Request::TYPE_POST;
-		}
+		return in_array($type, [
+			InstancePath::TYPE_INBOX,
+			InstancePath::TYPE_GLOBAL,
+			InstancePath::TYPE_FOLLOWERS,
+		], true) ? 'post' : 'get';
+	}
 
-		$request = new NCRequest($path->getPath(), $requestType);
-		$request->setTimeout($queue->getTimeout());
-		$request->setDataJson($queue->getActivity());
-		$request->setHost($path->getAddress());
-		$request->setProtocol($path->getProtocol());
-
-		return $request;
+	/**
+	 * The bytes the delivery puts on the wire: the stored activity, decoded and
+	 * re-encoded with unescaped slashes, which is what the transport has always
+	 * sent and therefore what the digest has always covered.
+	 */
+	private function bodyFromQueue(RequestQueue $queue): string {
+		return (string)json_encode(json_decode($queue->getActivity(), true), JSON_UNESCAPED_SLASHES);
 	}
 
 	/**

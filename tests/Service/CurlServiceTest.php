@@ -29,8 +29,6 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
@@ -45,10 +43,11 @@ class CurlServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private FediverseService|MockObject $fediverseService;
 	private CurlService|MockObject $service;
-	/** @var NCRequest[] every request handed to the (mocked) transport */
+
 	/** TEST-NET-3, so the classifier sees a public address without asking DNS */
 	private const PUBLIC_IP = '203.0.113.10';
 
+	/** @var list<array{method: string, url: string, options: array}> every request handed to the (mocked) transport */
 	private array $requests = [];
 	private IClientService|MockObject $clientService;
 	private IClient|MockObject $client;
@@ -62,6 +61,13 @@ class CurlServiceTest extends TestCase {
 				'installed_version' => '0.9.1',
 				default => '',
 			});
+		$this->configService->method('requestOptions')
+			->willReturnCallback(static fn (int $timeout = ConfigService::DEFAULT_REQUEST_TIMEOUT): array => [
+				'timeout' => $timeout,
+				'connect_timeout' => $timeout,
+				'nextcloud' => ['allow_local_address' => false],
+			]);
+		$this->configService->method('activityPubHeaders')->willReturn([]);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->clientService = $this->createMock(IClientService::class);
 		$this->client = $this->createMock(IClient::class);
@@ -69,15 +75,18 @@ class CurlServiceTest extends TestCase {
 		// by default this instance has no key to sign a fetch with, so requests
 		// go out exactly as they did before signed fetches existed
 		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
-		$this->httpSignatureService->method('signFetch')->willReturn(false);
+		$this->httpSignatureService->method('signFetch')->willReturn([]);
 	}
 
 	protected function tearDown(): void {
 		AP::set(null);
 	}
 
-	/** CurlService with the network layer replaced: doRequest is answered by $responder(NCRequest): string. */
-	private function serviceAnsweringWith(callable $responder, string $mocked = 'doRequest'): CurlService {
+	/**
+	 * CurlService with the network layer replaced: $mocked is answered by
+	 * $responder(string $method, array $urls, array $options): string.
+	 */
+	private function serviceAnsweringWith(callable $responder, string $mocked = 'doRequestOverUrls'): CurlService {
 		$this->service = $this->getMockBuilder(CurlService::class)
 			->setConstructorArgs([
 				$this->configService, $this->fediverseService, $this->clientService,
@@ -85,11 +94,14 @@ class CurlServiceTest extends TestCase {
 			])
 			->onlyMethods([$mocked])
 			->getMock();
-		$this->service->method($mocked)->willReturnCallback(function (NCRequest $request) use ($responder) {
-			$this->requests[] = $request;
+		$this->service->method($mocked)->willReturnCallback(
+			function (string $method, $urls, array $options = []) use ($responder) {
+				$urls = is_array($urls) ? $urls : [$urls];
+				$this->requests[] = ['method' => $method, 'url' => $urls[0], 'urls' => $urls, 'options' => $options];
 
-			return $responder($request);
-		});
+				return $responder($method, $urls, $options);
+			}
+		);
 
 		return $this->service;
 	}
@@ -115,41 +127,31 @@ class CurlServiceTest extends TestCase {
 		$this->assertSame(10 * 1048576, $property->getValue($service));
 	}
 
-	public function testAssignUserAgentIncludesTheInstalledVersion(): void {
+	public function testTheUserAgentNamesTheInstalledVersion(): void {
 		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService,
 			$this->httpSignatureService, new NullLogger());
-		$request = new NCRequest('/users/bob');
 
-		$service->assignUserAgent($request);
-
-		$this->assertSame('Nextcloud Social 0.9.1', $request->getUserAgent());
+		$this->assertSame('Nextcloud Social 0.9.1', $service->userAgent());
 	}
 
-	public function testDoRequestChecksAuthorizationConfiguresAndTagsTheRequestBeforeSending(): void {
-		$service = $this->serviceAnsweringWith(fn () => 'body', 'doRequestOrig');
-		$request = new NCRequest('/users/bob');
-		$request->setHost('mastodon.example');
-		$this->fediverseService->expects($this->once())->method('authorized')->with('mastodon.example')->willReturn(true);
-		$this->configService->expects($this->once())->method('configureRequest')->with($this->identicalTo($request));
-
-		$this->assertSame('body', $service->doRequest($request));
-		$this->assertSame('Nextcloud Social 0.9.1', $request->getUserAgent());
-		$this->assertSame([$request], $this->requests);
-	}
-
-	public function testDoRequestNeverSendsToABlockedInstance(): void {
-		$service = $this->serviceAnsweringWith(fn () => 'body', 'doRequestOrig');
+	public function testNothingIsSentToABlockedInstance(): void {
 		$this->fediverseService->method('authorized')->willThrowException(new UnauthorizedFediverseException());
-		$this->configService->expects($this->never())->method('configureRequest');
-		$request = new NCRequest('/users/bob');
-		$request->setHost('blocked.example');
+		$this->client->expects($this->never())->method('request');
+		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService,
+			$this->httpSignatureService, new NullLogger());
 
-		try {
-			$service->doRequest($request);
-			$this->fail('expected UnauthorizedFediverseException');
-		} catch (UnauthorizedFediverseException $e) {
-			$this->assertSame([], $this->requests);
-		}
+		$this->expectException(UnauthorizedFediverseException::class);
+		$service->doRequest('get', 'https://blocked.example/users/bob');
+	}
+
+	public function testTheInstanceIsAskedAboutTheHostBeforeAnythingIsSent(): void {
+		$this->fediverseService->expects($this->once())->method('authorized')
+			->with(self::PUBLIC_IP)->willReturn(true);
+		$sent = $this->captureRequest($this->answer('{}'));
+
+		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob');
+
+		$this->assertNotNull($sent());
 	}
 
 	public function testHostMetaRedirectsToTheWebfingerTemplate(): void {
@@ -162,22 +164,24 @@ class CurlServiceTest extends TestCase {
 		$this->assertSame('/wf', $path);
 		$this->assertSame('api.mastodon.example', $host);
 		$this->assertSame(['http'], $protocols);
-		$this->assertSame('/.well-known/host-meta', $this->requests[0]->getPath());
-		$this->assertSame('mastodon.example', $this->requests[0]->getHost());
-		$this->assertSame(['ignoreJsonHeaders' => true], $this->requests[0]->getClientOptions());
+		$this->assertSame([
+			'https://mastodon.example/.well-known/host-meta',
+			'http://mastodon.example/.well-known/host-meta',
+		], $this->requests[0]['urls']);
+		$this->assertFalse($this->requests[0]['options']['json_headers']);
 	}
 
 	public function testHostMetaParsesTheXrdDocument(): void {
-		$service = $this->serviceAnsweringWith(function (NCRequest $request) {
-			$request->setContentType('application/xrd+xml; charset=utf-8');
-
-			return '<?xml version="1.0" encoding="UTF-8"?><XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">'
-				. '<Link rel="lrdd" template="https://mastodon.example/.well-known/webfinger?resource={uri}"/></XRD>';
-		});
-		$host = 'mastodon.example';
+		$this->client->method('request')->willReturn($this->answer(
+			'<?xml version="1.0" encoding="UTF-8"?><XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">'
+			. '<Link rel="lrdd" template="https://mastodon.example/.well-known/webfinger?resource={uri}"/></XRD>',
+			200,
+			'application/xrd+xml; charset=utf-8'
+		));
+		$host = self::PUBLIC_IP;
 		$protocols = ['https'];
 
-		$this->assertSame('/.well-known/webfinger', $service->hostMeta($host, $protocols));
+		$this->assertSame('/.well-known/webfinger', $this->service()->hostMeta($host, $protocols));
 		$this->assertSame(['https'], $protocols);
 	}
 
@@ -204,7 +208,7 @@ class CurlServiceTest extends TestCase {
 	}
 
 	public function testWebfingerAccountFollowsHostMetaAndCanonicalisesTheAccount(): void {
-		$service = $this->serviceAnsweringWith(fn (NCRequest $request) => $request->getPath() === '/.well-known/host-meta'
+		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta')
 			? $this->hostMetaJson('https://wf.mastodon.example/.well-known/webfinger?resource={uri}')
 			: $this->jrd('acct:Bob@mastodon.example'));
 		$account = '@bob@mastodon.example';
@@ -214,17 +218,28 @@ class CurlServiceTest extends TestCase {
 		$this->assertSame('Bob@mastodon.example', $account, 'the subject of the JRD wins');
 		$this->assertSame('acct:Bob@mastodon.example', $result['subject']);
 		$this->assertCount(2, $this->requests);
-		$webfinger = $this->requests[1];
-		$this->assertSame('/.well-known/webfinger', $webfinger->getPath());
-		$this->assertSame('wf.mastodon.example', $webfinger->getHost());
-		$this->assertSame(['https'], $webfinger->getProtocols());
-		$this->assertSame(['resource' => 'acct:bob@mastodon.example'], $webfinger->getParams());
-		$this->assertSame(['ignoreJsonHeaders' => true], $webfinger->getClientOptions());
+		$this->assertSame(
+			['https://wf.mastodon.example/.well-known/webfinger?resource=acct%3Abob%40mastodon.example'],
+			$this->requests[1]['urls']
+		);
+		$this->assertFalse($this->requests[1]['options']['json_headers']);
+	}
+
+	/** A JRD without an `acct:` subject leaves the account as it was asked for. */
+	public function testWebfingerAccountKeepsTheAccountWhenTheSubjectIsNotAnAcctUri(): void {
+		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta')
+			? $this->hostMetaJson()
+			: json_encode(['subject' => 'https://mastodon.example/@bob', 'links' => []]));
+		$account = 'bob@mastodon.example';
+
+		$service->webfingerAccount($account);
+
+		$this->assertSame('bob@mastodon.example', $account);
 	}
 
 	public function testWebfingerAccountFallsBackToTheDefaultPathWithoutHostMeta(): void {
-		$service = $this->serviceAnsweringWith(function (NCRequest $request) {
-			if ($request->getPath() === '/.well-known/host-meta') {
+		$service = $this->serviceAnsweringWith(function (string $method, array $urls) {
+			if (str_contains($urls[0], 'host-meta')) {
 				throw new RequestNetworkException('404');
 			}
 
@@ -234,10 +249,10 @@ class CurlServiceTest extends TestCase {
 
 		$service->webfingerAccount($account);
 
-		$webfinger = $this->requests[1];
-		$this->assertSame('/.well-known/webfinger', $webfinger->getPath());
-		$this->assertSame('mastodon.example', $webfinger->getHost());
-		$this->assertSame(['https', 'http'], $webfinger->getProtocols());
+		$this->assertSame([
+			'https://mastodon.example/.well-known/webfinger?resource=acct%3Abob%40mastodon.example',
+			'http://mastodon.example/.well-known/webfinger?resource=acct%3Abob%40mastodon.example',
+		], $this->requests[1]['urls']);
 	}
 
 	public function testWebfingerAccountRequiresAHost(): void {
@@ -250,7 +265,7 @@ class CurlServiceTest extends TestCase {
 	}
 
 	public function testWebfingerAccountRejectsNonJsonAnswers(): void {
-		$service = $this->serviceAnsweringWith(fn (NCRequest $request) => $request->getPath() === '/.well-known/host-meta' ? $this->hostMetaJson() : '<html>');
+		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta') ? $this->hostMetaJson() : '<html>');
 		$account = 'bob@mastodon.example';
 
 		$this->expectException(RequestResultNotJsonException::class);
@@ -258,22 +273,18 @@ class CurlServiceTest extends TestCase {
 	}
 
 	public function testRetrieveObjectFetchesActivityJsonAndAnnotatesTheResult(): void {
-		$service = $this->serviceAnsweringWith(function (NCRequest $request) {
-			$request->setResultCode(200);
+		$sent = $this->captureRequest($this->answer(json_encode(['id' => self::BOB, 'type' => 'Person'])));
 
-			return json_encode(['id' => self::BOB, 'type' => 'Person']);
-		});
+		$result = $this->service()->retrieveObject('https://' . self::PUBLIC_IP . '/users/bob?page=2&min_id=7');
 
-		$result = $service->retrieveObject(self::BOB . '?page=2&min_id=7');
-
-		$this->assertSame(['id' => self::BOB, 'type' => 'Person', '_host' => 'mastodon.example', '_resultCode' => 200], $result);
-		$request = $this->requests[0];
-		$this->assertSame('/users/bob', $request->getPath());
-		$this->assertSame('mastodon.example', $request->getHost());
-		$this->assertSame(['https'], $request->getProtocols());
-		$this->assertSame(Request::TYPE_GET, $request->getType());
-		$this->assertSame(['page' => '2', 'min_id' => '7'], $request->getParams());
-		$this->assertSame('application/activity+json', $request->getHeaders()['Accept']);
+		$this->assertSame(
+			['id' => self::BOB, 'type' => 'Person', '_host' => self::PUBLIC_IP, '_resultCode' => 200],
+			$result
+		);
+		$this->assertSame('get', $sent()['method']);
+		// the id is requested as it is written; it is also what the signature covers
+		$this->assertSame('https://' . self::PUBLIC_IP . '/users/bob?page=2&min_id=7', $sent()['url']);
+		$this->assertSame('application/activity+json', $sent()['options']['headers']['Accept']);
 	}
 
 	/**
@@ -285,16 +296,13 @@ class CurlServiceTest extends TestCase {
 		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
 		$this->httpSignatureService->expects($this->once())
 			->method('signFetch')
-			->willReturnCallback(function (NCRequest $request): bool {
-				$request->addHeader('Signature', 'keyId="k"');
-
-				return true;
-			});
+			->with(self::BOB)
+			->willReturn(['Signature' => 'keyId="k"']);
 		$service = $this->serviceAnsweringWith(fn () => '{"id":"x"}');
 
 		$service->retrieveObject(self::BOB);
 
-		$this->assertSame('keyId="k"', $this->requests[0]->getHeaders()['Signature']);
+		$this->assertSame('keyId="k"', $this->requests[0]['options']['headers']['Signature']);
 	}
 
 	/** A request that is not asking for ActivityPub is nobody's business to sign. */
@@ -313,18 +321,12 @@ class CurlServiceTest extends TestCase {
 	 */
 	public function testASignedFetchRefusedWithA401IsRetriedUnsigned(): void {
 		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
-		$this->httpSignatureService->method('signFetch')
-			->willReturnCallback(function (NCRequest $request): bool {
-				$request->addHeader('Signature', 'keyId="k"');
+		$this->httpSignatureService->method('signFetch')->willReturn(['Signature' => 'keyId="k"']);
 
-				return true;
-			});
-
-		$service = $this->serviceAnsweringWith(function (NCRequest $request) {
-			if (array_key_exists('Signature', $request->getHeaders())) {
+		$service = $this->serviceAnsweringWith(function (string $method, array $urls, array $options) {
+			if (array_key_exists('Signature', $options['headers'])) {
 				throw new RequestContentException('nope', 401);
 			}
-			$request->setResultCode(200);
 
 			return json_encode(['id' => self::BOB, 'type' => 'Person']);
 		});
@@ -333,12 +335,12 @@ class CurlServiceTest extends TestCase {
 
 		$this->assertSame(self::BOB, $result['id']);
 		$this->assertCount(2, $this->requests);
-		$this->assertArrayNotHasKey('Signature', $this->requests[1]->getHeaders());
+		$this->assertArrayNotHasKey('Signature', $this->requests[1]['options']['headers']);
 	}
 
 	public function testASignedFetchThatIsAnswered404IsNotRetried(): void {
 		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
-		$this->httpSignatureService->method('signFetch')->willReturn(true);
+		$this->httpSignatureService->method('signFetch')->willReturn(['Signature' => 'keyId="k"']);
 		$service = $this->serviceAnsweringWith(function () {
 			throw new RequestContentException('gone', 404);
 		});
@@ -371,7 +373,7 @@ class CurlServiceTest extends TestCase {
 
 		$service->retrieveObject(self::BOB, false);
 
-		$this->assertArrayNotHasKey('Accept', $this->requests[0]->getHeaders());
+		$this->assertSame([], $this->requests[0]['options']['headers']);
 	}
 
 	public function testRetrieveObjectRejectsRelativeIds(): void {
@@ -389,10 +391,15 @@ class CurlServiceTest extends TestCase {
 	}
 
 	private function webfingerThenActor(array $actorData): CurlService {
-		return $this->serviceAnsweringWith(fn (NCRequest $request) => match ($request->getPath()) {
-			'/.well-known/host-meta' => $this->hostMetaJson(),
-			'/.well-known/webfinger' => $this->jrd(),
-			default => json_encode($actorData),
+		return $this->serviceAnsweringWith(function (string $method, array $urls) use ($actorData) {
+			if (str_contains($urls[0], 'host-meta')) {
+				return $this->hostMetaJson();
+			}
+			if (str_contains($urls[0], 'webfinger')) {
+				return $this->jrd();
+			}
+
+			return json_encode($actorData);
 		});
 	}
 
@@ -404,7 +411,7 @@ class CurlServiceTest extends TestCase {
 		$account = 'bob@mastodon.example';
 
 		$this->assertSame($bob, $service->retrieveAccount($account));
-		$this->assertSame('/users/bob', end($this->requests)->getPath());
+		$this->assertSame(self::BOB, end($this->requests)['url']);
 	}
 
 	public function testRetrieveAccountAcceptsCaseDifferencesInTheActorId(): void {
@@ -438,7 +445,7 @@ class CurlServiceTest extends TestCase {
 	}
 
 	public function testRetrieveAccountRequiresASelfLink(): void {
-		$service = $this->serviceAnsweringWith(fn (NCRequest $request) => $request->getPath() === '/.well-known/host-meta'
+		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta')
 			? $this->hostMetaJson()
 			: $this->jrd('acct:bob@mastodon.example', null));
 		$account = 'bob@mastodon.example';
@@ -451,7 +458,7 @@ class CurlServiceTest extends TestCase {
 		$service = $this->serviceAnsweringWith(fn () => '');
 
 		$this->expectException(RequestResultNotJsonException::class);
-		$service->retrieveJson(new NCRequest('/x'));
+		$service->retrieveJson('get', self::BOB);
 	}
 
 	public function testAsyncWithTokenPostsToTheLocalAsyncEndpoint(): void {
@@ -461,11 +468,11 @@ class CurlServiceTest extends TestCase {
 
 		$service->asyncWithToken('abc-123');
 
-		$request = $this->requests[0];
-		$this->assertSame('/nextcloud/apps/social/async/request/abc-123', $request->getPath());
-		$this->assertSame('cloud.example.com', $request->getHost());
-		$this->assertSame(['https'], $request->getProtocols());
-		$this->assertSame(Request::TYPE_POST, $request->getType());
+		$this->assertSame('post', $this->requests[0]['method']);
+		$this->assertSame(
+			'https://cloud.example.com/nextcloud/apps/social/async/request/abc-123',
+			$this->requests[0]['url']
+		);
 	}
 
 	public function testAsyncWithTokenSwallowsTransportErrors(): void {
@@ -523,30 +530,35 @@ class CurlServiceTest extends TestCase {
 
 	public function testTheRequestIsSentThroughTheServersHttpClient(): void {
 		$sent = $this->captureRequest($this->answer('{"ok":true}'));
-		$request = new NCRequest('/users/bob', Request::TYPE_GET);
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocol('https');
-		$request->addParam('page', '2');
-		$request->addHeader('Accept', 'application/activity+json');
-		$request->setTimeout(7);
 
-		$this->assertSame('{"ok":true}', $this->service()->doRequestOrig($request));
+		$this->assertSame('{"ok":true}', $this->service()->doRequest(
+			'get',
+			'https://' . self::PUBLIC_IP . '/users/bob?page=2',
+			['headers' => ['Accept' => 'application/activity+json'], 'timeout' => 7]
+		));
 
 		$this->assertSame('get', $sent()['method']);
 		$this->assertSame('https://' . self::PUBLIC_IP . '/users/bob?page=2', $sent()['url']);
 		$this->assertSame('application/activity+json', $sent()['options']['headers']['Accept']);
+		$this->assertSame('Nextcloud Social 0.9.1', $sent()['options']['headers']['user-agent']);
 		$this->assertSame(7, $sent()['options']['timeout']);
-		$this->assertSame(200, $request->getResultCode());
-		$this->assertSame('application/json', $request->getContentType());
+	}
+
+	public function testTheStatusAndContentTypeAreHandedBackToTheCaller(): void {
+		$this->captureRequest($this->answer('{}', 200, 'application/json'));
+		$contentType = '';
+		$status = 0;
+
+		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob', [], $contentType, $status);
+
+		$this->assertSame(200, $status);
+		$this->assertSame('application/json', $contentType);
 	}
 
 	public function testTheClientIsToldNotToReachLocalAddresses(): void {
 		$sent = $this->captureRequest($this->answer('{}'));
-		$request = new NCRequest('/users/bob');
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocol('https');
 
-		$this->service()->doRequestOrig($request);
+		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob');
 
 		$this->assertFalse($sent()['options']['nextcloud']['allow_local_address']);
 		// left to the server, which re-checks every redirect it follows
@@ -556,13 +568,17 @@ class CurlServiceTest extends TestCase {
 	}
 
 	public function testARequestThatMayReachLocalAddressesSaysSo(): void {
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getAppValue')->willReturn('10');
+		$this->configService->method('requestOptions')->willReturn([
+			'timeout' => 10,
+			'connect_timeout' => 10,
+			'nextcloud' => ['allow_local_address' => true],
+		]);
+		$this->configService->method('activityPubHeaders')->willReturn([]);
 		$sent = $this->captureRequest($this->answer('{}'));
-		$request = new NCRequest('/inbox');
-		$request->setHost('localhost');
-		$request->setProtocol('http');
-		$request->setLocalAddressAllowed(true);
 
-		$this->service()->doRequestOrig($request);
+		$this->service()->doRequest('post', 'http://localhost/inbox');
 
 		$this->assertTrue($sent()['options']['nextcloud']['allow_local_address']);
 	}
@@ -570,12 +586,9 @@ class CurlServiceTest extends TestCase {
 	#[DataProvider('refusedHostProvider')]
 	public function testALocalHostIsRefusedBeforeAnythingIsSent(string $host): void {
 		$this->client->expects($this->never())->method('request');
-		$request = new NCRequest('/users/bob');
-		$request->setHost($host);
-		$request->setProtocol('http');
 
 		$this->expectException(RequestServerException::class);
-		$this->service()->doRequestOrig($request);
+		$this->service()->doRequest('get', 'http://' . $host . '/users/bob');
 	}
 
 	/** @return array<string, array{string}> */
@@ -589,58 +602,50 @@ class CurlServiceTest extends TestCase {
 		];
 	}
 
-	public function testRedirectsAreRefusedWhenTheRequestDoesNotWantThem(): void {
-		$sent = $this->captureRequest($this->answer('{}'));
-		$request = new NCRequest('/users/bob');
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocol('https');
-		$request->setFollowLocation(false);
-
-		$this->service()->doRequestOrig($request);
-
-		$this->assertFalse($sent()['options']['allow_redirects']);
-	}
-
 	public function testABodyIsSentWithAWritingRequest(): void {
 		$sent = $this->captureRequest($this->answer('{}'));
-		$request = new NCRequest('/inbox', Request::TYPE_POST);
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocol('https');
-		$request->setDataJson('{"type":"Create"}');
 
-		$this->service()->doRequestOrig($request);
+		$this->service()->doRequest(
+			'post',
+			'https://' . self::PUBLIC_IP . '/inbox',
+			['body' => '{"type":"Create"}']
+		);
 
 		$this->assertSame('post', $sent()['method']);
 		$this->assertSame('{"type":"Create"}', $sent()['options']['body']);
-		$this->assertSame('https://' . self::PUBLIC_IP . '/inbox', $sent()['url'], 'no query string on a post');
+		$this->assertSame('https://' . self::PUBLIC_IP . '/inbox', $sent()['url']);
+	}
+
+	/** A GET has no body, whatever the caller passes. */
+	public function testNoBodyIsSentWithAGet(): void {
+		$sent = $this->captureRequest($this->answer('{}'));
+
+		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob', ['body' => 'ignored']);
+
+		$this->assertArrayNotHasKey('body', $sent()['options']);
 	}
 
 	public function testAnErrorStatusBecomesAContentException(): void {
 		$this->client->method('request')->willReturn($this->answer('gone', 410, 'text/plain'));
-		$request = new NCRequest('/users/bob');
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocol('https');
+		$status = 0;
 
 		try {
-			$this->service()->doRequestOrig($request);
+			$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob', [], $contentType, $status);
 			$this->fail('an error status has to be raised');
 		} catch (RequestContentException $e) {
 			$this->assertSame(410, $e->getCode());
-			$this->assertSame(410, $request->getResultCode());
+			$this->assertSame(410, $status);
 		}
 	}
 
 	public function testATransportFailureBecomesANetworkException(): void {
 		$this->client->method('request')->willThrowException(new Exception('connection refused'));
-		$request = new NCRequest('/users/bob');
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocol('https');
 
 		$this->expectException(RequestNetworkException::class);
-		$this->service()->doRequestOrig($request);
+		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob');
 	}
 
-	public function testTheNextProtocolIsTriedWhenOneCannotConnect(): void {
+	public function testTheNextUrlIsTriedWhenOneCannotConnect(): void {
 		$attempts = [];
 		$this->client->method('request')->willReturnCallback(
 			function (string $method, string $url) use (&$attempts): IResponse {
@@ -652,11 +657,11 @@ class CurlServiceTest extends TestCase {
 				return $this->answer('{"ok":true}');
 			}
 		);
-		$request = new NCRequest('/.well-known/host-meta');
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocols(['https', 'http']);
 
-		$this->assertSame('{"ok":true}', $this->service()->doRequestOrig($request));
+		$this->assertSame('{"ok":true}', $this->service()->doRequestOverUrls('get', [
+			'https://' . self::PUBLIC_IP . '/.well-known/host-meta',
+			'http://' . self::PUBLIC_IP . '/.well-known/host-meta',
+		]));
 		$this->assertSame(
 			[
 				'https://' . self::PUBLIC_IP . '/.well-known/host-meta',
@@ -666,7 +671,7 @@ class CurlServiceTest extends TestCase {
 		);
 	}
 
-	public function testAnErrorStatusEndsTheAttemptInsteadOfTryingTheNextProtocol(): void {
+	public function testAnErrorStatusEndsTheAttemptInsteadOfTryingTheNextUrl(): void {
 		$attempts = 0;
 		$this->client->method('request')->willReturnCallback(
 			function () use (&$attempts): IResponse {
@@ -675,35 +680,41 @@ class CurlServiceTest extends TestCase {
 				return $this->answer('nope', 404, 'text/plain');
 			}
 		);
-		$request = new NCRequest('/users/bob');
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocols(['https', 'http']);
 
 		$this->expectException(RequestContentException::class);
 		try {
-			$this->service()->doRequestOrig($request);
+			$this->service()->doRequestOverUrls('get', [
+				'https://' . self::PUBLIC_IP . '/users/bob',
+				'http://' . self::PUBLIC_IP . '/users/bob',
+			]);
 		} finally {
 			$this->assertSame(1, $attempts, 'an answer is an answer, whatever its status');
 		}
 	}
 
+	/** The instance is asked about the host once, not once per scheme. */
+	public function testTheFallbackListIsAuthorizedOnce(): void {
+		$this->fediverseService->expects($this->once())->method('authorized')
+			->with(self::PUBLIC_IP)->willReturn(true);
+		$this->client->method('request')->willReturn($this->answer('{}'));
+
+		$this->service()->doRequestOverUrls('get', [
+			'https://' . self::PUBLIC_IP . '/x',
+			'http://' . self::PUBLIC_IP . '/x',
+		]);
+	}
+
 	public function testABodyOverTheSizeLimitIsRefused(): void {
 		// the limit comes from the max_size app setting (10 MB here)
 		$this->client->method('request')->willReturn($this->answer(str_repeat('a', 10 * 1048576 + 1)));
-		$request = new NCRequest('/users/bob');
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocol('https');
 
 		$this->expectException(RequestResultSizeException::class);
-		$this->service()->doRequestOrig($request);
+		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob');
 	}
 
 	public function testABodyAtTheSizeLimitIsKept(): void {
 		$this->client->method('request')->willReturn($this->answer(str_repeat('a', 1024)));
-		$request = new NCRequest('/users/bob');
-		$request->setHost(self::PUBLIC_IP);
-		$request->setProtocol('https');
 
-		$this->assertSame(1024, strlen($this->service()->doRequestOrig($request)));
+		$this->assertSame(1024, strlen($this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob')));
 	}
 }

@@ -33,7 +33,6 @@ use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
@@ -180,18 +179,19 @@ class SignatureServiceTest extends TestCase {
 	}
 
 	public function testSignRequestAddsDigestDateHostContentLengthAndSignature(): void {
-		$request = new NCRequest('/users/bob/inbox', Request::TYPE_POST);
-		$request->setData(['type' => 'Create', 'id' => 'https://cloud.example.com/apps/social/@alice/1']);
-		$body = $request->getDataBody();
-		$queue = new RequestQueue('{}', new InstancePath('https://remote.example/users/bob/inbox', InstancePath::TYPE_INBOX), self::LOCAL_ACTOR);
+		$url = 'https://remote.example/users/bob/inbox';
+		$body = (string)json_encode(
+			['type' => 'Create', 'id' => 'https://cloud.example.com/apps/social/@alice/1'],
+			JSON_UNESCAPED_SLASHES
+		);
+		$queue = new RequestQueue('{}', new InstancePath($url, InstancePath::TYPE_INBOX), self::LOCAL_ACTOR);
 		$this->actorsRequest->expects($this->once())
 			->method('getFromId')
 			->with(self::LOCAL_ACTOR)
 			->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey, self::$privateKey));
 
-		$this->service->signRequest($request, $queue);
+		$headers = $this->service->signRequest($url, $body, $queue);
 
-		$headers = $request->getHeaders();
 		$this->assertSame((string)strlen($body), $headers['content-length']);
 		$this->assertSame('remote.example', $headers['host']);
 		$this->assertSame('SHA-256=' . base64_encode(hash('sha256', $body, true)), $headers['digest']);
@@ -1362,16 +1362,15 @@ class SignatureServiceTest extends TestCase {
 	}
 
 	public function testSignRequestWithAnEmptyPrivateKeyFailsLoudly(): void {
-		$request = new NCRequest('/users/bob/inbox', Request::TYPE_POST);
-		$request->setData(['type' => 'Create']);
-		$queue = new RequestQueue('{}', new InstancePath('https://remote.example/users/bob/inbox', InstancePath::TYPE_INBOX), self::LOCAL_ACTOR);
+		$url = 'https://remote.example/users/bob/inbox';
+		$queue = new RequestQueue('{}', new InstancePath($url, InstancePath::TYPE_INBOX), self::LOCAL_ACTOR);
 		$this->actorsRequest->method('getFromId')
 			->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey, ''));
 
 		// an undecryptable or missing key used to emit base64('') as the signature
 		$this->expectException(SignatureException::class);
 
-		$this->service->signRequest($request, $queue);
+		$this->service->signRequest($url, '{"type":"Create"}', $queue);
 	}
 
 	// assertSignerSpeaksFor(): whose key it was, not merely which server

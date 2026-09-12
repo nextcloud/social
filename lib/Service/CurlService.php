@@ -28,8 +28,6 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use OCP\AppFramework\Http;
@@ -38,6 +36,20 @@ use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Outbound HTTP for federation.
+ *
+ * The transport is the server's own client (`OCP\Http\Client\IClientService`),
+ * so the CA bundle, the proxy configuration and the local-address checks come
+ * from the server. What lives here is federation-specific: the WebFinger
+ * protocol fallback, the ActivityPub content negotiation, the signed fetch and
+ * its unsigned retry, the download ceiling, and the mapping onto this app's
+ * request exceptions.
+ *
+ * A caller says what it wants sent — a method, a URL, and at most four options
+ * — and gets the body back. Nothing between here and the client describes an
+ * HTTP request a second time.
+ */
 class CurlService {
 	use TArrayTools;
 	use TPathTools;
@@ -45,29 +57,21 @@ class CurlService {
 	public const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
 	public const USER_AGENT = 'Nextcloud Social';
 
-	private ConfigService $configService;
-	private FediverseService $fediverseService;
-	private LoggerInterface $logger;
-
 	private int $maxDownloadSize;
 
 	public function __construct(
-		ConfigService $configService,
-		FediverseService $fediverseService,
+		private ConfigService $configService,
+		private FediverseService $fediverseService,
 		private IClientService $clientService,
 		private HttpSignatureService $httpSignatureService,
-		LoggerInterface $logger,
+		private LoggerInterface $logger,
 	) {
-		$this->configService = $configService;
-		$this->fediverseService = $fediverseService;
-		$this->logger = $logger;
 		$this->maxDownloadSize = $this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE) * 1048576;
 	}
 
 	/**
-	 * @param string $account
+	 * @return array the JRD document
 	 *
-	 * @return array
 	 * @throws InvalidResourceException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -100,43 +104,38 @@ class CurlService {
 			$path = '/.well-known/webfinger';
 		}
 
-		$request = new NCRequest($path);
-		$request->addParam('resource', 'acct:' . $account);
-		$request->setHost($host);
-		$request->setClientOptions(['ignoreJsonHeaders' => true]);
-		$request->setProtocols($protocols);
-		$result = $this->retrieveJson($request);
+		$urls = $this->candidateUrls($protocols, $host, $path, ['resource' => 'acct:' . $account]);
+		$result = $this->retrieveJsonFromFirstReachable($urls, ['json_headers' => false]);
 
-		$this->logger->notice('webfingerAccount, request result', ['request' => $request]);
+		$this->logger->notice('webfingerAccount, request result', ['urls' => $urls]);
 
+		// a JRD is entitled to have no subject, or one that is not an acct: URI
 		$subject = $this->get('subject', $result, '');
-		[$type, $temp] = explode(':', $subject, 2);
-		if ($type === 'acct') {
-			$account = $temp;
+		if (str_starts_with($subject, 'acct:')) {
+			$account = substr($subject, strlen('acct:'));
 		}
 
 		return $result;
 	}
 
 	/**
-	 * @param string $host
-	 * @param array $protocols
+	 * Follows the host's own `.well-known/host-meta` to the WebFinger endpoint
+	 * it names, rewriting $host and $protocols to point at it.
 	 *
-	 * @return string
+	 * @param string[] $protocols
+	 *
+	 * @return string the WebFinger path
+	 *
 	 * @throws HostMetaException
 	 */
 	public function hostMeta(string &$host, array &$protocols): string {
-		$request = new NCRequest('/.well-known/host-meta');
-		$request->setHost($host);
-		$request->setProtocols($protocols);
-		$request->setClientOptions(['ignoreJsonHeaders' => true]);
-
 		$this->logger->debug('hostMeta', ['host' => $host, 'protocols' => $protocols]);
 
+		$urls = $this->candidateUrls($protocols, $host, '/.well-known/host-meta');
 		try {
-			$result = $this->retrieveJson($request);
+			$result = $this->retrieveJsonFromFirstReachable($urls, ['json_headers' => false]);
 		} catch (Exception $e) {
-			$this->logger->notice('during hostMeta', ['request' => $request, 'exception' => $e]);
+			$this->logger->notice('during hostMeta', ['urls' => $urls, 'exception' => $e]);
 
 			throw new HostMetaException(get_class($e) . ' - ' . $e->getMessage());
 		}
@@ -154,9 +153,6 @@ class CurlService {
 	}
 
 	/**
-	 * @param string $account
-	 *
-	 * @return Person
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
@@ -204,9 +200,12 @@ class CurlService {
 	}
 
 	/**
-	 * @param $id
+	 * Fetches an ActivityPub document by its id.
 	 *
-	 * @return array
+	 * The id is requested as it is written, rather than taken apart and put
+	 * back together: it is the peer's own URL, and it is also what the
+	 * signature covers.
+	 *
 	 * @throws MalformedArrayException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -219,18 +218,22 @@ class CurlService {
 	public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
 		$this->logger->debug('retrieveObject id=' . $id);
 
-		$request = $this->objectRequest($id, $acceptActivityJson);
+		$parsed = parse_url($id);
+		$this->mustContains(['path', 'host', 'scheme'], is_array($parsed) ? $parsed : []);
+
+		$headers = $acceptActivityJson ? ['Accept' => 'application/activity+json'] : [];
 
 		// An ActivityPub fetch is signed: a peer running Mastodon's
 		// AUTHORIZED_FETCH or GoToSocial's secure mode answers 401 to an
 		// unsigned one, which is why resolving an account there failed with
 		// "user not found" and threads stopped at the first remote reply.
-		$signed = $acceptActivityJson && $this->httpSignatureService->signFetch($request);
+		$signature = $acceptActivityJson ? $this->httpSignatureService->signFetch($id) : [];
 
+		$status = 0;
 		try {
-			$result = $this->retrieveJson($request);
+			$result = $this->retrieveJson('get', $id, ['headers' => $headers + $signature], $status);
 		} catch (RequestContentException $e) {
-			if (!$signed || !$this->refusedTheSignature($e->getCode())) {
+			if ($signature === [] || !$this->refusedTheSignature($e->getCode())) {
 				throw $e;
 			}
 
@@ -243,12 +246,11 @@ class CurlService {
 				'id' => $id, 'status' => $e->getCode(),
 			]);
 
-			$request = $this->objectRequest($id, $acceptActivityJson);
-			$result = $this->retrieveJson($request);
+			$result = $this->retrieveJson('get', $id, ['headers' => $headers], $status);
 		}
 
-		$result['_host'] = $request->getHost();
-		$result['_resultCode'] = $request->getResultCode();
+		$result['_host'] = $parsed['host'];
+		$result['_resultCode'] = $status;
 
 		return $result;
 	}
@@ -263,72 +265,22 @@ class CurlService {
 	}
 
 	/**
-	 * @throws MalformedArrayException
-	 */
-	private function objectRequest(string $id, bool $acceptActivityJson): NCRequest {
-		$url = parse_url($id);
-		$this->mustContains(['path', 'host', 'scheme'], $url);
-		$request = new NCRequest($url['path'], Request::TYPE_GET);
-		$request->setHost($url['host']);
-		$request->setProtocol($url['scheme']);
-		if (isset($url['query']) && $url['query'] !== '') {
-			parse_str($url['query'], $queryParams);
-			foreach ($queryParams as $k => $v) {
-				$request->addParam($k, $v);
-			}
-		}
-		if ($acceptActivityJson) {
-			$request->addHeader('Accept', 'application/activity+json');
-		}
-
-		return $request;
-	}
-
-	/**
-	 * @param NCRequest $request
-	 *
-	 * @throws SocialAppConfigException
-	 * @throws UnauthorizedFediverseException
-	 * @throws RequestContentException
-	 * @throws RequestNetworkException
-	 * @throws RequestResultSizeException
-	 * @throws RequestServerException
-	 */
-	public function doRequest(NCRequest $request): string {
-		$this->fediverseService->authorized($request->getAddress());
-		$this->configService->configureRequest($request);
-		$this->assignUserAgent($request);
-
-		return $this->doRequestOrig($request);
-	}
-
-	/**
-	 * @param NCRequest $request
-	 */
-	public function assignUserAgent(NCRequest $request): void {
-		$request->setUserAgent(
-			self::USER_AGENT . ' ' . $this->configService->getAppValue('installed_version')
-		);
-	}
-
-	/**
-	 * @param string $token
+	 * Fires a request at this app's own `/async/request/{token}` route so that
+	 * the rows left on standby are delivered without the caller waiting.
 	 *
 	 * @throws SocialAppConfigException
 	 */
-	public function asyncWithToken(string $token) {
+	public function asyncWithToken(string $token): void {
 		$address = $this->configService->getSocialUrl();
 
-		$path = $this->withEndSlash(parse_url($address, PHP_URL_PATH));
+		$path = $this->withEndSlash((string)parse_url($address, PHP_URL_PATH));
 		$path .= $this->withoutBeginSlash(self::ASYNC_REQUEST_TOKEN);
 		$path = str_replace('{token}', $token, $path);
 
-		$request = new NCRequest($path, Request::TYPE_POST);
-		$request->setHost($this->configService->getCloudHost());
-		$request->setProtocol(parse_url($address, PHP_URL_SCHEME));
+		$url = parse_url($address, PHP_URL_SCHEME) . '://' . $this->configService->getCloudHost() . $path;
 
 		try {
-			$this->retrieveJson($request);
+			$this->retrieveJson('post', $url);
 		} catch (RequestResultNotJsonException $e) {
 		} catch (Exception $e) {
 			$this->logger->error('Cannot initiate AsyncWithToken', ['token' => $token, 'exception' => $e]);
@@ -336,9 +288,10 @@ class CurlService {
 	}
 
 	/**
-	 * @param NCRequest $request
+	 * Sends the request and reads the answer as JSON.
 	 *
-	 * @return array
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
 	 * @throws RequestResultNotJsonException
@@ -347,97 +300,120 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveJson(NCRequest $request): array {
-		$result = $this->doRequest($request);
+	public function retrieveJson(string $method, string $url, array $options = [], ?int &$statusCode = null): array {
+		return $this->retrieveJsonFromFirstReachable([$url], $options, $method, $statusCode);
+	}
 
-		if (strpos($request->getContentType(), 'application/xrd') === 0) {
-			$xml = simplexml_load_string($result);
-			$result = json_encode($xml, JSON_UNESCAPED_SLASHES);
+	/**
+	 * The same, over a list of URLs that differ only in their scheme — see
+	 * doRequestOverUrls().
+	 *
+	 * @param string[] $urls
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 *
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
+	 */
+	public function retrieveJsonFromFirstReachable(
+		array $urls,
+		array $options = [],
+		string $method = 'get',
+		?int &$statusCode = null,
+	): array {
+		$contentType = '';
+		$result = $this->doRequestOverUrls($method, $urls, $options, $contentType, $statusCode);
+
+		// host-meta is served as XRD by most instances and as JRD by some
+		if (str_starts_with($contentType, 'application/xrd')) {
+			$result = (string)json_encode(simplexml_load_string($result), JSON_UNESCAPED_SLASHES);
 		}
 
-		$result = json_decode((string)$result, true);
-		if (is_array($result)) {
-			return $result;
+		$decoded = json_decode($result, true);
+		if (is_array($decoded)) {
+			return $decoded;
 		}
 
 		throw new RequestResultNotJsonException();
 	}
 
 	/**
-	 * Sends the request and returns the body. The protocol list is tried in
-	 * order: a connection or TLS failure falls through to the next one (an
-	 * instance reachable over http only), while an answer with an error status
-	 * ends the attempt right there.
+	 * Sends the request and returns the body.
+	 *
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
-	public function doRequestOrig(NCRequest $request): string {
+	public function doRequest(
+		string $method,
+		string $url,
+		array $options = [],
+		?string &$contentType = null,
+		?int &$statusCode = null,
+	): string {
+		return $this->doRequestOverUrls($method, [$url], $options, $contentType, $statusCode);
+	}
+
+	/**
+	 * Sends the request to the first of $urls that answers.
+	 *
+	 * The list is tried in order: a connection or TLS failure falls through to
+	 * the next one (an instance reachable over http only), while an answer with
+	 * an error status ends the attempt right there. The URLs are expected to
+	 * differ only in their scheme — the instance is asked for authorization
+	 * once, by host.
+	 *
+	 * @param string[] $urls
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 *
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
+	 */
+	public function doRequestOverUrls(
+		string $method,
+		array $urls,
+		array $options = [],
+		?string &$contentType = null,
+		?int &$statusCode = null,
+	): string {
+		if ($urls === []) {
+			return '';
+		}
+
+		$this->fediverseService->authorized((string)parse_url($urls[0], PHP_URL_HOST));
+
+		$clientOptions = $this->clientOptions($method, $options);
 		$client = $this->clientService->newClient();
 
 		$networkFailure = null;
-		foreach ($request->getProtocols() as $protocol) {
-			$request->setUsedProtocol($protocol);
-
+		foreach ($urls as $url) {
 			try {
-				return $this->send($client, $request);
+				return $this->send($client, $method, $url, $clientOptions, $contentType, $statusCode);
 			} catch (RequestNetworkException $e) {
 				$networkFailure = $e;
 			}
 		}
 
-		if ($networkFailure !== null) {
-			throw $networkFailure;
-		}
-
-		return '';
+		// the list is not empty, so the loop ran and this is the last failure
+		throw $networkFailure;
 	}
 
 	/**
-	 * @throws RequestContentException
-	 * @throws RequestNetworkException
-	 * @throws RequestResultSizeException
-	 * @throws RequestServerException
-	 */
-	private function send(IClient $client, NCRequest $request): string {
-		if (!$request->isLocalAddressAllowed() && RemoteAddress::isLocalHost($request->getHost())) {
-			throw new RequestServerException('host resolves to a local address: ' . $request->getHost());
-		}
-
-		$url = $this->url($request);
-		try {
-			$response = $client->request(Request::method($request->getType()), $url, $this->requestOptions($request));
-		} catch (Exception $e) {
-			throw new RequestNetworkException(
-				$e->getMessage() . ' - ' . json_encode($request, JSON_UNESCAPED_SLASHES), $e->getCode()
-			);
-		}
-
-		$request->setResultCode($response->getStatusCode());
-		$request->setContentType($response->getHeader('Content-Type'));
-
-		$this->logger->debug('[>>] ' . $url . ' result [' . $response->getStatusCode() . ']');
-
-		$body = $this->body($response);
-		if ($request->getResultCode() >= 300) {
-			throw new RequestContentException(json_encode($request), $request->getResultCode());
-		}
-
-		return $body;
-	}
-
-	private function url(Request $request): string {
-		$url = $request->getUsedProtocol() . '://' . $request->getHost() . $request->getParsedUrl();
-		if ($request->getType() === Request::TYPE_GET) {
-			$url .= $request->getQueryString();
-		}
-
-		return $url;
-	}
-
-	/**
+	 * The options the server's HTTP client is handed.
+	 *
 	 * The guarantees that matter for a url somebody else wrote:
 	 *
 	 * - local addresses are refused, and the server re-checks that on every
@@ -447,31 +423,112 @@ class CurlService {
 	 *   be reached either way.
 	 * - the answer is read as a stream, so an endless body is cut off at
 	 *   `max_size` rather than filling memory.
+	 *
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 *
+	 * @return array<string, mixed>
 	 */
-	private function requestOptions(NCRequest $request): array {
-		$options = [
-			'headers' => $request->getHeaders(),
-			'timeout' => $request->getTimeout(),
-			'connect_timeout' => $request->getConnectTimeout() ?: $request->getTimeout(),
-			// the status code belongs to the caller, not to an exception
-			'http_errors' => false,
-			'stream' => true,
-			'nextcloud' => ['allow_local_address' => $request->isLocalAddressAllowed()],
-		];
+	private function clientOptions(string $method, array $options): array {
+		$clientOptions = $this->configService->requestOptions(
+			$options['timeout'] ?? ConfigService::DEFAULT_REQUEST_TIMEOUT
+		);
 
-		if (!$request->isFollowLocation()) {
-			$options['allow_redirects'] = false;
+		$headers = ['user-agent' => $this->userAgent()];
+		$headers = $this->mergeHeaders($headers, $options['headers'] ?? []);
+		if ($options['json_headers'] ?? true) {
+			$headers = $this->mergeHeaders($headers, $this->configService->activityPubHeaders($method));
 		}
 
-		if (!$request->isVerifyPeer()) {
-			$options['verify'] = false;
+		$clientOptions['headers'] = $headers;
+		// the status code belongs to the caller, not to an exception
+		$clientOptions['http_errors'] = false;
+		$clientOptions['stream'] = true;
+
+		if (($options['body'] ?? '') !== '' && strtolower($method) !== 'get') {
+			$clientOptions['body'] = $options['body'];
 		}
 
-		if ($request->getType() !== Request::TYPE_GET && $request->getDataBody() !== '') {
-			$options['body'] = $request->getDataBody();
+		return $clientOptions;
+	}
+
+	/**
+	 * Adds $extra to $headers, appending to a header that is already there
+	 * rather than replacing it — a request that asks for two media types asks
+	 * for both of them.
+	 *
+	 * @param array<string, string> $headers
+	 * @param array<string, string> $extra
+	 *
+	 * @return array<string, string>
+	 */
+	private function mergeHeaders(array $headers, array $extra): array {
+		foreach ($extra as $key => $value) {
+			$headers[$key] = isset($headers[$key]) ? $headers[$key] . ', ' . $value : $value;
 		}
 
-		return $options;
+		return $headers;
+	}
+
+	public function userAgent(): string {
+		return self::USER_AGENT . ' ' . $this->configService->getAppValue('installed_version');
+	}
+
+	/**
+	 * @param array<string, mixed> $clientOptions
+	 *
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 */
+	private function send(
+		IClient $client,
+		string $method,
+		string $url,
+		array $clientOptions,
+		?string &$contentType,
+		?int &$statusCode,
+	): string {
+		$host = (string)parse_url($url, PHP_URL_HOST);
+		if (!($clientOptions['nextcloud']['allow_local_address'] ?? false) && RemoteAddress::isLocalHost($host)) {
+			throw new RequestServerException('host resolves to a local address: ' . $host);
+		}
+
+		try {
+			$response = $client->request(strtolower($method), $url, $clientOptions);
+		} catch (Exception $e) {
+			throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
+		}
+
+		$statusCode = $response->getStatusCode();
+		$contentType = $response->getHeader('Content-Type');
+
+		$this->logger->debug('[>>] ' . $url . ' result [' . $statusCode . ']');
+
+		$body = $this->body($response);
+		if ($statusCode >= 300) {
+			throw new RequestContentException($url, $statusCode);
+		}
+
+		return $body;
+	}
+
+	/**
+	 * `scheme://host/path?query` for every scheme in $protocols, which is how
+	 * an instance reachable over http only is still found.
+	 *
+	 * @param string[] $protocols
+	 * @param array<string, string> $params
+	 *
+	 * @return string[]
+	 */
+	private function candidateUrls(array $protocols, string $host, string $path, array $params = []): array {
+		$query = ($params === []) ? '' : '?' . http_build_query($params);
+
+		return array_map(
+			static fn (string $protocol): string => $protocol . '://' . $host . $path . $query,
+			$protocols
+		);
 	}
 
 	/**

@@ -19,8 +19,6 @@ use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -341,19 +339,10 @@ class CacheDocumentServiceTest extends TestCase {
 		$this->service->getFromUuid('2b5a7a87-8db1-445f-a17b-405790f91c80');
 	}
 
-	public function testRetrieveContentIssuesABinaryGetWithoutJsonHeaders(): void {
+	public function testRetrieveContentIssuesAGetWithoutJsonHeaders(): void {
 		$this->curlService->expects($this->once())
 			->method('doRequest')
-			->with($this->callback(function (NCRequest $request) {
-				$this->assertSame('/files/pic.png', $request->getPath());
-				$this->assertSame('remote.example', $request->getHost());
-				$this->assertSame(['https'], $request->getProtocols());
-				$this->assertSame(Request::TYPE_GET, $request->getType());
-				$this->assertTrue($request->isBinary());
-				$this->assertSame(['ignoreJsonHeaders' => true], $request->getClientOptions());
-
-				return true;
-			}))
+			->with('get', 'https://remote.example/files/pic.png', ['json_headers' => false])
 			->willReturn('PNG-BYTES');
 
 		$this->assertSame('PNG-BYTES', $this->service->retrieveContent('https://remote.example/files/pic.png'));
@@ -439,15 +428,10 @@ class CacheDocumentServiceTest extends TestCase {
 	}
 
 	public function testRetrieveContentCarriesTheQueryString(): void {
-		// a signed CDN link keeps its credentials there
+		// a signed CDN link keeps its credentials there, byte for byte
 		$this->curlService->expects($this->once())
 			->method('doRequest')
-			->with($this->callback(function (NCRequest $request) {
-				$this->assertSame('/files/pic.png', $request->getPath());
-				$this->assertSame(['sig' => 'abc', 'exp' => '12'], $request->getParams());
-
-				return true;
-			}))
+			->with('get', 'https://remote.example/files/pic.png?sig=abc&exp=12', ['json_headers' => false])
 			->willReturn('PNG-BYTES');
 
 		$this->assertSame(

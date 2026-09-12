@@ -14,8 +14,6 @@ use OCA\Social\Db\StreamCardsRequest;
 use OCA\Social\Exceptions\CardNotFoundException;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamCard;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -176,21 +174,14 @@ class LinkPreviewService {
 	 * @throws Exception
 	 */
 	private function fetch(string $url): string {
-		$parsed = parse_url($url);
-		$request = new NCRequest($parsed['path'] ?? '/', Request::TYPE_GET);
-		$request->setHost($parsed['host']);
-		$request->setProtocol($parsed['scheme']);
-		if (($parsed['query'] ?? '') !== '') {
-			parse_str($parsed['query'], $params);
-			foreach ($params as $key => $value) {
-				$request->addParam((string)$key, is_array($value) ? '' : (string)$value);
-			}
-		}
-		$request->addHeader('Accept', 'text/html,application/xhtml+xml');
-		$request->setFollowLocation(true);
-		$request->setTimeout(self::TIMEOUT);
-
-		return substr($this->curlService->doRequest($request), 0, self::MAX_HTML);
+		return substr(
+			$this->curlService->doRequest('get', $url, [
+				'headers' => ['Accept' => 'text/html,application/xhtml+xml'],
+				'timeout' => self::TIMEOUT,
+			]),
+			0,
+			self::MAX_HTML
+		);
 	}
 
 	/**

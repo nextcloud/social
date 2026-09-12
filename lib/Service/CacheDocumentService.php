@@ -24,8 +24,6 @@ use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\Files\IAppData;
@@ -371,19 +369,10 @@ class CacheDocumentService {
 		}
 
 		$this->mustContains(['path', 'host', 'scheme'], $parsed);
-		$request = new NCRequest($parsed['path'], Request::TYPE_GET, true);
-		$request->setHost($parsed['host']);
-		$request->setProtocol($scheme);
-		// a signed CDN link carries its credentials in the query string; dropping
-		// it turned every such attachment into a 403
-		if (($parsed['query'] ?? '') !== '') {
-			parse_str($parsed['query'], $params);
-			foreach ($params as $key => $value) {
-				$request->addParam((string)$key, is_scalar($value) ? (string)$value : '');
-			}
-		}
-		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 
-		return $this->curlService->doRequest($request);
+		// the url is fetched as it is written: a signed CDN link carries its
+		// credentials in the query string, and re-encoding one turned every
+		// such attachment into a 403
+		return $this->curlService->doRequest('get', $url, ['json_headers' => false]);
 	}
 }
