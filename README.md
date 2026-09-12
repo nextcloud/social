@@ -170,6 +170,14 @@ occ social:reset
   This prompts twice and then empties every Social table. `occ social:reset
   --uninstall` additionally drops the tables, migrations, background jobs and app
   config. See [docs/OCC-Commands.md](https://github.com/nextcloud/social/blob/master/docs/OCC-Commands.md) for all commands.
+- Before picking up refactoring work, read
+  [docs/Technical-Debt.md](https://github.com/nextcloud/social/blob/master/docs/Technical-Debt.md)
+  — what in the app is old, borrowed or load-bearing, and what changing it would
+  cost — and
+  [docs/Performance.md](https://github.com/nextcloud/social/blob/master/docs/Performance.md),
+  which lists the query and scalability problems that are still open and the
+  ones that have been fixed. Neither is checked by a test, so re-verify a claim
+  before acting on it and update the file in the same change as the code.
 
 ## License
 
