@@ -28,6 +28,27 @@ class ActorFlagColumnsTest extends TestCase {
 
 	private const COLUMNS = ['discoverable', 'indexable', 'also_known_as', 'moved_to'];
 
+	/**
+	 * The `bot` flag and the actor's `type` are one fact: a client reads `bot`,
+	 * a peer reads `type`, and `Person::setBot()` keeps them together. The
+	 * local-actor parse then set the type back to `Person` unconditionally, so
+	 * an account marked automated said `bot: true` to a client and `Person` to
+	 * every server it federated with.
+	 */
+	public function testTheLocalActorParseDoesNotOverwriteTheBotType(): void {
+		$source = (string)file_get_contents(self::BUILDER);
+
+		$this->assertStringNotContainsString(
+			"setType('Person')",
+			$source,
+			'the type is decided by the bot flag, not hardcoded on every read'
+		);
+		$this->assertMatchesRegularExpression(
+			'/setType\(\$actor->isBot\(\)/',
+			$source
+		);
+	}
+
 	public function testTheActorTableDeclaresTheColumns(): void {
 		$tables = (new \ReflectionClass(CoreRequestBuilder::class))
 			->getStaticPropertyValue('tables');

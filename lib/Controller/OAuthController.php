@@ -175,7 +175,14 @@ class OAuthController extends Controller {
 				'website' => $client->getAppWebsite(),
 				'scopes' => implode(' ', $client->getAppScopes()),
 				'client_id' => $client->getAppClientId(),
-				'client_secret' => $client->getAppClientSecret()
+				'client_secret' => $client->getAppClientSecret(),
+				// Mastodon's Application entity always carries these two, and a
+				// client that decodes the answer into a typed struct fails
+				// without them. `redirect_uri` is the first of what was
+				// registered, which is what Mastodon reports; `vapid_key` is
+				// empty because there is no Web Push here to have a key for.
+				'redirect_uri' => $client->getAppRedirectUris()[0] ?? '',
+				'vapid_key' => '',
 			], Http::STATUS_OK
 		);
 	}

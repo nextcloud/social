@@ -5,9 +5,9 @@ whether Mastodon's clients work against it, whether other fediverse servers can
 tell the difference, and whether an existing Mastodon instance could move onto
 it. Written for whoever has to decide what to build next.
 
-**Verified against:** app version 0.16.0, `master`, 2026-09-12 — after the
-federation wave of #2110 and the compatibility wave of #2126. Every claim was
-checked by reading the file it names.
+**Verified against:** app version 0.16.2, `master`, 2026-09-12 — after the
+federation wave of #2110 and the compatibility wave of #2126, and re-checked
+line by line for §9. Every claim was checked by reading the file it names.
 
 **What #2126 changed**, since a reader who knew this document before will look
 for it: the `source` leak is closed, suspension federates a `Delete`,
@@ -401,30 +401,24 @@ authorized fetch, and the takeover.
 
 ---
 
-## 9. Suggested order of work
+## 9. What is still to do
 
-| # | Work | Effort | Unblocks | State |
-|---|---|---|---|---|
-| 1 | Root path for `/api` and `/oauth`, documented or served | Days | Every client. Nothing else matters first | **open** |
-| 2 | Per-user OAuth tokens | Days | Multi-user clients; re-authorization | **open** |
-| 3 | Raise `COMPAT_VERSION` past 4.0 | Minutes | Edit, history, v2 filters, v2 instance, unread count | done (#2126) |
-| 4 | `accounts/search`, `favourited_by`, `reblogged_by` | Days | Mention autocomplete; engagement lists | done (#2126) |
-| 5 | Stop leaking `source` on other people's accounts | Hours | A live privacy bug | done (#2126) |
-| 6 | Federate a `Delete` when suspending a local account | Hours | A moderation correctness bug | done (#2126) |
-| 7 | Write rather than ignore `display_name`, `avatar` and `bot` | Hours | Silent no-ops | done (#2126) |
-| 8 | Web Push | Weeks | Mobile clients | open |
-| 9 | Authorized fetch inbound | Weeks | Secure-mode peers | open |
-| 10 | Stored identity + Mastodon URL space + key import | Months | The takeover test | open |
+The full list — thirty items in five tiers, each with a size and what it fixes
+— is [Mastodon-Roadmap.md](Mastodon-Roadmap.md). Its shape, because the shape
+is the answer to "how far is this from Mastodon":
 
-**Items 1 and 2 are what is left of the short list, and they are the two that
-matter most**: until the API answers at the domain root, no stock Mastodon
-client can reach any of this, and until an app row can hold more than one token,
-a second person signing in through the same client signs the first one out.
-Everything else in items 3 to 7 is visible only through the API directly, which
-is to say only to somebody testing it.
+| Tier | What it is | Why it sits there |
+|---|---|---|
+| 1 | The API at the domain root; per-user OAuth tokens | Two blockers, days each. Until both land no stock client can reach *any* of the surface below, so nothing else is visible to a user |
+| 2 | Web Push, preferences, custom emoji, familiar followers, peers, activity, the v1 filter routes, streaming | What a client shows and cannot get |
+| 3 | Authorized fetch inbound, `Add`/`Remove` for pins, `mediaType`, the WebFinger profile link, emoji reactions | What a peer would notice |
+| 4 | Registration and invites, warnings and strikes, an account browser, graded domain blocks, IP and email blocks, a moderator role, metrics, the remaining tootctl equivalents | The admin and moderation surface |
+| 5 | Stored identity, the Mastodon URL space, key import, the id rename, the importers, reconciliation, the runbook | The takeover, which is a project of its own and depends on the first row of it |
 
-Item 10 is a different project, and should only be started if in-place instance
-migration is an actual product goal rather than an aspiration.
+Tiers 1 and 2 are what "usable as a Mastodon server" means. Tier 5 is what
+"replaces an existing Mastodon instance, on its own domain, without the network
+noticing" means, and should only be started if that is an actual product goal
+rather than an aspiration.
 
 ---
 

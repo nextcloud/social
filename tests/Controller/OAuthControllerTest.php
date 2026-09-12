@@ -173,6 +173,10 @@ class OAuthControllerTest extends TestCase {
 			'scopes' => 'read write',
 			'client_id' => 'cid',
 			'client_secret' => 'csecret',
+			// Mastodon's Application entity always carries both, and a client
+			// that decodes this into a typed struct fails without them
+			'redirect_uri' => 'https://tusky.app/callback',
+			'vapid_key' => '',
 		], $response->getData());
 	}
 

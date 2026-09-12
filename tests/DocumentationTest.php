@@ -885,6 +885,7 @@ class DocumentationTest extends TestCase {
 		yield 'technical debt' => ['docs/Technical-Debt.md', 'Technical debt and legacy code'];
 		yield 'performance' => ['docs/Performance.md', 'Performance and scalability'];
 		yield 'mastodon compatibility' => ['docs/Mastodon-Compatibility.md', 'Mastodon compatibility'];
+		yield 'mastodon roadmap' => ['docs/Mastodon-Roadmap.md', 'What a full Mastodon replacement still needs'];
 	}
 
 	/** @dataProvider surveyDocuments */

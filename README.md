@@ -174,6 +174,9 @@ occ social:reset
   answers how close this is to Mastodon in the three senses that can mean —
   whether its clients work, whether peers can tell the difference, and whether an
   instance could move onto it.
+  [docs/Mastodon-Roadmap.md](https://github.com/nextcloud/social/blob/master/docs/Mastodon-Roadmap.md)
+  is the backlog that follows from it: everything still between this app and a
+  full replacement, in tiers, with what each item actually fixes.
 - Before picking up refactoring work, read
   [docs/Technical-Debt.md](https://github.com/nextcloud/social/blob/master/docs/Technical-Debt.md)
   — what in the app is old, borrowed or load-bearing, and what changing it would
