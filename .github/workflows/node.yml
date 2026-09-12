@@ -1,6 +1,6 @@
 # Builds the frontend and checks that the committed bundle matches src/.
 #
-# js/ is the shipped artifact — .nextcloudignore excludes /src/ — so a pull
+# js/ is the shipped artifact — the Makefile's appstore target excludes /src/ — so a pull
 # request that changes src/ without rebuilding ships nothing. Nothing in CI
 # used to catch that: `npm run build` ran only on release publish.
 #

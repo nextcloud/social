@@ -42,12 +42,6 @@ SPDX-FileCopyrightText = "2022 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
-path = "cypress/tsconfig.json"
-precedence = "aggregate"
-SPDX-FileCopyrightText = "2023 Nextcloud GmbH and Nextcloud contributors"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
-
-[[annotations]]
 path = ["img/add_user.svg", "img/boost.svg", "img/emoji.svg", "img/favicon.ico", "img/notifications.svg", "img/reply.svg", "img/social-dark.svg", "img/social-promo.png", "img/social.svg", "img/social_dark.svg"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2018-2024 Google LLC"
@@ -73,7 +67,7 @@ SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
-path = [".htaccess", "appinfo/.htaccess", "context/.htaccess", "src/.htaccess", ".gitignore", ".nextcloudignore"]
+path = [".htaccess", "appinfo/.htaccess", "context/.htaccess", "src/.htaccess", ".gitignore"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
@@ -90,11 +84,6 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
-[[annotations]]
-path = "patches/*"
-precedence = "aggregate"
-SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = "tests/*"
