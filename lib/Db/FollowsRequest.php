@@ -343,7 +343,10 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsSelectSql();
 		$qb->limitToType(Follow::TYPE);
 		$this->limitToPrim($qb, 'object_id_prim', $targetId);
-		$this->limitToAccepted($qb, true);
+		// the builder's own, not `CoreRequestBuilder::limitToAccepted()`: that
+		// one takes the builder by reference as an `IQueryBuilder`, which
+		// re-types `$qb` for the rest of the method and loses `prim()` below
+		$qb->limitToAccepted(true);
 
 		// the same table again: a row saying the viewer follows whoever follows
 		// the target
