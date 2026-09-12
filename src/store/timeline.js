@@ -89,7 +89,7 @@ export const useTimelineStore = defineStore('timeline', {
 		/** which list a removed status came from, so a rollback restores it there */
 		removedFrom: {},
 		type: 'home',
-		/** @type {{tag?: string, id?: string, account?: string, scope?: string}} */
+		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string}} */
 		params: {},
 		account: '',
 		composerDisplayStatus: false,
@@ -392,9 +392,16 @@ export const useTimelineStore = defineStore('timeline', {
 			this.setTimelineParams(params)
 			this.setAccount('')
 		},
-		changeTimelineTypeAccount(account) {
+		/**
+		 * @param {string} account whose posts to show
+		 * @param {string} media which kind of attachment to keep, '' for all
+		 */
+		changeTimelineTypeAccount(account, media = '') {
 			this.resetTimeline()
 			this.setTimelineType('account')
+			// part of what identifies this timeline, so that changing the tab
+			// asks the server again rather than filtering the page on screen
+			this.setTimelineParams(media === '' ? {} : { media })
 			this.setAccount(account)
 		},
 		/**
@@ -634,6 +641,14 @@ export const useTimelineStore = defineStore('timeline', {
 			switch (this.type) {
 				case 'account':
 					url = generateUrl(`apps/social/api/v1/accounts/${this.account}/statuses`)
+					// the profile's Photos and Videos tabs. `media_type` is a
+					// Social extension; `only_media` is Mastodon's own and
+					// says what the two have in common, so a client that knows
+					// neither still gets a sensible answer to the first.
+					if (this.params.media === 'image' || this.params.media === 'video') {
+						params.only_media = true
+						params.media_type = this.params.media
+					}
 					break
 				case 'tags':
 					url = generateUrl(`apps/social/api/v1/timelines/tag/${this.params.tag}`)

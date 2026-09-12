@@ -8,6 +8,7 @@ import { nextTick, reactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import ProfileTimeline from '../../../src/views/ProfileTimeline.vue'
+import TimelineSwitcher from '../../../src/components/TimelineSwitcher.vue'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
 const TimelineListStub = {
@@ -53,7 +54,7 @@ describe('ProfileTimeline', () => {
 
 	it('switches the store to the posts of the routed account and renders the list', () => {
 		const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' } })
-		expect(dispatch).toHaveBeenCalledWith('bob@remote.example')
+		expect(dispatch).toHaveBeenCalledWith('bob@remote.example', '')
 		expect(store.type).toBe('account')
 		expect(store.account).toBe('bob@remote.example')
 		expect(store.timeline).toEqual([])
@@ -71,8 +72,89 @@ describe('ProfileTimeline', () => {
 		mountView(route)
 		route.params.account = 'carol'
 		await nextTick()
-		expect(dispatch).toHaveBeenLastCalledWith('carol')
+		expect(dispatch).toHaveBeenLastCalledWith('carol', '')
 		expect(store.account).toBe('carol')
+	})
+
+	// Posts, Photos, Videos
+
+	describe('what of an account to read', () => {
+		const switcher = (wrapper) => wrapper.findComponent(TimelineSwitcher)
+
+		it('offers the three kinds of post an account makes', () => {
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: {} })
+
+			expect(switcher(wrapper).props('options').map((option) => option.label))
+				.toEqual(['Posts', 'Photos', 'Videos'])
+		})
+
+		/**
+		 * The query rather than a route of its own, so a profile stays one
+		 * page and every link to it still names the same route.
+		 */
+		it('keeps all three on the same profile route', () => {
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: {} })
+
+			expect(switcher(wrapper).props('options').map((option) => option.to)).toEqual([
+				{ name: 'profile', params: { account: 'bob@remote.example' }, query: {} },
+				{ name: 'profile', params: { account: 'bob@remote.example' }, query: { media: 'image' } },
+				{ name: 'profile', params: { account: 'bob@remote.example' }, query: { media: 'video' } },
+			])
+		})
+
+		it.each([
+			[{}, ''],
+			[{ media: 'image' }, 'image'],
+			[{ media: 'video' }, 'video'],
+		])('reads %o as the %s tab', (query, kind) => {
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query })
+
+			expect(switcher(wrapper).props('value')).toBe(kind)
+		})
+
+		/** It arrives from the address bar, so it is read rather than trusted. */
+		it.each(['photos', 'audio', 'IMAGE', ''])('falls back to every post for the tab %s', (media) => {
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: { media } })
+
+			expect(switcher(wrapper).props('value')).toBe('')
+		})
+
+		it.each([
+			['image'],
+			['video'],
+		])('asks the store for the %s posts of the account', (media) => {
+			mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: { media } })
+
+			expect(dispatch).toHaveBeenCalledWith('bob@remote.example', media)
+		})
+
+		/**
+		 * A tab is a different question asked of the server, not a filter of
+		 * what is already on screen.
+		 */
+		it('refetches when the tab changes', async () => {
+			const route = reactive({ name: 'profile', params: { account: 'bob@remote.example' }, query: {} })
+			mountView(route)
+
+			route.query = { media: 'video' }
+			await nextTick()
+
+			expect(dispatch).toHaveBeenLastCalledWith('bob@remote.example', 'video')
+		})
+
+		/**
+		 * A pin is about the account, not about a kind of attachment: on
+		 * Photos it would be whatever they pinned, pictures or not, above a
+		 * page that promised pictures.
+		 */
+		it('leaves the pinned posts out of a filtered tab', async () => {
+			axios.get.mockResolvedValue({ data: [{ id: 'pin-1' }] })
+
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: { media: 'image' } })
+			await flushPromises()
+
+			expect(wrapper.find('.profile-pinned').exists()).toBe(false)
+		})
 	})
 
 	describe('pinned posts', () => {

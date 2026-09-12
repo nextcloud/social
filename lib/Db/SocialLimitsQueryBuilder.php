@@ -526,6 +526,39 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
+	 * Narrows the media to one kind of attachment, for the kinds that have no
+	 * method of their own.
+	 *
+	 * `video` is not one of them: a video can also arrive as a PeerTube
+	 * `Video` object with no attachment at all, so that question is
+	 * `limitToVideo()` and `StreamRequest::filterMedia()` sends it there.
+	 * What is left is `image` and `audio`, where the attachment is the only
+	 * way the post can be one.
+	 *
+	 * The column holds the attachments as the client sees them
+	 * (`MediaAttachment::asLocal()`), so each one carries `"type":"image"` —
+	 * the first half of its MIME type. There is no column to compare and no
+	 * JSON support to rely on across the three databases this app supports, so
+	 * it is a `LIKE` on that pair, exactly as `limitToVideo()` does it.
+	 *
+	 * Unindexed, like the silenced-instance filter and for the same reason:
+	 * it runs on a list that something else has already narrowed — a profile,
+	 * which is one account's posts.
+	 */
+	public function limitToMediaType(string $type): self {
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->andWhere(
+			$this->expr()->like(
+				$pf . '.attachments',
+				$this->createNamedParameter('%"type":"' . $type . '"%')
+			)
+		);
+
+		return $this;
+	}
+
+	/**
 	 * Limit to posts carrying a hashtag the viewer follows.
 	 *
 	 * Two inner joins: the post's tags, and the ones this account follows. It

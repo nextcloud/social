@@ -28,7 +28,7 @@ What it does:
 - 🧭 A Discover page: who to follow, with starter packs you can follow in one go
 
 You can pin your own posts to the top of your profile, bookmark any post, and see which hashtags the instance is using most. This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. Polls are fully supported: create your own, and view and vote on federated ones. Profiles carry an avatar, a banner image and up to four profile metadata fields. Posts that link somewhere get a link preview card. Image (JPEG, PNG, GIF, WebP, AVIF, and HEIC from an iPhone where the server can read it), video (MP4, WebM, QuickTime) and audio attachments are supported, up to ten per post, each with alt text and a focal point. It does not offer lists.]]></description>
-	<version>0.19.7</version>
+	<version>0.19.11</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>

@@ -826,6 +826,22 @@ describe('TimelineList', () => {
 			expect(emptyTitle(wrapper)).toBe('alice hasn\'t tooted yet')
 		})
 
+		/**
+		 * A Photos or Videos tab with nothing in it is not an account that has
+		 * never posted: they may have posted plenty, just none of this.
+		 */
+		it.each([
+			['image', 'No photos yet'],
+			['video', 'No videos yet'],
+		])('says what the %s tab of a profile is missing', async (media, title) => {
+			const { wrapper } = mountList({
+				route: { name: 'profile', params: { account: 'bob' }, query: { media } },
+			})
+			await flushPromises()
+
+			expect(emptyTitle(wrapper)).toBe(title)
+		})
+
 		it('does not rewrite the shared empty-content entry for a public profile', async () => {
 			// the computed used to assign into this.emptyContent, so the
 			// rewritten title stayed behind for every later route

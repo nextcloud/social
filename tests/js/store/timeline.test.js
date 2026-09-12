@@ -848,6 +848,41 @@ describe('timeline store actions', () => {
 			expect(tl().timeline).toEqual(['1', '2'])
 		})
 
+		/**
+		 * The profile's Photos and Videos tabs. `only_media` is Mastodon's own
+		 * parameter and says what the two have in common; `media_type` is the
+		 * Social extension that tells them apart.
+		 */
+		it.each([
+			['image'],
+			['video'],
+		])('asks for only the %s posts of an account', async (media) => {
+			await store.changeTimelineTypeAccount('bob@remote.tld', media)
+
+			await store.fetchTimeline()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				`${API}/accounts/bob@remote.tld/statuses`,
+				{ params: { limit: 15, only_media: true, media_type: media } },
+			)
+		})
+
+		/** A tab that asks for everything must not quietly filter. */
+		it.each([
+			[''],
+			['photos'],
+			['audio'],
+		])('asks for every post of an account for the tab %s', async (media) => {
+			await store.changeTimelineTypeAccount('bob@remote.tld', media)
+
+			await store.fetchTimeline()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				`${API}/accounts/bob@remote.tld/statuses`,
+				{ params: { limit: 15 } },
+			)
+		})
+
 		it('loads the context of a single post and splits it into parents and replies', async () => {
 			const parent = makeStatus('1')
 			const reply = makeStatus('3')

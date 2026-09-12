@@ -329,6 +329,18 @@ class MigrationServiceTest extends TestCase {
 		$this->assertSame(['carol@remote.example'], MigrationService::parseFollowsCsv($csv));
 	}
 
+	/**
+	 * A fediverse host is usually dotted, but an instance reached as `devel`
+	 * or `cloud` on a private network is not, and insisting on a dot dropped
+	 * every handle on such a server — including the ones in this app's own
+	 * export.
+	 */
+	public function testParseFollowsCsvKeepsAHandleOnASingleLabelHost(): void {
+		$csv = "Account address\nerik@devel\nhana@cloud\n";
+
+		$this->assertSame(['erik@devel', 'hana@cloud'], MigrationService::parseFollowsCsv($csv));
+	}
+
 	public function testImportFollowsFollowsEachHandleAndCounts(): void {
 		$alice = $this->alice();
 		$this->accountService->method('getActorFromUserId')->with('alice')->willReturn($alice);

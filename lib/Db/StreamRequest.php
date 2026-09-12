@@ -726,10 +726,29 @@ class StreamRequest extends StreamRequestBuilder {
 	 * `only_video` is this app's own and narrower; the video timeline sends
 	 * it. Both may be sent at once -- the narrower one then decides, since
 	 * every video is media.
+	 *
+	 * `media_type` is narrower still and names the kind, which is what a
+	 * profile's Photos and Videos tabs ask; `media_type=video` is the same
+	 * question `only_video` asks and is answered by the same predicate.
 	 */
 	private function filterMedia(SocialQueryBuilder $qb, ProbeOptions $options): void {
-		if ($options->isOnlyVideo()) {
+		// `media_type=video` and `only_video` are the same question, so they
+		// are one predicate: a profile's Videos tab and the Videos timeline
+		// cannot come to disagree about whether a PeerTube `Video` is a video.
+		if ($options->isOnlyVideo() || $options->getMediaType() === 'video') {
 			$qb->limitToVideo();
+
+			return;
+		}
+
+		// any other kind narrows `only_media` to attachments of that type,
+		// which is what a profile's Photos tab asks. It implies `only_media`:
+		// a post with no attachments cannot be one carrying a picture, and
+		// saying so here means a caller that sends only `media_type` gets what
+		// they asked for rather than everything.
+		if ($options->getMediaType() !== '') {
+			$qb->limitToMedia();
+			$qb->limitToMediaType($options->getMediaType());
 
 			return;
 		}

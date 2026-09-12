@@ -6,9 +6,9 @@
 	<div
 		class="switcher"
 		role="radiogroup"
-		:aria-label="t('social', 'Which posts to show')"
+		:aria-label="label"
 		@keydown="onKeydown">
-		<!-- the pill that slides: one element that moves, rather than three
+		<!-- the pill that slides: one element that moves, rather than several
 		     that light up, so the eye follows the change instead of finding it -->
 		<span
 			class="switcher__glider"
@@ -16,94 +16,82 @@
 			aria-hidden="true" />
 
 		<button
-			v-for="(feed, index) in feeds"
-			:key="feed.type"
+			v-for="(option, index) in options"
+			:key="option.value"
 			ref="options"
 			class="switcher__option"
-			:class="{ 'switcher__option--active': feed.type === type }"
+			:class="{ 'switcher__option--active': option.value === value }"
 			role="radio"
 			type="button"
-			:aria-checked="feed.type === type"
-			:tabindex="feed.type === type ? 0 : -1"
-			@click="show(feed.type, index)">
+			:aria-checked="option.value === value"
+			:tabindex="option.value === value ? 0 : -1"
+			@click="show(index)">
 			<component
-				:is="feed.icon"
+				:is="option.icon"
 				class="switcher__icon"
 				:size="18" />
-			<span class="switcher__label">{{ feed.label }}</span>
+			<span class="switcher__label">{{ option.label }}</span>
 		</button>
 	</div>
 </template>
 
 <script>
-import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
-import IconEarth from 'vue-material-design-icons/Earth.vue'
-import IconHome from 'vue-material-design-icons/Home.vue'
-
 /**
- * The three timelines a reader moves between all day, on the page rather than
- * in the sidebar.
+ * A row of places to be, with a pill that travels between them.
  *
- * They were a sidebar entry each, which is where you go for a place you visit;
- * these three are the same place seen from three distances, and switching
- * between them is something you do while reading rather than something you
- * navigate to. Mastodon and every client of it put them side by side above the
- * posts for that reason.
+ * It was written for the three timelines a reader moves between all day, which
+ * were a sidebar entry each — and a sidebar entry is where you go for a place
+ * you *visit*. Those three are the same place seen from three distances, and
+ * switching between them is something you do while reading rather than
+ * something you navigate to; Mastodon and every client of it put them side by
+ * side above the posts for that reason. A profile's Posts, Photos and Videos
+ * are the same shape of choice, so they are the same control.
  *
  * Hand-built rather than `NcCheckboxRadioSwitch`, for the one thing that
- * component cannot do: a single indicator that *travels* between the three.
- * Three buttons that light up tell you where you landed; one pill that slides
- * tells you where you came from, which is what makes a switch feel like a
- * switch. The cost is the accessibility, which is therefore done here in full —
- * a real `radiogroup`, arrow keys, a roving tabindex — rather than left to a
- * set of links dressed up as tabs.
+ * component cannot do: a single indicator that *travels* between the options.
+ * Several buttons that light up tell you where you landed; one pill that
+ * slides tells you where you came from, which is what makes a switch feel like
+ * a switch. The cost is the accessibility, which is therefore done here in
+ * full — a real `radiogroup`, arrow keys, a roving tabindex — rather than left
+ * to a set of links dressed up as tabs.
  *
- * `home` is the route with no `type` at all, which is why the values here are
- * the route's own words rather than the labels: `timeline` is what the store
- * calls the local one and `federated` the global one, and translating between
- * two vocabularies in a component that only routes would be one more place for
- * them to disagree. Photos and Videos use the same three words in their
- * `scope` query for the same reason.
+ * It routes and nothing else: every option carries the route it stands for, so
+ * the page it sits on stays the one answer to what is being shown. The words
+ * in those routes are the route's own — `timeline` for the local feed,
+ * `federated` for the global one, `image` and `video` for the kinds of
+ * attachment the API knows — rather than the labels beside them, because two
+ * vocabularies would be one more place for the two to disagree.
  */
 export default {
 	name: 'TimelineSwitcher',
 
 	props: {
-		/** Which of the three is being shown, in the route's own words. */
-		type: {
+		/**
+		 * What to choose between: `{ value, label, icon, to }` each, where
+		 * `to` is a route the option pushes when it is chosen.
+		 */
+		options: {
+			type: Array,
+			required: true,
+		},
+
+		/** Which option's page is on screen, by its `value`. */
+		value: {
 			type: String,
 			required: true,
 		},
 
-		/**
-		 * The page the three scopes are scopes *of*, when it is not the whole
-		 * feed: `photos`, `videos`, or '' for the feed itself.
-		 *
-		 * Each of those is one page with a scope on it rather than three
-		 * pages, so the scope rides in the query: the sidebar entry stays lit
-		 * whichever of the three is chosen, which it would not if each were a
-		 * `type` of its own.
-		 */
-		page: {
+		/** What the group is choosing, for a screen reader. */
+		label: {
 			type: String,
-			default: '',
+			required: true,
 		},
 	},
 
 	computed: {
-		feeds() {
-			return [
-				// "My Feed" rather than "Home": next to Local and Global, what
-				// distinguishes it is whose posts it holds, not where it sits
-				{ type: 'home', label: t('social', 'My Feed'), icon: IconHome },
-				{ type: 'timeline', label: t('social', 'Local'), icon: IconAccountMultiple },
-				{ type: 'federated', label: t('social', 'Global'), icon: IconEarth },
-			]
-		},
-
-		/** @return {number} which of the three is on screen, 0 when none is */
+		/** @return {number} which option is on screen, 0 when none is */
 		activeIndex() {
-			return Math.max(0, this.feeds.findIndex((feed) => feed.type === this.type))
+			return Math.max(0, this.options.findIndex((option) => option.value === this.value))
 		},
 
 		/**
@@ -114,15 +102,16 @@ export default {
 		 * a measurement.
 		 *
 		 * The width is left to the stylesheet, which takes the track's padding
-		 * off first: a third of the whole track is two pixels wider than a
-		 * third of the room the options actually share, and the pill would
-		 * stick out past the one it is under. Only the count comes from here.
+		 * off first: a share of the whole track is a couple of pixels wider
+		 * than a share of the room the options actually have, and the pill
+		 * would stick out past the one it is under. Only the count comes from
+		 * here.
 		 *
 		 * @return {object} the inline style
 		 */
 		gliderStyle() {
 			return {
-				'--switcher-count': this.feeds.length,
+				'--switcher-count': this.options.length,
 				transform: `translateX(${this.activeIndex * 100}%)`,
 			}
 		},
@@ -130,46 +119,23 @@ export default {
 
 	methods: {
 		/**
-		 * @param {string} type the timeline to show
-		 * @param {number} index where it is in the group
+		 * @param {number} index the option to show
 		 */
-		show(type, index) {
+		show(index) {
 			this.focus(index)
 
-			if (type === this.type) {
+			const option = this.options[index]
+			if (option === undefined || option.value === this.value) {
+				// choosing the page you are already on is not a navigation
 				return
 			}
 
-			this.$router.push(this.routeFor(type))
-		},
-
-		/**
-		 * The same three words in both families, so nothing here translates
-		 * between two vocabularies.
-		 *
-		 * @param {string} type one of the three
-		 * @return {object} where to go for it
-		 */
-		routeFor(type) {
-			if (this.page !== '') {
-				// the page is the same one; only the scope on it changes
-				return {
-					name: 'timeline',
-					params: { type: this.page },
-					query: type === 'home' ? {} : { scope: type },
-				}
-			}
-
-			// `home` is the bare route: passing `type: 'home'` would ask for a
-			// timeline of that name, which nothing serves
-			return type === 'home'
-				? { name: 'timeline' }
-				: { name: 'timeline', params: { type } }
+			this.$router.push(option.to)
 		},
 
 		/**
 		 * Arrow keys move through the group, as they do in every radio group —
-		 * a roving tabindex puts one stop on the control, not three.
+		 * a roving tabindex puts one stop on the control, not one per option.
 		 *
 		 * @param {KeyboardEvent} event the key
 		 */
@@ -181,8 +147,8 @@ export default {
 
 			event.preventDefault()
 			// wraps, so the end of the group is never a dead stop
-			const next = (this.activeIndex + step + this.feeds.length) % this.feeds.length
-			this.show(this.feeds[next].type, next)
+			const next = (this.activeIndex + step + this.options.length) % this.options.length
+			this.show(next)
 		},
 
 		/**

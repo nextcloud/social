@@ -14,6 +14,7 @@ const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
 const Discover = () => import('./views/Discover.vue')
+const Migration = () => import(/* webpackChunkName: "profile" */'./views/Migration.vue')
 const Search = () => import('./components/Search.vue')
 
 /**
@@ -130,6 +131,13 @@ const router = createRouter({
 				default: BlockedAccounts,
 			},
 			name: 'blocked-accounts',
+		},
+		{
+			path: '/migration',
+			components: {
+				default: Migration,
+			},
+			name: 'migration',
 		},
 		{
 			path: '/search/:term?',

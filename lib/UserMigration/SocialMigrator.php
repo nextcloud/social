@@ -89,7 +89,16 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	public const RELATIONS_LIMIT = 5000;
 
 	private const PATH_ROOT = Application::APP_ID . '/';
-	private const PATH_ACTOR = self::PATH_ROOT . 'actor.json';
+	/**
+	 * What says an archive holds Social data at all.
+	 *
+	 * Public because the Migration page reads archives too — see
+	 * `ZipImportSource` — and both halves have to agree on the one file that
+	 * decides it, or an archive would be accepted by one and refused by the
+	 * other.
+	 */
+	public const PATH_ACTOR_PUBLIC = self::PATH_ROOT . 'actor.json';
+	private const PATH_ACTOR = self::PATH_ACTOR_PUBLIC;
 	private const PATH_FOLLOWING = self::PATH_ROOT . 'following_accounts.csv';
 	private const PATH_FOLLOWERS = self::PATH_ROOT . 'followers.csv';
 	private const PATH_BLOCKS = self::PATH_ROOT . 'blocked_accounts.csv';

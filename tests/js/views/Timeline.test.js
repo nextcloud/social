@@ -464,21 +464,44 @@ describe('Timeline', () => {
 
 	it('tells the switcher which of the three is on screen', () => {
 		const wrapper = mountTimeline({ params: { type: 'federated' } })
+		const switcher = wrapper.findComponent(TimelineSwitcher)
 
-		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe('federated')
-		expect(wrapper.findComponent(TimelineSwitcher).props('page')).toBe('')
+		expect(switcher.props('value')).toBe('federated')
+		expect(switcher.props('options').map((option) => option.label))
+			.toEqual(['My Feed', 'Local', 'Global'])
+	})
+
+	/**
+	 * `home` is the route with no `type` at all: passing `type: 'home'` would
+	 * ask for a timeline of that name, which nothing serves.
+	 */
+	it('gives the switcher a route for each of the three', () => {
+		const wrapper = mountTimeline()
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('options').map((option) => option.to))
+			.toEqual([
+				{ name: 'timeline' },
+				{ name: 'timeline', params: { type: 'timeline' } },
+				{ name: 'timeline', params: { type: 'federated' } },
+			])
 	})
 
 	// photos and videos: the same three scopes, read as a query on one page
 
 	/**
-	 * The switcher is told which page it is scoping rather than a photos flag,
-	 * so Photos and Videos cannot send a reader from one to the other.
+	 * One page with a scope on it rather than three pages of its own, so the
+	 * sidebar entry stays lit whichever is chosen — and Photos and Videos
+	 * cannot send a reader from one to the other.
 	 */
-	it.each(['photos', 'videos'])('tells the switcher it is scoping %s', (type) => {
+	it.each(['photos', 'videos'])('keeps the %s feeds on their own page, as a scope', (type) => {
 		const wrapper = mountTimeline({ params: { type } })
 
-		expect(wrapper.findComponent(TimelineSwitcher).props('page')).toBe(type)
+		expect(wrapper.findComponent(TimelineSwitcher).props('options').map((option) => option.to))
+			.toEqual([
+				{ name: 'timeline', params: { type }, query: {} },
+				{ name: 'timeline', params: { type }, query: { scope: 'timeline' } },
+				{ name: 'timeline', params: { type }, query: { scope: 'federated' } },
+			])
 	})
 
 	it.each([
@@ -491,14 +514,14 @@ describe('Timeline', () => {
 	])('reads the %s scope %o as %s', (type, query, scope) => {
 		const wrapper = mountTimeline({ params: { type }, query })
 
-		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe(scope)
+		expect(wrapper.findComponent(TimelineSwitcher).props('value')).toBe(scope)
 	})
 
 	/** It arrives from the address bar, so it is read rather than trusted. */
 	it.each(['', 'home', 'notifications', 'nonsense'])('falls back to My Feed for the scope %s', (scope) => {
 		const wrapper = mountTimeline({ params: { type: 'photos' }, query: { scope } })
 
-		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe('home')
+		expect(wrapper.findComponent(TimelineSwitcher).props('value')).toBe('home')
 	})
 
 	/** The scope is part of what identifies the timeline, or the previous

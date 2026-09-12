@@ -2547,6 +2547,8 @@ class ApiController extends Controller {
 		int $min_id = 0,
 		int $since_id = 0,
 		bool $pinned = false,
+		bool $only_media = false,
+		string $media_type = '',
 	): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -2572,7 +2574,9 @@ class ApiController extends Controller {
 				->setLimit($limit)
 				->setMaxId($max_id)
 				->setMinId($min_id)
-				->setSince($since_id);
+				->setSince($since_id)
+				->setOnlyMedia($only_media)
+				->setMediaType($media_type);
 
 			$posts = $this->streamService->getTimeline($options);
 			$this->pinService->markPinned($posts, $local->getId());
