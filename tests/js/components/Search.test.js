@@ -5,20 +5,17 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import Search from '../../../src/components/Search.vue'
-import account from '../../../src/store/account.js'
-import settings from '../../../src/store/settings.js'
-import timeline from '../../../src/store/timeline.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
 })
-
-const pristine = structuredClone(account.state)
-const pristineTimeline = structuredClone(timeline.state)
 
 const UserEntryStub = {
 	name: 'UserEntry',
@@ -67,13 +64,15 @@ const response = ({ accounts = [], statuses = [], hashtags = [] } = {}) => ({
 
 const SEARCH_URL = '/index.php/apps/social/api/v2/search'
 
-let store
+let pinia
+let accountStore
+let timelineStore
 let get
 
 const mountSearch = (term) => mount(Search, {
 	props: { term },
 	global: {
-		plugins: [store],
+		plugins: [pinia],
 		stubs: {
 			UserEntry: UserEntryStub,
 			TimelineEntry: TimelineEntryStub,
@@ -99,10 +98,11 @@ describe('Search', () => {
 	})
 
 	beforeEach(() => {
-		Object.assign(account.state, structuredClone(pristine))
-		Object.assign(timeline.state, structuredClone(pristineTimeline))
-		store = createStore({ modules: { account, settings, timeline } })
-		store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org' })
+		pinia = createPinia()
+		setActivePinia(pinia)
+		accountStore = useAccountStore()
+		timelineStore = useTimelineStore()
+		useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org' })
 		get = vi.spyOn(axios, 'get')
 	})
 
@@ -137,8 +137,8 @@ describe('Search', () => {
 		])
 		expect(wrapper.findAllComponents(TimelineEntryStub).map((entry) => entry.props('item').id)).toEqual(['1', '2'])
 
-		expect(store.getters.getAccount('bob@remote.example')).toEqual(bob)
-		expect(store.getters.getAccount('carol@cloud.example.org')).toEqual(carol)
+		expect(accountStore.getAccount('bob@remote.example')).toEqual(bob)
+		expect(accountStore.getAccount('carol@cloud.example.org')).toEqual(carol)
 	})
 
 	describe('acting on a result', () => {
@@ -159,9 +159,9 @@ describe('Search', () => {
 			// and nothing on screen changed
 			const wrapper = await found()
 
-			store.commit('likeStatus', { status: status('1') })
-			store.commit('boostStatus', { status: status('1') })
-			store.commit('bookmarkStatus', { status: status('1'), bookmarked: true })
+			timelineStore.likeStatus({ status: status('1') })
+			timelineStore.boostStatus({ status: status('1') })
+			timelineStore.bookmarkStatus({ status: status('1'), bookmarked: true })
 			await nextTick()
 
 			expect(entry(wrapper, '1').props('item')).toMatchObject({
@@ -176,7 +176,7 @@ describe('Search', () => {
 			// removeStatus took it out of a list it was never in, so it stayed
 			const wrapper = await found()
 
-			store.commit('removeStatus', status('1'))
+			timelineStore.removeStatus(status('1'))
 			await nextTick()
 
 			expect(wrapper.findAllComponents(TimelineEntryStub).map((candidate) => candidate.props('item').id)).toEqual(['2'])
@@ -191,7 +191,7 @@ describe('Search', () => {
 			expect(composer.exists()).toBe(true)
 			expect(composer.element.style.display).toBe('none')
 
-			store.commit('setComposerDisplayStatus', true)
+			timelineStore.setComposerDisplayStatus(true)
 			await nextTick()
 			expect(composer.element.style.display).toBe('')
 		})

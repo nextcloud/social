@@ -5,12 +5,12 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
 import { loadState } from '@nextcloud/initial-state'
 
 import serverData from '../../../src/mixins/serverData.js'
-import settings from '../../../src/store/settings.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 const { setInitialState } = globalThis
 
@@ -20,12 +20,14 @@ const Probe = {
 }
 
 describe('serverData mixin', () => {
-	let store
+	let pinia
+	let settingsStore
 	let wrapper
 
 	beforeEach(() => {
-		settings.state.serverData = {}
-		store = createStore({ modules: { settings } })
+		pinia = createPinia()
+		setActivePinia(pinia)
+		settingsStore = useSettingsStore()
 	})
 
 	afterEach(() => {
@@ -42,27 +44,27 @@ describe('serverData mixin', () => {
 			cliUrl: 'https://cloud.example.org',
 		}
 		setInitialState('social', 'serverData', injected)
-		store.commit('setServerData', loadState('social', 'serverData'))
-		wrapper = mount(Probe, { global: { plugins: [store] } })
+		settingsStore.setServerData(loadState('social', 'serverData'))
+		wrapper = mount(Probe, { global: { plugins: [pinia] } })
 
 		expect(wrapper.vm.serverData).toEqual(injected)
 	})
 
 	it('derives the hostname from the cloud address, ignoring scheme, port and path', () => {
-		store.commit('setServerData', { cloudAddress: 'https://cloud.example.org:8443/nextcloud/index.php' })
-		wrapper = mount(Probe, { global: { plugins: [store] } })
+		settingsStore.setServerData({ cloudAddress: 'https://cloud.example.org:8443/nextcloud/index.php' })
+		wrapper = mount(Probe, { global: { plugins: [pinia] } })
 
 		expect(wrapper.vm.hostname).toBe('cloud.example.org')
 	})
 
 	it('falls back to the page host while the cloud address is not loaded', () => {
-		wrapper = mount(Probe, { global: { plugins: [store] } })
+		wrapper = mount(Probe, { global: { plugins: [pinia] } })
 
 		expect(wrapper.vm.hostname).toBe(window.location.hostname)
 	})
 
-	it('returns an empty object when no store is installed', () => {
-		wrapper = mount(Probe)
+	it('is an empty object until the server data is loaded', () => {
+		wrapper = mount(Probe, { global: { plugins: [pinia] } })
 
 		expect(wrapper.vm.serverData).toEqual({})
 	})

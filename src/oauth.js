@@ -4,6 +4,7 @@
  */
 
 import { createApp } from 'vue'
+import pinia from './store/index.js'
 import OAuth2Authorize from './views/OAuth2Authorize.vue'
 
 // eslint-disable-next-line
@@ -19,4 +20,5 @@ app.config.globalProperties.t = t
 app.config.globalProperties.n = n
 app.config.globalProperties.OC = window.OC
 app.config.globalProperties.OCA = window.OCA
+app.use(pinia)
 app.mount('#social-oauth2')

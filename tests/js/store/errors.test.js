@@ -4,9 +4,9 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 
-import errors from '../../../src/store/errors.js'
+import { useErrorsStore } from '../../../src/store/errors.js'
 import logger from '../../../src/services/logger.js'
 
 vi.mock('../../../src/services/logger.js', () => ({
@@ -20,8 +20,8 @@ describe('errors store', () => {
 		vi.clearAllMocks()
 		vi.useFakeTimers()
 		vi.setSystemTime(new Date('2026-09-07T10:00:00.000Z'))
-		errors.state.errors = []
-		store = createStore({ modules: { errors } })
+		setActivePinia(createPinia())
+		store = useErrorsStore()
 	})
 
 	afterEach(() => {
@@ -29,78 +29,78 @@ describe('errors store', () => {
 	})
 
 	it('starts without errors', () => {
-		expect(store.getters.appErrors).toEqual([])
-		expect(store.getters.hasErrors).toBe(false)
+		expect(store.appErrors).toEqual([])
+		expect(store.hasErrors).toBe(false)
 	})
 
 	it('addError appends an entry with a unique numeric id', () => {
-		store.commit('addError', { title: 'Account lookup failed', message: 'Could not load account bob' })
+		store.addError({ title: 'Account lookup failed', message: 'Could not load account bob' })
 
-		expect(store.getters.appErrors).toEqual([
+		expect(store.appErrors).toEqual([
 			{ id: expect.any(Number), title: 'Account lookup failed', message: 'Could not load account bob' },
 		])
-		expect(store.getters.hasErrors).toBe(true)
+		expect(store.hasErrors).toBe(true)
 	})
 
 	it('keeps errors in the order they were added and gives each a distinct id', () => {
-		store.commit('addError', { title: 'first', message: 'a' })
-		store.commit('addError', { title: 'second', message: 'b' })
+		store.addError({ title: 'first', message: 'a' })
+		store.addError({ title: 'second', message: 'b' })
 
-		expect(store.getters.appErrors.map(e => e.title)).toEqual(['first', 'second'])
-		expect(store.getters.appErrors[1].id).not.toBe(store.getters.appErrors[0].id)
+		expect(store.appErrors.map(e => e.title)).toEqual(['first', 'second'])
+		expect(store.appErrors[1].id).not.toBe(store.appErrors[0].id)
 	})
 
 	it('gives back-to-back errors distinct ids within the same millisecond so dismissing one keeps the other', () => {
 		// the clock is frozen, so a Date.now() based id would collide
-		store.commit('addError', { title: 'first', message: 'a' })
-		store.commit('addError', { title: 'second', message: 'b' })
-		const [first, second] = store.getters.appErrors
+		store.addError({ title: 'first', message: 'a' })
+		store.addError({ title: 'second', message: 'b' })
+		const [first, second] = store.appErrors
 		expect(first.id).not.toBe(second.id)
 
-		store.commit('dismissError', first.id)
+		store.dismissError(first.id)
 
-		expect(store.getters.appErrors).toEqual([second])
+		expect(store.appErrors).toEqual([second])
 	})
 
 	it('dismissError removes only the entry with that id', () => {
-		store.commit('addError', { title: 'first', message: 'a' })
+		store.addError({ title: 'first', message: 'a' })
 		vi.advanceTimersByTime(1)
-		store.commit('addError', { title: 'second', message: 'b' })
-		const [first, second] = store.getters.appErrors
+		store.addError({ title: 'second', message: 'b' })
+		const [first, second] = store.appErrors
 
-		store.commit('dismissError', first.id)
+		store.dismissError(first.id)
 
-		expect(store.getters.appErrors).toEqual([second])
+		expect(store.appErrors).toEqual([second])
 
-		store.commit('dismissError', 'unknown')
+		store.dismissError('unknown')
 
-		expect(store.getters.appErrors).toEqual([second])
+		expect(store.appErrors).toEqual([second])
 	})
 
 	it('clearErrors removes everything', () => {
-		store.commit('addError', { title: 'first', message: 'a' })
+		store.addError({ title: 'first', message: 'a' })
 		vi.advanceTimersByTime(1)
-		store.commit('addError', { title: 'second', message: 'b' })
+		store.addError({ title: 'second', message: 'b' })
 
-		store.commit('clearErrors')
+		store.clearErrors()
 
-		expect(store.getters.appErrors).toEqual([])
-		expect(store.getters.hasErrors).toBe(false)
+		expect(store.appErrors).toEqual([])
+		expect(store.hasErrors).toBe(false)
 	})
 
 	it('addAppError logs the error and stores it', async () => {
-		await store.dispatch('addAppError', { title: 'Account lookup failed', message: 'nope' })
+		await store.addAppError({ title: 'Account lookup failed', message: 'nope' })
 
 		expect(logger.error).toHaveBeenCalledWith('App error', { title: 'Account lookup failed', message: 'nope' })
-		expect(store.getters.appErrors).toEqual([{ id: expect.any(Number), title: 'Account lookup failed', message: 'nope' }])
+		expect(store.appErrors).toEqual([{ id: expect.any(Number), title: 'Account lookup failed', message: 'nope' }])
 	})
 
 	it('dismissAppError dismisses by id', async () => {
-		await store.dispatch('addAppError', { title: 'x', message: 'y' })
-		const { id } = store.getters.appErrors[0]
+		await store.addAppError({ title: 'x', message: 'y' })
+		const { id } = store.appErrors[0]
 
-		await store.dispatch('dismissAppError', id)
+		await store.dismissAppError(id)
 
-		expect(store.getters.hasErrors).toBe(false)
+		expect(store.hasErrors).toBe(false)
 	})
 })

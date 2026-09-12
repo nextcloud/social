@@ -63,6 +63,10 @@ import axios from '@nextcloud/axios'
 import currentuserMixin from './mixins/currentUserMixin.js'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
+import { mapStores } from 'pinia'
+import { useAccountStore } from './store/account.js'
+import { useSettingsStore } from './store/settings.js'
+import { useTimelineStore } from './store/timeline.js'
 
 export default {
 	name: 'App',
@@ -85,6 +89,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
 	},
 	mounted() {
 		this.stopShortcuts = listenForShortcuts()
@@ -100,14 +105,14 @@ export default {
 		$route(to) {
 			// the query lives in the URL now; keep the store in step with it
 			// so the navigation's search box shows what is being searched
-			this.$store.commit('setSearchQuery', to.name === 'search' ? String(to.params.term ?? '') : '')
+			this.timelineStore.setSearchQuery(to.name === 'search' ? String(to.params.term ?? '') : '')
 		},
 	},
 	beforeMount() {
-		this.$store.commit('setServerData', loadState('social', 'serverData'))
+		this.settingsStore.setServerData(loadState('social', 'serverData'))
 
 		if (!this.serverData.public) {
-			this.$store.dispatch('fetchCurrentAccountInfo', this.cloudId)
+			this.accountStore.fetchCurrentAccountInfo(this.cloudId)
 		}
 
 		if (OCA.Push && OCA.Push.isEnabled()) {
@@ -128,8 +133,8 @@ export default {
 		},
 		setCloudAddress() {
 			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then(() => {
-				this.$store.commit('setServerDataEntry', { key: 'setup', value: false })
-				this.$store.commit('setServerDataEntry', { key: 'cloudAddress', value: this.cloudAddress })
+				this.settingsStore.setServerDataEntry({ key: 'setup', value: false })
+				this.settingsStore.setServerDataEntry({ key: 'cloudAddress', value: this.cloudAddress })
 			})
 		},
 		/**
@@ -144,7 +149,7 @@ export default {
 		 */
 		search(term) {
 			const query = (term ?? '').trim()
-			this.$store.commit('setSearchQuery', query)
+			this.timelineStore.setSearchQuery(query)
 
 			if (query === '') {
 				if (this.$route.name === 'search') {
@@ -167,10 +172,10 @@ export default {
 			}
 
 			if (data.source === 'timeline.home' && timeline === 'home') {
-				this.$store.dispatch('addToTimeline', [data.payload])
+				this.timelineStore.addToTimeline([data.payload])
 			}
 			if (data.source === 'timeline.direct' && timeline === 'direct') {
-				this.$store.dispatch('addToTimeline', [data.payload])
+				this.timelineStore.addToTimeline([data.payload])
 			}
 		},
 	},

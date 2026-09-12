@@ -44,6 +44,9 @@ import serverData from '../mixins/serverData.js'
 import { loadState } from '@nextcloud/initial-state'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useTimelineStore } from '../store/timeline.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -67,11 +70,12 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore, useTimelineStore),
 		singlePost() {
-			return this.$store.getters.getSinglePost
+			return this.timelineStore.getSinglePost
 		},
 		composerDisplayStatus() {
-			return this.$store.getters.getComposerDisplayStatus
+			return this.timelineStore.getComposerDisplayStatus
 		},
 		/**
 		 * Whose post this is. The route says so; this used to be read off
@@ -84,10 +88,10 @@ export default {
 			return String(this.$route.params.account ?? '').replace(/^@/, '')
 		},
 		timeline() {
-			return this.$store.getters.getTimeline
+			return this.timelineStore.getTimeline
 		},
 		parentsTimeline() {
-			return this.$store.getters.getParentsTimeline
+			return this.timelineStore.getParentsTimeline
 		},
 	},
 	watch: {
@@ -130,9 +134,9 @@ export default {
 		 */
 		async load() {
 			// read before the reset: changeTimelineType prunes the status index
-			const singlePost = this.$store.getters.getPostFromTimeline(this.$route.params.id) ?? this.postFromInitialState()
+			const singlePost = this.timelineStore.getPostFromTimeline(this.$route.params.id) ?? this.postFromInitialState()
 
-			this.$store.dispatch('changeTimelineType', {
+			this.timelineStore.changeTimelineType({
 				type: 'single-post',
 				params: {
 					account: this.account,
@@ -141,9 +145,10 @@ export default {
 					singlePost: this.$route.params.id || singlePost?.id,
 				},
 			})
-			this.$store.commit('addToStatuses', singlePost)
+			this.timelineStore.addToStatuses(singlePost)
 
-			const response = await this.$store.dispatch(this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo', this.account)
+			const fetchMethod = this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo'
+			const response = await this.accountStore[fetchMethod](this.account)
 			this.uid = response?.username ?? this.uid
 		},
 		/**

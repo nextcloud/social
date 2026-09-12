@@ -4,6 +4,7 @@
  */
 
 import { createApp } from 'vue'
+import pinia from './store/index.js'
 import Dashboard from './views/Dashboard.vue'
 
 // eslint-disable-next-line
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
 		app.config.globalProperties.n = n
 		app.config.globalProperties.OC = window.OC
 		app.config.globalProperties.OCA = window.OCA
+		app.use(pinia)
 		app.mount(el)
 	})
 })

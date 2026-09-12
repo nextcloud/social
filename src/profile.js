@@ -4,6 +4,7 @@
  */
 
 import { defineCustomElement, h } from 'vue'
+import pinia from './store/index.js'
 import ProfilePageIntegration from './views/ProfilePageIntegration.vue'
 import { generateFilePath } from '@nextcloud/router'
 
@@ -26,6 +27,13 @@ const SocialProfileSectionElement = defineCustomElement({
 	},
 	render() {
 		return h(ProfilePageIntegration, { userId: this.user })
+	},
+}, {
+	// the custom element runs an app of its own, and the posts it renders read
+	// the store like every other timeline entry does — a boost used to reach
+	// for a store that was never installed here
+	configureApp(app) {
+		app.use(pinia)
 	},
 })
 

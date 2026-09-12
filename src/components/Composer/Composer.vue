@@ -264,6 +264,8 @@ import Tribute from 'tributejs'
 import eventBus from '../../services/eventBus.js'
 import logger from '../../services/logger.js'
 import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
+import { mapStores } from 'pinia'
+import { useTimelineStore } from '../../store/timeline.js'
 
 /** what the server accepts in one status */
 const MAX_LENGTH = 500
@@ -449,6 +451,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useTimelineStore),
 		/** @return {string} the `accept` of the file dialog, from one list */
 		acceptedTypes() {
 			return ACCEPTED_MEDIA_TYPES.map((type) => `${type}*`).join(',')
@@ -1005,7 +1008,7 @@ export default {
 
 				this.uploading = true
 				this.uploadProgress = index / accepted.length
-				const mediaData = await this.$store.dispatch('createMediaFromFile', { path })
+				const mediaData = await this.timelineStore.createMediaFromFile({ path })
 				this.uploadProgress = (index + 1) / accepted.length
 
 				if (this.attachments[key] === undefined) {
@@ -1052,7 +1055,7 @@ export default {
 				// real progress, from the request itself: the bar used to be
 				// hard-coded to 40% behind a `v-if="false"`
 				this.uploadProgress = index / files.length
-				const mediaData = await this.$store.dispatch('createMedia', {
+				const mediaData = await this.timelineStore.createMedia({
 					file,
 					onProgress: (fraction) => {
 						this.uploadProgress = (index + fraction) / files.length
@@ -1163,7 +1166,7 @@ export default {
 				// `post` resolves with the created status and rejects when the
 				// server said no; clearing in a `finally` used to throw the
 				// text away on every failure, offline included
-				created = await this.$store.dispatch('post', statusData)
+				created = await this.timelineStore.post(statusData)
 			} finally {
 				this.loading = false
 			}
@@ -1187,7 +1190,7 @@ export default {
 			this.spoilerText = ''
 			clearDraft()
 			this.updateStatusContent()
-			this.$store.dispatch('refreshTimeline')
+			this.timelineStore.refreshTimeline()
 			// the sidebar's modal has no other way of knowing: it cleared the
 			// box and stayed open, which reads as if nothing had happened
 			this.$emit('posted')
@@ -1208,7 +1211,7 @@ export default {
 		},
 		closeReply() {
 			this.replyTo = null
-			this.$store.commit('setComposerDisplayStatus', false)
+			this.timelineStore.setComposerDisplayStatus(false)
 		},
 		removeQuote() {
 			// only the quote goes, unlike closeReply(): the message is the
@@ -1267,7 +1270,7 @@ export default {
 					&& (attachment.description || '').trim() !== attachment.saved,
 			)
 
-			await Promise.all(described.map((attachment) => this.$store.dispatch('describeMedia', {
+			await Promise.all(described.map((attachment) => this.timelineStore.describeMedia({
 				id: attachment.data.id,
 				description: attachment.description.trim(),
 			})))
@@ -1292,7 +1295,7 @@ export default {
 				[key]: { ...attachment, description, saved: text },
 			}
 
-			await this.$store.dispatch('describeMedia', { id: attachment.data.id, description: text })
+			await this.timelineStore.describeMedia({ id: attachment.data.id, description: text })
 		},
 		describeAttachment({ key, description }) {
 			if (this.attachments[key] === undefined) {

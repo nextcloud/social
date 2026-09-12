@@ -311,6 +311,9 @@ import RollingCount from './RollingCount.vue'
 import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useTimelineStore } from '../store/timeline.js'
 
 /** what the server accepts in one status, the same limit the composer shows */
 const MAX_LENGTH = 500
@@ -381,6 +384,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore, useTimelineStore),
 		/** @return {boolean} the author asked for the post to be covered */
 		hasSpoiler() {
 			return Boolean(this.item.spoiler_text)
@@ -547,7 +551,7 @@ export default {
 		},
 		/** @return {import('../types/Mastodon.js').Account} */
 		currentAccount() {
-			return this.$store.getters.currentAccount
+			return this.accountStore.currentAccount
 		},
 		/** @return {boolean} */
 		isNotification() {
@@ -640,11 +644,11 @@ export default {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		},
 		reply() {
-			this.$store.commit('setComposerDisplayStatus', true)
+			this.timelineStore.setComposerDisplayStatus(true)
 			eventBus.emit('composer-reply', this.item)
 		},
 		quote() {
-			this.$store.commit('setComposerDisplayStatus', true)
+			this.timelineStore.setComposerDisplayStatus(true)
 			eventBus.emit('composer-quote', this.item)
 		},
 		async sendReport() {
@@ -684,7 +688,7 @@ export default {
 			}
 
 			const warning = this.editSpoiler.trim()
-			const response = await this.$store.dispatch('postEdit', {
+			const response = await this.timelineStore.postEdit({
 				status: this.item,
 				content: this.editContent.trim(),
 				// fixing a typo used to un-hide sensitive content for every
@@ -708,7 +712,7 @@ export default {
 		},
 		remove() {
 			this.showDeleteDialog = false
-			this.$store.dispatch('postDelete', this.item)
+			this.timelineStore.postDelete(this.item)
 		},
 		/**
 		 * A vote is cast on the component's own copy of the poll; the store
@@ -718,13 +722,13 @@ export default {
 		 */
 		updatePoll(poll) {
 			this.localPoll = poll
-			this.$store.commit('updateStatusPoll', { statusId: this.item.id, poll })
+			this.timelineStore.updateStatusPoll({ statusId: this.item.id, poll })
 		},
 		toggleBookmark() {
-			this.$store.dispatch('postBookmark', { status: this.item, bookmarked: !this.item.bookmarked })
+			this.timelineStore.postBookmark({ status: this.item, bookmarked: !this.item.bookmarked })
 		},
 		togglePin() {
-			this.$store.dispatch('postPin', { status: this.item, pinned: !this.item.pinned })
+			this.timelineStore.postPin({ status: this.item, pinned: !this.item.pinned })
 		},
 		async like() {
 			const undo = this.isLiked
@@ -753,7 +757,7 @@ export default {
 				}, 600)
 			}
 
-			const response = await this.$store.dispatch(action, { status: this.item })
+			const response = await this.timelineStore[action]({ status: this.item })
 			if (response === undefined) {
 				this.celebrate = ''
 				this.refused = name

@@ -30,6 +30,8 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AccountMultipleOutline from 'vue-material-design-icons/AccountMultipleOutline.vue'
 import UserEntry from '../components/UserEntry.vue'
 import serverData from '../mixins/serverData.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 
 export default {
 	name: 'ProfileFollowers',
@@ -48,6 +50,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore),
 		/** @return {string} */
 		profileAccount() {
 			if (!this.$route.params.account) return ''
@@ -55,15 +58,15 @@ export default {
 		},
 		/** @return {string} */
 		storeKey() {
-			return this.$store.getters.getActorIdForAccount(this.profileAccount) || this.profileAccount
+			return this.accountStore.getActorIdForAccount(this.profileAccount) || this.profileAccount
 		},
 		/** @return {import('../types/Mastodon.js').Account[]} */
 		users() {
 			if (!this.profileAccount) return []
 			if (this.$route.name === 'profile.followers') {
-				return this.$store.getters.getAccountFollowers(this.profileAccount)
+				return this.accountStore.getAccountFollowers(this.profileAccount)
 			} else {
-				return this.$store.getters.getAccountFollowing(this.profileAccount)
+				return this.accountStore.getAccountFollowing(this.profileAccount)
 			}
 		},
 		isFollowers() {
@@ -72,25 +75,25 @@ export default {
 		loading() {
 			if (!this.profileAccount) return false
 			if (this.isFollowers) {
-				return !!this.$store.state.account.accountsFollowersLoading[this.storeKey]
+				return !!this.accountStore.accountsFollowersLoading[this.storeKey]
 			} else {
-				return !!this.$store.state.account.accountsFollowingsLoading[this.storeKey]
+				return !!this.accountStore.accountsFollowingsLoading[this.storeKey]
 			}
 		},
 		allLoaded() {
 			if (!this.profileAccount) return true
 			if (this.isFollowers) {
-				return !!this.$store.state.account.accountsFollowersAllLoaded[this.storeKey]
+				return !!this.accountStore.accountsFollowersAllLoaded[this.storeKey]
 			} else {
-				return !!this.$store.state.account.accountsFollowingsAllLoaded[this.storeKey]
+				return !!this.accountStore.accountsFollowingsAllLoaded[this.storeKey]
 			}
 		},
 		maxId() {
 			if (!this.profileAccount) return 0
 			if (this.isFollowers) {
-				return this.$store.state.account.accountsFollowersMaxId[this.storeKey] || 0
+				return this.accountStore.accountsFollowersMaxId[this.storeKey] || 0
 			} else {
-				return this.$store.state.account.accountsFollowingsMaxId[this.storeKey] || 0
+				return this.accountStore.accountsFollowingsMaxId[this.storeKey] || 0
 			}
 		},
 	},
@@ -133,17 +136,17 @@ export default {
 		fetchData() {
 			if (!this.profileAccount) return
 			if (this.isFollowers) {
-				this.$store.dispatch('fetchAccountFollowers', { account: this.profileAccount })
+				this.accountStore.fetchAccountFollowers({ account: this.profileAccount })
 			} else {
-				this.$store.dispatch('fetchAccountFollowing', { account: this.profileAccount })
+				this.accountStore.fetchAccountFollowing({ account: this.profileAccount })
 			}
 		},
 		loadMoreIfNeeded() {
 			if (this.loading || this.allLoaded || !this.maxId) return
 			if (this.isFollowers) {
-				this.$store.dispatch('fetchAccountFollowers', { account: this.profileAccount, maxId: this.maxId })
+				this.accountStore.fetchAccountFollowers({ account: this.profileAccount, maxId: this.maxId })
 			} else {
-				this.$store.dispatch('fetchAccountFollowing', { account: this.profileAccount, maxId: this.maxId })
+				this.accountStore.fetchAccountFollowing({ account: this.profileAccount, maxId: this.maxId })
 			}
 		},
 		isSentinelVisible() {

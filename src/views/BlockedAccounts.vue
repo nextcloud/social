@@ -93,6 +93,8 @@ import Cancel from 'vue-material-design-icons/Cancel.vue'
 import VolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 
 export default {
 	name: 'BlockedAccounts',
@@ -113,6 +115,9 @@ export default {
 			busy: [],
 			loading: true,
 		}
+	},
+	computed: {
+		...mapStores(useAccountStore),
 	},
 	async mounted() {
 		await this.fetchAll()
@@ -145,13 +150,13 @@ export default {
 		},
 		/**
 		 * @param {import('../types/Mastodon.js').Account} account the account acted on
-		 * @param {string} action the store action to dispatch
+		 * @param {string} action the name of the account-store action to call
 		 * @param {string} list the list to take the account off on success
 		 */
 		async act(account, action, list) {
 			this.busy.push(account.id)
 			try {
-				const result = await this.$store.dispatch(action, { id: account.id })
+				const result = await this.accountStore[action]({ id: account.id })
 				// the store reports its own failure; leave the row in place then,
 				// so nothing claims an account was unblocked when it was not
 				if (result) {

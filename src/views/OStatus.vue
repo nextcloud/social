@@ -54,6 +54,9 @@ import currentuserMixin from '../mixins/currentUserMixin.js'
 import ActorAvatar from '../components/ActorAvatar.vue'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useSettingsStore } from '../store/settings.js'
 
 export default {
 	name: 'OStatus',
@@ -73,8 +76,9 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore, useSettingsStore),
 		isFollowing() {
-			return this.$store.getters.isFollowingUser(this.account.id)
+			return this.accountStore.isFollowingUser(this.account.id)
 		},
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.account.id)
@@ -106,14 +110,14 @@ export default {
 			if (serverData.currentUser) {
 				window.oc_current_user = JSON.parse(JSON.stringify(serverData.currentUser))
 			}
-			this.$store.commit('setServerData', serverData)
+			this.settingsStore.setServerData(serverData)
 			if (this.serverData.account && !this.serverData.local) {
-				this.$store.dispatch('fetchAccountInfo', this.serverData.account).then((result) => {
+				this.accountStore.fetchAccountInfo(this.serverData.account).then((result) => {
 					this.account = result
 				})
 			}
 			if (this.serverData.local) {
-				this.$store.dispatch('fetchPublicAccountInfo', this.serverData.local).then((result) => {
+				this.accountStore.fetchPublicAccountInfo(this.serverData.local).then((result) => {
 					this.account = result
 				})
 			}
@@ -123,7 +127,7 @@ export default {
 	},
 	methods: {
 		follow() {
-			this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account.acct }).then(() => {
+			this.accountStore.followAccount({ currentAccount: this.cloudId, accountToFollow: this.account.acct }).then(() => {
 
 			})
 		},

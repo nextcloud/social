@@ -9,6 +9,8 @@ import axios from '@nextcloud/axios'
 import { showError } from '@nextcloud/dialogs'
 
 import BlockedAccounts from '../../../src/views/BlockedAccounts.vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAccountStore } from '../../../src/store/account.js'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn() },
@@ -35,10 +37,15 @@ const serve = (blocked, muted) => {
 
 const mountView = async ({ blocked = [bob], muted = [carol], dispatch } = {}) => {
 	serve(blocked, muted)
-	const $store = { dispatch: dispatch ?? vi.fn().mockResolvedValue({ id: '22' }) }
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	const accountStore = useAccountStore()
+	const act = dispatch ?? vi.fn().mockResolvedValue({ id: '22' })
+	vi.spyOn(accountStore, 'unblockAccount').mockImplementation(act)
+	vi.spyOn(accountStore, 'unmuteAccount').mockImplementation(act)
 	const wrapper = mount(BlockedAccounts, {
 		global: {
-			mocks: { $store },
+			plugins: [pinia],
 			stubs: {
 				NcAvatar: true,
 				NcEmptyContent: { props: ['name'], template: '<div class="empty-content">{{ name }}</div>' },
@@ -47,7 +54,8 @@ const mountView = async ({ blocked = [bob], muted = [carol], dispatch } = {}) =>
 		},
 	})
 	await flushPromises()
-	return { wrapper, $store }
+
+	return { wrapper, accountStore }
 }
 
 const rows = (wrapper) => wrapper.findAll('.blocked-account')
@@ -98,24 +106,24 @@ describe('BlockedAccounts', () => {
 
 	it('unblocks through the store and takes the row off the list', async () => {
 		const dispatch = vi.fn().mockResolvedValue({ id: '22' })
-		const { wrapper } = await mountView({ blocked: [bob], muted: [], dispatch })
+		const { wrapper, accountStore } = await mountView({ blocked: [bob], muted: [], dispatch })
 
 		await buttonByText(wrapper, 'Unblock').trigger('click')
 		await flushPromises()
 
 		// the store action is what keeps the profile page's relationship in step
-		expect(dispatch).toHaveBeenCalledWith('unblockAccount', { id: '22' })
+		expect(accountStore.unblockAccount).toHaveBeenCalledWith({ id: '22' })
 		expect(rowNames(wrapper)).toEqual([])
 	})
 
 	it('unmutes through the store and takes the row off the list', async () => {
 		const dispatch = vi.fn().mockResolvedValue({ id: '33' })
-		const { wrapper } = await mountView({ blocked: [], muted: [carol], dispatch })
+		const { wrapper, accountStore } = await mountView({ blocked: [], muted: [carol], dispatch })
 
 		await buttonByText(wrapper, 'Unmute').trigger('click')
 		await flushPromises()
 
-		expect(dispatch).toHaveBeenCalledWith('unmuteAccount', { id: '33' })
+		expect(accountStore.unmuteAccount).toHaveBeenCalledWith({ id: '33' })
 		expect(rowNames(wrapper)).toEqual([])
 	})
 
@@ -133,9 +141,11 @@ describe('BlockedAccounts', () => {
 
 	it('reports a failure to load and stops the spinner', async () => {
 		axios.get.mockRejectedValue(new Error('boom'))
+		const pinia = createPinia()
+		setActivePinia(pinia)
 		const wrapper = mount(BlockedAccounts, {
 			global: {
-				mocks: { $store: { dispatch: vi.fn() } },
+				plugins: [pinia],
 				stubs: {
 					NcAvatar: true,
 					NcEmptyContent: { props: ['name'], template: '<div class="empty-content">{{ name }}</div>' },

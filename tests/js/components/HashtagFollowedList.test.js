@@ -5,13 +5,13 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import { showError } from '@nextcloud/dialogs'
 
 import HashtagFollowedList from '../../../src/components/HashtagFollowedList.vue'
 import logger from '../../../src/services/logger.js'
-import settings from '../../../src/store/settings.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn() },
@@ -26,11 +26,12 @@ const API = '/index.php/apps/social/api/v1'
 const tagEntity = (name) => ({ name, url: `https://cloud.example.org/tags/${name}`, history: [], following: true })
 
 const mountList = ({ isPublic = false } = {}) => {
-	const store = createStore({ modules: { settings } })
-	store.commit('setServerData', { public: isPublic })
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	useSettingsStore().setServerData({ public: isPublic })
 
 	return mount(HashtagFollowedList, {
-		global: { plugins: [store], stubs: { RouterLink: RouterLinkStub } },
+		global: { plugins: [pinia], stubs: { RouterLink: RouterLinkStub } },
 	})
 }
 

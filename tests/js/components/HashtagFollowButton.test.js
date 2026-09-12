@@ -6,13 +6,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import { showError } from '@nextcloud/dialogs'
 
 import HashtagFollowButton from '../../../src/components/HashtagFollowButton.vue'
 import logger from '../../../src/services/logger.js'
-import settings from '../../../src/store/settings.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn() },
@@ -32,13 +32,14 @@ const tagEntity = (name, following) => ({
 })
 
 const mountButton = async ({ tag = 'nextcloud', following = false, isPublic = false } = {}) => {
-	const store = createStore({ modules: { settings } })
-	store.commit('setServerData', { public: isPublic, cloudAddress: 'https://cloud.example.org' })
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	useSettingsStore().setServerData({ public: isPublic, cloudAddress: 'https://cloud.example.org' })
 	axios.get.mockResolvedValue({ data: tagEntity(tag, following) })
 
 	const wrapper = mount(HashtagFollowButton, {
 		props: { tag },
-		global: { plugins: [store] },
+		global: { plugins: [pinia] },
 	})
 	await flushPromises()
 
@@ -183,13 +184,14 @@ describe('HashtagFollowButton', () => {
 	})
 
 	it('shows no control at all when the state could not be read', async () => {
-		const store = createStore({ modules: { settings } })
-		store.commit('setServerData', { public: false })
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		useSettingsStore().setServerData({ public: false })
 		axios.get.mockRejectedValueOnce(new Error('gone'))
 
 		const wrapper = mount(HashtagFollowButton, {
 			props: { tag: 'nextcloud' },
-			global: { plugins: [store] },
+			global: { plugins: [pinia] },
 		})
 		await flushPromises()
 

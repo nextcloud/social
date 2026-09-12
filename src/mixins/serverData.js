@@ -18,16 +18,18 @@
  * @property setup
  */
 
+import { mapStores } from 'pinia'
+
+import { useSettingsStore } from '../store/settings.js'
+
 export default {
 	computed: {
+		...mapStores(useSettingsStore),
 		/**
 		 * @return {ServerData} Returns the serverData object
 		 */
 		serverData() {
-			if (!this.$store) {
-				return {}
-			}
-			return this.$store.getters.getServerData
+			return this.settingsStore.getServerData
 		},
 		/**
 		 * @return {string}

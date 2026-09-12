@@ -9,7 +9,9 @@
 		<Composer v-if="accountInfo && currentAccount && $route.name === 'profile'" :initial-mention="accountInfo.acct === currentAccount.acct ? null : accountInfo" default-visibility="direct" />
 
 		<router-view v-if="accountLoaded && accountInfo" name="details" />
-		<NcEmptyContent v-if="accountLoaded && !accountInfo"
+		<!-- the lookup is what says an account is missing: `accountLoaded` is
+		     `accountInfo !== undefined`, so pairing the two never said anything -->
+		<NcEmptyContent v-if="lookupFinished && !accountInfo"
 			:name="t('social', 'User not found')"
 			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: uid })">
 			<template #icon>
@@ -29,6 +31,9 @@ import { defineAsyncComponent } from 'vue'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useTimelineStore } from '../store/timeline.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -48,12 +53,15 @@ export default {
 			state: [],
 			/** @type {string|null} */
 			uid: null,
+			/** whether a lookup for the handle on screen has come back, either way */
+			lookupFinished: false,
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore, useTimelineStore),
 		/** @return {import('../types/Mastodon').Status[]} */
 		timeline() {
-			return this.$store.getters.getTimeline
+			return this.timelineStore.getTimeline
 		},
 		/** @return {string} */
 		emptyContentImage() {
@@ -61,7 +69,7 @@ export default {
 		},
 		/** @return {import('../types/Mastodon.js').Account} */
 		currentAccount() {
-			return this.$store.getters.currentAccount
+			return this.accountStore.currentAccount
 		},
 	},
 	watch: {
@@ -74,6 +82,7 @@ export default {
 	methods: {
 		async fetchProfileData() {
 			this.uid = this.$route.params.account || this.serverData.account
+			this.lookupFinished = false
 
 			if (!this.uid) return
 
@@ -84,12 +93,13 @@ export default {
 				fetchMethod = 'fetchAccountInfo'
 			}
 
-			const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
+			const response = await this.accountStore[fetchMethod](this.profileAccount)
+			this.lookupFinished = true
 			if (response) {
 				this.uid = response.acct
 				const infoId = this.accountInfo?.nid || this.accountInfo?.id
 				if (infoId && !this.serverData.public) {
-					await this.$store.dispatch('fetchAccountRelationshipInfo', [infoId])
+					await this.accountStore.fetchAccountRelationshipInfo([infoId])
 				} else {
 					logger.debug('Not asking for a relationship', { known: Boolean(infoId), isPublic: this.serverData.public })
 				}

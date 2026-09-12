@@ -47,6 +47,8 @@ import currentUser from '../mixins/currentUserMixin.js'
 import DisplayName from './DisplayName.js'
 import FollowButton from './FollowButton.vue'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 
 export default {
 	name: 'UserEntry',
@@ -75,6 +77,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore),
 		/**
 		 * The account's bio, reduced to markup that is safe to inject.
 		 *
@@ -93,7 +96,7 @@ export default {
 		 * @return {import('../types/Mastodon.js').Relationship|undefined}
 		 */
 		relationship() {
-			return this.$store.getters.getRelationshipWith(this.item?.id)
+			return this.accountStore.getRelationshipWith(this.item?.id)
 		},
 		/**
 		 * @return {boolean}
@@ -106,7 +109,7 @@ export default {
 		if (!this.serverData.public && this.relationship === undefined) {
 			// batched: the action collects everybody who asks in the same
 			// moment and sends the ids as one request
-			this.$store.dispatch('fetchRelationship', this.item.id)
+			this.accountStore.fetchRelationship(this.item.id)
 		}
 	},
 }

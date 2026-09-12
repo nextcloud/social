@@ -4,12 +4,11 @@
  */
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import AccountHoverCard, { CLOSE_DELAY, OPEN_DELAY, resetAccountCache } from '../../../src/components/AccountHoverCard.vue'
-import account from '../../../src/store/account.js'
-import errors from '../../../src/store/errors.js'
-import settings from '../../../src/store/settings.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
@@ -20,8 +19,6 @@ vi.mock('../../../src/services/logger.js', () => ({
 }))
 
 // The store modules keep their state in a shared module-level object.
-const pristine = structuredClone(account.state)
-
 const bob = {
 	id: '42',
 	url: 'https://remote.example/users/bob',
@@ -35,21 +32,26 @@ const bob = {
 	emojis: [],
 }
 
-let store
+let pinia
+let accountStore
+let settingsStore
 let wrappers = []
 
 const makeStore = () => {
-	Object.assign(account.state, structuredClone(pristine))
-	store = createStore({ modules: { account, errors, settings } })
-	store.commit('setServerData', { public: false })
-	return store
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	settingsStore = useSettingsStore()
+	settingsStore.setServerData({ public: false })
+
+	return pinia
 }
 
 const mountCard = (props = {}) => {
 	const wrapper = mount(AccountHoverCard, {
 		props: { handle: bob.acct, ...props },
 		slots: { default: '<a class="mention" href="https://remote.example/users/bob">@bob</a>' },
-		global: { plugins: [store] },
+		global: { plugins: [pinia] },
 		attachTo: document.body,
 	})
 	wrappers.push(wrapper)
@@ -229,7 +231,7 @@ describe('AccountHoverCard', () => {
 		})
 
 		it('says when the account follows the reader, without asking anybody', async () => {
-			store.commit('addRelationship', { actorId: bob.id, data: { id: bob.id, followed_by: true } })
+			accountStore.addRelationship({ actorId: bob.id, data: { id: bob.id, followed_by: true } })
 			const wrapper = mountCard()
 
 			await hoverUntilOpen(wrapper)
@@ -254,7 +256,7 @@ describe('AccountHoverCard', () => {
 			const first = mountCard()
 			await hoverUntilOpen(first)
 			expect(axios.get).toHaveBeenCalledTimes(1)
-			expect(store.getters.getAccount(bob.acct)).toMatchObject({ acct: bob.acct })
+			expect(accountStore.getAccount(bob.acct)).toMatchObject({ acct: bob.acct })
 
 			await pointerLeave(first)
 			await advance(CLOSE_DELAY)
@@ -421,12 +423,10 @@ describe('AccountHoverCard', () => {
 
 	describe('where the account cannot be looked up', () => {
 		it('opens nothing at all rather than a card that can never fill', async () => {
-			const wrapper = mount(AccountHoverCard, {
-				props: { handle: bob.acct },
-				slots: { default: '<a href="/x">@bob</a>' },
-				attachTo: document.body,
-			})
-			wrappers.push(wrapper)
+			// a public page has no session to ask with, and this mention came
+			// with nothing of its own
+			settingsStore.setServerData({ public: true })
+			const wrapper = mountCard()
 
 			await hoverUntilOpen(wrapper)
 
@@ -434,7 +434,7 @@ describe('AccountHoverCard', () => {
 		})
 
 		it('asks nothing of a public page, where there is no session to ask with', async () => {
-			store.commit('setServerData', { public: true })
+			settingsStore.setServerData({ public: true })
 			const wrapper = mountCard({ fallback: { acct: bob.acct, username: 'bob', display_name: 'Bob' } })
 
 			await hoverUntilOpen(wrapper)
@@ -445,13 +445,9 @@ describe('AccountHoverCard', () => {
 	})
 
 	describe('without a store', () => {
-		it('renders the mention and asks for nothing on a page that has none', async () => {
-			const wrapper = mount(AccountHoverCard, {
-				props: { handle: bob.acct, fallback: { acct: bob.acct, username: 'bob', display_name: 'Bob' } },
-				slots: { default: '<a href="/x">@bob</a>' },
-				attachTo: document.body,
-			})
-			wrappers.push(wrapper)
+		it('renders the mention from what the page already carried', async () => {
+			settingsStore.setServerData({ public: true })
+			const wrapper = mountCard({ fallback: { acct: bob.acct, username: 'bob', display_name: 'Bob' } })
 
 			await hoverUntilOpen(wrapper)
 

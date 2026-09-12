@@ -230,6 +230,8 @@ import FollowButton from './FollowButton.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 
 /** Mirrors `AccountService::SUMMARY_MAX_LENGTH`, which truncates beyond it. */
 const BIO_MAX_LENGTH = 500
@@ -291,6 +293,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore),
 		localUid() {
 			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.slice(0, this.uid.indexOf('@'))
 		},
@@ -393,7 +396,7 @@ export default {
 			this.relationshipLoading = true
 			try {
 				const action = this.relationship.blocking ? 'unblockAccount' : 'blockAccount'
-				await this.$store.dispatch(action, { id: this.relationship.id })
+				await this.accountStore[action]({ id: this.relationship.id })
 			} finally {
 				this.relationshipLoading = false
 			}
@@ -402,7 +405,7 @@ export default {
 			this.relationshipLoading = true
 			try {
 				const action = this.relationship.muting ? 'unmuteAccount' : 'muteAccount'
-				await this.$store.dispatch(action, { id: this.relationship.id })
+				await this.accountStore[action]({ id: this.relationship.id })
 			} finally {
 				this.relationshipLoading = false
 			}
@@ -441,7 +444,7 @@ export default {
 				this.showProfileModal = false
 				await this.showSuccess(t('social', 'Profile saved'))
 				try {
-					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+					await this.accountStore.fetchAccountInfo(this.profileAccount)
 				} catch (e) {
 					logger.warn('Could not refresh the account after saving the profile', { error: e })
 				}
@@ -478,7 +481,7 @@ export default {
 				this.bannerUrl = data.result.url
 				await this.showSuccess(t('social', 'Banner uploaded successfully'))
 				try {
-					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+					await this.accountStore.fetchAccountInfo(this.profileAccount)
 				} catch (e) {
 					logger.warn('Could not refresh the account after the banner upload', { error: e })
 				}
@@ -507,7 +510,7 @@ export default {
 				this.bannerUrlInput = ''
 				await this.showSuccess(t('social', 'Banner set successfully'))
 				try {
-					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+					await this.accountStore.fetchAccountInfo(this.profileAccount)
 				} catch (e) {
 					logger.warn('Could not refresh the account after setting the banner', { error: e })
 				}

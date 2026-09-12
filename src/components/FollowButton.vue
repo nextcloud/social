@@ -88,6 +88,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import { translate } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 
 /** how long the confirmation plays, the same window a liked post celebrates for */
 const CELEBRATION_MS = 600
@@ -127,13 +129,14 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore),
 		/** @return {boolean} */
 		isCurrentUserFollowing() {
-			return this.$store.getters.isFollowingUser(this.profileAccount)
+			return this.accountStore.isFollowingUser(this.profileAccount)
 		},
 		/** @return {import('../types/Mastodon.js').Account} */
 		currentAccount() {
-			return this.$store.getters.currentAccount
+			return this.accountStore.currentAccount
 		},
 		unfollowButtons() {
 			return [
@@ -166,7 +169,7 @@ export default {
 				this.loading = true
 				// the label goes ahead of the server, and comes back if it has to
 				this.pending = true
-				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.profileAccount })
+				await this.accountStore.followAccount({ currentAccount: this.cloudId, accountToFollow: this.profileAccount })
 				// the store commits the follow only when the server took it —
 				// on a refusal it reports the error itself and commits nothing,
 				// which is the only signal this component gets
@@ -190,7 +193,7 @@ export default {
 			logger.debug('Unfollowing an account', { account: this.profileAccount })
 			try {
 				this.loading = true
-				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
+				await this.accountStore.unfollowAccount({ currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
 				if (this.relationship?.following) {
 					this.refuse()
 				}

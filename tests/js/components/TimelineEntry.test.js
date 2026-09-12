@@ -4,8 +4,10 @@
  */
 
 import { mount, RouterLinkStub } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import TimelineEntry from '../../../src/components/TimelineEntry.vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 const alice = {
 	id: '1',
@@ -71,11 +73,15 @@ const UserEntryStub = {
 }
 
 const mountEntry = (item, props = {}) => {
-	const $store = { getters: { getStatus: vi.fn((id) => (id === 'p1' ? storedPost : undefined)), getServerData: {} } }
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	const timelineStore = useTimelineStore()
+	timelineStore.addToStatuses(storedPost)
 	const wrapper = mount(TimelineEntry, {
 		props: { item, type: 'home', ...props },
 		global: {
-			mocks: { $store, $route: { name: 'timeline', params: { type: 'home' } } },
+			plugins: [pinia],
+			mocks: { $route: { name: 'timeline', params: { type: 'home' } } },
 			stubs: {
 				TimelinePost: TimelinePostStub,
 				TimelineAvatar: TimelineAvatarStub,
@@ -84,7 +90,7 @@ const mountEntry = (item, props = {}) => {
 			},
 		},
 	})
-	return { wrapper, $store }
+	return { wrapper, timelineStore }
 }
 
 describe('TimelineEntry', () => {
@@ -138,9 +144,10 @@ describe('TimelineEntry', () => {
 		})
 
 		it('renders the boosted post from the store so later actions are reflected', () => {
-			const { wrapper, $store } = mountEntry(boost)
+			// the boost carries its own copy of the post; what is rendered is
+			// the store's, which is the one a like or an edit changes
+			const { wrapper } = mountEntry(boost)
 
-			expect($store.getters.getStatus).toHaveBeenCalledWith('p1')
 			expect(wrapper.findComponent(TimelinePostStub).props('item')).toEqual(storedPost)
 			expect(wrapper.findComponent(TimelineAvatarStub).props('item')).toEqual(storedPost)
 		})

@@ -81,6 +81,8 @@ import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
 import { notificationSummary } from '../services/notifications.js'
 import { onTick } from '../services/clock.js'
+import { mapStores } from 'pinia'
+import { useTimelineStore } from '../store/timeline.js'
 
 export default {
 	name: 'TimelineEntry',
@@ -120,6 +122,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useTimelineStore),
 		/**
 		 * @return {import('../types/Mastodon.js').Status}
 		 */
@@ -128,7 +131,7 @@ export default {
 				return this.notification.status
 			} else if (this.isBoost) {
 				// We use the object stored in the store so that actions on it are reflected.
-				return this.$store.getters.getStatus(this.item.reblog.id)
+				return this.timelineStore.getStatus(this.item.reblog.id)
 			} else {
 				return this.item
 			}

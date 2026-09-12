@@ -188,6 +188,11 @@ import IconCancel from 'vue-material-design-icons/Cancel.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
 import currentuserMixin from '../mixins/currentUserMixin.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useErrorsStore } from '../store/errors.js'
+import { useNotificationsStore } from '../store/notifications.js'
+import { useTimelineStore } from '../store/timeline.js'
 
 // the composer pulls the emoji picker and the attachment stack with it:
 // its own chunk keeps all of that out of the entry bundle
@@ -240,17 +245,18 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore, useErrorsStore, useNotificationsStore, useTimelineStore),
 		hasErrors() {
-			return this.$store.getters.hasErrors
+			return this.errorsStore.hasErrors
 		},
 		errorCount() {
-			return this.$store.getters.appErrors.length
+			return this.errorsStore.appErrors.length
 		},
 		unreadNotifications() {
-			return this.$store.getters.unreadNotifications
+			return this.notificationsStore.unreadNotifications
 		},
 		appErrors() {
-			return this.$store.getters.appErrors
+			return this.errorsStore.appErrors
 		},
 		/**
 		 * @return {string} the name the reader publishes under, falling back to
@@ -263,11 +269,11 @@ export default {
 				|| ''
 		},
 		currentAccount() {
-			return this.$store.getters.currentAccount
+			return this.accountStore.currentAccount
 		},
 		/** what is being searched for, as the URL says it */
 		searchQuery() {
-			return this.$store.getters.getSearchQuery ?? ''
+			return this.timelineStore.getSearchQuery ?? ''
 		},
 		menu() {
 			return {
@@ -357,16 +363,16 @@ export default {
 	},
 	mounted() {
 		this.fetchTrending()
-		this.$store.dispatch('fetchUnreadNotifications')
+		this.notificationsStore.fetchUnreadNotifications()
 
 		// the badge is only honest if it keeps up: with notify_push the server
 		// says when something arrived, and without it a slow poll is enough
 		this.stopListening = listen('social_timeline', () => {
-			this.$store.dispatch('fetchUnreadNotifications')
+			this.notificationsStore.fetchUnreadNotifications()
 		})
 		if (!this.stopListening) {
 			this.pollTimer = setInterval(
-				() => this.$store.dispatch('fetchUnreadNotifications'), UNREAD_POLL_MS,
+				() => this.notificationsStore.fetchUnreadNotifications(), UNREAD_POLL_MS,
 			)
 		}
 	},
@@ -442,10 +448,10 @@ export default {
 			return this.$route?.name === 'tags' && this.$route?.params?.tag === tag.name
 		},
 		dismissError(id) {
-			this.$store.dispatch('dismissAppError', id)
+			this.errorsStore.dismissAppError(id)
 		},
 		clearAllErrors() {
-			this.$store.commit('clearErrors')
+			this.errorsStore.clearErrors()
 		},
 		/**
 		 * Searching now costs a request, so it waits for the typing to stop.

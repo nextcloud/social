@@ -7,10 +7,10 @@ import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import FollowButton from '../../../src/components/FollowButton.vue'
-import account from '../../../src/store/account.js'
-import settings from '../../../src/store/settings.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 import logger from '../../../src/services/logger.js'
 
 vi.mock('../../../src/services/logger.js', () => ({
@@ -23,27 +23,42 @@ vi.hoisted(() => {
 	document.head.dataset.userDisplayname = 'Alice'
 })
 
-// The store modules keep their state in a shared module-level object.
-const pristine = structuredClone(account.state)
-
 const bob = { id: 'https://remote.example/users/bob', url: 'https://remote.example/users/bob', acct: 'bob@remote.example', username: 'bob', display_name: 'Bob' }
 const carol = { id: 'https://cloud.example.org/users/carol', url: 'https://cloud.example.org/users/carol', acct: 'carol', username: 'carol', display_name: 'Carol' }
 
-let store
+let pinia
+let accountStore
 
 const makeStore = (serverData = {}) => {
-	Object.assign(account.state, structuredClone(pristine))
-	store = createStore({ modules: { account, settings } })
-	store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
-	store.commit('addAccount', { actorId: bob.url, data: bob })
-	store.commit('addAccount', { actorId: carol.url, data: carol })
-	return store
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
+	accountStore.addAccount({ actorId: bob.url, data: bob })
+	accountStore.addAccount({ actorId: carol.url, data: carol })
+
+	return pinia
 }
 
-const setRelationship = (target, data = {}) => store.commit('addRelationship', {
+const setRelationship = (target, data = {}) => accountStore.addRelationship({
 	actorId: target.id,
 	data: { id: target.id, following: false, requested: false, ...data },
 })
+
+/**
+ * Watches both halves of the follow, which used to be one `dispatch` spy.
+ *
+ * @param {Function} install applies the behaviour to each spy
+ * @return {{follow: object, unfollow: object}} the two spies
+ */
+const spyOnFollows = (install = (spy) => spy.mockResolvedValue(undefined)) => {
+	const follow = vi.spyOn(accountStore, 'followAccount')
+	const unfollow = vi.spyOn(accountStore, 'unfollowAccount')
+	install(follow)
+	install(unfollow)
+
+	return { follow, unfollow }
+}
 
 /**
  * NcDialog teleports into <body> and renders its buttons itself, which vitest
@@ -66,7 +81,7 @@ const NcDialogStub = {
 const mountButton = (uid = bob.acct, errorHandler) => mount(FollowButton, {
 	props: { uid },
 	global: {
-		plugins: [store],
+		plugins: [pinia],
 		config: { errorHandler },
 		stubs: { NcDialog: NcDialogStub },
 	},
@@ -129,17 +144,17 @@ describe('FollowButton', () => {
 
 	it('asks before unfollowing', async () => {
 		setRelationship(bob, { following: true })
-		const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(undefined)
+		const { unfollow } = spyOnFollows()
 		const wrapper = mountButton()
 
 		await wrapper.find('button').trigger('click')
-		expect(dispatch).not.toHaveBeenCalled()
+		expect(unfollow).not.toHaveBeenCalled()
 		expect(wrapper.find('.dialog-stub').exists()).toBe(true)
 		expect(wrapper.find('.dialog-name').text()).toBe('Unfollow bob@remote.example?')
 
 		// cancelling leaves the follow alone
 		await wrapper.find('.dialog-button--0').trigger('click')
-		expect(dispatch).not.toHaveBeenCalled()
+		expect(unfollow).not.toHaveBeenCalled()
 		expect(wrapper.find('.dialog-stub').exists()).toBe(false)
 	})
 
@@ -150,16 +165,16 @@ describe('FollowButton', () => {
 		expect(button.attributes('disabled')).toBeDefined()
 	})
 
-	it('dispatches followAccount with both handles and blocks the button until it settles', async () => {
+	it('calls followAccount with both handles and blocks the button until it settles', async () => {
 		setRelationship(bob)
 		let settle
-		const dispatch = vi.spyOn(store, 'dispatch').mockImplementation(() => new Promise((resolve) => {
+		const { follow } = spyOnFollows((spy) => spy.mockImplementation(() => new Promise((resolve) => {
 			settle = resolve
-		}))
+		})))
 		const wrapper = mountButton()
 
 		await wrapper.find('button').trigger('click')
-		expect(dispatch).toHaveBeenCalledWith('followAccount', {
+		expect(follow).toHaveBeenCalledWith({
 			currentAccount: 'alice@cloud.example.org',
 			accountToFollow: 'bob@remote.example',
 		})
@@ -170,24 +185,25 @@ describe('FollowButton', () => {
 		expect(wrapper.find('button').attributes('disabled')).toBeUndefined()
 	})
 
-	it('dispatches unfollowAccount once the confirmation is accepted', async () => {
+	it('calls unfollowAccount once the confirmation is accepted', async () => {
 		setRelationship(bob, { following: true })
-		const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(undefined)
+		const { follow, unfollow } = spyOnFollows()
 		const wrapper = mountButton()
 
 		await wrapper.find('button').trigger('click')
 		await wrapper.find('.dialog-button--1').trigger('click')
 		await flushPromises()
-		expect(dispatch).toHaveBeenCalledWith('unfollowAccount', {
+		expect(unfollow).toHaveBeenCalledWith({
 			currentAccount: 'alice@cloud.example.org',
 			accountToUnfollow: 'bob@remote.example',
 		})
-		expect(dispatch).toHaveBeenCalledTimes(1)
+		expect(unfollow).toHaveBeenCalledTimes(1)
+		expect(follow).not.toHaveBeenCalled()
 	})
 
 	it('re-enables the button on a follow that could not be carried out, and keeps the rejection in', async () => {
 		setRelationship(bob)
-		vi.spyOn(store, 'dispatch').mockRejectedValue(new Error('status -1'))
+		spyOnFollows((spy) => spy.mockRejectedValue(new Error('status -1')))
 		const errorHandler = vi.fn()
 		const wrapper = mountButton(bob.acct, errorHandler)
 
@@ -203,9 +219,9 @@ describe('FollowButton', () => {
 
 	it('completes a bare local uid with the instance hostname', async () => {
 		setRelationship(carol)
-		const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(undefined)
+		const { follow } = spyOnFollows()
 		await mountButton('carol').find('button').trigger('click')
-		expect(dispatch).toHaveBeenCalledWith('followAccount', {
+		expect(follow).toHaveBeenCalledWith({
 			currentAccount: 'alice@cloud.example.org',
 			accountToFollow: 'carol@cloud.example.org',
 		})
@@ -213,10 +229,10 @@ describe('FollowButton', () => {
 
 	it('celebrates a follow the server took, with the ring the like button throws', async () => {
 		setRelationship(bob)
-		vi.spyOn(store, 'dispatch').mockImplementation(async () => {
-			store.commit('followAccount', bob.acct)
+		spyOnFollows((spy) => spy.mockImplementation(async () => {
+			accountStore.markAccountFollowed(bob.acct)
 			return { data: {} }
-		})
+		}))
 		const wrapper = mountButton()
 
 		await wrapper.find('button').trigger('click')
@@ -231,9 +247,9 @@ describe('FollowButton', () => {
 	it('takes the optimistic label back when the server would not have the follow', async () => {
 		setRelationship(bob)
 		let settle
-		vi.spyOn(store, 'dispatch').mockImplementation(() => new Promise((resolve) => {
+		spyOnFollows((spy) => spy.mockImplementation(() => new Promise((resolve) => {
 			settle = resolve
-		}))
+		})))
 		const wrapper = mountButton()
 
 		await wrapper.find('button').trigger('click')
@@ -254,7 +270,7 @@ describe('FollowButton', () => {
 
 	it('takes the optimistic label back when the follow is rejected outright', async () => {
 		setRelationship(bob)
-		vi.spyOn(store, 'dispatch').mockRejectedValue(new Error('status -1'))
+		spyOnFollows((spy) => spy.mockRejectedValue(new Error('status -1')))
 		const errorHandler = vi.fn()
 		const wrapper = mountButton(bob.acct, errorHandler)
 
@@ -268,7 +284,7 @@ describe('FollowButton', () => {
 	it('says so on the button when an unfollow does not take', async () => {
 		setRelationship(bob, { following: true })
 		// the store swallows the failure and leaves the relationship alone
-		vi.spyOn(store, 'dispatch').mockResolvedValue(undefined)
+		spyOnFollows()
 		const wrapper = mountButton()
 
 		await wrapper.find('button').trigger('click')
@@ -282,10 +298,10 @@ describe('FollowButton', () => {
 	it('confirms the follow without the celebration for a reader who asked for reduced motion', async () => {
 		setRelationship(bob)
 		const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true })
-		vi.spyOn(store, 'dispatch').mockImplementation(async () => {
-			store.commit('followAccount', bob.acct)
+		spyOnFollows((spy) => spy.mockImplementation(async () => {
+			accountStore.markAccountFollowed(bob.acct)
 			return { data: {} }
-		})
+		}))
 		const wrapper = mountButton()
 
 		await wrapper.find('button').trigger('click')
@@ -303,11 +319,11 @@ describe('FollowButton', () => {
 		const wrapper = mountButton()
 		expect(buttonTexts(wrapper)).toEqual(['Follow'])
 
-		store.commit('followAccount', bob.acct)
+		accountStore.markAccountFollowed(bob.acct)
 		await nextTick()
 		expect(buttonTexts(wrapper)).toEqual(['Following'])
 
-		store.commit('unfollowAccount', bob.acct)
+		accountStore.markAccountUnfollowed(bob.acct)
 		await nextTick()
 		expect(buttonTexts(wrapper)).toEqual(['Follow'])
 	})

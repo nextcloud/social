@@ -4,7 +4,7 @@
  */
 
 import { createApp } from 'vue'
-import store from './store/index.js'
+import pinia from './store/index.js'
 import OStatus from './views/OStatus.vue'
 
 // eslint-disable-next-line
@@ -20,5 +20,5 @@ app.config.globalProperties.t = t
 app.config.globalProperties.n = n
 app.config.globalProperties.OC = window.OC
 app.config.globalProperties.OCA = window.OCA
-app.use(store)
+app.use(pinia)
 app.mount('#content')

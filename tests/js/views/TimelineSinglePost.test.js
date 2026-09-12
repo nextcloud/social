@@ -6,23 +6,17 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, reactive } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import TimelineSinglePost from '../../../src/views/TimelineSinglePost.vue'
 import eventBus from '../../../src/services/eventBus.js'
-import account from '../../../src/store/account.js'
-import errors from '../../../src/store/errors.js'
-import settings from '../../../src/store/settings.js'
-import timeline from '../../../src/store/timeline.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
 })
-
-const pristine = {
-	account: structuredClone(account.state),
-	timeline: structuredClone(timeline.state),
-}
 
 const ComposerStub = { name: 'Composer', template: '<div class="composer-stub" />' }
 const TimelineListStub = {
@@ -47,8 +41,9 @@ const fromServer = { ...status, content: '<p>Server copy</p>' }
 const parent = { id: '120', uri: 'https://remote.example/users/bob/statuses/120', content: '<p>Parent</p>', created_at: '2026-01-01T00:00:00Z', account: bob }
 const grandParent = { ...parent, id: '119', uri: 'https://remote.example/users/bob/statuses/119' }
 
+let pinia
+let accountStore
 let store
-let dispatch
 const fetchAccount = vi.fn(async () => bob)
 
 const setState = (key, value) => {
@@ -57,19 +52,16 @@ const setState = (key, value) => {
 }
 
 const makeStore = (serverData = {}) => {
-	Object.assign(account.state, structuredClone(pristine.account))
-	Object.assign(timeline.state, structuredClone(pristine.timeline))
-	store = createStore({
-		modules: {
-			timeline,
-			settings,
-			errors,
-			account: { ...account, actions: { ...account.actions, fetchAccountInfo: fetchAccount, fetchPublicAccountInfo: fetchAccount } },
-		},
-	})
-	store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
-	dispatch = vi.spyOn(store, 'dispatch')
-	return store
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	store = useTimelineStore()
+	vi.spyOn(accountStore, 'fetchAccountInfo').mockImplementation(fetchAccount)
+	vi.spyOn(accountStore, 'fetchPublicAccountInfo').mockImplementation(fetchAccount)
+	vi.spyOn(store, 'changeTimelineType')
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
+
+	return pinia
 }
 
 // every view registers an event bus listener, so unmount them after each test
@@ -79,7 +71,7 @@ const mountView = (route = reactive({ name: 'single-post', params: { account: 'b
 	const wrapper = mount(TimelineSinglePost, {
 		attachTo: document.body,
 		global: {
-			plugins: [store],
+			plugins: [pinia],
 			mocks: { $route: route },
 			stubs: {
 				Composer: ComposerStub,
@@ -108,31 +100,31 @@ describe('TimelineSinglePost', () => {
 	})
 
 	it('switches the store to the single post context of the routed post', () => {
-		store.commit('addToStatuses', status)
+		store.addToStatuses(status)
 		mountView()
-		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', {
+		expect(store.changeTimelineType).toHaveBeenCalledWith({
 			type: 'single-post',
 			params: { account: 'bob', id: '123', type: 'single-post', singlePost: '123' },
 		})
-		expect(store.state.timeline.type).toBe('single-post')
-		expect(store.state.timeline.params.singlePost).toBe('123')
+		expect(store.type).toBe('single-post')
+		expect(store.params.singlePost).toBe('123')
 	})
 
 	it('prefers the already loaded post over the server-rendered copy', () => {
-		store.commit('addToStatuses', status)
+		store.addToStatuses(status)
 		const wrapper = mountView()
 		expect(wrapper.findComponent(TimelineEntryStub).props('item')).toEqual(status)
-		expect(store.getters.getSinglePost.content).toBe('<p>Hello</p>')
+		expect(store.getSinglePost.content).toBe('<p>Hello</p>')
 	})
 
 	it('falls back to the post from the initial state when it is not in the store yet', () => {
 		const wrapper = mountView()
-		expect(store.getters.getSinglePost).toEqual(fromServer)
+		expect(store.getSinglePost).toEqual(fromServer)
 		expect(wrapper.findComponent(TimelineEntryStub).props('item')).toEqual(fromServer)
 	})
 
 	it('renders the main post as a block with the ancestors above and the replies below', () => {
-		store.commit('addToStatuses', status)
+		store.addToStatuses(status)
 		const wrapper = mountView()
 		const entry = wrapper.findComponent(TimelineEntryStub)
 		expect(entry.props('type')).toBe('single-post')
@@ -149,8 +141,8 @@ describe('TimelineSinglePost', () => {
 
 	it('loads the author taken from the URL', async () => {
 		mountView()
-		expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'bob')
-		expect(dispatch).not.toHaveBeenCalledWith('fetchPublicAccountInfo', expect.anything())
+		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('bob')
+		expect(accountStore.fetchPublicAccountInfo).not.toHaveBeenCalled()
 		await flushPromises()
 		expect(fetchAccount).toHaveBeenCalledTimes(1)
 	})
@@ -158,15 +150,15 @@ describe('TimelineSinglePost', () => {
 	it('uses the public author lookup on the public page', () => {
 		makeStore({ public: true })
 		mountView()
-		expect(dispatch).toHaveBeenCalledWith('fetchPublicAccountInfo', 'bob')
-		expect(dispatch).not.toHaveBeenCalledWith('fetchAccountInfo', expect.anything())
+		expect(accountStore.fetchPublicAccountInfo).toHaveBeenCalledWith('bob')
+		expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
 	})
 
 	it('only shows the composer when a reply was requested', async () => {
 		const wrapper = mountView()
 		const composer = () => wrapper.find('.composer-stub').element.style.display
 		expect(composer()).toBe('none')
-		store.commit('setComposerDisplayStatus', true)
+		store.setComposerDisplayStatus(true)
 		await nextTick()
 		expect(composer()).toBe('')
 	})
@@ -175,7 +167,7 @@ describe('TimelineSinglePost', () => {
 		const wrapper = mountView()
 		expect(wrapper.find('.social__wrapper').exists()).toBe(true)
 
-		store.commit('addToTimeline', { ancestors: [parent], descendants: [] })
+		store.addToTimeline({ ancestors: [parent], descendants: [] })
 		await nextTick()
 
 		expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(true)
@@ -186,7 +178,7 @@ describe('TimelineSinglePost', () => {
 		const wrapper = mountView()
 		expect(scrollIntoView).not.toHaveBeenCalled()
 
-		store.commit('addToTimeline', { ancestors: [parent], descendants: [] })
+		store.addToTimeline({ ancestors: [parent], descendants: [] })
 		await nextTick()
 		await nextTick()
 
@@ -198,11 +190,11 @@ describe('TimelineSinglePost', () => {
 	it('does not scroll again when more ancestors follow', async () => {
 		const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
 		mountView()
-		store.commit('addToTimeline', { ancestors: [parent], descendants: [] })
+		store.addToTimeline({ ancestors: [parent], descendants: [] })
 		await nextTick()
 		await nextTick()
 
-		store.commit('addToTimeline', { ancestors: [parent, grandParent], descendants: [] })
+		store.addToTimeline({ ancestors: [parent, grandParent], descendants: [] })
 		await nextTick()
 		await nextTick()
 
@@ -231,8 +223,8 @@ describe('TimelineSinglePost', () => {
 		window.history.replaceState({}, '', '/index.php/apps/social/some/other/path')
 		mountView(reactive({ name: 'single-post', params: { account: '@carol@remote.example', id: '9' } }))
 
-		expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'carol@remote.example')
-		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', {
+		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('carol@remote.example')
+		expect(store.changeTimelineType).toHaveBeenCalledWith({
 			type: 'single-post',
 			params: { account: 'carol@remote.example', id: '9', type: 'single-post', singlePost: '9' },
 		})
@@ -254,15 +246,15 @@ describe('TimelineSinglePost', () => {
 	})
 
 	it('reloads when the route moves to another post in the same view', async () => {
-		store.commit('addToStatuses', status)
+		store.addToStatuses(status)
 		const route = reactive({ name: 'single-post', params: { account: 'bob', id: '123' } })
 		mountView(route)
-		dispatch.mockClear()
+		store.changeTimelineType.mockClear()
 
 		route.params.id = '456'
 		await nextTick()
 
-		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', expect.objectContaining({
+		expect(store.changeTimelineType).toHaveBeenCalledWith(expect.objectContaining({
 			params: expect.objectContaining({ id: '456' }),
 		}))
 	})

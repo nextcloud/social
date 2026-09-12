@@ -60,6 +60,10 @@ import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import eventBus from './../services/eventBus.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useSettingsStore } from '../store/settings.js'
+import { useTimelineStore } from '../store/timeline.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -82,6 +86,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
 		/** What this timeline is, in the words the sidebar uses for it. */
 		heading() {
 			switch (this.type) {
@@ -139,17 +144,19 @@ export default {
 			return 'home'
 		},
 		showInfo() {
-			return this.$store.getters.getServerData.firstrun && !this.infoHidden
+			return this.settingsStore.getServerData.firstrun && !this.infoHidden
 		},
 		/** @return {boolean} whether the first-post celebration is on screen */
 		celebratingFirstPost() {
-			return this.$store.getters.isCelebratingFirstPost
+			return this.timelineStore.isCelebratingFirstPost
 		},
 		isFollowingNextcloudAccount() {
-			if (!this.$store.getters.accountLoaded(this.nextcloudAccount)) {
+			// not loaded yet: assume it is followed rather than offer a button
+			// that would ask about an account nothing is known about
+			if (this.accountStore.getAccount(this.nextcloudAccount) === undefined) {
 				return true
 			}
-			return this.$store.getters.isFollowingUser(this.nextcloudAccount)
+			return this.accountStore.isFollowingUser(this.nextcloudAccount)
 		},
 	},
 	watch: {
@@ -157,13 +164,13 @@ export default {
 		// from Home to Global reuses this view: without this the store would
 		// keep serving the previous timeline
 		timelineKey() {
-			this.$store.dispatch('changeTimelineType', { type: this.type, params: this.params })
+			this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
 		},
 	},
 	beforeMount() {
-		this.$store.dispatch('changeTimelineType', { type: this.type, params: this.params })
+		this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
 		if (this.showInfo) {
-			this.$store.dispatch('fetchAccountInfo', this.nextcloudAccount)
+			this.accountStore.fetchAccountInfo(this.nextcloudAccount)
 		}
 	},
 	mounted() {
@@ -174,7 +181,7 @@ export default {
 		// navigating away mid-celebration must not leave the flag standing for
 		// whatever timeline mounts next
 		if (this.celebratingFirstPost) {
-			this.$store.dispatch('endFirstPostCelebration')
+			this.timelineStore.endFirstPostCelebration()
 		}
 	},
 	methods: {
@@ -187,17 +194,17 @@ export default {
 		 * so the post itself appears exactly as it did before.
 		 */
 		onPostPublished() {
-			this.$store.dispatch('celebrateFirstPost')
+			this.timelineStore.celebrateFirstPost()
 		},
 		/** The list of followed hashtags is stale the moment one is followed. */
 		onHashtagFollowChanged() {
 			this.$refs.followedHashtags?.refresh()
 		},
 		endCelebration() {
-			this.$store.dispatch('endFirstPostCelebration')
+			this.timelineStore.endFirstPostCelebration()
 		},
 		followNextcloud() {
-			this.$store.dispatch('followAccount', { accountToFollow: this.nextcloudAccount })
+			this.accountStore.followAccount({ accountToFollow: this.nextcloudAccount })
 		},
 	},
 }

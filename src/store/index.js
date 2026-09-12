@@ -3,22 +3,18 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { createStore } from 'vuex'
-import timeline from './timeline.js'
-import account from './account.js'
-import settings from './settings.js'
-import errors from './errors.js'
-import notifications from './notifications.js'
+import { createPinia } from 'pinia'
 
-const debug = process.env.NODE_ENV !== 'production'
+export { useAccountStore } from './account.js'
+export { useErrorsStore } from './errors.js'
+export { useNotificationsStore } from './notifications.js'
+export { useSettingsStore } from './settings.js'
+export { useTimelineStore } from './timeline.js'
 
-export default createStore({
-	modules: {
-		timeline,
-		account,
-		settings,
-		errors,
-		notifications,
-	},
-	strict: debug,
-})
+/**
+ * The one Pinia every entry point installs.
+ *
+ * Each store registers itself the first time a component asks for it, so this
+ * file no longer lists the modules — what it holds is whatever the page used.
+ */
+export default createPinia()

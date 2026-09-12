@@ -66,6 +66,9 @@ import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
 import eventBus from '../services/eventBus.js'
+import { mapStores } from 'pinia'
+import { useNotificationsStore } from '../store/notifications.js'
+import { useTimelineStore } from '../store/timeline.js'
 
 /**
  * How many times fetchNewStatuses() may follow itself in one tick. It recursed
@@ -170,6 +173,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useNotificationsStore, useTimelineStore),
 		/**
 		 * What has just changed, in one sentence. Only the thing worth saying:
 		 * a reader does not need to hear about every page that loads while
@@ -190,7 +194,7 @@ export default {
 		},
 		/** @return {string} which list the store is holding */
 		timelineIdentity() {
-			return this.$store.getters.getTimelineIdentity
+			return this.timelineStore.getTimelineIdentity
 		},
 		/** @return {boolean} nothing to show, and nothing went wrong */
 		showEmptyContent() {
@@ -233,8 +237,8 @@ export default {
 
 		timeline() {
 			const timeline = this.showParents
-				? this.$store.getters.getParentsTimeline
-				: this.$store.getters.getTimeline
+				? this.timelineStore.getParentsTimeline
+				: this.timelineStore.getTimeline
 
 			// a copy: .reverse() sorts in place, and this array comes from a
 			// cached Vuex getter that every other reader shares
@@ -268,7 +272,7 @@ export default {
 					(highest, entry) => Math.max(highest, Number(entry.id ?? entry.nid) || 0), 0,
 				)
 				if (newest > 0) {
-					this.$store.dispatch('markNotificationsRead', newest)
+					this.notificationsStore.markNotificationsRead(newest)
 				}
 			},
 		},
@@ -362,7 +366,7 @@ export default {
 			}
 
 			try {
-				const response = await this.$store.dispatch('fetchTimeline', params)
+				const response = await this.timelineStore.fetchTimeline(params)
 				if (generation !== this.generation) {
 					return
 				}
@@ -484,7 +488,7 @@ export default {
 			const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
 
 			try {
-				const response = await this.$store.dispatch('fetchTimeline', {
+				const response = await this.timelineStore.fetchTimeline({
 					min_id: ids.length === 0 ? undefined : Math.max(...ids),
 				})
 				this.pollFailureReported = false

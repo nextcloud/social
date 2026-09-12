@@ -5,7 +5,7 @@
 
 import { createApp } from 'vue'
 import App from './App.vue'
-import store from './store/index.js'
+import pinia from './store/index.js'
 import router from './router.js'
 
 // CSP config for webpack dynamic chunk loading
@@ -26,6 +26,6 @@ app.config.globalProperties.n = n
 app.config.globalProperties.OC = window.OC
 app.config.globalProperties.OCA = window.OCA
 
-app.use(store)
+app.use(pinia)
 app.use(router)
 app.mount('#content')

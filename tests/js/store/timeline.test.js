@@ -4,11 +4,12 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
+import { toRaw } from 'vue'
 import axios from '@nextcloud/axios'
 import { showError } from '@nextcloud/dialogs'
 
-import timeline from '../../../src/store/timeline.js'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 import logger from '../../../src/services/logger.js'
 
 vi.mock('@nextcloud/axios', () => ({
@@ -20,17 +21,6 @@ vi.mock('../../../src/services/logger.js', () => ({
 }))
 
 const API = '/index.php/apps/social/api/v1'
-
-const freshState = () => ({
-	statuses: {},
-	timeline: [],
-	parentsTimeline: [],
-	type: 'home',
-	params: {},
-	account: '',
-	composerDisplayStatus: false,
-	searchQuery: '',
-})
 
 const makeStatus = (id, extra = {}) => ({
 	id,
@@ -45,194 +35,194 @@ const makeStatus = (id, extra = {}) => ({
 	...extra,
 })
 
-describe('timeline store mutations', () => {
-	const { mutations } = timeline
-	let state
+describe('timeline store state changes', () => {
+	let store
 
 	beforeEach(() => {
-		state = freshState()
+		setActivePinia(createPinia())
+		store = useTimelineStore()
 	})
 
 	it('addToStatuses indexes a status by id and also the boosted status of a boost wrapper', () => {
 		const inner = makeStatus('1')
 		const wrapper = makeStatus('2', { reblog: inner, content: '' })
 
-		mutations.addToStatuses(state, wrapper)
+		store.addToStatuses(wrapper)
 
-		expect(state.statuses['2']).toBe(wrapper)
-		expect(state.statuses['1']).toBe(inner)
-		expect(state.timeline).toEqual([])
+		expect(toRaw(store.statuses['2'])).toBe(wrapper)
+		expect(toRaw(store.statuses['1'])).toBe(inner)
+		expect(store.timeline).toEqual([])
 	})
 
 	it('addToTimeline appends ids in the order given and indexes every status', () => {
 		const [a, b, c] = [makeStatus('1'), makeStatus('2'), makeStatus('3')]
 
-		mutations.addToTimeline(state, [b, a, c])
+		store.addToTimeline([b, a, c])
 
-		expect(state.timeline).toEqual(['2', '1', '3'])
-		expect(Object.keys(state.statuses).sort()).toEqual(['1', '2', '3'])
-		expect(state.parentsTimeline).toEqual([])
+		expect(store.timeline).toEqual(['2', '1', '3'])
+		expect(Object.keys(store.statuses).sort()).toEqual(['1', '2', '3'])
+		expect(store.parentsTimeline).toEqual([])
 	})
 
 	it('addToTimeline de-duplicates ids but refreshes the stored status', () => {
-		mutations.addToTimeline(state, [makeStatus('1'), makeStatus('2')])
+		store.addToTimeline([makeStatus('1'), makeStatus('2')])
 		const edited = makeStatus('2', { content: '<p>edited</p>' })
 
-		mutations.addToTimeline(state, [edited, makeStatus('3')])
+		store.addToTimeline([edited, makeStatus('3')])
 
-		expect(state.timeline).toEqual(['1', '2', '3'])
-		expect(state.statuses['2']).toBe(edited)
+		expect(store.timeline).toEqual(['1', '2', '3'])
+		expect(toRaw(store.statuses['2'])).toBe(edited)
 	})
 
 	it('addToTimeline with a status context puts ancestors and descendants in separate lists', () => {
 		const parent = makeStatus('1')
 		const reply = makeStatus('3')
 
-		mutations.addToTimeline(state, { ancestors: [parent], descendants: [reply] })
+		store.addToTimeline({ ancestors: [parent], descendants: [reply] })
 
-		expect(state.parentsTimeline).toEqual(['1'])
-		expect(state.timeline).toEqual(['3'])
-		expect(state.statuses['1']).toBe(parent)
-		expect(state.statuses['3']).toBe(reply)
+		expect(store.parentsTimeline).toEqual(['1'])
+		expect(store.timeline).toEqual(['3'])
+		expect(toRaw(store.statuses['1'])).toBe(parent)
+		expect(toRaw(store.statuses['3'])).toBe(reply)
 
-		mutations.addToTimeline(state, { ancestors: [parent], descendants: [reply, makeStatus('4')] })
+		store.addToTimeline({ ancestors: [parent], descendants: [reply, makeStatus('4')] })
 
-		expect(state.parentsTimeline).toEqual(['1'])
-		expect(state.timeline).toEqual(['3', '4'])
+		expect(store.parentsTimeline).toEqual(['1'])
+		expect(store.timeline).toEqual(['3', '4'])
 	})
 
 	it('removeStatus drops the id from the timeline and from the index', () => {
-		mutations.addToTimeline(state, [makeStatus('1'), makeStatus('2'), makeStatus('3')])
+		store.addToTimeline([makeStatus('1'), makeStatus('2'), makeStatus('3')])
 
-		mutations.removeStatus(state, { id: '2' })
+		store.removeStatus({ id: '2' })
 
-		expect(state.timeline).toEqual(['1', '3'])
+		expect(store.timeline).toEqual(['1', '3'])
 		// the object used to be left behind, so the index only ever grew
-		expect(state.statuses['2']).toBeUndefined()
+		expect(store.statuses['2']).toBeUndefined()
 	})
 
 	it('restoreStatus puts a status back into the list it came from', () => {
 		const parent = makeStatus('1')
 		const reply = makeStatus('2')
-		mutations.addToTimeline(state, { ancestors: [parent], descendants: [reply] })
+		store.addToTimeline({ ancestors: [parent], descendants: [reply] })
 
-		mutations.removeStatus(state, parent)
-		mutations.removeStatus(state, reply)
-		expect(state.parentsTimeline).toEqual([])
-		expect(state.timeline).toEqual([])
+		store.removeStatus(parent)
+		store.removeStatus(reply)
+		expect(store.parentsTimeline).toEqual([])
+		expect(store.timeline).toEqual([])
 
-		mutations.restoreStatus(state, parent)
-		mutations.restoreStatus(state, reply)
+		store.restoreStatus(parent)
+		store.restoreStatus(reply)
 
 		// an ancestor goes back among the ancestors: addToTimeline always
-		// appended to state.timeline, so a failed delete of a parent
+		// appended to store.timeline, so a failed delete of a parent
 		// reappeared among its own replies
-		expect(state.parentsTimeline).toEqual(['1'])
-		expect(state.timeline).toEqual(['2'])
-		expect(state.statuses['1']).toBe(parent)
+		expect(store.parentsTimeline).toEqual(['1'])
+		expect(store.timeline).toEqual(['2'])
+		expect(toRaw(store.statuses['1'])).toBe(parent)
 	})
 
 	it('removeStatus ignores ids that are not in the timeline', () => {
-		mutations.addToTimeline(state, { ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
+		store.addToTimeline({ ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
 
-		mutations.removeStatus(state, { id: 'missing' })
+		store.removeStatus({ id: 'missing' })
 
-		expect(state.timeline).toEqual(['2'])
-		expect(state.parentsTimeline).toEqual(['1'])
+		expect(store.timeline).toEqual(['2'])
+		expect(store.parentsTimeline).toEqual(['1'])
 	})
 
 	it('removeStatus leaves a non-empty parentsTimeline intact when the status is only in the timeline', () => {
-		mutations.addToTimeline(state, {
+		store.addToTimeline({
 			ancestors: [makeStatus('1'), makeStatus('2')],
 			descendants: [makeStatus('3')],
 		})
 
-		mutations.removeStatus(state, { id: '3' })
+		store.removeStatus({ id: '3' })
 
-		expect(state.timeline).toEqual([])
-		expect(state.parentsTimeline).toEqual(['1', '2'])
+		expect(store.timeline).toEqual([])
+		expect(store.parentsTimeline).toEqual(['1', '2'])
 	})
 
 	it('removeStatus drops the status from both lists when it is in both', () => {
-		mutations.addToTimeline(state, { ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
+		store.addToTimeline({ ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
 		// the same status also sits in the timeline
-		state.timeline.push('1')
+		store.timeline.push('1')
 
-		mutations.removeStatus(state, { id: '1' })
+		store.removeStatus({ id: '1' })
 
-		expect(state.timeline).toEqual(['2'])
-		expect(state.parentsTimeline).toEqual([])
+		expect(store.timeline).toEqual(['2'])
+		expect(store.parentsTimeline).toEqual([])
 	})
 
 	it('removeStatusesByActor drops exactly that actor\'s statuses from both lists and the index', () => {
 		const byBob = (id) => makeStatus(id, { account: { id: '22', acct: 'bob@remote.tld' } })
 		const byCarol = (id) => makeStatus(id, { account: { id: '33', acct: 'carol@remote.tld' } })
-		mutations.addToTimeline(state, {
+		store.addToTimeline({
 			ancestors: [byBob('1'), byCarol('2')],
 			descendants: [byBob('3'), byCarol('4')],
 		})
 
-		mutations.removeStatusesByActor(state, '22')
+		store.removeStatusesByActor('22')
 
-		expect(state.timeline).toEqual(['4'])
-		expect(state.parentsTimeline).toEqual(['2'])
-		expect(Object.keys(state.statuses).sort()).toEqual(['2', '4'])
+		expect(store.timeline).toEqual(['4'])
+		expect(store.parentsTimeline).toEqual(['2'])
+		expect(Object.keys(store.statuses).sort()).toEqual(['2', '4'])
 	})
 
 	it('removeStatusesByActor also matches a numeric account id against string status ids', () => {
-		mutations.addToTimeline(state, [makeStatus('1', { account: { id: '22', acct: 'bob@remote.tld' } })])
+		store.addToTimeline([makeStatus('1', { account: { id: '22', acct: 'bob@remote.tld' } })])
 
-		mutations.removeStatusesByActor(state, 22)
+		store.removeStatusesByActor(22)
 
-		expect(state.timeline).toEqual([])
-		expect(state.statuses['1']).toBeUndefined()
+		expect(store.timeline).toEqual([])
+		expect(store.statuses['1']).toBeUndefined()
 	})
 
 	it('removeStatusesByActor drops boosts that wrap a status of the actor', () => {
 		const inner = makeStatus('1', { account: { id: '22', acct: 'bob@remote.tld' } })
 		const boost = makeStatus('2', { reblog: inner, content: '', account: { id: '33', acct: 'carol@remote.tld' } })
-		mutations.addToTimeline(state, [boost, makeStatus('3', { account: { id: '33', acct: 'carol@remote.tld' } })])
+		store.addToTimeline([boost, makeStatus('3', { account: { id: '33', acct: 'carol@remote.tld' } })])
 
-		mutations.removeStatusesByActor(state, '22')
+		store.removeStatusesByActor('22')
 
-		expect(state.timeline).toEqual(['3'])
-		expect(state.statuses['1']).toBeUndefined()
-		expect(state.statuses['2']).toBeUndefined()
-		expect(state.statuses['3']).toBeDefined()
+		expect(store.timeline).toEqual(['3'])
+		expect(store.statuses['1']).toBeUndefined()
+		expect(store.statuses['2']).toBeUndefined()
+		expect(store.statuses['3']).toBeDefined()
 	})
 
 	it('removeStatusesByActor leaves the state untouched when the actor has no statuses', () => {
-		mutations.addToTimeline(state, [makeStatus('1', { account: { id: '33', acct: 'carol@remote.tld' } })])
-		const statusesBefore = state.statuses
+		store.addToTimeline([makeStatus('1', { account: { id: '33', acct: 'carol@remote.tld' } })])
+		const statusesBefore = toRaw(store.statuses)
 
-		mutations.removeStatusesByActor(state, '22')
+		store.removeStatusesByActor('22')
 
-		expect(state.timeline).toEqual(['1'])
-		expect(state.statuses).toBe(statusesBefore)
+		expect(store.timeline).toEqual(['1'])
+		expect(toRaw(store.statuses)).toBe(statusesBefore)
 	})
 
 	it('resetTimeline empties both id lists and prunes the index, keeping the type', () => {
-		state.type = 'tags'
-		mutations.addToTimeline(state, { ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
+		store.type = 'tags'
+		store.addToTimeline({ ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
 
-		mutations.resetTimeline(state)
+		store.resetTimeline()
 
-		expect(state.timeline).toEqual([])
-		expect(state.parentsTimeline).toEqual([])
+		expect(store.timeline).toEqual([])
+		expect(store.parentsTimeline).toEqual([])
 		// the id lists used to be the only thing cleared, so every page of
 		// every timeline ever opened stayed in memory for the session
-		expect(state.statuses).toEqual({})
-		expect(state.type).toBe('tags')
+		expect(store.statuses).toEqual({})
+		expect(store.type).toBe('tags')
 	})
 
 	it('setters replace their field', () => {
-		mutations.setTimelineType(state, 'federated')
-		mutations.setTimelineParams(state, { tag: 'nextcloud' })
-		mutations.setAccount(state, 'bob@remote.tld')
-		mutations.setSearchQuery(state, 'hello')
-		mutations.setComposerDisplayStatus(state, true)
+		store.setTimelineType('federated')
+		store.setTimelineParams({ tag: 'nextcloud' })
+		store.setAccount('bob@remote.tld')
+		store.setSearchQuery('hello')
+		store.setComposerDisplayStatus(true)
 
-		expect(state).toMatchObject({
+		expect(store.$state).toMatchObject({
 			type: 'federated',
 			params: { tag: 'nextcloud' },
 			account: 'bob@remote.tld',
@@ -243,87 +233,87 @@ describe('timeline store mutations', () => {
 
 	it('likeStatus marks the status favourited and bumps the counter without touching the payload object', () => {
 		const original = makeStatus('1', { favourites_count: 4 })
-		mutations.addToStatuses(state, original)
+		store.addToStatuses(original)
 
-		mutations.likeStatus(state, { status: original })
+		store.likeStatus({ status: original })
 
-		expect(state.statuses['1']).toMatchObject({ favourited: true, favourites_count: 5 })
+		expect(store.statuses['1']).toMatchObject({ favourited: true, favourites_count: 5 })
 		expect(original).toMatchObject({ favourited: false, favourites_count: 4 })
 	})
 
 	it('unlikeStatus reverses a like', () => {
-		mutations.addToStatuses(state, makeStatus('1', { favourited: true, favourites_count: 1 }))
+		store.addToStatuses(makeStatus('1', { favourited: true, favourites_count: 1 }))
 
-		mutations.unlikeStatus(state, { status: { id: '1' } })
+		store.unlikeStatus({ status: { id: '1' } })
 
-		expect(state.statuses['1']).toMatchObject({ favourited: false, favourites_count: 0 })
+		expect(store.statuses['1']).toMatchObject({ favourited: false, favourites_count: 0 })
 	})
 
 	it('boostStatus and unboostStatus toggle reblogged and the reblogs counter', () => {
-		mutations.addToStatuses(state, makeStatus('1', { reblogs_count: 2 }))
+		store.addToStatuses(makeStatus('1', { reblogs_count: 2 }))
 
-		mutations.boostStatus(state, { status: { id: '1' } })
-		expect(state.statuses['1']).toMatchObject({ reblogged: true, reblogs_count: 3 })
+		store.boostStatus({ status: { id: '1' } })
+		expect(store.statuses['1']).toMatchObject({ reblogged: true, reblogs_count: 3 })
 
-		mutations.unboostStatus(state, { status: { id: '1' } })
-		expect(state.statuses['1']).toMatchObject({ reblogged: false, reblogs_count: 2 })
+		store.unboostStatus({ status: { id: '1' } })
+		expect(store.statuses['1']).toMatchObject({ reblogged: false, reblogs_count: 2 })
 	})
 
-	it('like and boost mutations are no-ops for statuses that are not indexed', () => {
-		mutations.likeStatus(state, { status: { id: 'x' } })
-		mutations.unlikeStatus(state, { status: { id: 'x' } })
-		mutations.boostStatus(state, { status: { id: 'x' } })
-		mutations.unboostStatus(state, { status: { id: 'x' } })
+	it('like and boost are no-ops for statuses that are not indexed', () => {
+		store.likeStatus({ status: { id: 'x' } })
+		store.unlikeStatus({ status: { id: 'x' } })
+		store.boostStatus({ status: { id: 'x' } })
+		store.unboostStatus({ status: { id: 'x' } })
 
-		expect(state.statuses).toEqual({})
+		expect(store.statuses).toEqual({})
 	})
 
 	it('like and boost only touch the entry whose id is given, for boost wrappers and boosted statuses alike', () => {
 		const inner = makeStatus('1', { favourites_count: 1, reblogs_count: 1 })
 		const wrapper = makeStatus('2', { reblog: inner, content: '' })
-		mutations.addToStatuses(state, wrapper)
+		store.addToStatuses(wrapper)
 
-		mutations.likeStatus(state, { status: inner })
-		expect(state.statuses['1']).toMatchObject({ favourited: true, favourites_count: 2 })
-		expect(state.statuses['2']).toMatchObject({ favourited: false, favourites_count: 0 })
+		store.likeStatus({ status: inner })
+		expect(store.statuses['1']).toMatchObject({ favourited: true, favourites_count: 2 })
+		expect(store.statuses['2']).toMatchObject({ favourited: false, favourites_count: 0 })
 
-		mutations.boostStatus(state, { status: wrapper })
-		expect(state.statuses['2']).toMatchObject({ reblogged: true, reblogs_count: 1 })
-		expect(state.statuses['1']).toMatchObject({ reblogged: false, reblogs_count: 1 })
+		store.boostStatus({ status: wrapper })
+		expect(store.statuses['2']).toMatchObject({ reblogged: true, reblogs_count: 1 })
+		expect(store.statuses['1']).toMatchObject({ reblogged: false, reblogs_count: 1 })
 	})
 
 	it('updateStatus replaces an indexed status and ignores unknown ones', () => {
-		mutations.addToStatuses(state, makeStatus('1'))
+		store.addToStatuses(makeStatus('1'))
 		const edited = makeStatus('1', { content: '<p>edited</p>' })
 
-		mutations.updateStatus(state, edited)
-		mutations.updateStatus(state, makeStatus('9'))
+		store.updateStatus(edited)
+		store.updateStatus(makeStatus('9'))
 
-		expect(state.statuses['1']).toBe(edited)
-		expect(state.statuses['9']).toBeUndefined()
+		expect(toRaw(store.statuses['1'])).toBe(edited)
+		expect(store.statuses['9']).toBeUndefined()
 	})
 })
 
 describe('timeline store getters', () => {
-	const { getters, mutations } = timeline
-	let state
+	let store
 
 	beforeEach(() => {
 		vi.clearAllMocks()
-		state = freshState()
+		setActivePinia(createPinia())
+		store = useTimelineStore()
 	})
 
 	it('getTimeline returns statuses newest first regardless of insertion order and skips unknown ids', () => {
 		const older = makeStatus('1', { created_at: '2026-01-01T10:00:00.000Z' })
 		const newer = makeStatus('2', { created_at: '2026-01-02T10:00:00.000Z' })
-		mutations.addToTimeline(state, [older, newer])
-		state.timeline.push('ghost')
+		store.addToTimeline([older, newer])
+		store.timeline.push('ghost')
 
-		expect(getters.getTimeline(state)).toEqual([newer, older])
+		expect(store.getTimeline).toEqual([newer, older])
 	})
 
 	it('getTimeline is the timeline, not a client-side search over it', () => {
-		mutations.addToTimeline(state, [
+		store.addToTimeline([
 			makeStatus('1', { created_at: '2026-01-03T10:00:00.000Z', content: '<p>Hello Fediverse</p>' }),
 			makeStatus('2', { created_at: '2026-01-02T10:00:00.000Z', content: '<p>nothing</p>', account: { acct: 'bob@remote.tld', display_name: 'Bob' } }),
 			makeStatus('3', { created_at: '2026-01-01T10:00:00.000Z', content: '<p>nothing</p>', account: { acct: 'carol', display_name: 'Carol FEDI' } }),
@@ -332,12 +322,12 @@ describe('timeline store getters', () => {
 		// filtering the ~15 loaded statuses with String.includes answered
 		// "No posts match your search" for posts the instance was holding;
 		// searching asks /api/v2/search now, and the timeline stays whole
-		state.searchQuery = 'fedi'
-		expect(getters.getTimeline(state).map(s => s.id)).toEqual(['1', '2', '3'])
+		store.searchQuery = 'fedi'
+		expect(store.getTimeline.map(s => s.id)).toEqual(['1', '2', '3'])
 	})
 
 	it('getParentsTimeline sorts and filters the ancestors the same way', () => {
-		mutations.addToTimeline(state, {
+		store.addToTimeline({
 			ancestors: [
 				makeStatus('1', { created_at: '2026-01-01T10:00:00.000Z', content: '<p>root</p>' }),
 				makeStatus('2', { created_at: '2026-01-02T10:00:00.000Z', content: '<p>middle</p>' }),
@@ -345,55 +335,54 @@ describe('timeline store getters', () => {
 			descendants: [makeStatus('3', { content: '<p>root reply</p>' })],
 		})
 
-		expect(getters.getParentsTimeline(state).map(s => s.id)).toEqual(['2', '1'])
+		expect(store.getParentsTimeline.map(s => s.id)).toEqual(['2', '1'])
 
-		state.searchQuery = 'root'
-		expect(getters.getParentsTimeline(state).map(s => s.id)).toEqual(['2', '1'])
+		store.searchQuery = 'root'
+		expect(store.getParentsTimeline.map(s => s.id)).toEqual(['2', '1'])
 	})
 
 	it('getStatus, getSinglePost, getSearchQuery and getComposerDisplayStatus read from the state', () => {
 		const post = makeStatus('7')
-		mutations.addToStatuses(state, post)
-		state.params = { singlePost: '7' }
-		state.searchQuery = 'q'
-		state.composerDisplayStatus = true
+		store.addToStatuses(post)
+		store.params = { singlePost: '7' }
+		store.searchQuery = 'q'
+		store.composerDisplayStatus = true
 
-		expect(getters.getStatus(state)('7')).toBe(post)
-		expect(getters.getStatus(state)('8')).toBeUndefined()
-		expect(getters.getSinglePost(state)).toBe(post)
-		expect(getters.getSearchQuery(state)).toBe('q')
-		expect(getters.getComposerDisplayStatus(state)).toBe(true)
+		expect(toRaw(store.getStatus('7'))).toBe(post)
+		expect(store.getStatus('8')).toBeUndefined()
+		expect(toRaw(store.getSinglePost)).toBe(post)
+		expect(store.getSearchQuery).toBe('q')
+		expect(store.getComposerDisplayStatus).toBe(true)
 	})
 
 	it('getPostFromTimeline returns the status, or warns and returns undefined', () => {
 		const post = makeStatus('7')
-		mutations.addToStatuses(state, post)
+		store.addToStatuses(post)
 
-		expect(getters.getPostFromTimeline(state)('7')).toBe(post)
+		expect(toRaw(store.getPostFromTimeline('7'))).toBe(post)
 		expect(logger.warn).not.toHaveBeenCalled()
 
-		expect(getters.getPostFromTimeline(state)('8')).toBeUndefined()
+		expect(store.getPostFromTimeline('8')).toBeUndefined()
 		expect(logger.warn).toHaveBeenCalledWith('Could not find status in timeline', { statusId: '8' })
 	})
 })
 
 describe('timeline store actions', () => {
 	let store
-	const tl = () => store.state.timeline
+	const tl = () => store.$state
 
 	beforeEach(() => {
 		vi.resetAllMocks()
-		// The module keeps a single state object that its actions read directly,
-		// so it is reset in place rather than replaced.
-		Object.assign(timeline.state, freshState())
-		store = createStore({ modules: { timeline } })
+		// a Pinia store's state is built by a factory, so every test gets its own
+		setActivePinia(createPinia())
+		store = useTimelineStore()
 	})
 
 	it('changeTimelineType resets the lists and stores type and params', async () => {
-		store.commit('addToTimeline', { ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
-		store.commit('setAccount', 'bob@remote.tld')
+		store.addToTimeline({ ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
+		store.setAccount('bob@remote.tld')
 
-		await store.dispatch('changeTimelineType', { type: 'tags', params: { tag: 'nextcloud' } })
+		await store.changeTimelineType({ type: 'tags', params: { tag: 'nextcloud' } })
 
 		expect(tl()).toMatchObject({
 			timeline: [],
@@ -406,15 +395,15 @@ describe('timeline store actions', () => {
 	})
 
 	it('changeTimelineTypeAccount switches to the statuses of one account', async () => {
-		store.commit('addToTimeline', [makeStatus('1')])
+		store.addToTimeline([makeStatus('1')])
 
-		await store.dispatch('changeTimelineTypeAccount', 'bob@remote.tld')
+		await store.changeTimelineTypeAccount('bob@remote.tld')
 
 		expect(tl()).toMatchObject({ timeline: [], type: 'account', account: 'bob@remote.tld' })
 	})
 
-	it('addToTimeline action commits the given statuses', async () => {
-		await store.dispatch('addToTimeline', [makeStatus('1'), makeStatus('2')])
+	it('addToTimeline stores the given statuses', async () => {
+		await store.addToTimeline([makeStatus('1'), makeStatus('2')])
 
 		expect(tl().timeline).toEqual(['1', '2'])
 	})
@@ -425,7 +414,7 @@ describe('timeline store actions', () => {
 			const media = { id: '42', url: 'https://cloud.example.org/media/42' }
 			axios.post.mockResolvedValue({ data: media })
 
-			const result = await store.dispatch('createMedia', file)
+			const result = await store.createMedia(file)
 
 			expect(result).toEqual(media)
 			const [url, body, config] = axios.post.mock.calls[0]
@@ -439,7 +428,7 @@ describe('timeline store actions', () => {
 		it('shows an error and resolves to undefined when the upload fails', async () => {
 			axios.post.mockRejectedValue(new Error('boom'))
 
-			await expect(store.dispatch('createMedia', new File(['x'], 'x.txt'))).resolves.toBeUndefined()
+			await expect(store.createMedia(new File(['x'], 'x.txt'))).resolves.toBeUndefined()
 
 			expect(showError).toHaveBeenCalledWith('Could not upload the attachment')
 			expect(logger.error).toHaveBeenCalledWith('Failed to create a media', { error: expect.any(Error) })
@@ -450,7 +439,7 @@ describe('timeline store actions', () => {
 			axios.post.mockResolvedValue({ data: { id: '42' } })
 			const onProgress = vi.fn()
 
-			await store.dispatch('createMedia', { file, onProgress })
+			await store.createMedia({ file, onProgress })
 
 			const [, , config] = axios.post.mock.calls[0]
 			config.onUploadProgress({ loaded: 50, total: 200 })
@@ -463,7 +452,7 @@ describe('timeline store actions', () => {
 			axios.post.mockResolvedValue({ data: { id: '42' } })
 			const onProgress = vi.fn()
 
-			await store.dispatch('createMedia', { file: new File(['x'], 'x.txt'), onProgress })
+			await store.createMedia({ file: new File(['x'], 'x.txt'), onProgress })
 
 			const [, , config] = axios.post.mock.calls[0]
 			config.onUploadProgress({ loaded: 10, total: undefined })
@@ -476,7 +465,7 @@ describe('timeline store actions', () => {
 			const media = { id: '42', url: 'https://cloud.example.org/media/42' }
 			axios.post.mockResolvedValue({ data: media })
 
-			const result = await store.dispatch('createMediaFromFile', { path: '/Photos/beach.jpg' })
+			const result = await store.createMediaFromFile({ path: '/Photos/beach.jpg' })
 
 			expect(result).toEqual(media)
 			expect(axios.post).toHaveBeenCalledWith(
@@ -488,7 +477,7 @@ describe('timeline store actions', () => {
 		it('carries a description straight into the request', async () => {
 			axios.post.mockResolvedValue({ data: { id: '42' } })
 
-			await store.dispatch('createMediaFromFile', { path: '/Photos/beach.jpg', description: 'The sea' })
+			await store.createMediaFromFile({ path: '/Photos/beach.jpg', description: 'The sea' })
 
 			expect(axios.post).toHaveBeenCalledWith(
 				`${API}/media/from-file`,
@@ -499,7 +488,7 @@ describe('timeline store actions', () => {
 		it('names the file it could not attach and resolves to undefined', async () => {
 			axios.post.mockRejectedValue(new Error('nope'))
 
-			await expect(store.dispatch('createMediaFromFile', { path: '/Photos/beach.jpg' }))
+			await expect(store.createMediaFromFile({ path: '/Photos/beach.jpg' }))
 				.resolves.toBeUndefined()
 
 			// a picker run attaches several at once: "it failed" would not say
@@ -513,7 +502,7 @@ describe('timeline store actions', () => {
 		it('tells the server what an attachment shows', async () => {
 			axios.put.mockResolvedValue({ data: {} })
 
-			await store.dispatch('describeMedia', { id: '7', description: 'a cat' })
+			await store.describeMedia({ id: '7', description: 'a cat' })
 
 			expect(axios.put).toHaveBeenCalledWith(
 				expect.stringContaining('/api/v1/media/7'),
@@ -524,7 +513,7 @@ describe('timeline store actions', () => {
 		it('reports a failure without taking the post down with it', async () => {
 			axios.put.mockRejectedValue(new Error('nope'))
 
-			await expect(store.dispatch('describeMedia', { id: '7', description: 'a cat' }))
+			await expect(store.describeMedia({ id: '7', description: 'a cat' }))
 				.resolves.toBeUndefined()
 			expect(showError).toHaveBeenCalled()
 		})
@@ -537,7 +526,7 @@ describe('timeline store actions', () => {
 
 			// the composer cannot tell success from failure without this: it
 			// used to clear itself either way
-			await expect(store.dispatch('post', payload)).resolves.toEqual({ id: '1' })
+			await expect(store.post(payload)).resolves.toEqual({ id: '1' })
 
 			expect(axios.post).toHaveBeenCalledWith(`${API}/statuses`, payload)
 			expect(showError).not.toHaveBeenCalled()
@@ -546,7 +535,7 @@ describe('timeline store actions', () => {
 		it('reports a failure instead of throwing', async () => {
 			axios.post.mockRejectedValue(new Error('boom'))
 
-			await expect(store.dispatch('post', { status: 'x' })).resolves.toBeUndefined()
+			await expect(store.post({ status: 'x' })).resolves.toBeUndefined()
 
 			expect(showError).toHaveBeenCalledWith('Could not send the post')
 			expect(logger.error).toHaveBeenCalledWith('Failed to create a status', { error: expect.any(Error) })
@@ -556,9 +545,9 @@ describe('timeline store actions', () => {
 	describe('updateStatusPoll', () => {
 		it('carries a vote into the store, where every other view reads it', () => {
 			const status = makeStatus('1', { poll: { id: 'p1', voted: false, votes_count: 0 } })
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 
-			store.commit('updateStatusPoll', {
+			store.updateStatusPoll({
 				statusId: '1',
 				poll: { id: 'p1', voted: true, votes_count: 1, own_votes: [0] },
 			})
@@ -569,7 +558,7 @@ describe('timeline store actions', () => {
 		})
 
 		it('ignores a poll for a status the store does not hold', () => {
-			store.commit('updateStatusPoll', { statusId: 'missing', poll: { id: 'p1' } })
+			store.updateStatusPoll({ statusId: 'missing', poll: { id: 'p1' } })
 			expect(tl().statuses.missing).toBeUndefined()
 		})
 	})
@@ -577,11 +566,11 @@ describe('timeline store actions', () => {
 	describe('postEdit', () => {
 		it('PUTs the new content and stores the status returned by the server', async () => {
 			const status = makeStatus('1')
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 			const edited = makeStatus('1', { content: '<p>edited</p>' })
 			axios.put.mockResolvedValue({ data: edited })
 
-			const response = await store.dispatch('postEdit', { status, content: 'edited', spoiler_text: 'cw', sensitive: true })
+			const response = await store.postEdit({ status, content: 'edited', spoiler_text: 'cw', sensitive: true })
 
 			expect(axios.put).toHaveBeenCalledWith(`${API}/statuses/1`, { status: 'edited', spoiler_text: 'cw', sensitive: true })
 			expect(tl().statuses['1']).toEqual(edited)
@@ -590,10 +579,10 @@ describe('timeline store actions', () => {
 
 		it('leaves the status untouched and shows an error when editing fails', async () => {
 			const status = makeStatus('1')
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 			axios.put.mockRejectedValue(new Error('boom'))
 
-			await expect(store.dispatch('postEdit', { status, content: 'x', spoiler_text: '', sensitive: false })).resolves.toBeUndefined()
+			await expect(store.postEdit({ status, content: 'x', spoiler_text: '', sensitive: false })).resolves.toBeUndefined()
 
 			expect(tl().statuses['1']).toEqual(status)
 			expect(showError).toHaveBeenCalledWith('Could not save the changes to the post')
@@ -603,14 +592,14 @@ describe('timeline store actions', () => {
 	describe('postDelete', () => {
 		it('removes the post from the timeline before sending DELETE with the post uri', async () => {
 			const status = makeStatus('1')
-			store.commit('addToTimeline', [status, makeStatus('2')])
+			store.addToTimeline([status, makeStatus('2')])
 			let timelineDuringRequest
 			axios.delete.mockImplementation(async () => {
 				timelineDuringRequest = [...tl().timeline]
 				return { data: { status: 1, result: [] } }
 			})
 
-			await store.dispatch('postDelete', status)
+			await store.postDelete(status)
 
 			expect(axios.delete).toHaveBeenCalledWith(`${API}/post?id=${status.uri}`)
 			expect(timelineDuringRequest).toEqual(['2'])
@@ -620,10 +609,10 @@ describe('timeline store actions', () => {
 
 		it('re-indexes the status, restores it to the timeline and shows an error when the deletion fails', async () => {
 			const status = makeStatus('1')
-			store.commit('addToTimeline', [status, makeStatus('2')])
+			store.addToTimeline([status, makeStatus('2')])
 			axios.delete.mockRejectedValue(new Error('boom'))
 
-			await store.dispatch('postDelete', status)
+			await store.postDelete(status)
 
 			expect(tl().statuses['1']).toEqual(status)
 			expect(tl().timeline).toContain('1')
@@ -642,7 +631,7 @@ describe('timeline store actions', () => {
 
 		it(`applies the change optimistically, POSTs to /statuses/:id/${endpoint} and stores the server copy`, async () => {
 			const status = initial()
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 			const serverCopy = makeStatus('1', { [flag]: !initialFlag, [counter]: 3 + delta, content: '<p>from server</p>' })
 			let duringRequest
 			axios.post.mockImplementation(async () => {
@@ -650,7 +639,7 @@ describe('timeline store actions', () => {
 				return { data: serverCopy }
 			})
 
-			const response = await store.dispatch(action, { status })
+			const response = await store[action]({ status })
 
 			expect(axios.post).toHaveBeenCalledWith(`${API}/statuses/1/${endpoint}`)
 			expect(duringRequest).toMatchObject({ [flag]: !initialFlag, [counter]: 3 + delta })
@@ -661,10 +650,10 @@ describe('timeline store actions', () => {
 
 		it('rolls the optimistic change back and shows an error when the request fails', async () => {
 			const status = initial()
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 			axios.post.mockRejectedValue(new Error('boom'))
 
-			await expect(store.dispatch(action, { status })).resolves.toBeUndefined()
+			await expect(store[action]({ status })).resolves.toBeUndefined()
 
 			expect(tl().statuses['1']).toMatchObject({ [flag]: initialFlag, [counter]: 3 })
 			expect(tl().timeline).toEqual(['1'])
@@ -678,7 +667,7 @@ describe('timeline store actions', () => {
 	])('postBookmark (%s)', (endpoint, bookmarked, errorMessage) => {
 		it(`flips the flag, POSTs to /statuses/:id/${endpoint} and stores the server copy`, async () => {
 			const status = makeStatus('1', { bookmarked: !bookmarked })
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 			const serverCopy = makeStatus('1', { bookmarked, content: '<p>from server</p>' })
 			let duringRequest
 			axios.post.mockImplementation(async () => {
@@ -686,7 +675,7 @@ describe('timeline store actions', () => {
 				return { data: serverCopy }
 			})
 
-			const response = await store.dispatch('postBookmark', { status, bookmarked })
+			const response = await store.postBookmark({ status, bookmarked })
 
 			expect(axios.post).toHaveBeenCalledWith(`${API}/statuses/1/${endpoint}`)
 			expect(duringRequest).toMatchObject({ bookmarked })
@@ -697,10 +686,10 @@ describe('timeline store actions', () => {
 
 		it('puts the flag back and reports when the server refuses', async () => {
 			const status = makeStatus('1', { bookmarked: !bookmarked })
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 			axios.post.mockRejectedValue(new Error('boom'))
 
-			await expect(store.dispatch('postBookmark', { status, bookmarked })).resolves.toBeUndefined()
+			await expect(store.postBookmark({ status, bookmarked })).resolves.toBeUndefined()
 
 			expect(tl().statuses['1']).toMatchObject({ bookmarked: !bookmarked })
 			expect(showError).toHaveBeenCalledWith(errorMessage)
@@ -710,13 +699,13 @@ describe('timeline store actions', () => {
 	describe('unbookmarking on the bookmarks timeline', () => {
 		it('takes the post off the list it is no longer on', async () => {
 			axios.post.mockResolvedValue({ data: makeStatus('1', { bookmarked: false }) })
-			store.commit('setTimelineType', 'bookmarks')
-			store.commit('addToTimeline', [
+			store.setTimelineType('bookmarks')
+			store.addToTimeline([
 				makeStatus('1', { bookmarked: true }),
 				makeStatus('2', { bookmarked: true }),
 			])
 
-			await store.dispatch('postBookmark', { status: makeStatus('1', { bookmarked: true }), bookmarked: false })
+			await store.postBookmark({ status: makeStatus('1', { bookmarked: true }), bookmarked: false })
 
 			expect(tl().timeline).toEqual(['2'])
 			expect(tl().removedFrom).toEqual({})
@@ -729,7 +718,7 @@ describe('timeline store actions', () => {
 	])('postPin (%s)', (endpoint, pinned, errorMessage) => {
 		it(`flips the flag optimistically, POSTs to /statuses/:id/${endpoint} and stores the server copy`, async () => {
 			const status = makeStatus('1', { pinned: !pinned })
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 			const serverCopy = makeStatus('1', { pinned, content: '<p>from server</p>' })
 			let duringRequest
 			axios.post.mockImplementation(async () => {
@@ -737,7 +726,7 @@ describe('timeline store actions', () => {
 				return { data: serverCopy }
 			})
 
-			const response = await store.dispatch('postPin', { status, pinned })
+			const response = await store.postPin({ status, pinned })
 
 			expect(axios.post).toHaveBeenCalledWith(`${API}/statuses/1/${endpoint}`)
 			expect(duringRequest).toMatchObject({ pinned })
@@ -748,10 +737,10 @@ describe('timeline store actions', () => {
 
 		it('rolls the flag back and reports when the server refuses', async () => {
 			const status = makeStatus('1', { pinned: !pinned })
-			store.commit('addToTimeline', [status])
+			store.addToTimeline([status])
 			axios.post.mockRejectedValue(new Error('too many pins'))
 
-			await expect(store.dispatch('postPin', { status, pinned })).resolves.toBeUndefined()
+			await expect(store.postPin({ status, pinned })).resolves.toBeUndefined()
 
 			expect(tl().statuses['1']).toMatchObject({ pinned: !pinned })
 			expect(showError).toHaveBeenCalledWith(errorMessage)
@@ -763,10 +752,10 @@ describe('timeline store actions', () => {
 
 		it('takes the post off the list of liked posts', async () => {
 			axios.post.mockResolvedValue({ data: makeStatus('1', { favourited: false, favourites_count: 2 }) })
-			store.commit('setTimelineType', 'favourites')
-			store.commit('addToTimeline', [liked(), makeStatus('2', { favourited: true })])
+			store.setTimelineType('favourites')
+			store.addToTimeline([liked(), makeStatus('2', { favourited: true })])
 
-			await store.dispatch('postUnlike', { status: liked() })
+			await store.postUnlike({ status: liked() })
 
 			expect(tl().timeline).toEqual(['2'])
 			expect(tl().statuses['1']).toMatchObject({ favourited: false })
@@ -776,20 +765,20 @@ describe('timeline store actions', () => {
 			// only restoreStatus cleared the hint, so a rollback of the same id
 			// later on would still be told it belonged to the parents list
 			axios.post.mockResolvedValue({ data: makeStatus('1', { favourited: false }) })
-			store.commit('setTimelineType', 'favourites')
-			store.commit('addToTimeline', [liked()])
+			store.setTimelineType('favourites')
+			store.addToTimeline([liked()])
 
-			await store.dispatch('postUnlike', { status: liked() })
+			await store.postUnlike({ status: liked() })
 
 			expect(tl().removedFrom).toEqual({})
 		})
 
 		it('leaves the post where it is on every other timeline', async () => {
 			axios.post.mockResolvedValue({ data: makeStatus('1', { favourited: false, favourites_count: 2 }) })
-			store.commit('setTimelineType', 'home')
-			store.commit('addToTimeline', [liked()])
+			store.setTimelineType('home')
+			store.addToTimeline([liked()])
 
-			await store.dispatch('postUnlike', { status: liked() })
+			await store.postUnlike({ status: liked() })
 
 			expect(tl().timeline).toEqual(['1'])
 			expect(tl().statuses['1']).toMatchObject({ favourited: false })
@@ -797,10 +786,10 @@ describe('timeline store actions', () => {
 
 		it('puts the post back unchanged when the server refuses the unlike', async () => {
 			axios.post.mockRejectedValue(new Error('boom'))
-			store.commit('setTimelineType', 'favourites')
-			store.commit('addToTimeline', [liked()])
+			store.setTimelineType('favourites')
+			store.addToTimeline([liked()])
 
-			await store.dispatch('postUnlike', { status: liked() })
+			await store.postUnlike({ status: liked() })
 
 			expect(tl().timeline).toEqual(['1'])
 			// exactly the pre-unlike state: restoring the status AND re-liking
@@ -828,9 +817,9 @@ describe('timeline store actions', () => {
 			// the same list as home, with the text-only posts left out
 			['photos', {}, `${API}/timelines/home`, { limit: 15, only_media: true }],
 		])('requests the %s timeline from its endpoint and appends the result', async (type, params, url, query) => {
-			await store.dispatch('changeTimelineType', { type, params })
+			await store.changeTimelineType({ type, params })
 
-			const result = await store.dispatch('fetchTimeline')
+			const result = await store.fetchTimeline()
 
 			expect(axios.get).toHaveBeenCalledTimes(1)
 			expect(axios.get).toHaveBeenCalledWith(url, { params: query })
@@ -839,9 +828,9 @@ describe('timeline store actions', () => {
 		})
 
 		it('requests the statuses of one account for the account timeline', async () => {
-			await store.dispatch('changeTimelineTypeAccount', 'bob@remote.tld')
+			await store.changeTimelineTypeAccount('bob@remote.tld')
 
-			await store.dispatch('fetchTimeline')
+			await store.fetchTimeline()
 
 			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/bob@remote.tld/statuses`, { params: { limit: 15 } })
 			expect(tl().timeline).toEqual(['1', '2'])
@@ -851,9 +840,9 @@ describe('timeline store actions', () => {
 			const parent = makeStatus('1')
 			const reply = makeStatus('3')
 			axios.get.mockResolvedValue({ data: { ancestors: [parent], descendants: [reply] } })
-			await store.dispatch('changeTimelineType', { type: 'single-post', params: { id: '2', singlePost: '2' } })
+			await store.changeTimelineType({ type: 'single-post', params: { id: '2', singlePost: '2' } })
 
-			await store.dispatch('fetchTimeline')
+			await store.fetchTimeline()
 
 			expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/2/context`, { params: { limit: 15 } })
 			expect(tl().parentsTimeline).toEqual(['1'])
@@ -861,7 +850,7 @@ describe('timeline store actions', () => {
 		})
 
 		it('forwards since, max_id and an explicit limit', async () => {
-			await store.dispatch('fetchTimeline', { since: '100', max_id: '50', limit: 30 })
+			await store.fetchTimeline({ since: '100', max_id: '50', limit: 30 })
 
 			expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/home`, { params: { since: '100', max_id: '50', limit: 30 } })
 		})
@@ -871,10 +860,10 @@ describe('timeline store actions', () => {
 			// home's posts under the Global heading
 			let answerHome
 			axios.get.mockReturnValueOnce(new Promise((resolve) => { answerHome = resolve }))
-			await store.dispatch('changeTimelineType', { type: 'home', params: {} })
-			const pending = store.dispatch('fetchTimeline')
+			await store.changeTimelineType({ type: 'home', params: {} })
+			const pending = store.fetchTimeline()
 
-			await store.dispatch('changeTimelineType', { type: 'federated', params: {} })
+			await store.changeTimelineType({ type: 'federated', params: {} })
 			answerHome({ data: statuses })
 
 			await expect(pending).resolves.toEqual([])
@@ -885,16 +874,16 @@ describe('timeline store actions', () => {
 		it('does not swallow request errors and leaves the timeline untouched', async () => {
 			axios.get.mockRejectedValue(new Error('boom'))
 
-			await expect(store.dispatch('fetchTimeline')).rejects.toThrow('boom')
+			await expect(store.fetchTimeline()).rejects.toThrow('boom')
 
 			expect(tl().timeline).toEqual([])
 			expect(showError).not.toHaveBeenCalled()
 		})
 
 		it('refreshTimeline re-fetches the current timeline', async () => {
-			await store.dispatch('changeTimelineType', { type: 'federated', params: {} })
+			await store.changeTimelineType({ type: 'federated', params: {} })
 
-			const result = await store.dispatch('refreshTimeline')
+			const result = await store.refreshTimeline()
 
 			expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/public`, { params: { limit: 15 } })
 			expect(result).toEqual(statuses)

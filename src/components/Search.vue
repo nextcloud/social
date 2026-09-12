@@ -113,6 +113,9 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useTimelineStore } from '../store/timeline.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'./Composer/Composer.vue'))
 
@@ -162,6 +165,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore, useTimelineStore),
 		/** @return {string} the term, as somebody typed it rather than as a URL */
 		query() {
 			try {
@@ -179,12 +183,12 @@ export default {
 		 */
 		statuses() {
 			return this.statusIds
-				.map((id) => this.$store.getters.getStatus(id))
+				.map((id) => this.timelineStore.getStatus(id))
 				.filter(Boolean)
 		},
 		/** @return {boolean} whether the reply composer is open */
 		composerDisplayStatus() {
-			return this.$store.getters.getComposerDisplayStatus
+			return this.timelineStore.getComposerDisplayStatus
 		},
 		/**
 		 * Whether what is on screen answers what is in the search box.
@@ -257,14 +261,14 @@ export default {
 				// so the follow buttons beside the results know where they stand
 				for (const account of this.accounts) {
 					if (account?.url) {
-						this.$store.commit('addAccount', { actorId: account.url, data: account })
+						this.accountStore.addAccount({ actorId: account.url, data: account })
 					}
 				}
 
 				// through the store, not local data: see `statusIds`
 				const found = Array.isArray(data?.statuses) ? data.statuses : []
 				for (const status of found) {
-					this.$store.commit('addToStatuses', status)
+					this.timelineStore.addToStatuses(status)
 				}
 				this.statusIds = found.map((status) => status.id)
 				// what is on screen from here on answers this term, whether or

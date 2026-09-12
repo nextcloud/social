@@ -88,6 +88,8 @@ import { translate, translatePlural } from '@nextcloud/l10n'
 import { emojifyPlain } from './MessageContent.js'
 import serverData from '../mixins/serverData.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 
 /**
  * A display name with its custom emoji as inline images — what DisplayName.js
@@ -203,6 +205,7 @@ export default {
 		}
 	},
 	computed: {
+		...mapStores(useAccountStore),
 		/** @return {import('../types/Mastodon.js').Account|null} what to show, if anything */
 		account() {
 			return this.storedAccount ?? this.fetched ?? this.fallback
@@ -210,20 +213,18 @@ export default {
 		/**
 		 * Whether this account can be looked up at all.
 		 *
-		 * A public page has nobody logged in and no lookup endpoint to ask, and
-		 * a page mounted without a store (the profile-page integration) has no
-		 * action to dispatch. Both are better served by what the page already
-		 * carried than by a card that stays a skeleton forever.
+		 * A public page has nobody logged in and no lookup endpoint to ask, so
+		 * it is better served by what the page already carried than by a card
+		 * that stays a skeleton forever.
 		 *
 		 * @return {boolean}
 		 */
 		canFetch() {
-			return Boolean(this.$store) && Boolean(this.handle) && !this.serverData.public
+			return Boolean(this.handle) && !this.serverData.public
 		},
 		/** @return {import('../types/Mastodon.js').Account|undefined} the store's copy */
 		storedAccount() {
-			// the profile-page integration mounts these components without a store
-			return this.$store?.getters?.getAccount?.(this.handle)
+			return this.accountStore.getAccount(this.handle)
 		},
 		/** @return {boolean} */
 		isLocal() {
@@ -256,7 +257,7 @@ export default {
 		 * @return {boolean}
 		 */
 		followsYou() {
-			return this.$store?.getters?.getRelationshipWith?.(this.account?.id)?.followed_by === true
+			return this.accountStore.getRelationshipWith(this.account?.id)?.followed_by === true
 		},
 	},
 	beforeUnmount() {
@@ -444,7 +445,7 @@ export default {
 			}
 			let request = pending.get(this.handle)
 			if (request === undefined) {
-				request = Promise.resolve(this.$store.dispatch('fetchAccountInfo', this.handle))
+				request = Promise.resolve(this.accountStore.fetchAccountInfo(this.handle))
 				pending.set(this.handle, request)
 			}
 			const data = await request
