@@ -42,6 +42,7 @@ class Version1000Date20260912000010 extends SimpleMigrationStep {
 	) {
 	}
 
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
@@ -111,6 +112,7 @@ class Version1000Date20260912000010 extends SimpleMigrationStep {
 	 * nothing to move, and a row whose token was already blanked has nothing
 	 * worth keeping.
 	 */
+	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
