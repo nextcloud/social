@@ -15,6 +15,7 @@ webpackConfig.plugins.push(new CopyPlugin({
 
 webpackConfig.entry = {
 	adminAnnouncements: path.join(__dirname, 'src', 'adminAnnouncements.js'),
+	adminModeration: path.join(__dirname, 'src', 'adminModeration.js'),
 	social: path.join(__dirname, 'src', 'main.js'),
 	ostatus: path.join(__dirname, 'src', 'ostatus.js'),
 	profilePage: path.join(__dirname, 'src', 'profile.js'),

@@ -481,7 +481,7 @@ php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
 
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `action` | No | `''` | One of `list`, `add`, `remove`, `test`, `reset`, or empty |
+| `action` | No | `''` | One of `list`, `add`, `remove`, `test`, `reset`, `silence`, `unsilence`, `silenced`, or empty |
 | `address` | No | `''` | Address / host the action applies to |
 
 | Option | Value | Description |
@@ -501,8 +501,31 @@ command first prints the current access type and then runs the action:
 | `remove <address>` | Remove the address from the list |
 | `test <address>` | Print `Authorized` or `Unauthorized` for that address |
 | `reset` | Empty the list |
+| `silence <address>` | Silence the instance: keep it out of the public, global and hashtag timelines |
+| `unsilence <address>` | Lift the silence |
+| `silenced` | Print the silenced instances under `- Silenced:` |
 
-An unknown action throws `specify action: add, remove, list, reset`.
+An unknown action throws
+`specify action: add, remove, list, reset, silence, unsilence, silenced`.
+`silence` and `unsilence` without an address throw `specify an address to
+silence` / `... to unsilence`.
+
+**Silencing, the tier between a block and nothing.** A block cuts the instance
+off in both directions and `social:domain:purge` deletes what it already sent,
+which also cuts off the local users who deliberately follow somebody there — so
+the tool was too blunt to reach for and the nuisance stayed. A silence stores
+the host in a second list (`silenced_list`) and changes one thing: posts whose
+author is on that instance are left out of the **public**, **global**,
+**hashtag** and **followed-tag** timelines (`StreamRequest::filterSilencedInstances()`).
+Delivery, fetching, webfinger, search by address, following, and the home
+timeline of somebody who follows the account are all untouched — a silence is
+not enforced in `authorized()`. Nothing is deleted, so `unsilence` brings the
+posts back.
+
+The match is on the author's actor id, so it covers the domain **and everything
+under it** the way a deny-list entry does: silencing `noisy.test` also silences
+`sub.noisy.test`, and not `notnoisy.test`. The two lists are independent — an
+instance can be silenced, blocked, both or neither.
 
 **What is actually enforced.** There is a single list (`access_list`) whose meaning
 depends on `access_type`: with `all_but` every address that is *not* listed is
@@ -537,6 +560,54 @@ by the same exact comparison.
 - Webfinger lookups are not filtered per address; `WebfingerHandler` only calls
   `jailed()`, which refuses service when the instance is in `none_but` mode with an
   empty list.
+
+### `social:emoji`
+
+The custom emoji this instance publishes.
+
+```
+php occ social:emoji [-c|--category CATEGORY] [--hidden] [<action>] [<shortcode>] [<file>]
+```
+
+| Argument | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `action` | No | `list` | One of `list`, `add`, `remove` |
+| `shortcode` | No | `''` | Required by `add` and `remove`. The name between the colons: 2–64 characters of `a-z`, `0-9` and `_`. Read lowercase and trimmed, so `BlobCat` and `blobcat` are the same emoji |
+| `file` | No | `''` | Required by `add`. A readable path to the picture |
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-c`, `--category` | required | Group it under this in a client's picker |
+| `--hidden` | none | Store it usable by name but not offered in a picker (Mastodon's `visible_in_picker: false`) |
+
+| Action | Effect |
+|--------|--------|
+| `list` _(the default)_ | Print every emoji with its category, whether a picker offers it, and the URL it is served from |
+| `add <shortcode> <file>` | Publish the picture under that shortcode |
+| `remove <shortcode>` | Stop publishing it |
+
+An unknown action throws `specify action: list, add, remove`; removing one that
+is not there throws `no emoji is published as :<shortcode>:`.
+
+**What is accepted.** A PNG, GIF, WebP or JPEG of at most **256 KiB** — the
+bytes decide, not the extension, because this is served to every reader of
+every post that uses it. Anything else is refused with a reason.
+
+**What `add` does to a shortcode already in use.** Replaces the picture. A
+shortcode names one emoji, and an admin re-uploading under a name in use means
+to replace it rather than to be told it exists.
+
+**What a post carries.** The shortcode stays in the content as text, and an
+`Emoji` tag beside it says where the picture is — which is how every fediverse
+server does it, and why an instance that has never heard of `:blobcat:` still
+renders the post. A shortcode this instance has no picture for is left as the
+text it already was. Editing a post rebuilds its tags, so a shortcode added by
+an edit renders and one removed by an edit takes its tag with it.
+
+**What `remove` does to posts that used it.** Nothing. What they carry is the
+tag they were federated with; this instance no longer offering the picture does
+not rewrite what was already said. Locally, the picture stops being served, so
+the shortcode shows as text again.
 
 ### `social:domain:purge`
 

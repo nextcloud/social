@@ -15,7 +15,8 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\Settings\ISettings;
+use OCP\IL10N;
+use OCP\Settings\IDelegatedSettings;
 use OCP\Util;
 
 /**
@@ -27,14 +28,23 @@ use OCP\Util;
  * `/admin/announcements` when the page loads, because that is the same route
  * the section writes through, and a list rendered here would disagree with it
  * the moment an announcement was posted.
+ *
+ * Delegated rather than plain admin settings: moderating used to mean
+ * administering the whole server, which is a great deal of power to hand
+ * somebody so they can act on a report. An administrator can now pass this
+ * section to a group under Administration privileges, and Nextcloud's own
+ * machinery — `AuthorizedAdminSetting` on the routes below the page, and
+ * `IManager::getAllowedAdminSettings()` on the Mastodon admin API — lets that
+ * group act without letting it near anything else.
  */
-class AdminSettings implements ISettings {
+class AdminSettings implements IDelegatedSettings {
 	public function __construct(
 		private ReportService $reportService,
 		private FediverseService $fediverseService,
 		private ConfigService $configService,
 		private ModerationService $moderationService,
 		private FederationHealthService $federationHealthService,
+		private IL10N $l10n,
 	) {
 	}
 
@@ -44,6 +54,10 @@ class AdminSettings implements ISettings {
 		// the announcements section reads and writes its own routes, and
 		// nothing on the page above it is loaded any earlier for it
 		Util::addScript('social', 'social-adminAnnouncements');
+		// and the account browser, which is the same page's other half: the
+		// reports table is what somebody complained about, this is everything
+		// else the instance knows
+		Util::addScript('social', 'social-adminModeration');
 
 		return new TemplateResponse('social', 'settings/admin', [
 			'reports' => $this->reportService->getReports(true),
@@ -71,10 +85,29 @@ class AdminSettings implements ISettings {
 	}
 
 	public function getSection(): string {
-		return 'social';
+		return AdminSection::SECTION_ID;
 	}
 
 	public function getPriority(): int {
 		return 50;
+	}
+
+	/**
+	 * The name this section is offered under in Administration privileges.
+	 * The section has one panel, so it names what is being handed over.
+	 */
+	public function getName(): ?string {
+		return $this->l10n->t('Moderation');
+	}
+
+	/**
+	 * No app config is reachable through core's own settings API: everything
+	 * this panel writes — the retention period, the access mode and list —
+	 * goes through `ModerationController`, which is guarded by
+	 * `AuthorizedAdminSetting` and validates what it is given. A delegate can
+	 * change those and nothing else under `social`.
+	 */
+	public function getAuthorizedAppConfig(): array {
+		return [];
 	}
 }

@@ -174,6 +174,72 @@ class FediverseService {
 	}
 
 	/**
+	 * The instances whose accounts are silenced: kept out of the public and
+	 * global timelines, still readable by the people who follow them.
+	 *
+	 * Mastodon's middle tier. Without it the only answer to an instance that
+	 * is a nuisance rather than a menace was to block it outright, which also
+	 * cuts off the local users who deliberately follow somebody there — so the
+	 * tool was too blunt to use and the nuisance stayed.
+	 *
+	 * @return string[]
+	 */
+	public function getSilencedAddresses(): array {
+		$list = json_decode(
+			(string)$this->configService->getAppValue(ConfigService::SOCIAL_SILENCED_LIST), true
+		);
+
+		return is_array($list) ? array_values(array_map('strval', $list)) : [];
+	}
+
+	/** Whether an address is silenced, subdomains included as a block is. */
+	public function isSilenced(string $address): bool {
+		$host = $this->normalizeAddress($address);
+		if ($host === '') {
+			return false;
+		}
+
+		foreach ($this->getSilencedAddresses() as $silenced) {
+			$silenced = $this->normalizeAddress($silenced);
+			if ($silenced !== '' && ($host === $silenced || str_ends_with($host, '.' . $silenced))) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** Silences an instance. Silencing one already silenced is a no-op. */
+	public function silenceAddress(string $address): void {
+		$host = $this->normalizeAddress($address);
+		if ($host === '' || $this->isSilenced($host)) {
+			return;
+		}
+
+		$list = $this->getSilencedAddresses();
+		$list[] = $host;
+		$this->configService->setAppValue(
+			ConfigService::SOCIAL_SILENCED_LIST, (string)json_encode(array_values($list))
+		);
+	}
+
+	/**
+	 * Lifts a silence. Nothing was deleted by it, so everything comes back —
+	 * which is the difference between this and a block, whose purge does not.
+	 */
+	public function unsilenceAddress(string $address): void {
+		$host = $this->normalizeAddress($address);
+		$list = array_values(array_filter(
+			$this->getSilencedAddresses(),
+			fn (string $silenced): bool => $this->normalizeAddress($silenced) !== $host
+		));
+
+		$this->configService->setAppValue(
+			ConfigService::SOCIAL_SILENCED_LIST, (string)json_encode($list)
+		);
+	}
+
+	/**
 	 * Whether the access list carries this exact address — no subdomains.
 	 *
 	 * What an allow list permits, and what `addAddress()` treats as already

@@ -87,6 +87,7 @@ class AccountService {
 		private DocumentService $documentService,
 		private SignatureService $signatureService,
 		private ConfigService $configService,
+		private AccessBlockService $accessBlockService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -163,6 +164,39 @@ class AccountService {
 	}
 
 	/**
+	 * Refuses a fediverse identity to a Nextcloud account at a blocked email
+	 * domain.
+	 *
+	 * Mastodon's email-domain block polices its sign-up. There is no sign-up
+	 * here — the server decides who gets a Nextcloud account — so this is the
+	 * one decision left that is this app's to make, and it is the same
+	 * question one step later: whether this instance publishes a fediverse
+	 * identity for whoever is behind that address. It matters on a server with
+	 * open registration, which is where a throwaway-address domain turns up.
+	 *
+	 * An account with no email address is allowed: there is nothing to check
+	 * it against, and a server that stores no addresses would otherwise hand
+	 * out no fediverse accounts at all.
+	 *
+	 * @throws InvalidHandleException
+	 */
+	private function assertEmailDomainIsAllowed(string $userId): void {
+		$user = $this->userManager->get($userId);
+		$email = ($user === null) ? '' : (string)$user->getEMailAddress();
+		if ($email === '' || !$this->accessBlockService->isBlockedEmail($email)) {
+			return;
+		}
+
+		$this->logger->info('refused a fediverse account to a blocked email domain', [
+			'userId' => $userId,
+		]);
+
+		throw new InvalidHandleException(
+			'this server does not create fediverse accounts for addresses at that domain'
+		);
+	}
+
+	/**
 	 * Method should be called by the frontend and will generate a fresh Social account for
 	 * the user, using the userId and the username.
 	 *
@@ -184,6 +218,7 @@ class AccountService {
 	public function createActor(string $userId, string $username) {
 		$this->confirmUserId($userId);
 		$this->checkActorUsername($username);
+		$this->assertEmailDomainIsAllowed($userId);
 
 		try {
 			$actor = $this->actorsRequest->getFromUsername($username);

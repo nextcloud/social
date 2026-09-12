@@ -17,9 +17,14 @@ use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Model\AccessBlock;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\MetricsService;
+use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -77,6 +82,10 @@ class AdminApiController extends Controller {
 		private IUserSession $userSession,
 		private LoggerInterface $logger,
 		private AdminApiService $adminApiService,
+		private AccessBlockService $accessBlockService,
+		private MetricsService $metricsService,
+		private HashtagService $hashtagService,
+		private TrendService $trendService,
 		private ClientService $clientService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -177,7 +186,7 @@ class AdminApiController extends Controller {
 			$this->initAdmin(['admin:write']);
 
 			$account = $this->adminApiService->account($id);
-			$this->adminApiService->act($account, $type, $text);
+			$this->adminApiService->act($account, $type, $text, $report_id);
 
 			if ($report_id > 0) {
 				$this->adminApiService->resolveReport($report_id, $this->userId);
@@ -418,6 +427,356 @@ class AdminApiController extends Controller {
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	// IP blocks and email-domain blocks
+
+	/**
+	 * The addresses this instance answers nothing from.
+	 *
+	 * Mastodon's list, with one severity: `no_access`. The other two police a
+	 * sign-up this instance has not — an account here is a Nextcloud account,
+	 * and the server decides who gets one.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlocks(): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->accessBlockService->ipBlocks(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlock(int $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->accessBlockService->ipBlock($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Refuses an address or a range everything this app serves.
+	 *
+	 * `expires_in` is Mastodon's: seconds from now, or absent for a block that
+	 * does not lift itself. A severity this instance cannot honour is a
+	 * **422** rather than a row nothing will ever read — an admin told their
+	 * rule was stored would believe sign-ups from that range were being turned
+	 * away.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlockCreate(
+		string $ip = '',
+		string $severity = AccessBlock::SEVERITY_NO_ACCESS,
+		string $comment = '',
+		int $expires_in = 0,
+	): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->accessBlockService->blockIp(
+					$ip, $severity, $comment, $expires_in > 0 ? time() + $expires_in : 0
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Changes one. The address is not among what can change: a block on a
+	 * different range is a different block, and Mastodon's own PUT keeps it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlockUpdate(
+		int $id,
+		string $severity = AccessBlock::SEVERITY_NO_ACCESS,
+		string $comment = '',
+		int $expires_in = 0,
+	): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$block = $this->accessBlockService->ipBlock($id);
+
+			return new DataResponse(
+				$this->accessBlockService->blockIp(
+					$block->getValue(), $severity, $comment,
+					$expires_in > 0 ? time() + $expires_in : 0
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function ipBlockRemove(int $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$this->accessBlockService->unblockIp($id);
+
+			return new DataResponse((object)[], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The email domains this instance does not give fediverse accounts to.
+	 *
+	 * Mastodon refuses a sign-up at one of these. There is no sign-up here, so
+	 * what it refuses is the decision this app does make: whether a Nextcloud
+	 * account gets a fediverse identity — the same question one step later.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emailDomainBlocks(): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->accessBlockService->emailDomainBlocks(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emailDomainBlock(int $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->accessBlockService->emailDomainBlock($id), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emailDomainBlockCreate(string $domain = ''): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->accessBlockService->blockEmailDomain($domain), Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emailDomainBlockRemove(int $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$this->accessBlockService->unblockEmailDomain($id);
+
+			return new DataResponse((object)[], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	// trends, as a moderation client asks for them
+
+	/**
+	 * The same three trend readers the public routes use, behind the admin
+	 * gate a moderation client expects them at.
+	 *
+	 * On Mastodon these carry a moderator's extra field — whether the trend is
+	 * allowed or pending review — and this instance reviews nothing: a trend
+	 * here is what the counts say. So they answer exactly what
+	 * `/api/v1/trends/*` answers, which is the honest thing to do with a route
+	 * whose only difference is a review queue that does not exist. They exist
+	 * because a moderation client asks for them by this path and a 404 reads
+	 * as "this server has no trends".
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function trendTags(int $limit = 10): DataResponse {
+		try {
+			$this->initAdmin();
+
+			$tags = [];
+			foreach ($this->hashtagService->getTrending(max(1, min(100, $limit))) as $hashtag) {
+				$tags[] = $this->hashtagService->tagEntity($hashtag['hashtag']);
+			}
+
+			return new DataResponse($tags, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function trendStatuses(int $limit = 10, int $offset = 0): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->trendService->trendingStatuses(
+					HashtagService::PERIOD_DEFAULT, max(1, min(100, $limit)), max(0, $offset)
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function trendLinks(int $limit = 10, int $offset = 0): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->trendService->trendingLinks(
+					HashtagService::PERIOD_DEFAULT, max(1, min(100, $limit)), max(0, $offset)
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	// metrics
+
+	/**
+	 * One number a day over a window, for each key asked for.
+	 *
+	 * Mastodon's `Admin::Measure`. A key this instance cannot answer is a
+	 * **422** naming the ones it can, rather than a row of zeroes: answering
+	 * 0 to "how many accounts signed up through an invite" reads as "none
+	 * did", which is a different claim from "this instance has no invites".
+	 *
+	 * @param string[] $keys
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function measures(
+		array $keys = [],
+		string $start_at = '',
+		string $end_at = '',
+		string $instance = '',
+		string $id = '',
+	): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->metricsService->measures(
+					$keys, $this->timestamp($start_at), $this->timestamp($end_at), $instance, $id
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The ranked list behind one number, for each key asked for.
+	 *
+	 * @param string[] $keys
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function dimensions(
+		array $keys = [],
+		string $start_at = '',
+		string $end_at = '',
+		int $limit = 10,
+		string $id = '',
+	): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->metricsService->dimensions(
+					$keys, $this->timestamp($start_at), $this->timestamp($end_at), $limit, $id
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * How much of each month's new local accounts is still posting later.
+	 *
+	 * Monthly, whatever `frequency` asks for: a cohort is a thing you read
+	 * over months, and a daily one on an instance with a handful of sign-ups a
+	 * month is a table of zeroes.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function retention(string $start_at = '', string $end_at = ''): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->metricsService->retention(
+					$this->timestamp($start_at), $this->timestamp($end_at)
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * A moment as a client writes one: an ISO date, or seconds since the
+	 * epoch, or nothing.
+	 *
+	 * Zero for anything unreadable, which the service refuses by name — a
+	 * window silently rounded to "the epoch until now" is a query nobody asked
+	 * for over every row there is.
+	 */
+	private function timestamp(string $written): int {
+		$written = trim($written);
+		if ($written === '') {
+			return 0;
+		}
+
+		if (ctype_digit($written)) {
+			return (int)$written;
+		}
+
+		return max(0, (int)strtotime($written));
 	}
 
 	/**

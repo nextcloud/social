@@ -25,6 +25,8 @@ class FediverseServiceTest extends TestCase {
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private IJobList|MockObject $jobList;
 	private FediverseService $service;
+	/** What the app values hold, for the tests that write one and read it back. */
+	private array $stored = [];
 
 	protected function setUp(): void {
 		$this->configService = $this->createMock(ConfigService::class);
@@ -44,6 +46,73 @@ class FediverseServiceTest extends TestCase {
 				default => '',
 			});
 		$this->configService->method('getCloudHost')->willReturn($cloudHost);
+	}
+
+	/**
+	 * The same, for the tests that go through `setAppValue`: the stub keeps
+	 * what was written so the next read sees it.
+	 */
+	private function withStoredConfig(array $stored): void {
+		$this->stored = $stored;
+		$this->configService->method('getAppValue')
+			->willReturnCallback(fn (string $key): string => $this->stored[$key] ?? '');
+		$this->configService->method('setAppValue')
+			->willReturnCallback(function (string $key, string $value): void {
+				$this->stored[$key] = $value;
+			});
+		$this->configService->method('getCloudHost')->willReturn('cloud.example.com');
+	}
+
+	// silencing: the tier between a block and nothing
+
+	/**
+	 * Blocking an instance also cuts off the local users who deliberately
+	 * follow somebody there, so the tool was too blunt to reach for and the
+	 * nuisance stayed. A silence takes an instance out of the public and global
+	 * timelines and leaves it readable by its followers.
+	 */
+	public function testASilencedInstanceIsSilencedIncludingItsSubdomains(): void {
+		$this->withStoredConfig([ConfigService::SOCIAL_SILENCED_LIST => '[]']);
+
+		$this->service->silenceAddress('noisy.example');
+
+		$this->assertTrue($this->service->isSilenced('noisy.example'));
+		$this->assertTrue($this->service->isSilenced('a.noisy.example'), 'as a block reads them');
+		$this->assertTrue($this->service->isSilenced('NOISY.example.'), 'case and the absolute form');
+		$this->assertFalse($this->service->isSilenced('quiet.example'));
+		$this->assertFalse($this->service->isSilenced('notnoisy.example'), 'not a suffix match');
+	}
+
+	public function testSilencingTwiceStoresOneEntry(): void {
+		$this->withStoredConfig([ConfigService::SOCIAL_SILENCED_LIST => '[]']);
+
+		$this->service->silenceAddress('noisy.example');
+		$this->service->silenceAddress('noisy.example');
+
+		$this->assertSame(['noisy.example'], $this->service->getSilencedAddresses());
+	}
+
+	/** Nothing was deleted by a silence, so lifting it brings everything back. */
+	public function testLiftingASilenceRemovesIt(): void {
+		$this->withStoredConfig([
+			ConfigService::SOCIAL_SILENCED_LIST => '["noisy.example","other.example"]',
+		]);
+
+		$this->service->unsilenceAddress('noisy.example');
+
+		$this->assertSame(['other.example'], $this->service->getSilencedAddresses());
+		$this->assertFalse($this->service->isSilenced('noisy.example'));
+	}
+
+	/** A silence is not a block: what it silences may still reach us. */
+	public function testASilencedInstanceIsStillAllowedToDeliver(): void {
+		$this->withStoredConfig([
+			ConfigService::SOCIAL_SILENCED_LIST => '["noisy.example"]',
+			ConfigService::SOCIAL_ACCESS_TYPE => 'all_but',
+			ConfigService::SOCIAL_ACCESS_LIST => '[]',
+		]);
+
+		$this->assertTrue($this->service->authorized('https://noisy.example/users/bob'));
 	}
 
 	public function testEmptyOriginIsNeverAuthorized(): void {

@@ -13,7 +13,9 @@ use OCA\Social\Db\AnnouncementsRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\Client\Announcement;
+use OCA\Social\Model\CustomEmoji;
 use OCA\Social\Service\AnnouncementService;
+use OCA\Social\Service\EmojiService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -38,11 +40,20 @@ class AnnouncementServiceTest extends TestCase {
 	private int $nextId = 1;
 	private AnnouncementService $service;
 
+	/** @var array<int, array<string, array<string, bool>>> announcement => emoji => actors */
+	private array $reactions = [];
+	/** @var array<string, CustomEmoji> what this instance publishes */
+	private array $published = [];
+	private EmojiService|MockObject $emojiService;
+
 	protected function setUp(): void {
 		/** @var AnnouncementsRequest&MockObject $request */
 		$request = $this->getMockBuilder(AnnouncementsRequest::class)
 			->disableOriginalConstructor()
-			->onlyMethods(['save', 'getAll', 'getActive', 'getById', 'delete', 'dismiss', 'dismissedBy'])
+			->onlyMethods([
+				'save', 'getAll', 'getActive', 'getById', 'delete', 'dismiss', 'dismissedBy',
+				'react', 'unreact', 'reactionsOn', 'countReactionsBy',
+			])
 			->getMock();
 
 		$request->method('save')->willReturnCallback(function (Announcement $announcement): int {
@@ -94,7 +105,56 @@ class AnnouncementServiceTest extends TestCase {
 				=> array_values(array_intersect($this->dismissals[$actorId] ?? [], $ids))
 		);
 
-		$this->service = new AnnouncementService($request);
+		$request->method('react')->willReturnCallback(
+			function (int $id, string $actorId, string $name): void {
+				$this->reactions[$id][$name][$actorId] = true;
+			}
+		);
+
+		$request->method('unreact')->willReturnCallback(
+			function (int $id, string $actorId, string $name): void {
+				unset($this->reactions[$id][$name][$actorId]);
+				if (($this->reactions[$id][$name] ?? []) === []) {
+					unset($this->reactions[$id][$name]);
+				}
+			}
+		);
+
+		$request->method('reactionsOn')->willReturnCallback(
+			function (string $actorId, array $ids): array {
+				$on = [];
+				foreach ($ids as $id) {
+					foreach ($this->reactions[$id] ?? [] as $name => $actors) {
+						$on[$id][$name] = [
+							'count' => count($actors),
+							'me' => isset($actors[$actorId]),
+						];
+					}
+				}
+
+				return $on;
+			}
+		);
+
+		$request->method('countReactionsBy')->willReturnCallback(
+			function (int $id, string $actorId): int {
+				$count = 0;
+				foreach ($this->reactions[$id] ?? [] as $actors) {
+					if (isset($actors[$actorId])) {
+						$count++;
+					}
+				}
+
+				return $count;
+			}
+		);
+
+		$this->emojiService = $this->createMock(EmojiService::class);
+		$this->emojiService->method('byShortcode')->willReturnCallback(
+			fn (string $shortcode): ?CustomEmoji => $this->published[$shortcode] ?? null
+		);
+
+		$this->service = new AnnouncementService($request, $this->emojiService);
 	}
 
 	/** @return int[] the ids of the announcements that account is served */
@@ -313,5 +373,234 @@ class AnnouncementServiceTest extends TestCase {
 		$this->expectException(ItemNotFoundException::class);
 
 		$this->service->delete(404);
+	}
+
+	// reactions: the only thing an account can say back about a notice
+
+	private function publish(string $shortcode): void {
+		$this->published[$shortcode] = (new CustomEmoji($shortcode, $shortcode . '.png', 'image/png'))
+			->setUrl('https://cloud.example/apps/social/emoji/' . $shortcode);
+	}
+
+	private function reactionsSeenBy(string $actorId, int $id): array {
+		foreach ($this->service->active($actorId, 1_000) as $announcement) {
+			if ($announcement->getId() === $id) {
+				return $announcement->jsonSerialize()['reactions'];
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * `Announcement.reactions` was always `[]`: the only thing anybody could
+	 * do with an instance-wide notice was put it away.
+	 */
+	public function testAReactionIsCountedAndKnowsWhoseItIs(): void {
+		$id = $this->service->create('read this')->getId();
+
+		$this->service->react($id, 'alice', '👍');
+		$this->service->react($id, 'bob', '👍');
+
+		$this->assertSame(
+			[['name' => '👍', 'count' => 2, 'me' => true]], $this->reactionsSeenBy('alice', $id)
+		);
+		$this->assertSame(
+			[['name' => '👍', 'count' => 2, 'me' => true]], $this->reactionsSeenBy('bob', $id)
+		);
+		$this->assertSame(
+			[['name' => '👍', 'count' => 2, 'me' => false]], $this->reactionsSeenBy('carol', $id)
+		);
+	}
+
+	public function testTheSameAccountReactingTwiceIsOneReaction(): void {
+		$id = $this->service->create('read this')->getId();
+
+		$this->service->react($id, 'alice', '👍');
+		$this->service->react($id, 'alice', '👍');
+
+		$this->assertSame([['name' => '👍', 'count' => 1, 'me' => true]], $this->reactionsSeenBy('alice', $id));
+	}
+
+	public function testAnAccountMayReactWithSeveralEmoji(): void {
+		$id = $this->service->create('read this')->getId();
+
+		$this->service->react($id, 'alice', '👍');
+		$this->service->react($id, 'alice', '🎉');
+
+		$this->assertCount(2, $this->reactionsSeenBy('alice', $id));
+	}
+
+	/** Most-reacted first, alphabetical within a tie, so a redraw is stable. */
+	public function testTheReactionsAreOrderedByHowManyThereAre(): void {
+		$id = $this->service->create('read this')->getId();
+		foreach (['alice', 'bob', 'carol'] as $actor) {
+			$this->service->react($id, $actor, '🎉');
+		}
+		$this->service->react($id, 'alice', '👍');
+
+		$this->assertSame(
+			['🎉', '👍'], array_column($this->reactionsSeenBy('alice', $id), 'name')
+		);
+	}
+
+	public function testTakingAReactionBackRemovesIt(): void {
+		$id = $this->service->create('read this')->getId();
+		$this->service->react($id, 'alice', '👍');
+
+		$this->service->unreact($id, 'alice', '👍');
+
+		$this->assertSame([], $this->reactionsSeenBy('alice', $id));
+	}
+
+	/** A client that has lost track of what it sent is not told off. */
+	public function testTakingBackOneThatWasNeverThereSucceeds(): void {
+		$id = $this->service->create('read this')->getId();
+
+		$this->service->unreact($id, 'alice', '👍');
+		$this->addToAssertionCount(1);
+	}
+
+	public function testOneAccountsReactionIsNotAnothers(): void {
+		$id = $this->service->create('read this')->getId();
+		$this->service->react($id, 'alice', '👍');
+
+		$this->service->unreact($id, 'bob', '👍');
+
+		$this->assertSame([['name' => '👍', 'count' => 1, 'me' => true]], $this->reactionsSeenBy('alice', $id));
+	}
+
+	public function testReactingToAnAnnouncementThatIsNotThereIsARecordNotFound(): void {
+		$this->expectException(ItemNotFoundException::class);
+
+		$this->service->react(404, 'alice', '👍');
+	}
+
+	/**
+	 * A client showing an announcement when it runs out has to be able to
+	 * finish what the reader started.
+	 */
+	public function testAnAnnouncementOutsideItsWindowCanStillBeReactedTo(): void {
+		$id = $this->service->create('over', '2020-01-01T00:00:00Z', '2020-01-02T00:00:00Z')->getId();
+
+		$this->service->react($id, 'alice', '👍');
+		$this->addToAssertionCount(1);
+	}
+
+	/**
+	 * A shortcode with no picture renders as the literal text `blobcat`, so
+	 * the reaction carries the URL of what this instance publishes.
+	 */
+	public function testAReactionWithACustomEmojiCarriesItsPicture(): void {
+		$this->publish('blobcat');
+		$id = $this->service->create('read this')->getId();
+
+		$this->service->react($id, 'alice', 'blobcat');
+
+		$this->assertSame([[
+			'name' => 'blobcat',
+			'count' => 1,
+			'me' => true,
+			'url' => 'https://cloud.example/apps/social/emoji/blobcat',
+			'static_url' => 'https://cloud.example/apps/social/emoji/blobcat',
+		]], $this->reactionsSeenBy('alice', $id));
+	}
+
+	/** A client reads the absence of a url as "render this as a character". */
+	public function testAUnicodeReactionCarriesNoPicture(): void {
+		$id = $this->service->create('read this')->getId();
+
+		$this->service->react($id, 'alice', '👍');
+
+		$this->assertArrayNotHasKey('url', $this->reactionsSeenBy('alice', $id)[0]);
+	}
+
+	/**
+	 * @dataProvider provideThingsThatAreNotEmoji
+	 */
+	public function testWhatIsNotAnEmojiIsRefused(string $name): void {
+		$id = $this->service->create('read this')->getId();
+
+		$this->expectException(InvalidResourceException::class);
+
+		$this->service->react($id, 'alice', $name);
+	}
+
+	public function provideThingsThatAreNotEmoji(): iterable {
+		// a label somebody wrote on an instance-wide notice, shown to everybody
+		// who reads it, is not a reaction — it is a second announcement
+		yield 'a word' => ['nope'];
+		yield 'a letter' => ['a'];
+		yield 'a digit' => ['5'];
+		yield 'punctuation' => ['@'];
+		yield 'markup' => ['<b>x</b>'];
+		yield 'nothing' => [''];
+		yield 'whitespace' => ['   '];
+		yield 'two emoji' => ['👍🎉'];
+		yield 'two flags' => ['🇩🇪🇫🇷'];
+		yield 'an emoji and a letter' => ['👍a'];
+		yield 'a shortcode this instance does not publish' => ['blobcat'];
+		yield 'a sentence of emoji' => ['👍👍👍👍👍👍👍👍👍👍👍👍👍'];
+	}
+
+	/**
+	 * @dataProvider provideEmoji
+	 */
+	public function testWhatIsOneEmojiIsAccepted(string $name): void {
+		$id = $this->service->create('read this')->getId();
+
+		$this->service->react($id, 'alice', $name);
+
+		$this->assertSame([$name], array_column($this->reactionsSeenBy('alice', $id), 'name'));
+	}
+
+	public function provideEmoji(): iterable {
+		yield 'plain' => ['👍'];
+		// one emoji is often several code points, and a check that counted
+		// them would refuse every one of these
+		yield 'a flag' => ['🇩🇪'];
+		yield 'a family joined by ZWJ' => ['👨‍👩‍👧'];
+		yield 'a skin tone' => ['👋🏽'];
+		yield 'a variation selector' => ['❤️'];
+		yield 'a keycap' => ['1️⃣'];
+	}
+
+	/** Without a ceiling, a notice is a free row generator. */
+	public function testAnAccountMayNotReactWithoutLimit(): void {
+		$id = $this->service->create('read this')->getId();
+		foreach (['👍', '🎉', '❤️', '😀', '😁', '😂', '🤣', '😃'] as $emoji) {
+			$this->service->react($id, 'alice', $emoji);
+		}
+
+		$this->expectException(InvalidResourceException::class);
+		$this->expectExceptionMessage('at most 8');
+
+		$this->service->react($id, 'alice', '😄');
+	}
+
+	/** The ceiling is one account's, on one announcement. */
+	public function testTheCeilingIsNotSharedBetweenAccountsOrAnnouncements(): void {
+		$first = $this->service->create('one')->getId();
+		$second = $this->service->create('two')->getId();
+		foreach (['👍', '🎉', '❤️', '😀', '😁', '😂', '🤣', '😃'] as $emoji) {
+			$this->service->react($first, 'alice', $emoji);
+		}
+
+		$this->service->react($first, 'bob', '😄');
+		$this->service->react($second, 'alice', '😄');
+		$this->addToAssertionCount(1);
+	}
+
+	/** An account at the ceiling can still swap one out. */
+	public function testAnAccountAtTheCeilingMayTakeOneBackAndPutAnotherOn(): void {
+		$id = $this->service->create('read this')->getId();
+		foreach (['👍', '🎉', '❤️', '😀', '😁', '😂', '🤣', '😃'] as $emoji) {
+			$this->service->react($id, 'alice', $emoji);
+		}
+
+		$this->service->unreact($id, 'alice', '👍');
+		$this->service->react($id, 'alice', '😄');
+
+		$this->assertCount(8, $this->reactionsSeenBy('alice', $id));
 	}
 }

@@ -65,13 +65,19 @@ $moderation = $_['moderation'];
 					</td>
 					<td><?php p($report->getCategory()); ?></td>
 					<td><?php p($report->getComment()); ?></td>
-					<td>
+					<td class="social-report-statuses">
 						<?php foreach ($report->getStatusIds() as $statusId): ?>
-							<?php if (str_starts_with($statusId, 'https://')): ?>
-								<a href="<?php p($statusId); ?>" target="_blank" rel="noreferrer noopener">↗</a>
-							<?php else: ?>
-								<?php p($statusId); ?>
-							<?php endif; ?>
+							<span class="social-report-status" data-stream-id="<?php p($statusId); ?>">
+								<?php if (str_starts_with($statusId, 'https://')): ?>
+									<a href="<?php p($statusId); ?>" target="_blank" rel="noreferrer noopener">↗</a>
+								<?php else: ?>
+									<?php p($statusId); ?>
+								<?php endif; ?>
+								<button type="button" class="social-status-remove"
+									title="<?php p($l->t('Take this post down')); ?>">
+									<?php p($l->t('Take down')); ?>
+								</button>
+							</span>
 						<?php endforeach; ?>
 					</td>
 					<td><?php p($report->getCreation() > 0 ? gmdate('Y-m-d H:i', $report->getCreation()) : ''); ?></td>
@@ -104,6 +110,51 @@ $moderation = $_['moderation'];
 			</tbody>
 		</table>
 	<?php endif; ?>
+</div>
+
+<div id="social-accounts" class="section">
+	<h2><?php p($l->t('Accounts')); ?></h2>
+	<p class="settings-hint">
+		<?php p($l->t('Every account this instance knows, whether or not anybody has complained about it. Search by username, by handle, or by instance.')); ?>
+	</p>
+
+	<p class="social-accounts-search">
+		<label for="social-accounts-query"><?php p($l->t('Search')); ?></label>
+		<input type="search" id="social-accounts-query" placeholder="bob@instance.example">
+		<label for="social-accounts-origin"><?php p($l->t('Origin')); ?></label>
+		<select id="social-accounts-origin">
+			<option value=""><?php p($l->t('Anywhere')); ?></option>
+			<option value="local"><?php p($l->t('This instance')); ?></option>
+			<option value="remote"><?php p($l->t('Other instances')); ?></option>
+		</select>
+		<label for="social-accounts-status"><?php p($l->t('State')); ?></label>
+		<select id="social-accounts-status">
+			<option value=""><?php p($l->t('Any')); ?></option>
+			<option value="active"><?php p($l->t('Nothing standing against it')); ?></option>
+			<option value="silenced"><?php p($l->t('Silenced')); ?></option>
+			<option value="suspended"><?php p($l->t('Suspended')); ?></option>
+		</select>
+		<button type="button" id="social-accounts-search"><?php p($l->t('Search')); ?></button>
+	</p>
+
+	<p id="social-accounts-empty" hidden><em><?php p($l->t('No account matches that.')); ?></em></p>
+
+	<table class="grid social-accounts" hidden>
+		<thead>
+			<tr>
+				<th><?php p($l->t('Account')); ?></th>
+				<th><?php p($l->t('Instance')); ?></th>
+				<th><?php p($l->t('State')); ?></th>
+				<th><?php p($l->t('History')); ?></th>
+				<th><?php p($l->t('Decision')); ?></th>
+			</tr>
+		</thead>
+		<tbody id="social-accounts-list"></tbody>
+	</table>
+
+	<p>
+		<button type="button" id="social-accounts-more" hidden><?php p($l->t('Show more')); ?></button>
+	</p>
 </div>
 
 <div id="social-retention" class="section">

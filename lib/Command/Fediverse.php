@@ -39,7 +39,7 @@ class Fediverse extends Base {
 				'type', 't', InputArgument::OPTIONAL,
 				'Change the type of access management', ''
 			)
-			->addArgument('action', InputArgument::OPTIONAL, 'add/remove/test address', '')
+			->addArgument('action', InputArgument::OPTIONAL, 'add/remove/test/silence/unsilence/silenced address', '')
 			->addArgument('address', InputArgument::OPTIONAL, 'address/host', '')
 			->setDescription('Allow or deny access to the fediverse');
 	}
@@ -83,8 +83,22 @@ class Fediverse extends Base {
 				$this->resetAddresses();
 				break;
 
+			case 'silence':
+				$this->silenceAddress($input->getArgument('address'));
+				break;
+
+			case 'unsilence':
+				$this->unsilenceAddress($input->getArgument('address'));
+				break;
+
+			case 'silenced':
+				$this->listSilenced();
+				break;
+
 			default:
-				throw new Exception('specify action: add, remove, list, reset');
+				throw new Exception(
+					'specify action: add, remove, list, reset, silence, unsilence, silenced'
+				);
 		}
 
 		return 0;
@@ -101,6 +115,47 @@ class Fediverse extends Base {
 		$this->fediverseService->setAccessType($type);
 
 		return true;
+	}
+
+	/**
+	 * Silencing, which is the tier between blocking an instance and doing
+	 * nothing about it: its accounts leave the public and global timelines and
+	 * stay readable by whoever follows them, and nothing is deleted.
+	 */
+	private function silenceAddress(string $address): void {
+		if ($address === '') {
+			throw new Exception('specify an address to silence');
+		}
+
+		$this->fediverseService->silenceAddress($address);
+		$this->output->writeln(
+			'<info>' . $address . '</info> is silenced: out of the public and global timelines,'
+			. ' still readable by the people who follow it.'
+		);
+	}
+
+	/** Lifts a silence. Nothing was deleted, so everything comes back. */
+	private function unsilenceAddress(string $address): void {
+		if ($address === '') {
+			throw new Exception('specify an address to unsilence');
+		}
+
+		$this->fediverseService->unsilenceAddress($address);
+		$this->output->writeln('<info>' . $address . '</info> is no longer silenced.');
+	}
+
+	private function listSilenced(): void {
+		$silenced = $this->fediverseService->getSilencedAddresses();
+		if ($silenced === []) {
+			$this->output->writeln('- No silenced instance.');
+
+			return;
+		}
+
+		$this->output->writeln('- Silenced instances:');
+		foreach ($silenced as $address) {
+			$this->output->writeln('  <info>' . $address . '</info>');
+		}
 	}
 
 	private function listAddresses(bool $allKnownAddress = false): void {

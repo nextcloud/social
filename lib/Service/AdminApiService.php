@@ -22,9 +22,12 @@ use OCA\Social\Model\Client\AdminDomainBlock;
 use OCA\Social\Model\Client\AdminReport;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Model\Report;
+use OCA\Social\Settings\AdminSection;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
+use OCP\IUserManager;
+use OCP\Settings\IManager as ISettingsManager;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -47,14 +50,20 @@ use Psr\Log\LoggerInterface;
  * cannot even mock `IQueryBuilder`, because DBAL is not loadable in it, so a
  * test doubles these methods instead.
  *
- * ### Who counts as an administrator
+ * ### Who counts as a moderator
  *
- * `IGroupManager::isAdmin()` against the Nextcloud user behind the request,
- * which is the same question `ModerationController` has always been asked by
- * the server's own `#[AdminRequired]` default. An OAuth scope is not an
- * answer to it: this app's OAuth registration accepts any scope string a
- * client asks for, so `admin:write` on a token says only that a client asked
- * for it, never that the user behind it may moderate anything.
+ * Whoever may open the Social section of the admin settings, asked of the
+ * Nextcloud user behind the request: a Nextcloud administrator, or a member
+ * of a group the administrator has handed that section to under
+ * Administration privileges. Nextcloud's own delegation answers it
+ * (`IManager::getAllowedAdminSettings()`), so this API and the panel cannot
+ * disagree about who may act, and moderating no longer means administering
+ * the whole server.
+ *
+ * An OAuth scope is not an answer to the question: this app's OAuth
+ * registration accepts any scope string a client asks for, so `admin:write`
+ * on a token says only that a client asked for it, never that the user behind
+ * it may moderate anything.
  */
 class AdminApiService {
 	/** What Mastodon defaults and caps a page of the admin account list at. */
@@ -84,6 +93,8 @@ class AdminApiService {
 		private ReportService $reportService,
 		private ReportsRequest $reportsRequest,
 		private StreamRequest $streamRequest,
+		private IUserManager $userManager,
+		private ISettingsManager $settingsManager,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -92,9 +103,31 @@ class AdminApiService {
 	 * Whether the Nextcloud user behind the request may use any of this.
 	 *
 	 * Asked of the user id, never of the token: see the class docblock.
+	 *
+	 * A Nextcloud administrator always may. So may whoever the administrator
+	 * has delegated the Social settings section to, which is the whole of the
+	 * moderator role — there is no second list to keep in step, and an
+	 * administrator stays a moderator because they can delegate the section
+	 * to themselves anyway, and pretending otherwise would only hide who
+	 * holds what.
 	 */
 	public function isAdministrator(string $userId): bool {
-		return ($userId !== '') && $this->groupManager->isAdmin($userId);
+		if ($userId === '') {
+			return false;
+		}
+
+		if ($this->groupManager->isAdmin($userId)) {
+			return true;
+		}
+
+		$user = $this->userManager->get($userId);
+		if ($user === null) {
+			return false;
+		}
+
+		return $this->settingsManager->getAllowedAdminSettings(
+			AdminSection::SECTION_ID, $user
+		) !== [];
 	}
 
 	/**
@@ -237,28 +270,34 @@ class AdminApiService {
 	 * suspension that purges the account's posts and relationships here is the
 	 * same one the admin panel applies, because it is the same call.
 	 *
-	 * `none` lifts whatever stands against the account. Mastodon reads `none`
-	 * as "record a warning and take no action", but a warning is a strike
-	 * against an account in a history this app does not keep, so the only
-	 * thing `none` can honestly mean here is the decision the panel's own
-	 * "lift" button takes. `$text` is kept as the comment on a decision that
-	 * stands; there is nowhere to keep one on a decision that is lifted.
+	 * `none` is Mastodon's own: record a warning and take no action. It used
+	 * to lift whatever stood instead, because a warning is a strike in a
+	 * history this app did not keep — now that it does, `none` means what a
+	 * client sending it means, the account is told, and lifting is what the
+	 * `unsilence` and `unsuspend` routes are for. Whatever stands is left
+	 * standing, as it is on Mastodon.
+	 *
+	 * `$text` is what the moderator wrote: the comment on a decision that
+	 * stands, and the whole of a warning.
 	 *
 	 * @param string $type one of ACTION_NONE, ACTION_SILENCE, ACTION_SUSPEND
+	 * @param int $reportId the report this came from, or 0
 	 *
 	 * @throws \InvalidArgumentException `sensitive` and `disable`, which this
 	 *                                   app has no state for, and anything
 	 *                                   that is not an action at all
 	 */
-	public function act(AdminAccount $account, string $type, string $text = ''): AdminAccount {
+	public function act(
+		AdminAccount $account, string $type, string $text = '', int $reportId = 0,
+	): AdminAccount {
 		switch ($type) {
 			case self::ACTION_NONE:
-				$this->moderationService->lift($account->getActorId());
+				$this->moderationService->warn($account->getActorId(), $text, $reportId);
 
-				return $account->setLevel('');
+				return $account;
 			case self::ACTION_SILENCE:
 			case self::ACTION_SUSPEND:
-				$this->moderationService->decide($account->getActorId(), $type, $text);
+				$this->moderationService->decide($account->getActorId(), $type, $text, $reportId);
 
 				return $account->setLevel($type);
 			case 'sensitive':

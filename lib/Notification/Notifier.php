@@ -11,6 +11,7 @@ namespace OCA\Social\Notification;
 
 use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Model\Moderation;
 use OCP\Contacts\IManager;
 use OCP\Federation\ICloudIdManager;
 use OCP\IL10N;
@@ -129,6 +130,25 @@ class Notifier implements INotifier {
 				$notification->setLink(
 					$this->url->linkToRouteAbsolute('settings.AdminSettings.index', ['section' => 'social'])
 				);
+				break;
+
+			case 'moderation_warning':
+				// the account was told nothing before this: a decision it was
+				// not told about is one it can only discover by noticing that
+				// its posts stopped appearing
+				$text = trim((string)($params['text'] ?? ''));
+				$notification->setParsedSubject(match ((string)($params['action'] ?? '')) {
+					Moderation::SILENCE => $l10n->t(
+						'Your account has been silenced by a moderator of this server'
+					),
+					Moderation::SUSPEND => $l10n->t(
+						'Your account has been suspended by a moderator of this server'
+					),
+					default => $l10n->t('You have received a warning from a moderator of this server'),
+				});
+				$notification->setParsedMessage($text === ''
+					? $l10n->t('No reason was given.')
+					: $text);
 				break;
 
 			default:

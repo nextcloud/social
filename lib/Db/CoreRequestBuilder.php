@@ -41,6 +41,7 @@ class CoreRequestBuilder {
 	public const TABLE_CACHE_ACTORS = 'social_cache_actor';
 	public const TABLE_CACHE_DOCUMENTS = 'social_cache_doc';
 	public const TABLE_CLIENT = 'social_client';
+	public const TABLE_EMOJI = 'social_emoji';
 	public const TABLE_FOLLOWED_TAGS = 'social_followed_tag';
 	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_HASHTAGS = 'social_hashtag';
@@ -48,6 +49,8 @@ class CoreRequestBuilder {
 	public const TABLE_FILTER_KEYWORDS = 'social_filter_kw';
 	public const TABLE_ANNOUNCEMENTS = 'social_announcement';
 	public const TABLE_ANNOUNCEMENT_READS = 'social_announce_read';
+	public const TABLE_ANNOUNCEMENT_REACTIONS = 'social_announce_react';
+	public const TABLE_ACCESS_BLOCKS = 'social_access_block';
 	public const TABLE_ACCOUNT_NOTES = 'social_account_note';
 	public const TABLE_CONVERSATION_STATE = 'social_convo_state';
 	public const TABLE_DOMAIN_BLOCKS = 'social_domain_block';
@@ -65,6 +68,7 @@ class CoreRequestBuilder {
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_CARDS = 'social_stream_card';
 	public const TABLE_STREAM_DEST = 'social_stream_dest';
+	public const TABLE_STRIKES = 'social_strike';
 	public const TABLE_STREAM_QUEUE = 'social_stream_queue';
 	public const TABLE_STREAM_TAGS = 'social_stream_tag';
 
@@ -309,6 +313,41 @@ class CoreRequestBuilder {
 			'actor_id',
 			'level',
 			'comment',
+			'creation'
+		],
+		self::TABLE_ACCESS_BLOCKS => [
+			'id',
+			'type',
+			'value',
+			'severity',
+			'comment',
+			'expires',
+			'creation'
+		],
+		self::TABLE_ANNOUNCEMENT_REACTIONS => [
+			'id',
+			'announcement_id',
+			'actor_id_prim',
+			'name',
+			'creation'
+		],
+		self::TABLE_EMOJI => [
+			'id',
+			'shortcode',
+			'category',
+			'filename',
+			'media_type',
+			'visible',
+			'creation'
+		],
+		self::TABLE_STRIKES => [
+			'id',
+			'actor_id_prim',
+			'actor_id',
+			'action',
+			'text',
+			'moderator',
+			'report_id',
 			'creation'
 		],
 		self::TABLE_REQUEST_QUEUE => [

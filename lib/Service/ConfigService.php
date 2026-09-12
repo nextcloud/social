@@ -46,6 +46,27 @@ class ConfigService {
 	/** days to keep remote statuses nobody local cares about; 0 disables */
 	public const SOCIAL_RETENTION_DAYS = 'retention_days';
 
+	/**
+	 * Instances whose accounts are silenced rather than blocked: out of the
+	 * public and global timelines, still readable by whoever follows them.
+	 *
+	 * The middle tier a domain block did not have. Without it the only answer
+	 * to an instance that is a nuisance rather than a menace was to cut it off
+	 * entirely, which also cuts off the local users who deliberately follow
+	 * somebody there.
+	 */
+	public const SOCIAL_SILENCED_LIST = 'silenced_list';
+
+	/**
+	 * Whether an ActivityPub GET must be signed to be answered.
+	 *
+	 * Mastodon's secure mode. Off by default, and deliberately: turning it on
+	 * makes this instance invisible to every peer that does not sign its
+	 * fetches, which is a decision about who an instance federates with rather
+	 * than something to arrive at by upgrading.
+	 */
+	public const SOCIAL_SECURE_MODE = 'secure_mode';
+
 	public array $defaults = [
 		self::CLOUD_URL => '',
 		self::SOCIAL_URL => '',
@@ -56,7 +77,9 @@ class ConfigService {
 		self::SOCIAL_ACCESS_LIST => '[]',
 		self::SOCIAL_SELF_SIGNED => '0',
 		self::SOCIAL_INBOX_THROTTLE => '300',
-		self::SOCIAL_RETENTION_DAYS => '0'
+		self::SOCIAL_RETENTION_DAYS => '0',
+		self::SOCIAL_SILENCED_LIST => '[]',
+		self::SOCIAL_SECURE_MODE => '0'
 	];
 
 	public array $accessTypeList = [

@@ -16,8 +16,12 @@ use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Client\AdminDomainBlock;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Moderation;
+use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\MetricsService;
+use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
@@ -52,6 +56,10 @@ class AdminApiControllerTest extends TestCase {
 	/** @var IRequest&MockObject */
 	private $request;
 	private AdminApiService|MockObject $adminApiService;
+	private AccessBlockService|MockObject $accessBlockService;
+	private MetricsService|MockObject $metricsService;
+	private HashtagService|MockObject $hashtagService;
+	private TrendService|MockObject $trendService;
 	private ClientService|MockObject $clientService;
 	private IUserSession|MockObject $userSession;
 
@@ -88,6 +96,21 @@ class AdminApiControllerTest extends TestCase {
 			'domainBlockCreate' => ['domainBlockCreate', ['evil.example', 'suspend']],
 			'domainBlockUpdate' => ['domainBlockUpdate', ['evil.example', 'suspend']],
 			'domainBlockRemove' => ['domainBlockRemove', ['evil.example']],
+			'ipBlocks' => ['ipBlocks', []],
+			'ipBlock' => ['ipBlock', [4]],
+			'ipBlockCreate' => ['ipBlockCreate', ['1.2.3.0/24', 'no_access', '', 0]],
+			'ipBlockUpdate' => ['ipBlockUpdate', [4, 'no_access', '', 0]],
+			'ipBlockRemove' => ['ipBlockRemove', [4]],
+			'emailDomainBlocks' => ['emailDomainBlocks', []],
+			'emailDomainBlock' => ['emailDomainBlock', [4]],
+			'emailDomainBlockCreate' => ['emailDomainBlockCreate', ['throwaway.example']],
+			'emailDomainBlockRemove' => ['emailDomainBlockRemove', [4]],
+			'measures' => ['measures', [['new_users'], '2026-09-01', '2026-09-10', '', '']],
+			'dimensions' => ['dimensions', [['servers'], '2026-09-01', '2026-09-10', 10, '']],
+			'retention' => ['retention', ['2026-09-01', '2026-09-10']],
+			'trendTags' => ['trendTags', [10]],
+			'trendStatuses' => ['trendStatuses', [10, 0]],
+			'trendLinks' => ['trendLinks', [10, 0]],
 		];
 	}
 
@@ -132,6 +155,10 @@ class AdminApiControllerTest extends TestCase {
 		\OC::$server->register(IRequest::class, $this->request);
 
 		$this->adminApiService = $this->createMock(AdminApiService::class);
+		$this->accessBlockService = $this->createMock(AccessBlockService::class);
+		$this->metricsService = $this->createMock(MetricsService::class);
+		$this->hashtagService = $this->createMock(HashtagService::class);
+		$this->trendService = $this->createMock(TrendService::class);
 		$this->adminApiService->method('isAdministrator')
 			->willReturnCallback(fn (string $userId): bool => $this->isAdmin && $userId === self::ADMIN);
 	}
@@ -142,6 +169,10 @@ class AdminApiControllerTest extends TestCase {
 			$this->userSession,
 			new NullLogger(),
 			$this->adminApiService,
+			$this->accessBlockService,
+			$this->metricsService,
+			$this->hashtagService,
+			$this->trendService,
 			$this->clientService
 		);
 	}

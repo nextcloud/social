@@ -61,6 +61,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
@@ -80,6 +81,7 @@ use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TNCDataResponse;
+use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
@@ -179,6 +181,8 @@ class ApiController extends Controller {
 		private AvatarService $avatarService,
 		private AccountRelationService $accountRelationService,
 		private ScheduledStatusService $scheduledStatusService,
+		private EmojiService $emojiService,
+		private IAppManager $appManager,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -601,13 +605,102 @@ class ApiController extends Controller {
 	}
 
 	/**
+	 * Mastodon's sign-up route, which this server does not have.
 	 *
-	 * @return DataResponse
+	 * An account here is a Nextcloud account: the server creates it, through
+	 * whatever provisioning it is configured with, and this app is given one
+	 * that already exists. So there is nothing for this route to create — and
+	 * a **404** was the wrong way to say so, because a client reads it as "this
+	 * server is broken" and shows nothing a person can act on.
+	 *
+	 * A 403 in Mastodon's own error shape is read, shown, and says where to go
+	 * instead: the server's registration page when it has one, and otherwise
+	 * that an administrator creates accounts here. `registrations: false` in
+	 * the instance entity already says the same thing to a client that looks
+	 * before it asks; this is for the one that asks.
+	 *
+	 * The approval queue, the invites and the email confirmation Mastodon
+	 * builds on top of its sign-up are the server's too, for the same reason.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function accountNew(): DataResponse {
+		return new DataResponse(
+			[
+				'error' => 'Account registration is not handled by this application',
+				'details' => (object)[
+					'base' => [
+						(object)[
+							'error' => 'ERR_BLOCKED',
+							'description' => $this->registrationAdvice(),
+						],
+					],
+				],
+			],
+			Http::STATUS_FORBIDDEN
+		);
+	}
+
+	/** Where somebody who wanted to sign up should be sent instead. */
+	private function registrationAdvice(): string {
+		if ($this->appManager->isEnabledForUser('registration')) {
+			return 'An account on this server is a Nextcloud account. Sign up at '
+				. $this->urlGenerator->getAbsoluteURL('/apps/registration/')
+				. ' and this application will give that account a fediverse identity.';
+		}
+
+		return 'An account on this server is a Nextcloud account, created by an '
+			. 'administrator. Once it exists, this application gives it a fediverse '
+			. 'identity; there is nothing to sign up for here.';
+	}
+
+	/**
+	 * The emoji this instance publishes.
+	 *
+	 * Answered `[]` unconditionally until the instance had any: emoji from
+	 * every other server rendered here and this one could publish none, which
+	 * is the asymmetry somebody moving here notices first. Only the ones
+	 * marked visible are listed — that is what the field means, and a picker
+	 * is what reads this route.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	public function customEmojis(): DataResponse {
-		return new DataResponse([], Http::STATUS_OK);
+		return new DataResponse($this->emojiService->visible(), Http::STATUS_OK);
+	}
+
+	/**
+	 * The picture behind a shortcode.
+	 *
+	 * Unauthenticated, like `mediaOpen()` and for the same reason: this is
+	 * what a remote server dereferences out of an `Emoji` tag on a post it
+	 * received, and it has no token of ours to present. An emoji is published
+	 * by definition — it is on every post that uses it, everywhere that post
+	 * went — so there is nothing here to keep from anybody.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function emojiOpen(string $shortcode): Response {
+		try {
+			$emoji = $this->emojiService->byShortcode($shortcode);
+			if ($emoji === null) {
+				return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
+			}
+
+			$response = new FileDisplayResponse(
+				$this->emojiService->picture($shortcode),
+				Http::STATUS_OK,
+				['Content-Type' => $emoji->getMediaType()]
+			);
+			// the shortcode names one picture and replacing it is a deliberate
+			// act, so a day is cheap; a shared cache may keep it, since the
+			// route answers everybody the same bytes
+			$response->cacheFor(86400, false, true);
+
+			return $response;
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
 	}
 
 	/**

@@ -25,7 +25,11 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Settings\AdminSection;
 use OCP\IGroupManager;
+use OCP\IUser;
+use OCP\IUserManager;
+use OCP\Settings\IManager as ISettingsManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -54,6 +58,15 @@ class AdminApiServiceTest extends TestCase {
 	private ReportService|MockObject $reportService;
 	private ReportsRequest|MockObject $reportsRequest;
 	private StreamRequest|MockObject $streamRequest;
+	private IUserManager|MockObject $userManager;
+	private ISettingsManager|MockObject $settingsManager;
+
+	/** @var string[] the user ids the Social settings section is delegated to */
+	private array $delegatedTo = [];
+	/** @var string[] the user ids the server knows */
+	private array $knownUsers = ['root', 'mod', 'alice'];
+	/** Which settings section the delegation was asked about. */
+	private string $askedAboutSection = '';
 
 	/** @var array<string, string> actor id => the decision standing against it */
 	private array $decisions = [];
@@ -81,6 +94,28 @@ class AdminApiServiceTest extends TestCase {
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->reportsRequest = $this->createMock(ReportsRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
+		$this->userManager = $this->createMock(IUserManager::class);
+		$this->settingsManager = $this->createMock(ISettingsManager::class);
+
+		$this->userManager->method('get')->willReturnCallback(
+			function (string $userId): ?IUser {
+				if (!in_array($userId, $this->knownUsers, true)) {
+					return null;
+				}
+
+				$user = $this->createMock(IUser::class);
+				$user->method('getUID')->willReturn($userId);
+
+				return $user;
+			}
+		);
+		$this->settingsManager->method('getAllowedAdminSettings')->willReturnCallback(
+			function (string $section, IUser $user): array {
+				$this->askedAboutSection = $section;
+
+				return in_array($user->getUID(), $this->delegatedTo, true) ? [50 => ['a setting']] : [];
+			}
+		);
 
 		$this->moderationService->method('levelOf')
 			->willReturnCallback(fn (string $actorId): string => $this->decisions[$actorId] ?? '');
@@ -199,6 +234,8 @@ class AdminApiServiceTest extends TestCase {
 			'reportService' => $this->reportService,
 			'reportsRequest' => $this->reportsRequest,
 			'streamRequest' => $this->streamRequest,
+			'userManager' => $this->userManager,
+			'settingsManager' => $this->settingsManager,
 			'logger' => new NullLogger(),
 		] as $name => $dependency) {
 			// the constructor is not run (it takes an IDBConnection, which
@@ -237,15 +274,57 @@ class AdminApiServiceTest extends TestCase {
 		], $overrides);
 	}
 
-	public function testOnlyANextcloudAdministratorCounts(): void {
+	/**
+	 * Moderating used to mean administering the whole server, which is a great
+	 * deal of power to hand somebody so that they can act on a report. Whoever
+	 * the administrator has handed the Social settings section to may now
+	 * moderate, and Nextcloud's own delegation is the only list of them.
+	 */
+	public function testWhoeverMayOpenTheSettingsSectionMayModerate(): void {
+		$this->groupManager->method('isAdmin')->willReturn(false);
+		$this->delegatedTo = ['mod'];
+
+		$service = $this->service();
+
+		$this->assertTrue($service->isAdministrator('mod'));
+		$this->assertFalse($service->isAdministrator('alice'));
+	}
+
+	/** It is asked about the Social section, not about admin settings at large. */
+	public function testTheDelegationIsAskedAboutThisSection(): void {
+		$this->groupManager->method('isAdmin')->willReturn(false);
+		$this->delegatedTo = ['mod'];
+
+		$this->service()->isAdministrator('mod');
+
+		$this->assertSame(AdminSection::SECTION_ID, $this->askedAboutSection);
+	}
+
+	/** The default is the behaviour this app had: admins and nobody else. */
+	public function testWithNothingDelegatedNobodyGainsAnything(): void {
+		$this->groupManager->method('isAdmin')->willReturn(false);
+
+		$this->assertFalse($this->service()->isAdministrator('alice'));
+	}
+
+	/** A user id that names nobody is not a moderator by default. */
+	public function testAUserIdThatNamesNobodyIsRefused(): void {
+		$this->groupManager->method('isAdmin')->willReturn(false);
+		$this->delegatedTo = ['ghost'];
+		$this->knownUsers = [];
+
+		$this->assertFalse($this->service()->isAdministrator('ghost'));
+	}
+
+	public function testANextcloudAdministratorAlwaysCounts(): void {
 		$this->groupManager->method('isAdmin')
 			->willReturnCallback(static fn (string $userId): bool => $userId === 'root');
 
 		$service = $this->service();
 		$this->assertTrue($service->isAdministrator('root'));
 		$this->assertFalse($service->isAdministrator('alice'));
-		// nobody behind the request is not an administrator either, and the
-		// group manager is never asked about an empty user id
+		// nobody behind the request is not a moderator either, and neither the
+		// group manager nor the delegation is asked about an empty user id
 		$this->assertFalse($service->isAdministrator(''));
 	}
 
@@ -400,13 +479,36 @@ class AdminApiServiceTest extends TestCase {
 		$this->assertTrue($this->service()->act($account, 'suspend', 'spamming')->isSuspended());
 	}
 
-	public function testNoneLiftsWhateverStands(): void {
+	/**
+	 * Mastodon's own meaning, which used to be unavailable here: a warning is
+	 * a strike in a history this app did not keep, so `none` lifted instead.
+	 */
+	public function testNoneWarnsAndAppliesNothing(): void {
+		$account = AdminAccount::fromPerson($this->known(self::REMOTE));
+
+		$this->moderationService->expects($this->once())
+			->method('warn')->with(self::REMOTE, 'stop that', 4);
+		$this->moderationService->expects($this->never())->method('decide');
+		$this->moderationService->expects($this->never())->method('lift');
+
+		$this->service()->act($account, 'none', 'stop that', 4);
+	}
+
+	/** Lifting is what the unsilence and unsuspend routes are for. */
+	public function testAWarningLeavesWhateverStandsStanding(): void {
 		$account = AdminAccount::fromPerson($this->known(self::REMOTE), Moderation::SILENCE);
 
-		$this->moderationService->expects($this->once())->method('lift')->with(self::REMOTE);
-		$this->moderationService->expects($this->never())->method('decide');
+		$this->assertTrue($this->service()->act($account, 'none')->isSilenced());
+	}
 
-		$this->assertFalse($this->service()->act($account, 'none')->isSilenced());
+	/** The report a decision came from is recorded with it. */
+	public function testADecisionCarriesTheReportItCameFrom(): void {
+		$account = AdminAccount::fromPerson($this->known(self::REMOTE));
+
+		$this->moderationService->expects($this->once())
+			->method('decide')->with(self::REMOTE, Moderation::SILENCE, 'spam', 4);
+
+		$this->service()->act($account, 'silence', 'spam', 4);
 	}
 
 	public function testAnActionThisAppHasNoStateForIsRefused(): void {

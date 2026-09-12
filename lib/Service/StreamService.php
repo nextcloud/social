@@ -62,6 +62,7 @@ class StreamService {
 		private ConfigService $configService,
 		private CurlService $curlService,
 		private LinkPreviewService $linkPreviewService,
+		private EmojiService $emojiService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -258,6 +259,34 @@ class StreamService {
 		$stream->addInstancePath(
 			new InstancePath($inbox, InstancePath::TYPE_INBOX, $priority)
 		);
+	}
+
+	/**
+	 * The `Emoji` tags a post needs for the shortcodes written in it.
+	 *
+	 * The shortcode stays in the content as text; the tag beside it says where
+	 * the picture is. That is how every fediverse server does it, and it is
+	 * why an instance that has never heard of `:blobcat:` still renders the
+	 * post — it dereferences the icon out of the tag rather than looking the
+	 * name up anywhere. A shortcode this instance has no picture for is left
+	 * as the text it already was, here and everywhere it is delivered.
+	 *
+	 * The spoiler text is scanned too: it is written by the same person in the
+	 * same composer, and a content warning whose emoji did not render was the
+	 * one place the shortcode showed through.
+	 */
+	public function addCustomEmojis(Stream $stream, string ...$texts): void {
+		// rebuilt rather than appended to: an edit that takes a shortcode out
+		// would otherwise leave the tag behind, and one that puts a new
+		// shortcode in has to gain a tag or the emoji renders nowhere
+		$stream->setTags(array_values(array_filter(
+			$stream->getTags(),
+			static fn (array $tag): bool => ($tag['type'] ?? '') !== 'Emoji'
+		)));
+
+		foreach ($this->emojiService->tagsFor(implode(' ', $texts)) as $tag) {
+			$stream->addTag($tag);
+		}
 	}
 
 	/**

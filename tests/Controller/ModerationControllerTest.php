@@ -11,12 +11,18 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\ModerationController;
 use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Report;
+use OCA\Social\Model\Strike;
+use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -26,26 +32,59 @@ class ModerationControllerTest extends TestCase {
 	private FediverseService|MockObject $fediverseService;
 	private ConfigService|MockObject $configService;
 	private ModerationService|MockObject $moderationService;
+	private AdminApiService|MockObject $adminApiService;
 	private ModerationController $controller;
+
+	/** The arguments the account page was asked for. */
+	private array $accountQuery = [];
+	/** @var AdminAccount[] what the account page answers */
+	private array $accounts = [];
+	/** @var array<string, int> how many strikes each account has */
+	private array $strikeCounts = [];
+	/** @var string[] the accounts the counts were asked for */
+	private array $countedFor = [];
 
 	protected function setUp(): void {
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->moderationService = $this->createMock(ModerationService::class);
+		$this->adminApiService = $this->createMock(AdminApiService::class);
 		$this->controller = new ModerationController(
 			$this->createMock(IRequest::class),
 			$this->reportService,
 			$this->fediverseService,
 			$this->configService,
-			$this->moderationService
+			$this->moderationService,
+			$this->adminApiService
+		);
+
+		$this->adminApiService->method('accountPage')->willReturnCallback(
+			function (
+				?bool $local, string $username, string $displayName, string $domain,
+				string $status, int $limit, int $maxId,
+			): array {
+				$this->accountQuery = compact(
+					'local', 'username', 'displayName', 'domain', 'status', 'limit', 'maxId'
+				);
+
+				return ['accounts' => $this->accounts, 'cursors' => [9, 7]];
+			}
+		);
+
+		$this->moderationService->method('strikeCounts')->willReturnCallback(
+			function (array $actorIds): array {
+				$this->countedFor = $actorIds;
+
+				return $this->strikeCounts;
+			}
 		);
 	}
 
-	public function testModerationRoutesRequireAnAdminAndCsrf(): void {
+	public function testModerationRoutesRequireASessionAndCsrf(): void {
 		// no PublicPage/NoAdminRequired/NoCSRFRequired — neither as attribute
 		// nor as legacy annotation: the server only dispatches these routes
-		// for an admin session with a CSRF token
+		// for a logged-in session with a CSRF token
 		$reflection = new \ReflectionClass(ModerationController::class);
 		$doc = (string)$reflection->getDocComment();
 		$attributes = [];
@@ -61,6 +100,31 @@ class ModerationControllerTest extends TestCase {
 			foreach ($attributes as $attribute) {
 				$this->assertStringNotContainsString($relaxation, $attribute);
 			}
+		}
+	}
+
+	/**
+	 * Without the attribute a method here is admin-only, which is safe and
+	 * wrong: the page around it opens for a delegated moderator and the
+	 * buttons on it would answer 403.
+	 */
+	public function testEveryModerationActionIsOpenToADelegatedModerator(): void {
+		$reflection = new \ReflectionClass(ModerationController::class);
+
+		foreach ($reflection->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+			if ($method->isConstructor() || $method->getDeclaringClass()->getName() !== ModerationController::class) {
+				continue;
+			}
+
+			$attributes = $method->getAttributes(AuthorizedAdminSetting::class);
+			$this->assertCount(
+				1, $attributes, $method->getName() . '() carries no AuthorizedAdminSetting'
+			);
+			$this->assertSame(
+				['settings' => AdminSettings::class],
+				$attributes[0]->getArguments(),
+				$method->getName() . '() is delegated through the wrong settings class'
+			);
 		}
 	}
 
@@ -157,5 +221,159 @@ class ModerationControllerTest extends TestCase {
 		$response = $this->controller->fediverseAccess('none_but');
 
 		$this->assertSame(['accessType' => 'none_but'], $response->getData());
+	}
+
+	private function remotePerson(string $id, string $handle): Person {
+		$person = new Person();
+		$person->setId($id)->setPreferredUsername(explode('@', $handle)[0]);
+		$person->setAccount($handle)->setLocal(false);
+
+		return $person;
+	}
+
+	/**
+	 * Only a *reported* account could be acted on from the web: an instance
+	 * with a problem nobody had filed a report about needed a moderation
+	 * client and a token.
+	 */
+	public function testTheAccountBrowserAnswersWhatTheTableDraws(): void {
+		$this->accounts = [
+			AdminAccount::fromPerson(
+				$this->remotePerson('https://remote.example/users/bob', 'bob@remote.example'), 'silence'
+			),
+		];
+
+		$data = $this->controller->accounts()->getData();
+
+		$this->assertSame([[
+			'actor_id' => 'https://remote.example/users/bob',
+			'handle' => 'bob@remote.example',
+			'username' => 'bob',
+			'domain' => 'remote.example',
+			'local' => false,
+			'level' => 'silence',
+			'strikes' => 0,
+		]], $data['accounts']);
+		$this->assertSame([9, 7], $data['cursors'], 'the cursors page the browser');
+	}
+
+	/**
+	 * @dataProvider provideWhatAModeratorWouldType
+	 */
+	public function testWhatWasTypedIsReadAsBothHalves(
+		string $query, string $username, string $domain,
+	): void {
+		$this->controller->accounts($query);
+
+		$this->assertSame($username, $this->accountQuery['username'], $query . ' names this account');
+		$this->assertSame($domain, $this->accountQuery['domain'], $query . ' names this instance');
+	}
+
+	public function provideWhatAModeratorWouldType(): iterable {
+		yield 'a handle' => ['bob@remote.example', 'bob', 'remote.example'];
+		yield 'a handle with the leading at' => ['@bob@remote.example', 'bob', 'remote.example'];
+		yield 'an instance' => ['remote.example', '', 'remote.example'];
+		yield 'a username anywhere' => ['bob', 'bob', ''];
+		yield 'nothing at all' => ['   ', '', ''];
+		yield 'mixed case' => ['Bob@Remote.Example', 'Bob', 'remote.example'];
+	}
+
+	/** @dataProvider provideOrigins */
+	public function testTheOriginNarrowsToOneSideOfTheFederation(string $origin, ?bool $local): void {
+		$this->controller->accounts('', $origin);
+
+		$this->assertSame($local, $this->accountQuery['local']);
+	}
+
+	public function provideOrigins(): iterable {
+		yield 'this instance' => ['local', true];
+		yield 'the rest' => ['remote', false];
+		yield 'both' => ['', null];
+		yield 'nonsense is both, not nothing' => ['elsewhere', null];
+	}
+
+	public function testTheStateFilterIsPassedThroughAsItIs(): void {
+		$this->controller->accounts('', '', 'suspended');
+
+		$this->assertSame('suspended', $this->accountQuery['status']);
+	}
+
+	/** A page the browser can draw, and a cursor it can go on from. */
+	public function testThePageIsBoundedAndCanBeContinued(): void {
+		$this->controller->accounts('', '', '', 7);
+
+		$this->assertSame(40, $this->accountQuery['limit']);
+		$this->assertSame(7, $this->accountQuery['maxId']);
+	}
+
+	/**
+	 * A suspension deletes the cached actor, so the accounts a moderator most
+	 * needs to find are the ones with no handle left to show.
+	 */
+	public function testAnAccountWithNothingLeftOfItStillNamesItself(): void {
+		$person = new Person();
+		$person->setId('https://gone.example/users/carol')->setPreferredUsername('carol');
+		$person->setLocal(false);
+		$this->accounts = [AdminAccount::fromPerson($person, 'suspend')];
+
+		$account = $this->controller->accounts()->getData()['accounts'][0];
+
+		$this->assertSame('', $account['handle']);
+		$this->assertSame('carol', $account['username']);
+		$this->assertSame('https://gone.example/users/carol', $account['actor_id']);
+	}
+
+	/**
+	 * A page of forty accounts asked for forty-one queries when the count was
+	 * read a row at a time, and the column is only a number.
+	 */
+	public function testTheStrikeCountsForAPageAreAskedForOnce(): void {
+		$this->accounts = [
+			AdminAccount::fromPerson(
+				$this->remotePerson('https://remote.example/users/bob', 'bob@remote.example')
+			),
+			AdminAccount::fromPerson(
+				$this->remotePerson('https://remote.example/users/carol', 'carol@remote.example')
+			),
+		];
+		$this->strikeCounts = ['https://remote.example/users/bob' => 3];
+
+		$accounts = $this->controller->accounts()->getData()['accounts'];
+
+		$this->assertSame([
+			'https://remote.example/users/bob', 'https://remote.example/users/carol',
+		], $this->countedFor);
+		$this->assertSame(3, $accounts[0]['strikes']);
+		$this->assertSame(0, $accounts[1]['strikes'], 'an account with no history has none');
+	}
+
+	/**
+	 * `social_moderation` holds what stands now and is deleted by a lift, so
+	 * without this the third silence in a month looked exactly like the first.
+	 */
+	public function testTheHistoryIsWhatWasDecidedBeforeNow(): void {
+		$this->moderationService->expects($this->once())
+			->method('history')->with('https://remote.example/users/bob')
+			->willReturn([
+				new Strike('https://remote.example/users/bob', 'silence', 'spam', 'mod', 4, 1757548800),
+			]);
+
+		$data = $this->controller->accountHistory('https://remote.example/users/bob')->getData();
+
+		$this->assertSame([[
+			'action' => 'silence',
+			'text' => 'spam',
+			'moderator' => 'mod',
+			'report_id' => 4,
+			'creation' => 1757548800,
+		]], $data['strikes']);
+	}
+
+	public function testAHistoryOfNobodyIsRefused(): void {
+		$this->moderationService->expects($this->never())->method('history');
+
+		$response = $this->controller->accountHistory('  ');
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 	}
 }

@@ -70,6 +70,31 @@ class AnnouncementsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
+	protected function getReactionsInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->insert(self::TABLE_ANNOUNCEMENT_REACTIONS);
+
+		return $qb;
+	}
+
+	protected function getReactionsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->select('re.id', 're.announcement_id', 're.actor_id_prim', 're.name')
+			->from(self::TABLE_ANNOUNCEMENT_REACTIONS, 're');
+
+		$this->defaultSelectAlias = 're';
+		$qb->setDefaultSelectAlias('re');
+
+		return $qb;
+	}
+
+	protected function getReactionsDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->delete(self::TABLE_ANNOUNCEMENT_REACTIONS);
+
+		return $qb;
+	}
+
 	protected function parseAnnouncementsSelectSql(array $data): Announcement {
 		return (new Announcement())->importFromDatabase($data);
 	}

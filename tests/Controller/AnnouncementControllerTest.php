@@ -19,6 +19,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AnnouncementService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\EmojiService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
 use OCP\IUser;
@@ -53,6 +54,8 @@ class AnnouncementControllerTest extends TestCase {
 	private array $announcements = [];
 	/** @var array<string, int[]> actor id => the announcement ids it dismissed */
 	private array $dismissals = [];
+	/** @var array<int, array<string, array<string, bool>>> announcement => emoji => actors */
+	private array $reactions = [];
 	private int $nextId = 1;
 	private bool $csrf = true;
 	private string $uid = 'alice';
@@ -77,7 +80,9 @@ class AnnouncementControllerTest extends TestCase {
 				=> $this->person('https://cloud.example/users/' . $userId));
 
 		$this->clientService = $this->createMock(ClientService::class);
-		$this->announcementService = new AnnouncementService($this->mockAnnouncementsRequest());
+		$this->announcementService = new AnnouncementService(
+			$this->mockAnnouncementsRequest(), $this->createMock(EmojiService::class)
+		);
 
 		// Response::getHeaders() asks the container for the request
 		\OC::$server->register(IRequest::class, $this->request);
@@ -145,6 +150,41 @@ class AnnouncementControllerTest extends TestCase {
 		$request->method('dismissedBy')->willReturnCallback(
 			fn (string $actorId, array $ids): array
 				=> array_values(array_intersect($this->dismissals[$actorId] ?? [], $ids))
+		);
+
+		$request->method('react')->willReturnCallback(
+			function (int $id, string $actorId, string $name): void {
+				$this->reactions[$id][$name][$actorId] = true;
+			}
+		);
+
+		$request->method('unreact')->willReturnCallback(
+			function (int $id, string $actorId, string $name): void {
+				unset($this->reactions[$id][$name][$actorId]);
+				if (($this->reactions[$id][$name] ?? []) === []) {
+					unset($this->reactions[$id][$name]);
+				}
+			}
+		);
+
+		$request->method('reactionsOn')->willReturnCallback(
+			function (string $actorId, array $ids): array {
+				$on = [];
+				foreach ($ids as $id) {
+					foreach ($this->reactions[$id] ?? [] as $name => $actors) {
+						$on[$id][$name] = ['count' => count($actors), 'me' => isset($actors[$actorId])];
+					}
+				}
+
+				return $on;
+			}
+		);
+
+		$request->method('countReactionsBy')->willReturnCallback(
+			fn (int $id, string $actorId): int => count(array_filter(
+				$this->reactions[$id] ?? [],
+				static fn (array $actors): bool => isset($actors[$actorId])
+			))
 		);
 
 		return $request;
@@ -403,5 +443,79 @@ class AnnouncementControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 		$this->assertSame('announcement not found', $response->getData()['error']);
+	}
+
+	// reactions
+
+	/** @return array<int, array<string, mixed>> what the viewer is shown */
+	private function reactionsOf(int $id, string $authorization = ''): array {
+		foreach ($this->entities($this->controller($authorization)->index()) as $entity) {
+			if ((int)$entity['id'] === $id) {
+				return $entity['reactions'];
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * `Announcement.reactions` was always `[]` and no route wrote one: the
+	 * only thing an account could do with an instance-wide notice was put it
+	 * away.
+	 */
+	public function testReactingPutsTheEmojiOnTheAnnouncementForTheViewer(): void {
+		$this->token(['write:favourites']);
+		$announcement = $this->given('Maintenance on Sunday');
+
+		$response = $this->controller('Bearer t')->react($announcement->getId(), "\u{1F44D}");
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(
+			[['name' => "\u{1F44D}", 'count' => 1, 'me' => true]],
+			$this->reactionsOf($announcement->getId(), 'Bearer t')
+		);
+	}
+
+	public function testTakingAReactionBackRemovesIt(): void {
+		$this->token(['write:favourites']);
+		$announcement = $this->given('Maintenance on Sunday');
+		$this->controller('Bearer t')->react($announcement->getId(), "\u{1F44D}");
+
+		$response = $this->controller('Bearer t')->unreact($announcement->getId(), "\u{1F44D}");
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $this->reactionsOf($announcement->getId(), 'Bearer t'));
+	}
+
+	/**
+	 * A label somebody wrote on an instance-wide notice, shown to everybody
+	 * who reads it, is a second announcement rather than a reaction.
+	 */
+	public function testAReactionThatIsNotAnEmojiIsRefused(): void {
+		$this->token(['write:favourites']);
+		$announcement = $this->given('Maintenance on Sunday');
+
+		$response = $this->controller('Bearer t')->react($announcement->getId(), 'read the rules');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame([], $this->reactions);
+	}
+
+	public function testReactingToAnAnnouncementThatIsNotThereIsARecordNotFound(): void {
+		$this->token(['write:favourites']);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND, $this->controller('Bearer t')->react(404, "\u{1F44D}")->getStatus()
+		);
+	}
+
+	public function testReactingNeedsTheScopeMastodonDocumentsForIt(): void {
+		$this->token(['read']);
+		$announcement = $this->given('Maintenance on Sunday');
+
+		$response = $this->controller('Bearer t')->react($announcement->getId(), "\u{1F44D}");
+
+		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+		$this->assertSame([], $this->reactions);
 	}
 }

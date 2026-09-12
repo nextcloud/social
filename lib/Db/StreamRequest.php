@@ -26,6 +26,7 @@ use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Model\Cache;
@@ -73,6 +74,7 @@ class StreamRequest extends StreamRequestBuilder {
 		ConfigService $configService,
 		MiscService $miscService,
 		private ModerationRequest $moderationRequest,
+		private FediverseService $fediverseService,
 		private CacheDocumentService $cacheDocumentService,
 		private FollowedTagsRequest $followedTagsRequest,
 	) {
@@ -1182,17 +1184,63 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	private function filterSilencedActors(SocialQueryBuilder $qb): void {
 		$silenced = $this->moderationRequest->getActorIdsAt(Moderation::SILENCE);
+		if ($silenced !== []) {
+			$prims = array_map(fn (string $id): string => $qb->prim($id), $silenced);
+			$qb->andWhere(
+				$qb->expr()->notIn(
+					's.attributed_to_prim',
+					$qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
+				)
+			);
+		}
+
+		$this->filterSilencedInstances($qb);
+	}
+
+	/**
+	 * Keeps a silenced instance out of the timeline this query is building.
+	 *
+	 * The middle tier of a domain block: an account there stays readable by
+	 * whoever follows it and stops appearing in the public and global
+	 * timelines, which is the whole difference between a nuisance and a menace.
+	 *
+	 * Matched on the author's id rather than on a host column, because there is
+	 * none: an actor id begins with the scheme and host, so a domain and
+	 * everything under it is a prefix — `https://evil.test/` and
+	 * `%.evil.test/`. A block reads subdomains the same way, and anything less
+	 * would last as long as it takes to point a wildcard record at the same
+	 * host. The list is an admin-written handful, so one clause each is cheap;
+	 * `LIKE` on the id is not indexed, which is why this runs only on the two
+	 * timelines that need it.
+	 */
+	private function filterSilencedInstances(SocialQueryBuilder $qb): void {
+		$silenced = $this->fediverseService->getSilencedAddresses();
 		if ($silenced === []) {
 			return;
 		}
 
-		$prims = array_map(fn (string $id): string => $qb->prim($id), $silenced);
-		$qb->andWhere(
-			$qb->expr()->notIn(
-				's.attributed_to_prim',
-				$qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
-			)
-		);
+		foreach ($silenced as $host) {
+			$host = strtolower(trim($host));
+			if ($host === '') {
+				continue;
+			}
+
+			$qb->andWhere($qb->expr()->andX(
+				$qb->expr()->notLike(
+					's.attributed_to',
+					$qb->createNamedParameter('%://' . $this->escapeLike($host) . '/%')
+				),
+				$qb->expr()->notLike(
+					's.attributed_to',
+					$qb->createNamedParameter('%.' . $this->escapeLike($host) . '/%')
+				)
+			));
+		}
+	}
+
+	/** `%`, `_` and the escape itself are literals in a hostname. */
+	private function escapeLike(string $value): string {
+		return str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $value);
 	}
 
 	private function getTimelinePublic(ProbeOptions $options): array {

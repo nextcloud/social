@@ -246,6 +246,69 @@ class ACoreTest extends TestCase {
 		], $result);
 	}
 
+	/**
+	 * An Emoji tag is nothing without its icon: the shortcode in the content
+	 * is text, and the icon is the only thing that says what to draw instead.
+	 * Keeping only type/href/name left every emoji — ours and every peer's —
+	 * unrenderable the moment the post went through here.
+	 */
+	public function testAnEmojiTagKeepsThePictureItPointsAt(): void {
+		$result = (new ACore())->validateArray(ACore::AS_TAGS, 'tag', [
+			'tag' => [[
+				'type' => 'Emoji',
+				'name' => ':blobcat:',
+				'icon' => [
+					'type' => 'Image',
+					'mediaType' => 'image/png',
+					'url' => 'https://a.example/emoji/blobcat',
+					'extra' => 'dropped',
+				],
+			]],
+		]);
+
+		$this->assertSame([[
+			'type' => 'Emoji',
+			'href' => '',
+			'name' => ':blobcat:',
+			'icon' => [
+				'type' => 'Image',
+				'mediaType' => 'image/png',
+				'url' => 'https://a.example/emoji/blobcat',
+			],
+		]], $result);
+	}
+
+	/**
+	 * @dataProvider provideIconsThatNameNoPicture
+	 */
+	public function testAnIconWithNoUsableAddressIsNotKept(array $icon): void {
+		$result = (new ACore())->validateArray(ACore::AS_TAGS, 'tag', [
+			'tag' => [['type' => 'Emoji', 'name' => ':blobcat:', 'icon' => $icon]],
+		]);
+
+		// an icon with no address is a broken image on every instance the post
+		// reaches; the shortcode staying as text is the better of the two
+		$this->assertArrayNotHasKey('icon', $result[0]);
+	}
+
+	public function provideIconsThatNameNoPicture(): iterable {
+		yield 'no url' => [['type' => 'Image', 'mediaType' => 'image/png']];
+		yield 'an empty url' => [['url' => '']];
+		yield 'not a url' => [['url' => 'http:///broken']];
+		yield 'nothing at all' => [[]];
+	}
+
+	/** A tag that is not an emoji has no icon, and does not gain an empty one. */
+	public function testAMentionIsUnchangedByTheIconHandling(): void {
+		$result = (new ACore())->validateArray(ACore::AS_TAGS, 'tag', [
+			'tag' => [['type' => 'Mention', 'href' => 'https://a.example/users/bob', 'name' => '@bob']],
+		]);
+
+		$this->assertSame(
+			[['type' => 'Mention', 'href' => 'https://a.example/users/bob', 'name' => '@bob']], $result
+		);
+	}
+
 	public function testValidateEntryArrayOnlyKnowsTags(): void {
 		$this->expectException(InvalidResourceEntryException::class);
 
