@@ -36,6 +36,7 @@ class FakeTable implements ITable {
 	private ?array $primaryKey = null;
 	/** @var list<string> */
 	private array $dropped = [];
+	private bool $primaryKeyDropped = false;
 
 	/**
 	 * @param list<string> $existingColumns columns the table already has
@@ -150,7 +151,15 @@ class FakeTable implements ITable {
 	}
 
 	public function dropPrimaryKey(): self {
-		throw new LogicException('dropPrimaryKey() is not part of this double');
+		$this->primaryKeyDropped = true;
+		$this->primaryKey = null;
+
+		return $this;
+	}
+
+	/** Whether the step dropped the primary key the table came with. */
+	public function primaryKeyWasDropped(): bool {
+		return $this->primaryKeyDropped;
 	}
 
 	public function getPrimaryKey(): ?IIndex {
