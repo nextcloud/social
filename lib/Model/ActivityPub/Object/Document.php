@@ -29,6 +29,25 @@ use OCP\IURLGenerator;
 class Document extends ACore implements JsonSerializable {
 	public const TYPE = 'Document';
 
+	/**
+	 * What stands in `localCopy` for a file this instance deliberately never
+	 * mirrors and streams from its origin instead.
+	 *
+	 * A federated video is the case it exists for: a talk is gigabytes, an
+	 * attachment is copied into the instance's own storage on the way in, and
+	 * doing that for every video that crosses a timeline is not a trade
+	 * anybody would make. The row still exists -- it is what `/media/stream`
+	 * checks a request against, so the proxy can only be pointed at a url that
+	 * actually arrived in an activity -- but it holds no bytes.
+	 *
+	 * It is a sentinel in the same column as `avatar` and `header` rather than
+	 * a flag of its own because that column is already what decides whether
+	 * the caching cron picks a row up: `getNotCachedDocuments()` looks only at
+	 * rows whose `local_copy` is empty, so filling it in is what keeps cron
+	 * off a file that must not be fetched.
+	 */
+	public const COPY_STREAMED = 'stream';
+
 	private string $account = '';
 	private string $mediaType = '';
 	private float $focusX = 0;
@@ -158,6 +177,15 @@ class Document extends ACore implements JsonSerializable {
 	 *
 	 * @return Document
 	 */
+	/**
+	 * Whether this is a pointer at a file on another server rather than a copy
+	 * of one -- see `COPY_STREAMED`. Such a document has no bytes here, so
+	 * nothing may serve it from disk and nothing may queue it for download.
+	 */
+	public function isStreamed(): bool {
+		return $this->localCopy === self::COPY_STREAMED;
+	}
+
 	public function setLocalCopy(string $localCopy): self {
 		$this->localCopy = $localCopy;
 
@@ -417,6 +445,18 @@ class Document extends ACore implements JsonSerializable {
 		);
 	}
 
+	/**
+	 * Where a streamed document is played from: this instance, proxying the
+	 * origin. Addressed by the cache row's own key, which is the whole of what
+	 * keeps the proxy from being pointed anywhere a caller likes.
+	 */
+	public function streamUrl(IURLGenerator $urlGenerator): string {
+		return $urlGenerator->linkToRouteAbsolute(
+			'social.Api.mediaStream',
+			['nid' => (string)$this->getNid()]
+		);
+	}
+
 	public function getResizedMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
 		$ext = '';
 		if ($mime !== '') {
@@ -454,13 +494,23 @@ class Document extends ACore implements JsonSerializable {
 		$media->setMediaType($this->getMediaType());
 
 		if (!is_null($urlGenerator)) {
-			$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
-			// video/audio carry no resized copy; the preview is the media itself
-			$media->setPreviewUrl(
-				($this->getResizedCopy() === '')
-					? $this->getMediaUrl($urlGenerator, $mime)
-					: $this->getResizedMediaUrl($urlGenerator, $mime)
-			);
+			if ($this->isStreamed()) {
+				// no local copy to name: the bytes are fetched from the origin
+				// as they are played, and the route that does it is addressed
+				// by the row rather than by a uuid there is none of. The
+				// preview is left empty -- a streamed video's still is a
+				// document of its own, and the caller that knows which one
+				// sets it (see PeerTubeService).
+				$media->setUrl($this->streamUrl($urlGenerator));
+			} else {
+				$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
+				// video/audio carry no resized copy; the preview is the media itself
+				$media->setPreviewUrl(
+					($this->getResizedCopy() === '')
+						? $this->getMediaUrl($urlGenerator, $mime)
+						: $this->getResizedMediaUrl($urlGenerator, $mime)
+				);
+			}
 		}
 
 		$media->setRemoteUrl($this->getUrl());

@@ -13,9 +13,41 @@
     "type": "Video",
     "id": "https://peertube.example/videos/watch/6f4c1e1a",
     "name": "The state of the Fediverse",
-    "content": "<p>A talk about federation.</p>",
-    "url": "https://peertube.example/w/6f4c1e1a",
-    "attributedTo": "https://peertube.example/video-channels/news",
+    "duration": "PT1H2M3S",
+    "mediaType": "text/markdown",
+    "content": "A talk about federation.",
+    "uuid": "6f4c1e1a-0d3b-4d1e-9c7a-2f5b8e4d1c60",
+    "views": 412,
+    "commentsEnabled": true,
+    "icon": [
+      {
+        "type": "Image",
+        "url": "https://peertube.example/lazy-static/thumbnails/6f4c1e1a.jpg",
+        "mediaType": "image/jpeg",
+        "width": 280,
+        "height": 157
+      },
+      {
+        "type": "Image",
+        "url": "https://peertube.example/lazy-static/previews/6f4c1e1a.jpg",
+        "mediaType": "image/jpeg",
+        "width": 850,
+        "height": 480
+      }
+    ],
+    "url": [
+      { "type": "Link", "mediaType": "text/html", "href": "https://peertube.example/w/6f4c1e1a" },
+      { "type": "Link", "mediaType": "video/mp4", "href": "https://peertube.example/static/web-videos/6f4c1e1a-480.mp4", "height": 480, "size": 41231234, "fps": 30 },
+      { "type": "Link", "mediaType": "video/mp4", "href": "https://peertube.example/static/web-videos/6f4c1e1a-720.mp4", "height": 720, "size": 91231234, "fps": 30 },
+      { "type": "Link", "rel": ["metadata", "video/mp4"], "mediaType": "application/json", "href": "https://peertube.example/api/v1/videos/6f4c1e1a/metadata/720", "height": 720, "fps": 30 },
+      { "type": "Link", "mediaType": "application/x-bittorrent", "href": "https://peertube.example/static/torrents/6f4c1e1a-720.torrent", "height": 720 },
+      { "type": "Link", "mediaType": "application/x-bittorrent;x-scheme-handler/magnet", "href": "magnet:?xt=urn:btih:0123456789abcdef", "height": 720 },
+      { "type": "Link", "mediaType": "application/x-mpegURL", "href": "https://peertube.example/static/streaming-playlists/hls/6f4c1e1a/master.m3u8" }
+    ],
+    "attributedTo": [
+      { "type": "Person", "id": "https://peertube.example/accounts/alice" },
+      { "type": "Group", "id": "https://peertube.example/video-channels/news" }
+    ],
     "published": "2026-02-02T09:00:00Z",
     "sensitive": false,
     "to": ["https://www.w3.org/ns/activitystreams#Public"],

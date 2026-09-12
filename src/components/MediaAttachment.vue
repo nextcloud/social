@@ -14,9 +14,10 @@
 			v-if="attachment !== null && attachment.type === 'video'"
 			class="attachment__preview"
 			:src="attachment.url"
+			:poster="poster"
 			:aria-label="attachment.description || ''"
 			controls
-			preload="metadata"
+			:preload="preload"
 			@click.stop
 			@loadedmetadata="previewLoaded = true" />
 		<audio
@@ -91,6 +92,43 @@ export default {
 		/** @return {boolean} */
 		isAv() {
 			return this.attachment?.type === 'video' || this.attachment?.type === 'audio'
+		},
+
+		/**
+		 * The still to show before anything is played. A federated video has
+		 * one -- PeerTube publishes it and this instance mirrors it -- and it
+		 * is the whole reason a video timeline can be scrolled without
+		 * fetching a frame of anything.
+		 *
+		 * `preview_url` is the file itself for a video uploaded here, which is
+		 * no use as a poster: a browser handed a video for one downloads it to
+		 * find a frame, which is what the poster exists to avoid. So only a
+		 * preview that differs from the source counts as one.
+		 *
+		 * @return {string|undefined} undefined leaves the attribute off
+		 */
+		poster() {
+			const preview = this.attachment?.preview_url
+			if (typeof preview !== 'string' || preview === '' || preview === this.attachment?.url) {
+				return undefined
+			}
+
+			return preview
+		},
+
+		/**
+		 * How much of the video to fetch before anybody has asked to watch it.
+		 *
+		 * With a poster, nothing: the frame is already on screen, and on a page
+		 * of twenty federated videos `metadata` alone would open twenty
+		 * connections to other servers through this one. Without a poster there
+		 * is nothing to draw until the first frame arrives, so it is worth the
+		 * headers.
+		 *
+		 * @return {string}
+		 */
+		preload() {
+			return this.poster === undefined ? 'metadata' : 'none'
 		},
 
 		/**

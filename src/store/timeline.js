@@ -649,6 +649,7 @@ export const useTimelineStore = defineStore('timeline', {
 					url = generateUrl('apps/social/api/v1/timelines/public')
 					break
 				case 'photos':
+				case 'videos':
 				// a timeline with the text-only posts left out: what people
 				// showed rather than what they said. Which people is the scope
 				// the switcher sets — the ones you follow by default, this
@@ -662,7 +663,16 @@ export const useTimelineStore = defineStore('timeline', {
 					} else {
 						url = generateUrl('apps/social/api/v1/timelines/home')
 					}
+					// `only_media` is Mastodon's question and would answer a
+					// video page with every photo on the instance; `only_video`
+					// is this app's own and is the narrower of the two. Both go
+					// out, so a server that has not been upgraded yet still
+					// answers a video page with media rather than with
+					// everything.
 					params.only_media = true
+					if (this.type === 'videos') {
+						params.only_video = true
+					}
 					break
 				case 'notifications':
 					url = generateUrl('apps/social/api/v1/notifications')

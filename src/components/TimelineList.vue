@@ -215,6 +215,12 @@ export default {
 					title: t('social', 'No posts found for this tag'),
 				},
 
+				videos: {
+					image: 'img/undraw/posts.svg',
+					title: t('social', 'No videos found'),
+					description: t('social', 'Videos posted here, and videos from the PeerTube channels you follow, will show up here'),
+				},
+
 				'single-post': {
 					title: this.showParents ? '' : t('social', 'No replies found'),
 				},

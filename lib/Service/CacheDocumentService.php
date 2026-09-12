@@ -369,6 +369,47 @@ class CacheDocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
+	/**
+	 * Opens a streamed document's file at its origin, without storing any of it.
+	 *
+	 * The counterpart of `retrieveContent()` for the one kind of document that
+	 * is deliberately never copied here -- see `Document::COPY_STREAMED`. The
+	 * client's `Range` is forwarded so that seeking in a long video asks the
+	 * origin for the part that was seeked to, and the origin's answer comes
+	 * back untouched for the caller to pass on.
+	 *
+	 * @param string $range the client's own `Range` header, or ''
+	 *
+	 * @return array{stream: resource, status: int, headers: array<string, string[]>}
+	 *
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
+	 */
+	public function openRemoteFile(Document $document, string $range = ''): array {
+		$url = $document->getUrl();
+		$parsed = parse_url($url);
+		if (!is_array($parsed)) {
+			throw new RequestServerException('unreadable url');
+		}
+
+		if (!in_array(strtolower($parsed['scheme'] ?? ''), ['http', 'https'], true)) {
+			throw new RequestServerException('unsupported scheme');
+		}
+
+		$headers = [];
+		// only the shape a media element actually sends, and only that shape:
+		// the header is written by whoever is reading and reaches another
+		// server as it was written
+		if ($range !== '' && preg_match('/^bytes=\d*-\d*(, ?\d*-\d*)*$/', $range) === 1) {
+			$headers['Range'] = $range;
+		}
+
+		return $this->curlService->openStream($url, $headers);
+	}
+
 	public function retrieveContent(string $url): string {
 		$parsed = parse_url($url);
 		if (!is_array($parsed)) {

@@ -47,10 +47,17 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 		}
 
 		try {
-			$this->cacheDocumentsRequest->getById($item->getId());
+			$known = $this->cacheDocumentsRequest->getById($item->getId());
+			// the row's own key, which only the stored copy knows: without it
+			// every re-imported attachment went back to a client with `id: 0`,
+			// and a streamed one would name row zero to the media proxy
+			$item->setNid($known->getNid());
 			$this->cacheDocumentsRequest->update($item);
 		} catch (CacheDocumentDoesNotExistException $e) {
-			if (!$item->isLocal()) {
+			// a streamed document is a pointer at somebody else's file and
+			// stays one -- see Document::COPY_STREAMED. Fetching it is the one
+			// thing that must not happen here.
+			if (!$item->isLocal() && !$item->isStreamed()) {
 				$this->cacheDocumentService->saveRemoteFileToCache($item);    // create local copy
 			}
 

@@ -175,6 +175,30 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/**
+	 * The document row by its own key.
+	 *
+	 * The one lookup a streamed document has: it holds no copy, so there is no
+	 * uuid to find it by, and its ActivityPub id is somebody else's url --
+	 * which is exactly what a media route must not accept from a caller.
+	 *
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getByNid(int $nid): Document {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$qb->limitToDBFieldInt('nid', $nid);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new CacheDocumentDoesNotExistException();
+		}
+
+		return $this->parseCacheDocumentsSelectSql($data);
+	}
+
+	/**
 	 * The document a media uuid belongs to, whether the uuid names its full
 	 * copy or its resized one.
 	 *

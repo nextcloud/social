@@ -416,6 +416,73 @@ An activity whose type this app does not implement is logged at `notice` with it
 
 An incoming `Block` targeting a local user is remembered as a `blocked_by` relation and severs the follow relationship in both directions; `Undo{Block}` lifts it. A `Follow` from an actor the target has blocked is answered with a `Reject`.
 
+### PeerTube and federated video
+
+A `Video` is one of the note-like types in `AP::NOTE_LIKE_TYPES` — object types
+other servers `Create` into a timeline that this app has no model of its own for
+— and like the rest of them it is stored as a `Note` carrying its wire type in
+`subtype`. That is what makes it storable, queryable and readable by a Mastodon
+client without a second kind of post existing anywhere downstream.
+
+It is the one of the five that is read in detail, because it is the one whose
+whole point is a file to play. PeerTube writes four things where an ordinary
+`Note` does not look, and `PeerTubeService` is where each is read:
+
+- **`url` is a list**, not a string: the watch page (`text/html`), one link per
+  transcoded resolution (`video/mp4`), the HLS playlist
+  (`application/x-mpegURL`), a torrent and a magnet URI. The best playable
+  file wins — `video/mp4` up to 1080p, by height — and the playlist is taken
+  only when there is no file at all, since Safari is the only browser that
+  opens one. `magnet:` and the `rel: ["metadata"]` links are not something to
+  hand a `<video>` and are dropped.
+- **`attributedTo` is a list of two actors**, the channel (a `Group`) and the
+  account behind it (a `Person`), where every other server sends one id as a
+  string. The channel wins: it is what the `Create` is signed by, what a reader
+  follows, and what the video is listed under on PeerTube itself. `Stream::import()`
+  asks for a string and got neither, so a federated video used to arrive
+  attributed to nobody.
+- **The title is in `name`**, which a `Note` has no use for — and must not be
+  copied into, since `name` on a note means the option a poll vote chose. So the
+  title becomes the first paragraph of the content, linked to the watch page.
+- **The description is markdown**, and the object says so in its own
+  `mediaType`. It is escaped and paragraph-split when the object declares
+  `text/markdown` or `text/plain`, and passed through as html otherwise, which
+  is what every other object's `content` is. Believing the declaration in both
+  directions is the point: escaping html would show somebody their own tags, and
+  rendering markdown as html would hand a remote server a way to put markup in a
+  post that went through no sanitiser.
+
+**The video is referenced, not mirrored.** Every other attachment is copied into
+this instance's storage on the way in; a two-hour talk is not, and the row that
+represents it carries `Document::COPY_STREAMED` in `local_copy` instead of a
+uuid. That sentinel does two jobs: `DocumentInterface::save()` skips the fetch,
+and the caching cron never picks the row up, because
+`getNotCachedDocuments()` only looks at rows whose `local_copy` is empty. The
+**thumbnail** is a second, ordinary document row — it is a few dozen kilobytes
+and it is mirrored, which is what lets a video timeline be scrolled without
+touching another server. Two rows rather than one: hanging the still off the
+video row's `resized_copy` would have put one uuid on two rows, and
+`getByCopy()` would answer with whichever the database felt like.
+
+Playing it goes through **`GET /media/stream/{nid}`** (`ApiController::mediaStream()`),
+which opens the origin and copies it to the reader a chunk at a time, storing
+nothing. It exists because the page cannot point a `<video>` at the origin
+directly — Nextcloud's content security policy says `media-src 'self'` — and
+because widening that policy would also mean every reader who pressed play
+announcing themselves to a server they never chose to talk to. The cost is that
+this instance carries the bandwidth. What keeps the route from being an open
+proxy is that it takes a **row id, not a url**: only a `social_cache_doc` row
+this app itself wrote as streamed answers, and the request still goes out
+through `CurlService`, so the domain access list and the local-address refusal
+apply as they do to every other outbound request. The reader's `Range` header is
+forwarded and the origin's `206` comes back untouched, which is what makes
+seeking in a long video cost nothing.
+
+What is **not** done: `Audio` (Funkwhale), `Article`, `Page` and `Event` are
+still read by `fillNoteLikeContent()` alone — title and link, no media. Nothing
+is published *to* PeerTube either, and nothing can be: PeerTube ingests videos,
+not notes, so the compatibility is inbound by nature.
+
 ### Quote posts
 
 A quote is a post that embeds another post rather than linking to it, and the
@@ -628,6 +695,29 @@ the address bar, so `Timeline.vue` reads it rather than trusting it: anything
 that is not one of the two named scopes is the default. It is also part of what
 `Timeline.vue` reports as the timeline's params, which is what makes changing it
 refetch instead of leaving the previous photos on screen.
+
+**The Videos view.** The sidebar's `Videos`, directly under Photos, is the same
+page again with `only_video` — this app's own narrowing of `only_media`, because
+a video timeline that asked Mastodon's question would answer with every holiday
+photo on the instance. It carries the same switcher, in the same query
+(`/timeline/videos?scope=federated`), through the same `isScopedPage` branch in
+`Timeline.vue`: Photos and Videos differ in one predicate and in nothing else,
+which is why `TimelineSwitcher` takes the page it is scoping as a prop rather
+than a `photos` flag.
+
+Two things make a post a video, and the query asks both (`limitToVideo()`): an
+attachment whose Mastodon `type` is `video`, or a post that arrived as a PeerTube
+`Video`. The second counts whether or not this instance found a playable file in
+it — the post is a video either way, and a timeline that hid the ones it could
+not play would be hiding exactly the videos worth reporting.
+
+In the player, a video attachment with a **preview that is not the video itself**
+gets that preview as its `poster` and `preload="none"`. Only a federated video
+has one, and it is what lets a page of twenty of them be scrolled without opening
+twenty connections to other servers: `preload="metadata"` on a proxied video is
+not free the way it is on a local one. A video uploaded here has `preview_url`
+pointing at the file, which is no use as a poster — a browser handed a video for
+one downloads it to find a frame — so those keep `metadata` and no poster.
 
 **One column, one owner.** `--social-column` in `App.vue` is the width of the
 timeline — 900px — and every view that shows the same column reads it from

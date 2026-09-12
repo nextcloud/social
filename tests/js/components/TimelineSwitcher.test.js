@@ -6,11 +6,11 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TimelineSwitcher from '../../../src/components/TimelineSwitcher.vue'
 
-function mountSwitcher(type, photos = false) {
+function mountSwitcher(type, page = '') {
 	const push = vi.fn()
 
 	const wrapper = mount(TimelineSwitcher, {
-		props: { type, photos },
+		props: { type, page },
 		global: { mocks: { $router: { push } } },
 		attachTo: document.body,
 	})
@@ -132,42 +132,46 @@ describe('TimelineSwitcher', () => {
 		expect(push).not.toHaveBeenCalled()
 	})
 
-	// photos: the same three, read as a scope on one page
+	// photos and videos: the same three, read as a scope on one page
 
 	/**
-	 * Photos is one page with a scope on it rather than three pages of its
-	 * own, so the sidebar's Photos entry stays lit whichever is chosen.
+	 * Photos and Videos are each one page with a scope on it rather than three
+	 * pages of their own, so the sidebar entry stays lit whichever is chosen.
+	 * The switcher is told which page it is scoping, so the two cannot send a
+	 * reader from one to the other.
 	 */
 	it.each([
-		['Local', 1, 'timeline'],
-		['Global', 2, 'federated'],
-	])('scopes the photo feed to %s without leaving it', async (label, index, scope) => {
-		const { wrapper, push } = mountSwitcher('home', true)
+		['photos', 'Local', 1, 'timeline'],
+		['photos', 'Global', 2, 'federated'],
+		['videos', 'Local', 1, 'timeline'],
+		['videos', 'Global', 2, 'federated'],
+	])('scopes the %s feed to %s without leaving it', async (page, label, index, scope) => {
+		const { wrapper, push } = mountSwitcher('home', page)
 
 		await options(wrapper)[index].trigger('click')
 
 		expect(push).toHaveBeenCalledWith({
 			name: 'timeline',
-			params: { type: 'photos' },
+			params: { type: page },
 			query: { scope },
 		})
 	})
 
-	/** My Feed is the photo page with no scope on it, not `scope=home`. */
-	it('drops the scope for My Feed photos', async () => {
-		const { wrapper, push } = mountSwitcher('federated', true)
+	/** My Feed is the scoped page with no scope on it, not `scope=home`. */
+	it.each(['photos', 'videos'])('drops the scope for My Feed %s', async (page) => {
+		const { wrapper, push } = mountSwitcher('federated', page)
 
 		await options(wrapper)[0].trigger('click')
 
 		expect(push).toHaveBeenCalledWith({
 			name: 'timeline',
-			params: { type: 'photos' },
+			params: { type: page },
 			query: {},
 		})
 	})
 
 	it('says the same three things on the photo feeds', () => {
-		const { wrapper } = mountSwitcher('timeline', true)
+		const { wrapper } = mountSwitcher('timeline', 'photos')
 
 		expect(options(wrapper).map((option) => option.text()))
 			.toEqual(['My Feed', 'Local', 'Global'])

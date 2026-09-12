@@ -369,6 +369,7 @@ class ListController extends Controller {
 		int $min_id = 0,
 		int $since_id = 0,
 		bool $only_media = false,
+		bool $only_video = false,
 	): DataResponse {
 		try {
 			$this->initViewer();
@@ -382,7 +383,8 @@ class ListController extends Controller {
 				->setMaxId($max_id)
 				->setMinId($min_id)
 				->setSince($since_id)
-				->setOnlyMedia($only_media);
+				->setOnlyMedia($only_media)
+				->setOnlyVideo($only_video);
 
 			$posts = $this->listsRequest->getTimeline($list, $options);
 			// one query for the whole page, as the home timeline does it

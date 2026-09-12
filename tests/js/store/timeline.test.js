@@ -822,6 +822,12 @@ describe('timeline store actions', () => {
 			['photos', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_media: true }],
 			// a scope from the address bar that names nothing is read as the default
 			['photos', { scope: 'favourites' }, `${API}/timelines/home`, { limit: 15, only_media: true }],
+			// the same page again, one predicate narrower. `only_media` goes
+			// out as well, so a server that has not been upgraded yet answers
+			// with media rather than with everything.
+			['videos', {}, `${API}/timelines/home`, { limit: 15, only_media: true, only_video: true }],
+			['videos', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_media: true, local: true, only_video: true }],
+			['videos', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_media: true, only_video: true }],
 		])('requests the %s timeline from its endpoint and appends the result', async (type, params, url, query) => {
 			await store.changeTimelineType({ type, params })
 

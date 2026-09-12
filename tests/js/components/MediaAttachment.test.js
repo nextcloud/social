@@ -34,6 +34,56 @@ describe('MediaAttachment', () => {
 		getContext.mockRestore()
 	})
 
+	// video: a federated one is streamed through this instance, and its still
+	// is the only reason a page of them can be scrolled at all
+
+	/**
+	 * A PeerTube video's preview is a thumbnail mirrored here, so it is drawn
+	 * before anything is played -- and with a frame already on screen there is
+	 * nothing to fetch until somebody asks to watch.
+	 */
+	it('shows a federated video its own still and fetches nothing until asked', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: {
+					id: '9',
+					type: 'video',
+					url: 'https://cloud.example.org/media/stream/9',
+					preview_url: 'https://cloud.example.org/media/thumb.jpg',
+					description: 'A talk about federation',
+				},
+			},
+		})
+
+		const video = wrapper.find('video')
+		expect(video.attributes('src')).toBe('https://cloud.example.org/media/stream/9')
+		expect(video.attributes('poster')).toBe('https://cloud.example.org/media/thumb.jpg')
+		expect(video.attributes('preload')).toBe('none')
+	})
+
+	/**
+	 * An upload here has `preview_url` pointing at the file itself, which is no
+	 * use as a poster: a browser handed a video for one downloads it to find a
+	 * frame, which is the whole thing a poster avoids.
+	 */
+	it('gives a local video no poster, since its preview is the video', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: {
+					id: '9',
+					type: 'video',
+					url: 'https://cloud.example.org/media/abc.mp4',
+					preview_url: 'https://cloud.example.org/media/abc.mp4',
+					description: '',
+				},
+			},
+		})
+
+		const video = wrapper.find('video')
+		expect(video.attributes('poster')).toBeUndefined()
+		expect(video.attributes('preload')).toBe('metadata')
+	})
+
 	it('renders the small preview image', () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment } })
 		expect(wrapper.find('img.attachment__preview').attributes('src')).toBe(attachment.preview_url)
