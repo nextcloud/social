@@ -700,10 +700,6 @@ class LocalController extends Controller {
 		}
 	}
 
-	#[NoAdminRequired]
-	#[PublicPage]
-	#[NoAdminRequired]
-	#[PublicPage]
 	/**
 	 * Everything known about one account, resolving an unknown handle remotely.
 	 *
@@ -1011,7 +1007,6 @@ class LocalController extends Controller {
 		return $this->success($result);
 	}
 
-	#[NoAdminRequired]
 	/**
 	 * @throws AccountDoesNotExistException
 	 */

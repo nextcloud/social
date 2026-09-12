@@ -70,7 +70,7 @@ class Item {
 		return $this->type;
 	}
 
-	public function setType(string $type): Item {
+	public function setType(string $type): static {
 		$this->type = $type;
 
 		return $this;
@@ -80,7 +80,7 @@ class Item {
 		return $this->subType;
 	}
 
-	public function setSubType(string $type): Item {
+	public function setSubType(string $type): static {
 		$this->subType = $type;
 
 		return $this;
@@ -123,9 +123,9 @@ class Item {
 	/**
 	 * @param InstancePath[] $instancePaths
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setInstancePaths(array $instancePaths): Item {
+	public function setInstancePaths(array $instancePaths): static {
 		$this->instancePaths = $instancePaths;
 
 		return $this;
@@ -138,9 +138,9 @@ class Item {
 	/**
 	 * @param string $summary
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setSummary(string $summary): Item {
+	public function setSummary(string $summary): static {
 		$this->summary = $summary;
 
 		return $this;
@@ -153,7 +153,7 @@ class Item {
 		return $this->actor;
 	}
 
-	public function setActor(Person $actor): Item {
+	public function setActor(Person $actor): static {
 		$this->actor = $actor;
 
 		return $this;
@@ -173,9 +173,9 @@ class Item {
 	/**
 	 * @param string $actorId
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setActorId(string $actorId): Item {
+	public function setActorId(string $actorId): static {
 		$this->actorId = $actorId;
 
 		return $this;
@@ -203,9 +203,9 @@ class Item {
 	/**
 	 * @param string $path
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setUrlSocial(string $path): Item {
+	public function setUrlSocial(string $path): static {
 		$this->urlSocial = $path;
 
 		return $this;
@@ -221,9 +221,9 @@ class Item {
 	/**
 	 * @param string $path
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setUrlCloud(string $path): Item {
+	public function setUrlCloud(string $path): static {
 		$this->urlCloud = $path;
 
 		return $this;
@@ -257,9 +257,9 @@ class Item {
 	/**
 	 * @param string $to
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setTo(string $to): Item {
+	public function setTo(string $to): static {
 		$this->to = $to;
 
 		return $this;
@@ -298,9 +298,9 @@ class Item {
 	/**
 	 * @param array $toArray
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setToArray(array $toArray): Item {
+	public function setToArray(array $toArray): static {
 		$this->toArray = $toArray;
 
 		return $this;
@@ -353,9 +353,9 @@ class Item {
 	/**
 	 * @param array $cc
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setCcArray(array $cc): Item {
+	public function setCcArray(array $cc): static {
 		$this->cc = $cc;
 
 		return $this;
@@ -371,9 +371,9 @@ class Item {
 	/**
 	 * @param array $bcc
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setBccArray(array $bcc): Item {
+	public function setBccArray(array $bcc): static {
 		$this->bcc = $bcc;
 
 		return $this;
@@ -407,9 +407,9 @@ class Item {
 	 *
 	 * @param int $creationTime
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setOrigin(string $origin, int $source, int $creationTime): Item {
+	public function setOrigin(string $origin, int $source, int $creationTime): static {
 		$this->origin = $origin;
 		$this->originSource = $source;
 		$this->originCreationTime = $creationTime;
@@ -420,9 +420,9 @@ class Item {
 	/**
 	 * @param string $published
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setPublished(string $published): Item {
+	public function setPublished(string $published): static {
 		$this->published = $published;
 
 		return $this;
@@ -469,9 +469,9 @@ class Item {
 	/**
 	 * @param array $tag
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setTags(array $tag): Item {
+	public function setTags(array $tag): static {
 		$this->tags = $tag;
 
 		return $this;
@@ -487,9 +487,9 @@ class Item {
 	/**
 	 * @param string $objectId
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setObjectId(string $objectId): Item {
+	public function setObjectId(string $objectId): static {
 		$this->objectId = $objectId;
 
 		return $this;
@@ -499,7 +499,7 @@ class Item {
 		return $this->target;
 	}
 
-	public function setTarget(string $target): Item {
+	public function setTarget(string $target): static {
 		$this->target = $target;
 
 		return $this;
@@ -515,9 +515,9 @@ class Item {
 	/**
 	 * @param string $iconId
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setIconId(string $iconId): Item {
+	public function setIconId(string $iconId): static {
 		$this->iconId = $iconId;
 
 		return $this;
@@ -530,12 +530,7 @@ class Item {
 		return $this->local;
 	}
 
-	/**
-	 * @param bool $local
-	 *
-	 * @return Person
-	 */
-	public function setLocal(bool $local): Item {
+	public function setLocal(bool $local): static {
 		$this->local = $local;
 
 		return $this;
@@ -551,9 +546,9 @@ class Item {
 	/**
 	 * @param bool $completeDetails
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setCompleteDetails(bool $completeDetails): Item {
+	public function setCompleteDetails(bool $completeDetails): static {
 		$this->completeDetails = $completeDetails;
 
 		return $this;
@@ -569,9 +564,9 @@ class Item {
 	/**
 	 * @param string $source
 	 *
-	 * @return Item
+	 * @return static
 	 */
-	public function setSource(string $source): Item {
+	public function setSource(string $source): static {
 		$this->source = $source;
 
 		return $this;

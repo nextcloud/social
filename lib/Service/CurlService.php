@@ -145,10 +145,12 @@ class CurlService {
 		if ($url === '') {
 			throw new HostMetaException('Failed to get URL');
 		}
-		$host = parse_url($url, PHP_URL_HOST);
-		$protocols = [parse_url($url, PHP_URL_SCHEME)];
+		// parse_url() answers false or null for the parts it cannot find, and
+		// all three of these were handed straight to callers typed for strings
+		$host = parse_url($url, PHP_URL_HOST) ?: '';
+		$protocols = [parse_url($url, PHP_URL_SCHEME) ?: ''];
 
-		return parse_url($url, PHP_URL_PATH);
+		return parse_url($url, PHP_URL_PATH) ?: '';
 	}
 
 	/**

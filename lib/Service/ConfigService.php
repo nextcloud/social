@@ -285,8 +285,18 @@ class ConfigService {
 	 */
 	public function getCloudHost(): string {
 		$url = $this->getCloudUrl();
+		$host = parse_url($url, PHP_URL_HOST);
 
-		return parse_url($url, PHP_URL_HOST);
+		// parse_url() answers null for a URL with no host and false for one it
+		// cannot parse at all; the declared string return then made either a
+		// TypeError, thrown from whichever caller happened to be first.
+		if (!is_string($host) || $host === '') {
+			throw new SocialAppConfigException(
+				'the configured cloud address has no host: ' . $url
+			);
+		}
+
+		return $host;
 	}
 
 	/**
