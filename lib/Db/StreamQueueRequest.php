@@ -52,7 +52,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$this->deleteExhausted();
 
 		$qb = $this->getStreamQueueSelectSql();
-		$this->limitToStatus($qb, StreamQueue::STATUS_STANDBY);
+		$qb->limitToStatus(StreamQueue::STATUS_STANDBY);
 		// the backoff and the give-up threshold belong in the query: filtering
 		// them in PHP means the items of one unreachable host sit in the
 		// window forever and nothing behind them is ever cached
@@ -103,8 +103,8 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 				'last',
 				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 			);
-		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, StreamQueue::STATUS_STANDBY);
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(StreamQueue::STATUS_STANDBY);
 
 		$count = $qb->executeStatement();
 
@@ -125,8 +125,8 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	 */
 	public function setAsSuccess(StreamQueue &$queue) {
 		$qb = $this->getStreamQueueDeleteSql();
-		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, StreamQueue::STATUS_RUNNING);
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(StreamQueue::STATUS_RUNNING);
 
 		$count = $qb->executeStatement();
 
@@ -149,8 +149,8 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 
 		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_STANDBY))
 			->set('tries', $func->add('tries', $expr->literal(1)));
-		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, StreamQueue::STATUS_RUNNING);
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(StreamQueue::STATUS_RUNNING);
 
 		$count = $qb->executeStatement();
 
@@ -188,7 +188,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	 */
 	public function deleteCompleted(): int {
 		$qb = $this->getStreamQueueDeleteSql();
-		$this->limitToStatus($qb, StreamQueue::STATUS_SUCCESS);
+		$qb->limitToStatus(StreamQueue::STATUS_SUCCESS);
 
 		return $qb->executeStatement();
 	}
@@ -198,7 +198,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	 */
 	public function delete(StreamQueue $queue) {
 		$qb = $this->getStreamQueueDeleteSql();
-		$this->limitToId($qb, $queue->getId());
+		$qb->limitToId($queue->getId());
 
 		$qb->executeStatement();
 	}

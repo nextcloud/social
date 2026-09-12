@@ -158,7 +158,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 */
 	public function getFromUsername(string $username): Person {
 		$qb = $this->getActorsSelectSql();
-		$this->limitToPreferredUsername($qb, $username);
+		$qb->limitToPreferredUsername($username);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -201,7 +201,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 */
 	public function getFromUserId(string $userId): Person {
 		$qb = $this->getActorsSelectSql();
-		$this->limitToUserId($qb, $userId);
+		$qb->limitToUserId($userId);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -258,7 +258,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 */
 	public function searchFromUsername(string $search): array {
 		$qb = $this->getActorsSelectSql();
-		$this->searchInPreferredUsername($qb, $search);
+		$qb->searchInPreferredUsername($search);
 
 		$accounts = [];
 		$cursor = $qb->executeQuery();

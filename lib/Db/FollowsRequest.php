@@ -306,7 +306,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getFollowersByActorId(string $actorId, int $limit = 0, int $offset = 0): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'object_id_prim', $actorId);
-		$this->limitToAccepted($qb, true);
+		$qb->limitToAccepted(true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
@@ -404,7 +404,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getPendingByObjectId(string $actorId, int $limit = 0): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'object_id_prim', $actorId);
-		$this->limitToAccepted($qb, false);
+		$qb->limitToAccepted(false);
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 		}
@@ -423,7 +423,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getFollowingByActorId(string $actorId, int $limit = 0, int $offset = 0): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
-		$this->limitToAccepted($qb, true);
+		$qb->limitToAccepted(true);
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 			$qb->setFirstResult($offset);
@@ -443,7 +443,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getFollowersByFollowId(string $followId, int $limit = 0): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'follow_id_prim', $followId);
-		$this->limitToAccepted($qb, true);
+		$qb->limitToAccepted(true);
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 		}

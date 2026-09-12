@@ -73,7 +73,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$this->deleteExhausted($maxTries);
 
 		$qb = $this->getRequestQueueSelectSql();
-		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
+		$qb->limitToStatus(RequestQueue::STATUS_STANDBY);
 		// the retry backoff and the give-up threshold, in the query rather than
 		// in PHP afterwards: one dead instance otherwise fills the whole window
 		// with rows that are not due, and starves every other delivery
@@ -156,7 +156,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb->limitToToken($token);
 
 		if ($status > -1) {
-			$this->limitToStatus($qb, $status);
+			$qb->limitToStatus($status);
 		}
 
 		$qb->orderBy('priority', 'desc');
@@ -181,8 +181,8 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 				'last',
 				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 			);
-		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(RequestQueue::STATUS_STANDBY);
 
 		$count = $qb->executeStatement();
 
@@ -199,8 +199,8 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	public function setAsSuccess(RequestQueue &$queue): void {
 		$qb = $this->getRequestQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_SUCCESS));
-		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(RequestQueue::STATUS_RUNNING);
 
 		$count = $qb->executeStatement();
 
@@ -221,8 +221,8 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY))
 			->set('tries', $func->add('tries', $expr->literal(1)));
-		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(RequestQueue::STATUS_RUNNING);
 
 		$count = $qb->executeStatement();
 
@@ -242,7 +242,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	public function resetStaleRunning(int $before): int {
 		$qb = $this->getRequestQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY));
-		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
+		$qb->limitToStatus(RequestQueue::STATUS_RUNNING);
 		$qb->andWhere(
 			$qb->expr()->lt('last', $qb->createNamedParameter(
 				new DateTime('@' . $before), IQueryBuilder::PARAM_DATE
@@ -254,7 +254,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 	public function delete(RequestQueue $queue): void {
 		$qb = $this->getRequestQueueDeleteSql();
-		$this->limitToId($qb, $queue->getId());
+		$qb->limitToId($queue->getId());
 
 		$qb->executeStatement();
 	}
@@ -272,7 +272,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * has never been attempted has a NULL `last`.
 	 */
 	#[\Override]
-	protected function limitToQueueDue(IQueryBuilder &$qb, int $maxTries): void {
+	protected function limitToQueueDue(IExtendedQueryBuilder $qb, int $maxTries): void {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$now = time();
