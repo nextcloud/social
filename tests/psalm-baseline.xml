@@ -17,9 +17,6 @@
     <RedundantCast>
       <code><![CDATA[(bool)($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true')]]></code>
     </RedundantCast>
-    <UndefinedClass>
-      <code><![CDATA[ClientException]]></code>
-    </UndefinedClass>
   </file>
   <file src="lib/Service/StreamQueueService.php">
     <InvalidOperand>

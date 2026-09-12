@@ -8,7 +8,6 @@
 namespace OCA\Social\Service;
 
 use Exception;
-use GuzzleHttp\Exception\ClientException;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -329,8 +328,10 @@ class CheckService {
 
 				return true;
 			}
-		} catch (ClientException $e) {
 		} catch (Exception $e) {
+			// a 4xx from the peer, a refused connection, a bad URL: all of them
+			// mean the same thing here, which is that the well-known endpoint
+			// did not answer
 		}
 
 		return false;

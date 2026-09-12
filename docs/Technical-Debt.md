@@ -28,7 +28,7 @@ Re-measure before quoting it. Query and scalability behaviour lives in
 
 ## The shape of what is left
 
-The app is 76,325 lines of PHP across 415 files in `lib/`, and 17,762 lines of
+The app is 76,325 lines of PHP across 415 files in `lib/`, and 17,779 lines of
 JavaScript and Vue across 81 files in `src/`.
 
 | Theme | Severity | Size |
@@ -59,21 +59,20 @@ Lines of `lib/` by the year they were last touched, from `git blame`:
 
 | Year | Lines | Share |
 |------|-------|-------|
-| 2018 | 8,139 | 10.7% |
-| 2019 | 8,700 | 11.4% |
-| 2020 | 3,999 | 5.3% |
-| 2021 | 11 | 0.0% |
-| 2022 | 6,323 | 8.3% |
-| 2023 | 3,711 | 4.9% |
-| 2024 | 1,044 | 1.4% |
+| 2018 | 7,751 | 10.2% |
+| 2019 | 8,506 | 11.1% |
+| 2020 | 3,944 | 5.2% |
+| 2021 | 10 | 0.0% |
+| 2022 | 5,394 | 7.1% |
+| 2023 | 3,491 | 4.6% |
+| 2024 | 1,018 | 1.3% |
 | 2025 | 50 | 0.1% |
-| 2026 | 44,095 | 58.0% |
+| 2026 | 46,161 | 60.5% |
 
-Measured before this wave, which touched most of `lib/Tools/` and every file
-with an overriding method; the 2022 share in particular is now smaller than the
-table says. Run it on a complete checkout: `git blame` can only attribute lines
-it has history for, so a shallow or out-of-date clone silently understates the
-recent share.
+Run it on a complete checkout: `git blame` can only attribute lines it has
+history for, so a shallow or out-of-date clone silently understates the recent
+share. Measured on a checkout hundreds of commits behind, 2026 came out at
+29 % rather than 60 %.
 
 ---
 
@@ -81,9 +80,9 @@ recent share.
 
 The app serves two API designs, and they share the `/api/v1/` prefix.
 
-- **Mastodon-compatible** — `ApiController` (2,873 lines), `ListController`,
+- **Mastodon-compatible** — `ApiController` (2,940 lines), `ListController`,
   `FilterController` and others, through `StreamService::getTimeline(ProbeOptions)`.
-- **Custom local** — `LocalController` (1,036 lines), through the five
+- **Custom local** — `LocalController` (1,068 lines), through the five
   `@deprecated` `StreamService::getStream*()` methods and the five
   `StreamRequest::getTimeline*_dep()` query methods behind them.
 
@@ -92,9 +91,9 @@ So `/api/v1/stream/home` (local: `since`/`limit` cursor, default page size 5, no
 `/api/v1/timelines/home` (Mastodon: `max_id`/`since_id`, page size 20, `Link`
 header, bare entity).
 
-**18 of the 31 `Local#` routes have no caller anywhere in `src/`**, including all
-seven `/api/v1/stream/*` endpoints — the ones still backed by the `_dep` query
-methods. They are marked deprecated in [API.md](API.md) with the Mastodon route
+**18 of `LocalController`'s 31 routes have no caller anywhere in `src/`**,
+including all seven `/api/v1/stream/*` endpoints — the ones still backed by the
+`_dep` query methods. They are marked deprecated in [API.md](API.md) with the Mastodon route
 to use instead, and kept rather than removed because they are a published
 surface. Retiring them retires that whole query layer; it needs a deprecation
 cycle and a release note, which is a decision about the app's compatibility
@@ -102,7 +101,7 @@ promise rather than a cleanup.
 
 ### Routes are attributes now
 
-199 of the 202 routes moved onto the methods they belong to; one stays in
+201 of the 202 routes moved onto the methods they belong to; one stays in
 `appinfo/routes.php`, and the file explains why. `/api/v1/accounts/{id}` accepts
 slashes, so it also matches two routes that live in other controllers and has to
 be offered to the matcher after them — and attribute routes are contributed one
@@ -180,10 +179,13 @@ Single-file components are outside it, because `tsc` cannot resolve a `.vue`
 import without `vue-tsc` and every entry point imports one — that is the next
 step here, and it needs a dependency rather than a decision.
 
-**Three ESLint rules are switched off**, and `eslint.config.mjs` says why next to
-each. Sorting imports (247 reports) detaches the comments that explain the
-side-effect imports; renaming components (8 reports) changes what templates say.
-Neither is formatting, which is why they were not taken with the rest.
+**Four ESLint rules are switched off**, in two pairs, and `eslint.config.mjs`
+says why next to each. Sorting imports and named imports (247 reports) detaches
+the comments that explain the side-effect imports; the two component-naming
+rules (8 reports) would rename `Search.vue`, `Poll.vue` and friends, which
+changes what templates say. Neither pair is formatting, which is why they were
+not taken with the rest. A fifth rule, `vue/no-multiple-template-root`, is off
+because this app mounts several roots and the rule is a Vue 2 leftover.
 
 ---
 
@@ -192,9 +194,9 @@ Neither is formatting, which is why they were not taken with the rest.
 | Tool | Pinned | Status |
 |---|---|---|
 | `nextcloud/ocp` | `dev-stable35` | Matches the declared minimum, so analysis checks this app against the oldest server it claims to support. |
-| PHPUnit | `^11.5` | Current major minus one. See below. |
-| Psalm | `^6.17` | Current, running on supported PHP, no suppressions for the app's own code. |
-| ESLint | 10.10.0 with `@nextcloud/eslint-config` 9 | Current, flat config, three rules deliberately off. |
+| PHPUnit | `^11.5` (11.5.56) | Current major minus one. See below. |
+| Psalm | `^6.17` | Current, running on supported PHP. Its baseline covers six files; nothing in `lib/Db` is in it any more. |
+| ESLint | 10.10.0 with `@nextcloud/eslint-config` 9 | Current, flat config, four rules deliberately off. |
 | Stylelint | `^17.15` | Current. |
 | Vitest / jsdom | 5.0 / 30.0 | Current. |
 | webpack / vue-router / vite | 5.110 / 5.3 / 8.3 | Current. |
@@ -466,8 +468,19 @@ for name, url in routes:
         print('uncalled:', url)
 PY
 
-# Data providers that are not static (expect 0)
-grep -rnE 'public function \w+Provider\(' tests | wc -l
+# Data providers that are not static (expect 0). Matching on the name alone
+# also finds methods like getDatabaseProvider(), so ask which methods the
+# #[DataProvider] attributes actually name.
+python3 - <<'PY'
+import re, glob
+named = set()
+for f in glob.glob('tests/**/*.php', recursive=True):
+    named |= set(re.findall(r"#\[DataProvider\('(\w+)'\)\]", open(f).read()))
+for f in glob.glob('tests/**/*.php', recursive=True):
+    for m in re.finditer(r'public (static )?function (\w+)\(', open(f).read()):
+        if m.group(2) in named and not m.group(1):
+            print('not static:', f, m.group(2))
+PY
 
 # ESLint rules this codebase does not adopt
 grep -c "': 'off'" eslint.config.mjs
