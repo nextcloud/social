@@ -10,10 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use RuntimeException;
 use OCA\Social\Tools\Db\ExtendedQueryBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IURLGenerator;
+use RuntimeException;
 
 /**
  * Class SocialCoreQueryBuilder
