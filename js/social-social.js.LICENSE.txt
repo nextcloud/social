@@ -39,11 +39,10 @@
  */
 
 /*!
- * Toastify js 1.12.0
- * https://github.com/apvarun/toastify-js
- * @license MIT licensed
+ * The buffer module from node.js, for the browser.
  *
- * Copyright (C) 2018 Varun A P
+ * @author   Feross Aboukhadijeh <https://feross.org>
+ * @license  MIT
  */
 
 /*!
@@ -55,37 +54,39 @@
  */
 
 /*!
- * vue-router v4.6.4
- * (c) 2025 Eduardo San Martin Morote
- * @license MIT
- */
-
-/*!
-* focus-trap 8.2.1
+* focus-trap 8.2.2
 * @license MIT, https://github.com/focus-trap/focus-trap/blob/master/LICENSE
 */
 
 /*!
-* tabbable 6.4.0
+* tabbable 6.5.0
 * @license MIT, https://github.com/focus-trap/tabbable/blob/master/LICENSE
+*/
+
+/*!
+* vue-router v5.3.1
+* (c) 2026 Eduardo San Martin Morote
+* @license MIT
 */
 
 /*! @license DOMPurify 3.4.15 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.15/LICENSE */
 
+/*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
+
 /**
-* @vue/reactivity v3.5.38
+* @vue/reactivity v3.5.42
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT
 **/
 
 /**
-* @vue/runtime-dom v3.5.38
+* @vue/runtime-dom v3.5.42
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT
 **/
 
 /**
-* @vue/shared v3.5.38
+* @vue/shared v3.5.42
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT
 **/

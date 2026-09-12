@@ -115,7 +115,12 @@ describe('router', () => {
 		expect(router.resolve('/search/nextcloud').name).toBe('search')
 		expect(router.resolve('/search/nextcloud').params.term).toBe('nextcloud')
 		expect(router.resolve('/search').name).toBe('search')
-		expect(router.resolve('/search').params.term).toBe('')
+		// vue-router 5 leaves an absent optional param `undefined`, where 4 gave
+		// `''`. Nothing downstream cares: `Search.vue` declares `default: ''`
+		// on the prop, so Vue fills it in, and `App.vue` reads it as
+		// `to.params.term ?? ''`. Asserted so the next person to see
+		// `undefined` here knows it is the router's answer and not a hole.
+		expect(router.resolve('/search').params.term).toBeUndefined()
 	})
 
 	it('does not match unknown paths', () => {

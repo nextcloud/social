@@ -86,6 +86,18 @@ const mountSearch = (term) => mount(Search, {
 })
 
 describe('Search', () => {
+	/**
+	 * vue-router 5 leaves an absent optional param `undefined`, where 4 gave
+	 * `''` — so `/search` with no term now hands this component nothing, and
+	 * the prop's default is what keeps the search box empty rather than
+	 * showing the string "undefined".
+	 */
+	it('opens with an empty box when the route carries no term', () => {
+		const wrapper = mountSearch(undefined)
+
+		expect(wrapper.vm.term).toBe('')
+	})
+
 	beforeEach(() => {
 		Object.assign(account.state, structuredClone(pristine))
 		Object.assign(timeline.state, structuredClone(pristineTimeline))
