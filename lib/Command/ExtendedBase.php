@@ -59,7 +59,7 @@ class ExtendedBase extends Base {
 						->getObject();
 
 					/** @var Stream $cachedItem */
-					$cachedItem = AP::$activityPub->getItemFromData($cachedObject);
+					$cachedItem = AP::instance()->getItemFromData($cachedObject);
 					$content = $cachedItem->getContent();
 					$author = $cachedItem->getActor()
 						->getAccount();

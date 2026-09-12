@@ -103,7 +103,7 @@ class ActivityServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	/**
@@ -123,7 +123,7 @@ class ActivityServiceTest extends TestCase {
 			}
 			$args[] = $mock;
 		}
-		AP::$activityPub = new AP(...$args);
+		AP::set(new AP(...$args));
 	}
 
 	private function alice(): Person {

@@ -35,11 +35,6 @@ class CacheItem implements JsonSerializable {
 	/** @var int */
 	private $creation = 0;
 
-	/**
-	 * CacheItem constructor.
-	 *
-	 * @param string $url
-	 */
 	public function __construct(string $url) {
 		$this->url = $url;
 	}

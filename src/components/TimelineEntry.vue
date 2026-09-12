@@ -290,7 +290,7 @@ export default {
 		.material-design-icon {
 			position: absolute;
 			top: 12px;
-			left: 14px;
+			inset-inline-start: 14px;
 			padding: 2px;
 			background: var(--color-main-background);
 			border-radius: 50%;
@@ -331,7 +331,7 @@ export default {
 	align-items: center;
 	gap: 6px;
 	margin-bottom: 6px;
-	padding-left: 4px;
+	padding-inline-start: 4px;
 	// it fades rather than vanishes when the entry above opens its actions
 	// over it; see the rule in `.timeline-entry`
 	transition: opacity .16s ease;

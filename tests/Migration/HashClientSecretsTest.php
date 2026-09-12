@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Migration;
 
 use OCA\Social\Migration\HashClientSecrets;
 use OCA\Social\Security\SecretHasher;
+use OCA\Social\Service\ConfigService;
 use OCP\Migration\IOutput;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -23,6 +24,7 @@ use RuntimeException;
  */
 class HashClientSecretsTest extends TestCase {
 	private SecretHasher $secretHasher;
+	private ConfigService|MockObject $configService;
 	private IOutput|MockObject $output;
 	/** @var string[] */
 	private array $warnings = [];
@@ -32,6 +34,9 @@ class HashClientSecretsTest extends TestCase {
 		// the real one: the step asks it what a hashed value looks like, to
 		// have the database pick out the rows that are not hashed yet
 		$this->secretHasher = new SecretHasher();
+		// the marker short-circuits the step, so it has to read as unset here
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getAppValueInt')->willReturn(0);
 		$this->output = $this->createMock(IOutput::class);
 		$this->warnings = [];
 		$this->output->method('warning')->willReturnCallback(
@@ -46,7 +51,7 @@ class HashClientSecretsTest extends TestCase {
 		// left to convert — which must not cost the whole table hydrated here
 		$connection = new FakeConnection([[]]);
 
-		(new HashClientSecrets($connection, $this->secretHasher))->run($this->output);
+		(new HashClientSecrets($connection, $this->secretHasher, $this->configService))->run($this->output);
 
 		$this->assertCount(1, $connection->queries, 'one select that comes back empty');
 		$this->assertSame(
@@ -70,7 +75,7 @@ class HashClientSecretsTest extends TestCase {
 			}
 		);
 
-		(new HashClientSecrets($connection, $this->secretHasher))->run($this->output);
+		(new HashClientSecrets($connection, $this->secretHasher, $this->configService))->run($this->output);
 
 		$writes = $connection->writes();
 		$this->assertCount(2, $writes);
@@ -94,7 +99,7 @@ class HashClientSecretsTest extends TestCase {
 			'token' => 'token',
 		]]]);
 
-		(new HashClientSecrets($connection, $this->secretHasher))->run($this->output);
+		(new HashClientSecrets($connection, $this->secretHasher, $this->configService))->run($this->output);
 
 		$writes = $connection->writes();
 		$this->assertCount(1, $writes);
@@ -107,4 +112,28 @@ class HashClientSecretsTest extends TestCase {
 			'a column that is already hashed is left out of the update'
 		);
 	}
+
+	public function testTheMarkerStopsTheScanOnLaterUpgrades(): void {
+		// coming back empty still meant running the query, on every upgrade,
+		// forever. Once a run finishes clean, it must not look again.
+		$connection = new FakeConnection([[]]);
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getAppValueInt')->willReturn(1);
+
+		(new HashClientSecrets($connection, $this->secretHasher, $configService))->run($this->output);
+
+		$this->assertSame([], $connection->queries, 'the marker did not stop the scan');
+	}
+
+	public function testACleanRunSetsTheMarker(): void {
+		$connection = new FakeConnection([[]]);
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getAppValueInt')->willReturn(0);
+		$configService->expects($this->once())
+			->method('setAppValue')
+			->with('migration_client_secrets_hashed', '1');
+
+		(new HashClientSecrets($connection, $this->secretHasher, $configService))->run($this->output);
+	}
+
 }

@@ -87,11 +87,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/** @var array[] profile metadata, [['name' => string, 'value' => string], …] */
 	private array $fields = [];
 
-	/**
-	 * Person constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 
@@ -765,7 +760,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$this->setFields($this->extractFieldsFromAttachment($data));
 
 		/** @var Image $icon */
-		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
+		$icon = AP::instance()->getItemFromType(Image::TYPE);
 		$icon->setParent($this);
 		$icon->import($this->getArray('icon', $data, []));
 

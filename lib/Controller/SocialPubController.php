@@ -29,7 +29,7 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IInitialStateService;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IL10N;
 use OCP\IRequest;
 
@@ -45,26 +45,27 @@ class SocialPubController extends Controller {
 	private IL10N $l10n;
 	private NavigationController $navigationController;
 	private AccountService $accountService;
-	private CacheActorService $cacheActorService;
 	private StreamService $streamService;
-	private ConfigService $configService;
-	private IInitialStateService $initialStateService;
+	private IInitialState $initialState;
 
 	public function __construct(
-		?string $userId, IInitialStateService $initialStateService, IRequest $request, IL10N $l10n, NavigationController $navigationController,
-		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
-		ConfigService $configService,
+		?string $userId,
+		IInitialState $initialState,
+		IRequest $request,
+		IL10N $l10n,
+		NavigationController $navigationController,
+		private CacheActorService $cacheActorService,
+		AccountService $accountService,
+		StreamService $streamService,
+		private ConfigService $configService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
 		$this->userId = $userId;
-		$this->initialStateService = $initialStateService;
+		$this->initialState = $initialState;
 		$this->l10n = $l10n;
 		$this->navigationController = $navigationController;
 		$this->accountService = $accountService;
-		$this->cacheActorService = $cacheActorService;
 		$this->streamService = $streamService;
-		$this->configService = $configService;
 	}
 
 	/**
@@ -87,7 +88,7 @@ class SocialPubController extends Controller {
 			return $this->fail($e);
 		}
 
-		$this->initialStateService->provideInitialState('social', 'serverData', [
+		$this->initialState->provideInitialState('serverData', [
 			'public' => true,
 		]);
 		$page = new PublicTemplateResponse(Application::APP_ID, 'main', $data);
@@ -167,8 +168,8 @@ class SocialPubController extends Controller {
 
 		$stream->setCompleteDetails(true);
 		$stream->setExportFormat(ACore::FORMAT_LOCAL);
-		$this->initialStateService->provideInitialState(Application::APP_ID, 'item', $stream);
-		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', [
+		$this->initialState->provideInitialState('item', $stream);
+		$this->initialState->provideInitialState('serverData', [
 			'public' => ($this->userId === null),
 		]);
 		return new TemplateResponse(Application::APP_ID, 'main', $data);

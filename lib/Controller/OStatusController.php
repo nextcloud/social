@@ -27,7 +27,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IInitialStateService;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -37,21 +37,23 @@ class OStatusController extends Controller {
 
 	private CacheActorService $cacheActorService;
 	private AccountService $accountService;
-	private CurlService $curlService;
 	private MiscService $miscService;
 	private IUserSession $userSession;
-	private IInitialStateService $initialStateService;
+	private IInitialState $initialState;
 
 	public function __construct(
-		IRequest $request, IInitialStateService $initialStateService, CacheActorService $cacheActorService, AccountService $accountService,
-		CurlService $curlService, MiscService $miscService, IUserSession $userSession,
+		IRequest $request,
+		IInitialState $initialState,
+		CacheActorService $cacheActorService,
+		AccountService $accountService,
+		private CurlService $curlService,
+		MiscService $miscService,
+		IUserSession $userSession,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
-		$this->initialStateService = $initialStateService;
+		$this->initialState = $initialState;
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
-		$this->curlService = $curlService;
 		$this->miscService = $miscService;
 		$this->userSession = $userSession;
 	}
@@ -71,7 +73,7 @@ class OStatusController extends Controller {
 				throw new Exception('Failed to retrieve current user');
 			}
 
-			$this->initialStateService->provideInitialState('social', 'serverData', [
+			$this->initialState->provideInitialState('serverData', [
 				'account' => $actor->getAccount(),
 				'currentUser' => [
 					'uid' => $user->getUID(),
@@ -93,7 +95,7 @@ class OStatusController extends Controller {
 		try {
 			$following = $this->accountService->getActor($local);
 
-			$this->initialStateService->provideInitialState('social', 'serverData', [
+			$this->initialState->provideInitialState('serverData', [
 				'local' => $local,
 				'account' => $following->getAccount(),
 			]);

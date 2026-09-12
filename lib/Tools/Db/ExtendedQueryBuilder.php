@@ -14,7 +14,6 @@ use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder as DBALQueryBuilder;
 use Exception;
 use OC\DB\QueryBuilder\QueryBuilder;
-use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\RowNotFoundException;
 use OCA\Social\Tools\IExtendedQueryBuilder;
 use OCA\Social\Tools\IQueryRow;
@@ -62,17 +61,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 	public function limitToNid(int $id): void {
 		$this->limitToDBFieldInt('nid', $id);
-	}
-
-	/**
-	 * @param array $ids
-	 *
-	 * @return IExtendedQueryBuilder
-	 */
-	public function limitToIds(array $ids): IExtendedQueryBuilder {
-		$this->limitToDBFieldArray('id', $ids);
-
-		return $this;
 	}
 
 	/**
@@ -184,19 +172,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 	/**
 	 * @param string $field
-	 * @param string $value
-	 * @param bool $cs - case sensitive
-	 * @param string $alias
-	 */
-	public function filterDBFieldArray(
-		string $field, string $value, bool $cs = true, string $alias = '',
-	) {
-		$expr = $this->exprLimitToDBField($field, $value, false, $cs, $alias);
-		$this->andWhere($expr);
-	}
-
-	/**
-	 * @param string $field
 	 * @param array $values
 	 * @param bool $eq
 	 * @param bool $cs
@@ -248,16 +223,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$this->andWhere($expr);
 	}
 
-	/**
-	 * @param string $field
-	 * @param int $value
-	 * @param string $alias
-	 */
-	public function filterDBFieldInt(string $field, int $value, string $alias = '') {
-		$expr = $this->exprLimitToDBFieldInt($field, $value, $alias, false);
-		$this->andWhere($expr);
-	}
-
 	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = '', bool $eq = true,
 	): string {
 		$expr = $this->expr();
@@ -291,19 +256,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 	/**
 	 * @param string $field
-	 */
-	public function filterDBFieldEmpty(string $field) {
-		$expr = $this->expr();
-		$pf
-			= ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
-															  . '.' : '';
-		$field = $pf . $field;
-
-		$this->andWhere($expr->neq($field, $this->createNamedParameter('')));
-	}
-
-	/**
-	 * @param string $field
 	 * @param DateTime $date
 	 * @param bool $orNull
 	 */
@@ -326,31 +278,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	}
 
 	/**
-	 * @param int $timestamp
-	 * @param string $field
-	 *
-	 * @throws DateTimeException
-	 */
-	public function limitToSince(int $timestamp, string $field) {
-		try {
-			$dTime = new DateTime();
-			$dTime->setTimestamp($timestamp);
-		} catch (Exception $e) {
-			throw new DateTimeException($e->getMessage());
-		}
-
-		$expr = $this->expr();
-		$pf = ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias() . '.' : '';
-		$field = $pf . $field;
-
-		$this->andWhere(
-			$expr->orX(
-				$expr->gte($field, $this->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
-			)
-		);
-	}
-
-	/**
 	 * @param string $field
 	 * @param string $value
 	 */
@@ -363,84 +290,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 		$this->andWhere($expr->iLike($field, $this->createNamedParameter($value)));
 	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $fieldRight
-	 * @param string $alias
-	 *
-	 * @return string
-	 */
-	public function exprFieldWithinJsonFormat(
-		IQueryBuilder $qb, string $field, string $fieldRight, string $alias = '',
-	) {
-		$func = $qb->func();
-		$expr = $qb->expr();
-
-		if ($alias === '') {
-			$alias = $this->defaultSelectAlias;
-		}
-
-		$concat = $func->concat(
-			$qb->createNamedParameter('%"'),
-			$func->concat($fieldRight, $qb->createNamedParameter('"%'))
-		);
-
-		return $expr->iLike($alias . '.' . $field, $concat);
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $value
-	 * @param bool $eq (eq, not eq)
-	 * @param bool $cs (case sensitive, or not)
-	 *
-	 * @return string
-	 */
-	public function exprValueWithinJsonFormat(
-		IQueryBuilder $qb, string $field, string $value, bool $eq = true, bool $cs = true,
-	): string {
-		$dbConn = $this->getConnection();
-		$expr = $qb->expr();
-		$func = $qb->func();
-
-		$value = $dbConn->escapeLikeParameter($value);
-		if ($cs) {
-			$field = $func->lower($field);
-			$value = $func->lower($value);
-		}
-
-		$comp = 'iLike';
-		if ($eq) {
-			$comp = 'notLike';
-		}
-
-		return $expr->$comp($field, $qb->createNamedParameter('%"' . $value . '"%'));
-	}
-
-	//
-	//	/**
-	//	 * @param IQueryBuilder $qb
-	//	 * @param string $field
-	//	 * @param string $value
-	//	 *
-	//	 * @return string
-	//	 */
-	//	public function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
-	//		$dbConn = $this->getConnection();
-	//		$expr = $qb->expr();
-	//		$func = $qb->func();
-	//
-	//
-	//		return $expr->notLike(
-	//			$func->lower($field),
-	//			$qb->createNamedParameter(
-	//				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
-	//			)
-	//		);
-	//	}
 
 	/**
 	 * @param callable $method

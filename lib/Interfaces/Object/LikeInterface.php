@@ -38,19 +38,12 @@ use OCA\Social\Service\NotificationService;
  * @package OCA\Social\Interfaces\Object
  */
 class LikeInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	private ActionsRequest $actionsRequest;
-	private StreamRequest $streamRequest;
-	private CacheActorService $cacheActorService;
-
 	public function __construct(
-		ActionsRequest $actionsRequest,
-		StreamRequest $streamRequest,
-		CacheActorService $cacheActorService,
+		private ActionsRequest $actionsRequest,
+		private StreamRequest $streamRequest,
+		private CacheActorService $cacheActorService,
 		private NotificationService $notificationService,
 	) {
-		$this->actionsRequest = $actionsRequest;
-		$this->streamRequest = $streamRequest;
-		$this->cacheActorService = $cacheActorService;
 	}
 
 	/**
@@ -171,7 +164,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface
-			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			= AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(
@@ -183,7 +176,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 			$this->notificationService->onNotification($notification, $author->getId());
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
-			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+			$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 			//			$notification->setDetail('url', '');
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('accounts', $author->getAccount());
@@ -210,7 +203,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface
-			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			= AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(

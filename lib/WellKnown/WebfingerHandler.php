@@ -26,22 +26,13 @@ use OCP\Http\WellKnown\IResponse;
 use OCP\IRequest;
 
 class WebfingerHandler implements IHandler {
-	private CacheActorsRequest $cacheActorsRequest;
-	private CacheActorService $cacheActorService;
-	private FediverseService $fediverseService;
-	private ConfigService $configService;
-
 	public function __construct(
-		CacheActorsRequest $cacheActorsRequest,
-		CacheActorService $cacheActorService,
-		FediverseService $fediverseService,
-		ConfigService $configService,
+		private CacheActorsRequest $cacheActorsRequest,
+		private CacheActorService $cacheActorService,
+		private FediverseService $fediverseService,
+		private ConfigService $configService,
 		private InstanceActorService $instanceActorService,
 	) {
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->cacheActorService = $cacheActorService;
-		$this->fediverseService = $fediverseService;
-		$this->configService = $configService;
 	}
 
 	/**

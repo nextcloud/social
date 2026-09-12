@@ -22,11 +22,6 @@ use OCA\Social\Model\ActivityPub\Stream;
 class Announce extends Stream implements JsonSerializable {
 	public const TYPE = 'Announce';
 
-	/**
-	 * Follow constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
 

@@ -25,11 +25,6 @@ class SimpleDataStore implements JsonSerializable {
 	/** @var array */
 	private $data;
 
-	/**
-	 * SimpleDataStore constructor.
-	 *
-	 * @param array $data
-	 */
 	public function __construct(?array $data = []) {
 		if (!is_array($data)) {
 			$data = [];

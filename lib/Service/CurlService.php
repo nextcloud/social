@@ -20,6 +20,7 @@ use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Security\RemoteAddress;
 use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -29,7 +30,6 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
-use OCA\Social\Tools\RemoteAddress;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use OCP\AppFramework\Http;
@@ -145,10 +145,12 @@ class CurlService {
 		if ($url === '') {
 			throw new HostMetaException('Failed to get URL');
 		}
-		$host = parse_url($url, PHP_URL_HOST);
-		$protocols = [parse_url($url, PHP_URL_SCHEME)];
+		// parse_url() answers false or null for the parts it cannot find, and
+		// all three of these were handed straight to callers typed for strings
+		$host = parse_url($url, PHP_URL_HOST) ?: '';
+		$protocols = [parse_url($url, PHP_URL_SCHEME) ?: ''];
 
-		return parse_url($url, PHP_URL_PATH);
+		return parse_url($url, PHP_URL_PATH) ?: '';
 	}
 
 	/**
@@ -187,8 +189,8 @@ class CurlService {
 		);
 
 		/** @var Person $actor */
-		$actor = AP::$activityPub->getItemFromData($data);
-		if (!AP::$activityPub->isActor($actor)) {
+		$actor = AP::instance()->getItemFromData($data);
+		if (!AP::instance()->isActor($actor)) {
 			throw new ItemUnknownException(json_encode($actor) . ' is not an Actor');
 		}
 

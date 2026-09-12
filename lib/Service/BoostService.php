@@ -34,34 +34,17 @@ use Psr\Log\LoggerInterface;
 class BoostService {
 	use TStringTools;
 
-	private StreamRequest $streamRequest;
-	private StreamService $streamService;
-	private SignatureService $signatureService;
-	private ActivityService $activityService;
-	private StreamActionService $streamActionService;
-	private StreamQueueService $streamQueueService;
-	private CacheActorService $cacheActorService;
-	private LoggerInterface $logger;
-
 	public function __construct(
-		StreamRequest $streamRequest,
-		StreamService $streamService,
-		SignatureService $signatureService,
-		ActivityService $activityService,
-		StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService,
-		CacheActorService $cacheActorService,
-		LoggerInterface $logger,
+		private StreamRequest $streamRequest,
+		private StreamService $streamService,
+		private SignatureService $signatureService,
+		private ActivityService $activityService,
+		private StreamActionService $streamActionService,
+		private StreamQueueService $streamQueueService,
+		private CacheActorService $cacheActorService,
+		private LoggerInterface $logger,
 		private ModerationService $moderationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->streamService = $streamService;
-		$this->signatureService = $signatureService;
-		$this->activityService = $activityService;
-		$this->streamActionService = $streamActionService;
-		$this->streamQueueService = $streamQueueService;
-		$this->cacheActorService = $cacheActorService;
-		$this->logger = $logger;
 	}
 
 	/**
@@ -80,7 +63,7 @@ class BoostService {
 		$this->moderationService->assertNotSuspended($actor->getId());
 
 		/** @var Announce $announce */
-		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
+		$announce = AP::instance()->getItemFromType(Announce::TYPE);
 		$this->streamService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
 		$announce->setActor($actor);
 
@@ -114,7 +97,7 @@ class BoostService {
 		$announce->setObjectId($note->getId());
 		$announce->setRequestToken($this->uuid());
 
-		$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
+		$interface = AP::instance()->getInterfaceFromType(Announce::TYPE);
 		// TODO: check that announce does not exist already ?
 		//		try {
 		//			return $interface->getItem($announce);
@@ -187,7 +170,7 @@ class BoostService {
 			$undo->setObjectId($announce->getId());
 			$undo->addCc($actor->getFollowers());
 
-			$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(Announce::TYPE);
 			$interface->delete($announce);
 			$this->streamRequest->deleteById($announce->getId(), Announce::TYPE);
 			$this->signatureService->signObject($actor, $undo);

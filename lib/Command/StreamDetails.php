@@ -27,25 +27,16 @@ use Symfony\Component\Console\Output\OutputInterface;
  * @package OCA\Social\Command
  */
 class StreamDetails extends ExtendedBase {
-	private StreamService $streamService;
-
 	private DetailsService $detailsService;
 
 	private MiscService $miscService;
 
-	/**
-	 * StreamDetails constructor.
-	 *
-	 * @param StreamService $streamService
-	 * @param DetailsService $detailsService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		StreamService $streamService, DetailsService $detailsService, MiscService $miscService,
+		private StreamService $streamService,
+		DetailsService $detailsService,
+		MiscService $miscService,
 	) {
 		parent::__construct();
-
-		$this->streamService = $streamService;
 		$this->detailsService = $detailsService;
 		$this->miscService = $miscService;
 	}

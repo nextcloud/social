@@ -22,7 +22,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IInitialStateService;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IL10N;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -31,8 +31,8 @@ use PHPUnit\Framework\TestCase;
 class SocialPubControllerTest extends TestCase {
 	private const SOCIAL_URL = 'https://cloud.example/apps/social/';
 
-	/** @var IInitialStateService&MockObject */
-	private $initialStateService;
+	/** @var IInitialState&MockObject */
+	private $initialState;
 	/** @var CacheActorService&MockObject */
 	private $cacheActorService;
 	/** @var AccountService&MockObject */
@@ -42,14 +42,14 @@ class SocialPubControllerTest extends TestCase {
 	private array $states = [];
 
 	protected function setUp(): void {
-		$this->initialStateService = $this->createMock(IInitialStateService::class);
+		$this->initialState = $this->createMock(IInitialState::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->streamService = $this->createMock(StreamService::class);
 
-		$this->initialStateService->method('provideInitialState')
-			->willReturnCallback(function (string $app, string $key, $data): void {
-				$this->states[$app][$key] = $data;
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $data): void {
+				$this->states['social'][$key] = $data;
 			});
 	}
 
@@ -63,7 +63,7 @@ class SocialPubControllerTest extends TestCase {
 
 		return new SocialPubController(
 			$userId,
-			$this->initialStateService,
+			$this->initialState,
 			$this->createMock(IRequest::class),
 			$this->createMock(IL10N::class),
 			$this->createMock(NavigationController::class),

@@ -55,36 +55,19 @@ class ActivityService {
 	public const TIMEOUT_ASYNC = 10;
 	public const TIMEOUT_SERVICE = 30;
 
-	private StreamRequest $streamRequest;
-	private FollowsRequest $followsRequest;
-	private CacheActorsRequest $cacheActorsRequest;
-	private SignatureService $signatureService;
-	private RequestQueueService $requestQueueService;
-	private ConfigService $configService;
-	private CurlService $curlService;
-	private LoggerInterface $logger;
-
 	private ?array $failInstances = null;
 
 	public function __construct(
-		StreamRequest $streamRequest,
-		FollowsRequest $followsRequest,
-		CacheActorsRequest $cacheActorsRequest,
-		SignatureService $signatureService,
-		RequestQueueService $requestQueueService,
-		CurlService $curlService,
-		ConfigService $configService,
+		private StreamRequest $streamRequest,
+		private FollowsRequest $followsRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private SignatureService $signatureService,
+		private RequestQueueService $requestQueueService,
+		private CurlService $curlService,
+		private ConfigService $configService,
 		private ActorsRequest $actorsRequest,
-		LoggerInterface $logger,
+		private LoggerInterface $logger,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->followsRequest = $followsRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->requestQueueService = $requestQueueService;
-		$this->signatureService = $signatureService;
-		$this->curlService = $curlService;
-		$this->configService = $configService;
-		$this->logger = $logger;
 	}
 
 	/**
@@ -114,7 +97,7 @@ class ActivityService {
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);
 
-		// TODO: utiliser AP::$activityPub->getInterfaceFromType(Activity::TYPE)->save($item);
+		// TODO: utiliser AP::instance()->getInterfaceFromType(Activity::TYPE)->save($item);
 
 		$this->saveActivity($activity);
 
@@ -195,7 +178,7 @@ class ActivityService {
 
 		foreach ($requests as $request) {
 			try {
-				$interface = AP::$activityPub->getInterfaceFromType($request);
+				$interface = AP::instance()->getInterfaceFromType($request);
 
 				return $interface->getItemById($id);
 			} catch (Exception $e) {
@@ -471,7 +454,7 @@ class ActivityService {
 				$this->saveObject($item->getObject());
 			}
 
-			$service = AP::$activityPub->getInterfaceForItem($item);
+			$service = AP::instance()->getInterfaceForItem($item);
 			$service->save($item);
 		} catch (ItemUnknownException $e) {
 		} catch (ItemAlreadyExistsException $e) {

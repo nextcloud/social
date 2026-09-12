@@ -38,7 +38,7 @@ class ActorServiceTest extends TestCase {
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->cacheDocumentsRequest = $this->createMock(CacheDocumentsRequest::class);
 		$this->ap = $this->createMock(AP::class);
-		AP::$activityPub = $this->ap;
+		AP::set($this->ap);
 
 		$this->service = new ActorService(
 			$this->cacheActorsRequest,
@@ -50,7 +50,7 @@ class ActorServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	private function alice(bool $withIcon = false): Person {

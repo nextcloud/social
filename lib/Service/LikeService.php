@@ -35,58 +35,18 @@ use Psr\Log\LoggerInterface;
 class LikeService {
 	use TStringTools;
 
-	private StreamRequest $streamRequest;
-
-	private StreamService $streamService;
-
-	private SignatureService $signatureService;
-
-	private ActivityService $activityService;
-
-	private StreamActionService $streamActionService;
-
-	private StreamQueueService $streamQueueService;
-
-	private CacheActorService $cacheActorService;
-
-	private MiscService $miscService;
-
-	private LoggerInterface $logger;
-
-	/**
-	 * LikeService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param StreamService $streamService
-	 * @param SignatureService $signatureService
-	 * @param ActivityService $activityService
-	 * @param StreamActionService $streamActionService
-	 * @param StreamQueueService $streamQueueService
-	 * @param CacheActorService $cacheActorService
-	 * @param MiscService $miscService
-	 * @param LoggerInterface $logger
-	 */
 	public function __construct(
-		StreamRequest $streamRequest,
-		StreamService $streamService,
-		SignatureService $signatureService,
-		ActivityService $activityService,
-		StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService,
-		CacheActorService $cacheActorService,
-		MiscService $miscService,
-		LoggerInterface $logger,
+		private StreamRequest $streamRequest,
+		private StreamService $streamService,
+		private SignatureService $signatureService,
+		private ActivityService $activityService,
+		private StreamActionService $streamActionService,
+		private StreamQueueService $streamQueueService,
+		private CacheActorService $cacheActorService,
+		private MiscService $miscService,
+		private LoggerInterface $logger,
 		private ModerationService $moderationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->streamService = $streamService;
-		$this->signatureService = $signatureService;
-		$this->activityService = $activityService;
-		$this->streamActionService = $streamActionService;
-		$this->streamQueueService = $streamQueueService;
-		$this->cacheActorService = $cacheActorService;
-		$this->miscService = $miscService;
-		$this->logger = $logger;
 	}
 
 	/**
@@ -105,7 +65,7 @@ class LikeService {
 		$this->moderationService->assertNotSuspended($actor->getId());
 
 		/** @var Like $like */
-		$like = AP::$activityPub->getItemFromType(Like::TYPE);
+		$like = AP::instance()->getItemFromType(Like::TYPE);
 		$like->setId($actor->getId() . '#like/' . $this->uuid(8));
 		$like->setActor($actor);
 
@@ -144,7 +104,7 @@ class LikeService {
 		$like->setPublished(date('c'));
 		$this->signatureService->signObject($actor, $like);
 
-		$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
+		$interface = AP::instance()->getInterfaceFromType(Like::TYPE);
 		$interface->save($like);
 
 		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::LIKED, true);
@@ -177,11 +137,11 @@ class LikeService {
 
 		$this->assignInstance($undo, $actor, $note);
 		try {
-			$tmp = AP::$activityPub->getItemFromType(Like::TYPE);
+			$tmp = AP::instance()->getItemFromType(Like::TYPE);
 			$tmp->setActor($actor);
 			$tmp->setObjectId($postId);
 
-			$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(Like::TYPE);
 			$like = $interface->getItem($tmp);
 
 			$undo->setId($like->getId() . '/undo');

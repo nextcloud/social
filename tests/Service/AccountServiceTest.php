@@ -95,7 +95,7 @@ class AccountServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 		error_reporting($this->errorReporting);
 	}
 
@@ -281,7 +281,7 @@ class AccountServiceTest extends TestCase {
 		$personInterface->expects($this->once())->method('delete')->with($this->identicalTo($alice));
 		$ap = $this->createMock(AP::class);
 		$ap->method('getInterfaceFromType')->with(Person::TYPE)->willReturn($personInterface);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$this->signatureService->expects($this->once())
 			->method('signObject')
 			->with($this->identicalTo($alice), $this->isInstanceOf(Delete::class));

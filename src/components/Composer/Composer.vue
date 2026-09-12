@@ -1393,7 +1393,7 @@ $composer-duration: 220ms;
 
 	&-form {
 		margin-top: 12px;
-		margin-left: 0;
+		margin-inline-start: 0;
 		transition: margin-top $composer-duration $composer-ease;
 
 		&__emoji-picker {
@@ -1537,7 +1537,7 @@ $composer-duration: 220ms;
 	&::before {
 		content: '';
 		position: absolute;
-		left: 12px;
+		inset-inline-start: 12px;
 		top: 12px;
 		width: 16px;
 		height: 16px;
@@ -1561,7 +1561,7 @@ $composer-duration: 220ms;
 	}
 
 	.close-button {
-		margin-left: auto;
+		margin-inline-start: auto;
 		min-width: 28px;
 		min-height: 28px;
 		height: 28px;
@@ -1593,7 +1593,7 @@ $composer-duration: 220ms;
 	}
 
 	.close-button {
-		margin-left: auto;
+		margin-inline-start: auto;
 		min-width: 28px;
 		min-height: 28px;
 		height: 28px;
@@ -1639,7 +1639,7 @@ $composer-duration: 220ms;
 			width: 16px;
 			height: 16px;
 			border-radius: 50%;
-			margin-right: 3px;
+			margin-inline-end: 3px;
 		}
 	}
 }
@@ -1694,7 +1694,7 @@ $composer-duration: 220ms;
 .tribute-container {
 	position: absolute;
 	top: 0;
-	left: 0;
+	inset-inline-start: 0;
 	height: auto;
 	max-height: 300px;
 	max-width: 500px;
@@ -1740,8 +1740,7 @@ $composer-duration: 220ms;
 				height: 32px;
 				border-radius: 50%;
 				overflow: hidden;
-				margin-right: 10px;
-				margin-left: -3px;
+				margin-inline: -3px 10px;
 				margin-top: 3px;
 			}
 

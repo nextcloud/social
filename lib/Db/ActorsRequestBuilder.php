@@ -22,19 +22,15 @@ use Psr\Log\LoggerInterface;
 class ActorsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-	protected PrivateKeyCipher $keyCipher;
-
 	public function __construct(
 		IDBConnection $connection,
 		LoggerInterface $logger,
 		IURLGenerator $urlGenerator,
 		ConfigService $configService,
 		MiscService $miscService,
-		PrivateKeyCipher $keyCipher,
+		protected PrivateKeyCipher $keyCipher,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
-
-		$this->keyCipher = $keyCipher;
 	}
 
 	/**

@@ -40,25 +40,16 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class NoteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
-	private StreamRequest $streamRequest;
-	private CacheActorsRequest $cacheActorsRequest;
-	private PollService $pollService;
-	private PushService $pushService;
-
 	public function __construct(
-		StreamRequest $streamRequest,
-		CacheActorsRequest $cacheActorsRequest,
-		PollService $pollService,
-		PushService $pushService,
+		private StreamRequest $streamRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private PollService $pollService,
+		private PushService $pushService,
 		private StreamQueueService $streamQueueService,
 		private LinkPreviewService $linkPreviewService,
 		private ForwardService $forwardService,
 		private NotificationService $notificationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->pollService = $pollService;
-		$this->pushService = $pushService;
 	}
 
 	/**
@@ -344,7 +335,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
-		$notificationInterface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$notificationInterface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 		$post = $this->streamRequest->getStreamById($note->getId(), false, ACore::FORMAT_LOCAL);
 
 		foreach ($mentions as $mention) {
@@ -358,7 +349,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			}
 
 			/** @var SocialAppNotification $notification */
-			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+			$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('account', $post->getActor()->getAccount());
 			// the author, not the reader. The notification timeline finds this

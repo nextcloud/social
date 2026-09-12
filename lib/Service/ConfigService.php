@@ -46,11 +46,6 @@ class ConfigService {
 	/** days to keep remote statuses nobody local cares about; 0 disables */
 	public const SOCIAL_RETENTION_DAYS = 'retention_days';
 
-	public const BACKGROUND_CRON = 1;
-	public const BACKGROUND_ASYNC = 2;
-	public const BACKGROUND_SERVICE = 3;
-	public const BACKGROUND_FULL_SERVICE = 4;
-
 	public array $defaults = [
 		self::CLOUD_URL => '',
 		self::SOCIAL_URL => '',
@@ -70,10 +65,6 @@ class ConfigService {
 	];
 
 	private ?string $userId = null;
-	private IConfig $config;
-	private IRequest $request;
-	private IURLGenerator $urlGenerator;
-	private MiscService $miscService;
 
 	/** Seconds; 0 leaves each request its own default. See withRequestTimeout(). */
 	private int $requestTimeout = 0;
@@ -82,14 +73,13 @@ class ConfigService {
 	private int $requestConnectTimeout = 0;
 
 	public function __construct(
-		?string $userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
-		MiscService $miscService,
+		?string $userId,
+		private IConfig $config,
+		private IRequest $request,
+		private IURLGenerator $urlGenerator,
+		private MiscService $miscService,
 	) {
 		$this->userId = $userId;
-		$this->config = $config;
-		$this->request = $request;
-		$this->urlGenerator = $urlGenerator;
-		$this->miscService = $miscService;
 	}
 
 	/**
@@ -295,8 +285,18 @@ class ConfigService {
 	 */
 	public function getCloudHost(): string {
 		$url = $this->getCloudUrl();
+		$host = parse_url($url, PHP_URL_HOST);
 
-		return parse_url($url, PHP_URL_HOST);
+		// parse_url() answers null for a URL with no host and false for one it
+		// cannot parse at all; the declared string return then made either a
+		// TypeError, thrown from whichever caller happened to be first.
+		if (!is_string($host) || $host === '') {
+			throw new SocialAppConfigException(
+				'the configured cloud address has no host: ' . $url
+			);
+		}
+
+		return $host;
 	}
 
 	/**

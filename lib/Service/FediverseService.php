@@ -22,18 +22,12 @@ use OCP\BackgroundJob\IJobList;
  * @package OCA\Social\Service
  */
 class FediverseService {
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
 	public function __construct(
-		ConfigService $configService,
-		MiscService $miscService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 		private CacheActorsRequest $cacheActorsRequest,
 		private IJobList $jobList,
 	) {
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**
@@ -274,84 +268,4 @@ class FediverseService {
 		$list = array_values(array_udiff($this->getListedAddresses(), [$address], 'strcasecmp'));
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_LIST, json_encode($list));
 	}
-
-	//
-	//	/**
-	//	 * @param string $address
-	//	 *
-	//	 * @throws Exception
-	//	 */
-	//	public function blockAddress(string $address) {
-	//		if ($this->isBlocked($address)) {
-	//			return;
-	//		}
-	//
-	//		if ($this->isAllowed($address)) {
-	//			throw new Exception($address . ' is already in the whitelist');
-	//		}
-	//
-	//		$blackList = $this->getBlockedAddresses();
-	//		array_push($blackList, $address);
-	//
-	//		$this->configService->setAppValue(ConfigService::SOCIAL_BLACKLIST, json_encode($blackList));
-	//	}
-	//
-	//	/**
-	//	 * @return array
-	//	 */
-	//	public function getBlockedAddresses(): array {
-	//		return json_decode($this->configService->getAppValue(ConfigService::SOCIAL_BLACKLIST));
-	//	}
-	//
-	//	/**
-	//	 * @param string $address
-	//	 *
-	//	 * @return bool
-	//	 */
-	//	public function isBlocked(string $address): bool {
-	//		return (in_array('ALL', $this->getBlockedAddresses())
-	//				|| in_array($address, $this->getBlockedAddresses()));
-	//	}
-	//
-	//
-	//	/**
-	//	 * @param string $address
-	//	 *
-	//	 * @return void
-	//	 * @throws Exception
-	//	 */
-	//	public function allowAddress(string $address) {
-	//		if ($this->isAllowed($address)) {
-	//			return;
-	//		}
-	//
-	//		if ($this->isBlocked($address)) {
-	//			throw new Exception($address . ' is already in the blacklist');
-	//		}
-	//
-	//		$whiteList = $this->getAllowedAddresses();
-	//		array_push($whiteList, $address);
-	//
-	//		$this->configService->setAppValue(ConfigService::SOCIAL_WHITELIST, json_encode($whiteList));
-	//	}
-	//
-	//	/**
-	//	 * @return array
-	//	 */
-	//	public function getAllowedAddresses(): array {
-	//		return json_decode($this->configService->getAppValue(ConfigService::SOCIAL_WHITELIST));
-	//
-	//	}
-	//
-	//	/**
-	//	 * @param string $address
-	//	 *
-	//	 * @return bool
-	//	 */
-	//	public function isAllowed(string $address): bool {
-	//		return (in_array('ALL', $this->getAllowedAddresses())
-	//				|| in_array($address, $this->getAllowedAddresses()));
-	//	}
-	//
-	//
 }

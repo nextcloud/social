@@ -23,12 +23,6 @@ class StreamActionService {
 
 	private MiscService $miscService;
 
-	/**
-	 * StreamActionService constructor.
-	 *
-	 * @param StreamActionsRequest $streamActionsRequest
-	 * @param MiscService $miscService
-	 */
 	public function __construct(StreamActionsRequest $streamActionsRequest, MiscService $miscService,
 	) {
 		$this->streamActionsRequest = $streamActionsRequest;

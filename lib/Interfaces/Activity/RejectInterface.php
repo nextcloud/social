@@ -39,7 +39,7 @@ class RejectInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 
 		try {
-			$service = AP::$activityPub->getInterfaceForItem($object);
+			$service = AP::instance()->getInterfaceForItem($object);
 			$service->activity($item, $object);
 		} catch (ItemUnknownException $e) {
 		}

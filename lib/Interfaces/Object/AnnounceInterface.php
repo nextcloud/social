@@ -52,25 +52,14 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class AnnounceInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
-	private StreamRequest $streamRequest;
-	private ActionsRequest $actionsRequest;
-	private StreamQueueService $streamQueueService;
-	private CacheActorService $cacheActorService;
-	private MiscService $miscService;
-
 	public function __construct(
-		StreamRequest $streamRequest,
-		ActionsRequest $actionsRequest,
-		StreamQueueService $streamQueueService,
-		CacheActorService $cacheActorService,
-		MiscService $miscService,
+		private StreamRequest $streamRequest,
+		private ActionsRequest $actionsRequest,
+		private StreamQueueService $streamQueueService,
+		private CacheActorService $cacheActorService,
+		private MiscService $miscService,
 		private NotificationService $notificationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->actionsRequest = $actionsRequest;
-		$this->streamQueueService = $streamQueueService;
-		$this->cacheActorService = $cacheActorService;
-		$this->miscService = $miscService;
 	}
 
 	/**
@@ -261,7 +250,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface
-			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			= AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(
@@ -273,7 +262,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			$this->notificationService->onNotification($notification, $author->getId());
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
-			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+			$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 			//			$notification->setDetail('url', '');
 
 			$notification->setDetailItem('post', $post);
@@ -301,7 +290,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface
-			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			= AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(

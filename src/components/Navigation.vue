@@ -535,7 +535,7 @@ export default {
 	&__message {
 		color: var(--color-text-lighter);
 		margin-bottom: 8px;
-		word-break: break-word;
+		overflow-wrap: break-word;
 	}
 }
 

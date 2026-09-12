@@ -41,9 +41,6 @@ class StreamAction implements JsonSerializable {
 		self::POLL_VOTES
 	];
 
-	/**
-	 * StreamAction constructor.
-	 */
 	public function __construct(string $actorId = '', string $streamId = '') {
 		$this->actorId = $actorId;
 		$this->streamId = $streamId;

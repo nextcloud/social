@@ -27,17 +27,17 @@ class ConfigController extends Controller {
 	use TNCDataResponse;
 
 	private TestService $testService;
-	private ConfigService $configService;
 	private MiscService $miscService;
 
 	public function __construct(
-		string $appName, IRequest $request, TestService $testService,
-		ConfigService $configService, MiscService $miscService,
+		string $appName,
+		IRequest $request,
+		TestService $testService,
+		private ConfigService $configService,
+		MiscService $miscService,
 	) {
 		parent::__construct($appName, $request);
-
 		$this->testService = $testService;
-		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 

@@ -40,7 +40,7 @@ class StreamQuoteTest extends TestCase {
 
 	protected function tearDown(): void {
 		Stream::resetQuoteCache();
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 
@@ -336,7 +336,7 @@ class StreamQuoteTest extends TestCase {
 	 * one: through the registry, into a Note, with the quote on it.
 	 */
 	public function testAMastodonQuotePostArrivesAsAQuote(): void {
-		$create = AP::$activityPub->getItemFromData([
+		$create = AP::instance()->getItemFromData([
 			'@context' => 'https://www.w3.org/ns/activitystreams',
 			'id' => self::QUOTING . '/activity',
 			'type' => 'Create',

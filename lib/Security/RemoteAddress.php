@@ -7,7 +7,7 @@ declare(strict_types=1);
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-namespace OCA\Social\Tools;
+namespace OCA\Social\Security;
 
 /**
  * Decides whether an outbound request is allowed to reach a given host.

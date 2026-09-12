@@ -175,8 +175,7 @@ export default {
 		position: absolute;
 		z-index: 2;
 		bottom: 0;
-		left: 0;
-		right: 0;
+		inset-inline: 0;
 		box-sizing: border-box;
 		background: linear-gradient(0deg,rgba(0,0,0,.8),rgba(0,0,0,.35) 80%,transparent);
 		color: white;

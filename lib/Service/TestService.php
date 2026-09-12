@@ -30,25 +30,11 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class TestService {
 	use TArrayTools;
 
-	private CurlService $curlService;
-
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-	/**
-	 * PostService constructor.
-	 *
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		CurlService $curlService, ConfigService $configService, MiscService $miscService,
+		private CurlService $curlService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 	) {
-		$this->curlService = $curlService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	public function testWebfinger(SimpleDataStore $tests) {
@@ -129,8 +115,8 @@ class TestService {
 		$testActor = new Test('actor', Test::SEVERITY_MANDATORY);
 		try {
 			/** @var Person $actor */
-			$actor = AP::$activityPub->getItemFromData($data);
-			if (!AP::$activityPub->isActor($actor)) {
+			$actor = AP::instance()->getItemFromData($data);
+			if (!AP::instance()->isActor($actor)) {
 				throw new ItemUnknownException('Actor is not an Actor');
 			}
 

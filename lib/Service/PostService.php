@@ -48,12 +48,6 @@ class PostService {
 	 */
 	public const POLL_MIN_EXPIRATION = 300;
 	public const POLL_MAX_EXPIRATION = 2629746;
-	private StreamService $streamService;
-	private AccountService $accountService;
-	private ActivityService $activityService;
-	private IFactory $l10nFactory;
-	private IUserManager $userManager;
-	private LoggerInterface $logger;
 
 	/**
 	 * The languages whose region subtag names a different written language,
@@ -64,23 +58,17 @@ class PostService {
 	private const REGIONAL_LANGUAGES = ['pt', 'zh'];
 
 	public function __construct(
-		StreamService $streamService,
-		AccountService $accountService,
-		ActivityService $activityService,
-		IFactory $l10nFactory,
-		IUserManager $userManager,
+		private StreamService $streamService,
+		private AccountService $accountService,
+		private ActivityService $activityService,
+		private IFactory $l10nFactory,
+		private IUserManager $userManager,
 		private ModerationService $moderationService,
 		private StatusRevisionService $revisionService,
 		private NotificationService $notificationService,
 		private LinkifyService $linkifyService,
-		LoggerInterface $logger,
+		private LoggerInterface $logger,
 	) {
-		$this->streamService = $streamService;
-		$this->accountService = $accountService;
-		$this->activityService = $activityService;
-		$this->l10nFactory = $l10nFactory;
-		$this->userManager = $userManager;
-		$this->logger = $logger;
 	}
 
 	/**

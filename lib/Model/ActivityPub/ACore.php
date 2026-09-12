@@ -16,7 +16,7 @@ use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\LinkedDataSignature;
-use OCA\Social\Tools\HtmlSanitizer;
+use OCA\Social\Security\HtmlSanitizer;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
@@ -121,11 +121,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	private ?LinkedDataSignature $signature = null;
 	private int $format = self::FORMAT_ACTIVITYPUB;
 
-	/**
-	 * Core constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		if ($parent instanceof ACore) {
 			$this->setParent($parent);

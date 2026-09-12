@@ -20,30 +20,12 @@ use OCA\Social\Model\StreamDetails;
  * @package OCA\Social\Service
  */
 class DetailsService {
-	private StreamService $streamService;
-
-	private AccountService $accountService;
-
-	private FollowService $followService;
-
-	private CacheActorService $cacheActorService;
-
-	/**
-	 * DetailsService constructor.
-	 *
-	 * @param StreamService $streamService
-	 * @param AccountService $accountService
-	 * @param FollowService $followService
-	 * @param CacheActorService $cacheActorService
-	 */
 	public function __construct(
-		StreamService $streamService, AccountService $accountService,
-		FollowService $followService, CacheActorService $cacheActorService,
+		private StreamService $streamService,
+		private AccountService $accountService,
+		private FollowService $followService,
+		private CacheActorService $cacheActorService,
 	) {
-		$this->streamService = $streamService;
-		$this->accountService = $accountService;
-		$this->followService = $followService;
-		$this->cacheActorService = $cacheActorService;
 	}
 
 	/**

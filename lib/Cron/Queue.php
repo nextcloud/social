@@ -20,6 +20,20 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 class Queue extends TimedJob {
+	/**
+	 * How long one cron run may spend draining, in seconds.
+	 *
+	 * QueueController gives its drain a budget because an HTTP request has to
+	 * return. This job had the same problem with a longer fuse and no budget at
+	 * all: it ran until the batch was done or something killed it, so a backlog
+	 * of slow or unreachable inboxes could hold a cron slot open indefinitely
+	 * and overlap the next run. Rows left behind stay in standby and are picked
+	 * up by the following run, which is what the queue is for.
+	 *
+	 * Well inside the 12 minute interval below, so two runs cannot overlap.
+	 */
+	public const MAX_DURATION = 300;
+
 	private ActivityService $activityService;
 	private RequestQueueService $requestQueueService;
 	private StreamQueueService $streamQueueService;
@@ -41,11 +55,13 @@ class Queue extends TimedJob {
 	}
 
 	protected function run($argument) {
-		$this->manageRequestQueue();
-		$this->manageStreamQueue();
+		$deadline = time() + self::MAX_DURATION;
+
+		$this->manageRequestQueue($deadline);
+		$this->manageStreamQueue($deadline);
 	}
 
-	private function manageRequestQueue() {
+	private function manageRequestQueue(int $deadline) {
 		// Re-queue anything a dead worker left stranded mid-delivery before draining.
 		$this->requestQueueService->reapStaleRunning();
 
@@ -53,6 +69,10 @@ class Queue extends TimedJob {
 		$this->activityService->manageInit();
 
 		foreach ($requests as $request) {
+			if (time() >= $deadline) {
+				break;
+			}
+
 			$request->setTimeout(ActivityService::TIMEOUT_SERVICE);
 			try {
 				$this->activityService->manageRequest($request);
@@ -101,11 +121,15 @@ class Queue extends TimedJob {
 		}
 	}
 
-	private function manageStreamQueue() {
+	private function manageStreamQueue(int $deadline) {
 		$total = 0;
 		$items = $this->streamQueueService->getRequestStandby($total);
 
 		foreach ($items as $item) {
+			if (time() >= $deadline) {
+				break;
+			}
+
 			$this->streamQueueService->manageStreamQueue($item);
 		}
 	}

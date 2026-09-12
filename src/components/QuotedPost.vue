@@ -150,7 +150,7 @@ export default {
 
 	&__message {
 		margin-top: 6px;
-		word-wrap: break-word;
+		overflow-wrap: break-word;
 
 		:deep(p) {
 			margin: 0 0 6px;

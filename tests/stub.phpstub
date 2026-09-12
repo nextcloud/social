@@ -465,14 +465,21 @@ namespace OC\User {
 }
 
 namespace OC\DB {
-    use OCP\IDBConnection;
+    // In core these two are unrelated by inheritance: ConnectionAdapter is the
+    // IDBConnection wrapper, Connection is the Doctrine connection underneath
+    // it. The stub had `Connection extends ConnectionAdapter`, which is
+    // backwards, and made SchemaWrapper's argument type-check for the wrong
+    // reason. Neither is declared to implement IDBConnection here, because a
+    // stub that claims an interface has to satisfy all of it.
     class ConnectionAdapter {}
-    class Connection extends ConnectionAdapter {}
+    class Connection {}
 
     class SchemaWrapper {
-        public function __construct(IDBConnection $connection) {}
+        public function __construct(Connection $connection) {}
 
         public function performDropTableCalls();
+        public function hasTable(string $tableName): bool;
+        public function dropTable(string $tableName): void;
     }
 }
 
@@ -481,8 +488,19 @@ namespace OC {
 }
 
 namespace Doctrine\DBAL\Query {
+    /**
+     * The four statement types, with the values Doctrine actually assigns.
+     *
+     * SELECT was stubbed as the string 'select' here while the real constant is
+     * the int 0, so every `getType() === QueryBuilder::SELECT` in lib/Db -- 28
+     * of them, on the hot read paths -- was verified by CI against a value that
+     * cannot occur at runtime.
+     */
     class QueryBuilder {
-        public const SELECT = 'select';
+        public const SELECT = 0;
+        public const DELETE = 1;
+        public const UPDATE = 2;
+        public const INSERT = 3;
     }
 }
 

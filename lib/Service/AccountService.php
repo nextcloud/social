@@ -75,47 +75,20 @@ class AccountService {
 	 */
 	public const KEY_PAIR_LIFESPAN = 60;
 
-	private ?string $userId = null;
-
-	private IUserManager $userManager;
-	private IUserSession $userSession;
-	private IAccountManager $accountManager;
-	private ActorsRequest $actorsRequest;
-	private FollowsRequest $followsRequest;
-	private StreamRequest $streamRequest;
-	private ActorService $actorService;
-	private ActivityService $activityService;
-	private DocumentService $documentService;
-	private SignatureService $signatureService;
-	private ConfigService $configService;
-	private LoggerInterface $logger;
-
 	public function __construct(
-		IUserManager $userManager,
-		IUserSession $userSession,
-		IAccountManager $accountManager,
-		ActorsRequest $actorsRequest,
-		FollowsRequest $followsRequest,
-		StreamRequest $streamRequest,
-		ActorService $actorService,
-		ActivityService $activityService,
-		DocumentService $documentService,
-		SignatureService $signatureService,
-		ConfigService $configService,
-		LoggerInterface $logger,
+		private IUserManager $userManager,
+		private IUserSession $userSession,
+		private IAccountManager $accountManager,
+		private ActorsRequest $actorsRequest,
+		private FollowsRequest $followsRequest,
+		private StreamRequest $streamRequest,
+		private ActorService $actorService,
+		private ActivityService $activityService,
+		private DocumentService $documentService,
+		private SignatureService $signatureService,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
 	) {
-		$this->userManager = $userManager;
-		$this->userSession = $userSession;
-		$this->accountManager = $accountManager;
-		$this->actorsRequest = $actorsRequest;
-		$this->followsRequest = $followsRequest;
-		$this->streamRequest = $streamRequest;
-		$this->actorService = $actorService;
-		$this->activityService = $activityService;
-		$this->documentService = $documentService;
-		$this->signatureService = $signatureService;
-		$this->configService = $configService;
-		$this->logger = $logger;
 	}
 
 	/**
@@ -262,7 +235,7 @@ class AccountService {
 
 		// delete related data
 		/** @var PersonInterface $interface */
-		$interface = AP::$activityPub->getInterfaceFromType(Person::TYPE);
+		$interface = AP::instance()->getInterfaceFromType(Person::TYPE);
 		$interface->delete($actor);
 
 		// broadcast delete event

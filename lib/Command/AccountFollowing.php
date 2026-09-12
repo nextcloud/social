@@ -22,21 +22,19 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class AccountFollowing extends Base {
-	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
-	private FollowService $followService;
 	private ConfigService $configService;
 	private MiscService $miscService;
 
 	public function __construct(
-		AccountService $accountService, CacheActorService $cacheActorService,
-		FollowService $followService, ConfigService $configService, MiscService $miscService,
+		private AccountService $accountService,
+		CacheActorService $cacheActorService,
+		private FollowService $followService,
+		ConfigService $configService,
+		MiscService $miscService,
 	) {
 		parent::__construct();
-
-		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
-		$this->followService = $followService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}

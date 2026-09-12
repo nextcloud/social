@@ -11,6 +11,7 @@ namespace OCA\Social\Migration;
 
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Security\PrivateKeyCipher;
+use OCA\Social\Service\ConfigService;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
@@ -19,20 +20,27 @@ use Throwable;
 /**
  * Rewrites the actor private keys stored as bare PEM into their encrypted
  * form. New keys are written encrypted from the start; this step only exists
- * for rows created before that. Runs on every upgrade and is a no-op once no
- * plaintext key is left, so it needs no marker.
+ * for rows created before that.
+ *
+ * The marker is what keeps it affordable. "A no-op once no plaintext key is
+ * left" was true of the writes and false of the read: the LIKE scan of
+ * social_actor ran on every `occ upgrade` for the life of the instance, with
+ * the instance in maintenance mode, to discover there was nothing to do. It is
+ * only set once a run finishes with nothing left behind, so a row that could
+ * not be encrypted is still retried on the next upgrade.
  *
  * A row that cannot be encrypted is reported and left alone rather than
  * allowed to end the upgrade: the plaintext form is still readable, so the
  * actor keeps working and the next upgrade tries again.
  */
 class EncryptPrivateKeys implements IRepairStep {
-	private IDBConnection $connection;
-	private PrivateKeyCipher $keyCipher;
+	private const MARKER = 'migration_actor_keys_encrypted';
 
-	public function __construct(IDBConnection $connection, PrivateKeyCipher $keyCipher) {
-		$this->connection = $connection;
-		$this->keyCipher = $keyCipher;
+	public function __construct(
+		private IDBConnection $connection,
+		private PrivateKeyCipher $keyCipher,
+		private ConfigService $configService,
+	) {
 	}
 
 	public function getName(): string {
@@ -40,6 +48,10 @@ class EncryptPrivateKeys implements IRepairStep {
 	}
 
 	public function run(IOutput $output): void {
+		if ($this->configService->getAppValueInt(self::MARKER) === 1) {
+			return;
+		}
+
 		$select = $this->connection->getQueryBuilder();
 		$select->select('id', 'private_key')
 			->from(CoreRequestBuilder::TABLE_ACTORS)
@@ -58,6 +70,8 @@ class EncryptPrivateKeys implements IRepairStep {
 		$result->closeCursor();
 
 		if ($plain === []) {
+			$this->configService->setAppValue(self::MARKER, '1');
+
 			return;
 		}
 
@@ -94,7 +108,9 @@ class EncryptPrivateKeys implements IRepairStep {
 			$output->info('Encrypted the private key of ' . $encrypted . ' Social actor(s)');
 		}
 
-		if ($failed !== []) {
+		if ($failed === []) {
+			$this->configService->setAppValue(self::MARKER, '1');
+		} else {
 			$output->warning(
 				'The private key of ' . count($failed) . ' Social actor(s) is still stored in '
 				. 'plaintext: ' . implode(', ', $failed) . '. They keep working; check that the '

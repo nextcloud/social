@@ -22,7 +22,7 @@ use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IInitialStateService;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
@@ -30,8 +30,8 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class OStatusControllerTest extends TestCase {
-	/** @var IInitialStateService&MockObject */
-	private $initialStateService;
+	/** @var IInitialState&MockObject */
+	private $initialState;
 	/** @var CacheActorService&MockObject */
 	private $cacheActorService;
 	/** @var AccountService&MockObject */
@@ -44,20 +44,20 @@ class OStatusControllerTest extends TestCase {
 	private array $states = [];
 
 	protected function setUp(): void {
-		$this->initialStateService = $this->createMock(IInitialStateService::class);
+		$this->initialState = $this->createMock(IInitialState::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->curlService = $this->createMock(CurlService::class);
 		$this->userSession = $this->createMock(IUserSession::class);
 
-		$this->initialStateService->method('provideInitialState')
-			->willReturnCallback(function (string $app, string $key, $data): void {
-				$this->states[$app][$key] = $data;
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $data): void {
+				$this->states['social'][$key] = $data;
 			});
 
 		$this->controller = new OStatusController(
 			$this->createMock(IRequest::class),
-			$this->initialStateService,
+			$this->initialState,
 			$this->cacheActorService,
 			$this->accountService,
 			$this->curlService,

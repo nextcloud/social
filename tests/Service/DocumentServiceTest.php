@@ -71,7 +71,7 @@ class DocumentServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	private function document(string $localCopy = '', int $error = 0): Document {
@@ -540,7 +540,7 @@ class DocumentServiceTest extends TestCase {
 		$imageInterface = $this->createMock(ImageInterface::class);
 		$imageInterface->expects($this->once())->method('save')->with($this->identicalTo($icon));
 		$ap->method('getInterfaceFromType')->with(Image::TYPE)->willReturn($imageInterface);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$this->actorsRequest->expects($this->once())->method('update')->with($this->identicalTo($alice));
 		$this->cacheDocumentsRequest->expects($this->never())->method('getByUrl');
 
@@ -582,7 +582,7 @@ class DocumentServiceTest extends TestCase {
 		$imageInterface = $this->createMock(ImageInterface::class);
 		$imageInterface->expects($this->once())->method('save')->with($this->identicalTo($image));
 		$ap->method('getInterfaceFromType')->willReturn($imageInterface);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$this->urlGenerator->method('linkToRouteAbsolute')
 			->willReturnCallback(fn (string $route, array $args) => match ($route) {
 				'social.Local.globalActorHeader' => 'https://cloud.example.com/apps/social/header/' . rawurlencode($args['id']),

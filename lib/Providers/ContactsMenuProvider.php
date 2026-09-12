@@ -27,34 +27,13 @@ use OCP\IUserManager;
  * @package OCA\Social\Providers
  */
 class ContactsMenuProvider implements IProvider {
-	private IActionFactory $actionFactory;
-
-	private IURLGenerator $urlGenerator;
-
-	private IUserManager $userManager;
-
-	private IL10N $l10n;
-
-	private AccountService $accountService;
-
-	/**
-	 * ContactsMenuProvider constructor.
-	 *
-	 * @param IActionFactory $actionFactory
-	 * @param IURLGenerator $urlGenerator
-	 * @param IUserManager $userManager
-	 * @param IL10N $l10n
-	 * @param AccountService $accountService
-	 */
 	public function __construct(
-		IActionFactory $actionFactory, IURLGenerator $urlGenerator, IUserManager $userManager, IL10N $l10n,
-		AccountService $accountService,
+		private IActionFactory $actionFactory,
+		private IURLGenerator $urlGenerator,
+		private IUserManager $userManager,
+		private IL10N $l10n,
+		private AccountService $accountService,
 	) {
-		$this->actionFactory = $actionFactory;
-		$this->urlGenerator = $urlGenerator;
-		$this->userManager = $userManager;
-		$this->l10n = $l10n;
-		$this->accountService = $accountService;
 	}
 
 	/**

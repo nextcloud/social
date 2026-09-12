@@ -149,7 +149,7 @@ class SearchServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 

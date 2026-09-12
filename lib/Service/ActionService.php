@@ -19,11 +19,6 @@ use OCA\Social\Tools\Traits\TStringTools;
 class ActionService {
 	use TStringTools;
 
-	private StreamService $streamService;
-	private BoostService $boostService;
-	private LikeService $likeService;
-	private StreamActionService $streamActionService;
-
 	private const TRANSLATE = 'translate';
 	private const FAVOURITE = 'favourite';
 	private const UNFAVOURITE = 'unfavourite';
@@ -51,16 +46,12 @@ class ActionService {
 	];
 
 	public function __construct(
-		StreamService $streamService,
-		BoostService $boostService,
-		LikeService $likeService,
-		StreamActionService $streamActionService,
+		private StreamService $streamService,
+		private BoostService $boostService,
+		private LikeService $likeService,
+		private StreamActionService $streamActionService,
 		private PinService $pinService,
 	) {
-		$this->streamService = $streamService;
-		$this->boostService = $boostService;
-		$this->likeService = $likeService;
-		$this->streamActionService = $streamActionService;
 	}
 
 	/**

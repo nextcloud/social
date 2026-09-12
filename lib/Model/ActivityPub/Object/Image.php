@@ -12,7 +12,6 @@ namespace OCA\Social\Model\ActivityPub\Object;
 use JsonSerializable;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\ACore;
 
 /**
  * Class Image
@@ -22,11 +21,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Image extends Document implements JsonSerializable {
 	public const TYPE = 'Image';
 
-	/**
-	 * Image constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 

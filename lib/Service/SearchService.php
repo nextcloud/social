@@ -35,33 +35,14 @@ class SearchService {
 	public const SEARCH_CONTENT = 8;
 	public const SEARCH_ALL = 15;
 
-	private CacheActorService $cacheActorService;
-	private HashtagService $hashtagService;
-	private StreamRequest $streamRequest;
-	private ConfigService $configService;
-	private LoggerInterface $logger;
-
-	/**
-	 * ImportService constructor.
-	 *
-	 * @param CacheActorService $cacheActorService
-	 * @param HashtagService $hashtagService
-	 * @param ConfigService $configService
-	 * @param LoggerInterface $logger
-	 */
 	public function __construct(
-		CacheActorService $cacheActorService,
-		HashtagService $hashtagService,
-		StreamRequest $streamRequest,
-		ConfigService $configService,
-		LoggerInterface $logger,
+		private CacheActorService $cacheActorService,
+		private HashtagService $hashtagService,
+		private StreamRequest $streamRequest,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
 		private CurlService $curlService,
 	) {
-		$this->cacheActorService = $cacheActorService;
-		$this->hashtagService = $hashtagService;
-		$this->streamRequest = $streamRequest;
-		$this->configService = $configService;
-		$this->logger = $logger;
 	}
 
 	/**
@@ -125,7 +106,7 @@ class SearchService {
 
 		try {
 			$data = $this->curlService->retrieveObject($uri);
-			$object = AP::$activityPub->getItemFromData($data);
+			$object = AP::instance()->getItemFromData($data);
 
 			if ($object->getId() !== $uri) {
 				// a document is only evidence about itself
@@ -144,7 +125,7 @@ class SearchService {
 			// its author has to be known before the post can be shown as theirs
 			$this->cacheActorService->getFromId($object->getAttributedTo());
 
-			AP::$activityPub->getInterfaceForItem($object)->save($object);
+			AP::instance()->getInterfaceForItem($object)->save($object);
 
 			return $this->streamRequest->getStreamById($object->getId());
 		} catch (Exception $e) {

@@ -12,7 +12,8 @@ package_name=$(app_name)
 cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=master
-version+=0.10.1
+# Read from appinfo/info.xml so it cannot drift from the released version.
+version=$(shell sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' appinfo/info.xml)
 
 
 all: dev-setup lint build-js-production composer
@@ -97,44 +98,36 @@ appstore: release-setup lint build-js-production composer
 		exit 1; }
 	mkdir -p $(sign_dir)
 	rsync -a \
-	--exclude=/build \
-	--exclude=/babel.config.js \
-	--exclude=/cypress.json \
-	--exclude=/.php-cs-fixer.cache \
-	--exclude=/.nextcloudignore \
-	--exclude=/.php-cs-fixer.dist.php \
-	--exclude=/psalm.xml \
-	--exclude=/cypress.json \
-	--exclude=/cypress \
-	--exclude=/docs \
-	--exclude=/translationfiles \
-	--exclude=/.tx \
-	--exclude=/.idea \
-	--exclude=/tests \
 	--exclude=.git \
 	--exclude=/.github \
-	--exclude=/.babelrc.js \
-	--exclude=/.drone.yml \
+	--exclude=/.gitignore \
+	--exclude=/.l10nignore \
+	--exclude=/.tx \
+	--exclude=/.idea \
 	--exclude=/.eslintrc.js \
-	--exclude=/cypress.config.js \
-	--exclude=/stylelint.config.js \
+	--exclude=/.php-cs-fixer.cache \
+	--exclude=/.php-cs-fixer.dist.php \
+	--exclude=/build \
+	--exclude=/babel.config.js \
+	--exclude=/build-package.sh \
 	--exclude=/composer.json \
 	--exclude=/composer.lock \
-	--exclude=/src \
+	--exclude=/deploy.sh \
+	--exclude=/docs \
 	--exclude=/node_modules \
-	--exclude=/webpack.*.js \
 	--exclude=/package.json \
 	--exclude=/package-lock.json \
-	--exclude=/l10n/l10n.pl \
-	--exclude=/CONTRIBUTING.md \
-	--exclude=/issue_template.md \
-	--exclude=/krankerl.toml \
+	--exclude=/psalm.xml \
+	--exclude=/REUSE.toml \
 	--exclude=/README.md \
-	--exclude=/.gitattributes \
-	--exclude=/.gitignore \
-	--exclude=/.scrutinizer.yml \
-	--exclude=/.travis.yml \
+	--exclude=/src \
+	--exclude=/stylelint.config.js \
+	--exclude=/tests \
+	--exclude=/translationfiles \
+	--exclude=/vitest.config.js \
+	--exclude=/webpack.*.js \
 	--exclude=/Makefile \
+	--exclude=js/*.map \
 	$(project_dir)/ $(sign_dir)/$(app_name)
 	tar -czf $(build_dir)/$(app_name).tar.gz \
 		-C $(sign_dir) $(app_name)

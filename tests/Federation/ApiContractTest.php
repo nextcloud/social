@@ -44,7 +44,7 @@ class ApiContractTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 		Stream::resetReplyParentCache();
 		\OC::$server->reset();
 	}

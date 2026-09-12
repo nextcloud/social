@@ -245,7 +245,7 @@ class PollService {
 
 	private function federateVote(Person $viewer, Question $poll, string $option, Person $author): void {
 		/** @var Note $note */
-		$note = AP::$activityPub->getItemFromType(Note::TYPE);
+		$note = AP::instance()->getItemFromType(Note::TYPE);
 		$note->setId($viewer->getId() . '/vote/' . $this->uuid(8));
 		$note->setName($option);
 		$note->setInReplyTo($poll->getId());
@@ -255,7 +255,7 @@ class PollService {
 		$note->setLocal(true);
 
 		/** @var Create $create */
-		$create = AP::$activityPub->getItemFromType(Create::TYPE);
+		$create = AP::instance()->getItemFromType(Create::TYPE);
 		$create->generateUniqueIdFromActor($viewer->getId(), 'vote');
 		$create->setActor($viewer);
 		$create->setObject($note);

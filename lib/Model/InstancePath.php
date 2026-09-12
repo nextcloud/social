@@ -36,13 +36,6 @@ class InstancePath implements JsonSerializable {
 	private int $type = 0;
 	private int $priority = 0;
 
-	/**
-	 * InstancePath constructor.
-	 *
-	 * @param string $uri
-	 * @param int $type
-	 * @param int $priority
-	 */
 	public function __construct(string $uri = '', int $type = 0, int $priority = 0) {
 		$this->uri = $uri;
 		$this->type = $type;

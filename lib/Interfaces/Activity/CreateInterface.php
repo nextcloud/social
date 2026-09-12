@@ -22,7 +22,7 @@ class CreateInterface extends AbstractActivityPubInterface implements IActivityP
 		$object = $item->getObject();
 
 		try {
-			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
+			$service = AP::instance()->getInterfaceForItem($item->getObject());
 			$service->activity($item, $object);
 		} catch (ItemUnknownException $e) {
 		}

@@ -91,13 +91,6 @@ class Request implements JsonSerializable {
 	/** @var string */
 	private $contentType = '';
 
-	/**
-	 * Request constructor.
-	 *
-	 * @param string $url
-	 * @param int $type
-	 * @param bool $binary
-	 */
 	public function __construct(string $url = '', int $type = 0, bool $binary = false) {
 		$this->url = $url;
 		$this->type = $type;
@@ -597,7 +590,10 @@ class Request implements JsonSerializable {
 	 * @return string
 	 */
 	public function getDataBody(): string {
-		return json_encode($this->getData(), JSON_UNESCAPED_SLASHES);
+		// json_encode() answers false on malformed input -- a resource, or a
+		// string that is not valid UTF-8 -- and the declared string return then
+		// raised a TypeError from whichever caller built the body
+		return (string)json_encode($this->getData(), JSON_UNESCAPED_SLASHES);
 	}
 
 	/**
@@ -609,7 +605,9 @@ class Request implements JsonSerializable {
 			return '';
 		}
 
-		return preg_replace(
+		// preg_replace() answers null if the pattern fails; the declared string
+		// return turned that into a TypeError rather than an empty query string
+		return (string)preg_replace(
 			'/([(%5B)]{1})[0-9]+([(%5D)]{1})/', '$1$2', http_build_query($this->getData())
 		);
 	}
@@ -623,7 +621,7 @@ class Request implements JsonSerializable {
 			return '';
 		}
 
-		return preg_replace(
+		return (string)preg_replace(
 			'/([(%5B)]{1})[0-9]+([(%5D)]{1})/', '$1$2', http_build_query($this->getParams())
 		);
 	}

@@ -27,11 +27,6 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 	private string $followIdPrim = '';
 	private bool $accepted = false;
 
-	/**
-	 * Follow constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 

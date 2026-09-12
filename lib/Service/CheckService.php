@@ -43,41 +43,24 @@ class CheckService {
 
 	public const CACHE_PREFIX = 'social_check_';
 
-	private IUserManager $userManager;
-	private ICache $cache;
-	private IConfig $config;
-	private IClientService $clientService;
-	private IRequest $request;
-	private IURLGenerator $urlGenerator;
-	private FollowsRequest $followRequest;
-	private CacheActorsRequest $cacheActorsRequest;
-	private StreamDestRequest $streamDestRequest;
-	private StreamRequest $streamRequest;
-	private AccountService $accountService;
-	private ConfigService $configService;
-	private MiscService $miscService;
 	private ?string $userId = null;
 
 	public function __construct(
-		IUserManager $userManager, ?string $userId, ICache $cache, IConfig $config, IClientService $clientService,
-		IRequest $request, IURLGenerator $urlGenerator, FollowsRequest $followRequest,
-		CacheActorsRequest $cacheActorsRequest, StreamDestRequest $streamDestRequest,
-		StreamRequest $streamRequest, AccountService $accountService, ConfigService $configService,
-		MiscService $miscService,
+		private IUserManager $userManager,
+		?string $userId,
+		private ICache $cache,
+		private IConfig $config,
+		private IClientService $clientService,
+		private IRequest $request,
+		private IURLGenerator $urlGenerator,
+		private FollowsRequest $followRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private StreamDestRequest $streamDestRequest,
+		private StreamRequest $streamRequest,
+		private AccountService $accountService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 	) {
-		$this->userManager = $userManager;
-		$this->cache = $cache;
-		$this->config = $config;
-		$this->clientService = $clientService;
-		$this->request = $request;
-		$this->urlGenerator = $urlGenerator;
-		$this->followRequest = $followRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->streamDestRequest = $streamDestRequest;
-		$this->streamRequest = $streamRequest;
-		$this->accountService = $accountService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 		$this->userId = $userId;
 	}
 

@@ -263,7 +263,7 @@ export default {
 	.icon-close {
 		position: absolute;
 		top: 12px;
-		right: 12px;
+		inset-inline-end: 12px;
 		padding: 12px;
 		border-radius: 8px;
 		color: var(--color-text-lighter);
@@ -285,7 +285,7 @@ export default {
 		border-top: 1px solid var(--color-border);
 
 		input[type=button] {
-			float: right;
+			float: inline-end;
 		}
 	}
 }

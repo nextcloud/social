@@ -35,18 +35,18 @@ class QueueController extends Controller {
 
 	private RequestQueueService $requestQueueService;
 	private ActivityService $activityService;
-	private MiscService $miscService;
 	private LoggerInterface $logger;
 
 	public function __construct(
-		IRequest $request, RequestQueueService $requestQueueService, ActivityService $activityService,
-		MiscService $miscService, LoggerInterface $logger,
+		IRequest $request,
+		RequestQueueService $requestQueueService,
+		ActivityService $activityService,
+		private MiscService $miscService,
+		LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
 		$this->requestQueueService = $requestQueueService;
 		$this->activityService = $activityService;
-		$this->miscService = $miscService;
 		$this->logger = $logger;
 	}
 

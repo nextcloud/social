@@ -76,6 +76,18 @@ class NotificationService {
 	/** How many rows one pass of clear() removes before asking for the next. */
 	private const CLEAR_PAGE = ProbeOptions::MAX_LIMIT;
 
+	/**
+	 * The most notifications one clear() call will dismiss.
+	 *
+	 * Each one costs two queries -- a delete and a withdrawal from Nextcloud's
+	 * own notification manager -- and the loop was bounded only by how many the
+	 * viewer had. An account with a large backlog could therefore spend an
+	 * unbounded HTTP request doing it, and time out having cleared some
+	 * unknowable fraction anyway. Stopping at a known point and saying so is the
+	 * same outcome, minus the timeout: a client that wants the rest calls again.
+	 */
+	private const CLEAR_MAX = 5000;
+
 	public function __construct(
 		private StreamRequest $streamRequest,
 		private StreamService $streamService,
@@ -115,7 +127,7 @@ class NotificationService {
 	 */
 	public function onStatusEdited(Stream $post): void {
 		try {
-			$interface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 		} catch (Exception $e) {
 			return;
 		}
@@ -135,7 +147,7 @@ class NotificationService {
 
 			try {
 				/** @var SocialAppNotification $item */
-				$item = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+				$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 				$item->setDetailItem('post', $post);
 				$item->addDetail('account', $author);
 				$item->setAttributedTo($post->getAttributedTo())
@@ -199,13 +211,15 @@ class NotificationService {
 	 * Paged, with a cursor that only ever moves down: the rows are deleted as
 	 * they are read, so re-asking for the first page would work too, but a
 	 * delete that silently matched nothing would then loop forever.
+	 *
+	 * Stops at CLEAR_MAX and leaves the rest for the next call.
 	 */
 	public function clear(Person $viewer): int {
 		$cleared = 0;
 		$maxId = 0;
 
-		while (true) {
-			$page = $this->page($viewer, self::CLEAR_PAGE, $maxId);
+		while ($cleared < self::CLEAR_MAX) {
+			$page = $this->page($viewer, min(self::CLEAR_PAGE, self::CLEAR_MAX - $cleared), $maxId);
 			if ($page === []) {
 				return $cleared;
 			}
@@ -217,6 +231,14 @@ class NotificationService {
 				$cleared++;
 			}
 		}
+
+		$this->logger->info(
+			'stopped clearing notifications at the per-call ceiling of ' . self::CLEAR_MAX
+			. '; the account has more left to dismiss',
+			['actor' => $viewer->getId()]
+		);
+
+		return $cleared;
 	}
 
 	/**

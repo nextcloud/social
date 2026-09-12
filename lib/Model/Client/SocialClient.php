@@ -41,9 +41,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	//	/** @var array */
 	//	private $tokenScopes = [];
 
-	/**
-	 * SocialClient constructor.
-	 */
 	public function __construct() {
 	}
 

@@ -66,7 +66,7 @@ class InteropRegressionTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 
@@ -106,20 +106,20 @@ class InteropRegressionTest extends TestCase {
 	public function testANonPersonActorHasAnInterfaceThatCanCacheIt(
 		string $fixture, string $model, string $interface,
 	): void {
-		$actor = AP::$activityPub->getItemFromData($this->fixture($fixture));
+		$actor = AP::instance()->getItemFromData($this->fixture($fixture));
 
 		$this->assertInstanceOf($model, $actor);
-		$this->assertTrue(AP::$activityPub->isActor($actor));
+		$this->assertTrue(AP::instance()->isActor($actor));
 		$this->assertSame(
 			$this->apInterface($interface),
-			AP::$activityPub->getInterfaceForItem($actor),
+			AP::instance()->getInterfaceForItem($actor),
 			'without this the actor is never stored'
 		);
 	}
 
 	public function testALemmyCommunityKeepsTheFieldsNeededToDeliverToIt(): void {
 		/** @var Person $actor */
-		$actor = AP::$activityPub->getItemFromData($this->fixture('lemmy-group-actor'));
+		$actor = AP::instance()->getItemFromData($this->fixture('lemmy-group-actor'));
 
 		$this->assertSame('https://lemmy.world/c/technology', $actor->getId());
 		$this->assertSame('technology', $actor->getPreferredUsername());
@@ -130,7 +130,7 @@ class InteropRegressionTest extends TestCase {
 
 	public function testAMastodonInstanceActorCarriesItsKey(): void {
 		/** @var Person $actor */
-		$actor = AP::$activityPub->getItemFromData($this->fixture('mastodon-instance-actor'));
+		$actor = AP::instance()->getItemFromData($this->fixture('mastodon-instance-actor'));
 
 		$this->assertSame('https://mastodon.social/actor', $actor->getId());
 		$this->assertStringContainsString('BEGIN PUBLIC KEY', $actor->getPublicKey());
@@ -170,7 +170,7 @@ class InteropRegressionTest extends TestCase {
 	public function testAnObjectTypeRealServersPostArrivesAsAStatus(
 		string $fixture, string $wireType, string $objectId, string $author,
 	): void {
-		$item = AP::$activityPub->getItemFromData($this->fixture($fixture));
+		$item = AP::instance()->getItemFromData($this->fixture($fixture));
 
 		$this->assertInstanceOf(Create::class, $item);
 		$this->assertTrue($item->hasObject(), 'the object used to be dropped entirely');
@@ -185,13 +185,13 @@ class InteropRegressionTest extends TestCase {
 		$this->assertSame($author, $object->getAttributedTo());
 		$this->assertSame(
 			$this->apInterface(NoteInterface::class),
-			AP::$activityPub->getInterfaceForItem($object)
+			AP::instance()->getInterfaceForItem($object)
 		);
 	}
 
 	public function testAVideoKeepsItsDescriptionAndAnEventFallsBackToItsTitle(): void {
 		/** @var Note $video */
-		$video = AP::$activityPub->getItemFromData($this->fixture('peertube-create-video'))->getObject();
+		$video = AP::instance()->getItemFromData($this->fixture('peertube-create-video'))->getObject();
 		$this->assertSame('<p>A talk about federation.</p>', $video->getContent());
 		// a video's watch page is a different URL from its id, so it is linked
 		$this->assertSame('https://peertube.example/w/6f4c1e1a', $video->getUrl());
@@ -200,7 +200,7 @@ class InteropRegressionTest extends TestCase {
 		// empty post, so the title becomes the content — the same substitution
 		// Mastodon makes
 		/** @var Note $event */
-		$event = AP::$activityPub->getItemFromData($this->fixture('mobilizon-create-event'))->getObject();
+		$event = AP::instance()->getItemFromData($this->fixture('mobilizon-create-event'))->getObject();
 		$this->assertSame('<p>Fediverse meetup</p>', $event->getContent());
 	}
 
@@ -209,7 +209,7 @@ class InteropRegressionTest extends TestCase {
 		unset($data['object']['content']);
 
 		/** @var Note $video */
-		$video = AP::$activityPub->getItemFromData($data)->getObject();
+		$video = AP::instance()->getItemFromData($data)->getObject();
 
 		$this->assertStringContainsString('The state of the Fediverse', $video->getContent());
 		$this->assertStringContainsString('https://peertube.example/w/6f4c1e1a', $video->getContent());
@@ -224,7 +224,7 @@ class InteropRegressionTest extends TestCase {
 	 * the peer believed it had granted.
 	 */
 	public function testAnAcceptCarryingOnlyTheFollowsUriStillConfirmsIt(): void {
-		$accept = AP::$activityPub->getItemFromData($this->fixture('linked-accept-follow'));
+		$accept = AP::instance()->getItemFromData($this->fixture('linked-accept-follow'));
 		$accept->setOrigin('gotosocial.example', SignatureService::ORIGIN_HEADER, time());
 
 		$this->assertInstanceOf(Accept::class, $accept);
@@ -263,7 +263,7 @@ class InteropRegressionTest extends TestCase {
 	 * profile never showed a pinned post.
 	 */
 	public function testAMastodonAddPinsThePostToTheAuthorsProfile(): void {
-		$add = AP::$activityPub->getItemFromData($this->fixture('mastodon-add-pinned'));
+		$add = AP::instance()->getItemFromData($this->fixture('mastodon-add-pinned'));
 		$add->setOrigin('mastodon.social', SignatureService::ORIGIN_HEADER, time());
 
 		$this->assertInstanceOf(Add::class, $add);
@@ -293,7 +293,7 @@ class InteropRegressionTest extends TestCase {
 	}
 
 	public function testAMastodonRemoveUnpinsIt(): void {
-		$remove = AP::$activityPub->getItemFromData($this->fixture('mastodon-remove-pinned'));
+		$remove = AP::instance()->getItemFromData($this->fixture('mastodon-remove-pinned'));
 		$remove->setOrigin('mastodon.social', SignatureService::ORIGIN_HEADER, time());
 
 		$this->assertInstanceOf(Remove::class, $remove);

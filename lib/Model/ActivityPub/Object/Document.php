@@ -44,11 +44,6 @@ class Document extends ACore implements JsonSerializable {
 	private array $localCopySize = [0, 0];
 	private array $resizedCopySize = [0, 0];
 
-	/**
-	 * Document constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 

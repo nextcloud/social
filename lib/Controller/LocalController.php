@@ -22,6 +22,7 @@ use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
+use OCA\Social\Security\RemoteAddress;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
@@ -38,7 +39,6 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
-use OCA\Social\Tools\RemoteAddress;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
@@ -68,81 +68,32 @@ class LocalController extends Controller {
 	use TNCDataResponse;
 
 	private ?string $userId = null;
-	private CacheActorService $cacheActorService;
-	private HashtagService $hashtagService;
-	private FollowService $followService;
-	private BoostService $boostService;
-	private LikeService $likeService;
-	private PostService $postService;
-	private StreamService $streamService;
-	private SearchService $searchService;
-	private AccountService $accountService;
-	private DocumentService $documentService;
-	private MiscService $miscService;
-	private ConfigService $configService;
 	private ?Person $viewer = null;
-	private LoggerInterface $logger;
-
-	private ActorService $actorService;
-	private ActivityService $activityService;
-	private CacheDocumentService $cacheDocumentService;
-	private CacheActorsRequest $cacheActorsRequest;
 
 	public function __construct(
 		IRequest $request,
 		?string $userId,
-		AccountService $accountService,
-		CacheActorService $cacheActorService,
-		CacheActorsRequest $cacheActorsRequest,
-		HashtagService $hashtagService,
-		FollowService $followService,
-		PostService $postService,
-		StreamService $streamService,
-		SearchService $searchService,
-		BoostService $boostService,
-		LikeService $likeService,
-		DocumentService $documentService,
-		MiscService $miscService,
-		ConfigService $configService,
-		LoggerInterface $logger,
-		ActorService $actorService,
-		ActivityService $activityService,
-		CacheDocumentService $cacheDocumentService,
+		private AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		private CacheActorsRequest $cacheActorsRequest,
+		private HashtagService $hashtagService,
+		private FollowService $followService,
+		private PostService $postService,
+		private StreamService $streamService,
+		private SearchService $searchService,
+		private BoostService $boostService,
+		private LikeService $likeService,
+		private DocumentService $documentService,
+		private MiscService $miscService,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
+		private ActorService $actorService,
+		private ActivityService $activityService,
+		private CacheDocumentService $cacheDocumentService,
 		private BannerService $bannerService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
 		$this->userId = $userId;
-		$this->cacheActorService = $cacheActorService;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->hashtagService = $hashtagService;
-		$this->accountService = $accountService;
-		$this->streamService = $streamService;
-		$this->searchService = $searchService;
-		$this->postService = $postService;
-		$this->followService = $followService;
-		$this->boostService = $boostService;
-		$this->likeService = $likeService;
-		$this->documentService = $documentService;
-		$this->miscService = $miscService;
-		$this->configService = $configService;
-		$this->logger = $logger;
-		$this->actorService = $actorService;
-		$this->activityService = $activityService;
-		$this->cacheDocumentService = $cacheDocumentService;
-	}
-
-	/**
-	 * Upload file
-	 *
-	 */
-	#[NoAdminRequired]
-	public function uploadAttachement(): DataResponse {
-		try {
-			throw new \BadMethodCallException('uploadAttachment is not implemented yet');
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
 	}
 
 	/**
@@ -392,50 +343,6 @@ class LocalController extends Controller {
 			$this->streamService->deleteLocalItem($note, Note::TYPE);
 
 			return $this->success();
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Create a new boost.
-	 *
-	 */
-	#[NoAdminRequired]
-	public function postBoost(string $postId): DataResponse {
-		try {
-			$this->initViewer(true);
-			$token = '';
-			$announce = $this->boostService->create($this->viewer, $postId, $token);
-
-			return $this->success(
-				[
-					'boost' => $announce,
-					'token' => $token
-				]
-			);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Delete a boost.
-	 *
-	 */
-	#[NoAdminRequired]
-	public function postUnboost(string $postId): DataResponse {
-		try {
-			$this->initViewer(true);
-			$token = '';
-			$announce = $this->boostService->delete($this->viewer, $postId, $token);
-
-			return $this->success(
-				[
-					'boost' => $announce,
-					'token' => $token
-				]
-			);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -793,36 +700,6 @@ class LocalController extends Controller {
 		}
 	}
 
-	#[NoAdminRequired]
-	#[PublicPage]
-	public function accountFollowers(string $username): DataResponse {
-		try {
-			$this->initViewer();
-
-			$actor = $this->getLocalAccountWithCacheFallback($username);
-			$following = $this->followService->getFollowers($actor);
-
-			return $this->success($following);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	#[NoAdminRequired]
-	#[PublicPage]
-	public function accountFollowing(string $username): DataResponse {
-		try {
-			$this->initViewer();
-
-			$actor = $this->getLocalAccountWithCacheFallback($username);
-			$following = $this->followService->getFollowing($actor);
-
-			return $this->success($following);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
 	/**
 	 * Everything known about one account, resolving an unknown handle remotely.
 	 *
@@ -1128,30 +1005,6 @@ class LocalController extends Controller {
 		];
 
 		return $this->success($result);
-	}
-
-	#[NoAdminRequired]
-	public function documentsCache(array $documents): DataResponse {
-		try {
-			$this->initViewer(true);
-
-			$cached = [];
-			foreach ($documents as $id) {
-				try {
-					// a document id is not a capability: only what this viewer
-					// is allowed to see gets cached and described back to them
-					$document = $this->documentService->cacheRemoteDocumentAsViewer(
-						(string)$id, $this->viewer
-					);
-					$cached[] = $document;
-				} catch (Exception $e) {
-				}
-			}
-
-			return $this->success($cached);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
 	}
 
 	/**

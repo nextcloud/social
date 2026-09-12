@@ -20,11 +20,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Add extends ACore implements JsonSerializable {
 	public const TYPE = 'Add';
 
-	/**
-	 * Activity constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 

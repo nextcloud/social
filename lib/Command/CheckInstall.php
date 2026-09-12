@@ -44,30 +44,25 @@ class CheckInstall extends Base {
 	/** how many individual failures the rebuild reports before it only counts them */
 	private const INDEX_ERRORS_SHOWN = 10;
 
-	private StreamRequest $streamRequest;
 	private CacheActorService $cacheActorService;
 	private StreamDestRequest $streamDestRequest;
-	private StreamTagsRequest $streamTagsRequest;
-	private CheckService $checkService;
 	private ConfigService $configService;
-	private MiscService $miscService;
 	private IDBConnection $connection;
 
 	public function __construct(
-		StreamRequest $streamRequest, StreamDestRequest $streamDestRequest,
-		StreamTagsRequest $streamTagsRequest, CacheActorService $cacheActorService,
-		CheckService $checkService, ConfigService $configService,
-		MiscService $miscService, IDBConnection $connection,
+		private StreamRequest $streamRequest,
+		StreamDestRequest $streamDestRequest,
+		private StreamTagsRequest $streamTagsRequest,
+		CacheActorService $cacheActorService,
+		private CheckService $checkService,
+		ConfigService $configService,
+		private MiscService $miscService,
+		IDBConnection $connection,
 	) {
 		parent::__construct();
-
-		$this->streamRequest = $streamRequest;
 		$this->streamDestRequest = $streamDestRequest;
-		$this->streamTagsRequest = $streamTagsRequest;
 		$this->cacheActorService = $cacheActorService;
-		$this->checkService = $checkService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 		$this->connection = $connection;
 	}
 

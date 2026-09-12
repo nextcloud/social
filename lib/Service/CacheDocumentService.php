@@ -51,21 +51,12 @@ class CacheDocumentService {
 	 */
 	public const MAX_PIXELS = 50000000; // 50 MP, ~200 MB decoded
 
-	private IAppData $appData;
-	private CurlService $curlService;
-	private ConfigService $configService;
-	private BlurService $blurService;
-
 	public function __construct(
-		IAppData $appData,
-		CurlService $curlService,
-		BlurService $blurService,
-		ConfigService $configService,
+		private IAppData $appData,
+		private CurlService $curlService,
+		private BlurService $blurService,
+		private ConfigService $configService,
 	) {
-		$this->appData = $appData;
-		$this->curlService = $curlService;
-		$this->blurService = $blurService;
-		$this->configService = $configService;
 	}
 
 	/**

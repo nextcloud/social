@@ -31,7 +31,7 @@ class DeleteInterface extends AbstractActivityPubInterface implements IActivityP
 		if ($item->hasObject()) {
 			$object = $item->getObject();
 			try {
-				$interface = AP::$activityPub->getInterfaceForItem($object);
+				$interface = AP::instance()->getInterfaceForItem($object);
 				$interface->activity($item, $object);
 
 				return;
@@ -51,7 +51,7 @@ class DeleteInterface extends AbstractActivityPubInterface implements IActivityP
 	private function deleteById(string $objectId, string $actorId): void {
 		foreach (self::DELETABLE_TYPES as $type) {
 			try {
-				$interface = AP::$activityPub->getInterfaceFromType($type);
+				$interface = AP::instance()->getInterfaceFromType($type);
 				$object = $interface->getItemById($objectId);
 			} catch (ItemNotFoundException $e) {
 				continue;

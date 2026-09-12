@@ -32,9 +32,6 @@ class StreamDetails implements JsonSerializable {
 	private bool $public = false;
 	private bool $federated = false;
 
-	/**
-	 * StreamDetails constructor.
-	 */
 	public function __construct(?Stream $stream = null) {
 		if ($stream !== null) {
 			$this->stream = $stream;

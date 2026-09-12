@@ -82,7 +82,7 @@ class APTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 
@@ -426,4 +426,37 @@ class APTest extends TestCase {
 
 		$this->ap->getItemFromData($this->nestedAccepts(AP::REDUNDANCY_LIMIT));
 	}
+
+	public function testNothingRunsAtAutoloadTime(): void {
+		// `AP::init();` used to sit at file scope at the bottom of this class,
+		// so merely autoloading AP built all 24 interface services out of the
+		// container -- on every request that touched ActivityPub, whether or not
+		// any of them was wanted.
+		$source = (string)file_get_contents(__DIR__ . '/../lib/AP.php');
+		$afterClass = substr($source, (int)strrpos($source, "\n}"));
+
+		$this->assertSame(
+			'',
+			trim(str_replace('}', '', $afterClass)),
+			'lib/AP.php runs something at file scope again'
+		);
+	}
+
+	public function testTheRegistryIsResolvedLazilyAndOnlyOnce(): void {
+		AP::set(null);
+		$double = $this->createMock(AP::class);
+		AP::set($double);
+
+		$this->assertSame($double, AP::instance());
+		$this->assertSame($double, AP::instance(), 'the registry is rebuilt on every access');
+	}
+
+	public function testTheRegistryCannotBeReachedAroundTheAccessor(): void {
+		// it was a public static, so any code anywhere could reassign it
+		$this->assertFalse(
+			(new \ReflectionClass(AP::class))->hasProperty('activityPub'),
+			'the public mutable static is back'
+		);
+	}
+
 }

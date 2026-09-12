@@ -221,11 +221,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	private static int $quoteDepth = 0;
 
-	/**
-	 * Stream constructor.
-	 *
-	 * @param ?ACore $parent
-	 */
 	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
 	}
@@ -789,7 +784,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 			try {
 				/** @var Document $attachment */
-				$attachment = AP::$activityPub->getItemFromData($item, $this);
+				$attachment = AP::instance()->getItemFromData($item, $this);
 			} catch (Exception $e) {
 				continue;
 			}
@@ -812,7 +807,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			}
 
 			try {
-				$interface = AP::$activityPub->getInterfaceFromType($attachment->getType());
+				$interface = AP::instance()->getInterfaceFromType($attachment->getType());
 			} catch (ItemUnknownException $e) {
 				continue;
 			}

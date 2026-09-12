@@ -31,9 +31,9 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IConfig;
 use OCP\IGroupManager;
-use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -50,45 +50,23 @@ class NavigationController extends Controller {
 	use TNCDataResponse;
 
 	private ?string $userId = null;
-	private IConfig $config;
-	private IURLGenerator $urlGenerator;
-	private AccountService $accountService;
-	private DocumentService $documentService;
-	private ConfigService $configService;
-	private MiscService $miscService;
-	private IL10N $l10n;
-	private CheckService $checkService;
-	private IInitialStateService $initialStateService;
-	private LoggerInterface $logger;
 
 	public function __construct(
-		IL10N $l10n,
+		private IL10N $l10n,
 		IRequest $request,
 		?string $userId,
-		IConfig $config,
-		IInitialStateService $initialStateService,
-		IURLGenerator $urlGenerator,
-		AccountService $accountService,
-		DocumentService $documentService,
-		ConfigService $configService,
-		CheckService $checkService,
-		MiscService $miscService,
-		LoggerInterface $logger,
+		private IConfig $config,
+		private IInitialState $initialState,
+		private IURLGenerator $urlGenerator,
+		private AccountService $accountService,
+		private DocumentService $documentService,
+		private ConfigService $configService,
+		private CheckService $checkService,
+		private MiscService $miscService,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
 		$this->userId = $userId;
-		$this->l10n = $l10n;
-		$this->config = $config;
-		$this->initialStateService = $initialStateService;
-
-		$this->urlGenerator = $urlGenerator;
-		$this->checkService = $checkService;
-		$this->accountService = $accountService;
-		$this->documentService = $documentService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
-		$this->logger = $logger;
 	}
 
 	/**
@@ -146,7 +124,7 @@ class NavigationController extends Controller {
 						]);
 					} else {
 						$this->logger->info('[NavigationController] Returning setup page (admin user)');
-						$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+						$this->initialState->provideInitialState('serverData', $serverData);
 						return new TemplateResponse(Application::APP_ID, 'main');
 					}
 				} else {
@@ -200,7 +178,7 @@ class NavigationController extends Controller {
 		$this->logger->info('[NavigationController] Providing initial state and rendering template', [
 			'serverData' => $serverData
 		]);
-		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+		$this->initialState->provideInitialState('serverData', $serverData);
 		return new TemplateResponse(Application::APP_ID, 'main');
 	}
 

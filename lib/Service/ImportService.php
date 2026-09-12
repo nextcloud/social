@@ -25,23 +25,11 @@ class ImportService {
 	use TArrayTools;
 	use TStringTools;
 
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-	/**
-	 * ImportService constructor.
-	 *
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		ConfigService $configService,
-		MiscService $miscService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 		private ModerationService $moderationService,
 	) {
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**
@@ -59,7 +47,7 @@ class ImportService {
 			throw new ActivityPubFormatException();
 		}
 
-		return AP::$activityPub->getItemFromData($data);
+		return AP::instance()->getItemFromData($data);
 	}
 
 	/**
@@ -83,7 +71,7 @@ class ImportService {
 
 		$activity->setRequestToken($this->uuid());
 
-		$interface = AP::$activityPub->getInterfaceForItem($activity);
+		$interface = AP::instance()->getInterfaceForItem($activity);
 		try {
 			$interface->processIncomingRequest($activity);
 		} catch (InvalidResourceException|ItemNotFoundException|RedundancyLimitException $e) {

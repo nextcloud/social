@@ -239,7 +239,7 @@ class ApiControllerTest extends TestCase {
 			}
 		}
 		$this->tempFiles = [];
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 
@@ -2705,8 +2705,8 @@ class ApiControllerTest extends TestCase {
 			});
 		$interface = $this->createMock(IActivityPubInterface::class);
 		$interface->method('save');
-		AP::$activityPub = $this->createMock(AP::class);
-		AP::$activityPub->method('getInterfaceForItem')->willReturn($interface);
+		AP::set($this->createMock(AP::class));
+		AP::instance()->method('getInterfaceForItem')->willReturn($interface);
 	}
 
 	/**
@@ -2874,8 +2874,8 @@ class ApiControllerTest extends TestCase {
 
 		$interface = $this->createMock(IActivityPubInterface::class);
 		$interface->expects($this->once())->method('save')->with($this->isInstanceOf(Document::class));
-		AP::$activityPub = $this->createMock(AP::class);
-		AP::$activityPub->method('getInterfaceForItem')->willReturn($interface);
+		AP::set($this->createMock(AP::class));
+		AP::instance()->method('getInterfaceForItem')->willReturn($interface);
 
 		$response = $this->controller()->mediaNew();
 
@@ -2916,8 +2916,8 @@ class ApiControllerTest extends TestCase {
 				$saved = $document;
 			});
 		$interface = $this->createMock(IActivityPubInterface::class);
-		AP::$activityPub = $this->createMock(AP::class);
-		AP::$activityPub->method('getInterfaceForItem')->willReturn($interface);
+		AP::set($this->createMock(AP::class));
+		AP::instance()->method('getInterfaceForItem')->willReturn($interface);
 
 		$this->description = 'a cat sleeping on a laptop';
 		$this->controller()->mediaNew();

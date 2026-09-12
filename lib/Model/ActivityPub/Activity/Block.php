@@ -20,11 +20,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Block extends ACore implements JsonSerializable {
 	public const TYPE = 'Block';
 
-	/**
-	 * Block constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 

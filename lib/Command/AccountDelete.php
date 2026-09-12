@@ -20,23 +20,13 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class AccountDelete extends Base {
-	private IUserManager $userManager;
-	private AccountService $accountService;
-	private CacheActorService $cacheActorService;
-	private ConfigService $configService;
-
 	public function __construct(
-		IUserManager $userManager,
-		AccountService $accountService,
-		CacheActorService $cacheActorService,
-		ConfigService $configService,
+		private IUserManager $userManager,
+		private AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		private ConfigService $configService,
 	) {
 		parent::__construct();
-
-		$this->userManager = $userManager;
-		$this->accountService = $accountService;
-		$this->cacheActorService = $cacheActorService;
-		$this->configService = $configService;
 	}
 
 	protected function configure(): void {

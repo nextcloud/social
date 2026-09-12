@@ -72,7 +72,7 @@ class CurlServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	/** CurlService with the network layer replaced: doRequest is answered by $responder(NCRequest): string. */
@@ -384,7 +384,7 @@ class CurlServiceTest extends TestCase {
 		$ap = $this->createMock(AP::class);
 		$ap->method('getItemFromData')->willReturn($actor ?? new Note());
 		$ap->method('isActor')->willReturnCallback(fn ($item) => $item instanceof Person);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 	}
 
 	private function webfingerThenActor(array $actorData): CurlService {

@@ -1020,7 +1020,7 @@ class ApiController extends Controller {
 		$document->setDescription($description);
 
 		$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
-		$service = AP::$activityPub->getInterfaceForItem($document);
+		$service = AP::instance()->getInterfaceForItem($document);
 		$service->save($document);
 
 		$mediaAttachment = $document->convertToMediaAttachment($this->urlGenerator);

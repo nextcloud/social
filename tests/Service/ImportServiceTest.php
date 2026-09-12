@@ -68,7 +68,7 @@ class ImportServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 
@@ -106,7 +106,7 @@ class ImportServiceTest extends TestCase {
 			$this->createMock(QuoteRequestInterface::class),
 			$configService,
 		);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 
 		return $ap;
 	}
@@ -215,7 +215,7 @@ class ImportServiceTest extends TestCase {
 
 	public function testParseIncomingRequestDispatchesToTheInterfaceWithARequestToken(): void {
 		$ap = $this->createMock(AP::class);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$note = $this->incomingNote('remote.example');
 		$interface = $this->createMock(NoteInterface::class);
 		$ap->expects($this->once())->method('getInterfaceForItem')->with($this->identicalTo($note))->willReturn($interface);
@@ -234,7 +234,7 @@ class ImportServiceTest extends TestCase {
 
 	public function testParseIncomingRequestRefusesASuspendedAccount(): void {
 		$ap = $this->createMock(AP::class);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$this->moderationService->method('isSuspended')->willReturn(true);
 
 		// a suspension that let the account keep posting would undo itself
@@ -245,7 +245,7 @@ class ImportServiceTest extends TestCase {
 
 	public function testParseIncomingRequestAcceptsAnAccountUnderNoDecision(): void {
 		$ap = $this->createMock(AP::class);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$this->moderationService->method('isSuspended')->willReturn(false);
 		$interface = $this->createMock(NoteInterface::class);
 		$interface->expects($this->once())->method('processIncomingRequest');
@@ -256,7 +256,7 @@ class ImportServiceTest extends TestCase {
 
 	public function testParseIncomingRequestPropagatesAnUnexpectedFailure(): void {
 		$ap = $this->createMock(AP::class);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$interface = $this->createMock(NoteInterface::class);
 		// A database or other unexpected failure must not be swallowed behind a 200:
 		// it propagates so the inbox answers 5xx and the sender retries.
@@ -269,7 +269,7 @@ class ImportServiceTest extends TestCase {
 
 	public function testParseIncomingRequestToleratesAnUnprocessableActivity(): void {
 		$ap = $this->createMock(AP::class);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$interface = $this->createMock(NoteInterface::class);
 		$interface->method('processIncomingRequest')
 			->willThrowException(new InvalidResourceException('nothing to resolve'));
@@ -283,7 +283,7 @@ class ImportServiceTest extends TestCase {
 
 	public function testParseIncomingRequestRefusesAnIdFromAnotherOrigin(): void {
 		$ap = $this->createMock(AP::class);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$ap->expects($this->never())->method('getInterfaceForItem');
 
 		$this->expectException(InvalidOriginException::class);
@@ -291,7 +291,7 @@ class ImportServiceTest extends TestCase {
 	}
 
 	public function testParseIncomingRequestRefusesAnItemWithoutOrigin(): void {
-		AP::$activityPub = $this->createMock(AP::class);
+		AP::set($this->createMock(AP::class));
 		$note = new Note();
 		$note->setId('https://remote.example/notes/1');
 
@@ -301,7 +301,7 @@ class ImportServiceTest extends TestCase {
 
 	public function testParseIncomingRequestRejectsUnknownInterface(): void {
 		$ap = $this->createMock(AP::class);
-		AP::$activityPub = $ap;
+		AP::set($ap);
 		$ap->method('getInterfaceForItem')->willThrowException(new ItemUnknownException());
 		$person = new Person();
 		$person->setId('https://remote.example/users/bob');

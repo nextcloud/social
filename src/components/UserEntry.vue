@@ -163,7 +163,7 @@ export default {
 			font-size: 13px;
 			line-height: 1.5;
 			color: var(--color-text-lighter);
-			word-wrap: break-word;
+			overflow-wrap: break-word;
 			overflow: hidden;
 			display: -webkit-box;
 			-webkit-line-clamp: 2;

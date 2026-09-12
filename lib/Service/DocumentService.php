@@ -50,43 +50,15 @@ class DocumentService {
 	 */
 	public const ERROR_CONTENT = 4;
 
-	private \OCP\IURLGenerator $urlGenerator;
-
-	private CacheDocumentsRequest $cacheDocumentsRequest;
-
-	private ActorsRequest $actorRequest;
-
-	private StreamRequest $streamRequest;
-
-	private CacheDocumentService $cacheService;
-
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-	/**
-	 * DocumentInterface constructor.
-	 *
-	 * @param IUrlGenerator $urlGenerator
-	 * @param CacheDocumentsRequest $cacheDocumentsRequest
-	 * @param ActorsRequest $actorRequest
-	 * @param StreamRequest $streamRequest
-	 * @param CacheDocumentService $cacheService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		IUrlGenerator $urlGenerator, CacheDocumentsRequest $cacheDocumentsRequest,
-		ActorsRequest $actorRequest, StreamRequest $streamRequest,
-		CacheDocumentService $cacheService, ConfigService $configService, MiscService $miscService,
+		private IUrlGenerator $urlGenerator,
+		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private ActorsRequest $actorRequest,
+		private StreamRequest $streamRequest,
+		private CacheDocumentService $cacheService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 	) {
-		$this->urlGenerator = $urlGenerator;
-		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
-		$this->actorRequest = $actorRequest;
-		$this->streamRequest = $streamRequest;
-		$this->configService = $configService;
-		$this->cacheService = $cacheService;
-		$this->miscService = $miscService;
 	}
 
 	/**
@@ -443,13 +415,13 @@ class DocumentService {
 		$versionCached = $actor->getAvatarVersion();
 		if ($versionCurrent > $versionCached) {
 			/** @var Image $icon */
-			$icon = AP::$activityPub->getItemFromType(Image::TYPE);
+			$icon = AP::instance()->getItemFromType(Image::TYPE);
 			$icon->generateUniqueId('/documents/avatar');
 			$icon->setUrl($url);
 			$icon->setMediaType('');
 			$icon->setLocalCopy('avatar');
 
-			$interface = AP::$activityPub->getInterfaceFromType(Image::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(Image::TYPE);
 			$interface->save($icon);
 
 			$actor->setAvatarVersion($versionCurrent);
@@ -483,7 +455,7 @@ class DocumentService {
 	 */
 	public function cacheLocalHeaderByUsername(Person $actor, string $tmpPath, string $mimeType = 'image/jpeg'): string {
 		/** @var Image $image */
-		$image = AP::$activityPub->getItemFromType(Image::TYPE);
+		$image = AP::instance()->getItemFromType(Image::TYPE);
 		$image->generateUniqueId('/documents/header');
 		$image->setUrl($this->urlGenerator->linkToRouteAbsolute(
 			'social.Local.globalActorHeader', ['id' => $actor->getId()]
@@ -496,7 +468,7 @@ class DocumentService {
 
 		$image->setUrl($image->getMediaUrl($this->urlGenerator, $image->getMimeType()));
 
-		$interface = AP::$activityPub->getInterfaceFromType(Image::TYPE);
+		$interface = AP::instance()->getInterfaceFromType(Image::TYPE);
 		$interface->save($image);
 
 		$actor->setHeader($image->getUrl());

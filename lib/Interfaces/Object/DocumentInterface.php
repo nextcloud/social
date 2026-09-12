@@ -20,15 +20,10 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\CacheDocumentService;
 
 class DocumentInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	protected CacheDocumentService $cacheDocumentService;
-	protected CacheDocumentsRequest $cacheDocumentsRequest;
-
 	public function __construct(
-		CacheDocumentService $cacheDocumentService,
-		CacheDocumentsRequest $cacheDocumentsRequest,
+		protected CacheDocumentService $cacheDocumentService,
+		protected CacheDocumentsRequest $cacheDocumentsRequest,
 	) {
-		$this->cacheDocumentService = $cacheDocumentService;
-		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
 	}
 
 	/**

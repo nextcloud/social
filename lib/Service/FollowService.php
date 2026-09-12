@@ -47,45 +47,20 @@ use Throwable;
 class FollowService {
 	use TArrayTools;
 
-	private IURLGenerator $urlGenerator;
-	private FollowsRequest $followsRequest;
-	private ActorRelationRequest $actorRelationRequest;
-	private ActivityService $activityService;
-	private CacheActorService $cacheActorService;
-	private ConfigService $configService;
-	private FollowInterface $followInterface;
-	private LoggerInterface $logger;
 	private ?Person $viewer = null;
 
-	/**
-	 * FollowService constructor.
-	 *
-	 * @param FollowsRequest $followsRequest
-	 * @param ActivityService $activityService
-	 * @param CacheActorService $cacheActorService
-	 * @param ConfigService $configService
-	 * @param LoggerInterface $logger
-	 */
 	public function __construct(
-		IURLGenerator $urlGenerator,
-		FollowsRequest $followsRequest,
-		ActorRelationRequest $actorRelationRequest,
-		ActivityService $activityService,
-		CacheActorService $cacheActorService,
-		ConfigService $configService,
-		FollowInterface $followInterface,
+		private IURLGenerator $urlGenerator,
+		private FollowsRequest $followsRequest,
+		private ActorRelationRequest $actorRelationRequest,
+		private ActivityService $activityService,
+		private CacheActorService $cacheActorService,
+		private ConfigService $configService,
+		private FollowInterface $followInterface,
 		private ModerationService $moderationService,
 		private AccountRelationService $accountRelationService,
-		LoggerInterface $logger,
+		private LoggerInterface $logger,
 	) {
-		$this->urlGenerator = $urlGenerator;
-		$this->followsRequest = $followsRequest;
-		$this->actorRelationRequest = $actorRelationRequest;
-		$this->activityService = $activityService;
-		$this->cacheActorService = $cacheActorService;
-		$this->configService = $configService;
-		$this->followInterface = $followInterface;
-		$this->logger = $logger;
 	}
 
 	/**
@@ -178,7 +153,7 @@ class FollowService {
 		}
 
 		/** @var Follow $follow */
-		$follow = AP::$activityPub->getItemFromType(Follow::TYPE);
+		$follow = AP::instance()->getItemFromType(Follow::TYPE);
 		$follow->generateUniqueId();
 		$follow->setActorId($actor->getId());
 		$follow->setObjectId($remoteActor->getId());
@@ -241,7 +216,7 @@ class FollowService {
 			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
 
-			$undo = AP::$activityPub->getItemFromType(Undo::TYPE);
+			$undo = AP::instance()->getItemFromType(Undo::TYPE);
 			$follow->setParent($undo);
 			// hung off the local actor, not the cloud root: see
 			// ACore::generateUniqueIdFromActor()

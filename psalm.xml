@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <psalm
     errorLevel="4"
+    findUnusedCode="false"
+    findUnusedBaselineEntry="true"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns="https://getpsalm.org/schema/config"
     xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
@@ -22,17 +24,15 @@
 		</ignoreFiles>
 	</extraFiles>
 	<issueHandlers>
-		<UndefinedClass>
+		<!--
+			#[\Override] is PHP 8.3+, and appinfo/info.xml declares 8.1 as the
+			floor, so the attribute Psalm wants here cannot be written yet.
+		-->
+		<MissingOverrideAttribute>
 			<errorLevel type="suppress">
-				<referencedClass name="OC" />
-				<referencedClass name="OC\DB\Connection" />
-				<referencedClass name="Symfony\Component\EventDispatcher\GenericEvent" />
-				<referencedClass name="Symfony\Component\Console\Helper\ProgressBar" />
-				<referencedClass name="Symfony\Component\Console\Question\Question" />
-				<referencedClass name="Symfony\Component\Console\Output\ConsoleOutput" />
-				<referencedClass name="OCA\Social\Service\Exception"/>
+				<directory name="lib" />
 			</errorLevel>
-		</UndefinedClass>
+		</MissingOverrideAttribute>
 		<UndefinedDocblockClass>
 			<errorLevel type="suppress">
 				<referencedClass name="Doctrine\DBAL\Schema\Schema" />
@@ -43,35 +43,10 @@
 				<referencedClass name="Symfony\Component\EventDispatcher\EventDispatcherInterface" />
 			</errorLevel>
 		</UndefinedDocblockClass>
-		<InvalidTemplateParam>
-			<errorLevel type="suppress">
-				<file name="lib/Controller/ActivityPubController.php"/>
-			</errorLevel>
-		</InvalidTemplateParam>
 		<TypeDoesNotContainNull>
 			<errorLevel type="suppress">
 				<file name="lib/Service/StreamService.php"/>
 			</errorLevel>
 		</TypeDoesNotContainNull>
-		<UndefinedThisPropertyAssignment>
-			<errorLevel type="suppress">
-				<file name="lib/Service/AccountService.php"/>
-			</errorLevel>
-		</UndefinedThisPropertyAssignment>
-		<UndefinedThisPropertyFetch>
-			<errorLevel type="suppress">
-				<file name="lib/Service/AccountService.php"/>
-			</errorLevel>
-		</UndefinedThisPropertyFetch>
-		<UndefinedMethod>
-			<errorLevel type="suppress">
-				<file name="lib/Service/AccountService.php"/>
-			</errorLevel>
-		</UndefinedMethod>
-		<UndefinedConstant>
-			<errorLevel type="suppress">
-				<file name="lib/Service/AccountService.php"/>
-			</errorLevel>
-		</UndefinedConstant>
 	</issueHandlers>
 </psalm>

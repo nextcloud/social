@@ -50,28 +50,15 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
  * @package OCA\Social\Interfaces\Object
  */
 class FollowInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	private FollowsRequest $followsRequest;
-	private ActorRelationRequest $actorRelationRequest;
-	private ActorsRequest $actorsRequest;
-	private CacheActorService $cacheActorService;
-	private AccountService $accountService;
-	private ActivityService $activityService;
-	private MiscService $miscService;
-
 	public function __construct(
-		FollowsRequest $followsRequest, ActorRelationRequest $actorRelationRequest,
-		ActorsRequest $actorsRequest,
-		CacheActorService $cacheActorService,
-		AccountService $accountService, ActivityService $activityService,
-		MiscService $miscService,
+		private FollowsRequest $followsRequest,
+		private ActorRelationRequest $actorRelationRequest,
+		private ActorsRequest $actorsRequest,
+		private CacheActorService $cacheActorService,
+		private AccountService $accountService,
+		private ActivityService $activityService,
+		private MiscService $miscService,
 	) {
-		$this->followsRequest = $followsRequest;
-		$this->actorRelationRequest = $actorRelationRequest;
-		$this->actorsRequest = $actorsRequest;
-		$this->cacheActorService = $cacheActorService;
-		$this->accountService = $accountService;
-		$this->activityService = $activityService;
-		$this->miscService = $miscService;
 	}
 
 	/**
@@ -98,7 +85,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
 
 			/** @var Reject $reject */
-			$reject = AP::$activityPub->getItemFromType(Reject::TYPE);
+			$reject = AP::instance()->getItemFromType(Reject::TYPE);
 			// hung off the local actor, not the cloud root: see
 			// ACore::generateUniqueIdFromActor()
 			$reject->generateUniqueIdFromActor($follow->getObjectId(), 'reject/follows');
@@ -125,7 +112,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		try {
 			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
 
-			$accept = AP::$activityPub->getItemFromType(Accept::TYPE);
+			$accept = AP::instance()->getItemFromType(Accept::TYPE);
 			$accept->generateUniqueIdFromActor($follow->getObjectId(), 'accept/follows');
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
@@ -264,7 +251,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	 */
 	private function generateNotification(Follow $follow, bool $pending = false): void {
 		/** @var SocialAppNotificationInterface $notificationInterface */
-		$notificationInterface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$notificationInterface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$follower = $this->cacheActorService->getFromId($follow->getActorId());
@@ -273,7 +260,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 
 		/** @var SocialAppNotification $notification */
-		$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+		$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 		$notification->setDetail('url', $follower->getId());
 		$notification->setDetail('account', $follower->getAccount());
 		$notification->setDetailItem('actor', $follower);

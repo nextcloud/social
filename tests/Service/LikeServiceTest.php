@@ -84,7 +84,7 @@ class LikeServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	/**
@@ -104,7 +104,7 @@ class LikeServiceTest extends TestCase {
 			}
 			$args[] = $mock;
 		}
-		AP::$activityPub = new AP(...$args);
+		AP::set(new AP(...$args));
 	}
 
 	private function alice(): Person {

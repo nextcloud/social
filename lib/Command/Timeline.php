@@ -29,36 +29,16 @@ use Symfony\Component\Console\Output\OutputInterface;
  * @package OCA\Social\Command
  */
 class Timeline extends ExtendedBase {
-	private IUserManager $userManager;
-	private StreamRequest $streamRequest;
-	private AccountService $accountService;
-	private CacheActorService $cacheActorService;
-	private ConfigService $configService;
-
 	private ?int $count = null;
 
-	/**
-	 * Timeline constructor.
-	 *
-	 * @param IUserManager $userManager
-	 * @param StreamRequest $streamRequest
-	 * @param AccountService $accountService
-	 * @param ConfigService $configService
-	 */
 	public function __construct(
-		IUserManager $userManager,
-		StreamRequest $streamRequest,
-		AccountService $accountService,
-		CacheActorService $cacheActorService,
-		ConfigService $configService,
+		private IUserManager $userManager,
+		private StreamRequest $streamRequest,
+		private AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		private ConfigService $configService,
 	) {
 		parent::__construct();
-
-		$this->userManager = $userManager;
-		$this->streamRequest = $streamRequest;
-		$this->accountService = $accountService;
-		$this->cacheActorService = $cacheActorService;
-		$this->configService = $configService;
 	}
 
 	/**

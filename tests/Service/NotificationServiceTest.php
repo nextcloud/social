@@ -196,7 +196,7 @@ class NotificationServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	/** @var array<string, array> what each notification mock was told, keyed by its spl id */

@@ -920,7 +920,7 @@ function nodeToPlainText(node) {
 			.post-author-id {
 				font-size: 13px;
 				color: var(--color-text-lighter);
-				margin-left: 6px;
+				margin-inline-start: 6px;
 				overflow: hidden;
 				text-overflow: ellipsis;
 				white-space: nowrap;
@@ -966,7 +966,7 @@ function nodeToPlainText(node) {
 			font-family: inherit;
 			font-weight: normal;
 			font-size: 12px;
-			text-align: right;
+			text-align: end;
 			color: var(--color-text-lighter);
 			white-space: nowrap;
 			cursor: pointer;
@@ -989,7 +989,7 @@ function nodeToPlainText(node) {
 
 	.post-message {
 		margin-bottom: 10px;
-		word-wrap: break-word;
+		overflow-wrap: break-word;
 		overflow: visible;
 
 		:deep(p) {
@@ -1077,7 +1077,7 @@ function nodeToPlainText(node) {
 		}
 
 		.post-edit-count {
-			margin-right: auto;
+			margin-inline-end: auto;
 			font-size: 12px;
 			color: var(--color-text-lighter);
 
@@ -1178,7 +1178,7 @@ function nodeToPlainText(node) {
 		}
 
 		:deep(.actions) {
-			margin-left: auto;
+			margin-inline-start: auto;
 		}
 	}
 }
@@ -1203,7 +1203,7 @@ function nodeToPlainText(node) {
 .post-action__burst {
 	position: absolute;
 	top: 50%;
-	left: 22px;
+	inset-inline-start: 22px;
 	width: 20px;
 	height: 20px;
 	margin: -10px 0 0 -10px;
@@ -1237,7 +1237,7 @@ function nodeToPlainText(node) {
 
 .post-instance {
 	flex-shrink: 0;
-	margin-left: 6px;
+	margin-inline-start: 6px;
 	padding: 1px 7px;
 	border-radius: var(--border-radius-pill, 10px);
 	font-size: 11px;

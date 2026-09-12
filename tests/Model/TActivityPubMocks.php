@@ -39,8 +39,8 @@ use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Builds an AP dispatcher whose 23 interfaces are mocks, so model code that
- * reaches AP::$activityPub can run without a server. Tests using it must reset
- * AP::$activityPub to null in tearDown().
+ * reaches the AP registry can run without a server. Tests using it must clear
+ * that registry with AP::set(null) in tearDown().
  */
 trait TActivityPubMocks {
 	/**
@@ -105,9 +105,9 @@ trait TActivityPubMocks {
 
 	/** Installs a fresh AP as the global dispatcher the models reach for. */
 	protected function installActivityPub(?string $cloudUrl = null): AP {
-		AP::$activityPub = $this->createActivityPub($cloudUrl);
+		AP::set($this->createActivityPub($cloudUrl));
 
-		return AP::$activityPub;
+		return AP::instance();
 	}
 
 	/**

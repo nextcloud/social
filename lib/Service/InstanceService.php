@@ -61,11 +61,6 @@ class InstanceService {
 	public const STATS_CACHE_KEY = 'instance_stats';
 	public const STATS_CACHE_SECONDS = 300;
 
-	private InstancesRequest $instancesRequest;
-	private ConfigService $configService;
-	private MiscService $miscService;
-	private IConfig $config;
-
 	/** @var string[]|null memoised: filterMimeTypes() does not change mid-request */
 	private ?array $supportedMimeTypes = null;
 
@@ -73,19 +68,15 @@ class InstanceService {
 	private ?array $countedStats = null;
 
 	public function __construct(
-		InstancesRequest $instancesRequest,
-		ConfigService $configService,
-		MiscService $miscService,
-		IConfig $config,
+		private InstancesRequest $instancesRequest,
+		private ConfigService $configService,
+		private MiscService $miscService,
+		private IConfig $config,
 		private IURLGenerator $urlGenerator,
 		private IUserManager $userManager,
 		private CacheDocumentService $cacheDocumentService,
 		private InstanceStatsRequest $instanceStatsRequest,
 	) {
-		$this->instancesRequest = $instancesRequest;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
-		$this->config = $config;
 	}
 
 	public function createLocal(): Instance {

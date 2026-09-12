@@ -75,26 +75,11 @@ class RequestQueueService {
 
 	use TArrayTools;
 
-	private RequestQueueRequest $requestQueueRequest;
-
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-	/**
-	 * RequestQueueService constructor.
-	 *
-	 * @param RequestQueueRequest $requestQueueRequest
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		RequestQueueRequest $requestQueueRequest, ConfigService $configService,
-		MiscService $miscService,
+		private RequestQueueRequest $requestQueueRequest,
+		private ConfigService $configService,
+		private MiscService $miscService,
 	) {
-		$this->requestQueueRequest = $requestQueueRequest;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**

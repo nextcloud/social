@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="5.26.1@d747f6500b38ac4f7dfc5edbcae6e4b637d7add0">
+<files psalm-version="6.17.0@056992a902704e2b691d33f9bfe4a063e43c79f2">
+  <file src="lib/Command/Benchmark.php">
+    <InvalidOperand>
+      <code><![CDATA[(microtime(true) - $start) * 1000]]></code>
+    </InvalidOperand>
+  </file>
   <file src="lib/Model/ActivityPub/ACore.php">
     <InvalidClass>
       <code><![CDATA[Acore]]></code>
     </InvalidClass>
     <InvalidNullableReturnType>
-      <code><![CDATA[ACore]]></code>
       <code><![CDATA[ACore]]></code>
     </InvalidNullableReturnType>
     <InvalidPropertyAssignmentValue>
@@ -17,21 +21,6 @@
     <TypeDoesNotContainNull>
       <code><![CDATA[$v === null]]></code>
     </TypeDoesNotContainNull>
-    <TypeDoesNotContainType>
-      <code><![CDATA[$v === 0]]></code>
-      <code><![CDATA[$v === 0]]></code>
-    </TypeDoesNotContainType>
-  </file>
-  <file src="lib/Db/CoreRequestBuilder.php">
-    <UndefinedMethod>
-      <code><![CDATA[dropTable]]></code>
-      <code><![CDATA[hasTable]]></code>
-      <code><![CDATA[hasTable]]></code>
-    </UndefinedMethod>
-    <InvalidArgument>
-      <code><![CDATA[Server::get(Connection::class)]]></code>
-      <code><![CDATA[Server::get(Connection::class)]]></code>
-    </InvalidArgument>
   </file>
   <file src="lib/Service/CheckService.php">
     <RedundantCast>
@@ -41,29 +30,20 @@
       <code><![CDATA[ClientException]]></code>
     </UndefinedClass>
   </file>
-  <file src="lib/Service/CurlService.php">
+  <file src="lib/Service/StreamQueueService.php">
     <InvalidOperand>
-      <code><![CDATA[$this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE)]]></code>
-    </InvalidOperand>
-    <TypeDoesNotContainType>
-      <code><![CDATA[$this->maxDownloadSizeReached === true]]></code>
-    </TypeDoesNotContainType>
-  </file>
-  <file src="lib/Service/PostService.php">
-    <TypeDoesNotContainType>
-      <code><![CDATA[is_array($_FILES['attachments']['error'])]]></code>
-    </TypeDoesNotContainType>
-  </file>
-  <file src="lib/Service/SearchService.php">
-    <InvalidOperand>
-      <code><![CDATA[!$type]]></code>
-      <code><![CDATA[!$type]]></code>
-      <code><![CDATA[!$type]]></code>
+      <code><![CDATA[time() - $delay]]></code>
     </InvalidOperand>
   </file>
-  <file src="lib/Service/SignatureService.php">
-    <RedundantCondition>
-      <code><![CDATA[$varr[0] !== null]]></code>
-    </RedundantCondition>
+  <file src="lib/Tools/Traits/TAsync.php">
+    <InvalidOperand>
+      <code><![CDATA[$size]]></code>
+    </InvalidOperand>
+  </file>
+  <file src="lib/UserMigration/SocialMigrator.php">
+    <InvalidOperand>
+      <code><![CDATA[$size += ($this->followsRequest->countFollowing($actor->getId())
+			+ $this->followsRequest->countFollowers($actor->getId())) / 25]]></code>
+    </InvalidOperand>
   </file>
 </files>
