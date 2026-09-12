@@ -171,7 +171,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface
-			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			= AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(
@@ -183,7 +183,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 			$this->notificationService->onNotification($notification, $author->getId());
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
-			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+			$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 			//			$notification->setDetail('url', '');
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('accounts', $author->getAccount());
@@ -210,7 +210,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface
-			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			= AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(

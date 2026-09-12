@@ -209,7 +209,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$as = $this->get('type', $data, Stream::TYPE);
 
 		/** @var Stream $item */
-		$item = AP::$activityPub->getItemFromType($as);
+		$item = AP::instance()->getItemFromType($as);
 		$item->importFromDatabase($data);
 		$item->setExportFormat($qb->getFormat());
 		$instances = json_decode($this->get('instances', $data, '[]'), true);

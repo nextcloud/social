@@ -115,7 +115,7 @@ class NotificationService {
 	 */
 	public function onStatusEdited(Stream $post): void {
 		try {
-			$interface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 		} catch (Exception $e) {
 			return;
 		}
@@ -135,7 +135,7 @@ class NotificationService {
 
 			try {
 				/** @var SocialAppNotification $item */
-				$item = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+				$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 				$item->setDetailItem('post', $post);
 				$item->addDetail('account', $author);
 				$item->setAttributedTo($post->getAttributedTo())

@@ -261,7 +261,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface
-			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			= AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(
@@ -273,7 +273,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			$this->notificationService->onNotification($notification, $author->getId());
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
-			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+			$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 			//			$notification->setDetail('url', '');
 
 			$notification->setDetailItem('post', $post);
@@ -301,7 +301,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface
-			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+			= AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(

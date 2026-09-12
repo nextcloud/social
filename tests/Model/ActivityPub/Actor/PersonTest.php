@@ -41,7 +41,7 @@ class PersonTest extends TestCase {
 
 	protected function tearDown(): void {
 		date_default_timezone_set($this->timezone);
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 

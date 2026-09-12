@@ -178,7 +178,7 @@ class FollowService {
 		}
 
 		/** @var Follow $follow */
-		$follow = AP::$activityPub->getItemFromType(Follow::TYPE);
+		$follow = AP::instance()->getItemFromType(Follow::TYPE);
 		$follow->generateUniqueId();
 		$follow->setActorId($actor->getId());
 		$follow->setObjectId($remoteActor->getId());
@@ -241,7 +241,7 @@ class FollowService {
 			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
 
-			$undo = AP::$activityPub->getItemFromType(Undo::TYPE);
+			$undo = AP::instance()->getItemFromType(Undo::TYPE);
 			$follow->setParent($undo);
 			// hung off the local actor, not the cloud root: see
 			// ACore::generateUniqueIdFromActor()

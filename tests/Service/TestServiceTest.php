@@ -33,7 +33,7 @@ class TestServiceTest extends TestCase {
 
 	protected function setUp(): void {
 		$this->curlService = $this->createMock(CurlService::class);
-		AP::$activityPub = $this->createMock(AP::class);
+		AP::set($this->createMock(AP::class));
 		$this->service = new TestService(
 			$this->curlService,
 			$this->createMock(ConfigService::class),
@@ -42,7 +42,7 @@ class TestServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	/** @return array<string, array{string}> */

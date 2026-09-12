@@ -127,8 +127,8 @@ class CacheActorService {
 			$this->logger->debug('object retrieved', ['id' => $id, 'object' => $object]);
 
 			/** @var Person $actor */
-			$actor = AP::$activityPub->getItemFromData($object);
-			if (!AP::$activityPub->isActor($actor)) {
+			$actor = AP::instance()->getItemFromData($object);
+			if (!AP::instance()->isActor($actor)) {
 				throw new InvalidResourceException();
 			}
 
@@ -359,7 +359,7 @@ class CacheActorService {
 		try {
 			$object = $this->curlService->retrieveObject($id);
 			/** @var OrderedCollection $collection */
-			$collection = AP::$activityPub->getItemFromData($object);
+			$collection = AP::instance()->getItemFromData($object);
 		} catch (Exception $e) {
 			throw new InvalidResourceException();
 		}
@@ -378,7 +378,7 @@ class CacheActorService {
 	 */
 	private function save(Person $actor) {
 		try {
-			$interface = AP::$activityPub->getInterfaceFromType($actor->getType());
+			$interface = AP::instance()->getInterfaceFromType($actor->getType());
 			$interface->save($actor);
 		} catch (ItemUnknownException $e) {
 		}
@@ -391,7 +391,7 @@ class CacheActorService {
 	 */
 	private function delete(Person $actor): void {
 		try {
-			$interface = AP::$activityPub->getInterfaceFromType($actor->getType());
+			$interface = AP::instance()->getInterfaceFromType($actor->getType());
 			$interface->delete($actor);
 		} catch (ItemUnknownException $e) {
 		}

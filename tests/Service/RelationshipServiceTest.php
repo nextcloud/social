@@ -72,7 +72,7 @@ class RelationshipServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	/**
@@ -89,7 +89,7 @@ class RelationshipServiceTest extends TestCase {
 			}
 			$args[] = $mock;
 		}
-		AP::$activityPub = new AP(...$args);
+		AP::set(new AP(...$args));
 	}
 
 	private function person(string $id, bool $local = false): Person {

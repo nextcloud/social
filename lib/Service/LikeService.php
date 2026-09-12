@@ -105,7 +105,7 @@ class LikeService {
 		$this->moderationService->assertNotSuspended($actor->getId());
 
 		/** @var Like $like */
-		$like = AP::$activityPub->getItemFromType(Like::TYPE);
+		$like = AP::instance()->getItemFromType(Like::TYPE);
 		$like->setId($actor->getId() . '#like/' . $this->uuid(8));
 		$like->setActor($actor);
 
@@ -144,7 +144,7 @@ class LikeService {
 		$like->setPublished(date('c'));
 		$this->signatureService->signObject($actor, $like);
 
-		$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
+		$interface = AP::instance()->getInterfaceFromType(Like::TYPE);
 		$interface->save($like);
 
 		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::LIKED, true);
@@ -177,11 +177,11 @@ class LikeService {
 
 		$this->assignInstance($undo, $actor, $note);
 		try {
-			$tmp = AP::$activityPub->getItemFromType(Like::TYPE);
+			$tmp = AP::instance()->getItemFromType(Like::TYPE);
 			$tmp->setActor($actor);
 			$tmp->setObjectId($postId);
 
-			$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(Like::TYPE);
 			$like = $interface->getItem($tmp);
 
 			$undo->setId($like->getId() . '/undo');

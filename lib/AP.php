@@ -68,7 +68,6 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\Server;
-use Psr\Log\LoggerInterface;
 
 class AP {
 	use TArrayTools;
@@ -123,7 +122,16 @@ class AP {
 	public QuoteRequestInterface $quoteRequestInterface;
 	public SocialAppNotificationInterface $notificationInterface;
 	public ConfigService $configService;
-	public static ?AP $activityPub = null;
+	/**
+	 * Resolved on first use by instance(), not at autoload time.
+	 *
+	 * This used to be a public mutable static filled in by an `AP::init();`
+	 * statement at the bottom of this file, so merely autoloading the class
+	 * built all 24 interface services out of the container -- on every request
+	 * that touched ActivityPub, needed or not -- and anything anywhere could
+	 * overwrite the registry.
+	 */
+	private static ?AP $instance = null;
 
 	public function __construct(
 		AcceptInterface $acceptInterface,
@@ -179,13 +187,28 @@ class AP {
 		$this->configService = $configService;
 	}
 
-	public static function init() {
-		try {
-			AP::$activityPub = Server::get(AP::class);
-		} catch (\Exception $e) {
-			Server::get(LoggerInterface::class)
-				->error($e->getMessage(), ['exception' => $e]);
-		}
+	/**
+	 * The registry, built on first use.
+	 *
+	 * A failure here used to be logged and swallowed, which left the static
+	 * null and turned every call site into "call to a member function on null"
+	 * somewhere else entirely. Letting the container exception out says what
+	 * actually could not be built.
+	 */
+	public static function instance(): self {
+		return self::$instance ??= Server::get(self::class);
+	}
+
+	/**
+	 * Replace the registry, or clear it with null so the next instance() rebuilds.
+	 *
+	 * The unit suite has no server to resolve the real thing from, so it
+	 * installs a double here. This is the one way in: the property behind it is
+	 * private, which is the difference from the public static it replaced --
+	 * that could be reassigned from anywhere, including by accident.
+	 */
+	public static function set(?self $instance): void {
+		self::$instance = $instance;
 	}
 
 	public function getItemFromData(array $data, ?ACore $parent = null, int $level = 0): ACore {
@@ -504,5 +527,3 @@ class AP {
 		return (in_array($item->getType(), $types));
 	}
 }
-
-AP::init();

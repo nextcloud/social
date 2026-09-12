@@ -129,8 +129,8 @@ class TestService {
 		$testActor = new Test('actor', Test::SEVERITY_MANDATORY);
 		try {
 			/** @var Person $actor */
-			$actor = AP::$activityPub->getItemFromData($data);
-			if (!AP::$activityPub->isActor($actor)) {
+			$actor = AP::instance()->getItemFromData($data);
+			if (!AP::instance()->isActor($actor)) {
 				throw new ItemUnknownException('Actor is not an Actor');
 			}
 

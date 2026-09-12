@@ -81,7 +81,7 @@ class FollowServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	/**
@@ -98,7 +98,7 @@ class FollowServiceTest extends TestCase {
 			}
 			$args[] = $mock;
 		}
-		AP::$activityPub = new AP(...$args);
+		AP::set(new AP(...$args));
 	}
 
 	private function person(string $id, string $username, int $nid = 0): Person {

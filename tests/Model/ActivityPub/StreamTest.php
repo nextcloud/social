@@ -48,7 +48,7 @@ class StreamTest extends TestCase {
 	protected function tearDown(): void {
 		date_default_timezone_set($this->timezone);
 		Stream::resetReplyParentCache();
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 

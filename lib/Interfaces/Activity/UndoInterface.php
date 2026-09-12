@@ -40,7 +40,7 @@ class UndoInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 
 		try {
-			$interface = AP::$activityPub->getInterfaceForItem($object);
+			$interface = AP::instance()->getInterfaceForItem($object);
 			$interface->activity($item, $object);
 		} catch (ItemUnknownException $e) {
 		}

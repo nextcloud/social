@@ -125,7 +125,7 @@ class SearchService {
 
 		try {
 			$data = $this->curlService->retrieveObject($uri);
-			$object = AP::$activityPub->getItemFromData($data);
+			$object = AP::instance()->getItemFromData($data);
 
 			if ($object->getId() !== $uri) {
 				// a document is only evidence about itself
@@ -144,7 +144,7 @@ class SearchService {
 			// its author has to be known before the post can be shown as theirs
 			$this->cacheActorService->getFromId($object->getAttributedTo());
 
-			AP::$activityPub->getInterfaceForItem($object)->save($object);
+			AP::instance()->getInterfaceForItem($object)->save($object);
 
 			return $this->streamRequest->getStreamById($object->getId());
 		} catch (Exception $e) {

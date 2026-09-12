@@ -260,7 +260,7 @@ class AccountService {
 
 		// delete related data
 		/** @var PersonInterface $interface */
-		$interface = AP::$activityPub->getInterfaceFromType(Person::TYPE);
+		$interface = AP::instance()->getInterfaceFromType(Person::TYPE);
 		$interface->delete($actor);
 
 		// broadcast delete event

@@ -138,7 +138,7 @@ class ActorService {
 				$actor->setIcon($cache);
 			} catch (CacheDocumentDoesNotExistException $e) {
 				try {
-					$interface = AP::$activityPub->getInterfaceFromType($icon->getType());
+					$interface = AP::instance()->getInterfaceFromType($icon->getType());
 					$interface->save($icon);
 				} catch (ItemUnknownException $e) {
 				}

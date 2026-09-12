@@ -328,7 +328,7 @@ class StreamQueueService {
 			$note = $this->streamRequest->getStreamById($item->getUrl());
 		} catch (StreamNotFoundException $e) {
 			$data = $this->curlService->retrieveObject($item->getUrl());
-			$object = AP::$activityPub->getItemFromData($data);
+			$object = AP::instance()->getItemFromData($data);
 
 			$origin = parse_url($item->getUrl(), PHP_URL_HOST);
 			$object->setOrigin($origin, SignatureService::ORIGIN_REQUEST, time());
@@ -354,7 +354,7 @@ class StreamQueueService {
 				$stream->getDetailInt(self::DETAIL_ANCESTOR_DEPTH) + 1
 			);
 
-			$interface = AP::$activityPub->getInterfaceForItem($object);
+			$interface = AP::instance()->getInterfaceForItem($object);
 			$interface->save($object);
 
 			$note = $this->streamRequest->getStreamById($object->getId());
@@ -388,7 +388,7 @@ class StreamQueueService {
 	private function updateCache(Stream $stream, Cache $cache): bool {
 		$this->streamRequest->updateCache($stream, $cache);
 		try {
-			$interface = AP::$activityPub->getInterfaceForItem($stream);
+			$interface = AP::instance()->getInterfaceForItem($stream);
 			$interface->event($stream, 'updateCache');
 		} catch (ItemUnknownException $e) {
 		}

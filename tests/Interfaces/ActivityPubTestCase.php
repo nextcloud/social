@@ -47,7 +47,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Shared fixture for the incoming-federation handlers.
  *
- * The handlers reach each other through the static `AP::$activityPub` registry,
+ * The handlers reach each other through the static `AP` registry,
  * so every test gets a registry built from one mock per interface; the handler
  * under test is then constructed for real with mocked collaborators. Nothing in
  * here touches a database, the network or the filesystem.
@@ -171,14 +171,14 @@ abstract class ActivityPubTestCase extends TestCase {
 			$this->quoteRequestInterface,
 			$this->configService,
 		);
-		AP::$activityPub = $this->ap;
+		AP::set($this->ap);
 
 		// Stream::import() resolves the URL generator statically while importing attachments
 		\OC::$server->register(IURLGenerator::class, $this->createMock(IURLGenerator::class));
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 
 		parent::tearDown();

@@ -56,7 +56,7 @@ class CacheActorServiceTest extends TestCase {
 		$this->personInterface = $this->createMock(PersonInterface::class);
 		$this->ap->method('getInterfaceFromType')->with(Person::TYPE)->willReturn($this->personInterface);
 		$this->ap->method('isActor')->willReturnCallback(fn ($item) => $item instanceof Person);
-		AP::$activityPub = $this->ap;
+		AP::set($this->ap);
 
 		$this->service = new CacheActorService(
 			$this->createMock(IURLGenerator::class),
@@ -70,7 +70,7 @@ class CacheActorServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	private function person(string $id, string $username = 'bob'): Person {

@@ -192,7 +192,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$actor->importFromDatabase($new);
 		$actor->setExportFormat($exportFormat);
 
-		if (!AP::$activityPub->isActor($actor)) {
+		if (!AP::instance()->isActor($actor)) {
 			throw new InvalidResourceException('actor not actor');
 		}
 

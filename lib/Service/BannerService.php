@@ -61,7 +61,7 @@ class BannerService {
 		$this->cacheDocumentService->saveFromTempToCache($image, $tmpPath);
 		$image->setUrl($image->getMediaUrl($this->urlGenerator, $image->getMimeType()));
 
-		$interface = AP::$activityPub->getInterfaceForItem($image);
+		$interface = AP::instance()->getInterfaceForItem($image);
 		$interface->save($image);
 
 		$this->accountService->cacheLocalActorByUsername($actor->getPreferredUsername());

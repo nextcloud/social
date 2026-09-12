@@ -40,7 +40,7 @@ class Note extends Stream implements JsonSerializable {
 	}
 
 	public function fillMentions(): void {
-		$personInterface = AP::$activityPub->getInterfaceFromType(Person::TYPE);
+		$personInterface = AP::instance()->getInterfaceFromType(Person::TYPE);
 		$mentions = [];
 
 		foreach ($this->getTags('Mention') as $item) {

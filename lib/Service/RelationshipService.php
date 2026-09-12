@@ -95,7 +95,7 @@ class RelationshipService {
 
 		if (!$target->isLocal() && $this->configService->isBlockFederationEnabled()) {
 			/** @var Block $block */
-			$block = AP::$activityPub->getItemFromType(Block::TYPE);
+			$block = AP::instance()->getItemFromType(Block::TYPE);
 			$block->generateUniqueIdFromActor($viewer->getId(), 'block');
 			$block->setActorId($viewer->getId());
 			$block->setObjectId($target->getId());
@@ -108,13 +108,13 @@ class RelationshipService {
 
 		if (!$target->isLocal() && $this->configService->isBlockFederationEnabled()) {
 			/** @var Block $block */
-			$block = AP::$activityPub->getItemFromType(Block::TYPE);
+			$block = AP::instance()->getItemFromType(Block::TYPE);
 			$block->generateUniqueIdFromActor($viewer->getId(), 'block');
 			$block->setActorId($viewer->getId());
 			$block->setObjectId($target->getId());
 
 			/** @var Undo $undo */
-			$undo = AP::$activityPub->getItemFromType(Undo::TYPE);
+			$undo = AP::instance()->getItemFromType(Undo::TYPE);
 			$undo->generateUniqueIdFromActor($viewer->getId(), 'undo/block');
 			$undo->setActorId($viewer->getId());
 			$undo->setObject($block);
@@ -134,7 +134,7 @@ class RelationshipService {
 
 			if (!$target->isLocal()) {
 				/** @var Undo $undo */
-				$undo = AP::$activityPub->getItemFromType(Undo::TYPE);
+				$undo = AP::instance()->getItemFromType(Undo::TYPE);
 				$undo->generateUniqueIdFromActor($viewer->getId(), 'undo/follows');
 				$undo->setActorId($viewer->getId());
 				$undo->setObject($follow);
@@ -149,7 +149,7 @@ class RelationshipService {
 
 			if (!$target->isLocal()) {
 				/** @var Reject $reject */
-				$reject = AP::$activityPub->getItemFromType(Reject::TYPE);
+				$reject = AP::instance()->getItemFromType(Reject::TYPE);
 				$reject->generateUniqueIdFromActor($viewer->getId(), 'reject/follows');
 				$reject->setActorId($viewer->getId());
 				$reject->setObject($follow);

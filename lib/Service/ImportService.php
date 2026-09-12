@@ -59,7 +59,7 @@ class ImportService {
 			throw new ActivityPubFormatException();
 		}
 
-		return AP::$activityPub->getItemFromData($data);
+		return AP::instance()->getItemFromData($data);
 	}
 
 	/**
@@ -83,7 +83,7 @@ class ImportService {
 
 		$activity->setRequestToken($this->uuid());
 
-		$interface = AP::$activityPub->getInterfaceForItem($activity);
+		$interface = AP::instance()->getInterfaceForItem($activity);
 		try {
 			$interface->processIncomingRequest($activity);
 		} catch (InvalidResourceException|ItemNotFoundException|RedundancyLimitException $e) {

@@ -80,7 +80,7 @@ class BoostService {
 		$this->moderationService->assertNotSuspended($actor->getId());
 
 		/** @var Announce $announce */
-		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
+		$announce = AP::instance()->getItemFromType(Announce::TYPE);
 		$this->streamService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
 		$announce->setActor($actor);
 
@@ -114,7 +114,7 @@ class BoostService {
 		$announce->setObjectId($note->getId());
 		$announce->setRequestToken($this->uuid());
 
-		$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
+		$interface = AP::instance()->getInterfaceFromType(Announce::TYPE);
 		// TODO: check that announce does not exist already ?
 		//		try {
 		//			return $interface->getItem($announce);
@@ -187,7 +187,7 @@ class BoostService {
 			$undo->setObjectId($announce->getId());
 			$undo->addCc($actor->getFollowers());
 
-			$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(Announce::TYPE);
 			$interface->delete($announce);
 			$this->streamRequest->deleteById($announce->getId(), Announce::TYPE);
 			$this->signatureService->signObject($actor, $undo);

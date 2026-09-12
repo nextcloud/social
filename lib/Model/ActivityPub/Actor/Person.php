@@ -765,7 +765,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$this->setFields($this->extractFieldsFromAttachment($data));
 
 		/** @var Image $icon */
-		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
+		$icon = AP::instance()->getItemFromType(Image::TYPE);
 		$icon->setParent($this);
 		$icon->import($this->getArray('icon', $data, []));
 

@@ -443,13 +443,13 @@ class DocumentService {
 		$versionCached = $actor->getAvatarVersion();
 		if ($versionCurrent > $versionCached) {
 			/** @var Image $icon */
-			$icon = AP::$activityPub->getItemFromType(Image::TYPE);
+			$icon = AP::instance()->getItemFromType(Image::TYPE);
 			$icon->generateUniqueId('/documents/avatar');
 			$icon->setUrl($url);
 			$icon->setMediaType('');
 			$icon->setLocalCopy('avatar');
 
-			$interface = AP::$activityPub->getInterfaceFromType(Image::TYPE);
+			$interface = AP::instance()->getInterfaceFromType(Image::TYPE);
 			$interface->save($icon);
 
 			$actor->setAvatarVersion($versionCurrent);
@@ -483,7 +483,7 @@ class DocumentService {
 	 */
 	public function cacheLocalHeaderByUsername(Person $actor, string $tmpPath, string $mimeType = 'image/jpeg'): string {
 		/** @var Image $image */
-		$image = AP::$activityPub->getItemFromType(Image::TYPE);
+		$image = AP::instance()->getItemFromType(Image::TYPE);
 		$image->generateUniqueId('/documents/header');
 		$image->setUrl($this->urlGenerator->linkToRouteAbsolute(
 			'social.Local.globalActorHeader', ['id' => $actor->getId()]
@@ -496,7 +496,7 @@ class DocumentService {
 
 		$image->setUrl($image->getMediaUrl($this->urlGenerator, $image->getMimeType()));
 
-		$interface = AP::$activityPub->getInterfaceFromType(Image::TYPE);
+		$interface = AP::instance()->getInterfaceFromType(Image::TYPE);
 		$interface->save($image);
 
 		$actor->setHeader($image->getUrl());

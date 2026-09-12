@@ -43,7 +43,7 @@ class WireCompatibilityTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 		\OC::$server->reset();
 	}
 
@@ -55,7 +55,7 @@ class WireCompatibilityTest extends TestCase {
 	}
 
 	public function testAMastodonCreateNoteResolvesWithItsFullObjectChain(): void {
-		$item = AP::$activityPub->getItemFromData($this->fixture('mastodon-create-note'));
+		$item = AP::instance()->getItemFromData($this->fixture('mastodon-create-note'));
 
 		$this->assertInstanceOf(Create::class, $item);
 		$this->assertSame('https://mastodon.social/users/alice', $item->getActorId());
@@ -75,7 +75,7 @@ class WireCompatibilityTest extends TestCase {
 
 	public function testAMastodonContentWarningReachesTheClientAsSpoilerText(): void {
 		/** @var Create $item */
-		$item = AP::$activityPub->getItemFromData($this->fixture('mastodon-create-note'));
+		$item = AP::instance()->getItemFromData($this->fixture('mastodon-create-note'));
 		/** @var Note $note */
 		$note = $item->getObject();
 
@@ -86,7 +86,7 @@ class WireCompatibilityTest extends TestCase {
 
 	public function testMastodonTagsAndCountsSurviveTheImport(): void {
 		/** @var Create $item */
-		$item = AP::$activityPub->getItemFromData($this->fixture('mastodon-create-note'));
+		$item = AP::instance()->getItemFromData($this->fixture('mastodon-create-note'));
 		/** @var Note $note */
 		$note = $item->getObject();
 
@@ -105,7 +105,7 @@ class WireCompatibilityTest extends TestCase {
 
 	public function testAMastodonActorImportsTheFieldsFederationDependsOn(): void {
 		/** @var Person $person */
-		$person = AP::$activityPub->getItemFromData($this->fixture('mastodon-actor'));
+		$person = AP::instance()->getItemFromData($this->fixture('mastodon-actor'));
 
 		$this->assertInstanceOf(Person::class, $person);
 		$this->assertSame('alice', $person->getPreferredUsername());
@@ -118,7 +118,7 @@ class WireCompatibilityTest extends TestCase {
 
 	public function testAMastodonAnnounceKeepsTheBoostedObjectId(): void {
 		/** @var Announce $announce */
-		$announce = AP::$activityPub->getItemFromData($this->fixture('mastodon-announce'));
+		$announce = AP::instance()->getItemFromData($this->fixture('mastodon-announce'));
 
 		$this->assertInstanceOf(Announce::class, $announce);
 		$this->assertSame('https://mastodon.social/users/alice', $announce->getActorId());
@@ -127,7 +127,7 @@ class WireCompatibilityTest extends TestCase {
 
 	public function testAMastodonDeleteWithAnEmbeddedTombstoneNamesTheDeletedPost(): void {
 		/** @var Delete $delete */
-		$delete = AP::$activityPub->getItemFromData($this->fixture('mastodon-delete-tombstone'));
+		$delete = AP::instance()->getItemFromData($this->fixture('mastodon-delete-tombstone'));
 
 		$this->assertInstanceOf(Delete::class, $delete);
 		// Tombstone has no interface of its own: the id fallback is what makes
@@ -140,7 +140,7 @@ class WireCompatibilityTest extends TestCase {
 
 	public function testAMastodonUnfollowResolvesToUndoOverFollow(): void {
 		/** @var Undo $undo */
-		$undo = AP::$activityPub->getItemFromData($this->fixture('mastodon-undo-follow'));
+		$undo = AP::instance()->getItemFromData($this->fixture('mastodon-undo-follow'));
 
 		$this->assertInstanceOf(Undo::class, $undo);
 		$this->assertTrue($undo->hasObject());
@@ -150,7 +150,7 @@ class WireCompatibilityTest extends TestCase {
 	}
 
 	public function testAMastodonLikeCarriesActorAndLikedObject(): void {
-		$like = AP::$activityPub->getItemFromData($this->fixture('mastodon-like'));
+		$like = AP::instance()->getItemFromData($this->fixture('mastodon-like'));
 
 		$this->assertInstanceOf(\OCA\Social\Model\ActivityPub\Object\Like::class, $like);
 		$this->assertSame('https://mastodon.social/users/alice', $like->getActorId());
@@ -158,7 +158,7 @@ class WireCompatibilityTest extends TestCase {
 	}
 
 	public function testAMastodonProfileUpdateResolvesToUpdateOverPerson(): void {
-		$update = AP::$activityPub->getItemFromData($this->fixture('mastodon-update-person'));
+		$update = AP::instance()->getItemFromData($this->fixture('mastodon-update-person'));
 
 		$this->assertInstanceOf(\OCA\Social\Model\ActivityPub\Activity\Update::class, $update);
 		$this->assertTrue($update->hasObject());
@@ -172,7 +172,7 @@ class WireCompatibilityTest extends TestCase {
 
 	public function testAMastodonNoteWithMediaImportsItsAttachment(): void {
 		/** @var Note $note */
-		$note = AP::$activityPub->getItemFromData($this->fixture('mastodon-note-with-media'));
+		$note = AP::instance()->getItemFromData($this->fixture('mastodon-note-with-media'));
 
 		$this->assertInstanceOf(Note::class, $note);
 		$attachments = $note->getAttachments();
@@ -184,7 +184,7 @@ class WireCompatibilityTest extends TestCase {
 
 	public function testAPleromaFollowersOnlyNoteImportsAsNonPublic(): void {
 		/** @var Create $item */
-		$item = AP::$activityPub->getItemFromData($this->fixture('pleroma-create-note'));
+		$item = AP::instance()->getItemFromData($this->fixture('pleroma-create-note'));
 		/** @var Note $note */
 		$note = $item->getObject();
 

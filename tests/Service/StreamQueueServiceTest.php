@@ -56,7 +56,7 @@ class StreamQueueServiceTest extends TestCase {
 		$this->miscService = $this->createMock(MiscService::class);
 		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 		$this->ap = $this->createMock(AP::class);
-		AP::$activityPub = $this->ap;
+		AP::set($this->ap);
 
 		$this->service = new StreamQueueService(
 			$this->streamRequest,
@@ -70,7 +70,7 @@ class StreamQueueServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		AP::$activityPub = null;
+		AP::set(null);
 	}
 
 	private function queue(string $type = StreamQueue::TYPE_CACHE): StreamQueue {
