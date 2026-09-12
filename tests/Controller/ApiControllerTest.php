@@ -1757,7 +1757,7 @@ class ApiControllerTest extends TestCase {
 		$bob = $this->createMock(Person::class);
 		$bob->method('getId')->willReturn('https://remote.example/users/bob');
 		$bob->method('setExportFormat')->willReturnSelf();
-		$this->searchService->expects($this->once())->method('searchAccounts')->with('bob')->willReturn([$bob]);
+		$this->searchService->expects($this->once())->method('searchAccounts')->with('bob', 40)->willReturn([$bob]);
 		$this->searchService->expects($this->never())->method('searchUri');
 
 		$this->assertSame([$bob], $this->controller()->accountsSearch('bob')->getData());
@@ -1769,7 +1769,8 @@ class ApiControllerTest extends TestCase {
 		$bob = $this->createMock(Person::class);
 		$bob->method('getId')->willReturn('https://remote.example/users/bob');
 		$bob->method('setExportFormat')->willReturnSelf();
-		$this->searchService->method('searchAccounts')->willReturn([]);
+		$this->searchService->expects($this->once())
+			->method('searchAccounts')->with('@bob@remote.example', 40)->willReturn([]);
 		$this->searchService->expects($this->once())
 			->method('searchUri')->with('@bob@remote.example')->willReturn([$bob]);
 
@@ -1794,7 +1795,7 @@ class ApiControllerTest extends TestCase {
 		$bob = $this->createMock(Person::class);
 		$bob->method('getId')->willReturn('https://remote.example/users/bob');
 		$bob->method('setExportFormat')->willReturnSelf();
-		$this->searchService->expects($this->once())->method('searchAccounts')->with('bob')->willReturn([$bob]);
+		$this->searchService->expects($this->once())->method('searchAccounts')->with('bob', 40)->willReturn([$bob]);
 		$this->searchService->expects($this->never())->method('searchUri');
 
 		$this->assertSame([$bob], $this->controller()->accountsSearch('bob', 40, true)->getData());

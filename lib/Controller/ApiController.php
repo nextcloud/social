@@ -1582,7 +1582,7 @@ class ApiController extends Controller {
 				return new DataResponse([], Http::STATUS_OK);
 			}
 
-			$found = $this->searchService->searchAccounts($q);
+			$found = $this->searchService->searchAccounts($q, $limit);
 			if ($resolve && (str_starts_with($q, '@') || str_starts_with($q, 'http'))) {
 				$found = array_merge($this->searchService->searchUri($q), $found);
 			}
