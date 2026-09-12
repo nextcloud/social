@@ -77,7 +77,7 @@ class ACoreTest extends TestCase {
 		$this->assertContains('https://a.example/users/alice/followers', $filtered);
 	}
 
-	public function publicAudienceProvider(): array {
+	public static function publicAudienceProvider(): array {
 		$followers = 'https://a.example/users/alice/followers';
 
 		return [
@@ -134,7 +134,7 @@ class ACoreTest extends TestCase {
 		$this->assertSame('mastodon.social', $child->getRoot()->getOrigin());
 	}
 
-	public function invalidOriginProvider(): array {
+	public static function invalidOriginProvider(): array {
 		return [
 			'other host' => ['https://evil.example/users/alice'],
 			'no host' => ['not-a-url'],
@@ -162,7 +162,7 @@ class ACoreTest extends TestCase {
 		$this->assertSame('https://mastodon.social:8443/users/alice', $item->getId());
 	}
 
-	public function mismatchingUrlProvider(): array {
+	public static function mismatchingUrlProvider(): array {
 		return [
 			'host' => ['https://evil.example/inbox'],
 			'scheme' => ['http://mastodon.social/inbox'],
@@ -182,7 +182,7 @@ class ACoreTest extends TestCase {
 		$item->verify($url);
 	}
 
-	public function validEntryProvider(): array {
+	public static function validEntryProvider(): array {
 		return [
 			'id is kept' => [ACore::AS_ID, 'https://a.example/x', 'https://a.example/x'],
 			'type is kept' => [ACore::AS_TYPE, 'Note', 'Note'],

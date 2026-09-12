@@ -80,7 +80,7 @@ class InteropRegressionTest extends TestCase {
 	// actor types other than Person
 
 	/** @return iterable<string, array{string, string, string}> */
-	public function nonPersonActors(): iterable {
+	public static function nonPersonActors(): iterable {
 		yield 'a Lemmy community' => [
 			'lemmy-group-actor', Group::class, GroupInterface::class,
 		];
@@ -140,7 +140,7 @@ class InteropRegressionTest extends TestCase {
 	// object types other than Note
 
 	/** @return iterable<string, array{string, string, string, string}> */
-	public function noteLikeObjects(): iterable {
+	public static function noteLikeObjects(): iterable {
 		yield 'a PeerTube video' => [
 			'peertube-create-video', 'Video',
 			'https://peertube.example/videos/watch/6f4c1e1a',

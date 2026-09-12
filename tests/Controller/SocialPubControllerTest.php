@@ -140,7 +140,7 @@ class SocialPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function publicPages(): iterable {
+	public static function publicPages(): iterable {
 		yield 'actor' => ['actor'];
 		yield 'followers' => ['followers'];
 		yield 'following' => ['following'];

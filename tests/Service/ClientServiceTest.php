@@ -158,7 +158,7 @@ class ClientServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{array}> */
-	public function validDataProvider(): array {
+	public static function validDataProvider(): array {
 		return [
 			'nothing to check' => [[]],
 			'known redirect' => [['redirect_uri' => 'https://app.example/callback']],
@@ -184,7 +184,7 @@ class ClientServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{array, string}> */
-	public function invalidDataProvider(): array {
+	public static function invalidDataProvider(): array {
 		return [
 			'unknown redirect' => [['redirect_uri' => 'https://evil.example/'], 'unknown redirect_uri'],
 			'wrong secret' => [['client_secret' => 'nope'], 'wrong client_secret'],

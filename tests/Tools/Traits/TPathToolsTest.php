@@ -26,7 +26,7 @@ class TPathToolsTest extends TestCase {
 		};
 	}
 
-	public function endSlashProvider(): array {
+	public static function endSlashProvider(): array {
 		return [
 			'adds a slash' => ['apps/social', 'apps/social/'],
 			'keeps a single slash' => ['apps/social/', 'apps/social/'],
@@ -43,7 +43,7 @@ class TPathToolsTest extends TestCase {
 		$this->assertSame($expected, $this->tools->withEndSlash($path));
 	}
 
-	public function withoutEndSlashProvider(): array {
+	public static function withoutEndSlashProvider(): array {
 		return [
 			'removes the slash' => ['apps/social/', false, 'apps/social'],
 			'removes several' => ['apps/social///', false, 'apps/social'],
@@ -65,7 +65,7 @@ class TPathToolsTest extends TestCase {
 		$this->assertSame('a/b', $this->tools->withoutEndSlash('a//b/'));
 	}
 
-	public function beginSlashProvider(): array {
+	public static function beginSlashProvider(): array {
 		return [
 			'adds a slash' => ['apps/social', '/apps/social'],
 			'keeps a single slash' => ['/apps/social', '/apps/social'],
@@ -81,7 +81,7 @@ class TPathToolsTest extends TestCase {
 		$this->assertSame($expected, $this->tools->withBeginSlash($path));
 	}
 
-	public function withoutBeginSlashProvider(): array {
+	public static function withoutBeginSlashProvider(): array {
 		return [
 			'removes the slash' => ['/apps/social', false, 'apps/social'],
 			'removes several' => ['///apps/social', false, 'apps/social'],

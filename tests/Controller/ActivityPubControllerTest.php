@@ -214,7 +214,7 @@ class ActivityPubControllerTest extends TestCase {
 	// actor()
 
 	/** @return iterable<string, array{string}> */
-	public function activityStreamsAcceptHeaders(): iterable {
+	public static function activityStreamsAcceptHeaders(): iterable {
 		yield 'activity+json' => ['application/activity+json'];
 		yield 'ld+json with profile' => ['application/ld+json; profile="https://www.w3.org/ns/activitystreams"'];
 		yield 'ld+json among other types' => ['text/html, application/ld+json;q=0.9'];
@@ -234,7 +234,7 @@ class ActivityPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function humanAcceptHeaders(): iterable {
+	public static function humanAcceptHeaders(): iterable {
 		yield 'browser' => ['text/html,application/xhtml+xml,*/*;q=0.8'];
 		yield 'plain json' => ['application/json'];
 		yield 'no header' => [''];
@@ -554,7 +554,7 @@ class ActivityPubControllerTest extends TestCase {
 	 *
 	 * @return iterable<string, array{Exception, int}>
 	 */
-	public function inboxRejections(): iterable {
+	public static function inboxRejections(): iterable {
 		yield 'blocked instance' => [new UnauthorizedFediverseException('blocked'), Http::STATUS_FORBIDDEN];
 		yield 'bad signature' => [new SignatureException('does not verify'), Http::STATUS_UNAUTHORIZED];
 		yield 'incomplete signature header' => [new MalformedArrayException('keyId'), Http::STATUS_UNAUTHORIZED];
@@ -763,7 +763,7 @@ class ActivityPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function unusablePageParameters(): iterable {
+	public static function unusablePageParameters(): iterable {
 		yield 'absent' => [''];
 		yield 'zero' => ['0'];
 		yield 'negative' => ['-1'];
@@ -870,7 +870,7 @@ class ActivityPubControllerTest extends TestCase {
 	// displayPost()
 
 	/** @return iterable<string, array{string, string}> */
-	public function reservedTokens(): iterable {
+	public static function reservedTokens(): iterable {
 		yield 'outbox' => ['outbox', 'getOutboxCollection'];
 		yield 'Outbox, mixed case' => ['Outbox', 'getOutboxCollection'];
 	}
@@ -1019,7 +1019,7 @@ class ActivityPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string, int}> */
-	public function requestedReplyPages(): iterable {
+	public static function requestedReplyPages(): iterable {
 		yield 'a numbered page' => ['2', 2];
 		yield "Mastodon's page=true, which means the first" => ['true', 1];
 	}
@@ -1156,7 +1156,7 @@ class ActivityPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function unservableStamps(): iterable {
+	public static function unservableStamps(): iterable {
 		yield 'not base64 at all' => ['not a stamp'];
 		yield 'padded, which we never emit' => [rtrim(strtr(base64_encode('https://remote.example/1'), '+/', '-_'), '=') . '='];
 		yield 'base64 of something that is not an address' => [rtrim(strtr(base64_encode('../../admin'), '+/', '-_'), '=')];

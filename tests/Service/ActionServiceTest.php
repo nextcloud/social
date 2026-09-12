@@ -114,7 +114,7 @@ class ActionServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string, bool}> */
-	public function bookmarkActionProvider(): array {
+	public static function bookmarkActionProvider(): array {
 		return [
 			'bookmark' => ['bookmark', true],
 			'unbookmark' => ['unbookmark', false],
@@ -134,7 +134,7 @@ class ActionServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function unsupportedActionProvider(): array {
+	public static function unsupportedActionProvider(): array {
 		return [
 			'mute' => ['mute'],
 			'unmute' => ['unmute'],

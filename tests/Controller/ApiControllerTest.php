@@ -804,7 +804,7 @@ class ApiControllerTest extends TestCase {
 	// timelines
 
 	/** @return iterable<string, array{string}> */
-	public function supportedTimelines(): iterable {
+	public static function supportedTimelines(): iterable {
 		yield 'home' => ['home'];
 		yield 'account' => ['account'];
 		yield 'public' => ['public'];
@@ -834,7 +834,7 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function unsupportedTimelines(): iterable {
+	public static function unsupportedTimelines(): iterable {
 		yield 'trending' => ['trending'];
 		yield 'notifications' => ['notifications'];
 		yield 'hashtag' => ['hashtag'];
@@ -899,7 +899,7 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function statusActions(): iterable {
+	public static function statusActions(): iterable {
 		yield 'favourite' => ['favourite'];
 		yield 'unfavourite' => ['unfavourite'];
 		yield 'reblog' => ['reblog'];
@@ -3142,7 +3142,7 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function waysToAttachAPicture(): iterable {
+	public static function waysToAttachAPicture(): iterable {
 		yield 'uploaded from the device' => ['upload'];
 		yield 'picked out of Nextcloud Files' => ['from-file'];
 	}

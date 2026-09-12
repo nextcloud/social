@@ -330,7 +330,7 @@ class DocumentServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{\Exception, int}> */
-	public function cachingErrorProvider(): array {
+	public static function cachingErrorProvider(): array {
 		return [
 			'wrong mime type' => [new CacheContentMimeTypeException(), DocumentService::ERROR_MIMETYPE],
 			'too big' => [new RequestResultSizeException(), DocumentService::ERROR_SIZE],
@@ -357,7 +357,7 @@ class DocumentServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{\Exception}> */
-	public function goneProvider(): array {
+	public static function goneProvider(): array {
 		return [
 			'remote says gone' => [new RequestContentException('gone', 410)],
 			'blocked instance' => [new UnauthorizedFediverseException()],

@@ -169,7 +169,7 @@ class RequestTest extends TestCase {
 		$this->assertSame('mastodon.social', $request->getAddress());
 	}
 
-	public function typeProvider(): array {
+	public static function typeProvider(): array {
 		return [
 			'GET' => ['get', Request::TYPE_GET, 'get'],
 			'POST' => ['POST', Request::TYPE_POST, 'post'],

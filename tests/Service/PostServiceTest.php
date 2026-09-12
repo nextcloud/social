@@ -289,7 +289,7 @@ class PostServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string, string[], string[]}>
 	 */
-	public function visibilityProvider(): array {
+	public static function visibilityProvider(): array {
 		return [
 			'public' => [Stream::TYPE_PUBLIC, ACore::CONTEXT_PUBLIC, [], [self::ACTOR_FOLLOWERS, self::BOB_ID]],
 			'unlisted' => [Stream::TYPE_UNLISTED, self::ACTOR_FOLLOWERS, [], [ACore::CONTEXT_PUBLIC, self::BOB_ID]],
@@ -442,7 +442,7 @@ class PostServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string[], string[]}>
 	 */
-	public function inlineTokensProvider(): array {
+	public static function inlineTokensProvider(): array {
 		return [
 			'mention and hashtag' => ['hi @bob@remote.example #Nextcloud', ['bob@remote.example'], ['Nextcloud']],
 			'several of each, deduplicated' => [
@@ -791,7 +791,7 @@ class PostServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function nextcloudLanguageProvider(): array {
+	public static function nextcloudLanguageProvider(): array {
 		return [
 			'a plain language' => ['fr', 'fr'],
 			'a locale loses its region' => ['en_GB', 'en'],

@@ -276,7 +276,7 @@ class FediverseServiceTest extends TestCase {
 		$this->assertTrue($this->service->isListed($address), $address . ' should be covered');
 	}
 
-	public function provideSubdomainsOfAListedDomain(): iterable {
+	public static function provideSubdomainsOfAListedDomain(): iterable {
 		yield 'the domain itself' => ['evil.test'];
 		yield 'www' => ['www.evil.test'];
 		yield 'a deeper label' => ['a.b.evil.test'];
@@ -295,7 +295,7 @@ class FediverseServiceTest extends TestCase {
 		$this->assertFalse($this->service->isListed($address), $address . ' is a different name');
 	}
 
-	public function provideNamesThatMerelyLookSimilar(): iterable {
+	public static function provideNamesThatMerelyLookSimilar(): iterable {
 		yield 'longer label' => ['notevil.test'];
 		yield 'different tld' => ['evil.testing'];
 		yield 'the parent' => ['test'];

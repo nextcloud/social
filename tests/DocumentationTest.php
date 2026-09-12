@@ -881,7 +881,7 @@ class DocumentationTest extends TestCase {
 	 *
 	 * @return iterable<string, array{string, string}>
 	 */
-	public function surveyDocuments(): iterable {
+	public static function surveyDocuments(): iterable {
 		yield 'technical debt' => ['docs/Technical-Debt.md', 'Technical debt and legacy code'];
 		yield 'performance' => ['docs/Performance.md', 'Performance and scalability'];
 		yield 'mastodon compatibility' => ['docs/Mastodon-Compatibility.md', 'Mastodon compatibility'];

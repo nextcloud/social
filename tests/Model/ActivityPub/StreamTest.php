@@ -353,7 +353,7 @@ class StreamTest extends TestCase {
 		$this->assertSame([], Stream::subTypesOfNotificationTypes([]));
 	}
 
-	public function notificationTypeProvider(): array {
+	public static function notificationTypeProvider(): array {
 		return [
 			'like' => ['Like', 'favourite'],
 			'announce' => ['Announce', 'reblog'],
@@ -800,7 +800,7 @@ class StreamTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function clientVisibilityProvider(): array {
+	public static function clientVisibilityProvider(): array {
 		return [
 			'public' => ['public', Stream::TYPE_PUBLIC],
 			'unlisted' => ['unlisted', Stream::TYPE_UNLISTED],
@@ -1033,7 +1033,7 @@ class StreamTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function languageProvider(): array {
+	public static function languageProvider(): array {
 		return [
 			'a plain primary tag' => ['de', 'de'],
 			'a three letter primary tag' => ['ast', 'ast'],

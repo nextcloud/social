@@ -23,7 +23,7 @@ class RemoteAddressTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function localIps(): array {
+	public static function localIps(): array {
 		return [
 			'loopback v4' => ['127.0.0.1'],
 			'private 10/8' => ['10.0.0.1'],
@@ -56,7 +56,7 @@ class RemoteAddressTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function publicHosts(): array {
+	public static function publicHosts(): array {
 		return [
 			'google dns' => ['8.8.8.8'],
 			'cloudflare dns' => ['1.1.1.1'],
@@ -77,7 +77,7 @@ class RemoteAddressTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function localHosts(): array {
+	public static function localHosts(): array {
 		return [
 			'loopback literal' => ['127.0.0.1'],
 			'bracketed v6 loopback' => ['[::1]'],

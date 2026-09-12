@@ -21,10 +21,15 @@ class ProfileSectionListenerTest extends TestCase {
 		$this->assertInstanceOf(IEventListener::class, new ProfileSectionListener());
 	}
 
-	/** @return iterable<string, array{Event}> */
-	public function unrelatedEvents(): iterable {
-		yield 'generic event' => [new Event()];
-		yield 'account update' => [new UserUpdatedEvent($this->createMock(IUser::class), [])];
+	/**
+	 * Only the name of the event to build: a static provider cannot call
+	 * `createMock()`, and `UserUpdatedEvent` needs an `IUser`.
+	 *
+	 * @return iterable<string, array{string}>
+	 */
+	public static function unrelatedEvents(): iterable {
+		yield 'generic event' => ['generic'];
+		yield 'account update' => ['user-updated'];
 	}
 
 	/**
@@ -33,7 +38,12 @@ class ProfileSectionListenerTest extends TestCase {
 	 *
 	 * @dataProvider unrelatedEvents
 	 */
-	public function testUnrelatedEventsAreIgnored(Event $event): void {
+	public function testUnrelatedEventsAreIgnored(string $eventKind): void {
+		$event = match ($eventKind) {
+			'generic' => new Event(),
+			'user-updated' => new UserUpdatedEvent($this->createMock(IUser::class), []),
+		};
+
 		(new ProfileSectionListener())->handle($event);
 
 		$this->addToAssertionCount(1);

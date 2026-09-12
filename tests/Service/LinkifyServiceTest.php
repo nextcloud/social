@@ -98,7 +98,7 @@ class LinkifyServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function urlBoundaryProvider(): array {
+	public static function urlBoundaryProvider(): array {
 		return [
 			'a full stop ends the sentence, not the URL' => ['https://example.invalid/a.', 'https://example.invalid/a'],
 			'a comma likewise' => ['https://example.invalid/a,', 'https://example.invalid/a'],
@@ -210,7 +210,7 @@ class LinkifyServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, array<int, array{string, string}>}>
 	 */
-	public function entityProvider(): array {
+	public static function entityProvider(): array {
 		return [
 			'a mention and a hashtag' => ['hi @bob@remote.example #Nextcloud', [
 				[LinkifyService::TYPE_MENTION, 'bob@remote.example'],

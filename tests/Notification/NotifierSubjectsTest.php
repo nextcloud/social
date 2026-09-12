@@ -89,7 +89,7 @@ class NotifierSubjectsTest extends TestCase {
 		);
 	}
 
-	public function subjectProvider(): array {
+	public static function subjectProvider(): array {
 		return [
 			'mention' => ['mention', 'Bob mentioned you in a post'],
 			'favourite' => ['favourite', 'Bob favourited your post'],
@@ -140,7 +140,7 @@ class NotifierSubjectsTest extends TestCase {
 		$this->assertSame(' favourited your post', $this->rendered['subject']);
 	}
 
-	public function nonUrlProvider(): array {
+	public static function nonUrlProvider(): array {
 		return [
 			'a scheme that is not the web' => ['javascript:alert(1)'],
 			'a path' => ['/apps/social'],

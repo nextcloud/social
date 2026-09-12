@@ -76,7 +76,7 @@ class StreamFilterTest extends TestCase {
 		$this->assertIsArray($result);
 	}
 
-	public function hiddenLevelProbes(): array {
+	public static function hiddenLevelProbes(): array {
 		return [
 			'public (full filter)' => [ProbeOptions::PUBLIC],
 			'home (full filter + follow join)' => [ProbeOptions::HOME],

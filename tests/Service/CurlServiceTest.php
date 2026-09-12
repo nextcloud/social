@@ -580,7 +580,7 @@ class CurlServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function refusedHostProvider(): array {
+	public static function refusedHostProvider(): array {
 		return [
 			'loopback' => ['127.0.0.1'],
 			'private range' => ['10.0.0.5'],

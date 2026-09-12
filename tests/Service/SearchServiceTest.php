@@ -170,7 +170,7 @@ class SearchServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function nonUriSearchProvider(): array {
+	public static function nonUriSearchProvider(): array {
 		return [
 			'empty' => [''],
 			'account' => ['@bob@remote.example'],

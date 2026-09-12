@@ -94,7 +94,7 @@ class CacheDocumentServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function allowedMimeProvider(): array {
+	public static function allowedMimeProvider(): array {
 		return [
 			'jpeg' => ['image/jpeg'],
 			'gif' => ['image/gif'],
@@ -119,7 +119,7 @@ class CacheDocumentServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function rejectedMimeProvider(): array {
+	public static function rejectedMimeProvider(): array {
 		return [
 			'svg' => ['image/svg+xml'],
 			'html' => ['text/html'],
@@ -463,7 +463,7 @@ class CacheDocumentServiceTest extends TestCase {
 		$this->service->retrieveContent($url);
 	}
 
-	public function provideNonWebUrls(): iterable {
+	public static function provideNonWebUrls(): iterable {
 		yield 'file' => ['file:///etc/passwd'];
 		yield 'gopher' => ['gopher://remote.example/1'];
 		yield 'ftp' => ['ftp://remote.example/pic.png'];

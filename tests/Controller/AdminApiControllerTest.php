@@ -77,7 +77,7 @@ class AdminApiControllerTest extends TestCase {
 	 *
 	 * @return array<string, array{string, array}>
 	 */
-	public function routes(): array {
+	public static function routes(): array {
 		return [
 			'accounts' => ['accounts', []],
 			'account' => ['account', ['7']],

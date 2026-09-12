@@ -28,7 +28,7 @@ use PHPUnit\Framework\TestCase;
  * is wired to it and carries its own type.
  */
 class ActivitiesTest extends TestCase {
-	public function activityProvider(): array {
+	public static function activityProvider(): array {
 		return [
 			'Accept' => [Accept::class, 'Accept'],
 			'Add' => [Add::class, 'Add'],

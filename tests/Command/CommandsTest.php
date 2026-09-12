@@ -130,7 +130,7 @@ class CommandsTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function provideAdviceSources(): array {
+	public static function provideAdviceSources(): array {
 		return [
 			'README' => ['README.md'],
 			'command reference' => ['docs/OCC-Commands.md'],

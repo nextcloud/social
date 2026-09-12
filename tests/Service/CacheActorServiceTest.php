@@ -162,7 +162,7 @@ class CacheActorServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function localAccountProvider(): array {
+	public static function localAccountProvider(): array {
 		return [
 			'bare username' => ['alice'],
 			'leading at' => ['@alice'],

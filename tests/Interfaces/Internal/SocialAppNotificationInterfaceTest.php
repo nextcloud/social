@@ -76,7 +76,7 @@ class SocialAppNotificationInterfaceTest extends ActivityPubTestCase {
 	 *
 	 * @return array<string, array{array<int, array{string, bool}>, bool}>
 	 */
-	public function suppressionProvider(): array {
+	public static function suppressionProvider(): array {
 		return [
 			'recipient blocks the actor' => [[[ActorRelation::TYPE_BLOCK, true]], false],
 			'actor blocks the recipient' => [[[ActorRelation::TYPE_BLOCKED_BY, true]], false],

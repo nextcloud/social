@@ -86,7 +86,7 @@ class APTest extends TestCase {
 		\OC::$server->reset();
 	}
 
-	public function knownTypeProvider(): array {
+	public static function knownTypeProvider(): array {
 		return [
 			'Accept' => ['Accept', Accept::class],
 			'Add' => ['Add', Add::class],
@@ -129,7 +129,7 @@ class APTest extends TestCase {
 		$this->assertSame(self::cloudUrl(), $item->getUrlCloud());
 	}
 
-	public function unknownTypeProvider(): array {
+	public static function unknownTypeProvider(): array {
 		return [
 			'unsupported AS2 type' => ['Profile'],
 			'empty' => [''],
@@ -156,7 +156,7 @@ class APTest extends TestCase {
 		$this->assertFalse($note->isFilterDuplicate());
 	}
 
-	public function interfaceProvider(): array {
+	public static function interfaceProvider(): array {
 		return [
 			'Accept' => ['Accept', AcceptInterface::class],
 			'Add' => ['Add', AddInterface::class],
@@ -199,7 +199,7 @@ class APTest extends TestCase {
 		$this->ap->getInterfaceFromType('Profile');
 	}
 
-	public function noteLikeTypeProvider(): array {
+	public static function noteLikeTypeProvider(): array {
 		return array_map(static fn (string $type): array => [$type], AP::NOTE_LIKE_TYPES);
 	}
 
@@ -271,7 +271,7 @@ class APTest extends TestCase {
 		$this->assertSame($this->apInterface(NoteInterface::class), $this->ap->getInterfaceForItem(new Note()));
 	}
 
-	public function actorProvider(): array {
+	public static function actorProvider(): array {
 		return [
 			'Person' => [new Person(), true],
 			'Service' => [new Service(), true],

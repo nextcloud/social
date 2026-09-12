@@ -319,7 +319,7 @@ class FollowServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{bool, bool}>
 	 */
-	public function linksProvider(): array {
+	public static function linksProvider(): array {
 		return [
 			'no relation' => [false, false],
 			'local follows actor' => [true, false],
@@ -626,7 +626,7 @@ class FollowServiceTest extends TestCase {
 	 *
 	 * @return array<string, array{array<int, array{string, bool}>, array<string, bool>}>
 	 */
-	public function relationFlagsProvider(): array {
+	public static function relationFlagsProvider(): array {
 		return [
 			'viewer blocks the actor' => [
 				[[ActorRelation::TYPE_BLOCK, true]],

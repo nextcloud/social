@@ -46,7 +46,7 @@ class TestServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function invalidAccountProvider(): array {
+	public static function invalidAccountProvider(): array {
 		return [
 			'no host' => ['bob'],
 			'leading at only' => ['@bob'],

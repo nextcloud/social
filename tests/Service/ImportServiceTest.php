@@ -112,7 +112,7 @@ class ImportServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function notAnObjectProvider(): array {
+	public static function notAnObjectProvider(): array {
 		return [
 			'garbage' => ['not json at all'],
 			'empty' => [''],

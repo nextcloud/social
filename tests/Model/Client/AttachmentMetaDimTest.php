@@ -22,7 +22,7 @@ class AttachmentMetaDimTest extends TestCase {
 		$this->assertSame(1.5, $dim->getAspect());
 	}
 
-	public function emptyDimensionProvider(): array {
+	public static function emptyDimensionProvider(): array {
 		return [
 			'no dimensions' => [[]],
 			'one value' => [[100]],

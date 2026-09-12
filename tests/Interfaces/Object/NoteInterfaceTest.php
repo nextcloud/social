@@ -134,7 +134,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 
 	// visibility of incoming notes
 
-	public function visibilityProvider(): array {
+	public static function visibilityProvider(): array {
 		$public = 'https://www.w3.org/ns/activitystreams#Public';
 		$followers = self::REMOTE_URL . '/users/bob/followers';
 

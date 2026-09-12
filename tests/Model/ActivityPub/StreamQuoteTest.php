@@ -104,7 +104,7 @@ class StreamQuoteTest extends TestCase {
 	/**
 	 * @return array<string, array{array<string, mixed>}>
 	 */
-	public function quoteAliasProvider(): array {
+	public static function quoteAliasProvider(): array {
 		return [
 			// what Mastodon 4.5 emits alongside `quote`, for older readers
 			'quoteUrl' => [['quoteUrl' => self::QUOTED]],

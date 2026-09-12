@@ -135,7 +135,7 @@ class MigrationServiceTest extends TestCase {
 		$this->service->addAlias('alice', $alias);
 	}
 
-	public function notAnActorIdProvider(): array {
+	public static function notAnActorIdProvider(): array {
 		return [
 			'a handle' => ['alice@old.example'],
 			'empty' => [''],

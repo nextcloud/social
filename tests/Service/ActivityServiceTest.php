@@ -625,7 +625,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{int, int}>
 	 */
-	public function requestTypeProvider(): array {
+	public static function requestTypeProvider(): array {
 		return [
 			'inbox is posted to' => [InstancePath::TYPE_INBOX, Request::TYPE_POST],
 			'shared inbox is posted to' => [InstancePath::TYPE_GLOBAL, Request::TYPE_POST],
@@ -654,7 +654,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{\Exception}>
 	 */
-	public function deliveredButNoJsonProvider(): array {
+	public static function deliveredButNoJsonProvider(): array {
 		return [
 			'non-json answer' => [new RequestResultNotJsonException()],
 			'instance not authorized' => [new UnauthorizedFediverseException()],
@@ -677,7 +677,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{\Exception}>
 	 */
-	public function hardErrorProvider(): array {
+	public static function hardErrorProvider(): array {
 		return [
 			'bad content' => [new RequestContentException()],
 			'answer too large' => [new RequestResultSizeException()],
@@ -701,7 +701,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{int}>
 	 */
-	public function transientHttpStatusProvider(): array {
+	public static function transientHttpStatusProvider(): array {
 		return [
 			'request timeout' => [408],
 			'rate limited' => [429],
@@ -735,7 +735,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{int}>
 	 */
-	public function permanentHttpStatusProvider(): array {
+	public static function permanentHttpStatusProvider(): array {
 		return [
 			'bad request' => [400],
 			'unauthorized' => [401],
@@ -779,7 +779,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{\Exception}>
 	 */
-	public function temporaryErrorProvider(): array {
+	public static function temporaryErrorProvider(): array {
 		return [
 			'network error' => [new RequestNetworkException()],
 			'server error' => [new RequestServerException()],

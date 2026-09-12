@@ -58,7 +58,7 @@ class TArrayToolsTest extends TestCase {
 		$this->assertSame('0', $this->tools->get('zero', $this->sample()));
 	}
 
-	public function nonStringProvider(): array {
+	public static function nonStringProvider(): array {
 		return [
 			'missing' => ['missing'],
 			'null' => ['null'],
@@ -107,7 +107,7 @@ class TArrayToolsTest extends TestCase {
 		$this->assertSame(2.5, $this->tools->getFloat('str.sub', $this->sample(), 2.5));
 	}
 
-	public function boolProvider(): array {
+	public static function boolProvider(): array {
 		return [
 			'bool true' => [true, true],
 			'bool false' => [false, false],
@@ -144,7 +144,7 @@ class TArrayToolsTest extends TestCase {
 		$this->assertSame([1], $this->tools->getArray('nested.deep.arr', $this->sample()));
 	}
 
-	public function notAnArrayProvider(): array {
+	public static function notAnArrayProvider(): array {
 		return [
 			'missing' => ['missing'],
 			'null' => ['null'],
@@ -200,7 +200,7 @@ class TArrayToolsTest extends TestCase {
 		$this->tools->extractArray('rel', 'other', [['rel' => 'self'], ['href' => 'x']]);
 	}
 
-	public function typeProvider(): array {
+	public static function typeProvider(): array {
 		return [
 			'null' => ['null', 'Null'],
 			'string' => ['str', 'String'],
@@ -228,7 +228,7 @@ class TArrayToolsTest extends TestCase {
 		$this->tools->typeOf('float', $this->sample());
 	}
 
-	public function missingKeyProvider(): array {
+	public static function missingKeyProvider(): array {
 		return [
 			'missing' => ['missing'],
 			'nested missing root' => ['none.key'],

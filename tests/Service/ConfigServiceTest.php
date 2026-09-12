@@ -162,7 +162,7 @@ class ConfigServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string, bool, string}> */
-	public function cloudUrlProvider(): array {
+	public static function cloudUrlProvider(): array {
 		return [
 			'plain' => ['https://cloud.example.com', false, 'https://cloud.example.com'],
 			'trailing slash removed' => ['https://cloud.example.com/', false, 'https://cloud.example.com'],

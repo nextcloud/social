@@ -366,7 +366,7 @@ class LocalControllerTest extends TestCase {
 	// like / boost
 
 	/** @return iterable<string, array{string, string, string, string}> */
-	public function reactions(): iterable {
+	public static function reactions(): iterable {
 		yield 'like' => ['postLike', 'likeService', 'create', 'like'];
 		yield 'unlike' => ['postUnlike', 'likeService', 'delete', 'like'];
 	}
@@ -443,7 +443,7 @@ class LocalControllerTest extends TestCase {
 	// stream*()
 
 	/** @return iterable<string, array{string, array, string, array}> */
-	public function streams(): iterable {
+	public static function streams(): iterable {
 		yield 'home' => ['streamHome', [10, 25], 'getStreamHome', [10, 25]];
 		yield 'notifications' => ['streamNotifications', [3, 7], 'getStreamNotifications', [3, 7]];
 		yield 'direct' => ['streamDirect', [1, 2], 'getStreamDirect', [1, 2]];
@@ -795,7 +795,7 @@ class LocalControllerTest extends TestCase {
 		);
 	}
 
-	public function provideUnusableHeaderAddresses(): iterable {
+	public static function provideUnusableHeaderAddresses(): iterable {
 		yield 'javascript' => ['javascript:alert(1)'];
 		yield 'data' => ['data:text/html;base64,PHNjcmlwdD4='];
 		yield 'file' => ['file:///etc/passwd'];
@@ -928,7 +928,7 @@ class LocalControllerTest extends TestCase {
 		);
 	}
 
-	public function provideRefusedBannerUrls(): iterable {
+	public static function provideRefusedBannerUrls(): iterable {
 		yield 'loopback' => ['http://127.0.0.1/x.png'];
 		yield 'localhost' => ['http://localhost/x.png'];
 		yield 'link-local metadata' => ['http://169.254.169.254/latest/meta-data/'];

@@ -110,7 +110,7 @@ class PostTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function clientVisibilityProvider(): array {
+	public static function clientVisibilityProvider(): array {
 		return [
 			'public stays public' => ['public', Stream::TYPE_PUBLIC],
 			'unlisted stays unlisted' => ['unlisted', Stream::TYPE_UNLISTED],

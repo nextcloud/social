@@ -337,7 +337,7 @@ class ForwardServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function privateVisibilityProvider(): array {
+	public static function privateVisibilityProvider(): array {
 		return [
 			'followers-only' => [Stream::TYPE_FOLLOWERS],
 			'direct' => [Stream::TYPE_DIRECT],

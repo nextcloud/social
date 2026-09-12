@@ -365,7 +365,7 @@ class NavigationControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string, string}> */
-	public function documentEndpoints(): iterable {
+	public static function documentEndpoints(): iterable {
 		yield 'documentGet' => ['documentGet', 'getFromCacheAsViewer'];
 		yield 'documentGetPublic' => ['documentGetPublic', 'getFromCache'];
 		yield 'resizedGet' => ['resizedGet', 'getResizedFromCacheAsViewer'];

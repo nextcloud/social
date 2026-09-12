@@ -262,7 +262,7 @@ class BoostServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string[]}>
 	 */
-	public function nonPublicNoteProvider(): array {
+	public static function nonPublicNoteProvider(): array {
 		return [
 			'followers-only' => [self::BOB_ID . '/followers', []],
 			'direct' => ['', [self::ALICE_ID]],

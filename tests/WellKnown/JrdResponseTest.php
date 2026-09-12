@@ -30,7 +30,7 @@ class JrdResponseTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{callable(JrdResponse): void}> */
-	public function fillers(): iterable {
+	public static function fillers(): iterable {
 		yield 'alias' => [fn (JrdResponse $r) => $r->addAlias('https://cloud.example/@alice')];
 		yield 'property' => [fn (JrdResponse $r) => $r->addProperty('http://schema/name', 'Alice')];
 		yield 'link' => [fn (JrdResponse $r) => $r->addLink('self', null, null)];

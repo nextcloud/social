@@ -34,7 +34,7 @@ class ActorSubtypesTest extends TestCase {
 		AP::set(null);
 	}
 
-	public function subtypeProvider(): array {
+	public static function subtypeProvider(): array {
 		return [
 			'Service' => [Service::class, 'Service'],
 			'Group' => [Group::class, 'Group'],

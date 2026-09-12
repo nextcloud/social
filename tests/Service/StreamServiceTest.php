@@ -183,7 +183,7 @@ class StreamServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string, string[], bool, bool}>
 	 */
-	public function visibilityProvider(): array {
+	public static function visibilityProvider(): array {
 		return [
 			'public: as:Public in to, followers in cc' => [
 				Stream::TYPE_PUBLIC, ACore::CONTEXT_PUBLIC, [self::ACTOR_FOLLOWERS], true, true,
@@ -278,7 +278,7 @@ class StreamServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string[]}>
 	 */
-	public function followersAddressingProvider(): array {
+	public static function followersAddressingProvider(): array {
 		return [
 			'followers collection in to' => [self::ACTOR_FOLLOWERS, []],
 			'followers collection in cc' => ['', [self::ACTOR_FOLLOWERS]],
@@ -364,7 +364,7 @@ class StreamServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function nonDirectTypeProvider(): array {
+	public static function nonDirectTypeProvider(): array {
 		return [
 			'public' => [Stream::TYPE_PUBLIC],
 			'unlisted' => [Stream::TYPE_UNLISTED],
@@ -802,7 +802,7 @@ class StreamServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, array, string, array}>
 	 */
-	public function timelineDelegationProvider(): array {
+	public static function timelineDelegationProvider(): array {
 		return [
 			'home' => ['getStreamHome', [10, 20, ACore::FORMAT_LOCAL], 'getTimelineHome_dep', [10, 20, ACore::FORMAT_LOCAL]],
 			'home defaults' => ['getStreamHome', [], 'getTimelineHome_dep', [0, 5, ACore::FORMAT_ACTIVITYPUB]],

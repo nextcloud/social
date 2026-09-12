@@ -463,7 +463,7 @@ class AccountServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, bool}>
 	 */
-	public function displayNameScopeProvider(): array {
+	public static function displayNameScopeProvider(): array {
 		return [
 			// the default scope on a stock Nextcloud: requiring SCOPE_PUBLISHED
 			// meant no local actor ever federated a display name at all
@@ -499,7 +499,7 @@ class AccountServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function handleProvider(): array {
+	public static function handleProvider(): array {
 		return [
 			// already usable: left exactly as it is, so existing installs keep
 			// the handles their actors already have
@@ -710,7 +710,7 @@ class AccountServiceTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function plainTextBios(): iterable {
+	public static function plainTextBios(): iterable {
 		yield 'an unclosed angle bracket' => ['Maths: a<b and b>c'];
 		yield 'a bare less-than' => ['I <3 cats & dogs'];
 		yield 'an ampersand entity as typed' => ['bees &amp; goats'];

@@ -13,7 +13,7 @@ use OCA\Social\Model\InstancePath;
 use PHPUnit\Framework\TestCase;
 
 class InstancePathTest extends TestCase {
-	public function uriProvider(): array {
+	public static function uriProvider(): array {
 		return [
 			'shared inbox' => ['https://mastodon.social/inbox', 'https', 'mastodon.social', '/inbox'],
 			'user inbox with port' => ['http://localhost:8080/users/alice/inbox', 'http', 'localhost', '/users/alice/inbox'],

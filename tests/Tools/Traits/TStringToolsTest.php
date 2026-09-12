@@ -82,7 +82,7 @@ class TStringToolsTest extends TestCase {
 		$this->assertMatchesRegularExpression('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab]$/', $this->tools->uuid(20));
 	}
 
-	public function commonPartProvider(): array {
+	public static function commonPartProvider(): array {
 		return [
 			'shared prefix' => ['nextcloud', 'nextdoor', true, 'next'],
 			'identical' => ['same', 'same', true, 'same'],

@@ -176,7 +176,7 @@ class RelationshipServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{bool}>
 	 */
-	public function notificationsFlagProvider(): array {
+	public static function notificationsFlagProvider(): array {
 		return [
 			'hiding notifications' => [true],
 			'keeping notifications' => [false],

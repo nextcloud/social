@@ -308,7 +308,7 @@ class SignatureServiceTest extends TestCase {
 		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
 	}
 
-	public function digestVariantProvider(): array {
+	public static function digestVariantProvider(): array {
 		$body = '{"type":"Follow"}';
 		$sha256 = base64_encode(hash('sha256', $body, true));
 		$sha512 = base64_encode(hash('sha512', $body, true));
@@ -534,7 +534,7 @@ class SignatureServiceTest extends TestCase {
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
-	public function incompleteSignedHeaderSets(): array {
+	public static function incompleteSignedHeaderSets(): array {
 		return [
 			'missing (request-target)' => ['host date digest'],
 			'missing host' => ['(request-target) date digest'],
@@ -751,7 +751,7 @@ class SignatureServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{int, string}> */
-	public function createdOutsideTheWindow(): array {
+	public static function createdOutsideTheWindow(): array {
 		return [
 			'too old' => [-SignatureService::DATE_DELAY - 30, 'too old'],
 			'from the future' => [SignatureService::DATE_DELAY + 30, 'from the future'],
@@ -792,7 +792,7 @@ class SignatureServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{list<string>, array<string, mixed>, string}> */
-	public function incompleteCoveredComponentSets(): array {
+	public static function incompleteCoveredComponentSets(): array {
 		return [
 			'missing @method' => [['@target-uri', 'content-digest'], [], 'component is not signed: @method'],
 			'missing @target-uri' => [['@method', 'content-digest'], [], 'component is not signed: @target-uri'],
@@ -1142,7 +1142,7 @@ class SignatureServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function allowedContexts(): array {
+	public static function allowedContexts(): array {
 		return array_map(
 			fn (string $url): array => [$url],
 			array_keys(SignatureService::LOCAL_CONTEXTS),
@@ -1175,7 +1175,7 @@ class SignatureServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function rejectedContexts(): array {
+	public static function rejectedContexts(): array {
 		return [
 			'remote https context' => ['https://evil.example/context'],
 			'local file scheme' => ['file:///etc/passwd'],
