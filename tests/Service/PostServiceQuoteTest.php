@@ -29,6 +29,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamService;
@@ -78,7 +79,8 @@ class PostServiceQuoteTest extends TestCase {
 			$this->createMock(CurlService::class),
 			$this->createMock(LinkPreviewService::class),
 			$this->createMock(EmojiService::class),
-			new NullLogger()
+			new NullLogger(),
+			$this->createMock(PlaceService::class)
 		);
 
 		$l10nFactory = $this->createMock(IFactory::class);

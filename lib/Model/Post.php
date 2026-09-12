@@ -46,6 +46,7 @@ class Post implements JsonSerializable {
 
 	/** BCP 47; empty means the poster's default, decided by PostService */
 	private string $language = '';
+	private int $placeId = 0;
 
 	/** @var string[] */
 	private array $attachments = [];
@@ -251,6 +252,17 @@ class Post implements JsonSerializable {
 	 */
 	public function setLanguage(string $language): self {
 		$this->language = Stream::normalizeLanguage($language);
+
+		return $this;
+	}
+
+	/** Where the post was taken, when its author said so; 0 is "nowhere". */
+	public function getPlaceId(): int {
+		return $this->placeId;
+	}
+
+	public function setPlaceId(int $placeId): self {
+		$this->placeId = max(0, $placeId);
 
 		return $this;
 	}

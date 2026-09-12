@@ -210,6 +210,23 @@ Collections are local. They are not federated as ActivityPub collections and a p
 
 A post that is deleted leaves every collection holding it, through the same cascade that removes its recipient and tag rows. Suspending or deleting an account removes its collections.
 
+### Places
+
+Where a post was taken. **Nothing here geocodes anything** — no call goes to Nominatim, Google or anyone else. Sending somebody's location to a third party at the moment they are deciding whether to publish it is the same failure the Exif stripping exists to prevent, and doing it deliberately would be worse than doing it by accident.
+
+A place is therefore either one this instance has already seen, or one the client names outright with coordinates it already had. The search is over `social_place`, which holds one row per distinct place anyone here has posted from.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/places/search` | public, no-csrf (viewer required, `read` scope) | `q` (required), `limit` (20, max 20) | Places whose name **begins with** `q`. A prefix match, not a substring one: `LIKE '%term%'` cannot use an index and this is called on every keystroke. A viewer is required because the set of places an instance knows is a rough map of where its people go. |
+| GET | `/api/v1/places/{id}` | public, no-csrf (viewer required, `read` scope) | — | One place. |
+
+A post carries one by sending either `place_id` (from the search route) or `place_name` with optional `place_country`, `place_lat` and `place_long` to `POST /api/v1/statuses`. A `place_id` that no longer exists means "nowhere" rather than an error — a post is worth more than its location, and refusing to publish over a stale id is the wrong trade. Coordinates outside ±90/±180 are dropped, and a `place_country` that is not two letters is dropped, because a country column holding "United Kingdom" in one row and "GB" in another cannot group anything.
+
+The `Status` entity gains `place`, which is `null` for almost every post: a place is never inferred, only stated. It is filled in one query per page, like the link preview card, rather than joined into every timeline query — almost no post has one, and the join would cost every page regardless.
+
+Places are local and are not federated: a peer sees the post, not where it was taken.
+
 ### Stories
 
 Pixelfed's stories: one picture that stops existing after a day. Local only — a story has no `social_stream` row, no ActivityPub identity and no recipients, and is never federated. Giving one an identity would mean answering for what a peer did with its copy after the day was up.

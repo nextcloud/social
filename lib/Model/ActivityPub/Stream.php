@@ -27,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Model\Client\Place;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Model\StreamCard;
 use OCA\Social\Tools\IQueryRow;
@@ -198,6 +199,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private array $mentions = [];
 	private array $emojis = [];
 	private bool $sensitive = false;
+
+	/**
+	 * Where the post was taken, when its author said so. Zero is "nowhere",
+	 * which is what almost every post is: a place is never inferred.
+	 */
+	private int $placeId = 0;
+	private ?Place $place = null;
 	private string $conversation = '';
 	private ?Cache $cache = null;
 	private int $publishedTime = 0;
@@ -590,6 +598,28 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
+	public function getPlaceId(): int {
+		return $this->placeId;
+	}
+
+	public function setPlaceId(int $placeId): self {
+		$this->placeId = max(0, $placeId);
+
+		return $this;
+	}
+
+	/** Filled in per page by `PlaceService::attachPlaces()`, not per post. */
+	public function getPlace(): ?Place {
+		return $this->place;
+	}
+
+	public function setPlace(?Place $place): self {
+		$this->place = $place;
+		$this->placeId = $place?->getId() ?? $this->placeId;
+
+		return $this;
+	}
+
 	/**
 	 * @param bool $sensitive
 	 *
@@ -882,6 +912,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
 		$this->setContent($this->validate(self::AS_CONTENT, 'content', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
+		$this->setPlaceId($this->getInt('place_id', $data, 0));
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
@@ -1173,6 +1204,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'visibility' => self::visibilityForClient($this->getVisibility()),
 			// nullable in Mastodon's entity, and null is what "nobody said" is
 			'language' => ($this->getLanguage() === '') ? null : $this->getLanguage(),
+			// null is "nowhere", which is what almost every post is: a place is
+			// never inferred, only stated
+			'place' => $this->getPlace(),
 			'in_reply_to_id' => $inReplyToId,
 			'in_reply_to_account_id' => $inReplyToAccountId,
 			'quote' => $this->exportQuoteAsLocal(),

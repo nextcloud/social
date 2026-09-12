@@ -16,6 +16,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\CollectionService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\PlaceService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -59,6 +60,7 @@ class CollectionController extends ClientApiController {
 		private CacheActorService $cacheActorService,
 		private CollectionService $collectionService,
 		private LinkPreviewService $linkPreviewService,
+		private PlaceService $placeService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -176,6 +178,7 @@ class CollectionController extends ClientApiController {
 				$post->setExportFormat(ACore::FORMAT_LOCAL);
 			}
 			$this->linkPreviewService->attachCards($posts);
+			$this->placeService->attachPlaces($posts);
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Throwable $e) {

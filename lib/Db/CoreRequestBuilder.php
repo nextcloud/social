@@ -60,6 +60,7 @@ class CoreRequestBuilder {
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_SCHEDULED = 'social_scheduled';
+	public const TABLE_PLACES = 'social_place';
 	public const TABLE_STORIES = 'social_story';
 	public const TABLE_STORY_VIEWS = 'social_story_view';
 	public const TABLE_STREAM = 'social_stream';
@@ -220,6 +221,15 @@ class CoreRequestBuilder {
 			'collection_id',
 			'stream_id_prim',
 			'position',
+			'creation'
+		],
+		self::TABLE_PLACES => [
+			'id',
+			'name',
+			'name_prim',
+			'country',
+			'lat',
+			'lon',
 			'creation'
 		],
 		self::TABLE_STORIES => [
@@ -449,7 +459,8 @@ class CoreRequestBuilder {
 			'language',
 			'updated',
 			'quote',
-			'quote_authorization'
+			'quote_authorization',
+			'place_id'
 		],
 		self::TABLE_STREAM_ACTIONS => [
 			'id',

@@ -52,6 +52,7 @@ use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\PinService;
+use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
@@ -134,6 +135,7 @@ class ApiControllerTest extends TestCase {
 	private AccountRelationService|MockObject $accountRelationService;
 	private ScheduledStatusService|MockObject $scheduledStatusService;
 	private EmojiService|MockObject $emojiService;
+	private PlaceService|MockObject $placeService;
 	private IAppManager|MockObject $appManager;
 	private FediverseService|MockObject $fediverseService;
 
@@ -237,6 +239,7 @@ class ApiControllerTest extends TestCase {
 		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
 		$this->emojiService = $this->createMock(EmojiService::class);
+		$this->placeService = $this->createMock(PlaceService::class);
 		$this->appManager = $this->createMock(IAppManager::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->fediverseService->method('getAccessType')->willReturnCallback(fn (): string => $this->accessType);
@@ -326,7 +329,8 @@ class ApiControllerTest extends TestCase {
 			$this->scheduledStatusService,
 			$this->emojiService,
 			$this->appManager,
-			$this->fediverseService
+			$this->fediverseService,
+			$this->placeService
 		);
 	}
 

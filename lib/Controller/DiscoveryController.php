@@ -27,6 +27,7 @@ use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Controller;
@@ -80,6 +81,7 @@ class DiscoveryController extends Controller {
 		private TrendService $trendService,
 		private FeaturedTagService $featuredTagService,
 		private LinkPreviewService $linkPreviewService,
+		private PlaceService $placeService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -203,6 +205,7 @@ class DiscoveryController extends Controller {
 			$statuses = $this->trendService->trendingStatuses($period, $limit, $offset);
 			// one query for the whole page, as the timelines do it
 			$this->linkPreviewService->attachCards($statuses);
+			$this->placeService->attachPlaces($statuses);
 
 			return new DataResponse($statuses, Http::STATUS_OK);
 		} catch (Throwable $e) {

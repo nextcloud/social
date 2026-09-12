@@ -64,6 +64,7 @@ class StreamService {
 		private LinkPreviewService $linkPreviewService,
 		private EmojiService $emojiService,
 		private LoggerInterface $logger,
+		private PlaceService $placeService,
 	) {
 	}
 
@@ -534,8 +535,10 @@ class StreamService {
 			$this->streamRequest->getTimeline($options), $options
 		);
 		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
-			// one query for the whole page, and only for pages a client reads
+			// one query each for the whole page, and only for pages a client
+			// reads -- neither is part of the wire object
 			$this->linkPreviewService->attachCards($posts);
+			$this->placeService->attachPlaces($posts);
 		}
 
 		return $posts;

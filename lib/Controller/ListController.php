@@ -27,6 +27,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\PlaceService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -83,6 +84,7 @@ class ListController extends Controller {
 		private FollowService $followService,
 		private LinkPreviewService $linkPreviewService,
 		private ListsRequest $listsRequest,
+		private PlaceService $placeService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -385,6 +387,7 @@ class ListController extends Controller {
 			$posts = $this->listsRequest->getTimeline($list, $options);
 			// one query for the whole page, as the home timeline does it
 			$this->linkPreviewService->attachCards($posts);
+			$this->placeService->attachPlaces($posts);
 
 			return $this->paged($posts, $options->getLimit());
 		} catch (Throwable $e) {

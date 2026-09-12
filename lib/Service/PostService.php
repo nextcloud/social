@@ -132,6 +132,7 @@ class PostService {
 		$note->setAttachments($post->getMedias());
 		$note->setVisibility($post->getType());
 		$note->setLanguage($this->languageFor($post->getLanguage(), $actor));
+		$note->setPlaceId($post->getPlaceId());
 
 		$this->streamService->replyTo($note, $post->getReplyTo());
 		$quotedAuthor = $this->applyQuote($note, $post->getQuotedId());

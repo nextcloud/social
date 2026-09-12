@@ -69,6 +69,7 @@ use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\PinService;
+use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
@@ -186,6 +187,7 @@ class ApiController extends Controller {
 		private EmojiService $emojiService,
 		private IAppManager $appManager,
 		private FediverseService $fediverseService,
+		private PlaceService $placeService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -896,6 +898,15 @@ class ApiController extends Controller {
 			$post->setSensitive($status->isSensitive());
 			$post->setType($this->visibilityOf($status));
 			$post->setLanguage($status->getLanguage());
+			$post->setPlaceId(
+				$this->placeService->resolve(
+					$status->getPlaceId(),
+					$status->getPlaceName(),
+					$status->getPlaceCountry(),
+					$status->getPlaceLat(),
+					$status->getPlaceLon()
+				)?->getId() ?? 0
+			);
 
 			if (!empty($status->getMediaIds())) {
 				$documents = $this->documentService->getMediaFromArray(

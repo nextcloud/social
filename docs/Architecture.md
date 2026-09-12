@@ -151,6 +151,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_followed_tag` | The hashtags an account follows: one row per (actor, lowercased tag), unique on the pair |
 | `social_collection` | Collections: an album an account curates out of its own posts, with its title, description and visibility |
 | `social_collection_item` | What is in a collection: one row per (collection, post), unique on the pair, ordered by `position` |
+| `social_place` | Places: one row per distinct place this instance has seen, deduplicated on (name, country). No geocoder — see the migration |
 | `social_story` | Stories: one picture that expires after a day, with its caption, hold time and `expires_at` |
 | `social_story_view` | Who has seen a story: one row per (story, viewer), unique on the pair |
 | `social_list` | Mastodon lists: one row per (owner, list), with its title, `replies_policy` and `exclusive` flag |

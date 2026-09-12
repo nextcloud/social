@@ -67,11 +67,14 @@ class ApiContractTest extends TestCase {
 
 	/** @return string[] */
 	private function expectedStatusKeys(): array {
-		// 'account' joins the set when an actor is attached; 'nid' is app-specific
+		// 'account' joins the set when an actor is attached; 'nid' is app-specific.
+		// 'place' is Pixelfed's, and is null for almost every post: a place is
+		// never inferred, only stated. It is in the client format and not in the
+		// ActivityPub one, because places are local and are not federated.
 		$expected = [
 			'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
-			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'poll', 'quote',
+			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote',
 			'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
 			'tags', 'uri', 'url', 'visibility',
 		];

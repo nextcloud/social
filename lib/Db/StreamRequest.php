@@ -1807,6 +1807,7 @@ class StreamRequest extends StreamRequestBuilder {
 			->setValue('id', $qb->createNamedParameter($stream->getId()))
 			->setValue('visibility', $qb->createNamedParameter($stream->getVisibility()))
 			->setValue('sensitive', $qb->createNamedParameter($stream->isSensitive() ? 1 : 0))
+			->setValue('place_id', $qb->createNamedParameter($stream->getPlaceId()))
 			->setValue('type', $qb->createNamedParameter($stream->getType()))
 			->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 			->setValue('to', $qb->createNamedParameter($stream->getTo()))
