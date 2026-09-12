@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use Exception;
+use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\ClientRequest;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
@@ -23,11 +24,18 @@ use PHPUnit\Framework\TestCase;
 
 class ClientServiceTest extends TestCase {
 	private ClientRequest|MockObject $clientRequest;
+	private ClientAuthRequest|MockObject $clientAuthRequest;
 	private ClientService $service;
 
 	protected function setUp(): void {
 		$this->clientRequest = $this->createMock(ClientRequest::class);
-		$this->service = new ClientService($this->clientRequest, new SecretHasher(), $this->createMock(MiscService::class));
+		$this->clientAuthRequest = $this->createMock(ClientAuthRequest::class);
+		$this->service = new ClientService(
+			$this->clientRequest,
+			new SecretHasher(),
+			$this->createMock(MiscService::class),
+			$this->clientAuthRequest
+		);
 	}
 
 	private function registeredClient(): SocialClient {
@@ -75,26 +83,77 @@ class ClientServiceTest extends TestCase {
 		$this->service->createApp($client);
 	}
 
-	public function testAuthClientIssuesAnAuthCode(): void {
+	/**
+	 * The app registration used to hold the authorization in its own row, so
+	 * the second person to sign in with a client signed the first one out.
+	 * What is written now is a row of that account's own.
+	 */
+	public function testAuthClientRecordsTheAuthorizationOfOneAccount(): void {
 		$client = $this->registeredClient();
-		$this->clientRequest->expects($this->once())
-			->method('authClient')
-			->with($this->identicalTo($client));
+		$client->setId(7)->setAuthUserId('alice')->setAuthAccount('alice')
+			->setAuthScopes(['read', 'write']);
+
+		$recorded = [];
+		$this->clientAuthRequest->expects($this->once())->method('authorize')
+			->willReturnCallback(
+				function (int $clientId, string $userId, string $account, array $scopes, string $code) use (&$recorded): void {
+					$recorded = compact('clientId', 'userId', 'account', 'scopes', 'code');
+				}
+			);
 
 		$this->service->authClient($client);
 
+		$this->assertSame(7, $recorded['clientId']);
+		$this->assertSame('alice', $recorded['userId']);
+		$this->assertSame(['read', 'write'], $recorded['scopes']);
 		$this->assertMatchesRegularExpression('/^[A-Za-z0-9]{60}$/', $client->getAuthCode());
+		$this->assertSame($client->getAuthCode(), $recorded['code']);
 	}
 
-	public function testGenerateTokenIssuesABearerToken(): void {
+	public function testExchangingACodeMintsATokenOnThatAuthorization(): void {
 		$client = $this->registeredClient();
-		$this->clientRequest->expects($this->once())
-			->method('updateToken')
-			->with($this->identicalTo($client));
+		$client->setId(7);
+		$authorized = (new SocialClient())->setId(7)->setAuthUserId('alice');
+		$authorized->setLastUpdate(time() - 10);
+		$this->clientAuthRequest->method('getByCode')->with(7, 'the-code')->willReturn($authorized);
 
-		$this->service->generateToken($client);
+		$minted = '';
+		$this->clientAuthRequest->expects($this->once())->method('exchange')
+			->willReturnCallback(
+				function (int $clientId, string $code, string $token) use (&$minted, $authorized): SocialClient {
+					$minted = $token;
 
-		$this->assertMatchesRegularExpression('/^[A-Za-z0-9]{80}$/', $client->getToken());
+					return $authorized->setToken($token);
+				}
+			);
+
+		$result = $this->service->exchangeCode($client, 'the-code');
+
+		$this->assertMatchesRegularExpression('/^[A-Za-z0-9]{80}$/', $minted);
+		$this->assertSame('alice', $result->getAuthUserId());
+	}
+
+	/** A code is short-lived, and an expired one is not exchangeable. */
+	public function testExchangingAnExpiredCodeIsRefused(): void {
+		$client = $this->registeredClient();
+		$authorized = new SocialClient();
+		$authorized->setLastUpdate(time() - ClientService::TIME_CODE_TTL - 1);
+		$this->clientAuthRequest->method('getByCode')->willReturn($authorized);
+		$this->clientAuthRequest->expects($this->never())->method('exchange');
+
+		$this->expectException(ClientException::class);
+		$this->expectExceptionMessage('code expired');
+
+		$this->service->exchangeCode($client, 'stale');
+	}
+
+	public function testExchangingACodeNobodyGrantedIsRefused(): void {
+		$this->clientAuthRequest->method('getByCode')
+			->willThrowException(new ClientNotFoundException('unknown code'));
+
+		$this->expectException(ClientNotFoundException::class);
+
+		$this->service->exchangeCode($this->registeredClient(), 'nope');
 	}
 
 	public function testGetFromClientIdDelegates(): void {
@@ -110,9 +169,9 @@ class ClientServiceTest extends TestCase {
 	public function testGetFromTokenDoesNotRewriteAFreshlyRefreshedToken(): void {
 		$client = $this->registeredClient();
 		$client->setLastUpdate(time() - 60);
-		$this->clientRequest->method('getFromToken')->with('tok')->willReturn($client);
-		$this->clientRequest->expects($this->never())->method('updateTime');
-		$this->clientRequest->expects($this->never())->method('deprecateToken');
+		$this->clientAuthRequest->method('getByToken')->with('tok')->willReturn($client);
+		$this->clientAuthRequest->expects($this->never())->method('touch');
+		$this->clientAuthRequest->expects($this->never())->method('deprecate');
 
 		$this->assertSame($client, $this->service->getFromToken('tok'));
 	}
@@ -123,10 +182,9 @@ class ClientServiceTest extends TestCase {
 		// only rewrote recently-written rows, so real usage never refreshed anything.
 		$client = $this->registeredClient();
 		$client->setLastUpdate(time() - ClientService::TIME_TOKEN_REFRESH - 60);
-		$this->clientRequest->method('getFromToken')->willReturn($client);
-		$this->clientRequest->expects($this->once())
-			->method('updateTime')
-			->with($this->identicalTo($client));
+		$this->clientAuthRequest->method('getByToken')->willReturn($client);
+		$client->setAuthId(11);
+		$this->clientAuthRequest->expects($this->once())->method('touch')->with(11);
 
 		$this->assertSame($client, $this->service->getFromToken('tok'));
 	}
@@ -134,8 +192,8 @@ class ClientServiceTest extends TestCase {
 	public function testGetFromTokenRejectsAnExpiredTokenAndPurges(): void {
 		$client = $this->registeredClient();
 		$client->setLastUpdate(time() - ClientService::TIME_TOKEN_TTL - 1);
-		$this->clientRequest->method('getFromToken')->willReturn($client);
-		$this->clientRequest->expects($this->once())->method('deprecateToken');
+		$this->clientAuthRequest->method('getByToken')->willReturn($client);
+		$this->clientAuthRequest->expects($this->once())->method('deprecate');
 
 		$this->expectException(ClientNotFoundException::class);
 		$this->service->getFromToken('tok');
@@ -144,15 +202,15 @@ class ClientServiceTest extends TestCase {
 	public function testGetFromTokenStillRejectsWhenPurgingFails(): void {
 		$client = $this->registeredClient();
 		$client->setLastUpdate(0);
-		$this->clientRequest->method('getFromToken')->willReturn($client);
-		$this->clientRequest->method('deprecateToken')->willThrowException(new Exception('db'));
+		$this->clientAuthRequest->method('getByToken')->willReturn($client);
+		$this->clientAuthRequest->method('deprecate')->willThrowException(new Exception('db'));
 
 		$this->expectException(ClientNotFoundException::class);
 		$this->service->getFromToken('tok');
 	}
 
 	public function testGetFromTokenPropagatesUnknownToken(): void {
-		$this->clientRequest->method('getFromToken')->willThrowException(new ClientNotFoundException());
+		$this->clientAuthRequest->method('getByToken')->willThrowException(new ClientNotFoundException());
 
 		$this->expectException(ClientNotFoundException::class);
 		$this->service->getFromToken('nope');
@@ -167,13 +225,11 @@ class ClientServiceTest extends TestCase {
 			'registered app scopes as array' => [['app_scopes' => ['read']]],
 			'registered app scopes as string' => [['app_scopes' => 'read write']],
 			'granted auth scopes' => [['auth_scopes' => 'read']],
-			'right code' => [['code' => 'c0de']],
 			'everything at once' => [[
 				'redirect_uri' => 'urn:ietf:wg:oauth:2.0:oob',
 				'client_secret' => 's3cret',
 				'app_scopes' => 'write',
 				'auth_scopes' => ['read'],
-				'code' => 'c0de',
 			]],
 		];
 	}
@@ -191,7 +247,6 @@ class ClientServiceTest extends TestCase {
 			'wrong secret' => [['client_secret' => 'nope'], 'wrong client_secret'],
 			'more app scopes than registered' => [['app_scopes' => 'read write follow'], 'invalid scope'],
 			'more auth scopes than granted' => [['auth_scopes' => ['read', 'write']], 'invalid scope'],
-			'wrong code' => [['code' => 'other'], 'unknown code'],
 		];
 	}
 
@@ -209,7 +264,7 @@ class ClientServiceTest extends TestCase {
 		$client->setAuthCode($hasher->hash('c0de'));
 		$client->setLastUpdate(time() - 60);
 
-		$this->service->confirmData($client, ['client_secret' => 's3cret', 'code' => 'c0de']);
+		$this->service->confirmData($client, ['client_secret' => 's3cret']);
 		$this->addToAssertionCount(1);
 	}
 
@@ -223,30 +278,30 @@ class ClientServiceTest extends TestCase {
 		$this->service->confirmData($client, ['client_secret' => $hasher->hash('s3cret')]);
 	}
 
-	public function testConfirmDataRejectsAnExpiredCode(): void {
+	/**
+	 * `code` is not among what confirmData checks any more: an app row no
+	 * longer carries one, because it no longer carries one authorization. A
+	 * code handed here is ignored rather than silently accepted as valid —
+	 * exchangeCode() is what checks one, against the row it names.
+	 */
+	public function testConfirmDataNoLongerTakesACode(): void {
 		$client = $this->registeredClient();
 		$client->setLastUpdate(time() - ClientService::TIME_CODE_TTL - 60);
 
-		$this->expectException(ClientException::class);
-		$this->expectExceptionMessage('code expired');
-		$this->service->confirmData($client, ['code' => 'c0de']);
-	}
-
-	public function testConfirmDataAcceptsAFreshCode(): void {
-		$client = $this->registeredClient();
-		$client->setLastUpdate(time() - 60);
-
-		$this->service->confirmData($client, ['code' => 'c0de']);
+		$this->service->confirmData($client, ['code' => 'whatever']);
 		$this->addToAssertionCount(1);
 	}
 
-	public function testRevokeTokenClearsTheClientsOwnToken(): void {
+	/**
+	 * One authorization goes, not the app row: revoking on one device must not
+	 * sign out everybody else who authorized the same client.
+	 */
+	public function testRevokeTokenTakesBackOneAuthorization(): void {
 		$client = $this->registeredClient();
-		$client->setId(7);
-		$this->clientRequest->method('getFromToken')->with('tok')->willReturn($client);
-		$this->clientRequest->expects($this->once())
-			->method('revokeToken')
-			->with($this->identicalTo($client));
+		$client->setId(7)->setAuthId(11);
+		$this->clientAuthRequest->method('getByToken')->with('tok')->willReturn($client);
+		$this->clientAuthRequest->expects($this->once())->method('revoke')->with(11);
+		$this->clientRequest->expects($this->never())->method('revokeToken');
 
 		$this->service->revokeToken($client, 'tok');
 	}
@@ -256,7 +311,7 @@ class ClientServiceTest extends TestCase {
 		$owner->setId(7);
 		$caller = $this->registeredClient();
 		$caller->setId(8);
-		$this->clientRequest->method('getFromToken')->willReturn($owner);
+		$this->clientAuthRequest->method('getByToken')->willReturn($owner);
 		$this->clientRequest->expects($this->never())->method('revokeToken');
 
 		$this->expectException(ClientException::class);

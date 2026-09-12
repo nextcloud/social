@@ -182,6 +182,100 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	}
 
 	/**
+	 * Whether this account wants to hear about this thread.
+	 *
+	 * Mastodon's conversation mute, which stops the **notifications** a thread
+	 * produces and leaves its posts on the timelines — muting a conversation
+	 * is saying "stop telling me", not "hide this".
+	 */
+	public function setMuted(string $actorId, string $rootId, bool $muted): void {
+		if ($this->getMarkers($actorId, [$rootId]) !== []) {
+			$this->updateMuted($actorId, $rootId, $muted);
+
+			return;
+		}
+
+		try {
+			$qb = $this->getConversationStateInsertSql();
+			$qb->setValue('actor_id', $qb->createNamedParameter($actorId))
+				->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
+				->setValue('root_id', $qb->createNamedParameter($rootId))
+				->setValue('root_id_prim', $qb->createNamedParameter($qb->prim($rootId)))
+				->setValue('muted', $qb->createNamedParameter($muted, IQueryBuilder::PARAM_BOOL))
+				->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+
+			$qb->executeStatement();
+		} catch (DBException $e) {
+			if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+
+			// the row was written between the read above and the insert
+			$this->updateMuted($actorId, $rootId, $muted);
+		}
+	}
+
+	/**
+	 * The threads this account has muted.
+	 *
+	 * @return string[] root ids
+	 */
+	public function getMutedRoots(string $actorId, int $limit = 200): array {
+		$qb = $this->getConversationStateSelectSql();
+		$qb->andWhere($qb->expr()->eq('cs.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->eq('cs.muted', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)))
+			->setMaxResults(max(1, $limit));
+
+		$roots = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$roots[] = (string)$data['root_id'];
+		}
+		$cursor->closeCursor();
+
+		return $roots;
+	}
+
+	/** Whether this account has muted the thread under that root. */
+	public function isMuted(string $actorId, string $rootId): bool {
+		return in_array($rootId, $this->getMutedRoots($actorId), true);
+	}
+
+	private function updateMuted(string $actorId, string $rootId, bool $muted): void {
+		$qb = $this->getConversationStateUpdateSql();
+		$qb->set('muted', $qb->createNamedParameter($muted, IQueryBuilder::PARAM_BOOL));
+		$qb->where(
+			$qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))),
+			$qb->expr()->eq('root_id_prim', $qb->createNamedParameter($qb->prim($rootId)))
+		);
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * The root of the thread a post belongs to, walking `in_reply_to` up.
+	 *
+	 * A post that replies to nothing is its own root, and so is one whose
+	 * parent this instance does not hold — which is the ordinary case for a
+	 * reply that arrived before the post it answers. Bounded, because a
+	 * malformed chain must not walk for ever.
+	 */
+	public function rootOf(string $statusId, int $maxDepth = 40): string {
+		$current = $statusId;
+		for ($depth = 0; $depth < $maxDepth; $depth++) {
+			$links = $this->getThreadLinks([$current]);
+			$link = $links[$current] ?? null;
+			if ($link === null || $link['inReplyTo'] === '') {
+				return $current;
+			}
+
+			$current = $link['inReplyTo'];
+		}
+
+		return $current;
+	}
+
+	/**
 	 * The account is gone, so what it had read and dismissed goes with it:
 	 * nobody else may read these rows, and the actor id they are keyed by can
 	 * be handed to another actor by a later Move.

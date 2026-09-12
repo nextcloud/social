@@ -24,6 +24,8 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	use TArrayTools;
 
 	private int $id = 0;
+	/** the authorization row this was read through, 0 when it was not */
+	private int $authId = 0;
 	private string $appName = '';
 	private string $appWebsite = '';
 	private array $appRedirectUris = [];
@@ -49,6 +51,20 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	 */
 	public function getId(): int {
 		return $this->id;
+	}
+
+	/**
+	 * The `social_client_auth` row behind this, or 0 when the client was read
+	 * as an app registration rather than as somebody's authorization of it.
+	 */
+	public function getAuthId(): int {
+		return $this->authId;
+	}
+
+	public function setAuthId(int $authId): self {
+		$this->authId = $authId;
+
+		return $this;
 	}
 
 	/**
@@ -358,6 +374,9 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		$this->setAuthUserId($this->get('auth_user_id', $data));
 		$this->setAuthCode($this->get('auth_code', $data));
 		$this->setToken($this->get('token', $data));
+		// the row in social_client_auth this came from, when it came from one:
+		// what revoking and touching a single authorization address
+		$this->setAuthId($this->getInt('auth_id', $data));
 
 		$date = new DateTime($this->get('last_update', $data, ''));
 		$this->setLastUpdate($date->getTimestamp());

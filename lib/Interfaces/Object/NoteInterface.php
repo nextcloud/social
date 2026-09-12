@@ -175,6 +175,9 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$this->streamRequest->save($note);
 			$this->updateDetails($note);
 			$this->generateNotification($note);
+			// the bell on a profile: whoever asked to be told when this account
+			// posts, as against whoever it mentioned
+			$this->notificationService->onNewStatus($note);
 			$this->pushService->onNewStream($note->getId());
 			$this->queueLinkPreview($note);
 			if ($fetchParent || $fetchQuote) {

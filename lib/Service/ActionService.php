@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -54,6 +55,7 @@ class ActionService {
 		private StreamActionService $streamActionService,
 		private PinService $pinService,
 		private ActionsRequest $actionsRequest,
+		private ConversationsRequest $conversationsRequest,
 	) {
 	}
 
@@ -96,6 +98,23 @@ class ActionService {
 	 * @return Stream|null
 	 * @throws InvalidActionException
 	 */
+	/**
+	 * Stops, or restarts, the notifications a thread produces for one account.
+	 *
+	 * Mastodon's conversation mute is about being *told*, not about seeing:
+	 * the posts stay on the timelines and the notifications stop. The mute is
+	 * recorded against the thread's root, so a reply that arrives tomorrow is
+	 * covered by a mute taken today — which is the whole point of muting a
+	 * conversation rather than a post.
+	 */
+	private function muteConversation(Person $actor, Stream $post, bool $muted): void {
+		$this->conversationsRequest->setMuted(
+			$actor->getId(),
+			$this->conversationsRequest->rootOf($post->getId()),
+			$muted
+		);
+	}
+
 	public function action(Person $actor, int $nid, string $action): ?Stream {
 		if (!in_array($action, self::$availableStatusAction)) {
 			throw new InvalidActionException();
@@ -136,9 +155,8 @@ class ActionService {
 				return $this->pinService->unpin($actor, $nid);
 			case self::MUTE:
 			case self::UNMUTE:
-				// A silent no-op here makes the client display a state that was
-				// never stored. Refuse until the feature exists.
-				throw new InvalidActionException('the ' . $action . ' action is not supported yet');
+				$this->muteConversation($actor, $post, $action === self::MUTE);
+				break;
 		}
 
 		return null;

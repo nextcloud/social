@@ -13,6 +13,7 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Migration\EncryptPrivateKeys;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\SignatureService;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
@@ -107,6 +108,11 @@ class ActorsKeyStorageTest extends TestCase {
 		$this->setRawPrivateKey($pem);
 
 		$repair = Server::get(EncryptPrivateKeys::class);
+		// the step is one-shot and its marker is set on any instance that has
+		// upgraded, so clearing it is what makes this a test of the repair
+		// rather than of the marker
+		$config = Server::get(ConfigService::class);
+		$config->setAppValue('migration_actor_keys_encrypted', '0');
 		$repair->run($this->createMock(IOutput::class));
 
 		$sealedOnce = $this->rawPrivateKey();
@@ -114,6 +120,7 @@ class ActorsKeyStorageTest extends TestCase {
 		$this->assertSame($pem, $this->actorsRequest->getFromUsername(self::USERNAME)->getPrivateKey());
 
 		// a second run must not double-encrypt
+		$config->setAppValue('migration_actor_keys_encrypted', '0');
 		$repair->run($this->createMock(IOutput::class));
 		$this->assertSame($pem, $this->actorsRequest->getFromUsername(self::USERNAME)->getPrivateKey());
 	}

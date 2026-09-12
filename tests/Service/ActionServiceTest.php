@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -20,7 +21,6 @@ use OCA\Social\Service\LikeService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -33,6 +33,12 @@ class ActionServiceTest extends TestCase {
 	private StreamActionService|MockObject $streamActionService;
 	private PinService|MockObject $pinService;
 	private ActionsRequest|MockObject $actionsRequest;
+	private ConversationsRequest|MockObject $conversationsRequest;
+
+	/** What rootOf() answers, or '' for "the post is its own root". */
+	private string $threadRoot = '';
+	/** @var array<int, array<string, mixed>> the mutes that were written */
+	private array $mutes = [];
 	private ActionService $service;
 	private Person $actor;
 	private Note $post;
@@ -44,6 +50,16 @@ class ActionServiceTest extends TestCase {
 		$this->streamActionService = $this->createMock(StreamActionService::class);
 		$this->pinService = $this->createMock(PinService::class);
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->conversationsRequest = $this->createMock(ConversationsRequest::class);
+		$this->conversationsRequest->method('rootOf')->willReturnCallback(
+			fn (string $statusId): string => $this->threadRoot ?: $statusId
+		);
+		$this->conversationsRequest->method('setMuted')->willReturnCallback(
+			function (string $actorId, string $rootId, bool $muted): void {
+				$this->mutes[] = compact('actorId', 'rootId', 'muted');
+			}
+		);
+
 		$this->service = new ActionService(
 			$this->streamService,
 			$this->boostService,
@@ -51,6 +67,7 @@ class ActionServiceTest extends TestCase {
 			$this->streamActionService,
 			$this->pinService,
 			$this->actionsRequest,
+			$this->conversationsRequest,
 		);
 
 		$this->actor = new Person();
@@ -115,14 +132,14 @@ class ActionServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string, bool}> */
-	public static function bookmarkActionProvider(): array {
+	public function bookmarkActionProvider(): array {
 		return [
 			'bookmark' => ['bookmark', true],
 			'unbookmark' => ['unbookmark', false],
 		];
 	}
 
-	#[DataProvider('bookmarkActionProvider')]
+	/** @dataProvider bookmarkActionProvider */
 	public function testBookmarkTogglesTheLocalFlagAndFederatesNothing(string $action, bool $expected): void {
 		$this->streamService->expects($this->once())->method('getStreamByNid')->willReturn($this->post);
 		$this->likeService->expects($this->never())->method($this->anything());
@@ -134,22 +151,46 @@ class ActionServiceTest extends TestCase {
 		$this->assertNull($this->service->action($this->actor, 42, $action));
 	}
 
-	/** @return array<string, array{string}> */
-	public static function unsupportedActionProvider(): array {
+	/**
+	 * Mastodon's conversation mute is about being *told*: the thread's posts
+	 * stay on the timelines and only the notifications stop.
+	 *
+	 * @dataProvider muteActionProvider
+	 */
+	public function testMutingAConversationIsRecordedAgainstItsRoot(string $action, bool $muted): void {
+		$this->streamService->method('getStreamByNid')->willReturn($this->post);
+		$this->threadRoot = 'https://cloud.example.com/apps/social/@bob/the-root';
+		$this->streamActionService->expects($this->never())->method($this->anything());
+
+		$this->assertNull($this->service->action($this->actor, 42, $action));
+
+		$this->assertSame([[
+			'actorId' => $this->actor->getId(),
+			'rootId' => 'https://cloud.example.com/apps/social/@bob/the-root',
+			'muted' => $muted,
+		]], $this->mutes);
+	}
+
+	/** @return array<string, array{string, bool}> */
+	public function muteActionProvider(): array {
 		return [
-			'mute' => ['mute'],
-			'unmute' => ['unmute'],
+			'mute' => ['mute', true],
+			'unmute' => ['unmute', false],
 		];
 	}
 
-	#[DataProvider('unsupportedActionProvider')]
-	public function testUnimplementedActionsAreRefusedInsteadOfSilentlyIgnored(string $action): void {
-		// a silent no-op made the client display a state that was never stored
+	/**
+	 * Against the root, not the post: a reply that arrives tomorrow is covered
+	 * by a mute taken today, which is the whole point of muting a conversation
+	 * rather than a post.
+	 */
+	public function testAPostThatRepliesToNothingIsItsOwnRoot(): void {
 		$this->streamService->method('getStreamByNid')->willReturn($this->post);
-		$this->streamActionService->expects($this->never())->method($this->anything());
+		$this->threadRoot = '';
 
-		$this->expectException(InvalidActionException::class);
-		$this->service->action($this->actor, 42, $action);
+		$this->service->action($this->actor, 42, 'mute');
+
+		$this->assertSame($this->post->getId(), $this->mutes[0]['rootId']);
 	}
 
 	public function testPinAndUnpinAreHandedToThePinService(): void {

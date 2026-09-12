@@ -22,6 +22,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Moderation;
@@ -66,6 +67,14 @@ class StreamRequest extends StreamRequestBuilder {
 	/** How many posts one pass of deleteByAuthor() removes. */
 	public const DELETE_BATCH = 500;
 
+	/**
+	 * How far back the closed-poll sweep reads.
+	 *
+	 * Mastodon caps a poll at six months, so a poll published longer ago than
+	 * that has closed already and is not news to anybody.
+	 */
+	public const POLL_LOOKBACK = 190 * 86400;
+
 	public function __construct(
 		IDBConnection $connection,
 		LoggerInterface $logger,
@@ -78,6 +87,7 @@ class StreamRequest extends StreamRequestBuilder {
 		private FediverseService $fediverseService,
 		private CacheDocumentService $cacheDocumentService,
 		private FollowedTagsRequest $followedTagsRequest,
+		private ConversationsRequest $conversationsRequest,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 	}
@@ -762,6 +772,51 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * The polls whose end time has passed since a moment.
+	 *
+	 * A poll's end time lives in the stored wire object rather than in a
+	 * column, so it cannot be a predicate: what this does is read the recent
+	 * `Question` rows and let the model answer. That is bounded twice over —
+	 * by how far back it looks, and by `$scan` — and on any instance the set
+	 * is a handful of rows, because a poll is a rare kind of post and one that
+	 * closed a year ago is not news.
+	 *
+	 * @return Question[]
+	 */
+	public function getPollsClosedSince(int $since, int $limit = 50, int $scan = 500): array {
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+		$qb->limitToType(Question::TYPE);
+		$qb->andWhere($qb->expr()->gte(
+			's.published_time',
+			$qb->createNamedParameter(
+				(new DateTime())->setTimestamp(time() - self::POLL_LOOKBACK),
+				IQueryBuilder::PARAM_DATE
+			)
+		));
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults(max(1, $scan));
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+
+		$closed = [];
+		foreach ($this->getStreamsFromRequest($qb) as $poll) {
+			if (!($poll instanceof Question)) {
+				continue;
+			}
+
+			$ends = $poll->getEndTime() === '' ? 0 : (int)strtotime($poll->getEndTime());
+			if ($ends > $since && $ends <= time()) {
+				$closed[] = $poll;
+			}
+
+			if (count($closed) >= $limit) {
+				break;
+			}
+		}
+
+		return $closed;
+	}
+
+	/**
 	 * Whether the second half is worth asking for at all.
 	 *
 	 * One count answered out of the `(actor_id_prim, hashtag)` index without
@@ -1022,8 +1077,51 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->leftJoinObjectStatus();
 
 		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
+		$this->filterMutedConversations($qb, $actor->getId());
 
 		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * Drops the notifications a muted thread would produce.
+	 *
+	 * Mastodon's conversation mute is about being *told*: the thread's posts
+	 * stay on every timeline and only the notifications stop, which is what
+	 * somebody muting a thread they are in has asked for.
+	 *
+	 * The mute is stored against the thread's root, so what is excluded here
+	 * is every post of those threads — resolved on the way in rather than
+	 * joined, because "the thread this post belongs to" is a walk up
+	 * `in_reply_to` and there is no portable way to ask a database for it. An
+	 * account mutes few threads and a thread is bounded, so this is a small
+	 * `NOT IN` and it is skipped entirely by everyone who has muted nothing.
+	 */
+	private function filterMutedConversations(SocialQueryBuilder $qb, string $actorId): void {
+		$roots = $this->conversationsRequest->getMutedRoots($actorId);
+		if ($roots === []) {
+			return;
+		}
+
+		$prims = [];
+		foreach ($roots as $root) {
+			foreach ($this->conversationsRequest->getThread($root) as $post) {
+				$prims[$post['idPrim']] = true;
+			}
+		}
+
+		if ($prims === []) {
+			return;
+		}
+
+		$qb->andWhere(
+			$qb->expr()->orX(
+				$qb->expr()->isNull('s.object_id_prim'),
+				$qb->expr()->notIn(
+					's.object_id_prim',
+					$qb->createNamedParameter(array_keys($prims), IQueryBuilder::PARAM_STR_ARRAY)
+				)
+			)
+		);
 	}
 
 	/**

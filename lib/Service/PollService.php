@@ -52,6 +52,8 @@ class PollService {
 		private SignatureService $signatureService,
 		private StreamActionService $streamActionService,
 		private StreamActionsRequest $streamActionsRequest,
+		private NotificationService $notificationService,
+		private ConfigService $configService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -59,6 +61,15 @@ class PollService {
 	/**
 	 * @throws StreamNotFoundException when the id is not a known poll
 	 */
+	/**
+	 * How far back a first sweep looks for closed polls.
+	 *
+	 * A day: long enough that a cron that missed a few runs still announces
+	 * what closed while it was down, short enough that switching the feature
+	 * on does not tell everybody about a poll from last year.
+	 */
+	public const SWEEP_FLOOR = 86400;
+
 	public function getPoll(int $nid, ?Person $viewer = null): Question {
 		$stream = $this->streamRequest->getStreamByNid($nid);
 		if (!$stream instanceof Question) {
@@ -271,6 +282,55 @@ class PollService {
 	/**
 	 * The status export (with poll entity) for API responses.
 	 */
+	/**
+	 * Tells the people who voted in a poll that it has closed.
+	 *
+	 * A poll closes by its own end time passing, so nothing *happens* at the
+	 * moment it does: without a sweep, a voter never learns the result arrived.
+	 * One notification per poll per reader — the id carries both, so a second
+	 * sweep over the same poll writes nothing.
+	 *
+	 * @return int how many polls were announced
+	 */
+	public function announceClosedPolls(int $limit = 50): int {
+		$announced = 0;
+
+		foreach ($this->streamRequest->getPollsClosedSince($this->lastSweep(), $limit) as $poll) {
+			try {
+				$this->notificationService->onPollClosed(
+					$poll, $this->actionsRequest->votersOf($poll->getId())
+				);
+				$announced++;
+			} catch (\Throwable $e) {
+				// one poll that cannot be announced must not stop the sweep:
+				// the rest of them closed too
+				$this->logger->warning('could not announce a closed poll', [
+					'poll' => $poll->getId(), 'exception' => $e,
+				]);
+			}
+		}
+
+		// moved only after the pass, so a failure mid-sweep is retried rather
+		// than skipped: a duplicate notification is dropped by its id, a
+		// missed one is never sent
+		$this->configService->setAppValue(ConfigService::SOCIAL_POLLS_SWEPT, (string)time());
+
+		return $announced;
+	}
+
+	/**
+	 * How far the last sweep got, and a floor under it.
+	 *
+	 * The floor matters on an instance that has never swept: without it the
+	 * first run would announce every poll that ever closed, to everybody who
+	 * ever voted.
+	 */
+	private function lastSweep(): int {
+		$stored = (int)$this->configService->getAppValue(ConfigService::SOCIAL_POLLS_SWEPT);
+
+		return max($stored, time() - self::SWEEP_FLOOR);
+	}
+
 	public function exportPoll(Question $poll): array {
 		$poll->setExportFormat(ACore::FORMAT_LOCAL);
 

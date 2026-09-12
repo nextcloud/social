@@ -154,6 +154,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * map so the `types`/`exclude_types` API filter and the exported entity
 	 * cannot drift apart.
 	 */
+	/**
+	 * A notification this instance raises that is not an activity anybody
+	 * sent: a poll of yours closing, an account you asked about posting, a
+	 * moderator warning you, or a block cutting your follows. Mastodon
+	 * documents a type for each; there is no ActivityPub verb for any of them,
+	 * so the subtype is this app's own name for the event.
+	 */
+	public const SUBTYPE_POLL = 'PollClosed';
+	public const SUBTYPE_STATUS = 'NewStatus';
+	public const SUBTYPE_WARNING = 'ModerationWarning';
+	public const SUBTYPE_SEVERED = 'SeveredRelationships';
+
 	private const NOTIFICATION_TYPES = [
 		Like::TYPE => 'favourite',
 		Announce::TYPE => 'reblog',
@@ -161,6 +173,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		Update::TYPE => 'update',
 		Follow::TYPE => 'follow',
 		Follow::TYPE_REQUEST => 'follow_request',
+		self::SUBTYPE_POLL => 'poll',
+		self::SUBTYPE_STATUS => 'status',
+		self::SUBTYPE_WARNING => 'moderation_warning',
+		self::SUBTYPE_SEVERED => 'severed_relationships',
 	];
 
 	private string $activityId = '';
@@ -1518,11 +1534,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	#[\Override]
 	public function exportAsNotification(): array {
-		// TODO - implements:
-		// status = Someone you enabled notifications for has posted a status
-		// follow_request = Someone requested to follow you
-		// poll = A poll you have voted in or created has ended
-		// update = A status you boosted with has been edited
 		$type = self::notificationTypeOfSubType($this->getSubType());
 
 		$result = [

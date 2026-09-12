@@ -77,6 +77,10 @@ class DiscoveryControllerTest extends TestCase {
 	private ?array $directoryAsked = null;
 	/** @var array{period: string, limit: int, offset: int}|null what the trends were asked */
 	private ?array $trendAsked = null;
+	/** @var array<string, mixed> what the link timeline was asked for */
+	private array $linkAsked = [];
+	/** @var Note[] what the link timeline answers */
+	private array $linkTimeline = [];
 	/** @var Stream[] the statuses the trends answer with */
 	private array $trendingStatuses = [];
 	/** @var bool whether the page was handed to the link-preview loader */
@@ -144,6 +148,13 @@ class DiscoveryControllerTest extends TestCase {
 				$this->trendAsked = ['period' => $period, 'limit' => $limit, 'offset' => $offset];
 
 				return [new TrendingLink((new StreamCard())->setUrl('https://example.org/a'), 3)];
+			});
+
+		$this->trendService->method('linkTimeline')
+			->willReturnCallback(function (string $url, int $limit, int $maxId, int $minId): array {
+				$this->linkAsked = compact('url', 'limit', 'maxId', 'minId');
+
+				return $this->linkTimeline;
 			});
 
 		$this->featuredTagService = $this->createMock(FeaturedTagService::class);
@@ -433,5 +444,52 @@ class DiscoveryControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
 		$this->assertSame(['error' => 'internal server error'], $response->getData());
+	}
+
+	// the link timeline
+
+	/**
+	 * What a reader gets by tapping a trending link rather than following it
+	 * off the instance. The links were already served; the timeline that reads
+	 * them was not.
+	 */
+	public function testTheLinkTimelineAnswersThePostsCarryingIt(): void {
+		$note = new Note();
+		$note->setId('https://cloud.example/notes/1');
+		$this->linkTimeline = [$note];
+
+		$response = $this->controller()->linkTimeline('https://example.org/a', 15, 9, 3);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([
+			'url' => 'https://example.org/a', 'limit' => 15, 'maxId' => 9, 'minId' => 3,
+		], $this->linkAsked);
+	}
+
+	/** One query for the whole page, as the timelines do it. */
+	public function testTheLinkTimelineArrivesWithItsPreviews(): void {
+		$note = new Note();
+		$note->setId('https://cloud.example/notes/1');
+		$this->linkTimeline = [$note];
+
+		$this->controller()->linkTimeline('https://example.org/a');
+
+		$this->assertTrue($this->cardsAttached);
+	}
+
+	/** The link a client holds may be one nobody here has posted since. */
+	public function testAnUnknownLinkIsAnEmptyTimelineRatherThanAnError(): void {
+		$response = $this->controller()->linkTimeline('https://example.org/nothing');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $response->getData());
+	}
+
+	public function testTheLinkTimelineAnswersAnAnonymousCaller(): void {
+		$this->anonymous();
+
+		$this->assertSame(
+			Http::STATUS_OK, $this->controller()->linkTimeline('https://example.org/a')->getStatus()
+		);
 	}
 }

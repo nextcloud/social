@@ -164,6 +164,50 @@ class TrendsRequest extends TrendsRequestBuilder {
 	}
 
 	/**
+	 * The public posts carrying one url, newest first.
+	 *
+	 * Mastodon's link timeline. The url is matched exactly rather than by
+	 * prefix: two pages of the same site are two links, and a prefix match
+	 * would fold a whole domain into whichever of its pages happened to trend.
+	 *
+	 * @return int[] nids, newest first
+	 */
+	public function statusNidsForUrl(string $url, int $limit, int $maxId = 0, int $minId = 0): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+
+		$qb->selectDistinct('s.nid')
+			->from(self::TABLE_STREAM_CARDS, 'sc')
+			->innerJoin(
+				'sc', self::TABLE_STREAM, 's',
+				$expr->andX(
+					$expr->eq('s.id_prim', 'sc.stream_id_prim'),
+					$expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC))
+				)
+			)
+			->where($expr->eq('sc.url', $qb->createNamedParameter($url)))
+			->orderBy('s.nid', 'desc')
+			->setMaxResults(max(1, min(40, $limit)));
+
+		if ($maxId > 0) {
+			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+
+		if ($minId > 0) {
+			$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter($minId, IQueryBuilder::PARAM_INT)));
+		}
+
+		$nids = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$nids[] = (int)$data['nid'];
+		}
+		$cursor->closeCursor();
+
+		return $nids;
+	}
+
+	/**
 	 * One stored card per url, so a trending link can be rendered with the
 	 * title and image the preview already fetched.
 	 *

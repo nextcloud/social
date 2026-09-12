@@ -169,6 +169,167 @@ class NotificationService {
 	}
 
 	/**
+	 * Tells the people who asked to hear about an account that it has posted.
+	 *
+	 * Mastodon's bell on a profile: a subscription separate from following,
+	 * written by `POST /accounts/{id}/follow` with `notify` set. Only local
+	 * subscribers — a remote one is told by their own server, from the same
+	 * post.
+	 *
+	 * A reply is not one of these. The bell means "tell me when they post",
+	 * and a thread somebody else started is not that; Mastodon reads it the
+	 * same way.
+	 */
+	public function onNewStatus(Stream $post): void {
+		if ($post->getInReplyTo() !== '') {
+			return;
+		}
+
+		try {
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
+			$stored = $this->streamRequest->getStreamById($post->getId(), false, ACore::FORMAT_LOCAL);
+		} catch (Exception $e) {
+			return;
+		}
+
+		$author = $this->accountOf($post->getAttributedTo());
+
+		foreach ($this->accountRelationService->subscribersOf($post->getAttributedTo()) as $subscriber) {
+			if (!$this->isLocal($subscriber)) {
+				continue;
+			}
+
+			try {
+				/** @var SocialAppNotification $item */
+				$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+				$item->setDetailItem('post', $stored);
+				$item->addDetail('account', $author);
+				$item->setAttributedTo($post->getAttributedTo())
+					->setSubType(Stream::SUBTYPE_STATUS)
+					->setId($post->getId() . '/notification+status/' . md5($subscriber))
+					->setSummary('{account} posted')
+					->setObjectId($post->getId())
+					->setTo($subscriber)
+					->setLocal(true);
+
+				$interface->save($item);
+			} catch (Exception $e) {
+				$this->logger->warning('could not store a status notification', ['exception' => $e]);
+			}
+		}
+	}
+
+	/**
+	 * Tells the people who voted in a poll that it has closed.
+	 *
+	 * Mastodon tells the author too, which is why the author is not skipped:
+	 * somebody who ran a poll wants the result as much as anybody who answered
+	 * it.
+	 *
+	 * @param string[] $voters actor ids
+	 */
+	public function onPollClosed(Stream $poll, array $voters): void {
+		try {
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
+			$stored = $this->streamRequest->getStreamById($poll->getId(), false, ACore::FORMAT_LOCAL);
+		} catch (Exception $e) {
+			return;
+		}
+
+		$author = $this->accountOf($poll->getAttributedTo());
+
+		foreach (array_unique(array_merge($voters, [$poll->getAttributedTo()])) as $reader) {
+			if (!$this->isLocal($reader)) {
+				continue;
+			}
+
+			try {
+				/** @var SocialAppNotification $item */
+				$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+				$item->setDetailItem('post', $stored);
+				$item->addDetail('account', $author);
+				$item->setAttributedTo($poll->getAttributedTo())
+					->setSubType(Stream::SUBTYPE_POLL)
+					->setId($poll->getId() . '/notification+poll/' . md5($reader))
+					->setSummary('A poll you voted in has ended')
+					->setObjectId($poll->getId())
+					->setTo($reader)
+					->setLocal(true);
+
+				$interface->save($item);
+			} catch (Exception $e) {
+				$this->logger->warning('could not store a poll notification', ['exception' => $e]);
+			}
+		}
+	}
+
+	/**
+	 * Tells a local account what a moderator decided about it.
+	 *
+	 * The warning already reached them through Nextcloud's own notifications,
+	 * which a Mastodon client cannot see — so somebody moderated through a
+	 * client was told nothing a client could show them.
+	 */
+	public function onModerationWarning(string $actorId, string $action, string $text): void {
+		if (!$this->isLocal($actorId)) {
+			// telling a remote account means telling its instance, and no
+			// activity says "your user has been warned"
+			return;
+		}
+
+		try {
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
+
+			/** @var SocialAppNotification $item */
+			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+			$item->addDetail('action', $action);
+			$item->addDetail('text', $text);
+			$item->setAttributedTo($actorId)
+				->setSubType(Stream::SUBTYPE_WARNING)
+				->setId($actorId . '/notification+warning/' . md5($action . '/' . $text . '/' . time()))
+				->setSummary('A moderator of this server has acted on your account')
+				->setTo($actorId)
+				->setLocal(true);
+
+			$interface->save($item);
+		} catch (Exception $e) {
+			$this->logger->warning('could not store a moderation notification', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Tells a local account that a block has cut its follows.
+	 *
+	 * Blocking a domain deletes the follows in both directions, and until this
+	 * the accounts that lost them were told nothing — they simply stopped
+	 * seeing somebody and had no way of learning why.
+	 */
+	public function onRelationshipsSevered(string $actorId, string $domain, int $lost): void {
+		if ($lost < 1 || !$this->isLocal($actorId)) {
+			return;
+		}
+
+		try {
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
+
+			/** @var SocialAppNotification $item */
+			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+			$item->addDetail('target_name', $domain);
+			$item->addDetail('relationships_count', (string)$lost);
+			$item->setAttributedTo($actorId)
+				->setSubType(Stream::SUBTYPE_SEVERED)
+				->setId($actorId . '/notification+severed/' . md5($domain))
+				->setSummary('Your follows of {target_name} were removed when it was blocked')
+				->setTo($actorId)
+				->setLocal(true);
+
+			$interface->save($item);
+		} catch (Exception $e) {
+			$this->logger->warning('could not store a severed-relationships notification', ['exception' => $e]);
+		}
+	}
+
+	/**
 	 * One notification of the viewer's, as `/api/v1/notifications` would have
 	 * served it.
 	 *

@@ -65,12 +65,20 @@ class DomainPurgeService {
 	 */
 	public const BATCH = 50;
 
+	/**
+	 * How many relationships of one account a severed-relationships count
+	 * looks at. A local account that follows more than this on one instance
+	 * loses more than the notification says, and a number is what it is for.
+	 */
+	private const SEVERED_MAX = 500;
+
 	public function __construct(
 		private CacheActorsRequest $cacheActorsRequest,
 		private StreamRequest $streamRequest,
 		private FollowsRequest $followsRequest,
 		private ModerationService $moderationService,
 		private ConfigService $configService,
+		private NotificationService $notificationService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -147,8 +155,71 @@ class DomainPurgeService {
 	 */
 	private function detach(array $actorIds): void {
 		foreach ($actorIds as $actorId) {
+			// counted before the purge, because the purge is what removes them:
+			// afterwards there is nothing left to count and nobody to tell
+			$severed = $this->localRelationshipsWith($actorId);
 			$this->moderationService->purgeActor($actorId);
+			$this->tellThemTheirFollowsWereCut($severed, $actorId);
 		}
+	}
+
+	/**
+	 * The local accounts that follow, or are followed by, an account about to
+	 * be purged, and how many relationships each of them loses.
+	 *
+	 * @return array<string, int> local actor id => how many
+	 */
+	private function localRelationshipsWith(string $actorId): array {
+		$counts = [];
+
+		foreach ([
+			$this->followsRequest->getFollowersByActorId($actorId, self::SEVERED_MAX),
+			$this->followsRequest->getFollowingByActorId($actorId, self::SEVERED_MAX),
+		] as $follows) {
+			foreach ($follows as $follow) {
+				foreach ([$follow->getActorId(), $follow->getObjectId()] as $side) {
+					if ($side !== $actorId && $this->isLocal($side)) {
+						$counts[$side] = ($counts[$side] ?? 0) + 1;
+					}
+				}
+			}
+		}
+
+		return $counts;
+	}
+
+	/**
+	 * Tells the local accounts a block has cut off.
+	 *
+	 * Until this they were told nothing: they simply stopped seeing somebody
+	 * and had no way of learning why. Mastodon calls it
+	 * `severed_relationships`, and it is the one notification whose whole
+	 * point is that the thing it is about has already happened.
+	 *
+	 * @param array<string, int> $severed
+	 */
+	private function tellThemTheirFollowsWereCut(array $severed, string $actorId): void {
+		$domain = strtolower((string)parse_url($actorId, PHP_URL_HOST));
+		if ($domain === '') {
+			return;
+		}
+
+		foreach ($severed as $local => $lost) {
+			try {
+				$this->notificationService->onRelationshipsSevered($local, $domain, $lost);
+			} catch (\Exception $e) {
+				// the purge is the point and has already happened; a
+				// notification that could not be written must not stop it
+				$this->logger->warning('could not tell an account its follows were cut', [
+					'actor' => $local, 'exception' => $e,
+				]);
+			}
+		}
+	}
+
+	/** Whether an actor id is one this instance serves. */
+	private function isLocal(string $actorId): bool {
+		return str_starts_with($actorId, $this->configService->getSocialUrl());
 	}
 
 	/**

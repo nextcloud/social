@@ -15,6 +15,7 @@ use OCA\Social\Migration\BackfillRemoteVisibility;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\ConfigService;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Server;
@@ -44,6 +45,10 @@ class VisibilityBackfillTest extends TestCase {
 		$this->streamRequest = Server::get(StreamRequest::class);
 		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
 		$this->repair = Server::get(BackfillRemoteVisibility::class);
+		// the step is one-shot and its marker is set on any instance that has
+		// upgraded, so clearing it is what makes these tests of the backfill
+		// rather than of the marker
+		Server::get(ConfigService::class)->setAppValue('migration_remote_visibility_backfilled', '0');
 		$this->cleanup();
 
 		$author = new Person();

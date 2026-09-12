@@ -211,6 +211,39 @@ class DiscoveryController extends Controller {
 	}
 
 	/** The links most often attached to a public status in the window. */
+	/**
+	 * The public posts carrying one link, newest first.
+	 *
+	 * What a reader gets by tapping a trending link rather than following it
+	 * off the instance. The links themselves were already served at
+	 * `/api/v1/trends/links`, so the data was here and the timeline that reads
+	 * it was not.
+	 *
+	 * A missing or unknown `url` is an empty timeline, not an error: the link
+	 * a client holds may be one nobody here has posted since.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/timelines/link')]
+	public function linkTimeline(
+		string $url = '',
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+	): DataResponse {
+		try {
+			$this->initViewer(['read'], false);
+
+			$statuses = $this->trendService->linkTimeline($url, $limit, $max_id, $min_id);
+			// one query for the whole page, as the timelines do it
+			$this->linkPreviewService->attachCards($statuses);
+
+			return new DataResponse($statuses, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/trends/links')]
