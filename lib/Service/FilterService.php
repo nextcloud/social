@@ -263,7 +263,7 @@ class FilterService {
 			return '';
 		}
 
-		return (string)$found[0];
+		return $found[0];
 	}
 
 	/**

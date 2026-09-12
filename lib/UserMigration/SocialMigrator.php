@@ -359,7 +359,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				ProbeOptions::FAVOURITES => self::PATH_LIKES,
 			] as $probe => $path) {
 				$urls = [];
-				foreach ($this->posts($actor, (string)$probe) as $post) {
+				foreach ($this->posts($actor, $probe) as $post) {
 					$urls[] = $post->getId();
 				}
 

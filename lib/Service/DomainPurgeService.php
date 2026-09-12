@@ -203,7 +203,7 @@ class DomainPurgeService {
 
 		$local = array_filter([
 			strtolower($this->configService->getSocialAddress()),
-			strtolower((string)$this->configService->getCloudHost()),
+			strtolower($this->configService->getCloudHost()),
 		]);
 		if (in_array($domain, $local, true)) {
 			throw new InvalidResourceException('cannot purge this instance');
