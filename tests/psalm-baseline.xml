@@ -5,11 +5,6 @@
       <code><![CDATA[(microtime(true) - $start) * 1000]]></code>
     </InvalidOperand>
   </file>
-  <file src="lib/Controller/ApiController.php">
-    <RedundantCast>
-      <code><![CDATA[(string)$header['tmp_name']]]></code>
-    </RedundantCast>
-  </file>
   <file src="lib/Model/ActivityPub/ACore.php">
     <InvalidClass>
       <code><![CDATA[Acore]]></code>
@@ -27,11 +22,6 @@
       <code><![CDATA[$v === null]]></code>
     </TypeDoesNotContainNull>
   </file>
-  <file src="lib/Model/ActivityPub/Stream.php">
-    <RedundantFunctionCall>
-      <code><![CDATA[array_values]]></code>
-    </RedundantFunctionCall>
-  </file>
   <file src="lib/Service/CheckService.php">
     <RedundantCast>
       <code><![CDATA[(bool)($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true')]]></code>
@@ -39,11 +29,6 @@
     <UndefinedClass>
       <code><![CDATA[ClientException]]></code>
     </UndefinedClass>
-  </file>
-  <file src="lib/Service/FilterService.php">
-    <RedundantCast>
-      <code><![CDATA[(string)$found[0]]]></code>
-    </RedundantCast>
   </file>
   <file src="lib/Service/StreamQueueService.php">
     <InvalidOperand>
@@ -60,8 +45,5 @@
       <code><![CDATA[$size += ($this->followsRequest->countFollowing($actor->getId())
 			+ $this->followsRequest->countFollowers($actor->getId())) / 25]]></code>
     </InvalidOperand>
-    <RedundantCast>
-      <code><![CDATA[(string)$probe]]></code>
-    </RedundantCast>
   </file>
 </files>
