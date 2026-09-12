@@ -229,8 +229,8 @@ class MetricsService {
 
 		// snapped so that every point of every measure names the same day,
 		// whatever hour the client asked from
-		$startAt = (int)(floor($startAt / self::DAY) * self::DAY);
-		$endAt = (int)(ceil($endAt / self::DAY) * self::DAY);
+		$startAt = intdiv($startAt, self::DAY) * self::DAY;
+		$endAt = intdiv($endAt + self::DAY - 1, self::DAY) * self::DAY;
 
 		if (($endAt - $startAt) / self::DAY > self::MAX_DAYS) {
 			throw new InvalidResourceException(

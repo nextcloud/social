@@ -56,7 +56,7 @@ class Announcement implements JsonSerializable {
 	private int $publishedAt = 0;
 	private int $updatedAt = 0;
 	private bool $read = false;
-	/** @var array<string, array{count: int, me: bool}> emoji => count and ours */
+	/** @var array<string, array{count: int, me: bool, url?: string}> emoji => count, ours, and the picture if it names one */
 	private array $reactions = [];
 
 	public function setId(int $id): self {
@@ -225,7 +225,7 @@ class Announcement implements JsonSerializable {
 	}
 
 	/**
-	 * @param array<string, array{count: int, me: bool}> $reactions
+	 * @param array<string, array{count: int, me: bool, url?: string}> $reactions
 	 */
 	public function setReactions(array $reactions): self {
 		$this->reactions = $reactions;
@@ -233,7 +233,7 @@ class Announcement implements JsonSerializable {
 		return $this;
 	}
 
-	/** @return array<string, array{count: int, me: bool}> */
+	/** @return array<string, array{count: int, me: bool, url?: string}> */
 	public function getReactions(): array {
 		return $this->reactions;
 	}

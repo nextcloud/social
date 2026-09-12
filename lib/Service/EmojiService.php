@@ -163,7 +163,7 @@ class EmojiService {
 
 		if ($size > self::MAX_SIZE) {
 			throw new InvalidActionException(
-				'the picture is larger than ' . (int)(self::MAX_SIZE / 1024) . ' KiB'
+				'the picture is larger than ' . intdiv(self::MAX_SIZE, 1024) . ' KiB'
 			);
 		}
 

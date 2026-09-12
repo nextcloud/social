@@ -272,7 +272,7 @@ class AnnouncementService {
 	 *
 	 * @param array<string, array{count: int, me: bool}> $reactions
 	 *
-	 * @return array<string, array{count: int, me: bool}>
+	 * @return array<string, array{count: int, me: bool, url?: string}>
 	 */
 	private function withPictures(array $reactions): array {
 		foreach ($reactions as $name => $reaction) {
