@@ -16,6 +16,7 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - 🎨 **Filters** — eight mild adjustments in the composer, previewed live and baked into the copy that is posted.
 - 🔳 **Profile grid** — a profile draws as a grid of squares or as a timeline, whichever you last chose. The crop follows each picture's focal point.
 - 🧭 **Explore** — the pictures being looked at, the hashtags being used and the accounts this server knows about, in one page.
+- 📱 **Pixelfed's own routes** — the `/api/v2/config` bootstrap its app reads on launch and the `v1.1` discover namespace, so a client built for Pixelfed finds what it looks for. Every limit in the config is derived from the one the server enforces, so a client is never told a ceiling the server does not keep.
 - 🗂️ **Collections** — albums you curate out of your own posts, in an order you choose, public or followers-only. Local: a peer sees the posts, which it already had.
 - ⏳ **Stories** — a picture that stops existing after a day. Shown to your followers and nobody else, never federated, and swept by a background job as well as filtered out of every read.
 - 📍 **Places** — say where a post was taken. **No geocoder is involved**: a place is one this instance has already seen or one you name yourself, because sending somebody's location to a third party at the moment they are deciding whether to publish it is the failure the Exif stripping exists to prevent.
