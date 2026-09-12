@@ -49,7 +49,7 @@ let pinia
 let accountStore
 let timelineStore
 
-const makeStore = (serverData = {}) => {
+function makeStore(serverData = {}) {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
@@ -64,13 +64,15 @@ const makeStore = (serverData = {}) => {
 	return pinia
 }
 
-const mountTimeline = (route = {}) => mount(Timeline, {
-	global: {
-		plugins: [pinia],
-		mocks: { $route: { name: 'timeline', params: {}, ...route } },
-		stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
-	},
-})
+function mountTimeline(route = {}) {
+	return mount(Timeline, {
+		global: {
+			plugins: [pinia],
+			mocks: { $route: { name: 'timeline', params: {}, ...route } },
+			stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
+		},
+	})
+}
 
 describe('Timeline', () => {
 	beforeEach(() => {

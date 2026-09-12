@@ -47,14 +47,16 @@ const boost = {
 	account: bob,
 }
 
-const notification = (type, extra = {}) => ({
-	id: `n-${type}`,
-	type,
-	created_at: '2026-09-03T10:00:00Z',
-	account: bob,
-	status: post,
-	...extra,
-})
+function notification(type, extra = {}) {
+	return {
+		id: `n-${type}`,
+		type,
+		created_at: '2026-09-03T10:00:00Z',
+		account: bob,
+		status: post,
+		...extra,
+	}
+}
 
 const TimelinePostStub = {
 	name: 'TimelinePost',
@@ -72,7 +74,7 @@ const UserEntryStub = {
 	template: '<div class="user-entry-stub" />',
 }
 
-const mountEntry = (item, props = {}) => {
+function mountEntry(item, props = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	const timelineStore = useTimelineStore()

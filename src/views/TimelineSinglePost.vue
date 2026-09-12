@@ -7,19 +7,22 @@
 		<Composer v-show="composerDisplayStatus" />
 		<!-- the three lists are one conversation; the spine says so -->
 		<div class="thread">
-			<TimelineList v-if="timeline"
+			<TimelineList
+				v-if="timeline"
 				class="thread__ancestors"
-				:show-parents="true"
+				:showParents="true"
 				:type="$route.params.type"
-				:reverse-order="true" />
-			<TimelineEntry v-if="singlePost"
+				:reverseOrder="true" />
+			<TimelineEntry
+				v-if="singlePost"
 				ref="mainPost"
 				class="main-post"
 				:item="singlePost"
 				type="single-post"
 				element="div" />
 			<!-- a deleted post is not an empty page: say so -->
-			<NcEmptyContent v-else
+			<NcEmptyContent
+				v-else
 				:name="t('social', 'This post is not available')"
 				:description="t('social', 'It may have been deleted, or this server never received it.')">
 				<template #icon>
@@ -57,19 +60,23 @@ export default {
 		TimelineEntry,
 		TimelineList,
 	},
+
 	setup() {
 		const { serverData } = useServerData()
 
 		return { serverData }
 	},
+
 	computed: {
 		...mapStores(useAccountStore, useTimelineStore),
 		singlePost() {
 			return this.timelineStore.getSinglePost
 		},
+
 		composerDisplayStatus() {
 			return this.timelineStore.getComposerDisplayStatus
 		},
+
 		/**
 		 * Whose post this is. The route says so; this used to be read off
 		 * window.location by splitting the href and slicing a '@' off the
@@ -80,13 +87,16 @@ export default {
 		account() {
 			return String(this.$route.params.account ?? '').replace(/^@/, '')
 		},
+
 		timeline() {
 			return this.timelineStore.getTimeline
 		},
+
 		parentsTimeline() {
 			return this.timelineStore.getParentsTimeline
 		},
 	},
+
 	watch: {
 		'$route.params.id': 'load',
 		parentsTimeline(_, previousValue) {
@@ -103,6 +113,7 @@ export default {
 			this.$nextTick(() => this.$refs.mainPost?.$el?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 		},
 	},
+
 	async beforeMount() {
 		// Keep the handler so unmounted() removes only this one — a bare
 		// eventBus.off('composer-reply') would also detach the Composer's.
@@ -115,9 +126,11 @@ export default {
 
 		await this.load()
 	},
+
 	unmounted() {
 		eventBus.off('composer-reply', this.onComposerReply)
 	},
+
 	methods: {
 		t: translate,
 		/**
@@ -145,6 +158,7 @@ export default {
 			const fetchMethod = this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo'
 			await this.accountStore[fetchMethod](this.account)
 		},
+
 		/**
 		 * The post the server rendered into the page, for a permalink opened
 		 * cold. `loadState` throws when the key is absent — which is what a

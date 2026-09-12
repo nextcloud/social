@@ -8,21 +8,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PreviewGrid from '../../../src/components/Composer/PreviewGrid.vue'
 import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vue'
 
-const media = (id) => ({
-	id,
-	type: 'image',
-	url: `https://cloud.example.org/media/${id}.png`,
-	preview_url: `https://cloud.example.org/media/${id}-small.png`,
-	description: '',
-	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-	meta: { small: { width: 4, height: 3 } },
-})
+function media(id) {
+	return {
+		id,
+		type: 'image',
+		url: `https://cloud.example.org/media/${id}.png`,
+		preview_url: `https://cloud.example.org/media/${id}-small.png`,
+		description: '',
+		blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+		meta: { small: { width: 4, height: 3 } },
+	}
+}
 
 const file = (name) => new File(['x'], name, { type: 'image/png' })
 
-const mountGrid = (miniatures, upload = {}) => mount(PreviewGrid, {
-	props: { uploading: false, uploadProgress: 0, ...upload, miniatures },
-})
+function mountGrid(miniatures, upload = {}) {
+	return mount(PreviewGrid, {
+		props: { uploading: false, uploadProgress: 0, ...upload, miniatures },
+	})
+}
 
 describe('PreviewGrid', () => {
 	let getContext

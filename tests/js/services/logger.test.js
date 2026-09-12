@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { getCurrentUser } = vi.hoisted(() => ({ getCurrentUser: vi.fn() }))
 vi.mock('@nextcloud/auth', () => ({ getCurrentUser }))
 
-const loadLogger = async () => {
+async function loadLogger() {
 	vi.resetModules()
 	const { default: logger } = await import('../../../src/services/logger.js')
 	return logger

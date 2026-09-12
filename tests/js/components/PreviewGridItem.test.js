@@ -20,9 +20,11 @@ const media = {
 
 const file = new File(['x'], 'screenshot.png', { type: 'image/png' })
 
-const mountItem = (preview) => mount(PreviewGridItem, {
-	props: { preview, randomKey: 'blob:preview-1' },
-})
+function mountItem(preview) {
+	return mount(PreviewGridItem, {
+		props: { preview, randomKey: 'blob:preview-1' },
+	})
+}
 
 describe('PreviewGridItem', () => {
 	let getContext

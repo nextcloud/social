@@ -7,7 +7,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import OAuth2Authorize from '../../../src/views/OAuth2Authorize.vue'
 
-const setState = (key, value) => {
+function setState(key, value) {
 	setInitialState('social', key, value)
 	window._nc_initial_state?.clear()
 }

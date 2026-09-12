@@ -3,14 +3,15 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcActions variant="tertiary" :menu-name="selectedVisibilityDetails.text" :aria-label="t('social', 'Choose a visibility')">
+	<NcActions variant="tertiary" :menuName="selectedVisibilityDetails.text" :aria-label="t('social', 'Choose a visibility')">
 		<template #icon>
 			<VisibilityIcon :visibility="selectedVisibilityDetails.id" :size="20" />
 		</template>
-		<NcActionButton v-for="visibilityDetails of visibilitiesInfo"
+		<NcActionButton
+			v-for="visibilityDetails of visibilitiesInfo"
 			:key="visibilityDetails.id"
 			:class="{'selected-visibility': visibilityDetails.id === selectedVisibilityDetails.id}"
-			:close-after-click="true"
+			:closeAfterClick="true"
 			@click="switchType(visibilityDetails)">
 			<template #icon>
 				<VisibilityIcon :visibility="visibilityDetails.id" :size="20" />
@@ -19,6 +20,7 @@
 		</NcActionButton>
 	</NcActions>
 </template>
+
 <script>
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
@@ -34,18 +36,22 @@ export default {
 		NcActionButton,
 		VisibilityIcon,
 	},
-	emits: ['update:visibility'],
+
 	props: {
 		visibility: {
 			type: String,
 			required: true,
 		},
 	},
+
+	emits: ['update:visibility'],
+
 	data() {
 		return {
 			visibilitiesInfo,
 		}
 	},
+
 	computed: {
 		/**
 		 * The visibility on the button. Falls back rather than returning
@@ -60,6 +66,7 @@ export default {
 				?? visibilitiesInfo.find(({ id }) => id === 'followers')
 		},
 	},
+
 	methods: {
 		switchType(visibility) {
 			this.$emit('update:visibility', visibility.id)
@@ -76,6 +83,7 @@ export default {
 	},
 }
 </script>
+
 <style scoped>
 .selected-visibility {
 	outline: 1px solid var(--color-success);

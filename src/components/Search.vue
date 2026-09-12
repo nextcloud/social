@@ -3,7 +3,8 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="social__wrapper social__search"
+	<div
+		class="social__wrapper social__search"
 		:class="{ 'social__search--refreshing': loading && !isEmpty }"
 		:aria-busy="loading ? 'true' : 'false'">
 		<!-- Reply used to emit `composer-reply` on the event bus with nothing
@@ -35,7 +36,8 @@
 
 		<template v-else>
 			<transition name="empty">
-				<NcEmptyContent v-if="isEmpty"
+				<NcEmptyContent
+					v-if="isEmpty"
 					:name="t('social', 'No results found')"
 					:description="t('social', 'Nothing on this server matches “{term}”. Searching for a full handle like @user@example.org can find somebody this server has not met yet.', { term: query })">
 					<template #icon>
@@ -58,7 +60,8 @@
 			-->
 			<section v-if="accounts.length > 0" class="social__search-section">
 				<h2>{{ t('social', 'People') }}</h2>
-				<transition-group name="result"
+				<transition-group
+					name="result"
 					tag="div"
 					class="social__search-accounts"
 					appear
@@ -69,7 +72,8 @@
 
 			<section v-if="hashtags.length > 0" class="social__search-section">
 				<h2>{{ t('social', 'Hashtags') }}</h2>
-				<transition-group name="result"
+				<transition-group
+					name="result"
 					tag="ul"
 					class="social__search-tags"
 					appear
@@ -84,12 +88,14 @@
 
 			<section v-if="statuses.length > 0" class="social__search-section">
 				<h2>{{ t('social', 'Posts') }}</h2>
-				<transition-group name="result"
+				<transition-group
+					name="result"
 					tag="ul"
 					class="social__search-statuses"
 					appear
 					:css="resultsAreCurrent">
-					<TimelineEntry v-for="status in statuses"
+					<TimelineEntry
+						v-for="status in statuses"
 						:key="status.id"
 						:item="status"
 						type="search" />
@@ -134,12 +140,14 @@ export default {
 		TimelineEntry,
 		UserEntry,
 	},
+
 	props: {
 		term: {
 			type: String,
 			default: '',
 		},
 	},
+
 	data() {
 		return {
 			accounts: [],
@@ -164,6 +172,7 @@ export default {
 			renderedTerm: null,
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore, useTimelineStore),
 		/** @return {string} the term, as somebody typed it rather than as a URL */
@@ -174,6 +183,7 @@ export default {
 				return this.term
 			}
 		},
+
 		/**
 		 * The found posts, read back out of the store so that acting on one
 		 * shows. A status the store no longer holds — a deleted one — drops
@@ -186,10 +196,12 @@ export default {
 				.map((id) => this.timelineStore.getStatus(id))
 				.filter(Boolean)
 		},
+
 		/** @return {boolean} whether the reply composer is open */
 		composerDisplayStatus() {
 			return this.timelineStore.getComposerDisplayStatus
 		},
+
 		/**
 		 * Whether what is on screen answers what is in the search box.
 		 *
@@ -204,24 +216,29 @@ export default {
 		resultsAreCurrent() {
 			return this.renderedTerm === this.query.trim()
 		},
+
 		/** @return {boolean} */
 		isEmpty() {
 			return this.accounts.length === 0 && this.statuses.length === 0 && this.hashtags.length === 0
 		},
 	},
+
 	watch: {
 		// typing re-enters the route on every keystroke; one request per word
 		// is enough, and re-sorting the whole store per letter was the old cost
 		term: 'searchDebounced',
 	},
+
 	beforeMount() {
 		this.search()
 	},
+
 	unmounted() {
 		if (this.debounceTimer !== null) {
 			window.clearTimeout(this.debounceTimer)
 		}
 	},
+
 	methods: {
 		t: translate,
 		searchDebounced() {
@@ -233,6 +250,7 @@ export default {
 				this.search()
 			}, DEBOUNCE_MS)
 		},
+
 		/**
 		 * Asks the server, rather than filtering the handful of posts that
 		 * happen to be loaded. `/api/v2/search` answers with accounts, posts

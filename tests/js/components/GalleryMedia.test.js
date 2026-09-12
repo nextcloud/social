@@ -8,20 +8,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import GalleryMedia from '../../../src/components/GalleryMedia.vue'
 import MediaAttachment from '../../../src/components/MediaAttachment.vue'
 
-const photo = (overrides = {}) => ({
-	id: '7',
-	type: 'image',
-	url: 'https://cloud.example.org/media/original.jpg',
-	preview_url: 'https://cloud.example.org/media/small.jpg',
-	description: 'A cat asleep on a sofa',
-	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-	meta: { original: { width: 1600, height: 1200 }, small: { width: 4, height: 3 } },
-	...overrides,
-})
+function photo(overrides = {}) {
+	return {
+		id: '7',
+		type: 'image',
+		url: 'https://cloud.example.org/media/original.jpg',
+		preview_url: 'https://cloud.example.org/media/small.jpg',
+		description: 'A cat asleep on a sofa',
+		blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+		meta: { original: { width: 1600, height: 1200 }, small: { width: 4, height: 3 } },
+		...overrides,
+	}
+}
 
-const mountMedia = (props = {}) => mount(GalleryMedia, {
-	props: { attachment: photo(), ...props },
-})
+function mountMedia(props = {}) {
+	return mount(GalleryMedia, {
+		props: { attachment: photo(), ...props },
+	})
+}
 
 describe('GalleryMedia', () => {
 	let getContext

@@ -43,10 +43,12 @@ const notifications = [
 
 let get
 
-const mountWidget = () => mount(Dashboard, {
-	props: { title: 'Social notifications' },
-	global: { stubs: { NcDashboardWidget: NcDashboardWidgetStub } },
-})
+function mountWidget() {
+	return mount(Dashboard, {
+		props: { title: 'Social notifications' },
+		global: { stubs: { NcDashboardWidget: NcDashboardWidgetStub } },
+	})
+}
 
 describe('Dashboard', () => {
 	beforeEach(() => {

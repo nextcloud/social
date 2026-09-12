@@ -3,12 +3,14 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<a v-if="card && card.title"
+	<a
+		v-if="card && card.title"
 		class="post-card"
 		:href="card.url"
 		target="_blank"
 		rel="nofollow noopener noreferrer">
-		<img v-if="image"
+		<img
+			v-if="image"
 			class="post-card__image"
 			:src="image"
 			alt=""
@@ -32,12 +34,14 @@ export default {
 			default: null,
 		},
 	},
+
 	data() {
 		return {
 			// the image comes from the linked site, so it may simply be gone
 			image: this.card?.image ?? '',
 		}
 	},
+
 	computed: {
 		provider() {
 			if (this.card.provider_name) {
@@ -50,6 +54,7 @@ export default {
 			}
 		},
 	},
+
 	watch: {
 		card(value) {
 			this.image = value?.image ?? ''

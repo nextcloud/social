@@ -22,10 +22,12 @@ const statuses = [
 
 let get
 
-const mountSection = (userId) => mount(ProfilePageIntegration, {
-	props: { userId },
-	global: { stubs: { TimelineEntry: TimelineEntryStub } },
-})
+function mountSection(userId) {
+	return mount(ProfilePageIntegration, {
+		props: { userId },
+		global: { stubs: { TimelineEntry: TimelineEntryStub } },
+	})
+}
 
 describe('ProfilePageIntegration', () => {
 	beforeEach(() => {

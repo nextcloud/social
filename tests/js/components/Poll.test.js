@@ -20,21 +20,23 @@ vi.mock('../../../src/services/logger.js', () => ({
 
 const API = '/index.php/apps/social/api/v1'
 
-const makePoll = (extra = {}) => ({
-	id: '42',
-	expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
-	expired: false,
-	multiple: false,
-	votes_count: 10,
-	voters_count: 10,
-	voted: false,
-	own_votes: [],
-	options: [
-		{ title: 'Cats', votes_count: 6 },
-		{ title: 'Dogs', votes_count: 4 },
-	],
-	...extra,
-})
+function makePoll(extra = {}) {
+	return {
+		id: '42',
+		expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+		expired: false,
+		multiple: false,
+		votes_count: 10,
+		voters_count: 10,
+		voted: false,
+		own_votes: [],
+		options: [
+			{ title: 'Cats', votes_count: 6 },
+			{ title: 'Dogs', votes_count: 4 },
+		],
+		...extra,
+	}
+}
 
 const mountPoll = (poll = makePoll()) => mount(Poll, { props: { poll } })
 

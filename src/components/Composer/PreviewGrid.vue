@@ -13,7 +13,8 @@
 
 			<!-- a moving bar says nothing to a screen reader: the same fraction
 			     is on the element itself, so it is read rather than watched -->
-			<div class="upload-progress__message"
+			<div
+				class="upload-progress__message"
 				role="progressbar"
 				:aria-label="label"
 				aria-valuemin="0"
@@ -27,13 +28,14 @@
 			</div>
 		</div>
 		<div class="preview-grid" :class="{ 'preview-grid--single': count === 1 }">
-			<PreviewGridItem v-for="(item, randomKey) in miniatures"
+			<PreviewGridItem
+				v-for="(item, randomKey) in miniatures"
 				:key="randomKey"
 				:preview="item"
-				:random-key="randomKey"
+				:randomKey="randomKey"
 				@delete="deletePreview"
 				@describe="$emit('describe', $event)"
-				@commit-description="$emit('commitDescription', $event)" />
+				@commitDescription="$emit('commitDescription', $event)" />
 		</div>
 	</div>
 </template>
@@ -49,37 +51,45 @@ export default {
 		PreviewGridItem,
 		FileUpload,
 	},
-	emits: ['deleted', 'describe', 'commitDescription'],
+
 	props: {
 		uploadProgress: {
 			type: Number,
 			required: true,
 		},
+
 		/** what the bar is working on; attaching from Files is not uploading */
 		progressLabel: {
 			type: String,
 			default: '',
 		},
+
 		uploading: {
 			type: Boolean,
 			required: true,
 		},
+
 		/** @type {import('vue').PropType<Object<string, import('./Composer.vue').LocalAttachment>>} */
 		miniatures: {
 			type: Object,
 			required: true,
 		},
 	},
+
+	emits: ['deleted', 'describe', 'commitDescription'],
+
 	computed: {
 		/** @return {number} how many pictures the post is carrying */
 		count() {
 			return Object.keys(this.miniatures).length
 		},
+
 		/** @return {string} */
 		label() {
 			return this.progressLabel || translate('social', 'Uploading…')
 		},
 	},
+
 	methods: {
 		deletePreview(randomKey) {
 			this.$emit('deleted', randomKey)

@@ -3,7 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcButton :value="currentVisibilityPostLabel"
+	<NcButton
+		:value="currentVisibilityPostLabel"
 		:disabled="disabled"
 		variant="primary"
 		@click.prevent="handleClick">
@@ -25,35 +26,40 @@ export default {
 		NcButton,
 		Send,
 	},
+
 	props: {
 		visibility: {
 			type: String,
 			required: true,
 		},
+
 		disabled: {
 			type: Boolean,
 			default: true,
 		},
 	},
+
 	emits: ['click'],
 	computed: {
 		/** @return {string} */
 		postTo() {
 			switch (this.visibility) {
-			case 'public':
-			case 'unlisted':
-				return t('social', 'Post')
-			case 'followers':
-				return t('social', 'Post to followers')
-			case 'direct':
-				return t('social', 'Send message to mentioned users')
+				case 'public':
+				case 'unlisted':
+					return t('social', 'Post')
+				case 'followers':
+					return t('social', 'Post to followers')
+				case 'direct':
+					return t('social', 'Send message to mentioned users')
 			}
 			return ''
 		},
+
 		/** @return {string} */
 		currentVisibilityPostLabel() {
 			return this.visibilityPostLabel(this.visibility)
 		},
+
 		/** @return {Function} */
 		visibilityPostLabel() {
 			return (visibility) => {
@@ -61,18 +67,19 @@ export default {
 					visibility = this.visibility
 				}
 				switch (visibility) {
-				case 'public':
-					return t('social', 'Post publicly')
-				case 'followers':
-					return t('social', 'Post to followers')
-				case 'direct':
-					return t('social', 'Post to recipients')
-				case 'unlisted':
-					return t('social', 'Post unlisted')
+					case 'public':
+						return t('social', 'Post publicly')
+					case 'followers':
+						return t('social', 'Post to followers')
+					case 'direct':
+						return t('social', 'Post to recipients')
+					case 'unlisted':
+						return t('social', 'Post unlisted')
 				}
 			}
 		},
 	},
+
 	methods: {
 		handleClick() {
 			this.$emit('click')

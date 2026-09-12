@@ -3,7 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div v-if="item.account"
+	<div
+		v-if="item.account"
 		class="post-avatar"
 		:class="{ 'post-avatar--remote': !origin.local }"
 		:style="{ '--instance-colour': origin.colour }"
@@ -15,19 +16,22 @@
 		<span v-if="!origin.local" class="hidden-visually">
 			{{ t('social', 'Account on {instance}', { instance: origin.instance }) }}
 		</span>
-		<AccountHoverCard :handle="item.account.acct"
+		<AccountHoverCard
+			:handle="item.account.acct"
 			:fallback="item.account"
 			variant="block"
 			placement="bottom-start">
-			<NcAvatar v-if="isLocal"
+			<NcAvatar
+				v-if="isLocal"
 				class="messages__avatar__icon"
-				:hide-status="true"
+				:hideStatus="true"
 				:user="item.account.username"
-				:display-name="item.account.display_name"
-				:disable-tooltip="true" />
-			<NcAvatar v-else
+				:displayName="item.account.display_name"
+				:disableTooltip="true" />
+			<NcAvatar
+				v-else
 				:url="item.account.avatar"
-				:disable-tooltip="true" />
+				:disableTooltip="true" />
 		</AccountHoverCard>
 	</div>
 </template>
@@ -44,6 +48,7 @@ export default {
 		AccountHoverCard,
 		NcAvatar,
 	},
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status>} */
 		item: {
@@ -51,9 +56,7 @@ export default {
 			default: () => {},
 		},
 	},
-	methods: {
-		t: translate,
-	},
+
 	computed: {
 		/**
 		 * @return {string}
@@ -61,14 +64,20 @@ export default {
 		userTest() {
 			return this.item.account.display_name
 		},
+
 		/** @return {boolean} */
 		isLocal() {
 			return !this.item.account.acct.includes('@')
 		},
+
 		/** @return {{instance: string, colour: string, local: boolean}} where the author lives */
 		origin() {
 			return originOf(this.item.account.acct)
 		},
+	},
+
+	methods: {
+		t: translate,
 	},
 }
 </script>

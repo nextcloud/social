@@ -6,10 +6,11 @@
 	<div v-if="item" class="user-entry">
 		<div class="entry-content">
 			<div class="user-avatar">
-				<NcAvatar v-if="isLocal"
+				<NcAvatar
+					v-if="isLocal"
 					:size="32"
 					:user="item.username"
-					:disable-tooltip="true" />
+					:disableTooltip="true" />
 				<NcAvatar v-else :url="item.avatar" />
 			</div>
 			<div class="user-details">
@@ -21,7 +22,8 @@
 						{{ item.acct }}
 					</span>
 				</router-link>
-				<a v-else
+				<a
+					v-else
 					:href="item.id"
 					target="_blank"
 					rel="noreferrer">
@@ -58,28 +60,33 @@ export default {
 		FollowButton,
 		NcAvatar,
 	},
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Account>} */
 		item: {
 			type: Object,
 			default: () => {},
 		},
+
 		displayFollowButton: {
 			type: Boolean,
 			default: true,
 		},
 	},
+
 	setup() {
 		const { serverData } = useServerData()
 		const { currentUser } = useCurrentUser()
 
 		return { serverData, currentUser }
 	},
+
 	data() {
 		return {
 			followingText: t('social', 'Following'),
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore),
 		/**
@@ -90,6 +97,7 @@ export default {
 		sanitizedNote() {
 			return sanitizeHtml(this.item.note ?? '')
 		},
+
 		/**
 		 * Where this entry stands with the reader.
 		 *
@@ -102,6 +110,7 @@ export default {
 		relationship() {
 			return this.accountStore.getRelationshipWith(this.item?.id)
 		},
+
 		/**
 		 * @return {boolean}
 		 */
@@ -109,6 +118,7 @@ export default {
 			return !this.item.acct.includes('@')
 		},
 	},
+
 	mounted() {
 		if (!this.serverData.public && this.relationship === undefined) {
 			// batched: the action collects everybody who asks in the same
@@ -118,6 +128,7 @@ export default {
 	},
 }
 </script>
+
 <style scoped lang="scss">
 .user-entry {
 	width: 100%;

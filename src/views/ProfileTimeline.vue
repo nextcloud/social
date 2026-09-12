@@ -5,7 +5,8 @@
 <template>
 	<div>
 		<ul v-if="pinned.length" class="profile-pinned">
-			<TimelineEntry v-for="entry in pinned"
+			<TimelineEntry
+				v-for="entry in pinned"
 				:key="`pinned-${entry.id}`"
 				:item="entry"
 				type="account" />
@@ -29,11 +30,13 @@ export default {
 		TimelineEntry,
 		TimelineList,
 	},
+
 	data() {
 		return {
 			pinnedIds: [],
 		}
 	},
+
 	computed: {
 		...mapStores(useTimelineStore),
 		/**
@@ -54,22 +57,27 @@ export default {
 				.filter(Boolean)
 		},
 	},
+
 	watch: {
 		'$route.params.account': 'load',
 	},
+
 	beforeMount() {
 		this.load()
 	},
+
 	methods: {
 		load() {
 			this.loadTimeline()
 			this.loadPinned()
 		},
+
 		loadTimeline() {
 			if (this.$route.params.account) {
 				this.timelineStore.changeTimelineTypeAccount(this.$route.params.account)
 			}
 		},
+
 		/**
 		 * The pinned posts sit above the timeline, the way every Fediverse
 		 * profile shows them. A failure here leaves the timeline alone.

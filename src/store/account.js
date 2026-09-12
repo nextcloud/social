@@ -82,7 +82,9 @@ function indexAccount(state, { actorId, data }) {
 	if (state.accountsFollowings[actorId] === undefined) {
 		state.accountsFollowings = { ...state.accountsFollowings, [actorId]: [] }
 	}
-	if (!data.acct) return
+	if (!data.acct) {
+		return
+	}
 	const accountId = (data.acct.indexOf('@') === -1) ? data.acct + '@' + new URL(data.url).hostname : data.acct
 	state.accountIdMap = { ...state.accountIdMap, [accountId]: data.url }
 }
@@ -143,7 +145,9 @@ export const useAccountStore = defineStore('account', {
 		 * @return {() => Record<string, import('../types/Mastodon.js').Account>} every account, keyed by actor URL
 		 */
 		getAllAccounts(state) {
-			return () => { return state.accounts }
+			return () => {
+				return state.accounts
+			}
 		},
 		/**
 		 * The account a handle names, or undefined while it is still unknown —
@@ -343,7 +347,7 @@ export const useAccountStore = defineStore('account', {
 			try {
 				logger.debug('Loading relationships', { count: wanted.length })
 				const response = await axios.get(generateUrl('apps/social/api/v1/accounts/relationships'), { params: { id: wanted } })
-				response.data.forEach(account => {
+				response.data.forEach((account) => {
 					this.addRelationship({ actorId: account.id, data: account })
 				})
 				return response.data
@@ -492,11 +496,15 @@ export const useAccountStore = defineStore('account', {
 		},
 		async fetchAccountFollowers({ account, maxId } = {}) {
 			const key = keyFor(this, account)
-			if (this.accountsFollowersLoading[key]) return
+			if (this.accountsFollowersLoading[key]) {
+				return
+			}
 			this.setFollowersLoading({ actorId: key, loading: true })
 			try {
 				const params = {}
-				if (maxId) params.max_id = maxId
+				if (maxId) {
+					params.max_id = maxId
+				}
 				const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/followers`), { params })
 				if (!maxId) {
 					this.addFollowers({ account, data: response.data })
@@ -516,11 +524,15 @@ export const useAccountStore = defineStore('account', {
 		},
 		async fetchAccountFollowing({ account, maxId } = {}) {
 			const key = keyFor(this, account)
-			if (this.accountsFollowingsLoading[key]) return
+			if (this.accountsFollowingsLoading[key]) {
+				return
+			}
 			this.setFollowingsLoading({ actorId: key, loading: true })
 			try {
 				const params = {}
-				if (maxId) params.max_id = maxId
+				if (maxId) {
+					params.max_id = maxId
+				}
 				const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/following`), { params })
 				if (!maxId) {
 					this.addFollowing({ account, data: response.data })

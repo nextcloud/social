@@ -16,7 +16,8 @@
 		  container — so a keyboard user and every touch device had no way to
 		  unfollow anyone at all. The label changes on hover and focus instead.
 		-->
-		<NcButton v-if="relationship.following"
+		<NcButton
+			v-if="relationship.following"
 			:disabled="loading"
 			class="follow-button follow-button--following"
 			:class="{ 'follow-button--confirmed': celebrating, 'follow-button--refused': refused }"
@@ -30,11 +31,13 @@
 			<template #icon>
 				<!-- keyed by the state they stand for: the icon is replaced,
 				     not restyled, so each one fades in on its own arrival -->
-				<CloseOctagon v-if="unfollowIntent"
+				<CloseOctagon
+					v-if="unfollowIntent"
 					key="unfollow"
 					:size="20"
 					class="follow-button__icon" />
-				<Check v-else
+				<Check
+					v-else
 					key="following"
 					:size="20"
 					class="follow-button__icon follow-button__check" />
@@ -43,13 +46,15 @@
 				{{ unfollowIntent ? t('social', 'Unfollow') : t('social', 'Following') }}
 			</span>
 		</NcButton>
-		<NcButton v-else-if="relationship.requested"
+		<NcButton
+			v-else-if="relationship.requested"
 			:disabled="true"
 			variant="secondary"
 			class="follow-button">
 			<span key="requested" class="follow-button__label">{{ t('social', 'Requested') }}</span>
 		</NcButton>
-		<NcButton v-else
+		<NcButton
+			v-else
 			:disabled="loading"
 			variant="primary"
 			class="follow-button"
@@ -69,7 +74,8 @@
 
 		<!-- unfollowing is quiet and easy to do by accident, and on a locked
 		     account following again means asking again -->
-		<NcDialog v-model:open="confirmUnfollow"
+		<NcDialog
+			v-model:open="confirmUnfollow"
 			:name="t('social', 'Unfollow {account}?', { account: uid })"
 			:buttons="unfollowButtons">
 			<p class="unfollow-hint">
@@ -105,12 +111,14 @@ export default {
 		NcButton,
 		NcDialog,
 	},
+
 	props: {
 		uid: {
 			type: String,
 			default: '',
 		},
 	},
+
 	setup(props) {
 		const { serverData } = useServerData()
 		const { cloudId } = useCurrentUser()
@@ -118,6 +126,7 @@ export default {
 
 		return { serverData, cloudId, profileAccount, relationship }
 	},
+
 	data() {
 		return {
 			loading: false,
@@ -132,16 +141,19 @@ export default {
 			refused: false,
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore),
 		/** @return {boolean} */
 		isCurrentUserFollowing() {
 			return this.accountStore.isFollowingUser(this.profileAccount)
 		},
+
 		/** @return {import('../types/Mastodon.js').Account} */
 		currentAccount() {
 			return this.accountStore.currentAccount
 		},
+
 		unfollowButtons() {
 			return [
 				{
@@ -158,15 +170,18 @@ export default {
 			]
 		},
 	},
+
 	beforeUnmount() {
 		window.clearTimeout(this.celebrationTimer)
 		window.clearTimeout(this.refusalTimer)
 	},
+
 	methods: {
 		t: translate,
 		askToUnfollow() {
 			this.confirmUnfollow = true
 		},
+
 		async follow() {
 			logger.debug('Following an account', { account: this.profileAccount })
 			try {
@@ -192,6 +207,7 @@ export default {
 				this.pending = false
 			}
 		},
+
 		async unfollow() {
 			this.confirmUnfollow = false
 			logger.debug('Unfollowing an account', { account: this.profileAccount })
@@ -209,6 +225,7 @@ export default {
 				this.unfollowIntent = false
 			}
 		},
+
 		/** The follow landed: the button that replaces this one arrives celebrating. */
 		celebrate() {
 			if (this.prefersReducedMotion()) {
@@ -223,6 +240,7 @@ export default {
 				this.celebrating = false
 			}, CELEBRATION_MS)
 		},
+
 		/** The server would not have it: take the optimistic state back visibly. */
 		refuse() {
 			this.celebrating = false
@@ -232,6 +250,7 @@ export default {
 				this.refused = false
 			}, REFUSAL_MS)
 		},
+
 		/** @return {boolean} */
 		prefersReducedMotion() {
 			return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
@@ -239,6 +258,7 @@ export default {
 	},
 }
 </script>
+
 <style scoped lang="scss">
 	/* the confirmation a follow deserves: the same short overshoot a like
 	   gives the heart, and the same ring thrown out behind it */

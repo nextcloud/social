@@ -16,24 +16,28 @@ const Empty = { template: '<div />' }
  * The named routes MessageContent links to, with the paths of src/router.js,
  * so the rendered <a href> is what the app would navigate to.
  */
-const makeRouter = () => createRouter({
-	history: createMemoryHistory('/apps/social/'),
-	routes: [
-		{ path: '/', component: Empty },
-		{
-			path: '/timeline/:type?',
-			name: 'timeline',
-			component: Empty,
-			children: [{ path: 'tags/:tag', name: 'tags', component: Empty }],
-		},
-		{ path: '/@:account', name: 'profile', component: Empty },
-	],
-})
+function makeRouter() {
+	return createRouter({
+		history: createMemoryHistory('/apps/social/'),
+		routes: [
+			{ path: '/', component: Empty },
+			{
+				path: '/timeline/:type?',
+				name: 'timeline',
+				component: Empty,
+				children: [{ path: 'tags/:tag', name: 'tags', component: Empty }],
+			},
+			{ path: '/@:account', name: 'profile', component: Empty },
+		],
+	})
+}
 
-const mountContent = (content, extra = {}) => mount(MessageContent, {
-	props: { item: { content, mentions: [], ...extra } },
-	global: { plugins: [makeRouter(), createPinia()] },
-})
+function mountContent(content, extra = {}) {
+	return mount(MessageContent, {
+		props: { item: { content, mentions: [], ...extra } },
+		global: { plugins: [makeRouter(), createPinia()] },
+	})
+}
 
 describe('MessageContent', () => {
 	describe('formatting', () => {

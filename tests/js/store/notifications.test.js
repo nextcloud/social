@@ -34,9 +34,7 @@ describe('notifications store', () => {
 
 			await store.fetchUnreadNotifications()
 
-			expect(axios.get).toHaveBeenCalledWith(
-				expect.stringContaining('/api/v1/notifications/unread_count'),
-			)
+			expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/api/v1/notifications/unread_count'))
 			expect(store.unreadNotifications).toBe(5)
 		})
 
@@ -82,7 +80,9 @@ describe('notifications store', () => {
 		it('clears the badge before the server answers', async () => {
 			store.setUnreadNotifications(5)
 			let resolve
-			axios.post.mockReturnValue(new Promise((_resolve) => { resolve = _resolve }))
+			axios.post.mockReturnValue(new Promise((_resolve) => {
+				resolve = _resolve
+			}))
 
 			const pending = store.markNotificationsRead(42)
 

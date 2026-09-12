@@ -52,7 +52,7 @@ const remote = {
 let pinia
 let accountStore
 
-const makeStore = (serverData = {}) => {
+function makeStore(serverData = {}) {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
@@ -62,13 +62,15 @@ const makeStore = (serverData = {}) => {
 	return pinia
 }
 
-const mountEntry = (item, props = {}) => mount(UserEntry, {
-	props: { item, ...props },
-	global: {
-		plugins: [pinia],
-		stubs: { NcAvatar: NcAvatarStub, FollowButton: FollowButtonStub, RouterLink: RouterLinkStub },
-	},
-})
+function mountEntry(item, props = {}) {
+	return mount(UserEntry, {
+		props: { item, ...props },
+		global: {
+			plugins: [pinia],
+			stubs: { NcAvatar: NcAvatarStub, FollowButton: FollowButtonStub, RouterLink: RouterLinkStub },
+		},
+	})
+}
 
 describe('UserEntry', () => {
 	beforeEach(() => {

@@ -11,6 +11,7 @@
 	     nothing at all reads as "public", which may be exactly wrong -->
 	<HelpCircleOutline v-else :size="size" />
 </template>
+
 <script>
 import Earth from 'vue-material-design-icons/Earth.vue'
 import LockOpen from 'vue-material-design-icons/LockOpen.vue'
@@ -27,11 +28,13 @@ export default {
 		At,
 		HelpCircleOutline,
 	},
+
 	props: {
 		visibility: {
 			type: String,
 			required: true,
 		},
+
 		/**
 		 * The size was fixed at 22 and the prop did not exist, so
 		 * `VisibilitySelect` had been asking for 20 and silently getting 22
@@ -42,12 +45,15 @@ export default {
 			default: 22,
 		},
 	},
+
 	data() {
 		return {}
 	},
+
 	computed: {
 
 	},
+
 	methods: {
 
 	},

@@ -12,15 +12,17 @@ import GalleryMedia from '../../../src/components/GalleryMedia.vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useSettingsStore } from '../../../src/store/settings.js'
 
-const attachment = (index) => ({
-	id: `a${index}`,
-	type: 'image',
-	url: `https://cloud.example.org/media/${index}.jpg`,
-	preview_url: `https://cloud.example.org/media/${index}-small.jpg`,
-	description: `Picture ${index}`,
-	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-	meta: { small: { width: 4, height: 3 } },
-})
+function attachment(index) {
+	return {
+		id: `a${index}`,
+		type: 'image',
+		url: `https://cloud.example.org/media/${index}.jpg`,
+		preview_url: `https://cloud.example.org/media/${index}-small.jpg`,
+		description: `Picture ${index}`,
+		blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+		meta: { small: { width: 4, height: 3 } },
+	}
+}
 
 const attachments = (count) => Array.from({ length: count }, (_, index) => attachment(index + 1))
 
@@ -42,7 +44,7 @@ const NcModalStub = {
 	</div>`,
 }
 
-const mountAttachments = (items, props = {}) => {
+function mountAttachments(items, props = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData({ public: false })

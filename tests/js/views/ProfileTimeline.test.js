@@ -25,13 +25,15 @@ let pinia
 let store
 let dispatch
 
-const mountView = (route) => mount(ProfileTimeline, {
-	global: {
-		plugins: [pinia],
-		mocks: { $route: route },
-		stubs: { TimelineList: TimelineListStub, TimelineEntry: TimelineEntryStub },
-	},
-})
+function mountView(route) {
+	return mount(ProfileTimeline, {
+		global: {
+			plugins: [pinia],
+			mocks: { $route: route },
+			stubs: { TimelineList: TimelineListStub, TimelineEntry: TimelineEntryStub },
+		},
+	})
+}
 
 const pinnedIds = (wrapper) => wrapper.findAll('.pinned-entry-stub').map((entry) => entry.text())
 

@@ -6,16 +6,18 @@
 	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 
-		<Composer v-if="accountInfo && currentAccount && $route.name === 'profile'" :initial-mention="accountInfo.acct === currentAccount.acct ? null : accountInfo" default-visibility="direct" />
+		<Composer v-if="accountInfo && currentAccount && $route.name === 'profile'" :initialMention="accountInfo.acct === currentAccount.acct ? null : accountInfo" defaultVisibility="direct" />
 
 		<router-view v-if="accountLoaded && accountInfo" name="details" />
 		<!-- the lookup is what says an account is missing: `accountLoaded` only
 		     says the store has it (see useAccount), so it cannot say it has not -->
-		<NcEmptyContent v-if="lookupFinished && !accountInfo"
+		<NcEmptyContent
+			v-if="lookupFinished && !accountInfo"
 			:name="t('social', 'User not found')"
 			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: uid })">
 			<template #icon>
-				<img :src="emptyContentImage"
+				<img
+					:src="emptyContentImage"
 					class="icon-illustration"
 					alt="">
 			</template>
@@ -44,6 +46,7 @@ export default {
 		ProfileInfo,
 		Composer,
 	},
+
 	setup() {
 		const { serverData } = useServerData()
 		/** the handle on screen: the route's, or the one a public page carries */
@@ -52,6 +55,7 @@ export default {
 
 		return { serverData, uid, profileAccount, accountInfo, accountLoaded }
 	},
+
 	data() {
 		return {
 			state: [],
@@ -59,34 +63,42 @@ export default {
 			lookupFinished: false,
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore, useTimelineStore),
 		/** @return {import('../types/Mastodon').Status[]} */
 		timeline() {
 			return this.timelineStore.getTimeline
 		},
+
 		/** @return {string} */
 		emptyContentImage() {
 			return generateFilePath('social', 'img', 'undraw/profile.svg')
 		},
+
 		/** @return {import('../types/Mastodon.js').Account} */
 		currentAccount() {
 			return this.accountStore.currentAccount
 		},
 	},
+
 	watch: {
 		'$route.params.account': 'fetchProfileData',
 	},
+
 	// Start fetching account information before mounting the component
 	async beforeMount() {
 		this.fetchProfileData()
 	},
+
 	methods: {
 		async fetchProfileData() {
 			this.uid = this.$route.params.account || this.serverData.account
 			this.lookupFinished = false
 
-			if (!this.uid) return
+			if (!this.uid) {
+				return
+			}
 
 			let fetchMethod
 			if (this.serverData.public) {

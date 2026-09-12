@@ -11,7 +11,7 @@
 				{{ t('social', 'Please confirm that you want to follow this account:') }}
 			</p>
 
-			<NcAvatar :url="avatarUrl" :disable-tooltip="true" :size="128" />
+			<NcAvatar :url="avatarUrl" :disableTooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<form v-if="!isFollowing" @submit.prevent="follow">
 				<input type="submit" class="primary" :value="t('social', 'Follow')">
@@ -30,10 +30,11 @@
 		<!-- Some unauthenticated user wants to follow a local account -->
 		<div v-if="serverData.local">
 			<p>{{ t('social', 'You are going to follow:') }}</p>
-			<NcAvatar :user="serverData.local" :disable-tooltip="true" :size="128" />
+			<NcAvatar :user="serverData.local" :disableTooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<form @submit.prevent="followRemote">
-				<input v-model="remote"
+				<input
+					v-model="remote"
 					type="text"
 					:aria-label="t('social', 'Your account, as name@domain')"
 					:placeholder="t('social', 'name@domain of your federation account')">
@@ -64,25 +65,30 @@ export default {
 		NcAvatar,
 		NcButton,
 	},
+
 	setup() {
 		const { serverData, hostname } = useServerData()
 
 		return { serverData, hostname }
 	},
+
 	data() {
 		return {
 			remote: '',
 			account: {},
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore),
 		isFollowing() {
 			return this.accountStore.isFollowingUser(this.account.id)
 		},
+
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.account.id)
 		},
+
 		/**
 		 * This page is public, so the reader is not the page's user: the
 		 * server puts whoever is signed in into the initial state, and the
@@ -93,10 +99,12 @@ export default {
 		currentUser() {
 			return window.oc_current_user
 		},
+
 		/** @return {string} the signed-in reader's own handle */
 		cloudId() {
 			return this.currentUser.uid + '@' + this.hostname
 		},
+
 		/**
 		 * The logged-in user rendered as a (local) actor for ActorAvatar.
 		 *
@@ -106,6 +114,7 @@ export default {
 			const uid = this.currentUser?.uid ?? ''
 			return { username: uid, acct: uid }
 		},
+
 		displayName() {
 			if (typeof this.account.id === 'undefined') {
 				return (this.serverData.account ? this.serverData.account : this.serverData.local)
@@ -114,6 +123,7 @@ export default {
 			return (this.account.display_name ? this.account.display_name : this.account.acct)
 		},
 	},
+
 	beforeMount() {
 		// importing server data into the store and fetching viewed account's information
 		try {
@@ -136,17 +146,20 @@ export default {
 			/* empty */
 		}
 	},
+
 	methods: {
 		follow() {
 			this.accountStore.followAccount({ currentAccount: this.cloudId, accountToFollow: this.account.acct }).then(() => {
 
 			})
 		},
+
 		followRemote() {
 			axios.get(generateUrl(`/apps/social/api/v1/ostatus/link/${this.serverData.local}/` + encodeURI(this.remote))).then((a) => {
 				window.location = a.data.result.url
 			})
 		},
+
 		close() {
 			window.close()
 		},

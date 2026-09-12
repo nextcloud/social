@@ -22,18 +22,20 @@ vi.mock('../../../src/services/logger.js', () => ({
 
 const API = '/index.php/apps/social/api/v1'
 
-const makeStatus = (id, extra = {}) => ({
-	id,
-	uri: `https://cloud.example.org/users/alice/statuses/${id}`,
-	content: `<p>post ${id}</p>`,
-	created_at: '2026-01-01T10:00:00.000Z',
-	favourited: false,
-	favourites_count: 0,
-	reblogged: false,
-	reblogs_count: 0,
-	account: { acct: 'alice', display_name: 'Alice' },
-	...extra,
-})
+function makeStatus(id, extra = {}) {
+	return {
+		id,
+		uri: `https://cloud.example.org/users/alice/statuses/${id}`,
+		content: `<p>post ${id}</p>`,
+		created_at: '2026-01-01T10:00:00.000Z',
+		favourited: false,
+		favourites_count: 0,
+		reblogged: false,
+		reblogs_count: 0,
+		account: { acct: 'alice', display_name: 'Alice' },
+		...extra,
+	}
+}
 
 describe('timeline store state changes', () => {
 	let store
@@ -323,7 +325,7 @@ describe('timeline store getters', () => {
 		// "No posts match your search" for posts the instance was holding;
 		// searching asks /api/v2/search now, and the timeline stays whole
 		store.searchQuery = 'fedi'
-		expect(store.getTimeline.map(s => s.id)).toEqual(['1', '2', '3'])
+		expect(store.getTimeline.map((s) => s.id)).toEqual(['1', '2', '3'])
 	})
 
 	it('getParentsTimeline sorts and filters the ancestors the same way', () => {
@@ -335,10 +337,10 @@ describe('timeline store getters', () => {
 			descendants: [makeStatus('3', { content: '<p>root reply</p>' })],
 		})
 
-		expect(store.getParentsTimeline.map(s => s.id)).toEqual(['2', '1'])
+		expect(store.getParentsTimeline.map((s) => s.id)).toEqual(['2', '1'])
 
 		store.searchQuery = 'root'
-		expect(store.getParentsTimeline.map(s => s.id)).toEqual(['2', '1'])
+		expect(store.getParentsTimeline.map((s) => s.id)).toEqual(['2', '1'])
 	})
 
 	it('getStatus, getSinglePost, getSearchQuery and getComposerDisplayStatus read from the state', () => {
@@ -859,7 +861,9 @@ describe('timeline store actions', () => {
 			// clicking Global while home's page is in flight used to commit
 			// home's posts under the Global heading
 			let answerHome
-			axios.get.mockReturnValueOnce(new Promise((resolve) => { answerHome = resolve }))
+			axios.get.mockReturnValueOnce(new Promise((resolve) => {
+				answerHome = resolve
+			}))
 			await store.changeTimelineType({ type: 'home', params: {} })
 			const pending = store.fetchTimeline()
 

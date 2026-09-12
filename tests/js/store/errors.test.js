@@ -46,7 +46,7 @@ describe('errors store', () => {
 		store.addError({ title: 'first', message: 'a' })
 		store.addError({ title: 'second', message: 'b' })
 
-		expect(store.appErrors.map(e => e.title)).toEqual(['first', 'second'])
+		expect(store.appErrors.map((e) => e.title)).toEqual(['first', 'second'])
 		expect(store.appErrors[1].id).not.toBe(store.appErrors[0].id)
 	})
 

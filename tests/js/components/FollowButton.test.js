@@ -29,7 +29,7 @@ const carol = { id: 'https://cloud.example.org/users/carol', url: 'https://cloud
 let pinia
 let accountStore
 
-const makeStore = (serverData = {}) => {
+function makeStore(serverData = {}) {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
@@ -40,10 +40,12 @@ const makeStore = (serverData = {}) => {
 	return pinia
 }
 
-const setRelationship = (target, data = {}) => accountStore.addRelationship({
-	actorId: target.id,
-	data: { id: target.id, following: false, requested: false, ...data },
-})
+function setRelationship(target, data = {}) {
+	return accountStore.addRelationship({
+		actorId: target.id,
+		data: { id: target.id, following: false, requested: false, ...data },
+	})
+}
 
 /**
  * Watches both halves of the follow, which used to be one `dispatch` spy.
@@ -51,7 +53,7 @@ const setRelationship = (target, data = {}) => accountStore.addRelationship({
  * @param {Function} install applies the behaviour to each spy
  * @return {{follow: object, unfollow: object}} the two spies
  */
-const spyOnFollows = (install = (spy) => spy.mockResolvedValue(undefined)) => {
+function spyOnFollows(install = (spy) => spy.mockResolvedValue(undefined)) {
 	const follow = vi.spyOn(accountStore, 'followAccount')
 	const unfollow = vi.spyOn(accountStore, 'unfollowAccount')
 	install(follow)
@@ -78,14 +80,16 @@ const NcDialogStub = {
 	</div>`,
 }
 
-const mountButton = (uid = bob.acct, errorHandler) => mount(FollowButton, {
-	props: { uid },
-	global: {
-		plugins: [pinia],
-		config: { errorHandler },
-		stubs: { NcDialog: NcDialogStub },
-	},
-})
+function mountButton(uid = bob.acct, errorHandler) {
+	return mount(FollowButton, {
+		props: { uid },
+		global: {
+			plugins: [pinia],
+			config: { errorHandler },
+			stubs: { NcDialog: NcDialogStub },
+		},
+	})
+}
 
 const buttonTexts = (wrapper) => wrapper.findAll('button').map((button) => button.text())
 

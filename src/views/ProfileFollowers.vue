@@ -11,7 +11,8 @@
 			<span>{{ t('social', 'Loading …') }}</span>
 		</div>
 		<!-- a finished list with nobody in it used to be a blank panel -->
-		<NcEmptyContent v-else-if="users.length === 0"
+		<NcEmptyContent
+			v-else-if="users.length === 0"
 			:name="isFollowers ? t('social', 'No followers yet') : t('social', 'Not following anyone yet')"
 			:description="isFollowers
 				? t('social', 'People who follow this account will show up here.')
@@ -41,57 +42,76 @@ export default {
 		NcLoadingIcon,
 		UserEntry,
 	},
+
 	setup() {
 		const { serverData, hostname } = useServerData()
 
 		return { serverData, hostname }
 	},
+
 	data() {
 		return {
 			observer: null,
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore),
 		/** @return {string} */
 		profileAccount() {
-			if (!this.$route.params.account) return ''
+			if (!this.$route.params.account) {
+				return ''
+			}
 			return (this.$route.params.account.indexOf('@') === -1) ? this.$route.params.account + '@' + this.hostname : this.$route.params.account
 		},
+
 		/** @return {string} */
 		storeKey() {
 			return this.accountStore.getActorIdForAccount(this.profileAccount) || this.profileAccount
 		},
+
 		/** @return {import('../types/Mastodon.js').Account[]} */
 		users() {
-			if (!this.profileAccount) return []
+			if (!this.profileAccount) {
+				return []
+			}
 			if (this.$route.name === 'profile.followers') {
 				return this.accountStore.getAccountFollowers(this.profileAccount)
 			} else {
 				return this.accountStore.getAccountFollowing(this.profileAccount)
 			}
 		},
+
 		isFollowers() {
 			return this.$route.name === 'profile.followers'
 		},
+
 		loading() {
-			if (!this.profileAccount) return false
+			if (!this.profileAccount) {
+				return false
+			}
 			if (this.isFollowers) {
 				return !!this.accountStore.accountsFollowersLoading[this.storeKey]
 			} else {
 				return !!this.accountStore.accountsFollowingsLoading[this.storeKey]
 			}
 		},
+
 		allLoaded() {
-			if (!this.profileAccount) return true
+			if (!this.profileAccount) {
+				return true
+			}
 			if (this.isFollowers) {
 				return !!this.accountStore.accountsFollowersAllLoaded[this.storeKey]
 			} else {
 				return !!this.accountStore.accountsFollowingsAllLoaded[this.storeKey]
 			}
 		},
+
 		maxId() {
-			if (!this.profileAccount) return 0
+			if (!this.profileAccount) {
+				return 0
+			}
 			if (this.isFollowers) {
 				return this.accountStore.accountsFollowersMaxId[this.storeKey] || 0
 			} else {
@@ -99,6 +119,7 @@ export default {
 			}
 		},
 	},
+
 	watch: {
 		'$route.params.account': 'fetchData',
 		'$route.name': 'fetchData',
@@ -112,17 +133,21 @@ export default {
 			}
 		},
 	},
+
 	beforeMount() {
 		this.fetchData()
 	},
+
 	mounted() {
 		this.$nextTick(() => this.setupIntersectionObserver())
 	},
+
 	unmounted() {
 		if (this.observer) {
 			this.observer.disconnect()
 		}
 	},
+
 	methods: {
 		t: translate,
 		setupIntersectionObserver() {
@@ -135,24 +160,33 @@ export default {
 				this.observer.observe(this.$refs.sentinel)
 			}
 		},
+
 		fetchData() {
-			if (!this.profileAccount) return
+			if (!this.profileAccount) {
+				return
+			}
 			if (this.isFollowers) {
 				this.accountStore.fetchAccountFollowers({ account: this.profileAccount })
 			} else {
 				this.accountStore.fetchAccountFollowing({ account: this.profileAccount })
 			}
 		},
+
 		loadMoreIfNeeded() {
-			if (this.loading || this.allLoaded || !this.maxId) return
+			if (this.loading || this.allLoaded || !this.maxId) {
+				return
+			}
 			if (this.isFollowers) {
 				this.accountStore.fetchAccountFollowers({ account: this.profileAccount, maxId: this.maxId })
 			} else {
 				this.accountStore.fetchAccountFollowing({ account: this.profileAccount, maxId: this.maxId })
 			}
 		},
+
 		isSentinelVisible() {
-			if (!this.$refs.sentinel) return false
+			if (!this.$refs.sentinel) {
+				return false
+			}
 			const rect = this.$refs.sentinel.getBoundingClientRect()
 			return rect.top <= window.innerHeight + 300
 		},

@@ -32,9 +32,11 @@ const fetchFollowing = vi.fn(async ({ account: handle }) => {
 	store.addFollowing({ account: handle, data: [carol] })
 })
 
-const mountView = (route) => mount(ProfileFollowers, {
-	global: { plugins: [pinia], mocks: { $route: route }, stubs: { UserEntry: UserEntryStub } },
-})
+function mountView(route) {
+	return mount(ProfileFollowers, {
+		global: { plugins: [pinia], mocks: { $route: route }, stubs: { UserEntry: UserEntryStub } },
+	})
+}
 
 const shown = (wrapper) => wrapper.findAllComponents(UserEntryStub).map((entry) => entry.props('item').acct)
 
@@ -142,14 +144,12 @@ describe('ProfileFollowers', () => {
 		const observe = vi.fn()
 		const disconnect = vi.fn()
 		vi.stubGlobal('IntersectionObserver', class {
-
 			constructor(callback, options) {
 				this.options = options
 			}
 
 			observe = observe
 			disconnect = disconnect
-
 		})
 		const wrapper = mountView({ name: 'profile.followers', params: { account: 'bob@remote.example' } })
 		return nextTick().then(() => {

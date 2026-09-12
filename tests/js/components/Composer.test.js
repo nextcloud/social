@@ -56,25 +56,29 @@ const carol = {
 	avatar: 'https://cloud.example.org/avatar/carol/64',
 }
 
-const replyTo = (account = bob, overrides = {}) => ({
-	id: '42',
-	visibility: 'unlisted',
-	content: '<p>Original post</p>',
-	mentions: [],
-	tags: [],
-	account,
-	...overrides,
-})
+function replyTo(account = bob, overrides = {}) {
+	return {
+		id: '42',
+		visibility: 'unlisted',
+		content: '<p>Original post</p>',
+		mentions: [],
+		tags: [],
+		account,
+		...overrides,
+	}
+}
 
-const quoteOf = (account = bob, overrides = {}) => ({
-	id: '77',
-	visibility: 'public',
-	content: '<p>The post being quoted</p>',
-	mentions: [],
-	tags: [],
-	account,
-	...overrides,
-})
+function quoteOf(account = bob, overrides = {}) {
+	return {
+		id: '77',
+		visibility: 'public',
+		content: '<p>The post being quoted</p>',
+		mentions: [],
+		tags: [],
+		account,
+		...overrides,
+	}
+}
 
 // What the mention autocomplete inserts into the contenteditable
 const MENTION_BOB = '<span class="mention" contenteditable="false">'
@@ -83,7 +87,7 @@ const MENTION_BOB = '<span class="mention" contenteditable="false">'
 
 const wrappers = []
 
-const mountComposer = (props = {}) => {
+function mountComposer(props = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org' })
@@ -116,7 +120,7 @@ const input = (wrapper) => wrapper.find('.message')
 // untrimmed, unlike DOMWrapper.text(), because inserted emoji end with a space
 const typed = (wrapper) => input(wrapper).element.textContent
 
-const setContent = async (wrapper, html) => {
+async function setContent(wrapper, html) {
 	input(wrapper).element.innerHTML = html
 	await input(wrapper).trigger('input')
 }
@@ -127,7 +131,7 @@ const currentVisibility = (wrapper) => wrapper.findComponent(VisibilitySelect).p
 const selectVisibility = (wrapper, visibility) => wrapper.findComponent(VisibilitySelect).vm.$emit('update:visibility', visibility)
 const pickEmoji = (wrapper, emoji) => wrapper.findComponent({ name: 'NcEmojiPicker' }).vm.$emit('select', emoji)
 
-const attachFile = async (wrapper, file) => {
+async function attachFile(wrapper, file) {
 	const fileInput = wrapper.find('input[type="file"]')
 	Object.defineProperty(fileInput.element, 'files', { value: [file], configurable: true })
 	await fileInput.trigger('change')
@@ -135,7 +139,7 @@ const attachFile = async (wrapper, file) => {
 
 // What the composer holds the picker to: one dialog, several pictures, no
 // folders. `pick()` resolves with the paths, and rejects when it is closed.
-const filePicker = (result) => {
+function filePicker(result) {
 	const builder = {
 		setMultiSelect: vi.fn(() => builder),
 		setMimeTypeFilter: vi.fn(() => builder),
@@ -147,7 +151,7 @@ const filePicker = (result) => {
 	return builder
 }
 
-const addFromFiles = async (wrapper) => {
+async function addFromFiles(wrapper) {
 	await wrapper.find('button[aria-label="Add from Files"]').trigger('click')
 	await flushPromises()
 }
@@ -158,20 +162,22 @@ const pickedPaths = (store) => store.createMediaFromFile.mock.calls.map(([payloa
 // what is being tested: what the composer reads off a drag is `types`, `files`
 // and `relatedTarget`, so the fixtures carry exactly those, the same way
 // attachFile fakes the file input's `files`.
-const transfer = (files = [], types = files.length > 0 ? ['Files'] : ['text/plain']) => ({
-	files,
-	types,
-	dropEffect: 'none',
-})
+function transfer(files = [], types = files.length > 0 ? ['Files'] : ['text/plain']) {
+	return {
+		files,
+		types,
+		dropEffect: 'none',
+	}
+}
 
-const dragEvent = (type, { dataTransfer = transfer(), relatedTarget = null } = {}) => {
+function dragEvent(type, { dataTransfer = transfer(), relatedTarget = null } = {}) {
 	const event = new Event(type, { bubbles: true, cancelable: true })
 	Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
 	Object.defineProperty(event, 'relatedTarget', { value: relatedTarget })
 	return event
 }
 
-const pasteEvent = (files = []) => {
+function pasteEvent(files = []) {
 	const event = new Event('paste', { bubbles: true, cancelable: true })
 	Object.defineProperty(event, 'clipboardData', { value: { files } })
 	return event
@@ -179,7 +185,7 @@ const pasteEvent = (files = []) => {
 
 // dispatched on a real element, because vue-test-utils builds a DragEvent
 // jsdom does not have
-const dispatch = async (wrapper, target, event) => {
+async function dispatch(wrapper, target, event) {
 	target.dispatchEvent(event)
 	await wrapper.vm.$nextTick()
 	return event
@@ -187,7 +193,7 @@ const dispatch = async (wrapper, target, event) => {
 
 const postedStatus = (store) => store.post.mock.calls[0]?.[0]
 
-const addWarning = async (wrapper, text) => {
+async function addWarning(wrapper, text) {
 	await wrapper.find('button[aria-label="Add content warning"]').trigger('click')
 	await wrapper.find('input.content-warning').setValue(text)
 }
@@ -392,7 +398,9 @@ describe('Composer', () => {
 			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'Look at this')
 			let finishUpload
-			store.createMedia.mockImplementation(() => new Promise((resolve) => { finishUpload = resolve }))
+			store.createMedia.mockImplementation(() => new Promise((resolve) => {
+				finishUpload = resolve
+			}))
 
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			expect(canPost(wrapper)).toBe(false)
@@ -697,9 +705,7 @@ describe('Composer', () => {
 
 		it('keeps the pictures that worked when the server refuses one of them', async () => {
 			const { wrapper, store } = mountComposer()
-			store.createMediaFromFile.mockImplementation((payload) => Promise.resolve(
-				payload.path === '/Photos/gone.jpg' ? undefined : { ...media, id: payload.path },
-			))
+			store.createMediaFromFile.mockImplementation((payload) => Promise.resolve(payload.path === '/Photos/gone.jpg' ? undefined : { ...media, id: payload.path }))
 			filePicker(Promise.resolve([beach, '/Photos/gone.jpg', '/Photos/dunes.jpg']))
 
 			await addFromFiles(wrapper)
@@ -753,7 +759,9 @@ describe('Composer', () => {
 		it('says the pictures are on their way while the requests are in flight', async () => {
 			const { wrapper, store } = mountComposer()
 			let finish
-			store.createMediaFromFile.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+			store.createMediaFromFile.mockImplementation(() => new Promise((resolve) => {
+				finish = resolve
+			}))
 			filePicker(Promise.resolve([beach]))
 
 			await addFromFiles(wrapper)
@@ -850,7 +858,9 @@ describe('Composer', () => {
 		const lit = (wrapper) => card(wrapper).classes().includes('new-post--drop-target')
 		const picture = () => new File(['x'], 'cat.png', { type: 'image/png' })
 		const dragOver = (wrapper, dataTransfer = transfer([picture()])) => dispatch(
-			wrapper, card(wrapper).element, dragEvent('dragenter', { dataTransfer }),
+			wrapper,
+			card(wrapper).element,
+			dragEvent('dragenter', { dataTransfer }),
 		)
 
 		it('lights the whole card up while a file is over it', async () => {
@@ -1268,9 +1278,8 @@ describe('Composer', () => {
 			const { wrapper, store } = mountComposer({ defaultVisibility: 'public' })
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
-			await setContent(wrapper,
-				`<div>${MENTION_BOB}hello <img class="emoji" alt="😀" src="/apps/social/img/twemoji/1f600.svg"> Tom &amp; Jerry</div>`
-				+ '<div>second line</div>')
+			await setContent(wrapper, `<div>${MENTION_BOB}hello <img class="emoji" alt="😀" src="/apps/social/img/twemoji/1f600.svg"> Tom &amp; Jerry</div>`
+			+ '<div>second line</div>')
 
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
@@ -1292,7 +1301,9 @@ describe('Composer', () => {
 			await flushPromises()
 			await setContent(wrapper, 'Hello')
 			let finishPost
-			store.post.mockImplementation(() => new Promise((resolve) => { finishPost = resolve }))
+			store.post.mockImplementation(() => new Promise((resolve) => {
+				finishPost = resolve
+			}))
 
 			await submitButton(wrapper).trigger('click')
 			expect(input(wrapper).attributes('contenteditable')).toBe('false')

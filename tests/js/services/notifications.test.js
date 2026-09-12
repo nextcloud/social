@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest'
 
 import { notificationSummary } from '../../../src/services/notifications.js'
 
-const notification = (type, acct = 'bob@remote.tld') => ({
-	id: '1',
-	type,
-	created_at: '2026-09-07T10:00:00.000Z',
-	account: { id: '22', acct, username: acct.split('@')[0] },
-})
+function notification(type, acct = 'bob@remote.tld') {
+	return {
+		id: '1',
+		type,
+		created_at: '2026-09-07T10:00:00.000Z',
+		account: { id: '22', acct, username: acct.split('@')[0] },
+	}
+}
 
 describe('notificationSummary', () => {
 	it.each([

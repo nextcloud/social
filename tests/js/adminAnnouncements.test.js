@@ -19,16 +19,18 @@ const SECTION = `
 	</div>
 `
 
-const announcement = (overrides = {}) => ({
-	id: '1',
-	text: 'Maintenance on Sunday',
-	starts_at: null,
-	ends_at: null,
-	all_day: false,
-	published_at: '2026-09-11T10:00:00.000Z',
-	active: true,
-	...overrides,
-})
+function announcement(overrides = {}) {
+	return {
+		id: '1',
+		text: 'Maintenance on Sunday',
+		starts_at: null,
+		ends_at: null,
+		all_day: false,
+		published_at: '2026-09-11T10:00:00.000Z',
+		active: true,
+		...overrides,
+	}
+}
 
 /**
  * Answers every fetch with one body.
@@ -37,7 +39,7 @@ const announcement = (overrides = {}) => ({
  * @param {boolean} ok whether it answered 2xx
  * @return {object} the mocked fetch
  */
-const answering = (body, ok = true) => {
+function answering(body, ok = true) {
 	const fetch = vi.fn().mockResolvedValue({ ok, json: () => Promise.resolve(body) })
 	globalThis.fetch = fetch
 
@@ -126,9 +128,7 @@ describe('the announcements section of the admin settings', () => {
 
 		await add()
 
-		expect(showError).toHaveBeenCalledWith(
-			expect.stringContaining('starts_at and ends_at are given together or not at all'),
-		)
+		expect(showError).toHaveBeenCalledWith(expect.stringContaining('starts_at and ends_at are given together or not at all'))
 		// what was typed is still there to correct
 		expect(document.getElementById('social-announcement-text').value).toBe('Maintenance')
 	})

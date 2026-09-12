@@ -16,10 +16,12 @@ const NcAvatarStub = {
 	template: '<span class="nc-avatar-stub" />',
 }
 
-const mountAvatar = (props) => mount(ActorAvatar, {
-	props,
-	global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
-})
+function mountAvatar(props) {
+	return mount(ActorAvatar, {
+		props,
+		global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
+	})
+}
 
 const local = { username: 'bob', acct: 'bob', avatar: 'https://cloud.example.org/avatar/bob/128' }
 const remote = {

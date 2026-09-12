@@ -37,7 +37,7 @@ let accountStore
 let settingsStore
 let wrappers = []
 
-const makeStore = () => {
+function makeStore() {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
@@ -47,7 +47,7 @@ const makeStore = () => {
 	return pinia
 }
 
-const mountCard = (props = {}) => {
+function mountCard(props = {}) {
 	const wrapper = mount(AccountHoverCard, {
 		props: { handle: bob.acct, ...props },
 		slots: { default: '<a class="mention" href="https://remote.example/users/bob">@bob</a>' },
@@ -74,7 +74,7 @@ const card = () => document.querySelector('.account-hover-card')
  *
  * @param {number} ms - how much time passes
  */
-const advance = async (ms) => {
+async function advance(ms) {
 	await vi.advanceTimersByTimeAsync(ms)
 	await flushPromises()
 }
@@ -84,7 +84,7 @@ const advance = async (ms) => {
  * card reaches the document a frame after the component asked for it. Two
  * frames of slack, which is still less than any of the delays under test.
  */
-const frame = async () => {
+async function frame() {
 	await vi.advanceTimersByTimeAsync(32)
 	await flushPromises()
 }
@@ -94,7 +94,7 @@ const frame = async () => {
  *
  * @param {object} wrapper - the mounted card
  */
-const hoverUntilOpen = async (wrapper) => {
+async function hoverUntilOpen(wrapper) {
 	await pointerEnter(wrapper)
 	await advance(OPEN_DELAY)
 	await frame()
@@ -106,8 +106,9 @@ const hoverUntilOpen = async (wrapper) => {
  * @param {object} wrapper - the mounted card
  * @param {string} pointerType - what is doing the pointing
  */
-const pointerEnter = (wrapper, pointerType = 'mouse') =>
-	trigger(wrapper).trigger('pointerenter', { pointerType })
+function pointerEnter(wrapper, pointerType = 'mouse') {
+	return trigger(wrapper).trigger('pointerenter', { pointerType })
+}
 
 /**
  * Take the pointer off the trigger again.
@@ -115,8 +116,9 @@ const pointerEnter = (wrapper, pointerType = 'mouse') =>
  * @param {object} wrapper - the mounted card
  * @param {string} pointerType - what was doing the pointing
  */
-const pointerLeave = (wrapper, pointerType = 'mouse') =>
-	trigger(wrapper).trigger('pointerleave', { pointerType })
+function pointerLeave(wrapper, pointerType = 'mouse') {
+	return trigger(wrapper).trigger('pointerleave', { pointerType })
+}
 
 beforeEach(() => {
 	// floating-vue mounts its popper across animation frames; vitest does not

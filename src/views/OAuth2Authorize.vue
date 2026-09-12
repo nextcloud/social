@@ -10,7 +10,8 @@
 				{{ t('social', '{appDisplayName} would like permission to access your account. It is a third party application.', {appDisplayName: appName}) }}
 				<b>{{ t('social', 'If you do not trust it, then you should not authorize it.') }}</b>
 			</p>
-			<input type="hidden"
+			<input
+				type="hidden"
 				name="requesttoken"
 				:value="OC.requestToken">
 			<div class="button-row">
@@ -35,11 +36,13 @@ export default {
 	components: {
 		NcButton,
 	},
+
 	data() {
 		return {
 			appName: loadState('social', 'appName'),
 		}
 	},
+
 	computed: {
 		homeUrl() {
 			return generateUrl('/apps/social/')

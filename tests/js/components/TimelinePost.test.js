@@ -32,23 +32,25 @@ const bob = {
 	note: '',
 }
 
-const makeItem = (overrides = {}) => ({
-	id: '101',
-	uri: 'https://cloud.example.org/@alice/101',
-	created_at: '2026-09-01T10:00:00Z',
-	content: '<p>Hello <strong>world</strong></p>',
-	visibility: 'public',
-	replies_count: 0,
-	reblogs_count: 0,
-	favourites_count: 0,
-	reblogged: false,
-	favourited: false,
-	media_attachments: [],
-	mentions: [],
-	tags: [],
-	account: alice,
-	...overrides,
-})
+function makeItem(overrides = {}) {
+	return {
+		id: '101',
+		uri: 'https://cloud.example.org/@alice/101',
+		created_at: '2026-09-01T10:00:00Z',
+		content: '<p>Hello <strong>world</strong></p>',
+		visibility: 'public',
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0,
+		reblogged: false,
+		favourited: false,
+		media_attachments: [],
+		mentions: [],
+		tags: [],
+		account: alice,
+		...overrides,
+	}
+}
 
 // NcActions only renders its entries inside a popover once opened; these
 // stand-ins render them inline so the menu content can be asserted.
@@ -81,11 +83,17 @@ const NcDialogStub = {
 }
 
 const POST_ACTIONS = [
-	'postLike', 'postUnlike', 'postBoost', 'postUnBoost',
-	'postEdit', 'postDelete', 'postPin', 'postBookmark',
+	'postLike',
+	'postUnlike',
+	'postBoost',
+	'postUnBoost',
+	'postEdit',
+	'postDelete',
+	'postPin',
+	'postBookmark',
 ]
 
-const mountPost = ({
+function mountPost({
 	item = makeItem(),
 	route = { name: 'timeline', params: { type: 'home' } },
 	currentAccount = alice,
@@ -93,7 +101,7 @@ const mountPost = ({
 	// the like/boost store actions answer with the updated status, and with
 	// nothing at all when they had to roll the change back
 	dispatch = vi.fn().mockResolvedValue(makeItem()),
-} = {}) => {
+} = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData(serverData)
@@ -127,18 +135,21 @@ const mountPost = ({
 
 // the media-first layout is about order: the picture leads and the text reads
 // as its caption underneath
-const isBefore = (first, second) =>
-	Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+function isBefore(first, second) {
+	return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+}
 
-const photo = (index = 1) => ({
-	id: `m${index}`,
-	type: 'image',
-	url: `https://cloud.example.org/m${index}.jpg`,
-	preview_url: `https://cloud.example.org/m${index}-small.jpg`,
-	description: `Picture ${index}`,
-	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-	meta: { original: { width: 1600, height: 1200 } },
-})
+function photo(index = 1) {
+	return {
+		id: `m${index}`,
+		type: 'image',
+		url: `https://cloud.example.org/m${index}.jpg`,
+		preview_url: `https://cloud.example.org/m${index}-small.jpg`,
+		description: `Picture ${index}`,
+		blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+		meta: { original: { width: 1600, height: 1200 } },
+	}
+}
 
 const attachmentsOf = (wrapper) => wrapper.findComponent({ name: 'PostAttachment' })
 
@@ -477,9 +488,7 @@ describe('TimelinePost', () => {
 
 		it('keeps the like button in place as the state changes', async () => {
 			const { wrapper } = mountPost()
-			const like = () => wrapper.findAll('button').find(
-				(button) => /Like/.test(button.attributes('aria-label') ?? ''),
-			)
+			const like = () => wrapper.findAll('button').find((button) => /Like/.test(button.attributes('aria-label') ?? ''))
 
 			const before = like().element
 			expect(like().attributes('aria-pressed')).toBe('false')
@@ -496,9 +505,7 @@ describe('TimelinePost', () => {
 
 		it('says whether a post is boosted, not only how the icon is filled', async () => {
 			const { wrapper } = mountPost()
-			const boost = () => wrapper.findAll('button').find(
-				(button) => /[Bb]oost/.test(button.attributes('aria-label') ?? ''),
-			)
+			const boost = () => wrapper.findAll('button').find((button) => /[Bb]oost/.test(button.attributes('aria-label') ?? ''))
 
 			expect(boost().attributes('aria-pressed')).toBe('false')
 			await wrapper.setProps({ item: makeItem({ reblogged: true }) })

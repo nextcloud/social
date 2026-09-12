@@ -25,7 +25,7 @@ const API = '/index.php/apps/social/api/v1'
 
 const tagEntity = (name) => ({ name, url: `https://cloud.example.org/tags/${name}`, history: [], following: true })
 
-const mountList = ({ isPublic = false } = {}) => {
+function mountList({ isPublic = false } = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData({ public: isPublic })
@@ -35,7 +35,7 @@ const mountList = ({ isPublic = false } = {}) => {
 	})
 }
 
-const open = async (wrapper) => {
+async function open(wrapper) {
 	await wrapper.find('.followed-hashtags__toggle').trigger('click')
 	await flushPromises()
 }

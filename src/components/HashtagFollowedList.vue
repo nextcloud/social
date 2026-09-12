@@ -4,7 +4,8 @@
 -->
 <template>
 	<div v-if="!serverData.public" class="followed-hashtags">
-		<NcButton variant="tertiary"
+		<NcButton
+			variant="tertiary"
 			class="followed-hashtags__toggle"
 			:aria-expanded="open ? 'true' : 'false'"
 			aria-controls="followed-hashtags-list"
@@ -56,11 +57,13 @@ export default {
 		NcButton,
 		Pound,
 	},
+
 	setup() {
 		const { serverData } = useServerData()
 
 		return { serverData }
 	},
+
 	data() {
 		return {
 			open: false,
@@ -69,6 +72,7 @@ export default {
 			tags: [],
 		}
 	},
+
 	methods: {
 		t: translate,
 		toggle() {
@@ -77,12 +81,14 @@ export default {
 				this.load()
 			}
 		},
+
 		/** Re-reads the list, but only while somebody is looking at it. */
 		refresh() {
 			if (this.open) {
 				this.load()
 			}
 		},
+
 		async load() {
 			if (this.loading) {
 				return
@@ -91,7 +97,8 @@ export default {
 			this.loading = true
 			try {
 				const { data } = await axios.get(
-					generateUrl('apps/social/api/v1/followed_tags'), { params: { limit: PAGE_SIZE } },
+					generateUrl('apps/social/api/v1/followed_tags'),
+					{ params: { limit: PAGE_SIZE } },
 				)
 				this.tags = Array.isArray(data) ? data : []
 			} catch (error) {

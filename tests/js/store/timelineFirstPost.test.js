@@ -23,7 +23,7 @@ vi.mock('../../../src/services/logger.js', () => ({
  * @param {object|undefined} currentAccount the account the getter answers with
  * @return {object} the timeline store
  */
-const makeStore = (currentAccount) => {
+function makeStore(currentAccount) {
 	setActivePinia(createPinia())
 	if (currentAccount !== undefined) {
 		const url = 'https://cloud.example.org/users/alice'

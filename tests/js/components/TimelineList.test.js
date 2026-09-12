@@ -26,7 +26,6 @@ vi.mock('@nextcloud/auth', async (importOriginal) => ({
 }))
 
 class FakeIntersectionObserver {
-
 	static instances = []
 
 	constructor(callback, options) {
@@ -37,23 +36,24 @@ class FakeIntersectionObserver {
 		this.disconnect = vi.fn()
 		FakeIntersectionObserver.instances.push(this)
 	}
-
 }
 
 const observer = () => FakeIntersectionObserver.instances.at(-1)
 
-const intersect = async (isIntersecting = true) => {
+async function intersect(isIntersecting = true) {
 	observer().callback([{ isIntersecting }])
 	await flushPromises()
 }
 
-const status = (id) => ({
-	id,
-	created_at: `2026-09-0${id.length}T10:00:00Z`,
-	content: `<p>Status ${id}</p>`,
-	reblog: null,
-	account: { id: '1', acct: 'alice', username: 'alice', display_name: 'Alice' },
-})
+function status(id) {
+	return {
+		id,
+		created_at: `2026-09-0${id.length}T10:00:00Z`,
+		content: `<p>Status ${id}</p>`,
+		reblog: null,
+		account: { id: '1', acct: 'alice', username: 'alice', display_name: 'Alice' },
+	}
+}
 
 const TimelineEntryStub = {
 	name: 'TimelineEntry',
@@ -67,14 +67,14 @@ const entryIds = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry
 
 // what `getTimelineIdentity` is built from, so a test can swap the list the
 // store is holding the way a navigation does
-const showing = (identity) => {
+function showing(identity) {
 	const [type, account, params] = JSON.parse(identity)
 
 	return { type, account, params }
 }
 
 // `responses` are the successive results of `fetchTimeline`; an Error rejects
-const mountList = ({
+function mountList({
 	timeline = [],
 	parents = [],
 	identity = '["home","",{}]',
@@ -82,7 +82,7 @@ const mountList = ({
 	serverData = { public: false, cloudAddress: 'https://cloud.example.org' },
 	responses = [[]],
 	props = {},
-} = {}) => {
+} = {}) {
 	const dispatch = vi.fn()
 	for (const response of responses) {
 		if (response instanceof Error) {
@@ -433,7 +433,9 @@ describe('TimelineList', () => {
 
 		it('shows post-shaped placeholders while the first page loads, not a spinner', async () => {
 			let finish
-			const { wrapper } = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
+			const {
+				wrapper,
+			} = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
 			await flushPromises()
 
 			// an empty page with a spinner says nothing about what is coming
@@ -523,7 +525,10 @@ describe('TimelineList', () => {
 			// left `loading` set, so infiniteHandler returned at once and
 			// nothing was ever requested for the list now on screen.
 			let finishHome
-			const { dispatch, store } = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
+			const {
+				dispatch,
+				store,
+			} = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
 			await flushPromises()
 			dispatch.mockClear()
 			dispatch.mockResolvedValue([status('9')])
@@ -537,12 +542,18 @@ describe('TimelineList', () => {
 
 		it('lets the previous list\'s answer decide nothing once it arrives', async () => {
 			let finishHome
-			const { wrapper, dispatch, store } = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
+			const {
+				wrapper,
+				dispatch,
+				store,
+			} = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
 			await flushPromises()
 
 			let finishFederated
 			dispatch.mockClear()
-			dispatch.mockReturnValue(new Promise((resolve) => { finishFederated = resolve }))
+			dispatch.mockReturnValue(new Promise((resolve) => {
+				finishFederated = resolve
+			}))
 			store.$patch(showing('["federated","",{}]'))
 			await flushPromises()
 
@@ -604,7 +615,9 @@ describe('TimelineList', () => {
 
 		it('does not request a page while one is still loading', async () => {
 			let finish
-			const { dispatch } = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
+			const {
+				dispatch,
+			} = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
 
 			await intersect()
 			expect(dispatch).toHaveBeenCalledTimes(1)

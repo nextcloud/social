@@ -22,7 +22,8 @@
 				</p>
 				<div v-show="!isFollowingNextcloudAccount" class="follow-nextcloud">
 					<p>{{ t('social', 'Since you are new to Social, start by following the official Nextcloud account so you don\'t miss any news') }}</p>
-					<input :value="t('social', 'Follow Nextcloud on mastodon.xyz')"
+					<input
+						:value="t('social', 'Follow Nextcloud on mastodon.xyz')"
 						type="button"
 						class="primary"
 						@click="followNextcloud">
@@ -30,7 +31,7 @@
 			</div>
 		</transition>
 
-		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :default-visibility="type === 'direct' ? 'direct' : undefined" />
+		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :defaultVisibility="type === 'direct' ? 'direct' : undefined" />
 
 		<div class="timeline-heading-row">
 			<!-- the page had no heading at all outside tags and notifications, so
@@ -38,7 +39,8 @@
 			<h1 class="timeline-heading" :class="{ 'hidden-visually': !headingIsVisible }">
 				{{ heading }}
 			</h1>
-			<HashtagFollowButton v-if="type === 'tags'"
+			<HashtagFollowButton
+				v-if="type === 'tags'"
 				:tag="$route.params.tag"
 				@changed="onHashtagFollowChanged" />
 		</div>
@@ -76,45 +78,49 @@ export default {
 		HashtagFollowedList,
 		TimelineList,
 	},
+
 	setup() {
 		const { socialId } = useCurrentUser()
 
 		return { socialId }
 	},
+
 	data() {
 		return {
 			infoHidden: false,
 			nextcloudAccount: 'nextcloud@mastodon.xyz',
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
 		/** What this timeline is, in the words the sidebar uses for it. */
 		heading() {
 			switch (this.type) {
-			case 'tags':
-				return '#' + this.$route.params.tag
-			case 'photos':
-				return t('social', 'Photos')
-			case 'notifications':
-				return t('social', 'Notifications')
-			case 'direct':
-				return t('social', 'Direct messages')
-			case 'timeline':
+				case 'tags':
+					return '#' + this.$route.params.tag
+				case 'photos':
+					return t('social', 'Photos')
+				case 'notifications':
+					return t('social', 'Notifications')
+				case 'direct':
+					return t('social', 'Direct messages')
+				case 'timeline':
 				// what the sidebar calls Local: the store asks for `local: true`
-				return t('social', 'Local timeline')
-			case 'federated':
-				return t('social', 'Global timeline')
-			case 'favourites':
-				return t('social', 'Liked posts')
-			case 'bookmarks':
-				return t('social', 'Bookmarks')
-			case 'single-post':
-				return t('social', 'Post')
-			default:
-				return t('social', 'Home timeline')
+					return t('social', 'Local timeline')
+				case 'federated':
+					return t('social', 'Global timeline')
+				case 'favourites':
+					return t('social', 'Liked posts')
+				case 'bookmarks':
+					return t('social', 'Bookmarks')
+				case 'single-post':
+					return t('social', 'Post')
+				default:
+					return t('social', 'Home timeline')
 			}
 		},
+
 		/**
 		 * The two that were on the page before stay on the page; the rest name
 		 * the view for a screen reader without changing what anyone sees.
@@ -124,10 +130,12 @@ export default {
 			// were already on, so it says which one you are looking at
 			return this.type === 'tags' || this.type === 'notifications' || this.type === 'photos'
 		},
+
 		/** @return {string} what identifies this timeline, params included */
 		timelineKey() {
 			return this.type + '|' + JSON.stringify(this.params)
 		},
+
 		params() {
 			if (this.$route.name === 'tags') {
 				return { tag: this.$route.params.tag }
@@ -136,6 +144,7 @@ export default {
 			}
 			return {}
 		},
+
 		type() {
 			if (this.$route.name === 'tags') {
 				return 'tags'
@@ -145,13 +154,16 @@ export default {
 			}
 			return 'home'
 		},
+
 		showInfo() {
 			return this.settingsStore.getServerData.firstrun && !this.infoHidden
 		},
+
 		/** @return {boolean} whether the first-post celebration is on screen */
 		celebratingFirstPost() {
 			return this.timelineStore.isCelebratingFirstPost
 		},
+
 		isFollowingNextcloudAccount() {
 			// not loaded yet: assume it is followed rather than offer a button
 			// that would ask about an account nothing is known about
@@ -161,6 +173,7 @@ export default {
 			return this.accountStore.isFollowingUser(this.nextcloudAccount)
 		},
 	},
+
 	watch: {
 		// the router-view is no longer keyed on the full path, so switching
 		// from Home to Global reuses this view: without this the store would
@@ -169,15 +182,18 @@ export default {
 			this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
 		},
 	},
+
 	beforeMount() {
 		this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
 		if (this.showInfo) {
 			this.accountStore.fetchAccountInfo(this.nextcloudAccount)
 		}
 	},
+
 	mounted() {
 		eventBus.on('post-published', this.onPostPublished)
 	},
+
 	beforeUnmount() {
 		eventBus.off('post-published', this.onPostPublished)
 		// navigating away mid-celebration must not leave the flag standing for
@@ -186,10 +202,12 @@ export default {
 			this.timelineStore.endFirstPostCelebration()
 		}
 	},
+
 	methods: {
 		hideInfo() {
 			this.infoHidden = true
 		},
+
 		/**
 		 * A post went out. Whether that is the reader's first is the store's
 		 * decision; asking costs nothing and nothing here waits on the answer,
@@ -198,13 +216,16 @@ export default {
 		onPostPublished() {
 			this.timelineStore.celebrateFirstPost()
 		},
+
 		/** The list of followed hashtags is stale the moment one is followed. */
 		onHashtagFollowChanged() {
 			this.$refs.followedHashtags?.refresh()
 		},
+
 		endCelebration() {
 			this.timelineStore.endFirstPostCelebration()
 		},
+
 		followNextcloud() {
 			this.accountStore.followAccount({ accountToFollow: this.nextcloudAccount })
 		},

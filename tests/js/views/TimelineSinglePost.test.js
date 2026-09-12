@@ -46,12 +46,12 @@ let accountStore
 let store
 const fetchAccount = vi.fn(async () => bob)
 
-const setState = (key, value) => {
+function setState(key, value) {
 	setInitialState('social', key, value)
 	window._nc_initial_state?.clear()
 }
 
-const makeStore = (serverData = {}) => {
+function makeStore(serverData = {}) {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
@@ -67,7 +67,7 @@ const makeStore = (serverData = {}) => {
 // every view registers an event bus listener, so unmount them after each test
 const mounted = []
 
-const mountView = (route = reactive({ name: 'single-post', params: { account: 'bob', id: '123' } })) => {
+function mountView(route = reactive({ name: 'single-post', params: { account: 'bob', id: '123' } })) {
 	const wrapper = mount(TimelineSinglePost, {
 		attachTo: document.body,
 		global: {

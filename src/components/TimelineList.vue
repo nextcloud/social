@@ -11,7 +11,8 @@
 			{{ announcement }}
 		</div>
 		<transition name="pill">
-			<button v-if="arrived > 0"
+			<button
+				v-if="arrived > 0"
 				class="new-posts-pill"
 				:aria-label="n('social', 'Show %n new post', 'Show %n new posts', arrived)"
 				@click="showArrived">
@@ -20,7 +21,8 @@
 			</button>
 		</transition>
 		<transition-group name="list" tag="ul">
-			<TimelineEntry v-for="(entry, index) in timeline"
+			<TimelineEntry
+				v-for="(entry, index) in timeline"
 				:key="entry.id"
 				:class="{ 'timeline-entry--focused': index === focused }"
 				:item="entry"
@@ -88,26 +90,31 @@ export default {
 		TimelineSkeleton,
 		EmptyContent,
 	},
+
 	props: {
 		type: {
 			type: String,
 			default: () => 'home',
 		},
+
 		showParents: {
 			type: Boolean,
 			default: false,
 		},
+
 		reverseOrder: {
 			type: Boolean,
 			default: false,
 		},
 	},
+
 	setup() {
 		const { serverData } = useServerData()
 		const { currentUser } = useCurrentUser()
 
 		return { serverData, currentUser }
 	},
+
 	data() {
 		return {
 			infoHidden: false,
@@ -140,44 +147,53 @@ export default {
 					title: t('social', 'No posts found'),
 					description: t('social', 'Posts from people you follow will show up here'),
 				},
+
 				direct: {
 					image: 'img/undraw/direct.svg',
 					title: t('social', 'No direct messages found'),
 					description: t('social', 'Posts directed to you will show up here'),
 				},
+
 				timeline: {
 					image: 'img/undraw/local.svg',
 					title: t('social', 'No local posts found'),
 					description: t('social', 'Posts from other people on this instance will show up here'),
 				},
+
 				notifications: {
 					image: 'img/undraw/notifications.svg',
 					title: t('social', 'No notifications found'),
 					description: t('social', 'You have not received any notifications yet'),
 				},
+
 				federated: {
 					image: 'img/undraw/global.svg',
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here'),
 				},
+
 				favourites: {
 					image: 'img/undraw/likes.svg',
 					title: t('social', 'No liked posts found'),
 				},
+
 				profile: {
 					image: 'img/undraw/profile.svg',
 					title: t('social', 'You have not tooted yet'),
 				},
+
 				tags: {
 					image: 'img/undraw/profile.svg',
 					title: t('social', 'No posts found for this tag'),
 				},
+
 				'single-post': {
 					title: this.showParents ? '' : t('social', 'No replies found'),
 				},
 			},
 		}
 	},
+
 	computed: {
 		...mapStores(useNotificationsStore, useTimelineStore),
 		/**
@@ -198,10 +214,12 @@ export default {
 
 			return ''
 		},
+
 		/** @return {string} which list the store is holding */
 		timelineIdentity() {
 			return this.timelineStore.getTimelineIdentity
 		},
+
 		/** @return {boolean} nothing to show, and nothing went wrong */
 		showEmptyContent() {
 			return this.error === null
@@ -209,6 +227,7 @@ export default {
 				&& this.timeline.length === 0
 				&& this.emptyContentData.title !== ''
 		},
+
 		/**
 		 * What to say when the list is empty. This used to write to
 		 * `this.emptyContent[...]` from inside the computed, which mutated
@@ -251,6 +270,7 @@ export default {
 			return this.reverseOrder ? [...timeline].reverse() : timeline
 		},
 	},
+
 	watch: {
 		/**
 		 * The router-view is no longer keyed on the full path, so switching
@@ -263,6 +283,7 @@ export default {
 				this.resetAndLoad()
 			}
 		},
+
 		// reading the notifications is what marks them read; the badge should
 		// not survive the reader looking straight at what it is counting
 		timeline: {
@@ -275,7 +296,8 @@ export default {
 				// a Notification entity carries the row id as `id`, a string;
 				// statuses carry the same number again as `nid`
 				const newest = entries.reduce(
-					(highest, entry) => Math.max(highest, Number(entry.id ?? entry.nid) || 0), 0,
+					(highest, entry) => Math.max(highest, Number(entry.id ?? entry.nid) || 0),
+					0,
 				)
 				if (newest > 0) {
 					this.notificationsStore.markNotificationsRead(newest)
@@ -283,6 +305,7 @@ export default {
 			},
 		},
 	},
+
 	mounted() {
 		// The ancestors list in the single-post view renders the same
 		// /context response its sibling fetches: it used to page, poll and
@@ -307,6 +330,7 @@ export default {
 		document.addEventListener('visibilitychange', this.pollOnReturn)
 		this.setupIntersectionObserver()
 	},
+
 	unmounted() {
 		document.removeEventListener('visibilitychange', this.pollOnReturn)
 		eventBus.off('shortcut:next', this.focusNext)
@@ -316,6 +340,7 @@ export default {
 			this.observer.disconnect()
 		}
 	},
+
 	methods: {
 		setupIntersectionObserver() {
 			this.observer = new IntersectionObserver((entries) => {
@@ -329,6 +354,7 @@ export default {
 				}
 			})
 		},
+
 		/** Starts this timeline over: a different type is a different list. */
 		resetAndLoad() {
 			this.generation += 1
@@ -343,14 +369,18 @@ export default {
 			this.pollFailureReported = false
 			this.infiniteHandler()
 		},
+
 		/** What the retry button does. */
 		retry() {
 			this.error = null
 			this.allLoaded = false
 			this.infiniteHandler()
 		},
+
 		async infiniteHandler() {
-			if (this.loading) return
+			if (this.loading) {
+				return
+			}
 			this.loading = true
 
 			const generation = this.generation
@@ -399,6 +429,7 @@ export default {
 				}
 			}
 		},
+
 		/**
 		 * The polling tick. Asking while the tab is hidden is traffic nobody
 		 * is waiting for — on an instance with many open tabs it is most of
@@ -412,6 +443,7 @@ export default {
 
 			this.fetchNewStatuses()
 		},
+
 		/** Catches up once, on the way back to a tab that was left. */
 		pollOnReturn() {
 			if (document.visibilityState !== 'visible' || this.hiddenSince === 0) {
@@ -424,12 +456,15 @@ export default {
 				this.fetchNewStatuses()
 			}
 		},
+
 		focusNext() {
 			this.moveFocus(1)
 		},
+
 		focusPrevious() {
 			this.moveFocus(-1)
 		},
+
 		/**
 		 * Moves the keyboard's attention through the list and scrolls it into
 		 * view, so j/k reads a timeline without touching the mouse.
@@ -462,6 +497,7 @@ export default {
 				})
 			})
 		},
+
 		showArrived() {
 			this.arrived = 0
 			window.scrollTo({
@@ -476,6 +512,7 @@ export default {
 				this.$el.querySelector('.timeline-entry')?.focus({ preventScroll: true })
 			})
 		},
+
 		t: translate,
 		n: translatePlural,
 		/**

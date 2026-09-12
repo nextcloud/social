@@ -39,7 +39,7 @@ export const useErrorsStore = defineStore('errors', {
 			this.errors = [...this.errors, { id: ++nextErrorId, title, message }]
 		},
 		dismissError(id) {
-			this.errors = this.errors.filter(e => e.id !== id)
+			this.errors = this.errors.filter((e) => e.id !== id)
 		},
 		clearErrors() {
 			this.errors = []

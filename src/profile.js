@@ -8,12 +8,11 @@ import pinia from './store/index.js'
 import ProfilePageIntegration from './views/ProfilePageIntegration.vue'
 import { generateFilePath } from '@nextcloud/router'
 
-// eslint-disable-next-line
 const requestToken = window.OC?.requestToken
 if (requestToken) {
 	__webpack_nonce__ = btoa(requestToken)
 }
-// eslint-disable-next-line
+
 __webpack_public_path__ = generateFilePath('social', '', 'js/')
 
 const profileSectionTagName = 'social-profile-section'

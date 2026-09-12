@@ -59,7 +59,7 @@ const fetchAccount = vi.fn(async (handle) => {
 	return data
 })
 
-const makeStore = (serverData = {}) => {
+function makeStore(serverData = {}) {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
@@ -71,13 +71,15 @@ const makeStore = (serverData = {}) => {
 	return pinia
 }
 
-const mountProfile = (route) => mount(Profile, {
-	global: {
-		plugins: [pinia],
-		mocks: { $route: route },
-		stubs: { ProfileInfo: ProfileInfoStub, Composer: ComposerStub, RouterView: RouterViewStub },
-	},
-})
+function mountProfile(route) {
+	return mount(Profile, {
+		global: {
+			plugins: [pinia],
+			mocks: { $route: route },
+			stubs: { ProfileInfo: ProfileInfoStub, Composer: ComposerStub, RouterView: RouterViewStub },
+		},
+	})
+}
 
 describe('Profile', () => {
 	beforeEach(() => {

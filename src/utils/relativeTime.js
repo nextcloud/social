@@ -26,7 +26,7 @@ const STEPS = [
 ]
 
 /** @return {string} the locale to format in, falling back to the browser's */
-const locale = () => {
+function locale() {
 	try {
 		return getCanonicalLocale()
 	} catch {

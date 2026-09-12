@@ -7,7 +7,8 @@
 		<!-- decoration, and nothing else: the sentence below is what a screen
 		     reader is told -->
 		<div v-if="!reducedMotion" class="first-post__confetti" aria-hidden="true">
-			<span v-for="piece in pieces"
+			<span
+				v-for="piece in pieces"
 				:key="piece.id"
 				class="first-post__piece"
 				:style="piece.style" />
@@ -94,12 +95,14 @@ export default {
 			doneTimer: null,
 		}
 	},
+
 	computed: {
 		/** @return {string} the one sentence this whole component says */
 		message() {
 			return t('social', 'Your first post is out there. Welcome to the fediverse!')
 		},
 	},
+
 	mounted() {
 		this.$nextTick(() => {
 			this.announcement = this.message
@@ -110,9 +113,11 @@ export default {
 		window.addEventListener('keydown', this.onKeydown)
 		window.addEventListener('pointerdown', this.onPointerDown)
 	},
+
 	beforeUnmount() {
 		this.stop()
 	},
+
 	methods: {
 		/**
 		 * Ends it early on Escape, the key that means "not now" everywhere else.
@@ -124,9 +129,11 @@ export default {
 				this.dismiss()
 			}
 		},
+
 		onPointerDown() {
 			this.dismiss()
 		},
+
 		/** Fades out, then tells the parent it may drop this component. */
 		dismiss() {
 			if (this.leaving) {
@@ -145,6 +152,7 @@ export default {
 				this.$emit('done')
 			}, LEAVING_MS)
 		},
+
 		/** Every timer and every listener this put on the page, taken back. */
 		stop() {
 			window.clearTimeout(this.hideTimer)

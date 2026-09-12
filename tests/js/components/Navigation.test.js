@@ -52,7 +52,7 @@ let notificationsStore
 let settingsStore
 let router
 
-const mountNavigation = (options = {}, route = { name: 'timeline', params: {} }) => {
+function mountNavigation(options = {}, route = { name: 'timeline', params: {} }) {
 	if (options.unread !== undefined) {
 		notificationsStore.setUnreadNotifications(options.unread)
 	}

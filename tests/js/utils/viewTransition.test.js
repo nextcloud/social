@@ -5,11 +5,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nameForTransition, transitionsWanted, withViewTransition } from '../../../src/utils/viewTransition.js'
 
-const withApi = (implementation) => {
+function withApi(implementation) {
 	document.startViewTransition = implementation
 }
 
-const wantsLessMotion = (reduce) => {
+function wantsLessMotion(reduce) {
 	window.matchMedia = vi.fn(() => ({ matches: reduce, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
 }
 

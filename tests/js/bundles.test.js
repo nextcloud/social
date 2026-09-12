@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest'
  */
 const JS = resolve(process.cwd(), 'js')
 
-const bundle = (name) => {
+function bundle(name) {
 	const path = join(JS, name)
 
 	return existsSync(path) ? readFileSync(path, 'utf8') : null
@@ -53,9 +53,7 @@ describe('the built bundles', () => {
 	})
 
 	it('keeps the chunk that carries the post menu small', () => {
-		const menus = readdirSync(JS).filter(
-			(entry) => entry.includes('NcActionButton') && entry.endsWith('.js'),
-		)
+		const menus = readdirSync(JS).filter((entry) => entry.includes('NcActionButton') && entry.endsWith('.js'))
 		expect(menus.length).toBeGreaterThan(0)
 
 		for (const name of menus) {

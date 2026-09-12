@@ -99,14 +99,14 @@ let accountStore
 // store" stays a single assertion
 const ACCOUNT_ACTIONS = ['blockAccount', 'unblockAccount', 'muteAccount', 'unmuteAccount', 'fetchAccountInfo']
 
-const spyOnAccountActions = (result) => {
+function spyOnAccountActions(result) {
 	const dispatch = vi.fn().mockResolvedValue(result)
 	ACCOUNT_ACTIONS.forEach((name) => vi.spyOn(accountStore, name).mockImplementation(dispatch))
 
 	return dispatch
 }
 
-const makeStore = (serverData = {}) => {
+function makeStore(serverData = {}) {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
@@ -118,20 +118,22 @@ const makeStore = (serverData = {}) => {
 	return pinia
 }
 
-const mountProfile = (uid) => mount(ProfileInfo, {
-	props: { uid },
-	global: {
-		plugins: [pinia],
-		stubs: {
-			NcAvatar: NcAvatarStub,
-			FollowButton: FollowButtonStub,
-			RouterLink: RouterLinkStub,
-			NcModal: NcModalStub,
-			NcActions: NcActionsStub,
-			NcActionButton: NcActionButtonStub,
+function mountProfile(uid) {
+	return mount(ProfileInfo, {
+		props: { uid },
+		global: {
+			plugins: [pinia],
+			stubs: {
+				NcAvatar: NcAvatarStub,
+				FollowButton: FollowButtonStub,
+				RouterLink: RouterLinkStub,
+				NcModal: NcModalStub,
+				NcActions: NcActionsStub,
+				NcActionButton: NcActionButtonStub,
+			},
 		},
-	},
-})
+	})
+}
 
 const linkTexts = (wrapper) => wrapper.findAll('.user-profile__info li').map((li) => li.text().replace(/\s+/g, ' '))
 const buttonByText = (wrapper, text) => wrapper.findAll('button').find((button) => button.text() === text)

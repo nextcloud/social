@@ -3,12 +3,14 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcDashboardWidget :items="items"
-		:show-more-url="showMoreUrl"
-		:show-more-label="title"
+	<NcDashboardWidget
+		:items="items"
+		:showMoreUrl="showMoreUrl"
+		:showMoreLabel="title"
 		:loading="state === 'loading'">
 		<template #empty-content>
-			<NcEmptyContent v-if="emptyContentMessage"
+			<NcEmptyContent
+				v-if="emptyContentMessage"
 				:name="emptyContentMessage">
 				<template #icon>
 					<div :class="emptyContentIcon" />
@@ -83,6 +85,7 @@ export default {
 				}
 			})
 		},
+
 		/** @return {string} */
 		emptyContentMessage() {
 			if (this.state === 'error') {
@@ -92,6 +95,7 @@ export default {
 			}
 			return ''
 		},
+
 		/** @return {string} */
 		emptyContentIcon() {
 			if (this.state === 'error') {
@@ -130,11 +134,11 @@ export default {
 				this.loop = null
 			}
 		},
+
 		async fetchNotifications() {
 			const url = generateUrl('apps/social/api/v1/notifications')
 
 			try {
-
 				const response = await axios.get(url)
 				if (response.data) {
 					this.processNotifications(response.data)
@@ -153,6 +157,7 @@ export default {
 				}
 			}
 		},
+
 		/** @param {import('../types/Mastodon.js').Notification[]} newNotifications */
 		processNotifications(newNotifications) {
 			if (this.notifications.length === 0) {
@@ -169,22 +174,27 @@ export default {
 				this.notifications = toAdd.concat(this.notifications).slice(0, MAX_ITEMS)
 			}
 		},
+
 		/** @param {import('../types/Mastodon.js').Notification} n */
 		getMainText(n) {
 			return notificationSummary(n)
 		},
+
 		/** @param {import('../types/Mastodon.js').Notification} n */
 		getAvatarUrl(n) {
 			return n.account.avatar
 		},
+
 		/** @param {import('../types/Mastodon.js').Notification} n */
 		getActorName(n) {
 			return n.account.display_name
 		},
+
 		/** @param {import('../types/Mastodon.js').Notification} n */
 		getActorAccountName(n) {
 			return n.account.acct
 		},
+
 		/** @param {import('../types/Mastodon.js').Notification} n */
 		getNotificationTarget(n) {
 			if (n.type === 'follow') {
@@ -192,6 +202,7 @@ export default {
 			}
 			return this.showMoreUrl
 		},
+
 		/** @param {import('../types/Mastodon.js').Notification} n */
 		getSubline(n) {
 			if (n.type === 'follow') {
@@ -202,6 +213,7 @@ export default {
 			}
 			return ''
 		},
+
 		/** @param {import('../types/Mastodon.js').Notification} n */
 		getNotificationTypeImage(n) {
 			if (n.type === 'follow') {

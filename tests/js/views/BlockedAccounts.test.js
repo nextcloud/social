@@ -27,15 +27,19 @@ const carol = { id: '33', acct: 'carol@remote.tld', username: 'carol', display_n
 const dave = { id: '44', acct: 'dave', username: 'dave', display_name: '', avatar: 'https://cloud.example.org/dave.png' }
 
 /** Answers /blocks and /mutes in the order the view requests them. */
-const serve = (blocked, muted) => {
+function serve(blocked, muted) {
 	axios.get.mockImplementation((url) => {
-		if (url.endsWith('/blocks')) return Promise.resolve({ data: blocked })
-		if (url.endsWith('/mutes')) return Promise.resolve({ data: muted })
+		if (url.endsWith('/blocks')) {
+			return Promise.resolve({ data: blocked })
+		}
+		if (url.endsWith('/mutes')) {
+			return Promise.resolve({ data: muted })
+		}
 		return Promise.reject(new Error(`unexpected ${url}`))
 	})
 }
 
-const mountView = async ({ blocked = [bob], muted = [carol], dispatch } = {}) => {
+async function mountView({ blocked = [bob], muted = [carol], dispatch } = {}) {
 	serve(blocked, muted)
 	const pinia = createPinia()
 	setActivePinia(pinia)

@@ -31,12 +31,12 @@ let settingsStore
 let pending
 const fetchAccount = vi.fn(() => pending)
 
-const setState = (key, value) => {
+function setState(key, value) {
 	setInitialState('social', key, value)
 	window._nc_initial_state?.clear()
 }
 
-const makeStore = () => {
+function makeStore() {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()

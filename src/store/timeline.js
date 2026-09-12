@@ -72,7 +72,7 @@ function indexStatus(state, status) {
  */
 function sortedByDate(state, ids) {
 	return ids
-		.map(statusId => state.statuses[statusId])
+		.map((statusId) => state.statuses[statusId])
 		.filter(Boolean)
 		.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
 }
@@ -194,20 +194,20 @@ export const useTimelineStore = defineStore('timeline', {
 		},
 		addToTimeline(data) {
 			if (Array.isArray(data)) {
-				data.forEach(status => indexStatus(this, status))
+				data.forEach((status) => indexStatus(this, status))
 				data
-					.filter(status => this.timeline.indexOf(status.id) === -1)
-					.forEach(status => this.timeline.push(status.id))
+					.filter((status) => this.timeline.indexOf(status.id) === -1)
+					.forEach((status) => this.timeline.push(status.id))
 			} else {
-				data.descendants.forEach(status => indexStatus(this, status))
-				data.ancestors.forEach(status => indexStatus(this, status))
+				data.descendants.forEach((status) => indexStatus(this, status))
+				data.ancestors.forEach((status) => indexStatus(this, status))
 
 				data.descendants
-					.filter(status => this.timeline.indexOf(status.id) === -1)
-					.forEach(status => this.timeline.push(status.id))
+					.filter((status) => this.timeline.indexOf(status.id) === -1)
+					.forEach((status) => this.timeline.push(status.id))
 				data.ancestors
-					.filter(status => this.parentsTimeline.indexOf(status.id) === -1)
-					.forEach(status => this.parentsTimeline.push(status.id))
+					.filter((status) => this.parentsTimeline.indexOf(status.id) === -1)
+					.forEach((status) => this.parentsTimeline.push(status.id))
 			}
 		},
 		removeStatus(status) {
@@ -260,14 +260,14 @@ export const useTimelineStore = defineStore('timeline', {
 			const id = String(accountId)
 			const isByActor = (status) => String(status?.account?.id) === id
 				|| (status?.reblog && String(status.reblog.account?.id) === id)
-			const removed = new Set(Object.values(this.statuses).filter(isByActor).map(status => status.id))
+			const removed = new Set(Object.values(this.statuses).filter(isByActor).map((status) => status.id))
 			if (removed.size === 0) {
 				return
 			}
-			this.timeline = this.timeline.filter(statusId => !removed.has(statusId))
-			this.parentsTimeline = this.parentsTimeline.filter(statusId => !removed.has(statusId))
+			this.timeline = this.timeline.filter((statusId) => !removed.has(statusId))
+			this.parentsTimeline = this.parentsTimeline.filter((statusId) => !removed.has(statusId))
 			const statuses = { ...this.statuses }
-			removed.forEach(statusId => delete statuses[statusId])
+			removed.forEach((statusId) => delete statuses[statusId])
 			this.statuses = statuses
 		},
 		resetTimeline() {
@@ -631,37 +631,37 @@ export const useTimelineStore = defineStore('timeline', {
 
 			let url
 			switch (this.type) {
-			case 'account':
-				url = generateUrl(`apps/social/api/v1/accounts/${this.account}/statuses`)
-				break
-			case 'tags':
-				url = generateUrl(`apps/social/api/v1/timelines/tag/${this.params.tag}`)
-				break
-			case 'single-post':
-				url = generateUrl(`apps/social/api/v1/statuses/${this.params.id}/context`)
-				break
-			case 'timeline':
-				url = generateUrl('apps/social/api/v1/timelines/public')
-				params.local = true
-				break
-			case 'federated':
-				url = generateUrl('apps/social/api/v1/timelines/public')
-				break
-			case 'photos':
+				case 'account':
+					url = generateUrl(`apps/social/api/v1/accounts/${this.account}/statuses`)
+					break
+				case 'tags':
+					url = generateUrl(`apps/social/api/v1/timelines/tag/${this.params.tag}`)
+					break
+				case 'single-post':
+					url = generateUrl(`apps/social/api/v1/statuses/${this.params.id}/context`)
+					break
+				case 'timeline':
+					url = generateUrl('apps/social/api/v1/timelines/public')
+					params.local = true
+					break
+				case 'federated':
+					url = generateUrl('apps/social/api/v1/timelines/public')
+					break
+				case 'photos':
 				// the home timeline with the text-only posts left out: the people
 				// you follow, but only what they showed rather than what they said
-				url = generateUrl('apps/social/api/v1/timelines/home')
-				params.only_media = true
-				break
-			case 'notifications':
-				url = generateUrl('apps/social/api/v1/notifications')
-				break
-			case 'bookmarks':
+					url = generateUrl('apps/social/api/v1/timelines/home')
+					params.only_media = true
+					break
+				case 'notifications':
+					url = generateUrl('apps/social/api/v1/notifications')
+					break
+				case 'bookmarks':
 				// the only timeline the server serves without a trailing slash
-				url = generateUrl('apps/social/api/v1/bookmarks')
-				break
-			default:
-				url = generateUrl(`apps/social/api/v1/timelines/${this.type}`)
+					url = generateUrl('apps/social/api/v1/bookmarks')
+					break
+				default:
+					url = generateUrl(`apps/social/api/v1/timelines/${this.type}`)
 			}
 
 			// which list this page was asked for, so an answer that arrives after

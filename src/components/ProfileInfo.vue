@@ -3,13 +3,15 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div v-if="profileAccount && accountInfo"
+	<div
+		v-if="profileAccount && accountInfo"
 		class="user-profile"
 		:style="accent ? { '--profile-accent': accent, '--profile-accent-text': 'var(--color-primary-element-text)' } : {}">
 		<!-- decorative: the banner is changed from the Edit profile dialog, and
 		     a click here is a shortcut for people who have a pointer, not the
 		     only way in -->
-		<div ref="bannerEl"
+		<div
+			ref="bannerEl"
 			class="user-profile__banner"
 			aria-hidden="true"
 			:class="{
@@ -18,19 +20,22 @@
 			}"
 			@click="isOwnProfile ? openFilePicker() : undefined" />
 		<!-- hidden fallback input for environments where the dialogs picker API is incompatible -->
-		<input ref="bannerInput"
+		<input
+			ref="bannerInput"
 			type="file"
 			accept="image/*"
 			style="display:none"
 			@change="uploadBanner">
 		<div class="user-profile__content">
-			<NcAvatar v-if="isLocal"
+			<NcAvatar
+				v-if="isLocal"
 				:user="localUid"
-				:disable-tooltip="true"
+				:disableTooltip="true"
 				:size="128" />
-			<NcAvatar v-else
+			<NcAvatar
+				v-else
 				:url="accountInfo.avatar"
-				:disable-tooltip="true"
+				:disableTooltip="true"
 				:size="128" />
 			<h2>{{ displayName }}</h2>
 			<span v-if="relationship && relationship.blocking" class="user-profile__blocked-hint">
@@ -55,12 +60,14 @@
 			</ul>
 			<div class="user-profile__actions">
 				<FollowButton v-if="!relationship || !relationship.blocking" :uid="uid" />
-				<NcButton v-if="serverData.public"
+				<NcButton
+					v-if="serverData.public"
 					variant="primary"
 					@click="followRemote">
 					{{ t('social', 'Follow') }}
 				</NcButton>
-				<NcButton v-if="isOwnProfile"
+				<NcButton
+					v-if="isOwnProfile"
 					variant="tertiary"
 					@click="openProfileModal">
 					<template #icon>
@@ -68,37 +75,41 @@
 					</template>
 					{{ t('social', 'Edit profile') }}
 				</NcButton>
-				<NcActions v-if="canModerate" force-menu>
-					<NcActionButton v-if="!relationship.blocking"
+				<NcActions v-if="canModerate" forceMenu>
+					<NcActionButton
+						v-if="!relationship.blocking"
 						:disabled="relationshipLoading"
-						close-after-click
+						closeAfterClick
 						@click="toggleBlock">
 						<template #icon>
 							<Cancel :size="20" />
 						</template>
 						{{ t('social', 'Block') }}
 					</NcActionButton>
-					<NcActionButton v-else
+					<NcActionButton
+						v-else
 						:disabled="relationshipLoading"
-						close-after-click
+						closeAfterClick
 						@click="toggleBlock">
 						<template #icon>
 							<Cancel :size="20" />
 						</template>
 						{{ t('social', 'Unblock') }}
 					</NcActionButton>
-					<NcActionButton v-if="!relationship.muting"
+					<NcActionButton
+						v-if="!relationship.muting"
 						:disabled="relationshipLoading"
-						close-after-click
+						closeAfterClick
 						@click="toggleMute">
 						<template #icon>
 							<VolumeOff :size="20" />
 						</template>
 						{{ t('social', 'Mute') }}
 					</NcActionButton>
-					<NcActionButton v-else
+					<NcActionButton
+						v-else
 						:disabled="relationshipLoading"
-						close-after-click
+						closeAfterClick
 						@click="toggleMute">
 						<template #icon>
 							<VolumeHigh :size="20" />
@@ -114,7 +125,8 @@
 				<div v-for="(field, index) in profileFields" :key="index" class="user-profile__field">
 					<dt>{{ field.name }}</dt>
 					<dd>
-						<a v-if="field.href"
+						<a
+							v-if="field.href"
 							:href="field.href"
 							target="_blank"
 							rel="nofollow noopener noreferrer">{{ field.text }}</a>
@@ -124,7 +136,8 @@
 					</dd>
 				</div>
 			</dl>
-			<NcModal v-if="showProfileModal"
+			<NcModal
+				v-if="showProfileModal"
 				:name="t('social', 'Edit profile')"
 				@close="showProfileModal = false">
 				<div class="user-profile__fields-modal">
@@ -141,7 +154,8 @@
 							{{ t('social', 'or give the address of one') }}
 						</label>
 						<div class="user-profile__banner-edit-url">
-							<input id="social-profile-banner-url"
+							<input
+								id="social-profile-banner-url"
 								v-model="bannerUrlInput"
 								type="url"
 								:placeholder="t('social', 'https://example.com/image.jpg')"
@@ -155,7 +169,8 @@
 						<label class="user-profile__bio-label" for="social-profile-bio">
 							{{ t('social', 'Bio') }}
 						</label>
-						<textarea id="social-profile-bio"
+						<textarea
+							id="social-profile-bio"
 							v-model="bioDraft"
 							class="user-profile__bio-input"
 							rows="5"
@@ -165,7 +180,8 @@
 						<!-- no maxlength: the server truncates an over-long bio instead of
 						     refusing it, and silently swallowing the tail of a pasted bio
 						     is worse than saying that it is too long -->
-						<span id="social-profile-bio-count"
+						<span
+							id="social-profile-bio-count"
 							class="user-profile__bio-count"
 							:class="{ 'user-profile__bio-count--over': bioTooLong }"
 							role="status">
@@ -174,17 +190,20 @@
 					</div>
 					<p>{{ t('social', 'Up to four name/value pairs, shown on your profile and shared with other servers.') }}</p>
 					<div v-for="(row, index) in fieldRows" :key="index" class="user-profile__fields-row">
-						<input v-model="row.name"
+						<input
+							v-model="row.name"
 							type="text"
 							maxlength="255"
 							:aria-label="t('social', 'Label of field {number}', { number: index + 1 })"
 							:placeholder="t('social', 'Label')">
-						<input v-model="row.value"
+						<input
+							v-model="row.value"
 							type="text"
 							maxlength="500"
 							:aria-label="t('social', 'Content of field {number}', { number: index + 1 })"
 							:placeholder="t('social', 'Content')">
-						<NcButton variant="tertiary"
+						<NcButton
+							variant="tertiary"
 							:aria-label="t('social', 'Remove field')"
 							@click="fieldRows.splice(index, 1)">
 							<template #icon>
@@ -193,7 +212,8 @@
 						</NcButton>
 					</div>
 					<div class="user-profile__fields-modal-actions">
-						<NcButton v-if="fieldRows.length < 4"
+						<NcButton
+							v-if="fieldRows.length < 4"
 							variant="tertiary"
 							@click="fieldRows.push({ name: '', value: '' })">
 							{{ t('social', 'Add field') }}
@@ -263,12 +283,14 @@ export default {
 		VolumeHigh,
 		VolumeOff,
 	},
+
 	props: {
 		uid: {
 			type: String,
 			default: '',
 		},
 	},
+
 	setup(props) {
 		const { serverData } = useServerData()
 		const { currentUser } = useCurrentUser()
@@ -276,6 +298,7 @@ export default {
 
 		return { serverData, currentUser, profileAccount, accountInfo, isLocal, relationship }
 	},
+
 	data() {
 		return {
 			followingText: t('social', 'Following'),
@@ -294,17 +317,21 @@ export default {
 			bioStored: '',
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore),
 		localUid() {
 			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.slice(0, this.uid.indexOf('@'))
 		},
+
 		displayName() {
 			return this.accountInfo.display_name ?? this.accountInfo.username ?? this.profileAccount
 		},
+
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
 		},
+
 		/**
 		 * Remote field values arrive as HTML; render only their text, as a
 		 * link when the field is one.
@@ -312,7 +339,7 @@ export default {
 		 * @return {Array} [{name, text, href}]
 		 */
 		profileFields() {
-			return (this.accountInfo.fields || []).map(field => {
+			return (this.accountInfo.fields || []).map((field) => {
 				const doc = new DOMParser().parseFromString(field.value || '', 'text/html')
 				const text = doc.body.textContent.trim()
 				const anchor = doc.body.querySelector('a[href]')
@@ -323,41 +350,50 @@ export default {
 				return { name: field.name, text, href }
 			})
 		},
+
 		/** @return {string} the bio to show, reduced to markup that is safe to inject */
 		note() {
 			return sanitizeHtml(this.accountInfo.note ?? '')
 		},
+
 		/** @return {string} the bio as it would be stored */
 		bioValue() {
 			return normalizeBio(this.bioDraft)
 		},
+
 		/** @return {number} how many characters the bio has left */
 		bioCharsLeft() {
 			// `mb_strlen()` on the server counts code points, and `.length`
 			// counts UTF-16 units: an emoji is one character, not two
 			return BIO_MAX_LENGTH - [...this.bioValue].length
 		},
+
 		/** @return {boolean} */
 		bioTooLong() {
 			return this.bioCharsLeft < 0
 		},
+
 		/** @return {string} */
 		bioCharactersLeftLabel() {
 			return this.bioTooLong
 				? this.n('social', '%n character too many', '%n characters too many', -this.bioCharsLeft)
 				: this.n('social', '%n character left', '%n characters left', this.bioCharsLeft)
 		},
+
 		/** @return {boolean} whether the bio is worth mentioning in the request */
 		bioChanged() {
 			return this.bioValue !== this.bioStored
 		},
+
 		isOwnProfile() {
 			return this.currentUser?.uid && this.localUid === this.currentUser.uid
 		},
+
 		/** @return {boolean} whether the block/mute menu applies to this profile */
 		canModerate() {
 			return !this.serverData.public && !this.isOwnProfile && this.relationship !== undefined
 		},
+
 		bannerStyle() {
 			const info = this.accountInfo || {}
 			return this.bannerUrl || info.header || ''
@@ -370,14 +406,17 @@ export default {
 				this.applyBanner(url)
 				this.readAccent(url)
 			},
+
 			immediate: true,
 		},
 	},
+
 	// The immediate watcher above runs before the banner element exists and bails,
 	// so paint any existing header once the ref is available on first render.
 	mounted() {
 		this.applyBanner(this.bannerStyle)
 	},
+
 	methods: {
 		/**
 		 * Tints this profile with its own banner. A banner that cannot be read
@@ -394,6 +433,7 @@ export default {
 
 			this.accent = asAccent(await dominantColour(url))
 		},
+
 		async toggleBlock() {
 			this.relationshipLoading = true
 			try {
@@ -403,6 +443,7 @@ export default {
 				this.relationshipLoading = false
 			}
 		},
+
 		async toggleMute() {
 			this.relationshipLoading = true
 			try {
@@ -412,9 +453,10 @@ export default {
 				this.relationshipLoading = false
 			}
 		},
+
 		openProfileModal() {
 			const fields = this.accountInfo.source?.fields || this.accountInfo.fields || []
-			this.fieldRows = fields.map(field => ({ name: field.name, value: field.value }))
+			this.fieldRows = fields.map((field) => ({ name: field.name, value: field.value }))
 			if (this.fieldRows.length === 0) {
 				this.fieldRows.push({ name: '', value: '' })
 			}
@@ -424,6 +466,7 @@ export default {
 			this.bioDraft = this.bioStored
 			this.showProfileModal = true
 		},
+
 		async saveProfile() {
 			if (this.savingProfile || this.bioTooLong) {
 				return
@@ -432,8 +475,8 @@ export default {
 			this.savingProfile = true
 			try {
 				const fields = this.fieldRows
-					.map(row => ({ name: row.name.trim(), value: row.value.trim() }))
-					.filter(row => row.name !== '' && row.value !== '')
+					.map((row) => ({ name: row.name.trim(), value: row.value.trim() }))
+					.filter((row) => row.name !== '' && row.value !== '')
 				await axios.put(generateUrl('apps/social/api/v1/account/fields'), { fields })
 				// an absent `note` leaves the stored bio alone, so it is sent
 				// only when this editor actually changed it
@@ -457,9 +500,11 @@ export default {
 				this.savingProfile = false
 			}
 		},
+
 		followRemote() {
 			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600,toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		},
+
 		async openFilePicker() {
 			if (this.$refs.bannerInput) {
 				this.$refs.bannerInput.click()
@@ -468,7 +513,9 @@ export default {
 
 		async uploadBanner(event) {
 			const file = event?.target?.files?.[0]
-			if (!file) return
+			if (!file) {
+				return
+			}
 			// the file name is the reader's own document title; it does not
 			// belong in a console every extension can read
 			logger.debug('Uploading a banner', { size: file.size, type: file.type })
@@ -492,13 +539,17 @@ export default {
 				await this.showError(t('social', 'Failed to upload banner'))
 			} finally {
 				this.loading = false
-				if (event && event.target) event.target.value = ''
+				if (event && event.target) {
+					event.target.value = ''
+				}
 			}
 		},
 
 		async uploadBannerByUrl() {
 			const url = this.bannerUrlInput.trim()
-			if (!url) return
+			if (!url) {
+				return
+			}
 			this.loadingUrl = true
 			try {
 				const formData = new URLSearchParams()
@@ -523,10 +574,12 @@ export default {
 				this.loadingUrl = false
 			}
 		},
+
 		async showSuccess(message) {
 			const { showSuccess } = await import('@nextcloud/dialogs')
 			showSuccess(message)
 		},
+
 		async showError(message) {
 			const { showError } = await import('@nextcloud/dialogs')
 			showError(message)
@@ -534,7 +587,9 @@ export default {
 
 		applyBanner(url) {
 			const el = this.$refs.bannerEl
-			if (!el) return
+			if (!el) {
+				return
+			}
 			if (url) {
 				el.style.backgroundImage = `url(${url})`
 				el.style.backgroundSize = 'cover'
@@ -546,6 +601,7 @@ export default {
 				el.style.backgroundColor = 'var(--color-background-dark)'
 			}
 		},
+
 		t: translate,
 		n: translatePlural,
 	},

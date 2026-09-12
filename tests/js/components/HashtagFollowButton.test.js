@@ -24,14 +24,16 @@ vi.mock('../../../src/services/logger.js', () => ({
 
 const API = '/index.php/apps/social/api/v1'
 
-const tagEntity = (name, following) => ({
-	name,
-	url: `https://cloud.example.org/apps/social/timeline/tags/${name}`,
-	history: [],
-	following,
-})
+function tagEntity(name, following) {
+	return {
+		name,
+		url: `https://cloud.example.org/apps/social/timeline/tags/${name}`,
+		history: [],
+		following,
+	}
+}
 
-const mountButton = async ({ tag = 'nextcloud', following = false, isPublic = false } = {}) => {
+async function mountButton({ tag = 'nextcloud', following = false, isPublic = false } = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData({ public: isPublic, cloudAddress: 'https://cloud.example.org' })

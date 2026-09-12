@@ -16,10 +16,12 @@ const NcAvatarStub = {
 	template: '<span class="nc-avatar-stub" />',
 }
 
-const mountAvatar = (item) => mount(TimelineAvatar, {
-	props: { item },
-	global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
-})
+function mountAvatar(item) {
+	return mount(TimelineAvatar, {
+		props: { item },
+		global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
+	})
+}
 
 const localStatus = {
 	id: '1',

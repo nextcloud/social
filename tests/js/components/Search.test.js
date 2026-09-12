@@ -54,13 +54,15 @@ const status = (id) => ({ id, content: `<p>post ${id}</p>`, created_at: '2026-01
  * @param {Array} [results.hashtags] matching hashtag names
  * @return {object} an axios-shaped response
  */
-const response = ({ accounts = [], statuses = [], hashtags = [] } = {}) => ({
-	data: {
-		accounts,
-		statuses,
-		hashtags: hashtags.map((name) => ({ name, url: `https://cloud.example.org/timeline/tags/${name}`, history: [] })),
-	},
-})
+function response({ accounts = [], statuses = [], hashtags = [] } = {}) {
+	return {
+		data: {
+			accounts,
+			statuses,
+			hashtags: hashtags.map((name) => ({ name, url: `https://cloud.example.org/timeline/tags/${name}`, history: [] })),
+		},
+	}
+}
 
 const SEARCH_URL = '/index.php/apps/social/api/v2/search'
 
@@ -69,20 +71,22 @@ let accountStore
 let timelineStore
 let get
 
-const mountSearch = (term) => mount(Search, {
-	props: { term },
-	global: {
-		plugins: [pinia],
-		stubs: {
-			UserEntry: UserEntryStub,
-			TimelineEntry: TimelineEntryStub,
-			RouterLink: RouterLinkStub,
-			NcEmptyContent: NcEmptyContentStub,
-			NcLoadingIcon: NcLoadingIconStub,
-			Composer: ComposerStub,
+function mountSearch(term) {
+	return mount(Search, {
+		props: { term },
+		global: {
+			plugins: [pinia],
+			stubs: {
+				UserEntry: UserEntryStub,
+				TimelineEntry: TimelineEntryStub,
+				RouterLink: RouterLinkStub,
+				NcEmptyContent: NcEmptyContentStub,
+				NcLoadingIcon: NcLoadingIconStub,
+				Composer: ComposerStub,
+			},
 		},
-	},
-})
+	})
+}
 
 describe('Search', () => {
 	/**

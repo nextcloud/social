@@ -36,8 +36,17 @@ const EDITABLE = ['input', 'textarea', 'select']
  */
 const ACTIVATABLE_TAGS = ['button', 'a', 'summary', 'details', 'option', 'label']
 const ACTIVATABLE_ROLES = [
-	'button', 'link', 'menuitem', 'menuitemcheckbox', 'menuitemradio',
-	'checkbox', 'radio', 'switch', 'tab', 'option', 'treeitem',
+	'button',
+	'link',
+	'menuitem',
+	'menuitemcheckbox',
+	'menuitemradio',
+	'checkbox',
+	'radio',
+	'switch',
+	'tab',
+	'option',
+	'treeitem',
 ]
 
 /** Keys an element may own, as opposed to keys that are only ever ours. */

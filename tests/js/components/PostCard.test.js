@@ -6,15 +6,17 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import PostCard from '../../../src/components/PostCard.vue'
 
-const card = (overrides = {}) => ({
-	url: 'https://example.org/news/today',
-	title: 'The headline',
-	description: 'What it is about',
-	type: 'link',
-	provider_name: 'Example News',
-	image: 'https://example.org/img/hero.png',
-	...overrides,
-})
+function card(overrides = {}) {
+	return {
+		url: 'https://example.org/news/today',
+		title: 'The headline',
+		description: 'What it is about',
+		type: 'link',
+		provider_name: 'Example News',
+		image: 'https://example.org/img/hero.png',
+		...overrides,
+	}
+}
 
 const mountCard = (value) => mount(PostCard, { props: { card: value } })
 

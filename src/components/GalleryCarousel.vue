@@ -6,7 +6,8 @@
 	<!-- the whole gallery is one stop on the way through the post: arriving on
 	     it, the arrow keys page through the pictures without having to tab past
 	     one control per image -->
-	<div class="gallery"
+	<div
+		class="gallery"
 		role="group"
 		:aria-roledescription="t('social', 'Image gallery')"
 		:aria-label="galleryLabel"
@@ -20,12 +21,14 @@
 				<!-- every picture stays mounted, so paging to one does not start
 				     its download; the ones off stage are taken out of the tab
 				     order and off the accessibility tree -->
-				<div v-for="(attachment, index) in attachments"
+				<div
+					v-for="(attachment, index) in attachments"
 					:key="attachment.id ?? index"
 					class="gallery__slide"
 					:inert="index === current ? null : true"
 					:aria-hidden="index === current ? 'false' : 'true'">
-					<GalleryMedia ref="frames"
+					<GalleryMedia
+						ref="frames"
 						:attachment="attachment"
 						:index="index"
 						:total="attachments.length"
@@ -36,13 +39,15 @@
 			</div>
 			<!-- paging wraps: a disabled control drops the focus of a reader who
 			     is holding the arrow key, mid-gallery -->
-			<button type="button"
+			<button
+				type="button"
 				class="gallery__step gallery__step--previous"
 				:aria-label="t('social', 'Previous image')"
 				@click="previous">
 				<ChevronLeft :size="24" />
 			</button>
-			<button type="button"
+			<button
+				type="button"
 				class="gallery__step gallery__step--next"
 				:aria-label="t('social', 'Next image')"
 				@click="next">
@@ -55,7 +60,8 @@
 				{{ counterLabel }}
 			</p>
 			<div class="gallery__dots">
-				<button v-for="(attachment, index) in attachments"
+				<button
+					v-for="(attachment, index) in attachments"
 					:key="attachment.id ?? index"
 					type="button"
 					class="gallery__dot"
@@ -82,6 +88,7 @@ export default {
 		ChevronRight,
 		GalleryMedia,
 	},
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').MediaAttachment[]>} */
 		attachments: {
@@ -89,12 +96,14 @@ export default {
 			required: true,
 		},
 	},
+
 	emits: ['open'],
 	data() {
 		return {
 			current: 0,
 		}
 	},
+
 	computed: {
 		/**
 		 * @return {number} one shape for every slide. The pictures of a set
@@ -105,10 +114,12 @@ export default {
 		stageRatio() {
 			return ratioOf(this.attachments[0] ?? null)
 		},
+
 		/** @return {string} */
 		galleryLabel() {
 			return translatePlural('social', 'Gallery of %n image', 'Gallery of %n images', this.attachments.length)
 		},
+
 		/** @return {string} */
 		counterLabel() {
 			return translate('social', '{number} of {total}', {
@@ -117,11 +128,13 @@ export default {
 			})
 		},
 	},
+
 	watch: {
 		attachments() {
 			this.current = 0
 		},
 	},
+
 	methods: {
 		t: translate,
 		/**
@@ -135,12 +148,15 @@ export default {
 
 			this.current = ((index % total) + total) % total
 		},
+
 		previous() {
 			this.show(this.current - 1)
 		},
+
 		next() {
 			this.show(this.current + 1)
 		},
+
 		/**
 		 * The element the viewer should grow out of, for the caller's transition.
 		 *

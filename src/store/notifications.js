@@ -42,9 +42,7 @@ export const useNotificationsStore = defineStore('notifications', {
 		/** Reads the count. Failure is silent: a badge is not worth a toast. */
 		async fetchUnreadNotifications() {
 			try {
-				const { data } = await axios.get(
-					generateUrl('apps/social/api/v1/notifications/unread_count'),
-				)
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/notifications/unread_count'))
 				this.setUnreadNotifications(Number(data?.count) || 0)
 			} catch (error) {
 				logger.error('Failed to read the unread notification count', { error })

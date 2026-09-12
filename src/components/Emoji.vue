@@ -3,7 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<img class="emoji"
+	<img
+		class="emoji"
 		draggable="false"
 		:alt="emoji"
 		:src="emojiUrl">
@@ -22,9 +23,10 @@ export default {
 	props: {
 		emoji: {
 			type: String,
-			 default: '',
+			default: '',
 		},
 	},
+
 	computed: {
 		/**
 		 * @return {string}
@@ -32,8 +34,7 @@ export default {
 		icon() {
 			return toCodePoint(this.emoji.indexOf(U200D) < 0
 				? this.emoji.replace(UFE0Fg, '')
-				: this.emoji,
-			)
+				: this.emoji)
 		},
 
 		/**

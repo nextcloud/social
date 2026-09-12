@@ -3,7 +3,7 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
+	<NcContent v-if="!serverData.setup" appName="social" :class="{public: serverData.public}">
 		<Navigation v-if="!serverData.public" @search="search" />
 		<ShortcutHelp :open="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
 		<NcAppContent>
@@ -17,7 +17,7 @@
 			<router-view />
 		</NcAppContent>
 	</NcContent>
-	<NcContent v-else app-name="social">
+	<NcContent v-else appName="social">
 		<NcAppContent v-if="serverData.isAdmin" class="setup">
 			<h2>{{ t('social', 'Social app setup') }}</h2>
 			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app.') }}</p>
@@ -26,18 +26,21 @@
 					<label class="hidden" for="setup-cloud-address">
 						{{ t('social', 'ActivityPub URL base') }}
 					</label>
-					<input id="setup-cloud-address"
+					<input
+						id="setup-cloud-address"
 						v-model="cloudAddress"
 						:placeholder="serverData.cliUrl"
 						type="url"
 						class="setup-input"
 						required>
-					<NcButton variant="primary"
+					<NcButton
+						variant="primary"
 						type="submit">
 						{{ t('social', 'Finish setup') }}
 					</NcButton>
 				</p>
-				<SetupChecks v-if="!serverData.checks.success"
+				<SetupChecks
+					v-if="!serverData.checks.success"
 					:checks="serverData.checks.checks"
 					:addresses="serverData.checks.addresses" />
 			</form>
@@ -79,12 +82,14 @@ export default {
 		ShortcutHelp,
 		SetupChecks,
 	},
+
 	setup() {
 		const { serverData } = useServerData()
 		const { cloudId } = useCurrentUser()
 
 		return { serverData, cloudId }
 	},
+
 	data() {
 		return {
 			infoHidden: false,
@@ -94,19 +99,11 @@ export default {
 			stopShortcuts: null,
 		}
 	},
+
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
 	},
-	mounted() {
-		this.stopShortcuts = listenForShortcuts()
-		eventBus.on('shortcut:help', this.toggleShortcutHelp)
-		eventBus.on('shortcut:home', this.goHome)
-	},
-	unmounted() {
-		this.stopShortcuts?.()
-		eventBus.off('shortcut:help', this.toggleShortcutHelp)
-		eventBus.off('shortcut:home', this.goHome)
-	},
+
 	watch: {
 		$route(to) {
 			// the query lives in the URL now; keep the store in step with it
@@ -114,6 +111,19 @@ export default {
 			this.timelineStore.setSearchQuery(to.name === 'search' ? String(to.params.term ?? '') : '')
 		},
 	},
+
+	mounted() {
+		this.stopShortcuts = listenForShortcuts()
+		eventBus.on('shortcut:help', this.toggleShortcutHelp)
+		eventBus.on('shortcut:home', this.goHome)
+	},
+
+	unmounted() {
+		this.stopShortcuts?.()
+		eventBus.off('shortcut:help', this.toggleShortcutHelp)
+		eventBus.off('shortcut:home', this.goHome)
+	},
+
 	beforeMount() {
 		this.settingsStore.setServerData(loadState('social', 'serverData'))
 
@@ -125,24 +135,29 @@ export default {
 			OCA.Push.addCallback(this.fromPushApp, 'social')
 		}
 	},
+
 	methods: {
 		toggleShortcutHelp() {
 			this.shortcutHelpOpen = !this.shortcutHelpOpen
 		},
+
 		goHome() {
 			if (this.$route.name !== 'timeline' || this.$route.params.type) {
 				this.$router.push({ name: 'timeline' })
 			}
 		},
+
 		hideInfo() {
 			this.infoHidden = true
 		},
+
 		setCloudAddress() {
 			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then(() => {
 				this.settingsStore.setServerDataEntry({ key: 'setup', value: false })
 				this.settingsStore.setServerDataEntry({ key: 'cloudAddress', value: this.cloudAddress })
 			})
 		},
+
 		/**
 		 * Searching asks the server, on its own route.
 		 *
@@ -169,6 +184,7 @@ export default {
 			const navigate = this.$route.name === 'search' ? this.$router.replace : this.$router.push
 			navigate.call(this.$router, { name: 'search', params: { term: query } })
 		},
+
 		fromPushApp(data) {
 			let timeline = 'home'
 			if (this.$route.name === 'tags') {
@@ -258,6 +274,7 @@ a.external_link {
 	filter: var(--background-invert-if-dark);
 }
 </style>
+
 <style lang="scss">
 /**
  * Two levels of elevation, defined once, so every card in the app agrees about

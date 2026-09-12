@@ -46,12 +46,12 @@ let timelineStore
 let route
 let router
 
-const setServerData = (overrides = {}) => {
+function setServerData(overrides = {}) {
 	setInitialState('social', 'serverData', { ...baseServerData, ...overrides })
 	window._nc_initial_state?.clear()
 }
 
-const makeStore = () => {
+function makeStore() {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
@@ -77,9 +77,11 @@ const routePlugin = {
 	},
 }
 
-const mountApp = () => mount(App, {
-	global: { plugins: [pinia, routePlugin], mocks: { $router: router }, stubs },
-})
+function mountApp() {
+	return mount(App, {
+		global: { plugins: [pinia, routePlugin], mocks: { $router: router }, stubs },
+	})
+}
 
 describe('App', () => {
 	beforeEach(() => {

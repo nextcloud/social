@@ -29,35 +29,39 @@ const bob = { id: '22', acct: 'bob@remote.tld', username: 'bob', display_name: '
 const carol = { id: '33', acct: 'carol@remote.tld', username: 'carol', display_name: 'Carol', url: 'https://remote.tld/@carol' }
 const ALICE = 'alice@cloud.example.org'
 
-const freshState = () => ({
-	currentAccountHandle: '',
-	accounts: {},
-	accountsFollowers: {},
-	accountsFollowings: {},
-	accountsRelationships: {},
-	accountIdMap: {},
-	accountsFollowersMaxId: {},
-	accountsFollowingsMaxId: {},
-	accountsFollowersLoading: {},
-	accountsFollowingsLoading: {},
-	accountsFollowersAllLoaded: {},
-	accountsFollowingsAllLoaded: {},
-})
+function freshState() {
+	return {
+		currentAccountHandle: '',
+		accounts: {},
+		accountsFollowers: {},
+		accountsFollowings: {},
+		accountsRelationships: {},
+		accountIdMap: {},
+		accountsFollowersMaxId: {},
+		accountsFollowingsMaxId: {},
+		accountsFollowersLoading: {},
+		accountsFollowingsLoading: {},
+		accountsFollowersAllLoaded: {},
+		accountsFollowingsAllLoaded: {},
+	}
+}
 
-const defaultRelationship = (id, following) => ({
-	id,
-	following,
-	showing_reblogs: false,
-	notifying: false,
-	followed_by: false,
-	blocking: false,
-	blocked_by: false,
-	muting: false,
-	muting_notifications: false,
-	requested: false,
-	domain_blocking: false,
-	endorsed: false,
-})
+function defaultRelationship(id, following) {
+	return {
+		id,
+		following,
+		showing_reblogs: false,
+		notifying: false,
+		followed_by: false,
+		blocking: false,
+		blocked_by: false,
+		muting: false,
+		muting_notifications: false,
+		requested: false,
+		domain_blocking: false,
+		endorsed: false,
+	}
+}
 
 let store
 let errorsStore
