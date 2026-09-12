@@ -50,6 +50,8 @@ class FollowServiceTest extends TestCase {
 	private ActivityService|MockObject $activityService;
 	private CacheActorService|MockObject $cacheActorService;
 	/** @var FollowInterface&MockObject */
+	/** @var ConfigService&MockObject */
+	private $configService;
 	private $followInterface;
 	private ModerationService|MockObject $moderationService;
 	private FollowService $service;
@@ -65,6 +67,7 @@ class FollowServiceTest extends TestCase {
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->followInterface = $this->createMock(FollowInterface::class);
 		$this->moderationService = $this->createMock(ModerationService::class);
+		$this->configService = $this->createMock(ConfigService::class);
 
 		$this->service = new FollowService(
 			$this->urlGenerator,
@@ -72,7 +75,7 @@ class FollowServiceTest extends TestCase {
 			$this->actorRelationRequest,
 			$this->activityService,
 			$this->cacheActorService,
-			$this->createMock(ConfigService::class),
+			$this->configService,
 			$this->followInterface,
 			$this->moderationService,
 			$this->accountRelationService,
@@ -177,6 +180,46 @@ class FollowServiceTest extends TestCase {
 		$this->assertSame(self::BOB_ID . '/inbox', $paths[0]->getUri());
 		$this->assertSame(InstancePath::TYPE_INBOX, $paths[0]->getType());
 		$this->assertSame(InstancePath::PRIORITY_TOP, $paths[0]->getPriority());
+	}
+
+	/**
+	 * A delivery addressed to this instance is dropped before it is sent (see
+	 * ActivityService::isOurs()), because the server would otherwise have to
+	 * reach its own public address. A post loses nothing by that, since its
+	 * recipients are written into social_stream_dest when it is saved, but a
+	 * Follow has no such path: following somebody on your own instance left a
+	 * row at `accepted = 0` for ever and changed nobody's timeline. The inbox
+	 * side runs here instead.
+	 */
+	public function testFollowingALocalAccountIsHandledInProcessRatherThanOverHttp(): void {
+		$carol = $this->person(self::CLOUD_URL . '/@carol', 'carol', 2);
+		$carol->setLocal(true);
+		$this->cacheActorService->method('getFromAccount')->with('carol')->willReturn($carol);
+		$this->followsRequest->method('getByPersons')
+			->willThrowException(new FollowNotFoundException());
+		$this->followsRequest->expects($this->once())->method('save');
+		$this->configService->method('getCloudHost')->willReturn('social.example');
+
+		// nothing goes to the network, and the inbox handler runs on the Follow
+		// that was just saved
+		$this->activityService->expects($this->never())->method('request');
+		$handled = null;
+		$this->followInterface->expects($this->once())
+			->method('processIncomingRequest')
+			->with($this->callback(function (ACore $item) use (&$handled): bool {
+				$handled = $item;
+
+				return true;
+			}));
+
+		$this->service->followAccount($this->alice(), 'carol');
+
+		$this->assertInstanceOf(Follow::class, $handled);
+		$this->assertSame(self::ALICE_ID, $handled->getActorId());
+		$this->assertSame($carol->getId(), $handled->getObjectId());
+		// the handler is the inbox's, and it checks the origin against the
+		// actor's host before touching anything
+		$this->assertSame('social.example', $handled->getOrigin());
 	}
 
 	public function testFollowAccountRefusesFollowingYourself(): void {
