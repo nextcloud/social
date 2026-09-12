@@ -263,7 +263,13 @@ class MigrationService {
 
 			$cells = str_getcsv($line, ',', '"', '');
 			$handle = ltrim(trim((string)($cells[$column] ?? '')), '@');
-			if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $handle) !== 1) {
+			// `name@host`, with the host allowed to be a single label: a
+			// fediverse host is usually dotted, but an instance reached as
+			// `cloud` or `devel` on a private network is not, and insisting on
+			// a dot silently dropped every handle on such a server — including
+			// the ones in this app's own export. A handle that resolves to
+			// nothing is reported as failed, which says more than skipping it.
+			if (preg_match('/^[^@\s]+@[^@\s]+$/', $handle) !== 1) {
 				continue;
 			}
 

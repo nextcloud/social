@@ -191,6 +191,7 @@ import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
 import IconPound from 'vue-material-design-icons/Pound.vue'
+import IconSwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
@@ -237,6 +238,7 @@ export default {
 		IconPlus,
 		IconBookmark,
 		IconPound,
+		IconSwapHorizontal,
 		IconCancel,
 		IconAlertCircle,
 	},
@@ -398,6 +400,12 @@ export default {
 						icon: IconHeart,
 						title: t('social', 'Liked posts'),
 						to: { name: 'timeline', params: { type: 'favourites' } },
+					},
+					{
+						key: 'social-migration',
+						icon: IconSwapHorizontal,
+						title: t('social', 'Migration'),
+						to: { name: 'migration' },
 					},
 					{
 						key: 'social-bookmarks',

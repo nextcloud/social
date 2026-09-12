@@ -104,6 +104,7 @@ describe('Navigation', () => {
 			'My profile',
 			'Follow requests',
 			'Liked posts',
+			'Migration',
 			'Bookmarks',
 			'Blocked and muted accounts',
 		])
@@ -121,6 +122,7 @@ describe('Navigation', () => {
 			'My profile',
 			'Follow requests',
 			'Liked posts',
+			'Migration',
 			'Bookmarks',
 			'Blocked and muted accounts',
 		])
@@ -190,6 +192,7 @@ describe('Navigation', () => {
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
 		['My profile', { name: 'profile', params: { account: 'alice' } }],
+		['Migration', { name: 'migration' }],
 	])('points the %s entry at its route', async (name, to) => {
 		// an href so it is a real link, and a click that stays in the app: with
 		// `to` the component ORs vue-router's own idea of active into the entry,

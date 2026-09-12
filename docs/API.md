@@ -588,6 +588,16 @@ The followers and following lists of an arbitrary account are reachable through 
 | POST | `/api/v1/banner` | user, no-csrf | `file` (multipart, `$_FILES['file']`) | Stores the upload as the current user's header image, updates the actor cache and federates an Update. Returns `{"result": {"url", "id"}, "status": 1}`. |
 | POST | `/api/v1/banner/url` | user, no-csrf | `url` (string, default `''`, required in practice) | Downloads the image at the given `url` with cURL (follows up to 5 redirects, 30 s timeout, user agent `Nextcloud-Social/0.10`) and stores it as the current user's header image. Same response shape. An empty `url`, or a non-2xx response, fails. |
 
+### Migration
+
+The Migration page's three buttons: take a copy of the account's Social data, put one back, and bring the follows over from another server. Session routes with CSRF, not client-API ones — an archive of everything an account ever wrote is not something a third-party token should be able to ask for, and these are for the person in front of the browser.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/migration/export` | user | — | The account's Social data as a zip: `social/actor.json`, `social/following_accounts.csv`, `social/followers.csv`, `social/blocked_accounts.csv`, `social/muted_accounts.csv`, `social/bookmarks.csv`, `social/likes.csv`, `social/outbox.json`, plus a `social/export.json` manifest naming the app version, the account and the migrator version. Written by the same `SocialMigrator` Nextcloud's whole-account export uses, so the two archives hold the same files at the same paths. The **private key is never in it** — see the class comment on `SocialMigrator` — so an archive cannot be used to sign as the account it came from. Downloads as `social-<uid>-<date>.zip`. Rate-limited to 6 an hour. |
+| POST | `/api/v1/migration/import` | user | `file` (multipart, `$_FILES['file']`, ≤ 100 MB) | Reads such an archive back into the signed-in account: the profile, the follows, the blocks, the mutes, the bookmarks and the favourites. **Additive** — nothing is deleted, and the posts in `outbox.json` are reported rather than re-published. An archive with no `social/actor.json` is a **400** that says so. Returns `{"imported": true, "log": [...]}`, the migrator's own account of what it did. Rate-limited to 6 an hour. |
+| POST | `/api/v1/migration/follows` | user | `file` (multipart, `$_FILES['file']`) | A `following_accounts.csv` from Mastodon, Pixelfed, GoToSocial or Akkoma — or from the archive above — re-followed one handle at a time through the ordinary follow path. A follow is a relationship two servers have to agree on, so it cannot be carried in a file and is requested again from here. Returns `{"followed", "skipped", "failed"}`, where `failed` maps a handle to the reason. Rate-limited to 4 an hour. |
+
 ### Config and system
 
 | Method | Route | Auth | Parameters | Description |
@@ -699,6 +709,7 @@ These serve HTML or files for the app's own UI; they are not client API endpoint
 | GET | `/follow_requests` | user, no-csrf | — | Same page. The path belongs to the client-side router; the server answers it so that reloading or bookmarking the follow-requests page works instead of 404ing. |
 | GET | `/blocked` | user, no-csrf | — | Same page, for the blocked-and-muted-accounts view (**Settings → Blocked and muted accounts** in the app's sidebar). |
 | GET | `/discover` | user, no-csrf | — | Same page, for the Discover view — who to follow (suggestions and starter packs), and what is being looked at (pictures and hashtags). The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
+| GET | `/migration` | user, no-csrf | — | Same page, for the Migration view — export, import, and bringing your follows over from another network. The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
 | GET | `/document/get` | user, no-csrf | `id` (required) | Streams a cached document with its stored mime type. Errors: error envelope, HTTP 500. |
 | GET | `/document/public` | public, no-csrf | `id` (required) | Same for documents marked public. |
 | GET | `/document/get/resized` | user, no-csrf | `id` (required) | Streams the resized/preview variant. |
