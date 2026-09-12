@@ -46,11 +46,6 @@ class ConfigService {
 	/** days to keep remote statuses nobody local cares about; 0 disables */
 	public const SOCIAL_RETENTION_DAYS = 'retention_days';
 
-	public const BACKGROUND_CRON = 1;
-	public const BACKGROUND_ASYNC = 2;
-	public const BACKGROUND_SERVICE = 3;
-	public const BACKGROUND_FULL_SERVICE = 4;
-
 	public array $defaults = [
 		self::CLOUD_URL => '',
 		self::SOCIAL_URL => '',

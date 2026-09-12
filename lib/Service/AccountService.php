@@ -75,8 +75,6 @@ class AccountService {
 	 */
 	public const KEY_PAIR_LIFESPAN = 60;
 
-	private ?string $userId = null;
-
 	private IUserManager $userManager;
 	private IUserSession $userSession;
 	private IAccountManager $accountManager;

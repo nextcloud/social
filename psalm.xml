@@ -53,25 +53,5 @@
 				<file name="lib/Service/StreamService.php"/>
 			</errorLevel>
 		</TypeDoesNotContainNull>
-		<UndefinedThisPropertyAssignment>
-			<errorLevel type="suppress">
-				<file name="lib/Service/AccountService.php"/>
-			</errorLevel>
-		</UndefinedThisPropertyAssignment>
-		<UndefinedThisPropertyFetch>
-			<errorLevel type="suppress">
-				<file name="lib/Service/AccountService.php"/>
-			</errorLevel>
-		</UndefinedThisPropertyFetch>
-		<UndefinedMethod>
-			<errorLevel type="suppress">
-				<file name="lib/Service/AccountService.php"/>
-			</errorLevel>
-		</UndefinedMethod>
-		<UndefinedConstant>
-			<errorLevel type="suppress">
-				<file name="lib/Service/AccountService.php"/>
-			</errorLevel>
-		</UndefinedConstant>
 	</issueHandlers>
 </psalm>

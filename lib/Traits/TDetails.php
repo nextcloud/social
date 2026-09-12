@@ -107,42 +107,6 @@ trait TDetails {
 
 	/**
 	 * @param string $detail
-	 * @param int $value
-	 */
-	public function addDetailInt(string $detail, int $value) {
-		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
-			$this->details[$detail] = [];
-		}
-
-		$this->details[$detail][] = $value;
-	}
-
-	/**
-	 * @param string $detail
-	 * @param array $value
-	 */
-	public function addDetailArray(string $detail, array $value) {
-		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
-			$this->details[$detail] = [];
-		}
-
-		$this->details[$detail][] = $value;
-	}
-
-	/**
-	 * @param string $detail
-	 * @param bool $value
-	 */
-	public function addDetailBool(string $detail, bool $value) {
-		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
-			$this->details[$detail] = [];
-		}
-
-		$this->details[$detail][] = $value;
-	}
-
-	/**
-	 * @param string $detail
 	 * @param string $value
 	 */
 	public function removeDetail(string $detail, string $value) {
@@ -151,41 +115,5 @@ trait TDetails {
 		}
 
 		$this->details[$detail] = array_diff($this->details[$detail], [$value]);
-	}
-
-	/**
-	 * @param string $detail
-	 * @param int $value
-	 */
-	public function removeDetailInt(string $detail, int $value) {
-		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
-			return;
-		}
-
-		$this->details[$detail] = array_diff($this->details, [$value]);
-	}
-
-	/**
-	 * @param string $detail
-	 * @param array $value
-	 */
-	public function removeDetailArray(string $detail, array $value) {
-		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
-			return;
-		}
-
-		$this->details[$detail] = array_diff($this->details, [$value]);
-	}
-
-	/**
-	 * @param string $detail
-	 * @param bool $value
-	 */
-	public function removeDetailBool(string $detail, bool $value) {
-		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
-			return;
-		}
-
-		$this->details[$detail] = array_diff($this->details, [$value]);
 	}
 }

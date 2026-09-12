@@ -578,16 +578,6 @@ class CoreRequestBuilder {
 	}
 
 	/**
-	 * Limit the request to the StreamId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $streamId
-	 */
-	protected function limitToStreamId(IQueryBuilder &$qb, string $streamId) {
-		$this->limitToDBField($qb, 'stream_id', $streamId, false);
-	}
-
-	/**
 	 * Limit the request to the Type
 	 *
 	 * @param IQueryBuilder $qb
@@ -689,27 +679,6 @@ class CoreRequestBuilder {
 		$this->searchInDBField(
 			$qb, 'hashtag', (($all) ? '%' : '') . $dbConn->escapeLikeParameter($hashtag) . '%'
 		);
-	}
-
-	/**
-	 * Limit the request to the ActorId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $actorId
-	 * @param string $alias
-	 */
-	protected function limitToActorId(IQueryBuilder &$qb, string $actorId, string $alias = '') {
-		$this->limitToDBField($qb, 'actor_id', $actorId, false, $alias);
-	}
-
-	/**
-	 * Limit the request to the FollowId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $followId
-	 */
-	protected function limitToFollowId(IQueryBuilder &$qb, string $followId) {
-		$this->limitToDBField($qb, 'follow_id', $followId, false);
 	}
 
 	/**
@@ -852,16 +821,6 @@ class CoreRequestBuilder {
 		}
 
 		$qb->andWhere($due);
-	}
-
-	/**
-	 * Limit the request to the instance
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $address
-	 */
-	protected function limitToAddress(IQueryBuilder &$qb, string $address) {
-		$this->limitToDBField($qb, 'address', $address);
 	}
 
 	/**
@@ -1016,33 +975,6 @@ class CoreRequestBuilder {
 				$expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE))
 			);
 		}
-		$qb->andWhere($orX);
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param int $timestamp
-	 * @param string $field
-	 *
-	 * @throws DateTimeException
-	 */
-	protected function limitToSince(IQueryBuilder $qb, int $timestamp, string $field) {
-		try {
-			$dTime = new DateTime();
-		} catch (Exception $e) {
-			throw new DateTimeException();
-		}
-
-		$dTime->setTimestamp($timestamp);
-
-		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
-		$field = $pf . $field;
-
-		$orX = $expr->orX(
-			$expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
-		);
-
 		$qb->andWhere($orX);
 	}
 
@@ -1255,56 +1187,6 @@ class CoreRequestBuilder {
 		);
 
 		return $action;
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $type
-	 */
-	protected function leftJoinActions(IQueryBuilder &$qb, string $type) {
-		if ($qb->getType() !== QueryBuilder::SELECT || $this->viewer === null) {
-			return;
-		}
-
-		$expr = $qb->expr();
-		$func = $qb->func();
-
-		$pf = $this->defaultSelectAlias;
-
-		$qb->selectAlias('a.id', 'action_id')
-			->selectAlias('a.actor_id', 'action_actor_id')
-			->selectAlias('a.object_id', 'action_object_id')
-			->selectAlias('a.type', 'action_type');
-
-		$andX = $expr->andX(
-			$expr->eq($func->lower($pf . '.id'), $func->lower('a.object_id')),
-			$expr->eq('a.type', $qb->createNamedParameter($type)),
-			$expr->eq(
-				$func->lower('a.actor_id'),
-				$qb->createNamedParameter(strtolower($this->viewer->getId()))
-			)
-		);
-
-		$qb->leftJoin(
-			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_ACTIONS, 'a', $andX
-		);
-	}
-
-	/**
-	 * @param array $data
-	 */
-	protected function parseActionsLeftJoin(array $data) {
-		$new = [];
-		foreach ($data as $k => $v) {
-			if (substr($k, 0, 7) === 'action_') {
-				$new[substr($k, 7)] = $v;
-			}
-		}
-
-		//		$action = new Action();
-		//		$action->importFromDatabase($new);
-
-		//		return $action;
 	}
 
 	/**
