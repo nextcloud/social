@@ -51,7 +51,7 @@ class AvatarService {
 	 * @throws InvalidActionException the backend owns the avatar, or the bytes
 	 *                                are not a picture this can store
 	 */
-	public function setFromTempFile(string $userId, string $tmpPath): void {
+	public function setFromTempFile(string $userId, array $upload): void {
 		$user = $this->userManager->get($userId);
 		if ($user === null) {
 			throw new InvalidActionException('unknown account');
@@ -66,7 +66,8 @@ class AvatarService {
 			);
 		}
 
-		if (!is_file($tmpPath)) {
+		$tmpPath = $upload['tmp_name'] ?? '';
+		if (!is_string($tmpPath) || $tmpPath === '' || !is_uploaded_file($tmpPath)) {
 			throw new InvalidActionException('no avatar found in the request');
 		}
 

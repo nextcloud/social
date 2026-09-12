@@ -344,7 +344,7 @@ class ApiController extends Controller {
 
 			$avatar = $_FILES['avatar'] ?? [];
 			if ($avatar !== [] && ($avatar['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-				$this->avatarService->setFromTempFile($this->currentSession(), $avatar['tmp_name']);
+				$this->avatarService->setFromTempFile($this->currentSession(), $avatar);
 				$changed = true;
 			}
 

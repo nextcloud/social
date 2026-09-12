@@ -1513,7 +1513,7 @@ class ApiControllerTest extends TestCase {
 		$this->tempFiles[] = $tmp;
 		file_put_contents($tmp, 'avatar bytes');
 		$_FILES['avatar'] = ['tmp_name' => $tmp, 'error' => UPLOAD_ERR_OK, 'name' => 'me.png'];
-		$this->avatarService->expects($this->once())->method('setFromTempFile')->with('alice', $tmp);
+		$this->avatarService->expects($this->once())->method('setFromTempFile')->with('alice', $_FILES['avatar']);
 
 		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
 	}
