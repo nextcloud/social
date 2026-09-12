@@ -46,6 +46,11 @@ if (!defined('PHPUNIT_RUN')) {
 	define('PHPUNIT_RUN', 1);
 }
 
+// Doctrine's parameter-type constants, which `IQueryBuilder`'s `PARAM_*` are
+// defined in terms of: without them no repair step that binds a typed parameter
+// can be reached from a test at all.
+require_once __DIR__ . '/Helper/doctrine-parameter-types.php';
+
 // `\OC` is the server's static root and is not part of the OCP stubs. A few code
 // paths reach it for the container, so provide one that hands out registered test
 // doubles (see TestContainer).

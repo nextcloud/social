@@ -645,6 +645,7 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Repair step | `Migration\HashClientSecrets` | `appinfo/info.xml` | Rewrites legacy plaintext client secrets/codes/tokens as sha256 digests, once. Asks the database for the rows that still need converting instead of hydrating the whole client table, and isolates a row it cannot process |
 | Repair step | `Migration\BackfillRemoteVisibility` | `appinfo/info.xml` | Backfills the empty visibility of remote statuses stored before estimation landed (public/unlisted set-based, followers/direct per author), idempotent |
 | Repair step | `Migration\CacheFeaturedCollections` | `appinfo/info.xml` | Rebuilds the cached copy of every local actor when something the cache carries has changed — the `featured` URL, the display name. Gated on a `VERSION` marker rather than re-running on every upgrade, and it counts the local actors before loading any |
+| Repair step | `Migration\BackfillStreamPostFields` | `appinfo/info.xml` | Fills in `social_stream.tags`, `language`, `updated`, `quote` and `quote_authorization` for the rows stored before those columns existed, by re-reading each row's wire object through `Stream::importFromDatabase()` — one parser, not a second copy of it. Pages on the primary key, writes only the rows that disagree, and is gated on a marker so it is not a full scan of the largest table on every later upgrade |
 
 The four timeline tiles (home, mentions, direct, bookmarks) extend
 `Dashboard\TimelineWidget`, which resolves the viewer, builds the `ProbeOptions`
