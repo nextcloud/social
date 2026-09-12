@@ -31,6 +31,8 @@ class Document extends ACore implements JsonSerializable {
 
 	private string $account = '';
 	private string $mediaType = '';
+	private float $focusX = 0;
+	private float $focusY = 0;
 	private string $mimeType = '';
 	private string $localCopy = '';
 	private string $resizedCopy = '';
@@ -72,6 +74,54 @@ class Document extends ACore implements JsonSerializable {
 	 *
 	 * @return ACore
 	 */
+	/**
+	 * Where the subject of the picture is, as a fraction of the way from the
+	 * centre to each edge: -1 is the left or the bottom, 1 the right or the
+	 * top, 0 the middle.
+	 *
+	 * A client sends this so that a crop -- a thumbnail, the square a profile
+	 * grid draws -- keeps the face in frame instead of cutting it off. Mastodon
+	 * calls it `focus` in its API and `focalPoint` on the wire; both are this.
+	 */
+	public function getFocusX(): float {
+		return $this->focusX;
+	}
+
+	public function getFocusY(): float {
+		return $this->focusY;
+	}
+
+	public function hasFocus(): bool {
+		return $this->focusX !== 0.0 || $this->focusY !== 0.0;
+	}
+
+	/** Both values are clamped: outside -1..1 there is no picture to point at. */
+	public function setFocus(float $x, float $y): self {
+		$this->focusX = max(-1.0, min(1.0, $x));
+		$this->focusY = max(-1.0, min(1.0, $y));
+
+		return $this;
+	}
+
+	/**
+	 * The `x,y` pair a Mastodon client sends as one string, or null when it
+	 * sent something that is not one.
+	 *
+	 * @return array{0: float, 1: float}|null
+	 */
+	public static function parseFocus(string $focus): ?array {
+		$parts = explode(',', $focus);
+		if (count($parts) !== 2) {
+			return null;
+		}
+
+		if (!is_numeric(trim($parts[0])) || !is_numeric(trim($parts[1]))) {
+			return null;
+		}
+
+		return [(float)trim($parts[0]), (float)trim($parts[1])];
+	}
+
 	public function setMediaType(string $mediaType): ACore {
 		$this->mediaType = $mediaType;
 
@@ -160,7 +210,8 @@ class Document extends ACore implements JsonSerializable {
 		return $this->blurHash;
 	}
 
-	public function setMeta(AttachmentMeta $meta): self {
+	/** Null clears it, so the next read rebuilds it from the document. */
+	public function setMeta(?AttachmentMeta $meta): self {
 		$this->meta = $meta;
 
 		return $this;
@@ -264,6 +315,13 @@ class Document extends ACore implements JsonSerializable {
 		parent::import($data);
 
 		$this->setMediaType($this->validate(ACore::AS_STRING, 'mediaType', $data, ''));
+
+		// Mastodon and Pixelfed both send `focalPoint: [x, y]`; the context
+		// declares it as an ordered list, so it arrives as a two-element array.
+		$focalPoint = $this->getArray('focalPoint', $data);
+		if (count($focalPoint) === 2 && is_numeric($focalPoint[0]) && is_numeric($focalPoint[1])) {
+			$this->setFocus((float)$focalPoint[0], (float)$focalPoint[1]);
+		}
 		// on the wire an attachment's alt text is its `name`; without this the
 		// description a remote author wrote never reaches local clients
 		if ($this->getDescription() === '') {
@@ -304,6 +362,17 @@ class Document extends ACore implements JsonSerializable {
 				$this->setCaching($date->getTimestamp());
 			} catch (Exception $e) {
 			}
+		}
+
+		// The focal point rides in the stored `meta` blob rather than a column of
+		// its own: nothing queries it, and it is only ever read back with the
+		// rest of the attachment's metadata.
+		$meta = $this->getArray('meta', $data);
+		if ($meta !== []) {
+			$this->setFocus(
+				(float)($meta['focus']['x'] ?? 0),
+				(float)($meta['focus']['y'] ?? 0)
+			);
 		}
 
 		if ($this->get('meta', $data) !== '') {
@@ -400,7 +469,7 @@ class Document extends ACore implements JsonSerializable {
 			$meta = new AttachmentMeta();
 			$meta->setOriginal(new AttachmentMetaDim($this->getLocalCopySize()))
 				->setSmall(new AttachmentMetaDim($this->getResizedCopySize()))
-				->setFocus(new AttachmentMetaFocus(0, 0));
+				->setFocus(new AttachmentMetaFocus($this->getFocusX(), $this->getFocusY()));
 
 			$this->setMeta($meta);
 		}

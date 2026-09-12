@@ -368,6 +368,21 @@ class DocumentService {
 	}
 
 	/**
+	 * Stores the focal point a client just set.
+	 *
+	 * The document's cached `meta` is dropped first so that
+	 * `convertToMediaAttachment()` rebuilds it from the new focus rather than
+	 * handing back the blob it was loaded with.
+	 */
+	public function updateFocus(Document $document, float $x, float $y): void {
+		$document->setFocus($x, $y);
+		$document->setMeta(null);
+		$document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->cacheDocumentsRequest->updateFocus($document);
+	}
+
+	/**
 	 * @return int
 	 * @throws Exception
 	 */
