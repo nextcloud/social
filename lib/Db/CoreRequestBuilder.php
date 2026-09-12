@@ -53,6 +53,8 @@ class CoreRequestBuilder {
 	public const TABLE_STATUS_REVISIONS = 'social_stream_rev';
 	public const TABLE_LISTS = 'social_list';
 	public const TABLE_LIST_MEMBERS = 'social_list_member';
+	public const TABLE_COLLECTIONS = 'social_collection';
+	public const TABLE_COLLECTION_ITEMS = 'social_collection_item';
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
@@ -199,6 +201,23 @@ class CoreRequestBuilder {
 			'list_id',
 			'actor_id',
 			'actor_id_prim',
+			'creation'
+		],
+		self::TABLE_COLLECTIONS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'title',
+			'description',
+			'visibility',
+			'creation',
+			'updated'
+		],
+		self::TABLE_COLLECTION_ITEMS => [
+			'id',
+			'collection_id',
+			'stream_id_prim',
+			'position',
 			'creation'
 		],
 		self::TABLE_CONVERSATION_STATE => [

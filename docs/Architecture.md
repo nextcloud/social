@@ -149,6 +149,8 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_emoji` | The custom emoji this instance publishes: `shortcode` (unique), the appdata file behind it, its media type, its picker category and whether a picker offers it |
 | `social_stream_card` | The link-preview card of a status (url, title, description, image, provider), one row per stream |
 | `social_followed_tag` | The hashtags an account follows: one row per (actor, lowercased tag), unique on the pair |
+| `social_collection` | Collections: an album an account curates out of its own posts, with its title, description and visibility |
+| `social_collection_item` | What is in a collection: one row per (collection, post), unique on the pair, ordered by `position` |
 | `social_list` | Mastodon lists: one row per (owner, list), with its title, `replies_policy` and `exclusive` flag |
 | `social_list_member` | Who is in a list: one row per (list, account), unique on the pair |
 | `social_filter` | Keyword filters: one row per (account, filter) with its contexts, action and expiry |

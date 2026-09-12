@@ -188,6 +188,28 @@ A list is private to the account that made it, and that is the whole of its acce
 
 `replies_policy` and `exclusive` are stored and handed back faithfully, and **neither yet changes which posts a timeline selects**: `exclusive` does not remove members from the home timeline, and `replies_policy` does not filter replies out of the list timeline.
 
+### Collections
+
+Pixelfed's albums: a set of the owner's own posts, in an order the owner chooses. Mastodon defines nothing equivalent, so these are Pixelfed's route shapes — a client that knows Pixelfed finds them where it expects them.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/collections` | public, no-csrf (viewer required, `read:collections` scope) | — | Every collection the viewer owns, newest first, each with its first three posts as a cover. |
+| POST | `/api/v1/collections` | public, no-csrf (viewer required, `write:collections` scope) | `title` (required), `description`, `visibility` (`public`) | Creates a collection and returns it. A blank or whitespace-only title is a **422**. A `visibility` outside `public`/`followers` is stored as `public` rather than refused — there are only two meaningful values and neither is destructive. An account may hold 200 collections. |
+| GET | `/api/v1/collections/{id}` | public, no-csrf | — | One collection with its cover. A public one is answered to a signed-out visitor, which is the point of publishing one; a `followers` one is answered to its owner and to accounts that follow them, and is a **404** to everybody else — the same 404 as an id that does not exist. |
+| PUT | `/api/v1/collections/{id}` | public, no-csrf (viewer required, `write:collections` scope) | `title`, `description`, `visibility` | Updates only the fields that are sent, and returns the collection. Somebody else's collection is a **404**. |
+| DELETE | `/api/v1/collections/{id}` | public, no-csrf (viewer required, `write:collections` scope) | — | Removes the collection and its contents. The posts themselves are untouched. |
+| GET | `/api/v1/collections/{id}/items` | public, no-csrf | `limit` (40, max 40), `offset` (0) | The posts of a collection in the owner's order, as `Status` entities. Same visibility rule as the collection itself. |
+| POST | `/api/v1/collections/{id}/items` | public, no-csrf (viewer required, `write:collections` scope) | `status_id` (required) | Adds one of the viewer's **own** posts, at the end. Adding a post that is already in the collection is a no-op rather than a second entry, so the route is safe to retry. A collection holds at most 100 posts. |
+| DELETE | `/api/v1/collections/{id}/items/{status_id}` | public, no-csrf (viewer required, `write:collections` scope) | — | Takes a post out. Removing one that is not in the collection is a no-op. |
+| GET | `/api/v1/accounts/{account_id}/collections` | public, no-csrf | — | The collections of an account, as the caller may see them: the public ones to anybody, all of them to the owner and to a follower. This is what a profile draws. |
+
+A collection may only hold posts its **owner wrote**. A collection of other people's pictures would re-publish them on a page with a visibility they never agreed to, and no amount of checking at read time takes that back off the peers that already mirrored the page. Pixelfed has the same rule.
+
+Collections are local. They are not federated as ActivityPub collections and a peer does not see them; what a peer sees is the posts, which it already had.
+
+A post that is deleted leaves every collection holding it, through the same cascade that removes its recipient and tag rows. Suspending or deleting an account removes its collections.
+
 ### Conversations
 
 | Method | Route | Auth | Parameters | Description |

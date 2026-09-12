@@ -13,6 +13,7 @@ use OCA\Social\Db\AccountNotesRequest;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
@@ -60,6 +61,7 @@ class ModerationService {
 		private AccountNotesRequest $accountNotesRequest,
 		private MuteExpiryRequest $muteExpiryRequest,
 		private StrikeService $strikeService,
+		private CollectionsRequest $collectionsRequest,
 	) {
 	}
 
@@ -299,6 +301,9 @@ class ModerationService {
 			'dest' => fn () => $this->streamDestRequest->deleteRelatedToActor($actorId),
 			// deliveries still queued towards it
 			'queue' => fn () => $this->requestQueueRequest->deleteByAuthor($actorId),
+			// the albums it curated, which are pages of its own posts and have
+			// nothing left to show once those are gone
+			'collections' => fn () => $this->collectionsRequest->deleteRelatedId($actorId),
 		] as $what => $delete) {
 			try {
 				$delete();
