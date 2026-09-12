@@ -280,13 +280,12 @@ export default {
 	}
 
 	.follow-nextcloud {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
 		margin-top: 16px;
 		padding-top: 16px;
 		border-top: 1px solid var(--color-border);
-
-		input[type=button] {
-			float: inline-end;
-		}
 	}
 }
 
