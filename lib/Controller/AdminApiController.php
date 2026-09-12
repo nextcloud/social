@@ -22,6 +22,9 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\MetricsService;
+use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -80,6 +83,9 @@ class AdminApiController extends Controller {
 		private LoggerInterface $logger,
 		private AdminApiService $adminApiService,
 		private AccessBlockService $accessBlockService,
+		private MetricsService $metricsService,
+		private HashtagService $hashtagService,
+		private TrendService $trendService,
 		private ClientService $clientService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -592,6 +598,185 @@ class AdminApiController extends Controller {
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	// trends, as a moderation client asks for them
+
+	/**
+	 * The same three trend readers the public routes use, behind the admin
+	 * gate a moderation client expects them at.
+	 *
+	 * On Mastodon these carry a moderator's extra field — whether the trend is
+	 * allowed or pending review — and this instance reviews nothing: a trend
+	 * here is what the counts say. So they answer exactly what
+	 * `/api/v1/trends/*` answers, which is the honest thing to do with a route
+	 * whose only difference is a review queue that does not exist. They exist
+	 * because a moderation client asks for them by this path and a 404 reads
+	 * as "this server has no trends".
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function trendTags(int $limit = 10): DataResponse {
+		try {
+			$this->initAdmin();
+
+			$tags = [];
+			foreach ($this->hashtagService->getTrending(max(1, min(100, $limit))) as $hashtag) {
+				$tags[] = $this->hashtagService->tagEntity($hashtag['hashtag']);
+			}
+
+			return new DataResponse($tags, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function trendStatuses(int $limit = 10, int $offset = 0): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->trendService->trendingStatuses(
+					HashtagService::PERIOD_DEFAULT, max(1, min(100, $limit)), max(0, $offset)
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function trendLinks(int $limit = 10, int $offset = 0): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->trendService->trendingLinks(
+					HashtagService::PERIOD_DEFAULT, max(1, min(100, $limit)), max(0, $offset)
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	// metrics
+
+	/**
+	 * One number a day over a window, for each key asked for.
+	 *
+	 * Mastodon's `Admin::Measure`. A key this instance cannot answer is a
+	 * **422** naming the ones it can, rather than a row of zeroes: answering
+	 * 0 to "how many accounts signed up through an invite" reads as "none
+	 * did", which is a different claim from "this instance has no invites".
+	 *
+	 * @param string[] $keys
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function measures(
+		array $keys = [],
+		string $start_at = '',
+		string $end_at = '',
+		string $instance = '',
+		string $id = '',
+	): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->metricsService->measures(
+					$keys, $this->timestamp($start_at), $this->timestamp($end_at), $instance, $id
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The ranked list behind one number, for each key asked for.
+	 *
+	 * @param string[] $keys
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function dimensions(
+		array $keys = [],
+		string $start_at = '',
+		string $end_at = '',
+		int $limit = 10,
+		string $id = '',
+	): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->metricsService->dimensions(
+					$keys, $this->timestamp($start_at), $this->timestamp($end_at), $limit, $id
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * How much of each month's new local accounts is still posting later.
+	 *
+	 * Monthly, whatever `frequency` asks for: a cohort is a thing you read
+	 * over months, and a daily one on an instance with a handful of sign-ups a
+	 * month is a table of zeroes.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function retention(string $start_at = '', string $end_at = ''): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->metricsService->retention(
+					$this->timestamp($start_at), $this->timestamp($end_at)
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * A moment as a client writes one: an ISO date, or seconds since the
+	 * epoch, or nothing.
+	 *
+	 * Zero for anything unreadable, which the service refuses by name — a
+	 * window silently rounded to "the epoch until now" is a query nobody asked
+	 * for over every row there is.
+	 */
+	private function timestamp(string $written): int {
+		$written = trim($written);
+		if ($written === '') {
+			return 0;
+		}
+
+		if (ctype_digit($written)) {
+			return (int)$written;
+		}
+
+		return max(0, (int)strtotime($written));
 	}
 
 	/**

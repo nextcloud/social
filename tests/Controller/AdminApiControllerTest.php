@@ -19,6 +19,9 @@ use OCA\Social\Model\Moderation;
 use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\MetricsService;
+use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
@@ -54,6 +57,9 @@ class AdminApiControllerTest extends TestCase {
 	private $request;
 	private AdminApiService|MockObject $adminApiService;
 	private AccessBlockService|MockObject $accessBlockService;
+	private MetricsService|MockObject $metricsService;
+	private HashtagService|MockObject $hashtagService;
+	private TrendService|MockObject $trendService;
 	private ClientService|MockObject $clientService;
 	private IUserSession|MockObject $userSession;
 
@@ -99,6 +105,12 @@ class AdminApiControllerTest extends TestCase {
 			'emailDomainBlock' => ['emailDomainBlock', [4]],
 			'emailDomainBlockCreate' => ['emailDomainBlockCreate', ['throwaway.example']],
 			'emailDomainBlockRemove' => ['emailDomainBlockRemove', [4]],
+			'measures' => ['measures', [['new_users'], '2026-09-01', '2026-09-10', '', '']],
+			'dimensions' => ['dimensions', [['servers'], '2026-09-01', '2026-09-10', 10, '']],
+			'retention' => ['retention', ['2026-09-01', '2026-09-10']],
+			'trendTags' => ['trendTags', [10]],
+			'trendStatuses' => ['trendStatuses', [10, 0]],
+			'trendLinks' => ['trendLinks', [10, 0]],
 		];
 	}
 
@@ -144,6 +156,9 @@ class AdminApiControllerTest extends TestCase {
 
 		$this->adminApiService = $this->createMock(AdminApiService::class);
 		$this->accessBlockService = $this->createMock(AccessBlockService::class);
+		$this->metricsService = $this->createMock(MetricsService::class);
+		$this->hashtagService = $this->createMock(HashtagService::class);
+		$this->trendService = $this->createMock(TrendService::class);
 		$this->adminApiService->method('isAdministrator')
 			->willReturnCallback(fn (string $userId): bool => $this->isAdmin && $userId === self::ADMIN);
 	}
@@ -155,6 +170,9 @@ class AdminApiControllerTest extends TestCase {
 			new NullLogger(),
 			$this->adminApiService,
 			$this->accessBlockService,
+			$this->metricsService,
+			$this->hashtagService,
+			$this->trendService,
 			$this->clientService
 		);
 	}
