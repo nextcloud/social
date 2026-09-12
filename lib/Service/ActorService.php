@@ -26,36 +26,13 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class ActorService {
 	use TArrayTools;
 
-	private CacheActorsRequest $cacheActorsRequest;
-
-	private CacheDocumentsRequest $cacheDocumentsRequest;
-
-	private CurlService $curlService;
-
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-	/**
-	 * ActorService constructor.
-	 *
-	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param CacheDocumentsRequest $cacheDocumentsRequest
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		CacheActorsRequest $cacheActorsRequest, CacheDocumentsRequest $cacheDocumentsRequest,
-		CurlService $curlService,
-		ConfigService $configService,
-		MiscService $miscService,
+		private CacheActorsRequest $cacheActorsRequest,
+		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private CurlService $curlService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 	) {
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
-		$this->curlService = $curlService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**

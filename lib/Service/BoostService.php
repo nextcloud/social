@@ -34,34 +34,17 @@ use Psr\Log\LoggerInterface;
 class BoostService {
 	use TStringTools;
 
-	private StreamRequest $streamRequest;
-	private StreamService $streamService;
-	private SignatureService $signatureService;
-	private ActivityService $activityService;
-	private StreamActionService $streamActionService;
-	private StreamQueueService $streamQueueService;
-	private CacheActorService $cacheActorService;
-	private LoggerInterface $logger;
-
 	public function __construct(
-		StreamRequest $streamRequest,
-		StreamService $streamService,
-		SignatureService $signatureService,
-		ActivityService $activityService,
-		StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService,
-		CacheActorService $cacheActorService,
-		LoggerInterface $logger,
+		private StreamRequest $streamRequest,
+		private StreamService $streamService,
+		private SignatureService $signatureService,
+		private ActivityService $activityService,
+		private StreamActionService $streamActionService,
+		private StreamQueueService $streamQueueService,
+		private CacheActorService $cacheActorService,
+		private LoggerInterface $logger,
 		private ModerationService $moderationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->streamService = $streamService;
-		$this->signatureService = $signatureService;
-		$this->activityService = $activityService;
-		$this->streamActionService = $streamActionService;
-		$this->streamQueueService = $streamQueueService;
-		$this->cacheActorService = $cacheActorService;
-		$this->logger = $logger;
 	}
 
 	/**

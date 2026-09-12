@@ -418,26 +418,18 @@ class CoreRequestBuilder {
 		],
 	];
 
-	protected LoggerInterface $logger;
-	protected IURLGenerator $urlGenerator;
 	protected IDBConnection $dbConnection;
-	protected ConfigService $configService;
-	protected MiscService $miscService;
 	protected ?Person $viewer = null;
 	protected ?string $defaultSelectAlias = null;
 
 	public function __construct(
 		IDBConnection $connection,
-		LoggerInterface $logger,
-		IURLGenerator $urlGenerator,
-		ConfigService $configService,
-		MiscService $miscService,
+		protected LoggerInterface $logger,
+		protected IURLGenerator $urlGenerator,
+		protected ConfigService $configService,
+		protected MiscService $miscService,
 	) {
 		$this->dbConnection = $connection;
-		$this->logger = $logger;
-		$this->urlGenerator = $urlGenerator;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**

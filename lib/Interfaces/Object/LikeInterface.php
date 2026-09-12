@@ -38,19 +38,12 @@ use OCA\Social\Service\NotificationService;
  * @package OCA\Social\Interfaces\Object
  */
 class LikeInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	private ActionsRequest $actionsRequest;
-	private StreamRequest $streamRequest;
-	private CacheActorService $cacheActorService;
-
 	public function __construct(
-		ActionsRequest $actionsRequest,
-		StreamRequest $streamRequest,
-		CacheActorService $cacheActorService,
+		private ActionsRequest $actionsRequest,
+		private StreamRequest $streamRequest,
+		private CacheActorService $cacheActorService,
 		private NotificationService $notificationService,
 	) {
-		$this->actionsRequest = $actionsRequest;
-		$this->streamRequest = $streamRequest;
-		$this->cacheActorService = $cacheActorService;
 	}
 
 	/**

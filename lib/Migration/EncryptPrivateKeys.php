@@ -36,18 +36,11 @@ use Throwable;
 class EncryptPrivateKeys implements IRepairStep {
 	private const MARKER = 'migration_actor_keys_encrypted';
 
-	private IDBConnection $connection;
-	private PrivateKeyCipher $keyCipher;
-	private ConfigService $configService;
-
 	public function __construct(
-		IDBConnection $connection,
-		PrivateKeyCipher $keyCipher,
-		ConfigService $configService,
+		private IDBConnection $connection,
+		private PrivateKeyCipher $keyCipher,
+		private ConfigService $configService,
 	) {
-		$this->connection = $connection;
-		$this->keyCipher = $keyCipher;
-		$this->configService = $configService;
 	}
 
 	public function getName(): string {

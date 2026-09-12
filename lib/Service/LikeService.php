@@ -35,58 +35,18 @@ use Psr\Log\LoggerInterface;
 class LikeService {
 	use TStringTools;
 
-	private StreamRequest $streamRequest;
-
-	private StreamService $streamService;
-
-	private SignatureService $signatureService;
-
-	private ActivityService $activityService;
-
-	private StreamActionService $streamActionService;
-
-	private StreamQueueService $streamQueueService;
-
-	private CacheActorService $cacheActorService;
-
-	private MiscService $miscService;
-
-	private LoggerInterface $logger;
-
-	/**
-	 * LikeService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param StreamService $streamService
-	 * @param SignatureService $signatureService
-	 * @param ActivityService $activityService
-	 * @param StreamActionService $streamActionService
-	 * @param StreamQueueService $streamQueueService
-	 * @param CacheActorService $cacheActorService
-	 * @param MiscService $miscService
-	 * @param LoggerInterface $logger
-	 */
 	public function __construct(
-		StreamRequest $streamRequest,
-		StreamService $streamService,
-		SignatureService $signatureService,
-		ActivityService $activityService,
-		StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService,
-		CacheActorService $cacheActorService,
-		MiscService $miscService,
-		LoggerInterface $logger,
+		private StreamRequest $streamRequest,
+		private StreamService $streamService,
+		private SignatureService $signatureService,
+		private ActivityService $activityService,
+		private StreamActionService $streamActionService,
+		private StreamQueueService $streamQueueService,
+		private CacheActorService $cacheActorService,
+		private MiscService $miscService,
+		private LoggerInterface $logger,
 		private ModerationService $moderationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->streamService = $streamService;
-		$this->signatureService = $signatureService;
-		$this->activityService = $activityService;
-		$this->streamActionService = $streamActionService;
-		$this->streamQueueService = $streamQueueService;
-		$this->cacheActorService = $cacheActorService;
-		$this->miscService = $miscService;
-		$this->logger = $logger;
 	}
 
 	/**

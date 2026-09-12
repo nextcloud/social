@@ -50,28 +50,15 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
  * @package OCA\Social\Interfaces\Object
  */
 class FollowInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	private FollowsRequest $followsRequest;
-	private ActorRelationRequest $actorRelationRequest;
-	private ActorsRequest $actorsRequest;
-	private CacheActorService $cacheActorService;
-	private AccountService $accountService;
-	private ActivityService $activityService;
-	private MiscService $miscService;
-
 	public function __construct(
-		FollowsRequest $followsRequest, ActorRelationRequest $actorRelationRequest,
-		ActorsRequest $actorsRequest,
-		CacheActorService $cacheActorService,
-		AccountService $accountService, ActivityService $activityService,
-		MiscService $miscService,
+		private FollowsRequest $followsRequest,
+		private ActorRelationRequest $actorRelationRequest,
+		private ActorsRequest $actorsRequest,
+		private CacheActorService $cacheActorService,
+		private AccountService $accountService,
+		private ActivityService $activityService,
+		private MiscService $miscService,
 	) {
-		$this->followsRequest = $followsRequest;
-		$this->actorRelationRequest = $actorRelationRequest;
-		$this->actorsRequest = $actorsRequest;
-		$this->cacheActorService = $cacheActorService;
-		$this->accountService = $accountService;
-		$this->activityService = $activityService;
-		$this->miscService = $miscService;
 	}
 
 	/**

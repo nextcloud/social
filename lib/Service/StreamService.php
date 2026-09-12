@@ -40,14 +40,6 @@ use Psr\Log\LoggerInterface;
 class StreamService {
 	use TArrayTools;
 
-	private IUrlGenerator $urlGenerator;
-	private StreamRequest $streamRequest;
-	private ActivityService $activityService;
-	private CacheActorService $cacheActorService;
-	private ConfigService $configService;
-	private CurlService $curlService;
-	private LoggerInterface $logger;
-
 	/** How far up a thread one context request walks; Mastodon's cap. */
 	private const ANCESTOR_LIMIT = 40;
 
@@ -62,22 +54,15 @@ class StreamService {
 	private const SYNC_ITEM_LIMIT = 20;
 
 	public function __construct(
-		IUrlGenerator $urlGenerator,
-		StreamRequest $streamRequest,
-		ActivityService $activityService,
-		CacheActorService $cacheActorService,
-		ConfigService $configService,
-		CurlService $curlService,
+		private IUrlGenerator $urlGenerator,
+		private StreamRequest $streamRequest,
+		private ActivityService $activityService,
+		private CacheActorService $cacheActorService,
+		private ConfigService $configService,
+		private CurlService $curlService,
 		private LinkPreviewService $linkPreviewService,
-		LoggerInterface $logger,
+		private LoggerInterface $logger,
 	) {
-		$this->urlGenerator = $urlGenerator;
-		$this->streamRequest = $streamRequest;
-		$this->activityService = $activityService;
-		$this->cacheActorService = $cacheActorService;
-		$this->configService = $configService;
-		$this->curlService = $curlService;
-		$this->logger = $logger;
 	}
 
 	/**

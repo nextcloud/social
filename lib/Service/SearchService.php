@@ -35,33 +35,14 @@ class SearchService {
 	public const SEARCH_CONTENT = 8;
 	public const SEARCH_ALL = 15;
 
-	private CacheActorService $cacheActorService;
-	private HashtagService $hashtagService;
-	private StreamRequest $streamRequest;
-	private ConfigService $configService;
-	private LoggerInterface $logger;
-
-	/**
-	 * ImportService constructor.
-	 *
-	 * @param CacheActorService $cacheActorService
-	 * @param HashtagService $hashtagService
-	 * @param ConfigService $configService
-	 * @param LoggerInterface $logger
-	 */
 	public function __construct(
-		CacheActorService $cacheActorService,
-		HashtagService $hashtagService,
-		StreamRequest $streamRequest,
-		ConfigService $configService,
-		LoggerInterface $logger,
+		private CacheActorService $cacheActorService,
+		private HashtagService $hashtagService,
+		private StreamRequest $streamRequest,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
 		private CurlService $curlService,
 	) {
-		$this->cacheActorService = $cacheActorService;
-		$this->hashtagService = $hashtagService;
-		$this->streamRequest = $streamRequest;
-		$this->configService = $configService;
-		$this->logger = $logger;
 	}
 
 	/**

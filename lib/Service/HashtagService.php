@@ -31,34 +31,13 @@ class HashtagService {
 
 	use TArrayTools;
 
-	private HashtagsRequest $hashtagsRequest;
-
-	private StreamRequest $streamRequest;
-
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-	/**
-	 * ImportService constructor.
-	 *
-	 * @param HashtagsRequest $hashtagsRequest
-	 * @param StreamRequest $streamRequest
-	 * @param IURLGenerator $urlGenerator
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		HashtagsRequest $hashtagsRequest,
-		StreamRequest $streamRequest,
+		private HashtagsRequest $hashtagsRequest,
+		private StreamRequest $streamRequest,
 		private IURLGenerator $urlGenerator,
-		ConfigService $configService,
-		MiscService $miscService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 	) {
-		$this->hashtagsRequest = $hashtagsRequest;
-		$this->streamRequest = $streamRequest;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/*

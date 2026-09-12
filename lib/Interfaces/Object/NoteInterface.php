@@ -40,25 +40,16 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class NoteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
-	private StreamRequest $streamRequest;
-	private CacheActorsRequest $cacheActorsRequest;
-	private PollService $pollService;
-	private PushService $pushService;
-
 	public function __construct(
-		StreamRequest $streamRequest,
-		CacheActorsRequest $cacheActorsRequest,
-		PollService $pollService,
-		PushService $pushService,
+		private StreamRequest $streamRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private PollService $pollService,
+		private PushService $pushService,
 		private StreamQueueService $streamQueueService,
 		private LinkPreviewService $linkPreviewService,
 		private ForwardService $forwardService,
 		private NotificationService $notificationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->pollService = $pollService;
-		$this->pushService = $pushService;
 	}
 
 	/**

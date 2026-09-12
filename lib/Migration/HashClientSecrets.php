@@ -37,18 +37,11 @@ class HashClientSecrets implements IRepairStep {
 
 	private const MARKER = 'migration_client_secrets_hashed';
 
-	private IDBConnection $connection;
-	private SecretHasher $secretHasher;
-	private ConfigService $configService;
-
 	public function __construct(
-		IDBConnection $connection,
-		SecretHasher $secretHasher,
-		ConfigService $configService,
+		private IDBConnection $connection,
+		private SecretHasher $secretHasher,
+		private ConfigService $configService,
 	) {
-		$this->connection = $connection;
-		$this->secretHasher = $secretHasher;
-		$this->configService = $configService;
 	}
 
 	public function getName(): string {

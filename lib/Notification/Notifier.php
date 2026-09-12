@@ -25,25 +25,13 @@ use OCP\Notification\INotifier;
  * @package OCA\Social\Notification
  */
 class Notifier implements INotifier {
-	private IL10N $l10n;
-
-	protected IFactory $factory;
-
-	protected IManager $contactsManager;
-
-	protected IURLGenerator $url;
-
-	protected ICloudIdManager $cloudIdManager;
-
 	public function __construct(
-		IL10N $l10n, IFactory $factory, IManager $contactsManager, IURLGenerator $url,
-		ICloudIdManager $cloudIdManager,
+		private IL10N $l10n,
+		protected IFactory $factory,
+		protected IManager $contactsManager,
+		protected IURLGenerator $url,
+		protected ICloudIdManager $cloudIdManager,
 	) {
-		$this->l10n = $l10n;
-		$this->factory = $factory;
-		$this->contactsManager = $contactsManager;
-		$this->url = $url;
-		$this->cloudIdManager = $cloudIdManager;
 	}
 
 	/**

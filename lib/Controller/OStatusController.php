@@ -37,21 +37,23 @@ class OStatusController extends Controller {
 
 	private CacheActorService $cacheActorService;
 	private AccountService $accountService;
-	private CurlService $curlService;
 	private MiscService $miscService;
 	private IUserSession $userSession;
 	private IInitialState $initialState;
 
 	public function __construct(
-		IRequest $request, IInitialState $initialState, CacheActorService $cacheActorService, AccountService $accountService,
-		CurlService $curlService, MiscService $miscService, IUserSession $userSession,
+		IRequest $request,
+		IInitialState $initialState,
+		CacheActorService $cacheActorService,
+		AccountService $accountService,
+		private CurlService $curlService,
+		MiscService $miscService,
+		IUserSession $userSession,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
 		$this->initialState = $initialState;
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
-		$this->curlService = $curlService;
 		$this->miscService = $miscService;
 		$this->userSession = $userSession;
 	}

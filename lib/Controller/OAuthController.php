@@ -37,37 +37,18 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 class OAuthController extends Controller {
-	private IUserSession $userSession;
-	private IURLGenerator $urlGenerator;
-	private InstanceService $instanceService;
-	private AccountService $accountService;
-	private ClientService $clientService;
-	private ConfigService $configService;
-	private LoggerInterface $logger;
-	private IInitialState $initialState;
-
 	public function __construct(
 		IRequest $request,
-		IUserSession $userSession,
-		IURLGenerator $urlGenerator,
-		InstanceService $instanceService,
-		AccountService $accountService,
-		ClientService $clientService,
-		ConfigService $configService,
-		LoggerInterface $logger,
-		IInitialState $initialState,
+		private IUserSession $userSession,
+		private IURLGenerator $urlGenerator,
+		private InstanceService $instanceService,
+		private AccountService $accountService,
+		private ClientService $clientService,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
+		private IInitialState $initialState,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
-		$this->userSession = $userSession;
-		$this->urlGenerator = $urlGenerator;
-		$this->instanceService = $instanceService;
-		$this->accountService = $accountService;
-		$this->clientService = $clientService;
-		$this->configService = $configService;
-		$this->logger = $logger;
-		$this->initialState = $initialState;
-
 	}
 
 	/**

@@ -21,19 +21,12 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\NotificationService;
 
 class SocialAppNotificationInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	private StreamRequest $streamRequest;
-	private ActorRelationRequest $actorRelationRequest;
-	private MiscService $miscService;
-
 	public function __construct(
-		StreamRequest $streamRequest,
-		ActorRelationRequest $actorRelationRequest,
-		MiscService $miscService,
+		private StreamRequest $streamRequest,
+		private ActorRelationRequest $actorRelationRequest,
+		private MiscService $miscService,
 		private NotificationService $notificationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->actorRelationRequest = $actorRelationRequest;
-		$this->miscService = $miscService;
 	}
 
 	public function save(ACore $item): void {

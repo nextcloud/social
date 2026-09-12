@@ -31,16 +31,15 @@ use Psr\Log\LoggerInterface;
 class StreamDestRequest extends StreamDestRequestBuilder {
 	use TStringTools;
 
-	private CacheActorService $cacheActorService;
-
 	public function __construct(
-		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator,
-		CacheActorService $cacheActorService,
-		ConfigService $configService, MiscService $miscService,
+		IDBConnection $connection,
+		LoggerInterface $logger,
+		IURLGenerator $urlGenerator,
+		private CacheActorService $cacheActorService,
+		ConfigService $configService,
+		MiscService $miscService,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
-
-		$this->cacheActorService = $cacheActorService;
 	}
 
 	/**

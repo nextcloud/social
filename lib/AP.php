@@ -97,31 +97,6 @@ class AP {
 	 */
 	public const NOTE_LIKE_TYPES = ['Video', 'Article', 'Page', 'Event', 'Audio'];
 
-	public AcceptInterface $acceptInterface;
-	public AddInterface $addInterface;
-	public AnnounceInterface $announceInterface;
-	public BlockInterface $blockInterface;
-	public CreateInterface $createInterface;
-	public DeleteInterface $deleteInterface;
-	public DocumentInterface $documentInterface;
-	public FlagInterface $flagInterface;
-	public FollowInterface $followInterface;
-	public ImageInterface $imageInterface;
-	public LikeInterface $likeInterface;
-	public MoveInterface $moveInterface;
-	public NoteInterface $noteInterface;
-	public PersonInterface $personInterface;
-	public GroupInterface $groupInterface;
-	public OrganizationInterface $organizationInterface;
-	public ApplicationInterface $applicationInterface;
-	public RejectInterface $rejectInterface;
-	public RemoveInterface $removeInterface;
-	public ServiceInterface $serviceInterface;
-	public UndoInterface $undoInterface;
-	public UpdateInterface $updateInterface;
-	public QuoteRequestInterface $quoteRequestInterface;
-	public SocialAppNotificationInterface $notificationInterface;
-	public ConfigService $configService;
 	/**
 	 * Resolved on first use by instance(), not at autoload time.
 	 *
@@ -134,57 +109,32 @@ class AP {
 	private static ?AP $instance = null;
 
 	public function __construct(
-		AcceptInterface $acceptInterface,
-		AddInterface $addInterface,
-		AnnounceInterface $announceInterface,
-		BlockInterface $blockInterface,
-		CreateInterface $createInterface,
-		DeleteInterface $deleteInterface,
-		DocumentInterface $documentInterface,
-		FlagInterface $flagInterface,
-		FollowInterface $followInterface,
-		ImageInterface $imageInterface,
-		LikeInterface $likeInterface,
-		MoveInterface $moveInterface,
-		NoteInterface $noteInterface,
-		SocialAppNotificationInterface $notificationInterface,
-		PersonInterface $personInterface,
-		ServiceInterface $serviceInterface,
-		GroupInterface $groupInterface,
-		OrganizationInterface $organizationInterface,
-		ApplicationInterface $applicationInterface,
-		RejectInterface $rejectInterface,
-		RemoveInterface $removeInterface,
-		UndoInterface $undoInterface,
-		UpdateInterface $updateInterface,
-		QuoteRequestInterface $quoteRequestInterface,
-		ConfigService $configService,
+		public AcceptInterface $acceptInterface,
+		public AddInterface $addInterface,
+		public AnnounceInterface $announceInterface,
+		public BlockInterface $blockInterface,
+		public CreateInterface $createInterface,
+		public DeleteInterface $deleteInterface,
+		public DocumentInterface $documentInterface,
+		public FlagInterface $flagInterface,
+		public FollowInterface $followInterface,
+		public ImageInterface $imageInterface,
+		public LikeInterface $likeInterface,
+		public MoveInterface $moveInterface,
+		public NoteInterface $noteInterface,
+		public SocialAppNotificationInterface $notificationInterface,
+		public PersonInterface $personInterface,
+		public ServiceInterface $serviceInterface,
+		public GroupInterface $groupInterface,
+		public OrganizationInterface $organizationInterface,
+		public ApplicationInterface $applicationInterface,
+		public RejectInterface $rejectInterface,
+		public RemoveInterface $removeInterface,
+		public UndoInterface $undoInterface,
+		public UpdateInterface $updateInterface,
+		public QuoteRequestInterface $quoteRequestInterface,
+		public ConfigService $configService,
 	) {
-		$this->acceptInterface = $acceptInterface;
-		$this->addInterface = $addInterface;
-		$this->announceInterface = $announceInterface;
-		$this->blockInterface = $blockInterface;
-		$this->createInterface = $createInterface;
-		$this->deleteInterface = $deleteInterface;
-		$this->documentInterface = $documentInterface;
-		$this->flagInterface = $flagInterface;
-		$this->followInterface = $followInterface;
-		$this->imageInterface = $imageInterface;
-		$this->likeInterface = $likeInterface;
-		$this->moveInterface = $moveInterface;
-		$this->noteInterface = $noteInterface;
-		$this->notificationInterface = $notificationInterface;
-		$this->personInterface = $personInterface;
-		$this->serviceInterface = $serviceInterface;
-		$this->groupInterface = $groupInterface;
-		$this->organizationInterface = $organizationInterface;
-		$this->applicationInterface = $applicationInterface;
-		$this->rejectInterface = $rejectInterface;
-		$this->removeInterface = $removeInterface;
-		$this->undoInterface = $undoInterface;
-		$this->updateInterface = $updateInterface;
-		$this->quoteRequestInterface = $quoteRequestInterface;
-		$this->configService = $configService;
 	}
 
 	/**

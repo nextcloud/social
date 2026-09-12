@@ -45,33 +45,15 @@ use Psr\Log\LoggerInterface;
 class CacheActorService {
 	use TArrayTools;
 
-	private IURLGenerator $urlGenerator;
-	private ActorsRequest $actorsRequest;
-	private CacheActorsRequest $cacheActorsRequest;
-	private CurlService $curlService;
-	private FediverseService $fediverseService;
-	private ConfigService $configService;
-	private LoggerInterface $logger;
-
-	/**
-	 * CacheActorService constructor.
-	 */
 	public function __construct(
-		IUrlGenerator $urlGenerator,
-		ActorsRequest $actorsRequest,
-		CacheActorsRequest $cacheActorsRequest,
-		CurlService $curlService,
-		FediverseService $fediverseService,
-		ConfigService $configService,
-		LoggerInterface $logger,
+		private IUrlGenerator $urlGenerator,
+		private ActorsRequest $actorsRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private CurlService $curlService,
+		private FediverseService $fediverseService,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
 	) {
-		$this->urlGenerator = $urlGenerator;
-		$this->actorsRequest = $actorsRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->curlService = $curlService;
-		$this->fediverseService = $fediverseService;
-		$this->configService = $configService;
-		$this->logger = $logger;
 	}
 
 	/**

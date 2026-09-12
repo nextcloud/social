@@ -41,13 +41,6 @@ class ClientService {
 
 	private MiscService $miscService;
 
-	/**
-	 * ClientService constructor.
-	 *
-	 * @param ClientRequest $clientRequest
-	 * @param SecretHasher $secretHasher
-	 * @param MiscService $miscService
-	 */
 	public function __construct(ClientRequest $clientRequest, SecretHasher $secretHasher, MiscService $miscService) {
 		$this->clientRequest = $clientRequest;
 		$this->secretHasher = $secretHasher;

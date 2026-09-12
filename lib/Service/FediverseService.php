@@ -22,18 +22,12 @@ use OCP\BackgroundJob\IJobList;
  * @package OCA\Social\Service
  */
 class FediverseService {
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
 	public function __construct(
-		ConfigService $configService,
-		MiscService $miscService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 		private CacheActorsRequest $cacheActorsRequest,
 		private IJobList $jobList,
 	) {
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**

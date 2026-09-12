@@ -50,45 +50,23 @@ class NavigationController extends Controller {
 	use TNCDataResponse;
 
 	private ?string $userId = null;
-	private IConfig $config;
-	private IURLGenerator $urlGenerator;
-	private AccountService $accountService;
-	private DocumentService $documentService;
-	private ConfigService $configService;
-	private MiscService $miscService;
-	private IL10N $l10n;
-	private CheckService $checkService;
-	private IInitialState $initialState;
-	private LoggerInterface $logger;
 
 	public function __construct(
-		IL10N $l10n,
+		private IL10N $l10n,
 		IRequest $request,
 		?string $userId,
-		IConfig $config,
-		IInitialState $initialState,
-		IURLGenerator $urlGenerator,
-		AccountService $accountService,
-		DocumentService $documentService,
-		ConfigService $configService,
-		CheckService $checkService,
-		MiscService $miscService,
-		LoggerInterface $logger,
+		private IConfig $config,
+		private IInitialState $initialState,
+		private IURLGenerator $urlGenerator,
+		private AccountService $accountService,
+		private DocumentService $documentService,
+		private ConfigService $configService,
+		private CheckService $checkService,
+		private MiscService $miscService,
+		private LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
 		$this->userId = $userId;
-		$this->l10n = $l10n;
-		$this->config = $config;
-		$this->initialState = $initialState;
-
-		$this->urlGenerator = $urlGenerator;
-		$this->checkService = $checkService;
-		$this->accountService = $accountService;
-		$this->documentService = $documentService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
-		$this->logger = $logger;
 	}
 
 	/**

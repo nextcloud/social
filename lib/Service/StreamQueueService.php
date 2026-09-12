@@ -47,43 +47,15 @@ class StreamQueueService {
 	public const DETAIL_ANCESTOR_DEPTH = 'ancestor_depth';
 	public const MAX_ANCESTOR_DEPTH = 8;
 
-	private StreamRequest $streamRequest;
-
-	private StreamQueueRequest $streamQueueRequest;
-
-	private ImportService $importService;
-
-	private CacheActorService $cacheActorService;
-
-	private CurlService $curlService;
-
-	private MiscService $miscService;
-
-	/**
-	 * StreamQueueService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param StreamQueueRequest $streamQueueRequest
-	 * @param CacheActorService $cacheActorService
-	 * @param ImportService $importService
-	 * @param CurlService $curlService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		StreamRequest $streamRequest,
-		StreamQueueRequest $streamQueueRequest,
-		CacheActorService $cacheActorService,
-		ImportService $importService,
-		CurlService $curlService,
-		MiscService $miscService,
+		private StreamRequest $streamRequest,
+		private StreamQueueRequest $streamQueueRequest,
+		private CacheActorService $cacheActorService,
+		private ImportService $importService,
+		private CurlService $curlService,
+		private MiscService $miscService,
 		private LinkPreviewService $linkPreviewService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->streamQueueRequest = $streamQueueRequest;
-		$this->importService = $importService;
-		$this->cacheActorService = $cacheActorService;
-		$this->curlService = $curlService;
-		$this->miscService = $miscService;
 	}
 
 	/**

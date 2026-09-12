@@ -121,11 +121,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	private ?LinkedDataSignature $signature = null;
 	private int $format = self::FORMAT_ACTIVITYPUB;
 
-	/**
-	 * Core constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		if ($parent instanceof ACore) {
 			$this->setParent($parent);

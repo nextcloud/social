@@ -22,22 +22,19 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class AccountCreate extends Base {
-	private IUserManager $userManager;
 	private AccountService $accountService;
-	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
 	private MiscService $miscService;
 
 	public function __construct(
-		IUserManager $userManager, AccountService $accountService,
-		CacheActorService $cacheActorService, ConfigService $configService, MiscService $miscService,
+		private IUserManager $userManager,
+		AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		ConfigService $configService,
+		MiscService $miscService,
 	) {
 		parent::__construct();
-
-		$this->userManager = $userManager;
-
 		$this->accountService = $accountService;
-		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}

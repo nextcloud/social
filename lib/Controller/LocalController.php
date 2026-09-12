@@ -68,68 +68,32 @@ class LocalController extends Controller {
 	use TNCDataResponse;
 
 	private ?string $userId = null;
-	private CacheActorService $cacheActorService;
-	private HashtagService $hashtagService;
-	private FollowService $followService;
-	private BoostService $boostService;
-	private LikeService $likeService;
-	private PostService $postService;
-	private StreamService $streamService;
-	private SearchService $searchService;
-	private AccountService $accountService;
-	private DocumentService $documentService;
-	private MiscService $miscService;
-	private ConfigService $configService;
 	private ?Person $viewer = null;
-	private LoggerInterface $logger;
-
-	private ActorService $actorService;
-	private ActivityService $activityService;
-	private CacheDocumentService $cacheDocumentService;
-	private CacheActorsRequest $cacheActorsRequest;
 
 	public function __construct(
 		IRequest $request,
 		?string $userId,
-		AccountService $accountService,
-		CacheActorService $cacheActorService,
-		CacheActorsRequest $cacheActorsRequest,
-		HashtagService $hashtagService,
-		FollowService $followService,
-		PostService $postService,
-		StreamService $streamService,
-		SearchService $searchService,
-		BoostService $boostService,
-		LikeService $likeService,
-		DocumentService $documentService,
-		MiscService $miscService,
-		ConfigService $configService,
-		LoggerInterface $logger,
-		ActorService $actorService,
-		ActivityService $activityService,
-		CacheDocumentService $cacheDocumentService,
+		private AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		private CacheActorsRequest $cacheActorsRequest,
+		private HashtagService $hashtagService,
+		private FollowService $followService,
+		private PostService $postService,
+		private StreamService $streamService,
+		private SearchService $searchService,
+		private BoostService $boostService,
+		private LikeService $likeService,
+		private DocumentService $documentService,
+		private MiscService $miscService,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
+		private ActorService $actorService,
+		private ActivityService $activityService,
+		private CacheDocumentService $cacheDocumentService,
 		private BannerService $bannerService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
 		$this->userId = $userId;
-		$this->cacheActorService = $cacheActorService;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->hashtagService = $hashtagService;
-		$this->accountService = $accountService;
-		$this->streamService = $streamService;
-		$this->searchService = $searchService;
-		$this->postService = $postService;
-		$this->followService = $followService;
-		$this->boostService = $boostService;
-		$this->likeService = $likeService;
-		$this->documentService = $documentService;
-		$this->miscService = $miscService;
-		$this->configService = $configService;
-		$this->logger = $logger;
-		$this->actorService = $actorService;
-		$this->activityService = $activityService;
-		$this->cacheDocumentService = $cacheDocumentService;
 	}
 
 	/**

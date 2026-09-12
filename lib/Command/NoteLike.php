@@ -28,30 +28,17 @@ use Symfony\Component\Console\Output\OutputInterface;
 class NoteLike extends Base {
 	private StreamService $streamService;
 
-	private AccountService $accountService;
-
 	private LikeService $likeService;
 
-	private MiscService $miscService;
-
-	/**
-	 * NoteBoost constructor.
-	 *
-	 * @param AccountService $accountService
-	 * @param StreamService $streamService
-	 * @param LikeService $likeService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		AccountService $accountService, StreamService $streamService, LikeService $likeService,
-		MiscService $miscService,
+		private AccountService $accountService,
+		StreamService $streamService,
+		LikeService $likeService,
+		private MiscService $miscService,
 	) {
 		parent::__construct();
-
 		$this->streamService = $streamService;
 		$this->likeService = $likeService;
-		$this->accountService = $accountService;
-		$this->miscService = $miscService;
 	}
 
 	/**

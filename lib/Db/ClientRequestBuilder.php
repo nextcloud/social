@@ -29,19 +29,15 @@ use Psr\Log\LoggerInterface;
 class ClientRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-	protected SecretHasher $secretHasher;
-
 	public function __construct(
 		IDBConnection $connection,
 		LoggerInterface $logger,
 		IURLGenerator $urlGenerator,
 		ConfigService $configService,
 		MiscService $miscService,
-		SecretHasher $secretHasher,
+		protected SecretHasher $secretHasher,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
-
-		$this->secretHasher = $secretHasher;
 	}
 
 	/**

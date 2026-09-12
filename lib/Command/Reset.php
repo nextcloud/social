@@ -22,32 +22,19 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Question\Question;
 
 class Reset extends Base {
-	private CoreRequestBuilder $coreRequestBuilder;
-
 	private CheckService $checkService;
 
 	private ConfigService $configService;
 
-	private MiscService $miscService;
-
-	/**
-	 * CacheUpdate constructor.
-	 *
-	 * @param CoreRequestBuilder $coreRequestBuilder
-	 * @param CheckService $checkService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		CoreRequestBuilder $coreRequestBuilder, CheckService $checkService, ConfigService $configService,
-		MiscService $miscService,
+		private CoreRequestBuilder $coreRequestBuilder,
+		CheckService $checkService,
+		ConfigService $configService,
+		private MiscService $miscService,
 	) {
 		parent::__construct();
-
 		$this->checkService = $checkService;
-		$this->coreRequestBuilder = $coreRequestBuilder;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**

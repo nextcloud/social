@@ -63,15 +63,13 @@ class StreamRequest extends StreamRequestBuilder {
 	private const NID_ATTEMPTS = 4;
 	/** How many posts one pass of deleteByAuthor() removes. */
 	public const DELETE_BATCH = 500;
-	private StreamDestRequest $streamDestRequest;
-	private StreamTagsRequest $streamTagsRequest;
 
 	public function __construct(
 		IDBConnection $connection,
 		LoggerInterface $logger,
 		IURLGenerator $urlGenerator,
-		StreamDestRequest $streamDestRequest,
-		StreamTagsRequest $streamTagsRequest,
+		private StreamDestRequest $streamDestRequest,
+		private StreamTagsRequest $streamTagsRequest,
 		ConfigService $configService,
 		MiscService $miscService,
 		private ModerationRequest $moderationRequest,
@@ -79,9 +77,6 @@ class StreamRequest extends StreamRequestBuilder {
 		private FollowedTagsRequest $followedTagsRequest,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
-
-		$this->streamDestRequest = $streamDestRequest;
-		$this->streamTagsRequest = $streamTagsRequest;
 	}
 
 	public function save(Stream $stream): void {

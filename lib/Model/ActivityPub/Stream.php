@@ -221,11 +221,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	private static int $quoteDepth = 0;
 
-	/**
-	 * Stream constructor.
-	 *
-	 * @param ?ACore $parent
-	 */
 	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
 	}

@@ -39,54 +39,20 @@ class UnifiedSearchProvider implements IProvider {
 
 	use TArrayTools;
 
-	private IL10N $l10n;
-	private IURLGenerator $urlGenerator;
-	private StreamService $streamService;
-	private StreamRequest $streamRequest;
-	private FollowService $followService;
-	private CacheActorService $cacheActorService;
-	private AccountService $accountService;
-	private SearchService $searchService;
-	private ConfigService $configService;
-	private LoggerInterface $logger;
-
 	private ?Person $viewer = null;
 
-	/**
-	 * UnifiedSearchProvider constructor.
-	 *
-	 * @param IL10N $l10n
-	 * @param IURLGenerator $urlGenerator
-	 * @param StreamService $streamService
-	 * @param FollowService $followService
-	 * @param CacheActorService $cacheActorService
-	 * @param AccountService $accountService
-	 * @param SearchService $searchService
-	 * @param ConfigService $configService
-	 * @param LoggerInterface $logger
-	 */
 	public function __construct(
-		IL10N $l10n,
-		IURLGenerator $urlGenerator,
-		StreamService $streamService,
-		StreamRequest $streamRequest,
-		FollowService $followService,
-		CacheActorService $cacheActorService,
-		AccountService $accountService,
-		SearchService $searchService,
-		ConfigService $configService,
-		LoggerInterface $logger,
+		private IL10N $l10n,
+		private IURLGenerator $urlGenerator,
+		private StreamService $streamService,
+		private StreamRequest $streamRequest,
+		private FollowService $followService,
+		private CacheActorService $cacheActorService,
+		private AccountService $accountService,
+		private SearchService $searchService,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
 	) {
-		$this->l10n = $l10n;
-		$this->urlGenerator = $urlGenerator;
-		$this->streamService = $streamService;
-		$this->streamRequest = $streamRequest;
-		$this->followService = $followService;
-		$this->cacheActorService = $cacheActorService;
-		$this->accountService = $accountService;
-		$this->searchService = $searchService;
-		$this->configService = $configService;
-		$this->logger = $logger;
 	}
 
 	/**

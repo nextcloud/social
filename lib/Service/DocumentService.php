@@ -50,43 +50,15 @@ class DocumentService {
 	 */
 	public const ERROR_CONTENT = 4;
 
-	private \OCP\IURLGenerator $urlGenerator;
-
-	private CacheDocumentsRequest $cacheDocumentsRequest;
-
-	private ActorsRequest $actorRequest;
-
-	private StreamRequest $streamRequest;
-
-	private CacheDocumentService $cacheService;
-
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-	/**
-	 * DocumentInterface constructor.
-	 *
-	 * @param IUrlGenerator $urlGenerator
-	 * @param CacheDocumentsRequest $cacheDocumentsRequest
-	 * @param ActorsRequest $actorRequest
-	 * @param StreamRequest $streamRequest
-	 * @param CacheDocumentService $cacheService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		IUrlGenerator $urlGenerator, CacheDocumentsRequest $cacheDocumentsRequest,
-		ActorsRequest $actorRequest, StreamRequest $streamRequest,
-		CacheDocumentService $cacheService, ConfigService $configService, MiscService $miscService,
+		private IUrlGenerator $urlGenerator,
+		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private ActorsRequest $actorRequest,
+		private StreamRequest $streamRequest,
+		private CacheDocumentService $cacheService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 	) {
-		$this->urlGenerator = $urlGenerator;
-		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
-		$this->actorRequest = $actorRequest;
-		$this->streamRequest = $streamRequest;
-		$this->configService = $configService;
-		$this->cacheService = $cacheService;
-		$this->miscService = $miscService;
 	}
 
 	/**

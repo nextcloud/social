@@ -47,28 +47,17 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class PersonInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
-	private ActionsRequest $actionsRequest;
-	private CacheActorsRequest $cacheActorsRequest;
-	private CacheDocumentsRequest $cacheDocumentsRequest;
-	private FollowsRequest $followsRequest;
-	private ActorRelationRequest $actorRelationRequest;
-	private RequestQueueRequest $requestQueueRequest;
-	private StreamRequest $streamRequest;
-	private StreamDestRequest $streamDestRequest;
-	private ActorService $actorService;
-	private ConfigService $configService;
-
 	public function __construct(
-		ActionsRequest $actionsRequest,
-		CacheActorsRequest $cacheActorsRequest,
-		CacheDocumentsRequest $cacheDocumentsRequest,
-		FollowsRequest $followsRequest,
-		ActorRelationRequest $actorRelationRequest,
-		RequestQueueRequest $requestQueueRequest,
-		StreamRequest $streamRequest,
-		StreamDestRequest $streamDestRequest,
-		ActorService $actorService,
-		ConfigService $configService,
+		private ActionsRequest $actionsRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private FollowsRequest $followsRequest,
+		private ActorRelationRequest $actorRelationRequest,
+		private RequestQueueRequest $requestQueueRequest,
+		private StreamRequest $streamRequest,
+		private StreamDestRequest $streamDestRequest,
+		private ActorService $actorService,
+		private ConfigService $configService,
 		private StreamActionsRequest $streamActionsRequest,
 		private ReportsRequest $reportsRequest,
 		private FiltersRequest $filtersRequest,
@@ -78,16 +67,6 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		private AnnouncementsRequest $announcementsRequest,
 		private ScheduledStatusesRequest $scheduledStatusesRequest,
 	) {
-		$this->actionsRequest = $actionsRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
-		$this->followsRequest = $followsRequest;
-		$this->actorRelationRequest = $actorRelationRequest;
-		$this->requestQueueRequest = $requestQueueRequest;
-		$this->streamRequest = $streamRequest;
-		$this->streamDestRequest = $streamDestRequest;
-		$this->actorService = $actorService;
-		$this->configService = $configService;
 	}
 
 	/**

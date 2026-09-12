@@ -30,33 +30,18 @@ use OCA\Social\Service\CacheActorService;
 use Psr\Log\LoggerInterface;
 
 class MoveInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	private ActionsRequest $actionsRequest;
-	private CacheActorsRequest $cacheActorsRequest;
-	private CacheDocumentsRequest $cacheDocumentsRequest;
-	private FollowsRequest $followsRequest;
-	private StreamRequest $streamRequest;
-	private StreamDestRequest $streamDestRequest;
-	private CacheActorService $cacheActorService;
-
 	public function __construct(
-		ActionsRequest $actionsRequest,
-		CacheActorsRequest $cacheActorsRequest,
-		CacheDocumentsRequest $cacheDocumentsRequest,
-		FollowsRequest $followsRequest,
-		StreamRequest $streamRequest,
-		StreamDestRequest $streamDestRequest,
-		CacheActorService $cacheActorService,
+		private ActionsRequest $actionsRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private FollowsRequest $followsRequest,
+		private StreamRequest $streamRequest,
+		private StreamDestRequest $streamDestRequest,
+		private CacheActorService $cacheActorService,
 		private ActorsRequest $actorsRequest,
 		private ActivityService $activityService,
 		private LoggerInterface $logger,
 	) {
-		$this->actionsRequest = $actionsRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
-		$this->streamRequest = $streamRequest;
-		$this->streamDestRequest = $streamDestRequest;
-		$this->followsRequest = $followsRequest;
-		$this->cacheActorService = $cacheActorService;
 	}
 
 	/**

@@ -17,16 +17,6 @@ use OCP\Search\SearchResultEntry;
  * @package OCA\Social\Search
  */
 class UnifiedSearchResult extends SearchResultEntry {
-	/**
-	 * UnifiedSearchResult constructor.
-	 *
-	 * @param string $thumbnailUrl
-	 * @param string $title
-	 * @param string $subline
-	 * @param string $resourceUrl
-	 * @param string $icon
-	 * @param bool $rounded
-	 */
 	public function __construct(
 		string $thumbnailUrl = '', string $title = '', string $subline = '', string $resourceUrl = '',
 		string $icon = '',

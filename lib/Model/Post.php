@@ -55,11 +55,6 @@ class Post implements JsonSerializable {
 	/** @var Document[] */
 	private array $documents = [];
 
-	/**
-	 * Post constructor.
-	 *
-	 * @param Person $actor
-	 */
 	public function __construct(Person $actor) {
 		$this->actor = $actor;
 	}

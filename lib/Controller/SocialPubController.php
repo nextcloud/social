@@ -45,26 +45,27 @@ class SocialPubController extends Controller {
 	private IL10N $l10n;
 	private NavigationController $navigationController;
 	private AccountService $accountService;
-	private CacheActorService $cacheActorService;
 	private StreamService $streamService;
-	private ConfigService $configService;
 	private IInitialState $initialState;
 
 	public function __construct(
-		?string $userId, IInitialState $initialState, IRequest $request, IL10N $l10n, NavigationController $navigationController,
-		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
-		ConfigService $configService,
+		?string $userId,
+		IInitialState $initialState,
+		IRequest $request,
+		IL10N $l10n,
+		NavigationController $navigationController,
+		private CacheActorService $cacheActorService,
+		AccountService $accountService,
+		StreamService $streamService,
+		private ConfigService $configService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-
 		$this->userId = $userId;
 		$this->initialState = $initialState;
 		$this->l10n = $l10n;
 		$this->navigationController = $navigationController;
 		$this->accountService = $accountService;
-		$this->cacheActorService = $cacheActorService;
 		$this->streamService = $streamService;
-		$this->configService = $configService;
 	}
 
 	/**

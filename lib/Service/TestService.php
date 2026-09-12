@@ -30,25 +30,11 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class TestService {
 	use TArrayTools;
 
-	private CurlService $curlService;
-
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-	/**
-	 * PostService constructor.
-	 *
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		CurlService $curlService, ConfigService $configService, MiscService $miscService,
+		private CurlService $curlService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 	) {
-		$this->curlService = $curlService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	public function testWebfinger(SimpleDataStore $tests) {

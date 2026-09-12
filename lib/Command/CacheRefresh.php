@@ -20,20 +20,17 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class CacheRefresh extends Base {
-	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
-	private DocumentService $documentService;
 	private HashtagService $hashtagService;
 
 	public function __construct(
-		AccountService $accountService, CacheActorService $cacheActorService,
-		DocumentService $documentService, HashtagService $hashtagService,
+		private AccountService $accountService,
+		CacheActorService $cacheActorService,
+		private DocumentService $documentService,
+		HashtagService $hashtagService,
 	) {
 		parent::__construct();
-
-		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
-		$this->documentService = $documentService;
 		$this->hashtagService = $hashtagService;
 	}
 

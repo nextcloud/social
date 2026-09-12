@@ -52,25 +52,14 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class AnnounceInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
-	private StreamRequest $streamRequest;
-	private ActionsRequest $actionsRequest;
-	private StreamQueueService $streamQueueService;
-	private CacheActorService $cacheActorService;
-	private MiscService $miscService;
-
 	public function __construct(
-		StreamRequest $streamRequest,
-		ActionsRequest $actionsRequest,
-		StreamQueueService $streamQueueService,
-		CacheActorService $cacheActorService,
-		MiscService $miscService,
+		private StreamRequest $streamRequest,
+		private ActionsRequest $actionsRequest,
+		private StreamQueueService $streamQueueService,
+		private CacheActorService $cacheActorService,
+		private MiscService $miscService,
 		private NotificationService $notificationService,
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->actionsRequest = $actionsRequest;
-		$this->streamQueueService = $streamQueueService;
-		$this->cacheActorService = $cacheActorService;
-		$this->miscService = $miscService;
 	}
 
 	/**

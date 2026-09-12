@@ -33,12 +33,6 @@ class Test extends SimpleDataStore implements JsonSerializable {
 
 	private array $messages = [];
 
-	/**
-	 * Test constructor.
-	 *
-	 * @param string $name
-	 * @param string $severity
-	 */
 	public function __construct(string $name = '', string $severity = self::SEVERITY_OPTIONAL) {
 		parent::__construct();
 

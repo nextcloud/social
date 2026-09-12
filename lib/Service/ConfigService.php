@@ -65,10 +65,6 @@ class ConfigService {
 	];
 
 	private ?string $userId = null;
-	private IConfig $config;
-	private IRequest $request;
-	private IURLGenerator $urlGenerator;
-	private MiscService $miscService;
 
 	/** Seconds; 0 leaves each request its own default. See withRequestTimeout(). */
 	private int $requestTimeout = 0;
@@ -77,14 +73,13 @@ class ConfigService {
 	private int $requestConnectTimeout = 0;
 
 	public function __construct(
-		?string $userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
-		MiscService $miscService,
+		?string $userId,
+		private IConfig $config,
+		private IRequest $request,
+		private IURLGenerator $urlGenerator,
+		private MiscService $miscService,
 	) {
 		$this->userId = $userId;
-		$this->config = $config;
-		$this->request = $request;
-		$this->urlGenerator = $urlGenerator;
-		$this->miscService = $miscService;
 	}
 
 	/**

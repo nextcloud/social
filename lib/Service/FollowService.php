@@ -47,45 +47,20 @@ use Throwable;
 class FollowService {
 	use TArrayTools;
 
-	private IURLGenerator $urlGenerator;
-	private FollowsRequest $followsRequest;
-	private ActorRelationRequest $actorRelationRequest;
-	private ActivityService $activityService;
-	private CacheActorService $cacheActorService;
-	private ConfigService $configService;
-	private FollowInterface $followInterface;
-	private LoggerInterface $logger;
 	private ?Person $viewer = null;
 
-	/**
-	 * FollowService constructor.
-	 *
-	 * @param FollowsRequest $followsRequest
-	 * @param ActivityService $activityService
-	 * @param CacheActorService $cacheActorService
-	 * @param ConfigService $configService
-	 * @param LoggerInterface $logger
-	 */
 	public function __construct(
-		IURLGenerator $urlGenerator,
-		FollowsRequest $followsRequest,
-		ActorRelationRequest $actorRelationRequest,
-		ActivityService $activityService,
-		CacheActorService $cacheActorService,
-		ConfigService $configService,
-		FollowInterface $followInterface,
+		private IURLGenerator $urlGenerator,
+		private FollowsRequest $followsRequest,
+		private ActorRelationRequest $actorRelationRequest,
+		private ActivityService $activityService,
+		private CacheActorService $cacheActorService,
+		private ConfigService $configService,
+		private FollowInterface $followInterface,
 		private ModerationService $moderationService,
 		private AccountRelationService $accountRelationService,
-		LoggerInterface $logger,
+		private LoggerInterface $logger,
 	) {
-		$this->urlGenerator = $urlGenerator;
-		$this->followsRequest = $followsRequest;
-		$this->actorRelationRequest = $actorRelationRequest;
-		$this->activityService = $activityService;
-		$this->cacheActorService = $cacheActorService;
-		$this->configService = $configService;
-		$this->followInterface = $followInterface;
-		$this->logger = $logger;
 	}
 
 	/**

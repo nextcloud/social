@@ -20,33 +20,19 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class QueueProcess extends Base {
-	private ActivityService $activityService;
-	private StreamQueueService $streamQueueService;
 	private RequestQueueService $requestQueueService;
 	private ConfigService $configService;
-	private MiscService $miscService;
 
-	/**
-	 * NoteCreate constructor.
-	 *
-	 * @param ActivityService $activityService
-	 * @param RequestQueueService $requestQueueService
-	 * @param StreamQueueService $streamQueueService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		ActivityService $activityService, RequestQueueService $requestQueueService,
-		StreamQueueService $streamQueueService, ConfigService $configService,
-		MiscService $miscService,
+		private ActivityService $activityService,
+		RequestQueueService $requestQueueService,
+		private StreamQueueService $streamQueueService,
+		ConfigService $configService,
+		private MiscService $miscService,
 	) {
 		parent::__construct();
-
-		$this->activityService = $activityService;
 		$this->requestQueueService = $requestQueueService;
-		$this->streamQueueService = $streamQueueService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**

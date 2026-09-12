@@ -32,36 +32,23 @@ use Symfony\Component\Console\Output\OutputInterface;
 class NoteCreate extends Base {
 	private ConfigService $configService;
 
-	private ActivityService $activityService;
-
 	private AccountService $accountService;
 
 	private PostService $postService;
 
-	private CurlService $curlService;
-
 	private MiscService $miscService;
 
-	/**
-	 * NoteCreate constructor.
-	 *
-	 * @param ActivityService $activityService
-	 * @param AccountService $accountService
-	 * @param PostService $postService
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		ActivityService $activityService, AccountService $accountService, PostService $postService,
-		CurlService $curlService, ConfigService $configService, MiscService $miscService,
+		private ActivityService $activityService,
+		AccountService $accountService,
+		PostService $postService,
+		private CurlService $curlService,
+		ConfigService $configService,
+		MiscService $miscService,
 	) {
 		parent::__construct();
-
-		$this->activityService = $activityService;
 		$this->accountService = $accountService;
 		$this->postService = $postService;
-		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}

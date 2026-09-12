@@ -20,30 +20,13 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class QueueStatus extends Base {
-	private ConfigService $configService;
-
-	private RequestQueueService $requestQueueService;
-
-	private MiscService $miscService;
-
-	/**
-	 * NoteCreate constructor.
-	 *
-	 * @param RequestQueueService $requestQueueService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		RequestQueueService $requestQueueService,
-		ConfigService $configService,
-		MiscService $miscService,
+		private RequestQueueService $requestQueueService,
+		private ConfigService $configService,
+		private MiscService $miscService,
 		private FederationHealthService $federationHealthService,
 	) {
 		parent::__construct();
-
-		$this->requestQueueService = $requestQueueService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	/**

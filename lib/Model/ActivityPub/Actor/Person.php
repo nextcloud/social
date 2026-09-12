@@ -87,11 +87,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/** @var array[] profile metadata, [['name' => string, 'value' => string], …] */
 	private array $fields = [];
 
-	/**
-	 * Person constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 

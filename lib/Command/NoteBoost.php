@@ -25,20 +25,12 @@ use Symfony\Component\Console\Output\OutputInterface;
  * @package OCA\Social\Command
  */
 class NoteBoost extends Base {
-	private StreamService $streamService;
-	private AccountService $accountService;
-	private BoostService $boostService;
-
 	public function __construct(
-		AccountService $accountService,
-		StreamService $streamService,
-		BoostService $boostService,
+		private AccountService $accountService,
+		private StreamService $streamService,
+		private BoostService $boostService,
 	) {
 		parent::__construct();
-
-		$this->streamService = $streamService;
-		$this->boostService = $boostService;
-		$this->accountService = $accountService;
 	}
 
 	/**

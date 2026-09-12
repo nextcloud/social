@@ -50,11 +50,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private array $excludeTypes = [];
 	private string $accountId = '';
 
-	/**
-	 * ProbeOptions constructor.
-	 *
-	 * @param IRequest|null $request
-	 */
 	public function __construct(?IRequest $request = null) {
 		if ($request !== null) {
 			$this->fromArray($request->getParams());
