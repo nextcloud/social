@@ -245,4 +245,92 @@ class NoteTest extends TestCase {
 		$this->assertSame('en', $note->exportAsLocal()['language']);
 		$this->assertSame(['en' => $note->getContent()], $note->exportAsActivityPub()['contentMap']);
 	}
+
+	// a post that is a video goes onto the wire as one
+
+	private function videoAttachment(string $type = 'video'): MediaAttachment {
+		$media = new MediaAttachment();
+		$media->setId('7')
+			->setType($type)
+			->setMediaType('video/mp4')
+			->setUrl('https://cloud.example.org/media/movie.mp4')
+			->setPreviewUrl('https://cloud.example.org/media/poster.jpeg')
+			->setDescription('a cat');
+
+		return $media;
+	}
+
+	private function localVideoPost(string $type = 'video'): Note {
+		$note = new Note();
+		$note->setId('https://cloud.example.org/apps/social/@alice/0123');
+		$note->setLocal(true);
+		$note->setAttributedTo('https://cloud.example.org/apps/social/@alice');
+		$note->setContent('<p>The cat and the glass</p>');
+		$note->setAttachments([$this->videoAttachment($type)]);
+		$note->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
+
+		return $note;
+	}
+
+	/** The setting is read only in the branch that could use it. */
+	private function publishVideoObjects(bool $enabled): void {
+		$config = $this->createMock(\OCA\Social\Service\ConfigService::class);
+		$config->method('getAppValueBool')->willReturn($enabled);
+		\OC::$server->register(\OCA\Social\Service\ConfigService::class, $config);
+	}
+
+	public function testALocalVideoPostIsPublishedAsAVideo(): void {
+		$this->publishVideoObjects(true);
+
+		$published = $this->localVideoPost()->jsonSerialize();
+
+		$this->assertSame('Video', $published['type']);
+		$this->assertSame('The cat and the glass', $published['name']);
+		$this->assertIsArray($published['url']);
+		// and everything a Mastodon-family server reads is still there
+		$this->assertArrayHasKey('attachment', $published);
+	}
+
+	/** A remote note is somebody else's document, re-serialised as it arrived. */
+	public function testARemoteVideoPostIsLeftAsANote(): void {
+		$this->publishVideoObjects(true);
+		$note = $this->localVideoPost();
+		$note->setLocal(false);
+
+		$this->assertSame('Note', $note->jsonSerialize()['type']);
+	}
+
+	/** The client API is Mastodon's, and Mastodon has no `Video` status. */
+	public function testTheClientFormatIsNeverAVideo(): void {
+		$this->publishVideoObjects(true);
+		$note = $this->localVideoPost();
+		$note->setExportFormat(ACore::FORMAT_LOCAL);
+
+		$this->assertArrayNotHasKey('type', $note->jsonSerialize());
+	}
+
+	public function testAPostWithAPictureStaysANote(): void {
+		$this->publishVideoObjects(true);
+
+		$this->assertSame('Note', $this->localVideoPost('image')->jsonSerialize()['type']);
+	}
+
+	/**
+	 * Whether a Mastodon-family server renders a `Video` as well as it rendered
+	 * the `Note` is a question only a real one can answer, so an admin can turn
+	 * this off.
+	 */
+	public function testTheSettingTurnsItOff(): void {
+		$this->publishVideoObjects(false);
+
+		$this->assertSame('Note', $this->localVideoPost()->jsonSerialize()['type']);
+	}
+
+	/** Nothing to resolve the setting from must not lose the post. */
+	public function testWithNoConfigServiceThePostIsStillPublished(): void {
+		$published = $this->localVideoPost()->jsonSerialize();
+
+		$this->assertSame('Note', $published['type']);
+		$this->assertArrayHasKey('attachment', $published);
+	}
 }

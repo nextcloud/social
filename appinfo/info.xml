@@ -21,13 +21,14 @@ What it does:
 - 📊 Dashboard tiles for mentions, direct messages, your timeline, bookmarks, follow requests and trending hashtags, plus open reports and federation health for administrators
 - 🔒 Photos have their Exif metadata — including the coordinates a phone writes into them — removed before they are stored or federated
 - 🎬 A Videos timeline, including the videos from PeerTube channels anyone here follows: streamed from the instance that holds them rather than copied here, and proxied so no viewer's address reaches a server they never chose
+- 📡 Videos posted here federate as ActivityPub Video objects, which is what PeerTube ingests, with a poster frame, byte-range seeking and a 2 GB ceiling of their own
 - 🎨 Filters in the composer, a profile that draws as a grid, and an Explore page
 - 🗂️ Collections, stories and places
 - 📱 Pixelfed's own config and discover routes, so its clients find what they look for
 - 🧭 A Discover page: who to follow, with starter packs you can follow in one go
 
 You can pin your own posts to the top of your profile, bookmark any post, and see which hashtags the instance is using most. This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. Polls are fully supported: create your own, and view and vote on federated ones. Profiles carry an avatar, a banner image and up to four profile metadata fields. Posts that link somewhere get a link preview card. Image (JPEG, PNG, GIF, WebP, AVIF, and HEIC from an iPhone where the server can read it), video (MP4, WebM, QuickTime) and audio attachments are supported, up to ten per post, each with alt text and a focal point. It does not offer lists.]]></description>
-	<version>0.19.6</version>
+	<version>0.19.7</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>

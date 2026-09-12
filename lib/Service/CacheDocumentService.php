@@ -15,10 +15,12 @@ use Gumlet\ImageResizeException;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\Client\AttachmentMeta;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -55,6 +57,7 @@ class CacheDocumentService {
 		private BlurService $blurService,
 		private ConfigService $configService,
 		private ImageConversionService $imageConversionService,
+		private VideoThumbnailService $videoThumbnailService,
 	) {
 	}
 
@@ -133,9 +136,17 @@ class CacheDocumentService {
 		$mime = mime_content_type($tmpPath);
 
 		$this->filterMimeTypes($mime);
+		$this->filterSize($mime, (int)filesize($tmpPath));
+
+		if (!str_starts_with($mime, 'image/')) {
+			$this->saveMediaFromTemp($document, $tmpPath, $mime);
+
+			return;
+		}
 
 		$file = fopen($tmpPath, 'r');
 		$content = fread($file, filesize($tmpPath));
+		fclose($file);
 
 		// Before anything is written: the camera's metadata comes off, and a
 		// format no browser can draw becomes one it can. Both can change the
@@ -148,11 +159,143 @@ class CacheDocumentService {
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
 
-		if (str_starts_with($mime, 'image/')) {
-			$this->resizeImage($document, $content);
-			$resized = $this->generateFileFromContent($content);
-			$document->setResizedCopy($resized);
+		$this->resizeImage($document, $content);
+		$resized = $this->generateFileFromContent($content);
+		$document->setResizedCopy($resized);
+	}
+
+	/**
+	 * The size ceiling, applied to what the content turned out to be.
+	 *
+	 * The request-time check (`ApiController::refuseOversized()`) can only go
+	 * on the type the *client* declared, and video is allowed to be far larger
+	 * than anything else — because it is copied to storage a chunk at a time
+	 * and never held in memory. A file that declared `video/mp4` to get past
+	 * that check and then sniffs as a PNG would be read whole by the image
+	 * path: two gigabytes of it, into memory, which is the one thing the
+	 * split exists to prevent.
+	 *
+	 * So the ceiling is applied again here, against the sniffed type, which is
+	 * the only one that decides what actually happens to the bytes.
+	 *
+	 * @throws CacheContentSizeException
+	 */
+	public function filterSize(string $mime, int $size): void {
+		$megabytes = str_starts_with($mime, 'video/')
+			? $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_VIDEO_SIZE)
+			: $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE);
+
+		if ($megabytes <= 0) {
+			$megabytes = str_starts_with($mime, 'video/') ? 2048 : 10;
 		}
+
+		if ($size > $megabytes * 1048576) {
+			throw new CacheContentSizeException(
+				'content is larger than the ' . $megabytes . 'MB limit for ' . $mime
+			);
+		}
+	}
+
+	/**
+	 * A video or a sound file: copied without ever being held whole, and given
+	 * a poster frame if the server can make one.
+	 *
+	 * Images go the other way on purpose -- they are read into a string because
+	 * the metadata stripping, the HEIC conversion and the resize all work on
+	 * one -- and an image is a few megabytes. A video is not: `fread()` of a
+	 * two-gigabyte upload is two gigabytes of memory, and PHP's limit is the
+	 * only thing that ever stopped it. Nothing here needs the bytes, so nothing
+	 * here reads them.
+	 *
+	 * The poster is the *resized copy* of the video rather than a row of its
+	 * own. That is what `resized_copy` means -- the small image standing in for
+	 * the file -- and unlike a federated video's thumbnail, which is a document
+	 * on somebody else's server with a URL and a cache lifetime of its own,
+	 * this one is derived from bytes already here and has nothing else to be.
+	 */
+	private function saveMediaFromTemp(Document $document, string $tmpPath, string $mime): void {
+		$document->setMediaType($mime);
+		$document->setMimeType($mime);
+
+		$document->setLocalCopy($this->generateFileFromPath($tmpPath));
+
+		if (!str_starts_with($mime, 'video/')) {
+			return;
+		}
+
+		$poster = $this->videoThumbnailService->poster($tmpPath);
+		if ($poster === null) {
+			// no ffmpeg, or nothing it could read. Every reader of a preview
+			// already copes with there not being one.
+			return;
+		}
+
+		$document->setResizedCopy($this->generateFileFromContent($poster['content']));
+
+		if ($poster['duration'] > 0) {
+			// what the scrub bar shows before a frame has loaded, and what a
+			// federated `Video` states
+			$meta = $document->getMeta() ?? new AttachmentMeta();
+			$meta->setDuration((float)$poster['duration']);
+			$document->setMeta($meta);
+		}
+
+		if ($poster['width'] > 0 && $poster['height'] > 0) {
+			// the poster is the video scaled down, so its aspect is the
+			// video's -- which is what a client sizes the player from before a
+			// frame has loaded
+			$document->setResizedCopySize($poster['width'], $poster['height']);
+			$document->setLocalCopySize($poster['width'], $poster['height']);
+		}
+	}
+
+	/**
+	 * Copies a file into app storage a chunk at a time.
+	 *
+	 * @return string the uuid it was stored under
+	 *
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	private function generateFileFromPath(string $path): string {
+		$source = fopen($path, 'rb');
+		if ($source === false) {
+			throw new NotFoundException('could not read the uploaded file');
+		}
+
+		try {
+			return $this->generateFileFromStream($source);
+		} finally {
+			fclose($source);
+		}
+	}
+
+	/**
+	 * @param resource $source
+	 *
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	private function generateFileFromStream($source): string {
+		$filename = $this->uuid();
+		$cache = $this->newCacheFile($filename);
+
+		$target = $cache->write();
+		if (!is_resource($target)) {
+			// a storage backend that cannot be written as a stream still takes
+			// the whole thing; only the memory saving is lost
+			$cache->putContent(stream_get_contents($source));
+
+			return $filename;
+		}
+
+		try {
+			stream_copy_to_stream($source, $target);
+		} finally {
+			fclose($target);
+		}
+
+		return $filename;
 	}
 
 	/**
@@ -164,6 +307,16 @@ class CacheDocumentService {
 	 */
 	private function generateFileFromContent(string $content): string {
 		$filename = $this->uuid();
+		$this->newCacheFile($filename)->putContent($content);
+
+		return $filename;
+	}
+
+	/**
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	private function newCacheFile(string $filename): ISimpleFile {
 		$path = $this->generatePath($filename);
 
 		try {
@@ -172,10 +325,7 @@ class CacheDocumentService {
 			$folder = $this->appData->newFolder($path);
 		}
 
-		$cache = $folder->newFile($filename);
-		$cache->putContent($content);
-
-		return $filename;
+		return $folder->newFile($filename);
 	}
 
 	/**

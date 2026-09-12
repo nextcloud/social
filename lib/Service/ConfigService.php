@@ -34,6 +34,10 @@ class ConfigService {
 
 	public const SOCIAL_SERVICE = 'service';
 	public const SOCIAL_MAX_SIZE = 'max_size';
+	/** The ceiling for a video, which is not the ceiling for a picture. */
+	public const SOCIAL_MAX_VIDEO_SIZE = 'max_video_size';
+	/** Whether a post that is a video is federated as a `Video` object. */
+	public const SOCIAL_PUBLISH_VIDEO = 'publish_video_objects';
 	public const SOCIAL_ACCESS_TYPE = 'access_type';
 	public const SOCIAL_ACCESS_LIST = 'access_list';
 
@@ -92,6 +96,8 @@ class ConfigService {
 		self::SOCIAL_ADDRESS => '',
 		self::SOCIAL_SERVICE => 1,
 		self::SOCIAL_MAX_SIZE => 10,
+		self::SOCIAL_MAX_VIDEO_SIZE => 2048,
+		self::SOCIAL_PUBLISH_VIDEO => '1',
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
 		self::SOCIAL_ACCESS_LIST => '[]',
 		self::SOCIAL_SELF_SIGNED => '0',
@@ -186,6 +192,15 @@ class ConfigService {
 		}
 
 		return (int)$this->appConfig->getValueString(Application::APP_ID, $key, (string)$defaultValue);
+	}
+
+	/**
+	 * A switch, read the way this app reads every other one: anything but the
+	 * literal `0` is on, so an admin who writes `false`, `no` or `off` does not
+	 * silently get the opposite of what they meant.
+	 */
+	public function getAppValueBool(string $key): bool {
+		return !in_array(strtolower(trim((string)$this->getAppValue($key))), ['0', 'false', 'no', 'off', ''], true);
 	}
 
 	/**

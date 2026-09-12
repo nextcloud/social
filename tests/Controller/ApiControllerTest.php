@@ -33,6 +33,7 @@ use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Relationship;
 use OCA\Social\Model\Report;
+use OCA\Social\Response\RangedFileResponse;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
@@ -63,7 +64,6 @@ use OCA\Social\Service\StreamService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\File;
 use OCP\Files\Folder;
@@ -3308,9 +3308,45 @@ class ApiControllerTest extends TestCase {
 
 		$response = $this->controller()->mediaOpen('abc.png');
 
-		$this->assertInstanceOf(FileDisplayResponse::class, $response);
+		$this->assertInstanceOf(RangedFileResponse::class, $response);
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame('image/png', $response->getHeaders()['Content-Type']);
+		// the offer has to be made before a browser will ask for a range
+		$this->assertSame('bytes', $response->getHeaders()['Accept-Ranges']);
+	}
+
+	/**
+	 * A video's resized copy is its poster frame, which is a JPEG. Served as
+	 * `video/mp4` -- the document's own type -- a browser with `nosniff` on,
+	 * which is every Nextcloud, refuses to draw it.
+	 */
+	public function testMediaOpenServesAVideoPosterAsAnImage(): void {
+		$file = $this->createMock(ISimpleFile::class);
+		$file->method('getName')->willReturn('poster');
+		$document = $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class);
+		$document->method('getMediaType')->willReturn('video/mp4');
+		$document->method('getResizedCopy')->willReturn('poster');
+		$this->documentService->method('getFromUuid')->with('poster')->willReturn([$file, $document]);
+
+		$this->assertSame(
+			'image/jpeg',
+			$this->controller()->mediaOpen('poster.jpeg')->getHeaders()['Content-Type']
+		);
+	}
+
+	/** The video itself keeps its own type, resized copy or not. */
+	public function testMediaOpenServesTheVideoItselfAsAVideo(): void {
+		$file = $this->createMock(ISimpleFile::class);
+		$file->method('getName')->willReturn('movie');
+		$document = $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class);
+		$document->method('getMediaType')->willReturn('video/mp4');
+		$document->method('getResizedCopy')->willReturn('poster');
+		$this->documentService->method('getFromUuid')->with('movie')->willReturn([$file, $document]);
+
+		$this->assertSame(
+			'video/mp4',
+			$this->controller()->mediaOpen('movie.mp4')->getHeaders()['Content-Type']
+		);
 	}
 
 	public function testMediaOpenIgnoresTheRequestersExtension(): void {

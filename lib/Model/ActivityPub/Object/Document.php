@@ -446,6 +446,32 @@ class Document extends ACore implements JsonSerializable {
 	}
 
 	/**
+	 * The still to show before the file itself is drawn or played.
+	 *
+	 * For an image, the resized copy of the same picture. For a **video**, the
+	 * poster frame -- which is a JPEG rather than a video, so the link says
+	 * `.jpeg` and `/media/{uuid}` answers with the matching type: a browser
+	 * with `nosniff` on refuses to draw an image served as `video/mp4`, and
+	 * every Nextcloud has `nosniff` on.
+	 *
+	 * A video with no poster (an older upload, or a server with no ffmpeg)
+	 * falls back to the media itself, which is what this app told clients
+	 * before posters existed and is still better than nothing: a player handed
+	 * it will show its own first frame.
+	 */
+	private function previewUrl(IURLGenerator $urlGenerator, string $mime): string {
+		if ($this->getResizedCopy() === '') {
+			return $this->getMediaUrl($urlGenerator, $mime);
+		}
+
+		if (str_starts_with($this->getMediaType(), 'image/')) {
+			return $this->getResizedMediaUrl($urlGenerator, $mime);
+		}
+
+		return $this->getResizedMediaUrl($urlGenerator, 'image/jpeg');
+	}
+
+	/**
 	 * Where a streamed document is played from: this instance, proxying the
 	 * origin. Addressed by the cache row's own key, which is the whole of what
 	 * keeps the proxy from being pointed anywhere a caller likes.
@@ -504,12 +530,7 @@ class Document extends ACore implements JsonSerializable {
 				$media->setUrl($this->streamUrl($urlGenerator));
 			} else {
 				$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
-				// video/audio carry no resized copy; the preview is the media itself
-				$media->setPreviewUrl(
-					($this->getResizedCopy() === '')
-						? $this->getMediaUrl($urlGenerator, $mime)
-						: $this->getResizedMediaUrl($urlGenerator, $mime)
-				);
+				$media->setPreviewUrl($this->previewUrl($urlGenerator, $mime));
 			}
 		}
 

@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\BlurService;
@@ -19,6 +20,7 @@ use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\ImageConversionService;
+use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
@@ -36,6 +38,7 @@ class CacheDocumentServiceTest extends TestCase {
 	private CurlService|MockObject $curlService;
 	private BlurService|MockObject $blurService;
 	private ImageConversionService|MockObject $imageConversionService;
+	private VideoThumbnailService|MockObject $videoThumbnailService;
 	private CacheDocumentService $service;
 
 	protected function setUp(): void {
@@ -48,12 +51,16 @@ class CacheDocumentServiceTest extends TestCase {
 			->willReturnCallback(static fn (string $content, string $mime): array => [$content, $mime]);
 		$this->curlService = $this->createMock(CurlService::class);
 		$this->blurService = $this->createMock(BlurService::class);
+		// no ffmpeg by default: a poster is what a server that has it adds, and
+		// every path here has to work on one that does not
+		$this->videoThumbnailService = $this->createMock(VideoThumbnailService::class);
 		$this->service = new CacheDocumentService(
 			$this->appData,
 			$this->curlService,
 			$this->blurService,
 			$this->createMock(ConfigService::class),
 			$this->imageConversionService,
+			$this->videoThumbnailService,
 		);
 	}
 
@@ -99,6 +106,20 @@ class CacheDocumentServiceTest extends TestCase {
 				$file = $this->createMock(ISimpleFile::class);
 				$file->method('putContent')->willReturnCallback(function (string $content) use ($path, $name, &$written) {
 					$written[$path][$name] = $content;
+				});
+				// the streaming path asks for a handle rather than handing over
+				// a string; what lands in storage has to be the same either way
+				$file->method('write')->willReturnCallback(function () use ($path, $name, &$written) {
+					$written[$path][$name] = '';
+					$stream = fopen('php://temp', 'r+');
+					stream_filter_register('socialcapture', StreamCapture::class);
+					stream_filter_append($stream, 'socialcapture', STREAM_FILTER_WRITE, [
+						'target' => function (string $chunk) use ($path, $name, &$written): void {
+							$written[$path][$name] .= $chunk;
+						},
+					]);
+
+					return $stream;
 				});
 
 				return $file;
@@ -288,6 +309,106 @@ class CacheDocumentServiceTest extends TestCase {
 		} finally {
 			unlink($tmp);
 		}
+	}
+
+	/** A minimal but genuine mp4, so mime detection sees a real video. */
+	private function mp4Bytes(int $padding = 4096): string {
+		return "\x00\x00\x00\x20ftypisom\x00\x00\x02\x00isomiso2avc1mp41"
+			. str_repeat("\x00", $padding);
+	}
+
+	/**
+	 * A video is copied to storage a chunk at a time and never held whole:
+	 * `fread()` of a two-gigabyte upload is two gigabytes of memory, and PHP's
+	 * limit was the only thing that ever stopped it.
+	 */
+	public function testAVideoIsStoredWithoutBeingReadWhole(): void {
+		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
+		file_put_contents($tmp, $this->mp4Bytes());
+		try {
+			$written = [];
+			$this->captureWrites($written);
+			$document = new Document();
+
+			$this->service->saveFromTempToCache($document, $tmp);
+
+			$this->assertSame('video/mp4', $document->getMediaType());
+			$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getLocalCopy());
+			// one file, not two: no resize, and no poster from a server with
+			// no ffmpeg
+			$this->assertCount(1, $written);
+			$this->assertSame($this->mp4Bytes(), reset($written)[$document->getLocalCopy()]);
+			$this->assertSame('', $document->getResizedCopy());
+		} finally {
+			unlink($tmp);
+		}
+	}
+
+	/**
+	 * The poster is the video's *resized copy*, which is what that column
+	 * means -- the small image standing in for the file.
+	 */
+	public function testAVideoPosterBecomesTheResizedCopy(): void {
+		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
+		file_put_contents($tmp, $this->mp4Bytes());
+		try {
+			$written = [];
+			$this->captureWrites($written);
+			$this->videoThumbnailService->method('poster')->willReturn(
+				['content' => 'jpeg-bytes', 'width' => 1280, 'height' => 720, 'duration' => 113]
+			);
+			$document = new Document();
+
+			$this->service->saveFromTempToCache($document, $tmp);
+
+			$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getResizedCopy());
+			// the two copies land in folders derived from their own uuids
+			$this->assertSame('jpeg-bytes', array_merge(...array_values($written))[$document->getResizedCopy()]);
+			// the poster is the video scaled down, so a client can size the
+			// player from it before a frame has loaded
+			$this->assertSame([1280, 720], $document->getLocalCopySize());
+			$this->assertSame(113.0, $document->getMeta()?->getDuration());
+		} finally {
+			unlink($tmp);
+		}
+	}
+
+	/** No ffmpeg is not a reason to refuse the upload. */
+	public function testAVideoWithNoPosterIsStillStored(): void {
+		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
+		file_put_contents($tmp, $this->mp4Bytes());
+		try {
+			$written = [];
+			$this->captureWrites($written);
+			$this->videoThumbnailService->method('poster')->willReturn(null);
+			$document = new Document();
+
+			$this->service->saveFromTempToCache($document, $tmp);
+
+			$this->assertNotSame('', $document->getLocalCopy());
+			$this->assertSame('', $document->getResizedCopy());
+		} finally {
+			unlink($tmp);
+		}
+	}
+
+	/**
+	 * The request-time check can only go on the type the client declared, and
+	 * video is allowed to be far larger than anything else. A file that said
+	 * `video/mp4` to get past it and then sniffs as an image would be read
+	 * whole by the image path, which is the one thing the split prevents.
+	 */
+	public function testAnImageOversizeForAnImageIsRefusedWhateverItClaimed(): void {
+		$this->expectException(CacheContentSizeException::class);
+
+		$this->service->filterSize('image/png', 11 * 1048576);
+	}
+
+	public function testAVideoMayBeLargerThanAnImageMay(): void {
+		$this->service->filterSize('video/mp4', 500 * 1048576);
+
+		$this->expectException(CacheContentSizeException::class);
+		$this->service->filterSize('video/mp4', 3000 * 1048576);
 	}
 
 	public function testSaveFromTempToCacheRejectsNonImages(): void {
@@ -489,5 +610,18 @@ class CacheDocumentServiceTest extends TestCase {
 
 		$this->assertSame('image/png', $mime);
 		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getLocalCopy());
+	}
+}
+
+/** Captures what is written to a stream, so a streamed copy can be asserted. */
+class StreamCapture extends \php_user_filter {
+	public function filter($in, $out, &$consumed, bool $closing): int {
+		while ($bucket = stream_bucket_make_writeable($in)) {
+			($this->params['target'])($bucket->data);
+			$consumed += $bucket->datalen;
+			stream_bucket_append($out, $bucket);
+		}
+
+		return PSFS_PASS_ON;
 	}
 }

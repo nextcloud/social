@@ -2,7 +2,7 @@
 	"name": "nextcloud/social",
 	"description": "Social app",
 	"license": "AGPL-3.0-or-later",
-	"version": "0.19.6",
+	"version": "0.19.7",
 	"minimum-stability": "stable",
 	"authors": [
 		{
@@ -53,7 +53,7 @@
 		"psalm:update-baseline": "psalm --threads=1 --update-baseline",
 		"psalm:clear": "psalm --clear-cache && psalm --clear-global-cache",
 		"psalm:fix": "psalm --alter --issues=InvalidReturnType,InvalidNullableReturnType,MissingParamType,InvalidFalsableReturnType",
-		"test:unit": "vendor/bin/phpunit -c tests/phpunit.xml",
+		"test:unit": "@php -d memory_limit=512M vendor/bin/phpunit -c tests/phpunit.xml",
 		"test:integration": "vendor/bin/phpunit -c tests/Integration/phpunit.xml"
 	},
 	"repositories": [

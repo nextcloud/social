@@ -291,7 +291,10 @@ class InstanceService {
 			'media_attachments' => [
 				'supported_mime_types' => $this->supportedMimeTypes(),
 				'image_size_limit' => $this->maxUploadSize(),
-				'video_size_limit' => $this->maxUploadSize(),
+				// its own ceiling, not the picture one: a client reads this to
+				// decide whether to offer the upload at all, and telling it
+				// 10 MB when the server takes two gigabytes means it never does
+				'video_size_limit' => $this->maxVideoUploadSize(),
 				'image_matrix_limit' => CacheDocumentService::MAX_PIXELS,
 				'video_frame_rate_limit' => 0,
 				'video_matrix_limit' => 0,
@@ -338,6 +341,28 @@ class InstanceService {
 		$megabytes = $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE);
 
 		return (($megabytes > 0) ? $megabytes : 10) * 1048576;
+	}
+
+	/**
+	 * The ceiling a **video** is held to, which is a different question.
+	 *
+	 * `max_size` is 10 MB and that is a sensible default for the thing it was
+	 * written for -- a picture, read whole into memory to have its metadata
+	 * stripped and a preview made of it. A video is neither: it is never held
+	 * in memory (see `CacheDocumentService::saveMediaFromTemp()`) and 10 MB is
+	 * about forty seconds of it, which is not a video anybody meant to post.
+	 *
+	 * Its own app value, `max_video_size`, so that raising one does not raise
+	 * the other -- a 2 GB *picture* is not a thing an instance should accept.
+	 * An admin who has deliberately raised `max_size` past this default still
+	 * gets what they asked for: the larger of the two wins, because the
+	 * narrower ceiling was never meant to constrain the wider one.
+	 */
+	public function maxVideoUploadSize(): int {
+		$megabytes = $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_VIDEO_SIZE);
+		$ceiling = (($megabytes > 0) ? $megabytes : 2048) * 1048576;
+
+		return max($ceiling, $this->maxUploadSize());
 	}
 
 	/**

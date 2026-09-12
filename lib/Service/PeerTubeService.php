@@ -66,6 +66,9 @@ class PeerTubeService {
 	/** How far into nested `tag` lists to look for a file. */
 	private const MAX_LINK_DEPTH = 2;
 
+	/** How long a derived title may be; PeerTube's own ceiling is 120. */
+	private const MAX_TITLE = 120;
+
 	/**
 	 * The file to play, as a `Document` that is deliberately never mirrored.
 	 *
@@ -485,6 +488,174 @@ class PeerTubeService {
 
 	private function escape(string $text): string {
 		return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	}
+
+	// ---- the other direction: what this instance publishes ----
+
+	/**
+	 * The one video attachment of a post, when the post is a video.
+	 *
+	 * Exactly one, and nothing else alongside it. A `Video` object *is* the
+	 * video -- it has one title, one duration, one file -- so a post carrying a
+	 * video and three photographs is a post, not a video, and stays a `Note`.
+	 *
+	 * Static and pure, like everything below it: this half is called from
+	 * `Note::jsonSerialize()`, which is a model with no container to reach
+	 * into, and it lives in this file rather than beside the caller so that
+	 * what this app writes and what it reads cannot drift apart.
+	 *
+	 * @param MediaAttachment[] $attachments
+	 */
+	public static function soleVideo(array $attachments): ?MediaAttachment {
+		if (count($attachments) !== 1) {
+			return null;
+		}
+
+		$only = reset($attachments);
+
+		return ($only instanceof MediaAttachment && $only->getType() === 'video') ? $only : null;
+	}
+
+	/**
+	 * A local post, reshaped as the `Video` object PeerTube publishes.
+	 *
+	 * Everything already in `$note` stays -- id, actor, audience, published,
+	 * sensitive, tags, replies -- and what a `Video` adds on top is what makes
+	 * it findable as a video rather than as a post that happens to have one:
+	 *
+	 * - `name`, the title. A `Note` has no such field, so it is derived; see
+	 *   `titleFor()`.
+	 * - `duration`, in the xsd form PeerTube writes (`PT113S`).
+	 * - `icon`, the poster frame, which this instance generates on upload.
+	 * - `url` as a **list**: the web page, and a `Link` for the file itself.
+	 *   That list is the one thing PeerTube actually looks at, and a `Video`
+	 *   without it is a video nothing can play.
+	 *
+	 * `attachment` is deliberately **kept** as well. A `Video` carries its file
+	 * in `url` and has no need of it, but every Mastodon-family server reads
+	 * `attachment` and nothing else, and this post rendered there with an
+	 * inline player before this method existed. Publishing the two together
+	 * costs a few hundred bytes and is the difference between gaining PeerTube
+	 * and trading Mastodon for it.
+	 *
+	 * @param array $note the note as it would otherwise have been published
+	 */
+	public static function asVideo(array $note, MediaAttachment $video, string $watchUrl): array {
+		$note['type'] = self::TYPE;
+		$note['name'] = self::titleFor($note, $video);
+
+		// what the content actually is, said out loud. PeerTube declares
+		// `text/markdown` for its own; this app's posts are html, and a peer
+		// that assumed otherwise would show somebody their own tags.
+		if (($note['content'] ?? '') !== '') {
+			$note['mediaType'] = 'text/html';
+		}
+
+		$meta = $video->getMeta();
+		$duration = (int)round((float)($meta?->getDuration() ?? 0));
+		if ($duration > 0) {
+			$note['duration'] = 'PT' . $duration . 'S';
+		}
+
+		$icon = self::iconFor($video);
+		if ($icon !== null) {
+			$note['icon'] = [$icon];
+		}
+
+		$note['url'] = self::urlsFor($video, $watchUrl);
+
+		// PeerTube states it on every video and its clients read it; this app
+		// has replies on every post and no way to turn them off
+		$note['commentsEnabled'] = true;
+
+		return $note;
+	}
+
+	/**
+	 * What to call it.
+	 *
+	 * A `Note` has no title and this app does not ask for one, so it is taken
+	 * from the first line of the post -- which is where somebody writing about
+	 * a video puts its name -- with the alt text as the fallback for a post
+	 * that is nothing but the video.
+	 *
+	 * `name` on a Note means the option a poll vote chose, so nothing here
+	 * reads it: a title that came from that field would be a vote.
+	 */
+	private static function titleFor(array $note, MediaAttachment $video): string {
+		$content = trim(strip_tags(str_replace(['</p>', '<br>', '<br/>', '<br />'], "\n", (string)($note['content'] ?? ''))));
+		$firstLine = trim((string)strtok($content, "\n"));
+
+		foreach ([$firstLine, trim($video->getDescription())] as $candidate) {
+			$candidate = html_entity_decode($candidate, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			if ($candidate !== '') {
+				return mb_substr($candidate, 0, self::MAX_TITLE);
+			}
+		}
+
+		// something has to be there: `name` is how a video is listed, and a
+		// blank row is worse than a dull one
+		return 'Video';
+	}
+
+	/** The poster frame, as the `Image` PeerTube puts in `icon`. */
+	private static function iconFor(MediaAttachment $video): ?array {
+		$preview = $video->getPreviewUrl();
+		if ($preview === '' || $preview === (string)$video->getUrl()) {
+			// no poster: this instance had no ffmpeg when the video was
+			// uploaded, and `preview_url` is the video itself
+			return null;
+		}
+
+		$icon = ['type' => 'Image', 'mediaType' => 'image/jpeg', 'url' => $preview];
+
+		$small = $video->getMeta()?->getSmall();
+		if ($small?->getWidth() > 0 && $small?->getHeight() > 0) {
+			$icon['width'] = $small->getWidth();
+			$icon['height'] = $small->getHeight();
+		}
+
+		return $icon;
+	}
+
+	/**
+	 * `url` as PeerTube writes it: the page a person watches on, then the file
+	 * a player opens.
+	 *
+	 * One rendition, because this app does not transcode -- the file is
+	 * whatever was uploaded. That is a shorter list than a PeerTube publishes
+	 * and the same shape, which is what matters: a reader takes the best
+	 * playable link it finds, and here there is one.
+	 */
+	private static function urlsFor(MediaAttachment $video, string $watchUrl): array {
+		$urls = [];
+
+		if ($watchUrl !== '') {
+			$urls[] = ['type' => 'Link', 'mediaType' => 'text/html', 'href' => $watchUrl];
+		}
+
+		$file = (string)$video->getUrl();
+		if ($file === '') {
+			return $urls;
+		}
+
+		$link = [
+			'type' => 'Link',
+			// the full type, not the `video` half a client entity carries: a
+			// peer that does not sniff the file has nothing else to go on
+			'mediaType' => ($video->getMediaType() !== '') ? $video->getMediaType() : 'video/mp4',
+			'href' => $file,
+		];
+
+		$original = $video->getMeta()?->getOriginal();
+		if ($original?->getWidth() > 0 && $original?->getHeight() > 0) {
+			$link['width'] = $original->getWidth();
+			$link['height'] = $original->getHeight();
+		}
+
+		$urls[] = $link;
+
+		return $urls;
 	}
 
 	/**

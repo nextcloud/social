@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.6  
+**App version:** 0.19.7  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -236,7 +236,8 @@ The business logic lives in `lib/Service/`.
 ### Media
 
 - **DocumentService** — Owns the cached document lifecycle: caching a remote document by id, serving originals and resized copies out of app storage, and caching the local actor's avatar and header. Serving applies a viewer bound: a cached attachment is handed to a logged-in user only if it hangs off a post they may read or is their own upload, and the unauthenticated `/media/{uuid}` route only for a row marked public
-- **CacheDocumentService** — Writes uploads, remote downloads and temp files into app storage, filters MIME types against an allow-list, and reads content back out. An upload is created non-public; it takes the visibility of the post it is attached to when that post is created (`ApiController::scopeMediaToVisibility()`, public for public and unlisted, non-public otherwise), because which post an upload belongs to is only known then
+- **CacheDocumentService** — Writes uploads, remote downloads and temp files into app storage, filters MIME types against an allow-list, and reads content back out. An image and a video take deliberately different paths: an image is read into a string, because the metadata stripping, the HEIC conversion and the resize all work on one, while a video is streamed to storage a chunk at a time and never held whole — `fread()` of a two-gigabyte upload is two gigabytes of memory, and PHP's limit was the only thing that ever stopped it. That split is also why there are two size ceilings (`max_size`, `max_video_size`) and why the second is applied again against the *sniffed* type: the request-time check can only go on what the client declared. An upload is created non-public; it takes the visibility of the post it is attached to when that post is created (`ApiController::scopeMediaToVisibility()`, public for public and unlisted, non-public otherwise), because which post an upload belongs to is only known then
+- **VideoThumbnailService** — One frame out of a video, so a timeline of them is not a wall of black rectangles each of which has to be downloaded before it shows anything. ffmpeg where the server has it, skipped silently where it does not (an app that refused uploads without ffmpeg would be worse than one that shows no poster), and **not transcoding**: it decodes one frame and asks ffprobe how long the video runs. The poster becomes the video's `resized_copy` — which is what that column means, the small image standing in for the file — and from there the player's `poster`, which is what lets a page of videos be scrolled without fetching one
 - **BlurService** — Generates a blurhash string from a GD image
 - **AnnouncementService** — The instance-wide notices an admin posts. Two reads that are not the same: a client gets the announcements that apply *now*, each carrying whether that account has dismissed it, and the administration page gets all of them including one that has not started and one that has run out. The window is a predicate of the query, so an announcement starts and stops being served on time on an instance with no working cron — the same rule a timed mute and an expiring filter follow. Dismissal is per account and never hides the announcement: Mastodon keeps serving it and flips `read`. There is no edit route, because changing a notice under the accounts that have already dismissed it is worse than posting a new one
 - **DomainBlockService** — Per-account blocks of a whole instance, stored as a domain and applied to the host of an account's actor id. Not `FediverseService`, which is the admin's instance-wide access list. Nothing is federated; the timelines enforce it from inside `filterHiddenActors()`, so a domain block reaches everything a per-account block reaches
@@ -245,6 +246,15 @@ The business logic lives in `lib/Service/`.
 - **StarterPackService** — Named handfuls of accounts worth following, answering the question `SuggestionService` structurally cannot: suggestions work off the follow graph, and a new account has none, so the fallback is whoever posted recently — a list of strangers sorted by luck. A pack is a list of `user@host` handles and nothing else; no table, because the accounts are not this instance's to own and the handles are the only durable reference to them. The index resolves nobody (a handle costs a WebFinger lookup and an actor fetch), so resolution happens only when a pack is opened, and a handle that will not resolve is *reported* rather than dropped — a pack that quietly shrinks looks like one somebody wrote badly. The shipped packs are the official accounts of the projects this app federates with, which is the one editorial line defensible without becoming a directory nobody agreed to be in; the `starter_packs` app value replaces or extends them, and a configured pack whose slug matches a shipped one replaces it
 - **DirectoryService / SuggestionService / TrendService / FeaturedTagService** — Discovery. The directory is opt-in through `discoverable`, applied as a predicate of the deciding query rather than as a filter over rows already read; suggestions are two counted facts (friends of friends, then locally active accounts) rather than a scoring model; trends count from the rows a like, a boost and a link preview already write, so a trend cannot drift from the counts a status reports
 - **BannerService** — The banner across the top of a profile. Three routes set one — a picked file, a URL, and `header` on `update_credentials` — and all three end in the same work: store the bytes, point the cached actor at them, tell the followers. It is one service so those three cannot drift on the parts that matter, which are the banner being public where an attachment is not, and the `Update{Person}` that is the only reason anybody else ever sees it
+
+**Serving media.** `/media/{uuid}` answers byte ranges (`RangedFileResponse`).
+`FileDisplayResponse`, which it used to use, sends the whole file and says
+nothing about ranges — fine for a picture and wrong for anything with a timeline
+in it: a browser cannot seek a video it can only receive from the beginning, so
+the scrub bar does nothing, and asking for the duration alone costs the whole
+file. On a page of twenty videos that was twenty full downloads before anybody
+had pressed play. The rules are RFC 9110's, and an unparseable range is answered
+with the whole file rather than refused, because that is always correct.
 
 **Posting a picture that is already in Nextcloud.** `ApiController::mediaFromFile()`
 (`POST /api/v1/media/from-file`) attaches a file out of the user's own storage,
@@ -507,10 +517,42 @@ apply as they do to every other outbound request. The reader's `Range` header is
 forwarded and the origin's `206` comes back untouched, which is what makes
 seeking in a long video cost nothing.
 
+**Publishing one.** The other direction is the same shape written rather than
+read, and it lives in the same class so the two halves cannot drift:
+`PeerTubeService::asVideo()`. A **local** post whose attachments are exactly one
+video is serialised as a `Video` — `name` (a title, derived; see below),
+`duration` in the xsd form, `icon` for the poster, and `url` as the link list
+with the web page and the file. Only the serialisation changes; the row stays a
+`Note`, exactly as an incoming `Video` is stored as one.
+
+Three things about it worth knowing:
+
+- **`attachment` is published as well.** A `Video` carries its file in `url` and
+  has no need of it, but every Mastodon-family server reads `attachment` and
+  nothing else, and these posts rendered there with an inline player before any
+  of this existed. Publishing both costs a few hundred bytes and is the
+  difference between gaining PeerTube and trading Mastodon for it.
+- **The title is derived**, because a `Note` has none and this app does not ask
+  for one: the first line of the post, then the video's alt text, then the word
+  `Video`. (`name` on a Note means the option a poll vote chose — see
+  `PollService::handleIncomingVote` — so nothing reads *that*.) An explicit
+  title field is the obvious next step and is not here yet.
+- **There is one rendition**, because this app does not transcode: the file is
+  whatever was uploaded. A shorter list than PeerTube publishes, the same shape,
+  and a reader takes the best playable link it finds.
+
+It is on by default and an admin can turn it off with
+`occ config:app:set social publish_video_objects --value 0`. The switch exists
+because the one thing that cannot be proven from here is whether a
+Mastodon-family server renders a `Video` as well as it rendered the `Note`; what
+*is* proven is the round trip — everything published goes back through the
+reader in the same class, in `PeerTubePublishTest`.
+
 What is **not** done: `Audio` (Funkwhale), `Article`, `Page` and `Event` are
-still read by `fillNoteLikeContent()` alone — title and link, no media. Nothing
-is published *to* PeerTube either, and nothing can be: PeerTube ingests videos,
-not notes, so the compatibility is inbound by nature.
+still read by `fillNoteLikeContent()` alone — title and link, no media. Nor are
+there channels: a `Video` is attributed to the author's `Person`, where PeerTube
+sends the `[Person, Group]` pair. Both are valid ActivityPub; only the second is
+what PeerTube itself would send.
 
 ### Quote posts
 
