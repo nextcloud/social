@@ -331,24 +331,28 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 */
 	private function exprVisibleToViewer(string $alias): ICompositeExpression {
 		$dest = $this->getTableName(CoreRequestBuilder::TABLE_STREAM_DEST);
-		$recipient = (string)$this->createNamedParameter('recipient');
-		$public = (string)$this->createNamedParameter($this->prim(Stream::CONTEXT_PUBLIC));
+		// These stay `IParameter` objects rather than strings: the expression
+		// builder passes a parameter through untouched and quotes a string as a
+		// column name, so `eq()` on the cast form asks the database for a column
+		// called `:dcValue5`. Only the raw SQL fragments below take the string.
+		$recipient = $this->createNamedParameter('recipient');
+		$public = $this->createNamedParameter($this->prim(Stream::CONTEXT_PUBLIC));
 
 		$conditions = [
 			'EXISTS (SELECT 1 FROM ' . $dest . ' vdp WHERE vdp.stream_id = ' . $alias . '.id_prim'
-			. ' AND vdp.type = ' . $recipient . ' AND vdp.actor_id = ' . $public . ')',
+			. ' AND vdp.type = ' . (string)$recipient . ' AND vdp.actor_id = ' . (string)$public . ')',
 		];
 
 		if ($this->hasViewer()) {
 			$follows = $this->getTableName(CoreRequestBuilder::TABLE_FOLLOWS);
-			$viewer = (string)$this->createNamedParameter($this->prim($this->getViewer()->getId()));
+			$viewer = $this->createNamedParameter($this->prim($this->getViewer()->getId()));
 
 			$conditions[] = $this->expr()->eq($alias . '.attributed_to_prim', $viewer);
 			$conditions[] = 'EXISTS (SELECT 1 FROM ' . $dest . ' vdv WHERE vdv.stream_id = ' . $alias
-				. '.id_prim AND vdv.actor_id = ' . $viewer . ')';
+				. '.id_prim AND vdv.actor_id = ' . (string)$viewer . ')';
 			$conditions[] = 'EXISTS (SELECT 1 FROM ' . $dest . ' vdf, ' . $follows . ' vff'
-				. ' WHERE vdf.stream_id = ' . $alias . '.id_prim AND vdf.type = ' . $recipient
-				. ' AND vff.follow_id_prim = vdf.actor_id AND vff.actor_id_prim = ' . $viewer
+				. ' WHERE vdf.stream_id = ' . $alias . '.id_prim AND vdf.type = ' . (string)$recipient
+				. ' AND vff.follow_id_prim = vdf.actor_id AND vff.actor_id_prim = ' . (string)$viewer
 				// quoted literal: `accepted` is a boolean column on PostgreSQL, an int elsewhere
 				. " AND vff.accepted = '1')";
 		}
