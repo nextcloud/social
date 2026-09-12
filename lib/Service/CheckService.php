@@ -26,6 +26,7 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
+use OCP\IAppConfig;
 use OCP\ICache;
 use OCP\IConfig;
 use OCP\IRequest;
@@ -49,6 +50,7 @@ class CheckService {
 		private IUserManager $userManager,
 		?string $userId,
 		private ICache $cache,
+		private IAppConfig $appConfig,
 		private IConfig $config,
 		private IClientService $clientService,
 		private IRequest $request,
@@ -165,7 +167,7 @@ class CheckService {
 			return true;
 		}
 
-		$address = $this->config->getAppValue('social', 'address', '');
+		$address = $this->appConfig->getValueString('social', 'address', '');
 
 		if ($address !== '' && $this->requestWellKnown($address)) {
 			return true;

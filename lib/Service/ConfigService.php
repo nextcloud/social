@@ -15,10 +15,11 @@ use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
-use OCP\PreConditionNotMetException;
 
 /**
  * Class ConfigService
@@ -97,6 +98,8 @@ class ConfigService {
 
 	public function __construct(
 		?string $userId,
+		private IAppConfig $appConfig,
+		private IUserConfig $userConfig,
 		private IConfig $config,
 		private IRequest $request,
 		private IURLGenerator $urlGenerator,
@@ -133,7 +136,7 @@ class ConfigService {
 	 * strictly local:  occ config:app:set social federate_blocks --value 0
 	 */
 	public function isBlockFederationEnabled(): bool {
-		return $this->config->getAppValue(Application::APP_ID, 'federate_blocks', '1') !== '0';
+		return $this->appConfig->getValueString(Application::APP_ID, 'federate_blocks', '1') !== '0';
 	}
 
 	public function getAppValue($key) {
@@ -142,7 +145,7 @@ class ConfigService {
 			$defaultValue = $this->defaults[$key];
 		}
 
-		return $this->config->getAppValue(Application::APP_ID, $key, $defaultValue);
+		return $this->appConfig->getValueString(Application::APP_ID, $key, (string)$defaultValue);
 	}
 
 	/**
@@ -158,7 +161,7 @@ class ConfigService {
 			$defaultValue = $this->defaults[$key];
 		}
 
-		return (int)$this->config->getAppValue(Application::APP_ID, $key, $defaultValue);
+		return (int)$this->appConfig->getValueString(Application::APP_ID, $key, (string)$defaultValue);
 	}
 
 	/**
@@ -170,18 +173,16 @@ class ConfigService {
 	 * @return void
 	 */
 	public function setAppValue($key, $value) {
-		$this->config->setAppValue(Application::APP_ID, $key, $value);
+		$this->appConfig->setValueString(Application::APP_ID, $key, (string)$value);
 	}
 
 	/**
 	 * remove a key
 	 *
 	 * @param string $key
-	 *
-	 * @return string
 	 */
-	public function deleteAppValue($key) {
-		return $this->config->deleteAppValue(Application::APP_ID, $key);
+	public function deleteAppValue($key): void {
+		$this->appConfig->deleteKey(Application::APP_ID, $key);
 	}
 
 	/**
@@ -206,7 +207,7 @@ class ConfigService {
 			}
 		}
 
-		return $this->config->getUserValue($userId, $app, $key, $defaultValue);
+		return $this->userConfig->getValueString($userId, $app, $key, (string)$defaultValue);
 	}
 
 	/**
@@ -214,12 +215,9 @@ class ConfigService {
 	 *
 	 * @param string $key
 	 * @param string $value
-	 *
-	 * @return string
-	 * @throws PreConditionNotMetException
 	 */
-	public function setUserValue($key, $value) {
-		return $this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
+	public function setUserValue($key, $value): void {
+		$this->userConfig->setValueString($this->userId, Application::APP_ID, $key, (string)$value);
 	}
 
 	/**
@@ -231,7 +229,7 @@ class ConfigService {
 	 * @return string
 	 */
 	public function getValueForUser($userId, $key) {
-		return $this->config->getUserValue($userId, Application::APP_ID, $key);
+		return $this->userConfig->getValueString($userId, Application::APP_ID, $key);
 	}
 
 	/**
@@ -241,11 +239,9 @@ class ConfigService {
 	 * @param string $key
 	 * @param string $value
 	 *
-	 * @return string
-	 * @throws PreConditionNotMetException
 	 */
-	public function setValueForUser($userId, $key, $value) {
-		return $this->config->setUserValue($userId, Application::APP_ID, $key, $value);
+	public function setValueForUser($userId, $key, $value): void {
+		$this->userConfig->setValueString($userId, Application::APP_ID, $key, (string)$value);
 	}
 
 	/**
@@ -253,7 +249,7 @@ class ConfigService {
 	 * @param string $value
 	 */
 	public function setCoreValue(string $key, string $value) {
-		$this->config->setAppValue('core', $key, $value);
+		$this->appConfig->setValueString('core', $key, $value);
 	}
 
 	/**
@@ -262,21 +258,21 @@ class ConfigService {
 	 * @return string
 	 */
 	public function getCoreValue(string $key): string {
-		return $this->config->getAppValue('core', $key, '');
+		return $this->appConfig->getValueString('core', $key, '');
 	}
 
 	/**
 	 * @param string $key
 	 */
 	public function unsetCoreValue(string $key) {
-		$this->config->deleteAppValue('core', $key);
+		$this->appConfig->deleteKey('core', $key);
 	}
 
 	/**
 	 *
 	 */
 	public function unsetAppConfig() {
-		$this->config->deleteAppValues(Application::APP_ID);
+		$this->appConfig->deleteApp(Application::APP_ID);
 	}
 
 	/**

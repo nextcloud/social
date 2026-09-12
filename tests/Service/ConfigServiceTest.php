@@ -14,6 +14,8 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
+use OCP\Config\IUserConfig;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -22,15 +24,21 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class ConfigServiceTest extends TestCase {
+	private IAppConfig|MockObject $appConfig;
+	private IUserConfig|MockObject $userConfig;
 	private IConfig|MockObject $config;
 	private IURLGenerator|MockObject $urlGenerator;
 	private ConfigService $service;
 
 	protected function setUp(): void {
+		$this->appConfig = $this->createMock(IAppConfig::class);
+		$this->userConfig = $this->createMock(IUserConfig::class);
 		$this->config = $this->createMock(IConfig::class);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->service = new ConfigService(
 			'alice',
+			$this->appConfig,
+			$this->userConfig,
 			$this->config,
 			$this->createMock(IRequest::class),
 			$this->urlGenerator,
@@ -40,8 +48,8 @@ class ConfigServiceTest extends TestCase {
 
 	/** Serve app values for the 'social' app from a map, falling back to the requested default. */
 	private function withAppValues(array $values): void {
-		$this->config->method('getAppValue')
-			->willReturnCallback(function (string $app, string $key, $default) use ($values) {
+		$this->appConfig->method('getValueString')
+			->willReturnCallback(function (string $app, string $key, string $default) use ($values) {
 				$this->assertSame('social', $app);
 
 				return $values[$key] ?? $default;
@@ -49,18 +57,20 @@ class ConfigServiceTest extends TestCase {
 	}
 
 	public function testGetAppValuePassesTheKnownDefault(): void {
-		$this->config->expects($this->once())
-			->method('getAppValue')
-			->with('social', ConfigService::SOCIAL_MAX_SIZE, 10)
+		$this->appConfig->expects($this->once())
+			->method('getValueString')
+			->with('social', ConfigService::SOCIAL_MAX_SIZE, '10')
 			->willReturn('20');
 
 		$this->assertSame('20', $this->service->getAppValue(ConfigService::SOCIAL_MAX_SIZE));
 	}
 
-	public function testGetAppValueHasNoDefaultForUnknownKey(): void {
-		$this->config->expects($this->once())
-			->method('getAppValue')
-			->with('social', 'installed_version', null)
+	public function testGetAppValueHasAnEmptyDefaultForUnknownKey(): void {
+		// IAppConfig is typed, so a key with no default of its own asks for ''
+		// where the old untyped IConfig call passed null and could hand one back
+		$this->appConfig->expects($this->once())
+			->method('getValueString')
+			->with('social', 'installed_version', '')
 			->willReturn('0.9.0');
 
 		$this->assertSame('0.9.0', $this->service->getAppValue('installed_version'));
@@ -86,14 +96,14 @@ class ConfigServiceTest extends TestCase {
 	}
 
 	public function testSetAndDeleteAppValueTargetTheSocialApp(): void {
-		$this->config->expects($this->once())
-			->method('setAppValue')
+		$this->appConfig->expects($this->once())
+			->method('setValueString')
 			->with('social', ConfigService::SOCIAL_ADDRESS, 'social.example.com');
-		$this->config->expects($this->once())
-			->method('deleteAppValue')
+		$this->appConfig->expects($this->once())
+			->method('deleteKey')
 			->with('social', ConfigService::SOCIAL_ADDRESS);
-		$this->config->expects($this->once())
-			->method('deleteAppValues')
+		$this->appConfig->expects($this->once())
+			->method('deleteApp')
 			->with('social');
 
 		$this->service->setAppValue(ConfigService::SOCIAL_ADDRESS, 'social.example.com');
@@ -102,17 +112,17 @@ class ConfigServiceTest extends TestCase {
 	}
 
 	public function testGetUserValueFallsBackToSessionUserAndKnownDefault(): void {
-		$this->config->expects($this->once())
-			->method('getUserValue')
-			->with('alice', 'social', ConfigService::SOCIAL_MAX_SIZE, 10)
+		$this->userConfig->expects($this->once())
+			->method('getValueString')
+			->with('alice', 'social', ConfigService::SOCIAL_MAX_SIZE, '10')
 			->willReturn('5');
 
 		$this->assertSame('5', $this->service->getUserValue(ConfigService::SOCIAL_MAX_SIZE));
 	}
 
 	public function testGetUserValueForAnotherAppHasEmptyDefault(): void {
-		$this->config->expects($this->once())
-			->method('getUserValue')
+		$this->userConfig->expects($this->once())
+			->method('getValueString')
 			->with('bob', 'avatar', 'version', '')
 			->willReturn('3');
 
@@ -121,37 +131,41 @@ class ConfigServiceTest extends TestCase {
 
 	public function testUserValuesAreWrittenForTheRightUser(): void {
 		$written = [];
-		$this->config->expects($this->exactly(2))
-			->method('setUserValue')
-			->willReturnCallback(function (...$args) use (&$written): void {
+		$this->userConfig->expects($this->exactly(2))
+			->method('setValueString')
+			->willReturnCallback(function (...$args) use (&$written): bool {
 				$written[] = $args;
+
+				return true;
 			});
-		$this->config->expects($this->once())
-			->method('getUserValue')
+		$this->userConfig->expects($this->once())
+			->method('getValueString')
 			->with('bob', 'social', 'key')
 			->willReturn('other');
 
 		$this->service->setUserValue('key', 'value');
 		$this->service->setValueForUser('bob', 'key', 'other');
 		$this->assertSame('other', $this->service->getValueForUser('bob', 'key'));
-		// the trailing null is IConfig::setUserValue's $preCondition, which the
-		// service passes explicitly; withConsecutive() used to ignore it
+		// IUserConfig::setValueString takes no $preCondition, so the service
+		// passes exactly what it means to write. The trailing false is the
+		// interface's own `lazy` and `flags` defaults, which the service never
+		// sets.
 		$this->assertSame([
-			['alice', 'social', 'key', 'value', null],
-			['bob', 'social', 'key', 'other', null],
+			['alice', 'social', 'key', 'value', false, 0],
+			['bob', 'social', 'key', 'other', false, 0],
 		], $written);
 	}
 
 	public function testCoreValuesUseTheCoreAppNamespace(): void {
-		$this->config->expects($this->once())
-			->method('setAppValue')
+		$this->appConfig->expects($this->once())
+			->method('setValueString')
 			->with('core', 'public_webfinger', 'social/webfinger');
-		$this->config->expects($this->once())
-			->method('getAppValue')
+		$this->appConfig->expects($this->once())
+			->method('getValueString')
 			->with('core', 'public_webfinger', '')
 			->willReturn('social/webfinger');
-		$this->config->expects($this->once())
-			->method('deleteAppValue')
+		$this->appConfig->expects($this->once())
+			->method('deleteKey')
 			->with('core', 'public_webfinger');
 
 		$this->service->setCoreValue('public_webfinger', 'social/webfinger');
@@ -216,17 +230,21 @@ class ConfigServiceTest extends TestCase {
 
 	public function testSetCloudUrlAddsAMissingScheme(): void {
 		$written = [];
-		$this->config->expects($this->exactly(2))
-			->method('setAppValue')
-			->willReturnCallback(function (...$args) use (&$written): void {
+		$this->appConfig->expects($this->exactly(2))
+			->method('setValueString')
+			->willReturnCallback(function (...$args) use (&$written): bool {
 				$written[] = $args;
+
+				return true;
 			});
 
 		$this->service->setCloudUrl('cloud.example.com');
 		$this->service->setCloudUrl('https://cloud.example.com/nextcloud');
+		// the two trailing false are IAppConfig's `lazy` and `sensitive`
+		// defaults, which the service never sets
 		$this->assertSame([
-			['social', ConfigService::CLOUD_URL, 'http://cloud.example.com'],
-			['social', ConfigService::CLOUD_URL, 'https://cloud.example.com/nextcloud'],
+			['social', ConfigService::CLOUD_URL, 'http://cloud.example.com', false, false],
+			['social', ConfigService::CLOUD_URL, 'https://cloud.example.com/nextcloud', false, false],
 		], $written);
 	}
 
@@ -253,8 +271,8 @@ class ConfigServiceTest extends TestCase {
 	}
 
 	public function testSetSocialAddress(): void {
-		$this->config->expects($this->once())
-			->method('setAppValue')
+		$this->appConfig->expects($this->once())
+			->method('setValueString')
 			->with('social', ConfigService::SOCIAL_ADDRESS, 'social.example.com');
 
 		$this->service->setSocialAddress('social.example.com');
@@ -282,8 +300,8 @@ class ConfigServiceTest extends TestCase {
 			->method('getAbsoluteURL')
 			->with('/nextcloud/apps/social/')
 			->willReturn('https://cloud.example.com/nextcloud/apps/social/');
-		$this->config->expects($this->once())
-			->method('setAppValue')
+		$this->appConfig->expects($this->once())
+			->method('setValueString')
 			->with('social', ConfigService::SOCIAL_URL, 'https://cloud.example.com/nextcloud/apps/social/');
 
 		$this->service->setSocialUrl();
@@ -291,8 +309,8 @@ class ConfigServiceTest extends TestCase {
 
 	public function testSetSocialUrlAddsAMissingScheme(): void {
 		$this->urlGenerator->expects($this->never())->method('linkToRoute');
-		$this->config->expects($this->once())
-			->method('setAppValue')
+		$this->appConfig->expects($this->once())
+			->method('setValueString')
 			->with('social', ConfigService::SOCIAL_URL, 'http://cloud.example.com/apps/social/');
 
 		$this->service->setSocialUrl('cloud.example.com/apps/social/');

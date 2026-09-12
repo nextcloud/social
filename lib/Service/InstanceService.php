@@ -19,6 +19,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Instance;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
@@ -75,6 +76,7 @@ class InstanceService {
 		private InstancesRequest $instancesRequest,
 		private ConfigService $configService,
 		private MiscService $miscService,
+		private IAppConfig $appConfig,
 		private IConfig $config,
 		private IURLGenerator $urlGenerator,
 		private IUserManager $userManager,
@@ -126,15 +128,15 @@ class InstanceService {
 		$uri = ($socialAddress !== '') ? $socialAddress : $cloudHost;
 
 		$instance->setUri($uri)
-			->setVersion($this->config->getAppValue(Application::APP_ID, 'installed_version', '0.0'))
-			->setTitle($this->config->getAppValue('theming', 'name', 'Nextcloud Social'))
+			->setVersion($this->appConfig->getValueString(Application::APP_ID, 'installed_version', '0.0'))
+			->setTitle($this->appConfig->getValueString('theming', 'name', 'Nextcloud Social'))
 			->setShortDescription(
-				$this->config->getAppValue('theming', 'slogan', 'a safe home for your data')
+				$this->appConfig->getValueString('theming', 'slogan', 'a safe home for your data')
 			)
 			->setDescription(
-				$this->config->getAppValue('theming', 'slogan', 'a safe home for your data')
+				$this->appConfig->getValueString('theming', 'slogan', 'a safe home for your data')
 			)
-			->setEmail($this->config->getAppValue(Application::APP_ID, 'contact_email', ''))
+			->setEmail($this->appConfig->getValueString(Application::APP_ID, 'contact_email', ''))
 			->setImage($this->thumbnail())
 			->setLanguages([$this->defaultLanguage()])
 			// Accounts are Nextcloud users; the client API cannot create one,
@@ -244,7 +246,7 @@ class InstanceService {
 		}
 
 		$remembered = json_decode(
-			(string)$this->config->getAppValue(Application::APP_ID, self::STATS_CACHE_KEY, ''), true
+			$this->appConfig->getValueString(Application::APP_ID, self::STATS_CACHE_KEY, ''), true
 		);
 		if (is_array($remembered)
 			&& (int)($remembered['computed_at'] ?? 0) > time() - self::STATS_CACHE_SECONDS) {
@@ -258,7 +260,7 @@ class InstanceService {
 			'status_count' => $this->instanceStatsRequest->countLocalStatuses(),
 			'domain_count' => $this->instanceStatsRequest->countRemoteDomains(),
 		];
-		$this->config->setAppValue(
+		$this->appConfig->setValueString(
 			Application::APP_ID, self::STATS_CACHE_KEY,
 			(string)json_encode($counted + ['computed_at' => time()])
 		);
@@ -346,7 +348,7 @@ class InstanceService {
 	 * @return array<array{id: string, text: string}>
 	 */
 	private function rules(): array {
-		$stored = trim($this->config->getAppValue(Application::APP_ID, 'rules', ''));
+		$stored = trim($this->appConfig->getValueString(Application::APP_ID, 'rules', ''));
 		if ($stored === '') {
 			return [];
 		}
