@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
@@ -21,7 +20,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Question\Question;
 
-class Reset extends Base {
+class Reset extends SocialCommand {
 	private CheckService $checkService;
 
 	private ConfigService $configService;
@@ -63,6 +62,7 @@ class Reset extends Base {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$output->writeln(
 			'<error>Beware, this operation will delete all content from the Social App.</error>'
@@ -131,7 +131,7 @@ class Reset extends Base {
 			return true;
 		}
 
-		$helper = $this->getHelper('question');
+		$helper = $this->questionHelper();
 		$question = new ConfirmationQuestion(
 			'<info>Do you confirm this operation?</info> (y/N) ', false, '/^(y|Y)/i'
 		);
@@ -164,7 +164,7 @@ class Reset extends Base {
 				return 0;
 			}
 
-			$helper = $this->getHelper('question');
+			$helper = $this->questionHelper();
 			$question = new Question(
 				'<info>Now is a good time to change the base address of your cloud: </info> ('
 				. $cloudAddress . ') ',

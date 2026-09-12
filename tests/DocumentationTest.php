@@ -47,8 +47,8 @@ class DocumentationTest extends TestCase {
 
 	/**
 	 * Options every command has without declaring one, so a section may name
-	 * them with no `addOption()` to match: `--output` comes from
-	 * `OC\Core\Command\Base`, the rest from Symfony's default definition.
+	 * them with no `addOption()` to match: `--output` comes from the app's own
+	 * `SocialCommand`, the rest from Symfony's default definition.
 	 */
 	private const INHERITED_OPTIONS = [
 		'output',
@@ -268,8 +268,8 @@ class DocumentationTest extends TestCase {
 	 * not part of `social:cache:refresh` while `--rotate-keys` sat in its
 	 * `configure()`, and an operator who read that never rotated a key.
 	 *
-	 * Options every command inherits from `OC\Core\Command\Base` and Symfony
-	 * are not declared per command and are not required to have a row.
+	 * Options every command inherits from `SocialCommand` and Symfony are not
+	 * declared per command and are not required to have a row.
 	 */
 	public function testDocumentedCommandOptionsMatchTheCode(): void {
 		$sections = $this->documentedCommandSections();

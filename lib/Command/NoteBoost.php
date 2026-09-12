@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\StreamService;
@@ -24,7 +23,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @package OCA\Social\Command
  */
-class NoteBoost extends Base {
+class NoteBoost extends SocialCommand {
 	public function __construct(
 		private AccountService $accountService,
 		private StreamService $streamService,
@@ -52,6 +51,7 @@ class NoteBoost extends Base {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = $input->getArgument('user_id');
 		$noteId = $input->getArgument('note_id');

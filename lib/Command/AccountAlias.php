@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\MigrationService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -24,7 +23,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  * the account that is moving, so this is the first step of bringing an
  * account over from elsewhere.
  */
-class AccountAlias extends Base {
+class AccountAlias extends SocialCommand {
 	public function __construct(
 		private MigrationService $migrationService,
 	) {
@@ -48,6 +47,7 @@ class AccountAlias extends Base {
 			->setDescription('Manage the alsoKnownAs aliases of a local account');
 	}
 
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = (string)$input->getArgument('userId');
 		$add = (string)$input->getOption('add');

@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OC\Core\Command\Base;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Service\DomainPurgeService;
 use Symfony\Component\Console\Input\InputArgument;
@@ -24,7 +23,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  * fresh block — a domain blocked before this existed, a job that failed half
  * way, or an admin who wants the data gone without waiting for cron.
  */
-class DomainPurge extends Base {
+class DomainPurge extends SocialCommand {
 	public function __construct(
 		private DomainPurgeService $domainPurgeService,
 	) {
@@ -49,6 +48,7 @@ class DomainPurge extends Base {
 			->addOption('check', '', InputOption::VALUE_NONE, 'only report whether anything is left');
 	}
 
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$domain = (string)$input->getArgument('domain');
 

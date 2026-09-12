@@ -695,7 +695,7 @@ on the next poll — `setMinId()` would return the oldest matching rows instead 
 the newest. A boost renders as the post it repeats, subtitled with who boosted
 it; a boost or notification whose subject did not resolve has no row.
 
-Twenty-one occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `ExtendedBase.php`, a shared base several of them extend; it calls no `setName()`, so it registers no command of its own. See `docs/OCC-Commands.md`.
+Twenty-one occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `SocialCommand.php`, the base class all of them extend — it declares `--output` and the writers that honour it, in place of the server's private `OC\Core\Command\Base` — and `ExtendedBase.php`, a shared base several of them extend. Neither calls `setName()`, so neither registers a command of its own. See `docs/OCC-Commands.md`.
 
 ---
 

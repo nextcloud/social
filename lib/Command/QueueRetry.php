@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OC\Core\Command\Base;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Model\RequestQueue;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -34,7 +33,7 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
  * "reset this row" operation, and inventing one for a maintenance command
  * would put a footgun in the delivery path.
  */
-class QueueRetry extends Base {
+class QueueRetry extends SocialCommand {
 	/** how many rows one run will touch unless --limit says otherwise */
 	private const DEFAULT_LIMIT = 500;
 
@@ -82,6 +81,7 @@ class QueueRetry extends Base {
 			->setDescription('Retry or drop queued deliveries that keep failing');
 	}
 
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$table = $input->getOption('stream')
 			? CoreRequestBuilder::TABLE_STREAM_QUEUE
@@ -195,7 +195,7 @@ class QueueRetry extends Base {
 			'/^(y|Y)/i'
 		);
 
-		if ((bool)$this->getHelper('question')->ask($input, $output, $question)) {
+		if ((bool)$this->questionHelper()->ask($input, $output, $question)) {
 			return true;
 		}
 

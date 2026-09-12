@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OC\Core\Command\Base;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
@@ -20,7 +19,7 @@ use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class ExtendedBase extends Base {
+class ExtendedBase extends SocialCommand {
 	protected ?OutputInterface $output = null;
 	protected bool $asJson = false;
 	protected int $crop = 0;

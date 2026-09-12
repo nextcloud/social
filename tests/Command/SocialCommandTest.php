@@ -283,4 +283,39 @@ class SocialCommandTest extends TestCase {
 	public function testHelpIsEmptyWithoutAServer(): void {
 		$this->assertSame('', $this->command->getHelp());
 	}
+
+	/**
+	 * The reason this class exists.
+	 *
+	 * `OC\Core\Command\Base` was the last name in lib/ from outside the public
+	 * API. Nothing in lib/ may name a server-private class again: they carry no
+	 * stability promise, so a signature change upstream is a fatal here with no
+	 * deprecation first.
+	 */
+	public function testNothingInLibNamesAPrivateServerClass(): void {
+		$offenders = [];
+		$directory = new \RecursiveIteratorIterator(
+			new \RecursiveDirectoryIterator(__DIR__ . '/../../lib', \FilesystemIterator::SKIP_DOTS)
+		);
+
+		/** @var \SplFileInfo $file */
+		foreach ($directory as $file) {
+			if ($file->getExtension() !== 'php') {
+				continue;
+			}
+
+			$code = (string)file_get_contents($file->getPathname());
+			if (preg_match_all('/^use (OC\\\\[^;]+);$/m', $code, $matches) > 0) {
+				foreach ($matches[1] as $name) {
+					$offenders[] = basename($file->getPathname()) . ': ' . $name;
+				}
+			}
+		}
+
+		$this->assertSame(
+			[],
+			$offenders,
+			'lib/ imports classes from the server\'s private namespace: ' . implode(', ', $offenders)
+		);
+	}
 }

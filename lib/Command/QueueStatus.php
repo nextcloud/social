@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\MiscService;
@@ -19,7 +18,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class QueueStatus extends Base {
+class QueueStatus extends SocialCommand {
 	public function __construct(
 		private RequestQueueService $requestQueueService,
 		private ConfigService $configService,
@@ -48,6 +47,7 @@ class QueueStatus extends Base {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$token = $input->getOption('token');
 

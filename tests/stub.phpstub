@@ -395,24 +395,6 @@ namespace OC\Cache {
 	}
 }
 
-namespace OC\Core\Command {
-	use Symfony\Component\Console\Input\InputInterface;
-	use Symfony\Component\Console\Output\OutputInterface;
-	class Base {
-		public const OUTPUT_FORMAT_PLAIN = 'plain';
-		public const OUTPUT_FORMAT_JSON = 'json';
-		public const OUTPUT_FORMAT_JSON_PRETTY = 'json_pretty';
-
-		public function __construct() {}
-		protected function configure() {}
-		public function run(InputInterface $input, OutputInterface $output) {}
-		public function setName(string $name) {}
-		public function getHelper(string $name) {}
-		protected function writeArrayInOutputFormat(InputInterface $input, OutputInterface $output, $items, $prefix = '  - ') {
-		}
-	}
-}
-
 namespace OC\Files\ObjectStore {
 	class NoopScanner {}
 }

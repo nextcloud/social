@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
@@ -29,7 +28,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @package OCA\Social\Command
  */
-class NoteCreate extends Base {
+class NoteCreate extends SocialCommand {
 	private ConfigService $configService;
 
 	private AccountService $accountService;
@@ -85,6 +84,7 @@ class NoteCreate extends Base {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = $input->getArgument('user_id');
 		$content = $input->getArgument('content');
