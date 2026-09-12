@@ -85,7 +85,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * How many attachments a single post may bring in. Twice what Mastodon
 	 * lets an author attach, so nothing real is ever cut.
 	 */
-	public const MAX_ATTACHMENTS = 8;
+	// Ten, which is Pixelfed's album ceiling: a ten-picture album federated
+	// from there used to arrive here two pictures short.
+	public const MAX_ATTACHMENTS = 10;
 
 	/**
 	 * Mastodon calls a followers-only post `private`; this app has always

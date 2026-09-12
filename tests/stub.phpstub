@@ -358,6 +358,28 @@ namespace OCA\Files_Versions {
 
 namespace {
 
+	/**
+	 * Imagick is optional: the app asks for it only to read the formats GD
+	 * cannot (HEIC above all) and checks `extension_loaded()` before every use.
+	 * Requiring it in composer.json would make an install fail over a feature
+	 * that degrades perfectly well without it, so Psalm is told the shape of
+	 * the handful of methods that are actually called.
+	 */
+	class Imagick {
+		public function __construct(array|string $files = '') {}
+		public function readImageBlob(string $image, ?string $filename = null): bool {}
+		public function getImageBlob(): string {}
+		public function setImageFormat(string $format): bool {}
+		public function setImageCompressionQuality(int $quality): bool {}
+		public function stripImage(): bool {}
+		public function autoOrient(): bool {}
+		public function coalesceImages(): \Imagick {}
+		public function setIteratorIndex(int $index): bool {}
+		public function clear(): bool {}
+		public static function queryFormats(string $pattern = '*'): array {}
+	}
+
+
 	use OCP\IServerContainer;
 
 	class OC {
