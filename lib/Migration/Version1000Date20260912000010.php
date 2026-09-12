@@ -36,7 +36,7 @@ use OCP\Migration\SimpleMigrationStep;
  * The existing authorization on every client row is carried across, so a token
  * in use today goes on working.
  */
-class Version1000Date20260912000007 extends SimpleMigrationStep {
+class Version1000Date20260912000010 extends SimpleMigrationStep {
 	public function __construct(
 		private IDBConnection $connection,
 	) {

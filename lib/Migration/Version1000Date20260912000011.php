@@ -26,7 +26,7 @@ use OCP\Migration\SimpleMigrationStep;
  * done with one thread (how far it has read it, whether it has dismissed it),
  * and whether it wants to be told about it is the third thing of that kind.
  */
-class Version1000Date20260912000008 extends SimpleMigrationStep {
+class Version1000Date20260912000011 extends SimpleMigrationStep {
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
