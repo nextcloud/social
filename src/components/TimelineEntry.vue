@@ -211,6 +211,40 @@ export default {
 		margin-bottom: 0;
 	}
 
+	// The post inside opens its actions into a panel that reaches over the gap
+	// to the next entry, so the entry it belongs to has to be above the entries
+	// below it. Its own z-index cannot do that: every entry carries the
+	// scroll-driven `timeline-entry-rise` transform, which makes each one a
+	// stacking context, and a z-index inside a stacking context cannot lift it
+	// past a sibling. Without this the *next* entry's "X boosted" line is drawn
+	// straight through the action icons.
+	&:hover,
+	&:focus-within {
+		position: relative;
+		z-index: 3;
+	}
+
+	// the same while the overflow menu holds a panel open with the pointer
+	// somewhere else entirely. Its own rule: a browser without `:has()` drops
+	// the selector, and it must not take the hover case with it.
+	&:has(.post-actions-reveal--held) {
+		position: relative;
+		z-index: 3;
+	}
+
+	// The panel lands on the gap, and a boosted entry keeps its "X boosted"
+	// byline there — which starts further left than the card, so the panel
+	// covers all of it but the first few letters and leaves them sticking out
+	// like a fault. The line steps out of the way instead: it is about to be
+	// covered either way, and half a word is worse than none.
+	&:hover + .timeline-entry .boost {
+		opacity: 0;
+	}
+
+	&:has(.post-actions-reveal--held) + .timeline-entry .boost {
+		opacity: 0;
+	}
+
 	// A notification is a card of its own: it is a thing that happened, and
 	// the post inside it is quoted evidence. A boost is not — it is somebody
 	// else's post with a line saying who passed it on, so giving it a card
@@ -298,6 +332,9 @@ export default {
 	gap: 6px;
 	margin-bottom: 6px;
 	padding-left: 4px;
+	// it fades rather than vanishes when the entry above opens its actions
+	// over it; see the rule in `.timeline-entry`
+	transition: opacity .16s ease;
 
 	img {
 		width: 16px;
@@ -313,6 +350,13 @@ export default {
 		&:hover {
 			color: var(--color-primary-element);
 		}
+	}
+}
+
+// the byline still steps out of the panel's way; it just stops fading to do it
+@media (prefers-reduced-motion: reduce) {
+	.boost {
+		transition: none;
 	}
 }
 </style>

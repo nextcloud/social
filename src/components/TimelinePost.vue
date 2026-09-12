@@ -870,30 +870,32 @@ function nodeToPlainText(node) {
 	&:hover .post-actions-reveal,
 	&:focus-within .post-actions-reveal,
 	.post-actions-reveal--held {
-		grid-template-rows: 1fr;
-		margin-top: 10px;
+		opacity: 1;
+		pointer-events: auto;
+		transform: translateY(0);
 
-		.post-actions {
-			opacity: 1;
-			pointer-events: auto;
-			padding-top: 10px;
-			border-top-width: 1px;
-			border-top-color: var(--color-border);
-			/* the buttons arrive once there is room for them, not while the
-			   card is still on its way open */
-			transition-delay: .08s;
-
-			> * {
-				transform: translateY(0);
-			}
-
-			/* each one a beat behind the last, left to right, so the row
-			   arrives as a movement rather than as four things at once */
-			> :nth-child(1) { transition-delay: .08s; }
-			> :nth-child(2) { transition-delay: .115s; }
-			> :nth-child(3) { transition-delay: .15s; }
-			> :nth-child(4) { transition-delay: .185s; }
+		.post-actions > * {
+			transform: translateY(0);
 		}
+
+		/* each one a beat behind the last, left to right, so the row arrives as
+		   a movement rather than as four things at once */
+		.post-actions > :nth-child(1) { transition-delay: .04s; }
+		.post-actions > :nth-child(2) { transition-delay: .075s; }
+		.post-actions > :nth-child(3) { transition-delay: .11s; }
+		.post-actions > :nth-child(4) { transition-delay: .145s; }
+	}
+
+	/* the seam: while the panel is out, the card's own bottom edge is not an
+	   edge, so its corners square off and its border stops short */
+	&:hover,
+	&:focus-within,
+	&:has(.post-actions-reveal--held) {
+		border-end-start-radius: 0;
+		border-end-end-radius: 0;
+		border-block-end-color: transparent;
+		/* over the card below, which has not moved */
+		z-index: 4;
 	}
 
 	.post-header {
@@ -1098,43 +1100,55 @@ function nodeToPlainText(node) {
 	 * any other way. `max-height` needs a number big enough to be wrong, and
 	 * `height: auto` does not interpolate anywhere this app can rely on yet.
 	 */
+	/*
+	 * The row opens *out of* the card rather than inside it: a panel positioned
+	 * against the card's bottom edge, carrying the card's own background,
+	 * borders and corners so it reads as the card growing.
+	 *
+	 * It is out of flow, which is the point. A row that took layout space made
+	 * every card below the pointer jump down by its height and back up again on
+	 * the way out, so running the pointer down a timeline set the whole page
+	 * twitching — and a reader chasing a moving target cannot aim. Nothing below
+	 * the hovered card moves now.
+	 *
+	 * It begins 8px above the card's bottom edge, inside the card's own bottom
+	 * padding, which is empty. That is 8px it does not have to spend on the
+	 * 14px gap to the next card, so of a 42px panel only about 20px reaches the
+	 * card below — 18px of which is that card's top padding. It covers two
+	 * pixels of anything anybody is reading, and only while the pointer is on
+	 * the card above it.
+	 */
 	.post-actions-reveal {
-		display: grid;
-		grid-template-rows: 0fr;
-		/* the gap above the divider: part of the animation, because a margin
-		   sits outside the grid row and would be left behind when it closes */
-		margin-top: 0;
+		position: absolute;
+		top: calc(100% - 8px);
+		inset-inline: -1px;
+		z-index: 2;
+		padding: 0 20px 8px;
+		background: var(--color-main-background);
+		border: 1px solid var(--color-primary-element);
+		border-block-start: none;
+		border-end-start-radius: 8px;
+		border-end-end-radius: 8px;
+		box-shadow: var(--social-elevation-raised);
+		opacity: 0;
+		/* it is not there to be clicked until it is there to be seen */
+		pointer-events: none;
+		transform: translateY(-8px);
 		transition:
-			grid-template-rows .34s cubic-bezier(.32, .72, 0, 1),
-			margin-top .34s cubic-bezier(.32, .72, 0, 1);
+			opacity .16s ease,
+			transform .3s cubic-bezier(.22, 1.2, .48, 1);
 	}
 
 	.post-actions {
 		display: flex;
 		align-items: center;
 		gap: 2px;
-		/* Zero at rest, and not merely clipped. `min-height: 0` frees the
-		   content to collapse but padding and a border are outside the content
-		   box, so a row with either is 11px tall however hard the grid squeezes
-		   it — 11px of nothing under every post in the timeline. They arrive
-		   with the row instead. */
-		padding-top: 0;
-		border-top: 0 solid transparent;
-		/* what makes the clipping a clip rather than an overflow */
-		min-height: 0;
-		overflow: hidden;
-		opacity: 0;
-		/* it is not there to be clicked until it is there to be seen */
-		pointer-events: none;
-		transition:
-			opacity .16s ease,
-			padding-top .34s cubic-bezier(.32, .72, 0, 1),
-			border-top-width .34s cubic-bezier(.32, .72, 0, 1),
-			border-top-color .16s ease;
+		padding-top: 8px;
+		border-top: 1px solid var(--color-border);
 
 		> * {
-			transform: translateY(6px);
-			transition: transform .36s cubic-bezier(.22, 1.4, .48, 1);
+			transform: translateY(4px);
+			transition: transform .34s cubic-bezier(.22, 1.4, .48, 1);
 		}
 
 		.post-action-group {
@@ -1292,18 +1306,26 @@ function nodeToPlainText(node) {
  * A finger cannot hover. On a touch screen there is no state in which the row
  * would ever appear, so it is simply always there.
  */
+/*
+ * A finger cannot hover, so on a touch screen the row is simply always there —
+ * and a panel that is always there cannot be the floating one, which would sit
+ * over the top of the next card for ever. It goes back into the card's flow,
+ * where it takes its own space and pushes nothing, because nothing is moving.
+ */
 @media (hover: none) {
 	.post-content .post-actions-reveal {
-		grid-template-rows: 1fr;
-		margin-top: 10px;
+		position: static;
+		padding: 0;
+		background: none;
+		border: none;
+		box-shadow: none;
+		opacity: 1;
+		pointer-events: auto;
+		transform: none;
 	}
 
 	.post-content .post-actions {
-		opacity: 1;
-		pointer-events: auto;
-		padding-top: 10px;
-		border-top-width: 1px;
-		border-top-color: var(--color-border);
+		margin-top: 10px;
 
 		> * {
 			transform: none;
@@ -1317,18 +1339,14 @@ function nodeToPlainText(node) {
  */
 @media (prefers-reduced-motion: reduce) {
 	.post-content .post-actions-reveal {
-		transition: none;
+		transform: none;
+		transition: opacity .01ms linear;
 	}
 
-	.post-content .post-actions {
-		transition: opacity .01ms linear;
+	.post-content .post-actions > * {
+		transform: none;
+		transition: none;
 		transition-delay: 0ms !important;
-
-		> * {
-			transform: none;
-			transition: none;
-			transition-delay: 0ms !important;
-		}
 	}
 }
 </style>
