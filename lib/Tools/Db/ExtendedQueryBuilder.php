@@ -329,14 +329,34 @@ class ExtendedQueryBuilder implements IExtendedQueryBuilder {
 	}
 
 	#[\Override]
-	public function orderBy(ILiteral|IParameter|IQueryFunction|string $sort, \SortDirection|string|null $order = null): static {
+	/**
+	 * Untyped on purpose, and it has to stay that way. The `nextcloud/ocp`
+	 * stub this app is analysed against declares
+	 * `orderBy(string|ILiteral|IParameter|IQueryFunction $sort, …)`, but the
+	 * interface a real server ships is still `orderBy($sort, $order = null)`.
+	 * PHP lets an override widen a parameter type and not narrow one, so the
+	 * stub's signature here is a fatal error the moment this class is loaded
+	 * on any Nextcloud this app supports — and the unit suite cannot see it,
+	 * because it loads the stub.
+	 */
+	public function orderBy($sort, $order = null): static {
 		$this->queryBuilder->orderBy($sort, $order);
 
 		return $this;
 	}
 
 	#[\Override]
-	public function addOrderBy(ILiteral|IParameter|IQueryFunction|string $sort, \SortDirection|string|null $order = null): static {
+	/**
+	 * Untyped on purpose, and it has to stay that way. The `nextcloud/ocp`
+	 * stub this app is analysed against declares
+	 * `orderBy(string|ILiteral|IParameter|IQueryFunction $sort, …)`, but the
+	 * interface a real server ships is still `orderBy($sort, $order = null)`.
+	 * PHP lets an override widen a parameter type and not narrow one, so the
+	 * stub's signature here is a fatal error the moment this class is loaded
+	 * on any Nextcloud this app supports — and the unit suite cannot see it,
+	 * because it loads the stub.
+	 */
+	public function addOrderBy($sort, $order = null): static {
 		$this->queryBuilder->addOrderBy($sort, $order);
 
 		return $this;
