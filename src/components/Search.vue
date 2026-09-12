@@ -292,7 +292,7 @@ export default {
 		font-size: 20px;
 		font-weight: 700;
 		margin: calc(var(--default-grid-baseline) * 3) 0;
-		word-break: break-word;
+		overflow-wrap: break-word;
 	}
 
 	.social__search-section {

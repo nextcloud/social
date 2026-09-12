@@ -128,8 +128,7 @@ export default {
 	display: flex;
 	flex-wrap: wrap;
 	flex-direction: row;
-	margin-left: -5px;
-	margin-right: -5px;
+	margin-inline: -5px;
 }
 
 // one picture is the post, not a thumbnail of it

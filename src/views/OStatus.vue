@@ -150,7 +150,7 @@ export default {
 
 	.avatardiv {
 		vertical-align: -4px;
-		margin-right: 3px;
+		margin-inline-end: 3px;
 		filter: drop-shadow(0 0 0.5rem #333);
 		margin-top: 10px;
 		margin-bottom: 20px;

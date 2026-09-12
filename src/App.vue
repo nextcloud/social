@@ -207,7 +207,7 @@ export default {
 .setup-input {
 	width: 300px;
 	max-width: 100%;
-	margin-right: 10px;
+	margin-inline-end: 10px;
 	border-radius: var(--border-radius-element);
 }
 

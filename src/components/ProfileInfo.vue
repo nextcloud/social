@@ -648,8 +648,6 @@ export default {
 		font-size: 14px;
 		line-height: 1.7;
 		overflow-wrap: break-word;
-		word-wrap: break-word;
-		word-break: break-word;
 		white-space: pre-wrap;
 	}
 

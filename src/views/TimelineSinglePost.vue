@@ -178,7 +178,7 @@ export default {
  * the order the bundle happens to put them in.
  */
 .thread .social__timeline {
-	margin-left: 16px;
+	margin-inline-start: 16px;
 }
 
 /**
@@ -194,7 +194,7 @@ export default {
 		position: absolute;
 		top: 12px;
 		bottom: 12px;
-		left: 42px;
+		inset-inline-start: 42px;
 		width: 2px;
 		border-radius: 1px;
 		background: var(--color-border);

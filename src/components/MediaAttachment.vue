@@ -222,7 +222,7 @@ export default {
 	.loading-icon {
 		position: absolute;
 		top: calc(50% - 20px);
-		left: calc(50% - 20px);
+		inset-inline-start: calc(50% - 20px);
 		z-index: 3;
 	}
 }
