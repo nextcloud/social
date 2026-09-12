@@ -38,6 +38,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\L10N\IFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -298,9 +299,7 @@ class PostServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider visibilityProvider
-	 */
+	#[DataProvider('visibilityProvider')]
 	public function testCreatePostAddressesMentionPerVisibility(
 		string $type,
 		string $expectedTo,
@@ -455,9 +454,7 @@ class PostServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider inlineTokensProvider
-	 */
+	#[DataProvider('inlineTokensProvider')]
 	public function testFixRecipientAndHashtagsExtractsInlineTokens(string $content, array $to, array $hashtags): void {
 		$post = $this->post($content);
 
@@ -801,9 +798,7 @@ class PostServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider nextcloudLanguageProvider
-	 */
+	#[DataProvider('nextcloudLanguageProvider')]
 	public function testTheDefaultLanguageIsDerivedFromTheNextcloudSetting(string $nextcloud, string $expected): void {
 		$this->userLanguage = $nextcloud;
 		$this->expectCreateActivity($note);

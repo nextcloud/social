@@ -14,6 +14,7 @@ use OCP\Accounts\UserUpdatedEvent;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\IUser;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class ProfileSectionListenerTest extends TestCase {
@@ -35,9 +36,8 @@ class ProfileSectionListenerTest extends TestCase {
 	/**
 	 * Registering the profile script needs the server's script registry, so an
 	 * unrelated event must return before reaching it.
-	 *
-	 * @dataProvider unrelatedEvents
 	 */
+	#[DataProvider('unrelatedEvents')]
 	public function testUnrelatedEventsAreIgnored(string $eventKind): void {
 		$event = match ($eventKind) {
 			'generic' => new Event(),

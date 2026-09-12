@@ -27,6 +27,7 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -198,9 +199,7 @@ class AdminApiControllerTest extends TestCase {
 		}
 	}
 
-	/**
-	 * @dataProvider routes
-	 */
+	#[DataProvider('routes')]
 	public function testEveryRouteRefusesANonAdministrator(string $method, array $arguments): void {
 		// signed in, CSRF token in hand, and simply not an administrator of
 		// this instance
@@ -213,9 +212,7 @@ class AdminApiControllerTest extends TestCase {
 		$this->assertArrayHasKey('error', $response->getData());
 	}
 
-	/**
-	 * @dataProvider routes
-	 */
+	#[DataProvider('routes')]
 	public function testEveryRouteRefusesANonAdminHoldingAnAdminScopedToken(
 		string $method, array $arguments,
 	): void {
@@ -232,9 +229,7 @@ class AdminApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus(), $method . ' must refuse a non-admin');
 	}
 
-	/**
-	 * @dataProvider routes
-	 */
+	#[DataProvider('routes')]
 	public function testEveryRouteRefusesACallerWithNoCredentials(string $method, array $arguments): void {
 		$this->signedIn = false;
 		$this->expectNoWork();
@@ -244,9 +239,7 @@ class AdminApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus(), $method . ' must refuse a stranger');
 	}
 
-	/**
-	 * @dataProvider routes
-	 */
+	#[DataProvider('routes')]
 	public function testEveryRouteRefusesASessionWithoutItsCsrfToken(string $method, array $arguments): void {
 		// a session cookie alone is what a cross-site request carries
 		$this->csrf = false;
@@ -255,9 +248,7 @@ class AdminApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->call($method, $arguments)->getStatus());
 	}
 
-	/**
-	 * @dataProvider routes
-	 */
+	#[DataProvider('routes')]
 	public function testEveryRouteRefusesARevokedToken(string $method, array $arguments): void {
 		$this->headers['Authorization'] = 'Bearer stale';
 		$this->expectNoWork();

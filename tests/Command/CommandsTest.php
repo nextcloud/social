@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Command;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -86,9 +87,8 @@ class CommandsTest extends TestCase {
 	 * `Reset` declared only `--uninstall`, so Symfony rejected the command
 	 * outright — advice that appeared precisely when federation was already
 	 * broken.
-	 *
-	 * @dataProvider provideAdviceSources
 	 */
+	#[DataProvider('provideAdviceSources')]
 	public function testAdvertisedOptionsExist(string $source): void {
 		$declared = $this->optionsPerCommand();
 		$checked = 0;

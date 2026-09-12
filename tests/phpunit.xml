@@ -4,11 +4,13 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-		 xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+		 xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
 		 bootstrap="bootstrap.php"
 		 colors="true"
 		 failOnWarning="true"
 		 failOnRisky="true"
+		 failOnDeprecation="true"
+		 failOnNotice="true"
 		 beStrictAboutOutputDuringTests="true"
 		 timeoutForSmallTests="900"
 		 timeoutForMediumTests="900"
@@ -20,9 +22,9 @@
 			<exclude>./Integration</exclude>
 		</testsuite>
 	</testsuites>
-	<coverage>
+	<source>
 		<include>
 			<directory suffix=".php">../lib</directory>
 		</include>
-	</coverage>
+	</source>
 </phpunit>

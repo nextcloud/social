@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model;
 
 use OCA\Social\Model\InstancePath;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class InstancePathTest extends TestCase {
@@ -22,9 +23,7 @@ class InstancePathTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider uriProvider
-	 */
+	#[DataProvider('uriProvider')]
 	public function testUriIsSplitIntoProtocolAddressAndPath(string $uri, string $protocol, string $address, string $path): void {
 		$instance = new InstancePath($uri);
 

@@ -17,6 +17,7 @@ use OCA\Social\Tools\Model\Request;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -119,12 +120,12 @@ class ConfigServiceTest extends TestCase {
 	}
 
 	public function testUserValuesAreWrittenForTheRightUser(): void {
+		$written = [];
 		$this->config->expects($this->exactly(2))
 			->method('setUserValue')
-			->withConsecutive(
-				['alice', 'social', 'key', 'value'],
-				['bob', 'social', 'key', 'other'],
-			);
+			->willReturnCallback(function (...$args) use (&$written): void {
+				$written[] = $args;
+			});
 		$this->config->expects($this->once())
 			->method('getUserValue')
 			->with('bob', 'social', 'key')
@@ -133,6 +134,12 @@ class ConfigServiceTest extends TestCase {
 		$this->service->setUserValue('key', 'value');
 		$this->service->setValueForUser('bob', 'key', 'other');
 		$this->assertSame('other', $this->service->getValueForUser('bob', 'key'));
+		// the trailing null is IConfig::setUserValue's $preCondition, which the
+		// service passes explicitly; withConsecutive() used to ignore it
+		$this->assertSame([
+			['alice', 'social', 'key', 'value', null],
+			['bob', 'social', 'key', 'other', null],
+		], $written);
 	}
 
 	public function testCoreValuesUseTheCoreAppNamespace(): void {
@@ -174,7 +181,7 @@ class ConfigServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider cloudUrlProvider */
+	#[DataProvider('cloudUrlProvider')]
 	public function testGetCloudUrl(string $stored, bool $noPhp, string $expected): void {
 		$this->withAppValues([ConfigService::CLOUD_URL => $stored]);
 
@@ -208,15 +215,19 @@ class ConfigServiceTest extends TestCase {
 	}
 
 	public function testSetCloudUrlAddsAMissingScheme(): void {
+		$written = [];
 		$this->config->expects($this->exactly(2))
 			->method('setAppValue')
-			->withConsecutive(
-				['social', ConfigService::CLOUD_URL, 'http://cloud.example.com'],
-				['social', ConfigService::CLOUD_URL, 'https://cloud.example.com/nextcloud'],
-			);
+			->willReturnCallback(function (...$args) use (&$written): void {
+				$written[] = $args;
+			});
 
 		$this->service->setCloudUrl('cloud.example.com');
 		$this->service->setCloudUrl('https://cloud.example.com/nextcloud');
+		$this->assertSame([
+			['social', ConfigService::CLOUD_URL, 'http://cloud.example.com'],
+			['social', ConfigService::CLOUD_URL, 'https://cloud.example.com/nextcloud'],
+		], $written);
 	}
 
 	public function testGetSocialAddressPrefersTheConfiguredAddress(): void {

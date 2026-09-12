@@ -23,6 +23,7 @@ use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../TActivityPubMocks.php';
@@ -364,9 +365,7 @@ class StreamTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider notificationTypeProvider
-	 */
+	#[DataProvider('notificationTypeProvider')]
 	public function testExportAsNotificationMapsTheSubTypeToMastodonTypes(string $subType, string $expected): void {
 		$actor = new Person();
 		$actor->setPreferredUsername('alice');
@@ -811,9 +810,7 @@ class StreamTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider clientVisibilityProvider
-	 */
+	#[DataProvider('clientVisibilityProvider')]
 	public function testVisibilityFromClient(string $sent, string $expected): void {
 		$this->assertSame($expected, Stream::visibilityFromClient($sent));
 	}
@@ -1050,9 +1047,7 @@ class StreamTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider languageProvider
-	 */
+	#[DataProvider('languageProvider')]
 	public function testNormalizeLanguage(string $sent, string $expected): void {
 		$this->assertSame($expected, Stream::normalizeLanguage($sent));
 	}

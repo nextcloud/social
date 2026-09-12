@@ -16,6 +16,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\TestService;
 use OCA\Social\Tools\Model\SimpleDataStore;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -58,7 +59,7 @@ class TestServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider invalidAccountProvider */
+	#[DataProvider('invalidAccountProvider')]
 	public function testRejectsAccountsThatAreNotAddressesBeforeAnyLookup(string $account): void {
 		$this->curlService->expects($this->never())->method('hostMeta');
 		$this->curlService->expects($this->never())->method('retrieveJson');

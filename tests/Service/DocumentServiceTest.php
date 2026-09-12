@@ -34,6 +34,7 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -339,7 +340,7 @@ class DocumentServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider cachingErrorProvider */
+	#[DataProvider('cachingErrorProvider')]
 	public function testCacheRemoteDocumentRecordsPermanentErrors(\Exception $failure, int $error): void {
 		$doc = $this->document();
 		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
@@ -364,7 +365,7 @@ class DocumentServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider goneProvider */
+	#[DataProvider('goneProvider')]
 	public function testCacheRemoteDocumentDeletesUnreachableDocuments(\Exception $failure): void {
 		$doc = $this->document();
 		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);

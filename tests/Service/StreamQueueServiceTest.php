@@ -424,10 +424,14 @@ class StreamQueueServiceTest extends TestCase {
 		$second = $this->queue('Unknown');
 		$this->streamQueueRequest->method('getFromToken')->with('tok')->willReturn([$first, $second]);
 		$this->streamQueueRequest->expects($this->exactly(2))->method('setAsRunning');
+		$deleted = [];
 		$this->streamQueueRequest->expects($this->exactly(2))
 			->method('delete')
-			->withConsecutive([$this->identicalTo($first)], [$this->identicalTo($second)]);
+			->willReturnCallback(function (StreamQueue $item) use (&$deleted): void {
+				$deleted[] = $item;
+			});
 
 		$this->service->cacheStreamByToken('tok');
+		$this->assertSame([$first, $second], $deleted);
 	}
 }

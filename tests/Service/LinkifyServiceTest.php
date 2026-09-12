@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Service\LinkifyService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -109,9 +110,7 @@ class LinkifyServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider urlBoundaryProvider
-	 */
+	#[DataProvider('urlBoundaryProvider')]
 	public function testAUrlEndsWhereTheSentenceDoes(string $text, string $expected): void {
 		$entities = $this->service->entitiesIn($text);
 
@@ -231,9 +230,9 @@ class LinkifyServiceTest extends TestCase {
 	}
 
 	/**
-	 * @dataProvider entityProvider
 	 * @param array<int, array{string, string}> $expected
 	 */
+	#[DataProvider('entityProvider')]
 	public function testEntitiesAreFoundWhereTheyAre(string $text, array $expected): void {
 		$found = array_map(
 			static fn (array $entity): array => [$entity['type'], $entity['name']],

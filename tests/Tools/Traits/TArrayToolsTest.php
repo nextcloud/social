@@ -16,6 +16,7 @@ use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\UnknownTypeException;
 use OCA\Social\Tools\Model\SimpleDataStore;
 use OCA\Social\Tools\Traits\TArrayTools;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class TArrayToolsTest extends TestCase {
@@ -71,9 +72,7 @@ class TArrayToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider nonStringProvider
-	 */
+	#[DataProvider('nonStringProvider')]
 	public function testGetFallsBackToTheDefaultForAnythingElse(string $key): void {
 		$this->assertSame('dflt', $this->tools->get($key, $this->sample(), 'dflt'));
 		$this->assertSame('', $this->tools->get($key, $this->sample()));
@@ -122,9 +121,7 @@ class TArrayToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider boolProvider
-	 */
+	#[DataProvider('boolProvider')]
 	public function testGetBoolUnderstandsBooleansAndTheirStringForms($value, $expected): void {
 		$expectDefault = ($expected === 'default');
 
@@ -155,9 +152,7 @@ class TArrayToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider notAnArrayProvider
-	 */
+	#[DataProvider('notAnArrayProvider')]
 	public function testGetArrayFallsBackToTheDefault(string $key): void {
 		$this->assertSame(['d'], $this->tools->getArray($key, $this->sample(), ['d']));
 	}
@@ -211,9 +206,7 @@ class TArrayToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider typeProvider
-	 */
+	#[DataProvider('typeProvider')]
 	public function testTypeOfNamesTheType(string $key, string $expected): void {
 		$this->assertSame($expected, $this->tools->typeOf($key, $this->sample()));
 	}
@@ -237,9 +230,7 @@ class TArrayToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider missingKeyProvider
-	 */
+	#[DataProvider('missingKeyProvider')]
 	public function testTypeOfThrowsForMissingKeys(string $key): void {
 		$this->expectException(ItemNotFoundException::class);
 

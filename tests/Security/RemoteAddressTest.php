@@ -10,12 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Security;
 
 use OCA\Social\Security\RemoteAddress;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class RemoteAddressTest extends TestCase {
-	/**
-	 * @dataProvider localIps
-	 */
+	#[DataProvider('localIps')]
 	public function testIsLocalIpForPrivateOrReservedAddresses(string $ip): void {
 		$this->assertTrue(RemoteAddress::isLocalIp($ip));
 	}
@@ -46,9 +45,7 @@ class RemoteAddressTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider publicHosts
-	 */
+	#[DataProvider('publicHosts')]
 	public function testIsLocalIpForPublicAddressesAndNonIps(string $host): void {
 		$this->assertFalse(RemoteAddress::isLocalIp($host));
 	}
@@ -67,9 +64,7 @@ class RemoteAddressTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider localHosts
-	 */
+	#[DataProvider('localHosts')]
 	public function testIsLocalHost(string $host): void {
 		$this->assertTrue(RemoteAddress::isLocalHost($host));
 	}

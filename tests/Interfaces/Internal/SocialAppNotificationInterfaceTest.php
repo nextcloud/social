@@ -17,6 +17,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 
 require_once __DIR__ . '/../ActivityPubTestCase.php';
@@ -87,10 +88,9 @@ class SocialAppNotificationInterfaceTest extends ActivityPubTestCase {
 	}
 
 	/**
-	 * @dataProvider suppressionProvider
-	 *
 	 * @param array<int, array{string, bool}> $relations
 	 */
+	#[DataProvider('suppressionProvider')]
 	public function testNotificationsFromBlockedOrFullyMutedActorsAreSuppressed(
 		array $relations, bool $saved,
 	): void {

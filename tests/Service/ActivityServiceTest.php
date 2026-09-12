@@ -47,6 +47,7 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -634,9 +635,7 @@ class ActivityServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider requestTypeProvider
-	 */
+	#[DataProvider('requestTypeProvider')]
 	public function testManageRequestPicksHttpMethodFromTargetType(int $pathType, int $expectedMethod): void {
 		$sent = null;
 		$this->curlService->method('retrieveJson')->willReturnCallback(function (NCRequest $request) use (&$sent): array {
@@ -661,9 +660,7 @@ class ActivityServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider deliveredButNoJsonProvider
-	 */
+	#[DataProvider('deliveredButNoJsonProvider')]
 	public function testManageRequestTreatsNonJsonAnswersAsDelivered(\Exception $e): void {
 		$queue = $this->queue();
 		$this->curlService->method('retrieveJson')->willThrowException($e);
@@ -685,9 +682,7 @@ class ActivityServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider hardErrorProvider
-	 */
+	#[DataProvider('hardErrorProvider')]
 	public function testManageRequestDropsRequestOnHardErrors(\Exception $e): void {
 		$queue = $this->queue();
 		$this->curlService->method('retrieveJson')->willThrowException($e);
@@ -716,9 +711,8 @@ class ActivityServiceTest extends TestCase {
 	 * A peer that is briefly unwell must not cost us the activity: these used
 	 * to be indistinguishable from a permanent rejection, so every post queued
 	 * for an instance having a bad minute was deleted outright.
-	 *
-	 * @dataProvider transientHttpStatusProvider
 	 */
+	#[DataProvider('transientHttpStatusProvider')]
 	public function testManageRequestRetriesWhenThePeerAnswersWithATransientStatus(int $status): void {
 		$queue = $this->queue();
 		$this->curlService->method('retrieveJson')
@@ -745,9 +739,7 @@ class ActivityServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider permanentHttpStatusProvider
-	 */
+	#[DataProvider('permanentHttpStatusProvider')]
 	public function testManageRequestDropsWhenThePeerRejectsTheActivityForGood(int $status): void {
 		$queue = $this->queue();
 		$this->curlService->method('retrieveJson')
@@ -786,9 +778,7 @@ class ActivityServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider temporaryErrorProvider
-	 */
+	#[DataProvider('temporaryErrorProvider')]
 	public function testManageRequestMarksFailureAndSkipsSameInstanceForTheRestOfTheRun(\Exception $e): void {
 		$first = $this->queue(self::BOB_INBOX);
 		$second = $this->queue('https://remote.example/users/carol/inbox');

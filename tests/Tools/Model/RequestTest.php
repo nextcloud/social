@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Tools\Model;
 
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Model\SimpleDataStore;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class RequestTest extends TestCase {
@@ -178,9 +179,7 @@ class RequestTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider typeProvider
-	 */
+	#[DataProvider('typeProvider')]
 	public function testTypeAndMethodMapBetweenNamesAndConstants(string $name, int $type, string $method): void {
 		$this->assertSame($type, Request::type($name));
 		$this->assertSame($method, Request::method($type));

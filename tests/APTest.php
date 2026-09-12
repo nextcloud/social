@@ -66,6 +66,7 @@ use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/Model/TActivityPubMocks.php';
@@ -119,9 +120,7 @@ class APTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider knownTypeProvider
-	 */
+	#[DataProvider('knownTypeProvider')]
 	public function testGetItemFromTypeMapsEveryKnownType(string $type, string $class): void {
 		$item = $this->ap->getItemFromType($type);
 
@@ -137,9 +136,7 @@ class APTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider unknownTypeProvider
-	 */
+	#[DataProvider('unknownTypeProvider')]
 	public function testGetItemFromTypeRejectsUnknownTypes(string $type): void {
 		$this->expectException(ItemUnknownException::class);
 
@@ -186,9 +183,7 @@ class APTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider interfaceProvider
-	 */
+	#[DataProvider('interfaceProvider')]
 	public function testGetInterfaceFromTypeReturnsTheInjectedInterface(string $type, string $interfaceClass): void {
 		$this->assertSame($this->apInterface($interfaceClass), $this->ap->getInterfaceFromType($type));
 	}
@@ -206,17 +201,14 @@ class APTest extends TestCase {
 	/**
 	 * PeerTube, Plume, Mobilizon, Lemmy and Funkwhale post these; they are
 	 * handled as statuses, which is also how Mastodon shows them.
-	 *
-	 * @dataProvider noteLikeTypeProvider
 	 */
+	#[DataProvider('noteLikeTypeProvider')]
 	public function testNoteLikeTypesAreModelledAsNotes(string $type): void {
 		$this->assertInstanceOf(Note::class, $this->ap->getItemFromType($type));
 		$this->assertSame($this->apInterface(NoteInterface::class), $this->ap->getInterfaceFromType($type));
 	}
 
-	/**
-	 * @dataProvider noteLikeTypeProvider
-	 */
+	#[DataProvider('noteLikeTypeProvider')]
 	public function testNoteLikeTypeKeepsTheWireTypeInTheSubtype(string $type): void {
 		$item = $this->ap->getSimpleItemFromData([
 			'id' => 'https://peertube.example/videos/watch/1',
@@ -284,9 +276,7 @@ class APTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider actorProvider
-	 */
+	#[DataProvider('actorProvider')]
 	public function testIsActorRecognisesTheFiveActorTypes(object $item, bool $expected): void {
 		$this->assertSame($expected, $this->ap->isActor($item));
 	}

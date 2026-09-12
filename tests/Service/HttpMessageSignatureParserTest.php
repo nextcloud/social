@@ -13,6 +13,7 @@ use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Service\HttpMessageSignatureParser;
 use OCA\Social\Tests\Helper\RsaPssSigner;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -319,9 +320,7 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 		);
 	}
 
-	/**
-	 * @dataProvider refusedComponentParameters
-	 */
+	#[DataProvider('refusedComponentParameters')]
 	public function testEachSerialisationChangingComponentParameterIsRefusedByName(string $parameter): void {
 		$input = $this->parser->parseSignatureInput('sig=("content-digest";' . $parameter . ' "@method");created=1')['sig'];
 		$request = $this->request('POST', '/inbox', ['content-digest' => 'sha-256=:x:']);
@@ -389,9 +388,7 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 		];
 	}
 
-	/**
-	 * @dataProvider malformedSignatureInputs
-	 */
+	#[DataProvider('malformedSignatureInputs')]
 	public function testAMalformedSignatureInputIsRefusedAsASignatureError(string $header, string $message): void {
 		$this->expectException(SignatureException::class);
 		$this->expectExceptionMessage($message);
@@ -408,9 +405,7 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 		];
 	}
 
-	/**
-	 * @dataProvider malformedSignatures
-	 */
+	#[DataProvider('malformedSignatures')]
 	public function testAMalformedSignatureIsRefusedAsASignatureError(string $header, string $message): void {
 		$this->expectException(SignatureException::class);
 		$this->expectExceptionMessage($message);

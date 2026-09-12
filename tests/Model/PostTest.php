@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Post;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class PostTest extends TestCase {
@@ -125,9 +126,7 @@ class PostTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider clientVisibilityProvider
-	 */
+	#[DataProvider('clientVisibilityProvider')]
 	public function testSetTypeNormalisesTheClientVisibility(string $sent, string $expected): void {
 		$post = new Post($this->alice());
 		$post->setType($sent);

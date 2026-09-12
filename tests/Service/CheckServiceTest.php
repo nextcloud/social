@@ -185,15 +185,20 @@ class CheckServiceTest extends TestCase {
 		$this->request->method('getServerProtocol')->willReturn('https');
 		$this->request->method('getServerHost')->willReturn('cloud.example.com');
 		$this->urlGenerator->method('getBaseUrl')->willReturn('https://cloud.example.com/nextcloud');
+		$probed = [];
 		$this->client->expects($this->exactly(2))
 			->method('get')
-			->withConsecutive(
-				['https://cloud.example.com/.well-known/webfinger?resource=acct:alice@cloud.example.com', $this->anything()],
-				['https://cloud.example.com/nextcloud/.well-known/webfinger?resource=acct:alice@cloud.example.com', $this->anything()],
-			)
-			->willReturnOnConsecutiveCalls($this->response(404), $this->response(200));
+			->willReturnCallback(function (string $url) use (&$probed) {
+				$probed[] = $url;
+
+				return $this->response(count($probed) === 1 ? 404 : 200);
+			});
 
 		$this->assertTrue($this->service->checkWellKnown());
+		$this->assertSame([
+			'https://cloud.example.com/.well-known/webfinger?resource=acct:alice@cloud.example.com',
+			'https://cloud.example.com/nextcloud/.well-known/webfinger?resource=acct:alice@cloud.example.com',
+		], $probed);
 	}
 
 	public function testCheckWellKnownFailsWhenEveryProbeFails(): void {
@@ -336,12 +341,16 @@ class CheckServiceTest extends TestCase {
 
 			return new Person();
 		});
+		$deleted = [];
 		$this->followRequest->expects($this->exactly(2))
 			->method('deleteById')
-			->withConsecutive(['f2'], ['f3']);
+			->willReturnCallback(function (string $id) use (&$deleted): void {
+				$deleted[] = $id;
+			});
 		$this->miscService->expects($this->once())->method('log')->with('removeInvalidFollows removed 2 entries', 1);
 
 		$this->assertSame(2, $this->service->removeInvalidFollows());
+		$this->assertSame(['f2', 'f3'], $deleted);
 	}
 
 	public function testRemoveInvalidNotesDropsNotesFromUnknownAuthors(): void {

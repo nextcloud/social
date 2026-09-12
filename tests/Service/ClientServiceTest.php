@@ -17,6 +17,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Security\SecretHasher;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\MiscService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -177,7 +178,7 @@ class ClientServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider validDataProvider */
+	#[DataProvider('validDataProvider')]
 	public function testConfirmDataAcceptsMatchingData(array $data): void {
 		$this->service->confirmData($this->registeredClient(), $data);
 		$this->addToAssertionCount(1);
@@ -194,7 +195,7 @@ class ClientServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider invalidDataProvider */
+	#[DataProvider('invalidDataProvider')]
 	public function testConfirmDataRejectsMismatches(array $data, string $message): void {
 		$this->expectException(ClientException::class);
 		$this->expectExceptionMessage($message);

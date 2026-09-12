@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../TActivityPubMocks.php';
@@ -115,9 +116,7 @@ class StreamQuoteTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider quoteAliasProvider
-	 */
+	#[DataProvider('quoteAliasProvider')]
 	public function testTheLegacyQuoteAliasesAreReadToo(array $wire): void {
 		$this->assertSame(self::QUOTED, $this->incoming($wire)->getQuote());
 	}

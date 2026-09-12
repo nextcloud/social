@@ -34,6 +34,7 @@ use OCA\Social\Tools\Model\Request;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -566,9 +567,7 @@ class CurlServiceTest extends TestCase {
 		$this->assertTrue($sent()['options']['nextcloud']['allow_local_address']);
 	}
 
-	/**
-	 * @dataProvider refusedHostProvider
-	 */
+	#[DataProvider('refusedHostProvider')]
 	public function testALocalHostIsRefusedBeforeAnythingIsSent(string $host): void {
 		$this->client->expects($this->never())->method('request');
 		$request = new NCRequest('/users/bob');

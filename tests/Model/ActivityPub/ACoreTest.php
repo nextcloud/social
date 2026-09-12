@@ -19,6 +19,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\LinkedDataSignature;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class ACoreTest extends TestCase {
@@ -88,9 +89,7 @@ class ACoreTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider publicAudienceProvider
-	 */
+	#[DataProvider('publicAudienceProvider')]
 	public function testIsPublicLooksForThePublicCollectionInToOrCc(array $to, array $cc, bool $expected): void {
 		$item = new ACore();
 		$item->setToArray($to);
@@ -142,9 +141,7 @@ class ACoreTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider invalidOriginProvider
-	 */
+	#[DataProvider('invalidOriginProvider')]
 	public function testCheckOriginRejectsForeignIds(string $id): void {
 		$item = new ACore();
 		$item->setOrigin('mastodon.social', 1, 0);
@@ -170,9 +167,7 @@ class ACoreTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider mismatchingUrlProvider
-	 */
+	#[DataProvider('mismatchingUrlProvider')]
 	public function testVerifyRejectsMismatchingUrls(string $url): void {
 		$item = new ACore();
 		$item->setId('https://mastodon.social/users/alice');
@@ -195,9 +190,7 @@ class ACoreTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider validEntryProvider
-	 */
+	#[DataProvider('validEntryProvider')]
 	public function testValidateEntryStringNormalisesByKind(int $as, string $value, string $expected): void {
 		$this->assertSame($expected, (new ACore())->validateEntryString($as, $value));
 	}

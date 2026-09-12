@@ -93,7 +93,7 @@ class ScheduledStatusServiceTest extends TestCase {
 	}
 
 	/** @param array<string, mixed> $data */
-	private function status(array $data): Status {
+	private function aStatus(array $data): Status {
 		return (new Status())->import($data);
 	}
 
@@ -155,7 +155,7 @@ class ScheduledStatusServiceTest extends TestCase {
 
 		$this->service->schedule(
 			$this->alice(),
-			$this->status(['status' => 'hi']),
+			$this->aStatus(['status' => 'hi']),
 			['scheduled_at' => $this->iso(self::NOW + ScheduledStatusService::MIN_LEAD_TIME - 1)]
 		);
 	}
@@ -165,7 +165,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$when = self::NOW + ScheduledStatusService::MIN_LEAD_TIME;
 
 		$scheduled = $this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']), ['scheduled_at' => $this->iso($when)]
+			$this->alice(), $this->aStatus(['status' => 'hi']), ['scheduled_at' => $this->iso($when)]
 		);
 
 		$this->assertSame($when, $scheduled->getScheduledAt());
@@ -177,7 +177,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->expectException(InvalidActionException::class);
 
 		$this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']),
+			$this->alice(), $this->aStatus(['status' => 'hi']),
 			['scheduled_at' => $this->iso(self::NOW - 86400)]
 		);
 	}
@@ -192,7 +192,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->expectExceptionMessage('300 scheduled statuses');
 
 		$this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']),
+			$this->alice(), $this->aStatus(['status' => 'hi']),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 	}
@@ -203,7 +203,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->captureSave();
 
 		$scheduled = $this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']),
+			$this->alice(), $this->aStatus(['status' => 'hi']),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 
@@ -218,7 +218,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->expectExceptionMessage('25 statuses scheduled for that day');
 
 		$this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']),
+			$this->alice(), $this->aStatus(['status' => 'hi']),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 	}
@@ -240,7 +240,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->captureSave();
 
 		$this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']), ['scheduled_at' => $this->iso($when)]
+			$this->alice(), $this->aStatus(['status' => 'hi']), ['scheduled_at' => $this->iso($when)]
 		);
 
 		$this->assertSame(self::ALICE, $window[0]);
@@ -259,7 +259,7 @@ class ScheduledStatusServiceTest extends TestCase {
 
 		$this->service->schedule(
 			$this->alice(),
-			$this->status([
+			$this->aStatus([
 				'status' => 'hello #fediverse',
 				'visibility' => 'unlisted',
 				'spoiler_text' => 'cw',
@@ -293,7 +293,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->captureSave();
 
 		$this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']),
+			$this->alice(), $this->aStatus(['status' => 'hi']),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 
@@ -305,7 +305,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->expectException(InvalidActionException::class);
 
 		$this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi', 'visibility' => 'secret']),
+			$this->alice(), $this->aStatus(['status' => 'hi', 'visibility' => 'secret']),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 	}
@@ -318,7 +318,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->captureSave();
 
 		$this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']),
+			$this->alice(), $this->aStatus(['status' => 'hi']),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 
@@ -330,7 +330,7 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->captureSave();
 
 		$this->service->schedule(
-			$this->alice(), $this->status(['status' => 'hi']),
+			$this->alice(), $this->aStatus(['status' => 'hi']),
 			['scheduled_at' => $this->iso(self::NOW + 86400), 'payload' => 'anything']
 		);
 
@@ -346,7 +346,7 @@ class ScheduledStatusServiceTest extends TestCase {
 
 		$this->service->schedule(
 			$this->alice(),
-			$this->status(['status' => str_repeat('a', InstanceService::MAX_CHARACTERS + 1)]),
+			$this->aStatus(['status' => str_repeat('a', InstanceService::MAX_CHARACTERS + 1)]),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 	}
@@ -356,7 +356,7 @@ class ScheduledStatusServiceTest extends TestCase {
 
 		$this->service->schedule(
 			$this->alice(),
-			$this->status([
+			$this->aStatus([
 				'status' => str_repeat('a', InstanceService::MAX_CHARACTERS),
 				'spoiler_text' => 'x',
 			]),
@@ -376,7 +376,7 @@ class ScheduledStatusServiceTest extends TestCase {
 
 		$this->service->schedule(
 			$this->alice(),
-			$this->status(['status' => 'pick one', 'poll' => ['options' => ['yes', '  ']]]),
+			$this->aStatus(['status' => 'pick one', 'poll' => ['options' => ['yes', '  ']]]),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 	}
@@ -386,7 +386,7 @@ class ScheduledStatusServiceTest extends TestCase {
 
 		$this->service->schedule(
 			$this->alice(),
-			$this->status(['status' => 'pick one', 'poll' => ['options' => ['yes', 'no']]]),
+			$this->aStatus(['status' => 'pick one', 'poll' => ['options' => ['yes', 'no']]]),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 

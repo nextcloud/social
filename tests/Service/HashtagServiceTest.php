@@ -291,13 +291,18 @@ class HashtagServiceTest extends TestCase {
 	}
 
 	public function testSearchHashtagsDelegatesWithTheAllFlag(): void {
+		$searches = [];
 		$this->hashtagsRequest->expects($this->exactly(2))
 			->method('searchHashtags')
-			->withConsecutive(['next', false], ['next', true])
-			->willReturnOnConsecutiveCalls([['hashtag' => '#nextcloud']], []);
+			->willReturnCallback(function (...$args) use (&$searches): array {
+				$searches[] = $args;
+
+				return count($searches) === 1 ? [['hashtag' => '#nextcloud']] : [];
+			});
 
 		$this->assertSame([['hashtag' => '#nextcloud']], $this->service->searchHashtags('next'));
 		$this->assertSame([], $this->service->searchHashtags('next', true));
+		$this->assertSame([['next', false], ['next', true]], $searches);
 	}
 
 	public function testATagEntityIsTheShapeAClientReads(): void {

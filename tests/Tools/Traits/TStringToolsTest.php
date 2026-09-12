@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Tools\Traits;
 
 use OCA\Social\Tools\Traits\TStringTools;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class TStringToolsTest extends TestCase {
@@ -93,9 +94,7 @@ class TStringToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider commonPartProvider
-	 */
+	#[DataProvider('commonPartProvider')]
 	public function testCommonPartReturnsTheSharedPrefix(string $a, string $b, bool $caseSensitive, string $expected): void {
 		$this->assertSame($expected, $this->tools->commonPart($a, $b, $caseSensitive));
 	}

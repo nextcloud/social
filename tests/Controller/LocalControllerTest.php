@@ -50,6 +50,7 @@ use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -371,7 +372,7 @@ class LocalControllerTest extends TestCase {
 		yield 'unlike' => ['postUnlike', 'likeService', 'delete', 'like'];
 	}
 
-	/** @dataProvider reactions */
+	#[DataProvider('reactions')]
 	public function testReactionsAreCreatedForTheViewer(string $action, string $service, string $method, string $key): void {
 		$viewer = $this->actorForUser();
 		$activity = $this->createMock(ACore::class);
@@ -387,7 +388,7 @@ class LocalControllerTest extends TestCase {
 		$this->assertSuccess($this->controller()->$action('https://x/n/1'), [$key => $activity, 'token' => 'tok']);
 	}
 
-	/** @dataProvider reactions */
+	#[DataProvider('reactions')]
 	public function testReactionsRequireALoggedInUser(string $action, string $service, string $method): void {
 		$this->$service->expects($this->never())->method($method);
 
@@ -453,7 +454,7 @@ class LocalControllerTest extends TestCase {
 		yield 'liked' => ['streamLiked', [0, 5], 'getStreamLiked', [0, 5]];
 	}
 
-	/** @dataProvider streams */
+	#[DataProvider('streams')]
 	public function testStreamEndpointsPassSinceAndLimitToTheService(string $action, array $args, string $method, array $expected): void {
 		$viewer = $this->actorForUser();
 		$this->streamService->expects($this->once())->method('setViewer')->with($viewer);
@@ -463,7 +464,7 @@ class LocalControllerTest extends TestCase {
 		$this->assertSuccess($this->controller()->$action(...$args), $posts);
 	}
 
-	/** @dataProvider streams */
+	#[DataProvider('streams')]
 	public function testStreamEndpointsRequireALoggedInUser(string $action, array $args, string $method): void {
 		$this->streamService->expects($this->never())->method($method);
 
@@ -779,9 +780,7 @@ class LocalControllerTest extends TestCase {
 		$this->assertSame('image/jpeg', $response->getHeaders()['Content-Type']);
 	}
 
-	/**
-	 * @dataProvider provideUnusableHeaderAddresses
-	 */
+	#[DataProvider('provideUnusableHeaderAddresses')]
 	public function testGlobalActorHeaderRefusesAnAddressThatIsNotWebContent(string $header): void {
 		// the value is remote JSON, and this route answers from the origin the
 		// user trusts: it must not become a redirect to anywhere at all
@@ -916,9 +915,7 @@ class LocalControllerTest extends TestCase {
 		);
 	}
 
-	/**
-	 * @dataProvider provideRefusedBannerUrls
-	 */
+	#[DataProvider('provideRefusedBannerUrls')]
 	public function testUploadBannerByUrlRefusesWhatIsNotAPublicWebAddress(string $url): void {
 		$this->configService->method('isLocalNetworkAllowed')->willReturn(false);
 		$this->cacheDocumentService->expects($this->never())->method('retrieveContent');

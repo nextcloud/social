@@ -49,6 +49,7 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\SignatureService;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -122,7 +123,7 @@ class ImportServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider notAnObjectProvider */
+	#[DataProvider('notAnObjectProvider')]
 	public function testImportFromJsonRejectsAnythingButAnObject(string $json): void {
 		$this->useRealActivityPub();
 

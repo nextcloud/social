@@ -41,6 +41,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Tests\Model\TActivityPubMocks;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
@@ -100,9 +101,8 @@ class InteropRegressionTest extends TestCase {
 	 * every later request re-fetched over HTTP — a Lemmy community, a Friendica
 	 * or a.gup.pe group and a Mastodon instance or relay actor could not be
 	 * followed or resolved at all.
-	 *
-	 * @dataProvider nonPersonActors
 	 */
+	#[DataProvider('nonPersonActors')]
 	public function testANonPersonActorHasAnInterfaceThatCanCacheIt(
 		string $fixture, string $model, string $interface,
 	): void {
@@ -164,9 +164,8 @@ class InteropRegressionTest extends TestCase {
 	 * `object` nor `objectId`, so CreateInterface returned on `!hasObject()`.
 	 * Following a PeerTube channel, a Plume or WriteFreely blog or a Mobilizon
 	 * group produced a permanently empty timeline with no log line.
-	 *
-	 * @dataProvider noteLikeObjects
 	 */
+	#[DataProvider('noteLikeObjects')]
 	public function testAnObjectTypeRealServersPostArrivesAsAStatus(
 		string $fixture, string $wireType, string $objectId, string $author,
 	): void {

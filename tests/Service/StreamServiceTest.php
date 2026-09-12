@@ -30,6 +30,7 @@ use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -209,9 +210,7 @@ class StreamServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider visibilityProvider
-	 */
+	#[DataProvider('visibilityProvider')]
 	public function testAssignItemAddressesRecipientsPerVisibility(
 		string $type,
 		string $expectedTo,
@@ -285,9 +284,7 @@ class StreamServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider followersAddressingProvider
-	 */
+	#[DataProvider('followersAddressingProvider')]
 	public function testDetectTypeMarksStreamsAddressedToTheFollowersCollectionAsFollowers(
 		string $to,
 		array $cc,
@@ -372,9 +369,7 @@ class StreamServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider nonDirectTypeProvider
-	 */
+	#[DataProvider('nonDirectTypeProvider')]
 	public function testAddRecipientOnNonDirectPostAddressesMentionedActorInCc(string $type): void {
 		$bob = $this->remoteActor();
 		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
@@ -818,9 +813,7 @@ class StreamServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider timelineDelegationProvider
-	 */
+	#[DataProvider('timelineDelegationProvider')]
 	public function testTimelineGettersPassFiltersThrough(
 		string $serviceMethod,
 		array $args,

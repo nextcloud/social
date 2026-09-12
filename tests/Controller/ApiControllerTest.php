@@ -75,6 +75,7 @@ use OCP\ITempManager;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -813,7 +814,7 @@ class ApiControllerTest extends TestCase {
 		yield 'case-insensitive' => ['HOME'];
 	}
 
-	/** @dataProvider supportedTimelines */
+	#[DataProvider('supportedTimelines')]
 	public function testTimelinesProbesTheRequestedTimelineWithPagination(string $timeline): void {
 		$this->loggedInAs();
 		$posts = [$this->createMock(Stream::class)];
@@ -841,7 +842,7 @@ class ApiControllerTest extends TestCase {
 		yield 'empty' => [''];
 	}
 
-	/** @dataProvider unsupportedTimelines */
+	#[DataProvider('unsupportedTimelines')]
 	public function testTimelinesRejectsUnknownTimelineNames(string $timeline): void {
 		$this->loggedInAs();
 		$this->streamService->expects($this->never())->method('getTimeline');
@@ -906,7 +907,7 @@ class ApiControllerTest extends TestCase {
 		yield 'unreblog' => ['unreblog'];
 	}
 
-	/** @dataProvider statusActions */
+	#[DataProvider('statusActions')]
 	public function testStatusActionDispatchesToActionServiceAsTheViewersActor(string $action): void {
 		$this->loggedInAs();
 		$actor = $this->createMock(Person::class);
@@ -3110,9 +3111,8 @@ class ApiControllerTest extends TestCase {
 	 * that must not differ between them are the ones a mistake would be
 	 * invisible in: an attachment that arrived public would be readable over
 	 * the unauthenticated /media/{uuid} route before any post had said so.
-	 *
-	 * @dataProvider waysToAttachAPicture
 	 */
+	#[DataProvider('waysToAttachAPicture')]
 	public function testEveryWayInStoresTheSameKindOfDocument(string $how): void {
 		$this->loggedInAs();
 		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');

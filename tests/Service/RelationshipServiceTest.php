@@ -26,6 +26,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\RelationshipService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -183,9 +184,7 @@ class RelationshipServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider notificationsFlagProvider
-	 */
+	#[DataProvider('notificationsFlagProvider')]
 	public function testMuteSavesAMuteRowWithTheNotificationsFlag(bool $notifications): void {
 		$this->actorRelationRequest->expects($this->once())
 			->method('save')

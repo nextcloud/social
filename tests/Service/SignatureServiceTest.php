@@ -43,6 +43,7 @@ use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -325,9 +326,7 @@ class SignatureServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider digestVariantProvider
-	 */
+	#[DataProvider('digestVariantProvider')]
 	public function testCheckRequestAcceptsEveryDigestFormOnTheWire(string $digest): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->signedHeaders($body, self::$privateKey, ['digest' => $digest]);
@@ -475,16 +474,26 @@ class SignatureServiceTest extends TestCase {
 	public function testCheckRequestRefreshesTheKeyOnceThenRefusesABadSignature(): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->signedHeaders($body, self::$privateKey);
+		$lookups = [];
 		$this->cacheActorService->expects($this->exactly(2))
 			->method('getFromId')
-			->withConsecutive([self::REMOTE_ACTOR, false], [self::REMOTE_ACTOR, true])
-			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+			->willReturnCallback(function (...$args) use (&$lookups) {
+				$lookups[] = $args;
+
+				return $this->person(self::REMOTE_ACTOR, self::$otherPublicKey);
+			});
 
 		// A signature that does not verify against either the cached or the refreshed
 		// key is refused here, rather than being returned as an empty origin for a
 		// later check to reject.
-		$this->expectException(SignatureException::class);
-		$this->service->checkRequest($this->incomingRequest($headers), $body);
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('a signature matching neither key must be refused');
+		} catch (SignatureException) {
+		}
+
+		// the second lookup must bypass the cache, or the refresh is not a refresh
+		$this->assertSame([[self::REMOTE_ACTOR, false], [self::REMOTE_ACTOR, true]], $lookups);
 	}
 
 	public function testCheckRequestAcceptsAfterRefreshingAStaleCachedKey(): void {
@@ -520,9 +529,7 @@ class SignatureServiceTest extends TestCase {
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
-	/**
-	 * @dataProvider incompleteSignedHeaderSets
-	 */
+	#[DataProvider('incompleteSignedHeaderSets')]
 	public function testCheckRequestRefusesASignatureThatDoesNotCoverEveryMandatoryHeader(string $headerList): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->signedHeaders($body, self::$privateKey, [], $headerList);
@@ -703,14 +710,24 @@ class SignatureServiceTest extends TestCase {
 	public function testCheckRequestRefreshesTheKeyOnceThenRefusesABadRfc9421Signature(): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->messageSignedHeaders($body, self::$privateKey);
+		$lookups = [];
 		$this->cacheActorService->expects($this->exactly(2))
 			->method('getFromId')
-			->withConsecutive([self::REMOTE_ACTOR, false], [self::REMOTE_ACTOR, true])
-			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+			->willReturnCallback(function (...$args) use (&$lookups) {
+				$lookups[] = $args;
 
-		$this->expectException(SignatureException::class);
-		$this->expectExceptionMessage('signature cannot be checked');
-		$this->service->checkRequest($this->incomingRequest($headers), $body);
+				return $this->person(self::REMOTE_ACTOR, self::$otherPublicKey);
+			});
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('a signature matching neither key must be refused');
+		} catch (SignatureException $e) {
+			$this->assertStringContainsString('signature cannot be checked', $e->getMessage());
+		}
+
+		// the second lookup must bypass the cache, or the refresh is not a refresh
+		$this->assertSame([[self::REMOTE_ACTOR, false], [self::REMOTE_ACTOR, true]], $lookups);
 	}
 
 	public function testCheckRequestAcceptsAnRfc9421SignatureAfterRefreshingAStaleCachedKey(): void {
@@ -760,9 +777,8 @@ class SignatureServiceTest extends TestCase {
 
 	/**
 	 * The same window the Date header gets on the draft-cavage path.
-	 *
-	 * @dataProvider createdOutsideTheWindow
 	 */
+	#[DataProvider('createdOutsideTheWindow')]
 	public function testCheckRequestRejectsAnRfc9421SignatureCreatedOutsideTheDateWindow(int $offset, string $message): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], ['@method', '@target-uri', 'content-digest'], ['created' => time() + $offset]);
@@ -804,9 +820,8 @@ class SignatureServiceTest extends TestCase {
 	/**
 	 * Mirrors the mandatory set of the draft-cavage path: what is not covered is
 	 * not bound, so a captured request could be replayed elsewhere or later.
-	 *
-	 * @dataProvider incompleteCoveredComponentSets
 	 */
+	#[DataProvider('incompleteCoveredComponentSets')]
 	public function testCheckRequestRefusesAnRfc9421SignatureThatDoesNotCoverEveryMandatoryComponent(array $components, array $params, string $message): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->messageSignedHeaders($body, self::$privateKey, [], $components, $params);
@@ -1132,9 +1147,7 @@ class SignatureServiceTest extends TestCase {
 		);
 	}
 
-	/**
-	 * @dataProvider allowedContexts
-	 */
+	#[DataProvider('allowedContexts')]
 	public function testDocumentLoaderServesEachShippedContext(string $url): void {
 		$this->assertInstanceOf(\stdClass::class, SignatureService::documentLoader($url));
 	}
@@ -1164,9 +1177,8 @@ class SignatureServiceTest extends TestCase {
 	 * A document's @context is remote input; resolving one that is not shipped would
 	 * mean opening an attacker-chosen URL. An unknown context is refused with a
 	 * catchable JsonLdException (not a fatal), so verify() treats it as unverifiable.
-	 *
-	 * @dataProvider rejectedContexts
 	 */
+	#[DataProvider('rejectedContexts')]
 	public function testDocumentLoaderRefusesAnyUrlOutsideTheAllowlist(string $url): void {
 		$this->expectException(\JsonLdException::class);
 		SignatureService::documentLoader($url);
@@ -1267,13 +1279,19 @@ class SignatureServiceTest extends TestCase {
 		$received = new Note();
 		$received->setSource(json_encode($json, JSON_UNESCAPED_SLASHES));
 		$received->setActorId(self::LOCAL_ACTOR);
+		$lookups = [];
 		$this->cacheActorService->expects($this->exactly(2))
 			->method('getFromId')
-			->withConsecutive([self::LOCAL_ACTOR, false], [self::LOCAL_ACTOR, true])
-			->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey));
+			->willReturnCallback(function (...$args) use (&$lookups) {
+				$lookups[] = $args;
+
+				return $this->person(self::LOCAL_ACTOR, self::$publicKey);
+			});
 
 		$this->assertFalse($this->service->checkObject($received));
 		$this->assertSame('', $received->getOrigin());
+		// the second lookup must bypass the cache, or the refresh is not a refresh
+		$this->assertSame([[self::LOCAL_ACTOR, false], [self::LOCAL_ACTOR, true]], $lookups);
 	}
 
 	public function testCheckObjectRejectsASignatureFromAnotherKey(): void {

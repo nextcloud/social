@@ -25,6 +25,8 @@ use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\WithoutErrorHandler;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -63,8 +65,14 @@ class CacheDocumentServiceTest extends TestCase {
 	 * imagedestroy(), both deprecated in PHP 8.5. Those notices are the
 	 * library's, not the service's: keep them out of the test output.
 	 */
+	/**
+	 * GD and the resize library announce malformed input with an E_WARNING before
+	 * returning false, and some codecs emit E_DEPRECATED on PHP 8.5. Both are the
+	 * expected path here: the assertions are about what the service does with the
+	 * failure, and PHPUnit 10 counts anything printed during a test as risky.
+	 */
 	private function quietly(callable $call): void {
-		$previous = error_reporting(E_ALL & ~E_DEPRECATED);
+		$previous = error_reporting(E_ALL & ~E_DEPRECATED & ~E_WARNING);
 		try {
 			$call();
 		} finally {
@@ -112,7 +120,7 @@ class CacheDocumentServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider allowedMimeProvider */
+	#[DataProvider('allowedMimeProvider')]
 	public function testFilterMimeTypesAcceptsImages(string $mime): void {
 		$this->service->filterMimeTypes($mime);
 		$this->addToAssertionCount(1);
@@ -129,7 +137,7 @@ class CacheDocumentServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider rejectedMimeProvider */
+	#[DataProvider('rejectedMimeProvider')]
 	public function testFilterMimeTypesRejectsEverythingElse(string $mime): void {
 		$this->expectException(CacheContentMimeTypeException::class);
 		$this->service->filterMimeTypes($mime);
@@ -369,6 +377,7 @@ class CacheDocumentServiceTest extends TestCase {
 		return "\x89PNG\r\n\x1a\n" . $ihdr . str_repeat("\x00", 64);
 	}
 
+	#[WithoutErrorHandler]
 	public function testUndecodableImageContentIsReportedNotFatal(): void {
 		// this used to reach a method call on null and escape as an Error, which
 		// abandoned document caching for every row queued behind it
@@ -412,6 +421,7 @@ class CacheDocumentServiceTest extends TestCase {
 		$this->assertSame(64, $document->getLocalCopySize()[0]);
 	}
 
+	#[WithoutErrorHandler]
 	public function testAnUploadedFileThatIsNotAnImageIsRefusedTheSameWay(): void {
 		$written = [];
 		$this->captureWrites($written);
@@ -453,9 +463,7 @@ class CacheDocumentServiceTest extends TestCase {
 		$this->service->retrieveContent('/files/pic.png');
 	}
 
-	/**
-	 * @dataProvider provideNonWebUrls
-	 */
+	#[DataProvider('provideNonWebUrls')]
 	public function testRetrieveContentOnlyFetchesOverHttp(string $url): void {
 		$this->curlService->expects($this->never())->method('doRequest');
 

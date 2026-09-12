@@ -34,6 +34,7 @@ use OCA\Social\Service\PushService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 
 require_once __DIR__ . '/../ActivityPubTestCase.php';
@@ -146,9 +147,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider visibilityProvider
-	 */
+	#[DataProvider('visibilityProvider')]
 	public function testIncomingNoteVisibilityIsEstimatedFromItsAddressing(array $to, array $cc, string $expected): void {
 		$this->nothingStored();
 		$this->knownActors($this->bob);

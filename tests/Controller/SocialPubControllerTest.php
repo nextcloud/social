@@ -25,6 +25,7 @@ use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IL10N;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -146,7 +147,7 @@ class SocialPubControllerTest extends TestCase {
 		yield 'following' => ['following'];
 	}
 
-	/** @dataProvider publicPages */
+	#[DataProvider('publicPages')]
 	public function testPublicPagesReportUnexpectedLookupFailures(string $page): void {
 		$this->cacheActorService->method('getFromAccount')->with('alice')->willThrowException(new \RuntimeException('db down'));
 

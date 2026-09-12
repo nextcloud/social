@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -888,7 +889,7 @@ class DocumentationTest extends TestCase {
 		yield 'mastodon roadmap' => ['docs/Mastodon-Roadmap.md', 'What a full Mastodon replacement still needs'];
 	}
 
-	/** @dataProvider surveyDocuments */
+	#[DataProvider('surveyDocuments')]
 	public function testTheSurveysAreStillHereAndLinkedFromTheReadme(string $path, string $title): void {
 		$document = $this->read($path);
 		$this->assertStringContainsString(

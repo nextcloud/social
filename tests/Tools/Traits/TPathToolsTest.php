@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Tools\Traits;
 
 use OCA\Social\Tools\Traits\TPathTools;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class TPathToolsTest extends TestCase {
@@ -36,9 +37,7 @@ class TPathToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider endSlashProvider
-	 */
+	#[DataProvider('endSlashProvider')]
 	public function testWithEndSlash(string $path, string $expected): void {
 		$this->assertSame($expected, $this->tools->withEndSlash($path));
 	}
@@ -53,9 +52,7 @@ class TPathToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider withoutEndSlashProvider
-	 */
+	#[DataProvider('withoutEndSlashProvider')]
 	public function testWithoutEndSlash(string $path, bool $force, string $expected): void {
 		$this->assertSame($expected, $this->tools->withoutEndSlash($path, $force));
 	}
@@ -74,9 +71,7 @@ class TPathToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider beginSlashProvider
-	 */
+	#[DataProvider('beginSlashProvider')]
 	public function testWithBeginSlash(string $path, string $expected): void {
 		$this->assertSame($expected, $this->tools->withBeginSlash($path));
 	}
@@ -91,9 +86,7 @@ class TPathToolsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider withoutBeginSlashProvider
-	 */
+	#[DataProvider('withoutBeginSlashProvider')]
 	public function testWithoutBeginSlash(string $path, bool $force, string $expected): void {
 		$this->assertSame($expected, $this->tools->withoutBeginSlash($path, $force));
 	}

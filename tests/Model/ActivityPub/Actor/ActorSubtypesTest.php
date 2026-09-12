@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Actor\Organization;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Tests\Model\TActivityPubMocks;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../../TActivityPubMocks.php';
@@ -43,9 +44,7 @@ class ActorSubtypesTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider subtypeProvider
-	 */
+	#[DataProvider('subtypeProvider')]
 	public function testIsAPersonWithItsOwnTypeConstant(string $class, string $type): void {
 		$actor = new $class();
 
@@ -53,9 +52,7 @@ class ActorSubtypesTest extends TestCase {
 		$this->assertSame($type, $class::TYPE);
 	}
 
-	/**
-	 * @dataProvider subtypeProvider
-	 */
+	#[DataProvider('subtypeProvider')]
 	public function testImportKeepsTheTypeAndReadsActorFields(string $class, string $type): void {
 		/** @var Person $actor */
 		$actor = new $class();
@@ -75,9 +72,7 @@ class ActorSubtypesTest extends TestCase {
 		$this->assertSame($type, $actor->exportAsActivityPub()['type']);
 	}
 
-	/**
-	 * @dataProvider subtypeProvider
-	 */
+	#[DataProvider('subtypeProvider')]
 	public function testAnAutomatedActorIsExportedAsABot(string $class, string $type): void {
 		/** @var Person $actor */
 		$actor = new $class();
@@ -92,9 +87,7 @@ class ActorSubtypesTest extends TestCase {
 		$this->assertSame($actor->isBot(), $actor->exportAsLocal()['bot']);
 	}
 
-	/**
-	 * @dataProvider subtypeProvider
-	 */
+	#[DataProvider('subtypeProvider')]
 	public function testTheCachedRowRemembersThatAnAccountIsAutomated(string $class, string $type): void {
 		$actor = new Person();
 		$actor->importFromDatabase([

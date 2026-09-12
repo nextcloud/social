@@ -54,6 +54,7 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -221,7 +222,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'whitespace around type' => [' application/activity+json '];
 	}
 
-	/** @dataProvider activityStreamsAcceptHeaders */
+	#[DataProvider('activityStreamsAcceptHeaders')]
 	public function testActorReturnsActivityPubJsonForActivityStreamsClients(string $accept): void {
 		$this->acceptHeader($accept);
 		$actor = $this->localActor('alice');
@@ -240,7 +241,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'no header' => [''];
 	}
 
-	/** @dataProvider humanAcceptHeaders */
+	#[DataProvider('humanAcceptHeaders')]
 	public function testActorFallsBackToPublicPageForBrowsers(string $accept): void {
 		$this->acceptHeader($accept);
 		$page = new TemplateResponse('social', 'main');
@@ -568,7 +569,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'a fault of our own' => [new SocialAppConfigException('no url'), Http::STATUS_INTERNAL_SERVER_ERROR];
 	}
 
-	/** @dataProvider inboxRejections */
+	#[DataProvider('inboxRejections')]
 	public function testARejectedDeliveryAnswersWhatTheRejectionActuallyIs(Exception $e, int $status): void {
 		$this->signatureService->method('checkRequest')->willThrowException($e);
 
@@ -771,7 +772,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'an expression' => ['1 OR 1'];
 	}
 
-	/** @dataProvider unusablePageParameters */
+	#[DataProvider('unusablePageParameters')]
 	public function testAnUnusablePageParameterServesTheCollectionItself(string $page): void {
 		$this->acceptHeader('application/activity+json');
 		$actor = $this->localActor('alice');
@@ -875,7 +876,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'Outbox, mixed case' => ['Outbox', 'getOutboxCollection'];
 	}
 
-	/** @dataProvider reservedTokens */
+	#[DataProvider('reservedTokens')]
 	public function testDisplayPostRoutesReservedTokensToTheCollections(string $token, string $method): void {
 		$this->acceptHeader('application/activity+json');
 		$actor = $this->localActor('alice');
@@ -1024,7 +1025,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield "Mastodon's page=true, which means the first" => ['true', 1];
 	}
 
-	/** @dataProvider requestedReplyPages */
+	#[DataProvider('requestedReplyPages')]
 	public function testRepliesServesTheRequestedPage(string $page, int $expected): void {
 		$this->quotablePost();
 		$collectionPage = new OrderedCollectionPage();
@@ -1168,7 +1169,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'empty' => [''];
 	}
 
-	/** @dataProvider unservableStamps */
+	#[DataProvider('unservableStamps')]
 	public function testAStampWeNeverIssuedGetsNoApproval(string $stamp): void {
 		$this->quotablePost();
 

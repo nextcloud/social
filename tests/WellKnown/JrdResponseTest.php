@@ -14,6 +14,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class JrdResponseTest extends TestCase {
@@ -37,7 +38,7 @@ class JrdResponseTest extends TestCase {
 		yield 'expires' => [fn (JrdResponse $r) => $r->setExpires('2030-01-01T00:00:00Z')];
 	}
 
-	/** @dataProvider fillers */
+	#[DataProvider('fillers')]
 	public function testAnyContentMakesTheResponseNonEmpty(callable $fill): void {
 		$response = new JrdResponse();
 		$fill($response);
