@@ -19,6 +19,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -62,6 +63,7 @@ class ModerationService {
 		private MuteExpiryRequest $muteExpiryRequest,
 		private StrikeService $strikeService,
 		private CollectionsRequest $collectionsRequest,
+		private StoriesRequest $storiesRequest,
 	) {
 	}
 
@@ -304,6 +306,9 @@ class ModerationService {
 			// the albums it curated, which are pages of its own posts and have
 			// nothing left to show once those are gone
 			'collections' => fn () => $this->collectionsRequest->deleteRelatedId($actorId),
+			// and its live stories, which were going to expire anyway but must
+			// not outlive the account that posted them
+			'stories' => fn () => $this->storiesRequest->deleteRelatedId($actorId),
 		] as $what => $delete) {
 			try {
 				$delete();

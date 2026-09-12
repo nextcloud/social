@@ -28,7 +28,7 @@ social/
 │   │   └── Application.php     # Bootstrap, integration registration
 │   ├── Command/                # occ CLI commands (+ ExtendedBase, a shared base that registers no command of its own)
 │   ├── Controller/             # HTTP entry points (ActivityPub, Mastodon-ish API, local API, OAuth, OStatus, navigation, queue, config, moderation, public pages)
-│   ├── Cron/                   # Background jobs (Cache, Queue, ScheduledPosts; DomainPurge and ActorCleanup are queued with an argument)
+│   ├── Cron/                   # Background jobs (Cache, Queue, ScheduledPosts, ExpiredStories; DomainPurge and ActorCleanup are queued with an argument)
 │   ├── Dashboard/              # Nextcloud Dashboard widgets
 │   ├── Db/                     # Query-builder based repositories (`*Request` + `*RequestBuilder` pairs), on the public `IQueryBuilder`
 │   ├── Exceptions/             # Custom exceptions
@@ -151,6 +151,8 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_followed_tag` | The hashtags an account follows: one row per (actor, lowercased tag), unique on the pair |
 | `social_collection` | Collections: an album an account curates out of its own posts, with its title, description and visibility |
 | `social_collection_item` | What is in a collection: one row per (collection, post), unique on the pair, ordered by `position` |
+| `social_story` | Stories: one picture that expires after a day, with its caption, hold time and `expires_at` |
+| `social_story_view` | Who has seen a story: one row per (story, viewer), unique on the pair |
 | `social_list` | Mastodon lists: one row per (owner, list), with its title, `replies_policy` and `exclusive` flag |
 | `social_list_member` | Who is in a list: one row per (list, account), unique on the pair |
 | `social_filter` | Keyword filters: one row per (account, filter) with its contexts, action and expiry |
@@ -686,6 +688,7 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Background Jobs | `Cron\Queue` | `appinfo/info.xml` | 12-minute interval: drains the outbound request queue and the inbound stream queue |
 | Background Jobs | `Cron\ActorCleanup` | queued by `PersonInterface::delete()` | Finishes detaching a deleted account from the posts that addressed it, when there are more of them than one inbox request should rewrite. Not in `appinfo/info.xml`, for the same reason `Cron\DomainPurge` is not: it is meaningless without an argument. Re-queues itself while rows remain |
 | Background Jobs | `Cron\DomainPurge` | queued by `FediverseService::addAddress()` | Queued with a domain when one is added to the deny list, never registered in `appinfo/info.xml` — a job listed there is added once at install time with no argument, and this one is meaningless without a domain. Runs 10 batches of `DomainPurgeService` per pass and re-queues itself while anything of the domain is left |
+| Background Jobs | `Cron\ExpiredStories` | `appinfo/info.xml` | Hourly: deletes the stories whose day is up, at most 500 per run. The read filter on `expires_at` is the other half of the guarantee; this is what stops the rows and pictures outliving it |
 | Background Jobs | `Cron\ScheduledPosts` | `appinfo/info.xml` | 5-minute interval: publishes the scheduled posts whose time has come, at most 50 per run. Shorter than the other two jobs on purpose — a post may be published up to one cron period late, and a period longer than the five minutes' notice the API demands would promise a precision the app cannot keep |
 | Repair step | `Migration\EncryptPrivateKeys` | `appinfo/info.xml` | Seals legacy plaintext actor private keys with ICrypto, once. A row it cannot process is named and skipped rather than aborting `occ upgrade` with the instance in maintenance mode |
 | Repair step | `Migration\HashClientSecrets` | `appinfo/info.xml` | Rewrites legacy plaintext client secrets/codes/tokens as sha256 digests, once. Asks the database for the rows that still need converting instead of hydrating the whole client table, and isolates a row it cannot process |

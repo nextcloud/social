@@ -42,6 +42,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<job>OCA\Social\Cron\Cache</job>
 		<job>OCA\Social\Cron\Queue</job>
 		<job>OCA\Social\Cron\ScheduledPosts</job>
+		<job>OCA\Social\Cron\ExpiredStories</job>
 	</background-jobs>
 
 	<repair-steps>

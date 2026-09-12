@@ -210,6 +210,23 @@ Collections are local. They are not federated as ActivityPub collections and a p
 
 A post that is deleted leaves every collection holding it, through the same cascade that removes its recipient and tag rows. Suspending or deleting an account removes its collections.
 
+### Stories
+
+Pixelfed's stories: one picture that stops existing after a day. Local only — a story has no `social_stream` row, no ActivityPub identity and no recipients, and is never federated. Giving one an identity would mean answering for what a peer did with its copy after the day was up.
+
+Every route requires a viewer. There is no public story, so there is nothing here to answer a signed-out caller with, and whether an account even *has* a story up is told only to its followers — which is why "not yours to see" and "there are none" are the same **404**.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/stories/carousel` | public, no-csrf (viewer required, `read:stories` scope) | — | The viewer's own live stories, then those of the accounts they follow, oldest first — the order a carousel plays them in. Each carries `seen` for this viewer. |
+| GET | `/api/v1/stories/self` | public, no-csrf (viewer required, `read:stories` scope) | — | The viewer's own live stories. Only here and in the carousel is `view_count` filled in: how many accounts watched is told to the poster and to nobody else. |
+| POST | `/api/v1/stories` | public, no-csrf (viewer required, `write:stories` scope) | `media_id` (required), `caption`, `duration` (5) | Posts one of the viewer's own uploads. `duration` is clamped to 3–30 seconds and `caption` to 500 characters. An account may have 40 live at once. An unknown or someone else's `media_id` is a **422**. |
+| DELETE | `/api/v1/stories/{id}` | public, no-csrf (viewer required, `write:stories` scope) | — | Removes it early, with the record of who saw it. Somebody else's is a **404**. |
+| POST | `/api/v1/stories/{id}/seen` | public, no-csrf (viewer required, `write:stories` scope) | — | Marks it seen. Called as a client scrolls, so a repeat is a no-op rather than a second view. |
+| GET | `/api/v1/accounts/{account_id}/stories` | public, no-csrf (viewer required, `read:stories` scope) | — | The live stories of one account: its own, or those of somebody the viewer follows. Anything else is a **404**. |
+
+The expiry is enforced twice, by design. Every read filters on `expires_at`, and `Cron\ExpiredStories` deletes what is due, hourly. If the job never runs nothing expired is ever shown; if a read is ever written without the filter, the job has already removed the row. For a feature whose promise is that the thing goes away, "what you can see" and "what is stored" have to be the same statement.
+
 ### Conversations
 
 | Method | Route | Auth | Parameters | Description |

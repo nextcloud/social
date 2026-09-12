@@ -60,6 +60,8 @@ class CoreRequestBuilder {
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_SCHEDULED = 'social_scheduled';
+	public const TABLE_STORIES = 'social_story';
+	public const TABLE_STORY_VIEWS = 'social_story_view';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_CARDS = 'social_stream_card';
@@ -218,6 +220,23 @@ class CoreRequestBuilder {
 			'collection_id',
 			'stream_id_prim',
 			'position',
+			'creation'
+		],
+		self::TABLE_STORIES => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'document_id',
+			'document_id_prim',
+			'caption',
+			'duration',
+			'creation',
+			'expires_at'
+		],
+		self::TABLE_STORY_VIEWS => [
+			'id',
+			'story_id',
+			'actor_id_prim',
 			'creation'
 		],
 		self::TABLE_CONVERSATION_STATE => [

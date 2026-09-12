@@ -361,6 +361,15 @@ class DocumentService {
 	}
 
 	/**
+	 * One cached document by its ActivityPub id.
+	 *
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getDocumentById(string $id): Document {
+		return $this->cacheDocumentsRequest->getById($id);
+	}
+
+	/**
 	 * Stores a changed alt text.
 	 */
 	public function updateDescription(Document $document): void {
