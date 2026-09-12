@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\InstancePath;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -37,6 +38,18 @@ use Throwable;
 class MigrationService {
 	/** The header Mastodon writes over its `following_accounts.csv`. */
 	private const CSV_ADDRESS_COLUMN = 'account address';
+
+	/** How many followers of a moved account to re-follow at a time. */
+	private const REFOLLOW_PAGE = 200;
+
+	/**
+	 * The most followers one Move will re-follow.
+	 *
+	 * Also what makes the paging terminate no matter what the query does: a
+	 * source that ignored the offset would hand back a full page forever, and
+	 * the loop below cannot tell that from a very popular account.
+	 */
+	private const REFOLLOW_MAX = 20000;
 
 	public function __construct(
 		private AccountService $accountService,
@@ -292,9 +305,44 @@ class MigrationService {
 	 * Follows the new account on behalf of everyone on this instance who
 	 * followed the old one. They never receive the Move — a delivery to
 	 * ourselves is dropped — so nothing else would do it for them.
+	 *
+	 * Paged. getFollowersByActorId() takes a limit and this used to call it
+	 * without one, so a popular account's entire follower set was loaded into
+	 * memory before the first re-follow, and each row then costs a lookup and an
+	 * outbound follow. The page size bounds the memory; the work itself is still
+	 * one account's followers, which is what a Move is.
 	 */
 	private function refollowLocalFollowers(Person $actor, Person $target): void {
-		foreach ($this->followsRequest->getFollowersByActorId($actor->getId()) as $follow) {
+		$offset = 0;
+
+		while ($offset < self::REFOLLOW_MAX) {
+			$page = $this->followsRequest->getFollowersByActorId(
+				$actor->getId(), self::REFOLLOW_PAGE, $offset
+			);
+			if ($page === []) {
+				return;
+			}
+
+			$this->refollowPage($page, $target);
+			$offset += count($page);
+
+			if (count($page) < self::REFOLLOW_PAGE) {
+				return;
+			}
+		}
+
+		$this->logger->warning(
+			'stopped re-following the followers of a moved account at the ceiling of '
+			. self::REFOLLOW_MAX . '; the rest keep following the old account',
+			['actor' => $actor->getId(), 'target' => $target->getId()]
+		);
+	}
+
+	/**
+	 * @param Follow[] $page
+	 */
+	private function refollowPage(array $page, Person $target): void {
+		foreach ($page as $follow) {
 			try {
 				// only a local account has a row here
 				$follower = $this->actorsRequest->getFromId($follow->getActorId());
