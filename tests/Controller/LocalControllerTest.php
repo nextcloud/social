@@ -369,8 +369,6 @@ class LocalControllerTest extends TestCase {
 	public function reactions(): iterable {
 		yield 'like' => ['postLike', 'likeService', 'create', 'like'];
 		yield 'unlike' => ['postUnlike', 'likeService', 'delete', 'like'];
-		yield 'boost' => ['postBoost', 'boostService', 'create', 'boost'];
-		yield 'unboost' => ['postUnboost', 'boostService', 'delete', 'boost'];
 	}
 
 	/** @dataProvider reactions */
@@ -575,16 +573,6 @@ class LocalControllerTest extends TestCase {
 		$this->accountService->method('cacheLocalActorByUsername')->willThrowException(new AccountDoesNotExistException());
 
 		$this->assertFailure($this->controller(null)->accountInfo('ghost'), CacheActorDoesNotExistException::class);
-	}
-
-	public function testAccountFollowersAndFollowingOfALocalUser(): void {
-		$actor = $this->createMock(Person::class);
-		$this->cacheActorService->method('getFromLocalAccount')->with('bob')->willReturn($actor);
-		$this->followService->method('getFollowers')->with($actor)->willReturn(['f1']);
-		$this->followService->method('getFollowing')->with($actor)->willReturn(['f2']);
-
-		$this->assertSuccess($this->controller(null)->accountFollowers('bob'), ['f1']);
-		$this->assertSuccess($this->controller(null)->accountFollowing('bob'), ['f2']);
 	}
 
 	public function testGlobalAccountInfoEnsuresTheViewersOwnActorExists(): void {
@@ -881,43 +869,6 @@ class LocalControllerTest extends TestCase {
 	}
 
 	// documents / uploads
-
-	public function testDocumentsCacheSkipsDocumentsThatCannotBeCached(): void {
-		$this->accountService->method('getActorFromUserId')->willReturn($this->actorForUser());
-		$doc = $this->createMock(Document::class);
-		$this->documentService->method('cacheRemoteDocumentAsViewer')
-			->willReturnCallback(function (string $id) use ($doc): Document {
-				if ($id === 'bad') {
-					throw new \RuntimeException('unreachable');
-				}
-
-				return $doc;
-			});
-
-		$this->assertSuccess($this->controller()->documentsCache(['good', 'bad']), [$doc]);
-	}
-
-	public function testDocumentsCacheAsksAsTheViewer(): void {
-		// a document id names any row in the table, so what comes back has to be
-		// scoped to who is asking
-		$viewer = $this->actorForUser();
-		$this->accountService->method('getActorFromUserId')->willReturn($viewer);
-		$doc = $this->createMock(Document::class);
-		$this->documentService->expects($this->once())->method('cacheRemoteDocumentAsViewer')
-			->with('doc-1', $viewer)->willReturn($doc);
-
-		$this->assertSuccess($this->controller()->documentsCache(['doc-1']), [$doc]);
-	}
-
-	public function testDocumentsCacheRequiresALoggedInUser(): void {
-		$this->documentService->expects($this->never())->method('cacheRemoteDocumentAsViewer');
-
-		$this->assertNotLoggedIn($this->controller(null)->documentsCache(['doc-1']));
-	}
-
-	public function testUploadAttachementIsNotImplemented(): void {
-		$this->assertFailure($this->controller()->uploadAttachement(), \BadMethodCallException::class);
-	}
 
 	public function testUploadBannerRequiresALoggedInUser(): void {
 		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');

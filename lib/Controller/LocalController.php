@@ -133,19 +133,6 @@ class LocalController extends Controller {
 	}
 
 	/**
-	 * Upload file
-	 *
-	 */
-	#[NoAdminRequired]
-	public function uploadAttachement(): DataResponse {
-		try {
-			throw new \BadMethodCallException('uploadAttachment is not implemented yet');
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
 	 * Upload a banner/header image for the current user's profile.
 	 *
 	 */
@@ -392,50 +379,6 @@ class LocalController extends Controller {
 			$this->streamService->deleteLocalItem($note, Note::TYPE);
 
 			return $this->success();
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Create a new boost.
-	 *
-	 */
-	#[NoAdminRequired]
-	public function postBoost(string $postId): DataResponse {
-		try {
-			$this->initViewer(true);
-			$token = '';
-			$announce = $this->boostService->create($this->viewer, $postId, $token);
-
-			return $this->success(
-				[
-					'boost' => $announce,
-					'token' => $token
-				]
-			);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Delete a boost.
-	 *
-	 */
-	#[NoAdminRequired]
-	public function postUnboost(string $postId): DataResponse {
-		try {
-			$this->initViewer(true);
-			$token = '';
-			$announce = $this->boostService->delete($this->viewer, $postId, $token);
-
-			return $this->success(
-				[
-					'boost' => $announce,
-					'token' => $token
-				]
-			);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -795,34 +738,8 @@ class LocalController extends Controller {
 
 	#[NoAdminRequired]
 	#[PublicPage]
-	public function accountFollowers(string $username): DataResponse {
-		try {
-			$this->initViewer();
-
-			$actor = $this->getLocalAccountWithCacheFallback($username);
-			$following = $this->followService->getFollowers($actor);
-
-			return $this->success($following);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
 	#[NoAdminRequired]
 	#[PublicPage]
-	public function accountFollowing(string $username): DataResponse {
-		try {
-			$this->initViewer();
-
-			$actor = $this->getLocalAccountWithCacheFallback($username);
-			$following = $this->followService->getFollowing($actor);
-
-			return $this->success($following);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
 	/**
 	 * Everything known about one account, resolving an unknown handle remotely.
 	 *
@@ -1131,29 +1048,6 @@ class LocalController extends Controller {
 	}
 
 	#[NoAdminRequired]
-	public function documentsCache(array $documents): DataResponse {
-		try {
-			$this->initViewer(true);
-
-			$cached = [];
-			foreach ($documents as $id) {
-				try {
-					// a document id is not a capability: only what this viewer
-					// is allowed to see gets cached and described back to them
-					$document = $this->documentService->cacheRemoteDocumentAsViewer(
-						(string)$id, $this->viewer
-					);
-					$cached[] = $document;
-				} catch (Exception $e) {
-				}
-			}
-
-			return $this->success($cached);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
 	/**
 	 * @throws AccountDoesNotExistException
 	 */

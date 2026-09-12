@@ -13,6 +13,41 @@ The Social app exposes four groups of endpoints, all registered in `appinfo/rout
 
 All URLs are relative to the app's route base, i.e. index.php/apps/social + the URL from the route table (for example, index.php/apps/social/api/v1/statuses).
 
+### Deprecated: the superseded half of the Custom Local API
+
+The Custom Local API predates the Mastodon-compatible one, and the frontend has
+moved off most of it. Eighteen of `LocalController`'s thirty-one routes now have
+no caller anywhere in `src/`:
+
+| Deprecated | Use instead |
+|---|---|
+| `GET /api/v1/stream/home` | `GET /api/v1/timelines/home` |
+| `GET /api/v1/stream/timeline` | `GET /api/v1/timelines/public?local=true` |
+| `GET /api/v1/stream/federated` | `GET /api/v1/timelines/public` |
+| `GET /api/v1/stream/tag/{hashtag}/` | `GET /api/v1/timelines/tag/{hashtag}` |
+| `GET /api/v1/stream/direct` | `GET /api/v1/conversations` |
+| `GET /api/v1/stream/liked` | `GET /api/v1/favourites` |
+| `GET /api/v1/stream/notifications` | `GET /api/v1/notifications` |
+| `GET /local/v1/post`, `GET /local/v1/post/replies` | `GET /api/v1/statuses/{nid}`, `…/context` |
+| `POST`/`DELETE /api/v1/post/like` | `POST /api/v1/statuses/{nid}/favourite`, `…/unfavourite` |
+| `GET /api/v1/current/info` | `GET /api/v1/accounts/verify_credentials` |
+| `GET /api/v1/current/followers`, `…/following` | `GET /api/v1/accounts/{account}/followers`, `…/following` |
+| `GET /api/v1/global/actor/info` | `GET /api/v1/accounts/{account}` |
+| `GET /api/v1/global/actor/header` | the `header` field of the Account entity |
+| `PUT /api/v1/account/summary` | `PATCH /api/v1/accounts/update_credentials` |
+| `GET /local/v1/search` | `GET /api/v2/search` |
+
+They still work and are still listed in the tables below. They are documented as
+deprecated rather than removed because they are a published surface; nothing in
+this app calls them, so the replacement column is what a caller should move to.
+
+The thirteen that the frontend still uses -- the banner uploads, the
+`global/account` and `global/tags` searches, the profile field and avatar
+endpoints, `POST`/`DELETE /api/v1/post`, `/api/v1/current/follow` and
+`/api/v1/account/{username}/stream` -- have no Mastodon equivalent yet and are
+not deprecated.
+
+
 ---
 
 ## Authentication
@@ -386,7 +421,7 @@ All eight take `since` (int, 0) and `limit` (int, 5) and return `{"result": [sta
 | POST | `/api/v1/post/like` | user | `postId` (required) | Likes a post; `{"result": {"like": <activity>, "token": "…"}, "status": 1}`. |
 | DELETE | `/api/v1/post/like` | user | `postId` (required) | Removes the like; same shape. |
 
-`LocalController::postBoost()`, `postUnboost()`, `uploadAttachement()` and `documentsCache()` exist in the controller but have **no routes**; boosting from a client goes through `POST /api/v1/statuses/{nid}/{act}` with `reblog`. `uploadAttachement()` unconditionally throws `BadMethodCallException('uploadAttachment is not implemented yet')`.
+Boosting from a client goes through `POST /api/v1/statuses/{nid}/{act}` with `reblog`.
 
 ### Current user
 
@@ -410,7 +445,7 @@ All eight take `since` (int, 0) and `limit` (int, 5) and return `{"result": [sta
 | GET | `/api/v1/global/actor/avatar` | user, public, no-csrf | `id` (required) | Streams the cached avatar with a 24 h cache header; 404 (envelope shape) when the actor has no icon. |
 | GET | `/api/v1/global/actor/header` | user, public, no-csrf | `id` (required) | HTTP **redirect** to the actor's header URL, 24 h cache; 404 when unset. |
 
-Two more methods, `LocalController::accountFollowers()` and `accountFollowing()`, have no routes — the followers/following lists of an arbitrary account are only reachable through the Mastodon-compatible `/api/v1/accounts/{account}/followers` and `/api/v1/accounts/{account}/following`.
+The followers and following lists of an arbitrary account are reachable through the Mastodon-compatible `/api/v1/accounts/{account}/followers` and `/api/v1/accounts/{account}/following`.
 
 ### Banner
 
