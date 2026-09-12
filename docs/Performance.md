@@ -88,9 +88,12 @@ webfinger both land there.
   names from that era are also not app-prefixed (`sa`, `ts`, `aoa`, …) and live
   in PostgreSQL's schema-global namespace, where another app can collide with
   them. Migrations from 2026 use `social_*`.
-- `Version1000Date20230217000002` adds `social_cache_doc.account` as `NOT NULL`
-  with no default. Fresh installs and MySQL are fine; a PostgreSQL upgrade with
-  existing rows fails with "column contains null values".
+- Every `NOT NULL` column these migrations add carries an explicit default,
+  including `social_cache_doc.account`. PostgreSQL refuses a `NOT NULL` column
+  on a table that already has rows unless there is one ("column contains null
+  values") where MySQL quietly invents the empty string, so the default is what
+  makes such a column safe to add at all. `InitialSchemaTest` holds the four
+  columns on that table to it.
 - `social_stream_act.bookmarked` is `SMALLINT` while its three sibling flags are
   `BOOLEAN`.
 - `social_stream` carries nine JSON-in-TEXT columns — `to_array`, `cc`, `bcc`,

@@ -17,14 +17,14 @@ use OCP\Migration\IOutput;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The step that creates the app: 14 tables in 1,451 lines, written in 2022 and
- * never covered by a test until now.
+ * The step that creates the app: 14 tables, written in 2022 and untested until
+ * the wave that then squashed the three 2023 repairs into it.
  *
- * That absence is why the 2022–2023 migration block cannot be squashed — a
- * mistake there does not fail here, it fails on somebody's `occ upgrade`. What
- * is asserted is the part a squash would have to preserve: which tables exist
- * afterwards, that each is addressable, and that a re-run on an instance that
- * already has them asks for nothing.
+ * This is what stands in for those repairs now. A mistake here does not fail
+ * in CI, it fails on somebody's `occ upgrade`, so what is asserted is the end
+ * state the four steps used to produce between them: which tables exist, which
+ * key each is addressable by, the columns the repairs added, and that a re-run
+ * on an instance that already has them asks for nothing.
  *
  * What the DDL becomes on each platform is verified against the real DBAL
  * outside this suite.
@@ -157,6 +157,40 @@ class InitialSchemaTest extends TestCase {
 				$table
 			);
 		}
+	}
+
+	public function testTheCacheTablesCarryTheColumnsTheRepairStepsUsedToAdd(): void {
+		$this->migrate();
+
+		// `social_cache_doc.account` was the last thing the 2023 repairs still
+		// did for a new instance; the rest of their work this step already
+		// produced directly.
+		foreach (['account', 'meta', 'blurhash', 'description'] as $column) {
+			$this->assertArrayHasKey($column, $this->added['social_cache_doc'], $column);
+			[, $options] = $this->added['social_cache_doc'][$column];
+			// PostgreSQL refuses a NOT NULL column on a populated table unless
+			// it has a default; MySQL quietly invents one
+			if ($options['notnull'] ?? false) {
+				$this->assertArrayHasKey('default', $options, $column);
+			}
+		}
+
+		$this->assertArrayHasKey('details_update', $this->added['social_cache_actor']);
+		$this->assertArrayHasKey('visibility', $this->added['social_stream']);
+	}
+
+	public function testTheReNumberedTablesKeepTheHashedIdUnique(): void {
+		$this->migrate();
+
+		// the 2023 repairs re-keyed these from `id_prim` onto an autoincrement
+		// `nid`, which means the hashed ActivityPub id needs a unique index of
+		// its own or the same object could be stored twice
+		foreach (['social_stream', 'social_cache_actor'] as $table) {
+			$this->assertSame(['nid'], $this->primaryKeys[$table], $table);
+			$this->assertContains([['id_prim'], null, true], $this->indexes[$table], $table);
+		}
+
+		$this->assertSame(['nid'], $this->primaryKeys['social_cache_doc']);
 	}
 
 	public function testARerunOnAnInstanceThatHasThemAsksForNothing(): void {
