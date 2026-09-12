@@ -31,7 +31,7 @@ class CommandsTest extends TestCase {
 	];
 
 	/** Files in lib/Command/ that register no command of their own. */
-	private const NOT_COMMANDS = ['ExtendedBase'];
+	private const NOT_COMMANDS = ['ExtendedBase', 'SocialCommand'];
 
 	public function testEveryCommandFileRegistersASocialCommand(): void {
 		$names = [];
