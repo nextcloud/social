@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\HtmlSanitizer;
+use OCA\Social\Security\HtmlSanitizer;
 
 /**
  * Turns the plain text somebody typed into the HTML every other implementation
