@@ -1801,6 +1801,28 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([$bob], $this->controller()->accountsSearch('bob', 40, true)->getData());
 	}
 
+	public function testAccountsSearchCapsFollowingChecksAtTheRequestedLimit(): void {
+		$this->loggedInAs();
+		$resolved = $this->createMock(Person::class);
+		$resolved->method('getId')->willReturn('https://remote.example/users/resolved');
+		$resolved->method('setExportFormat')->willReturnSelf();
+		$cached = $this->createMock(Person::class);
+		$cached->method('getId')->willReturn('https://remote.example/users/cached');
+		$cached->method('setExportFormat')->willReturnSelf();
+		$this->searchService->expects($this->once())
+			->method('searchAccounts')->with('@bob@remote.example', 1)->willReturn([$cached]);
+		$this->searchService->expects($this->once())
+			->method('searchUri')->with('@bob@remote.example')->willReturn([$resolved]);
+		$relationship = (new Relationship(42))->setFollowing(true);
+		$this->followService->expects($this->once())
+			->method('getRelationshipWith')->with($resolved)->willReturn($relationship);
+
+		$this->assertSame(
+			[$resolved],
+			$this->controller()->accountsSearch('@bob@remote.example', 1, true, true)->getData()
+		);
+	}
+
 	// search v2
 
 	public function testSearchV2BundlesAccountsStatusesAndHashtags(): void {

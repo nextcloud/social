@@ -1591,7 +1591,7 @@ class ApiController extends Controller {
 			foreach ($found as $account) {
 				$accounts[$account->getId()] = $account->setExportFormat(ACore::FORMAT_LOCAL);
 			}
-			$accounts = array_values($accounts);
+			$accounts = array_slice(array_values($accounts), 0, $limit);
 
 			// `following=true` is a client completing a reply rather than
 			// searching: it wants the people already in the conversation's
