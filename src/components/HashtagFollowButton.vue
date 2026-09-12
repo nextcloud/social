@@ -5,7 +5,8 @@
 <template>
 	<!-- until the server has answered there is no state to show, and a button
 	     that guesses would offer to unfollow what may not be followed -->
-	<NcButton v-if="canFollow"
+	<NcButton
+		v-if="canFollow"
 		class="hashtag-follow"
 		:class="{ 'hashtag-follow--pending': loading }"
 		:disabled="loading"
@@ -28,8 +29,8 @@ import { generateUrl } from '@nextcloud/router'
 import Check from 'vue-material-design-icons/Check.vue'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import serverDataMixin from '../mixins/serverData.js'
 import logger from '../services/logger.js'
+import { useServerData } from '../composables/useServerData.js'
 
 export default {
 	name: 'HashtagFollowButton',
@@ -38,9 +39,7 @@ export default {
 		NcButton,
 		Pound,
 	},
-	mixins: [
-		serverDataMixin,
-	],
+
 	props: {
 		/** the hashtag, without its '#', as the API names it */
 		tag: {
@@ -48,7 +47,14 @@ export default {
 			required: true,
 		},
 	},
+
 	emits: ['changed'],
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
+	},
+
 	data() {
 		return {
 			following: false,
@@ -57,15 +63,18 @@ export default {
 			loading: false,
 		}
 	},
+
 	computed: {
 		/** @return {boolean} whether there is a viewer this can be answered for */
 		canRequest() {
 			return !this.serverData.public && this.tag !== ''
 		},
+
 		/** @return {boolean} */
 		canFollow() {
 			return this.canRequest && this.loaded
 		},
+
 		/** @return {string} */
 		label() {
 			if (this.loading) {
@@ -78,6 +87,7 @@ export default {
 				? translate('social', 'Following')
 				: translate('social', 'Follow')
 		},
+
 		/** @return {string} the label with the hashtag it acts on */
 		ariaLabel() {
 			return this.following
@@ -85,6 +95,7 @@ export default {
 				: translate('social', 'Follow the hashtag #{tag}', { tag: this.tag })
 		},
 	},
+
 	watch: {
 		tag: {
 			immediate: true,
@@ -95,6 +106,7 @@ export default {
 			},
 		},
 	},
+
 	methods: {
 		/** What the server says about this tag, for this viewer. */
 		async load() {
@@ -116,6 +128,7 @@ export default {
 				logger.error('Failed to read whether a hashtag is followed', { error, tag })
 			}
 		},
+
 		async toggle() {
 			// `disabled` is not enough on its own: a second click can land in
 			// the same tick as the first, before the flag is on the button
@@ -143,6 +156,7 @@ export default {
 				this.loading = false
 			}
 		},
+
 		/**
 		 * @param {string} action 'follow', 'unfollow', or none for the lookup
 		 * @return {string}

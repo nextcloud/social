@@ -30,6 +30,7 @@ use OCP\Migration\SimpleMigrationStep;
  * step the ladder was missing.
  */
 class Version1000Date20260912000003 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

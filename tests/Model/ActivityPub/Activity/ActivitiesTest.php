@@ -21,6 +21,7 @@ use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -28,7 +29,7 @@ use PHPUnit\Framework\TestCase;
  * is wired to it and carries its own type.
  */
 class ActivitiesTest extends TestCase {
-	public function activityProvider(): array {
+	public static function activityProvider(): array {
 		return [
 			'Accept' => [Accept::class, 'Accept'],
 			'Add' => [Add::class, 'Add'],
@@ -43,9 +44,7 @@ class ActivitiesTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider activityProvider
-	 */
+	#[DataProvider('activityProvider')]
 	public function testConstructorSetsTheTypeAndAttachesAParent(string $class, string $type): void {
 		$parent = new Create();
 		/** @var ACore $activity */
@@ -57,9 +56,7 @@ class ActivitiesTest extends TestCase {
 		$this->assertTrue((new $class())->isRoot());
 	}
 
-	/**
-	 * @dataProvider activityProvider
-	 */
+	#[DataProvider('activityProvider')]
 	public function testImportReadsActorAndObjectAndExportsThemBack(string $class, string $type): void {
 		/** @var ACore $activity */
 		$activity = new $class();

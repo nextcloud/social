@@ -10,10 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model\Client;
 
 use OCA\Social\Model\Client\SocialClient;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class SocialClientTest extends TestCase {
-	public function scopeProvider(): array {
+	public static function scopeProvider(): array {
 		return [
 			'mastodon default scopes' => ['read write follow', ['read', 'write', 'follow']],
 			'single scope' => ['read', ['read']],
@@ -21,9 +22,7 @@ class SocialClientTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider scopeProvider
-	 */
+	#[DataProvider('scopeProvider')]
 	public function testGetScopesFromStringSplitsOnSpaces(string $scopes, array $expected): void {
 		$this->assertSame($expected, (new SocialClient())->getScopesFromString($scopes));
 	}

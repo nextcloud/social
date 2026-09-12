@@ -26,6 +26,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\RelationshipService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -176,16 +177,14 @@ class RelationshipServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{bool}>
 	 */
-	public function notificationsFlagProvider(): array {
+	public static function notificationsFlagProvider(): array {
 		return [
 			'hiding notifications' => [true],
 			'keeping notifications' => [false],
 		];
 	}
 
-	/**
-	 * @dataProvider notificationsFlagProvider
-	 */
+	#[DataProvider('notificationsFlagProvider')]
 	public function testMuteSavesAMuteRowWithTheNotificationsFlag(bool $notifications): void {
 		$this->actorRelationRequest->expects($this->once())
 			->method('save')

@@ -26,6 +26,8 @@ use PHPUnit\Framework\TestCase;
  * nothing.
  */
 class FollowedTagsTableTest extends TestCase {
+	use RecordsSchemaChanges;
+
 	/** @var array<string, array{string, array}> column => [type, options] */
 	private array $added = [];
 	/** @var array<int, array{string[], string, bool}> [columns, name, unique] */
@@ -35,43 +37,13 @@ class FollowedTagsTableTest extends TestCase {
 	private ?string $created = null;
 
 	private function schemaClosure(bool $hasTable = false): Closure {
-		$added = &$this->added;
-		$indexes = &$this->indexes;
-		$primaryKey = &$this->primaryKey;
-
-		$table = new class($added, $indexes, $primaryKey) {
-			public function __construct(
-				private array &$added,
-				private array &$indexes,
-				private array &$primaryKey,
-			) {
-			}
-
-			public function addColumn(string $column, string $type, array $options = []): void {
-				$this->added[$column] = [$type, $options];
-			}
-
-			public function setPrimaryKey(array $columns): void {
-				$this->primaryKey = $columns;
-			}
-
-			public function addIndex(array $columns, string $name): void {
-				$this->indexes[] = [$columns, $name, false];
-			}
-
-			public function addUniqueIndex(array $columns, string $name): void {
-				$this->indexes[] = [$columns, $name, true];
-			}
-		};
-
-		$created = &$this->created;
 		$schema = $this->createMock(ISchemaWrapper::class);
 		$schema->method('hasTable')->willReturn($hasTable);
 		$schema->method('createTable')
-			->willReturnCallback(static function (string $name) use (&$created, $table) {
-				$created = $name;
+			->willReturnCallback(function (string $name) {
+				$this->created = $name;
 
-				return $table;
+				return $this->recordTable($name);
 			});
 
 		return static fn (): ISchemaWrapper => $schema;
@@ -80,7 +52,10 @@ class FollowedTagsTableTest extends TestCase {
 	private function migrate(bool $hasTable = false): ?ISchemaWrapper {
 		$step = new Version1000Date20260911000004();
 
-		return $step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($hasTable), []);
+		$schema = $step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($hasTable), []);
+		$this->harvestSchemaChanges();
+
+		return $schema;
 	}
 
 	public function testTheTableIsTheOneTheCodeReadsAndWrites(): void {

@@ -28,6 +28,7 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -162,7 +163,7 @@ class CacheActorServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function localAccountProvider(): array {
+	public static function localAccountProvider(): array {
 		return [
 			'bare username' => ['alice'],
 			'leading at' => ['@alice'],
@@ -171,7 +172,7 @@ class CacheActorServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider localAccountProvider */
+	#[DataProvider('localAccountProvider')]
 	public function testGetFromLocalAccountResolvesLocalHandles(string $account): void {
 		$this->actorsRequest->expects($this->once())->method('getFromUsername')->with('alice')->willReturn($this->person(self::ALICE, 'alice'));
 		$cached = $this->person(self::ALICE, 'alice');
@@ -267,10 +268,11 @@ class CacheActorServiceTest extends TestCase {
 	public function testManageCacheRemoteActorsRefreshesEachStaleActorAndSurvivesFailures(): void {
 		$stale = [$this->person(self::BOB), $this->person('https://other.example/users/carol', 'carol')];
 		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')->with(true)->willReturn($stale);
+		$retrieved = [];
 		$this->curlService->expects($this->exactly(2))
 			->method('retrieveObject')
-			->withConsecutive([self::BOB], ['https://other.example/users/carol'])
-			->willReturnCallback(function (string $id) {
+			->willReturnCallback(function (string $id) use (&$retrieved) {
+				$retrieved[] = $id;
 				if ($id === self::BOB) {
 					return ['_host' => 'remote.example'];
 				}
@@ -280,6 +282,7 @@ class CacheActorServiceTest extends TestCase {
 		$this->personInterface->expects($this->once())->method('save');
 
 		$this->assertSame(2, $this->service->manageCacheRemoteActors(true));
+		$this->assertSame([self::BOB, 'https://other.example/users/carol'], $retrieved);
 	}
 
 	public function testAddRemoteActorDetailCountReadsTheCollectionTotals(): void {

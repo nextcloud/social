@@ -61,6 +61,7 @@ final class XrdResponse implements IResponse {
 		return $this;
 	}
 
+	#[\Override]
 	public function toHttpResponse(): Response {
 		$data = [];
 		$data[] = '<?xml version="1.0" encoding="UTF-8"?>';

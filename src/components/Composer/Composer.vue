@@ -3,7 +3,8 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="new-post"
+	<div
+		class="new-post"
 		:class="{
 			'new-post--collapsed': !expanded,
 			'new-post--drop-target': draggingFiles,
@@ -21,7 +22,8 @@
 		<div v-if="draggingFiles" class="new-post__drop-hint" aria-hidden="true">
 			<span>{{ t('social', 'Drop to attach') }}</span>
 		</div>
-		<input id="file-upload"
+		<input
+			id="file-upload"
 			ref="fileUploadInput"
 			type="file"
 			:accept="acceptedTypes"
@@ -31,9 +33,10 @@
 			class="hidden-visually"
 			@change="handleFileChange($event)">
 		<div class="new-post-author">
-			<NcAvatar :user="currentUser.uid"
-				:display-name="currentUser.displayName"
-				:disable-tooltip="true"
+			<NcAvatar
+				:user="currentUser.uid"
+				:displayName="currentUser.displayName"
+				:disableTooltip="true"
 				:size="32" />
 			<div class="post-author">
 				<span class="post-author-name">
@@ -46,7 +49,8 @@
 				<span>{{ t('social', 'In reply to') }}</span>
 				<ActorAvatar :actor="replyTo.account" :size="16" />
 				<strong>{{ replyTo.account.acct }}</strong>
-				<NcButton variant="tertiary"
+				<NcButton
+					variant="tertiary"
 					class="close-button"
 					:aria-label="t('social', 'Close reply')"
 					@click="closeReply">
@@ -62,7 +66,8 @@
 				<span>{{ t('social', 'Quoting') }}</span>
 				<ActorAvatar :actor="quoteOf.account" :size="16" />
 				<strong>{{ quoteOf.account.acct }}</strong>
-				<NcButton variant="tertiary"
+				<NcButton
+					variant="tertiary"
 					class="close-button"
 					:aria-label="t('social', 'Remove quote')"
 					@click="removeQuote">
@@ -73,10 +78,12 @@
 			</p>
 			<MessageContent :item="quoteOf" />
 		</div>
-		<form class="new-post-form"
+		<form
+			class="new-post-form"
 			:class="{ 'new-post-form--media-first': hasAttachments }"
 			@submit.prevent>
-			<input v-if="showWarning"
+			<input
+				v-if="showWarning"
 				v-model="spoilerText"
 				type="text"
 				class="content-warning"
@@ -85,15 +92,17 @@
 				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
 			<!-- above the box, not below it: once there is a picture the post
 			     is the picture, and what is typed underneath is its caption -->
-			<PreviewGrid :uploading="uploading"
-				:upload-progress="uploadProgress"
-				:progress-label="progressLabel"
+			<PreviewGrid
+				:uploading="uploading"
+				:uploadProgress="uploadProgress"
+				:progressLabel="progressLabel"
 				:miniatures="attachments"
 				@deleted="deletePreview"
 				@describe="describeAttachment"
-				@commit-description="commitDescription" />
+				@commitDescription="commitDescription" />
 
-			<div ref="composerInput"
+			<div
+				ref="composerInput"
 				:contenteditable="!loading"
 				class="message"
 				role="textbox"
@@ -109,11 +118,13 @@
 
 			<div v-if="showPoll" class="poll-editor">
 				<div v-for="(option, index) in pollOptions" :key="index" class="poll-editor__option">
-					<input v-model="pollOptions[index]"
+					<input
+						v-model="pollOptions[index]"
 						type="text"
 						:placeholder="t('social', 'Poll option {number}', { number: index + 1 })"
 						maxlength="100">
-					<NcButton v-if="pollOptions.length > 2"
+					<NcButton
+						v-if="pollOptions.length > 2"
 						variant="tertiary"
 						:aria-label="t('social', 'Remove option')"
 						@click.prevent="pollOptions.splice(index, 1)">
@@ -123,7 +134,8 @@
 					</NcButton>
 				</div>
 				<div class="poll-editor__settings">
-					<NcButton v-if="pollOptions.length < 4"
+					<NcButton
+						v-if="pollOptions.length < 4"
 						variant="tertiary"
 						@click.prevent="pollOptions.push('')">
 						{{ t('social', 'Add option') }}
@@ -156,7 +168,8 @@
 			</div>
 
 			<div class="options">
-				<NcButton :title="t('social', 'Add attachment')"
+				<NcButton
+					:title="t('social', 'Add attachment')"
 					variant="tertiary"
 					:aria-label="t('social', 'Add attachment')"
 					:disabled="attachmentsFull"
@@ -166,7 +179,8 @@
 					</template>
 				</NcButton>
 
-				<NcButton :title="t('social', 'Add from Files')"
+				<NcButton
+					:title="t('social', 'Add from Files')"
 					variant="tertiary"
 					:aria-label="t('social', 'Add from Files')"
 					:disabled="attachmentsFull || picking"
@@ -176,7 +190,8 @@
 					</template>
 				</NcButton>
 
-				<NcButton :title="showWarning ? t('social', 'Remove content warning') : t('social', 'Add content warning')"
+				<NcButton
+					:title="showWarning ? t('social', 'Remove content warning') : t('social', 'Add content warning')"
 					variant="tertiary"
 					:aria-label="showWarning ? t('social', 'Remove content warning') : t('social', 'Add content warning')"
 					:aria-pressed="showWarning"
@@ -185,7 +200,8 @@
 						<AlertOutline :size="22" decorative title="" />
 					</template>
 				</NcButton>
-				<NcButton :title="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
+				<NcButton
+					:title="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
 					variant="tertiary"
 					:aria-label="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
 					@click.prevent="togglePoll">
@@ -195,12 +211,14 @@
 				</NcButton>
 
 				<div class="new-post-form__emoji-picker">
-					<NcEmojiPicker ref="emojiPicker"
+					<NcEmojiPicker
+						ref="emojiPicker"
 						:search="search"
-						:close-on-select="false"
+						:closeOnSelect="false"
 						container="#content-vue"
 						@select="insert">
-						<NcButton :title="t('social', 'Add emoji')"
+						<NcButton
+							:title="t('social', 'Add emoji')"
 							variant="tertiary"
 							:aria-haspopup="true"
 							:aria-label="t('social', 'Add emoji')">
@@ -216,7 +234,8 @@
 				</span>
 				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
-				<span v-if="statusText.length > 0"
+				<span
+					v-if="statusText.length > 0"
 					id="composer-length"
 					class="char-ring"
 					:class="{ 'char-ring--warning': charsLeft <= 50, 'char-ring--over': statusIsTooLong }"
@@ -250,7 +269,6 @@ import PollIcon from 'vue-material-design-icons/Poll.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { getFilePickerBuilder, showError } from '@nextcloud/dialogs'
 import he from 'he'
-import CurrentUserMixin from '../../mixins/currentUserMixin.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
@@ -264,6 +282,10 @@ import Tribute from 'tributejs'
 import eventBus from '../../services/eventBus.js'
 import logger from '../../services/logger.js'
 import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
+import { mapStores } from 'pinia'
+import { useTimelineStore } from '../../store/timeline.js'
+import { useCurrentUser } from '../../composables/useCurrentUser.js'
+import { useServerData } from '../../composables/useServerData.js'
 
 /** what the server accepts in one status */
 const MAX_LENGTH = 500
@@ -306,19 +328,22 @@ export default {
 		SubmitStatusButton,
 		MessageContent,
 	},
+
 	directives: {
 		FocusOnCreate,
 	},
-	mixins: [CurrentUserMixin],
+
 	props: {
 		initialMention: {
 			type: Object,
 			default: null,
 		},
+
 		defaultVisibility: {
 			type: String,
 			default: undefined,
 		},
+
 		/**
 		 * Opened already, for the places where writing a post is the whole
 		 * reason the composer is on screen — the New post dialog, say, where
@@ -329,7 +354,15 @@ export default {
 			default: false,
 		},
 	},
+
 	emits: ['posted'],
+	setup() {
+		const { hostname } = useServerData()
+		const { currentUser } = useCurrentUser()
+
+		return { hostname, currentUser }
+	},
+
 	data() {
 		return {
 			statusContent: '',
@@ -373,20 +406,23 @@ export default {
 						lookup(item) {
 							return item.key + item.value
 						},
+
 						menuItemTemplate(item) {
 							return '<img src="' + item.original.avatar + '" /><div>'
 								+ '<span class="displayName">' + item.original.key + '</span>'
 								+ '<span class="account">' + item.original.value + '</span>'
 								+ '</div>'
 						},
+
 						selectTemplate(item) {
 							return '<span class="mention" contenteditable="false">'
-									+ `<a href="${item.original.url}" target="_blank">`
-										+ `<img src="${item.original.avatar}"/>`
-										+ `@${item.original.value}`
-									+ '</a>'
+								+ `<a href="${item.original.url}" target="_blank">`
+								+ `<img src="${item.original.avatar}"/>`
+								+ `@${item.original.value}`
+								+ '</a>'
 								+ '</span>&nbsp;'
 						},
+
 						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
 								populate([])
@@ -410,6 +446,7 @@ export default {
 						menuItemTemplate(item) {
 							return item.original.value
 						},
+
 						selectTemplate(item) {
 							let tag
 							if (typeof item === 'undefined') {
@@ -420,6 +457,7 @@ export default {
 							return '<span class="hashtag" contenteditable="false">'
 								+ '<a href="' + generateUrl('/timeline/tags/' + tag) + '" target="_blank">#' + tag + '</a></span>'
 						},
+
 						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
 								populate([])
@@ -436,6 +474,7 @@ export default {
 						}, 200),
 					},
 				],
+
 				noMatchTemplate() {
 					if (this.current.collection.trigger === '#') {
 						if (this.current.mentionText === '') {
@@ -448,19 +487,24 @@ export default {
 			},
 		}
 	},
+
 	computed: {
+		...mapStores(useTimelineStore),
 		/** @return {string} the `accept` of the file dialog, from one list */
 		acceptedTypes() {
 			return ACCEPTED_MEDIA_TYPES.map((type) => `${type}*`).join(',')
 		},
+
 		/** @return {boolean} whether the composer holds a picture */
 		hasAttachments() {
 			return Object.keys(this.attachments).length > 0
 		},
+
 		/** @return {boolean} whether the post is carrying all the server takes */
 		attachmentsFull() {
 			return Object.keys(this.attachments).length >= MAX_ATTACHMENTS
 		},
+
 		/**
 		 * What the box asks for. With a picture above it, the post is the
 		 * picture and the words underneath it are its caption.
@@ -472,28 +516,29 @@ export default {
 				? translate('social', 'Write a caption…')
 				: translate('social', 'What would you like to share?')
 		},
+
 		/** Attachments that can carry a description and have not been given one. */
 		undescribed() {
-			return Object.values(this.attachments).filter(
-				(attachment) => attachment.data?.id !== undefined && (attachment.description || '').trim() === '',
-			).length
+			return Object.values(this.attachments).filter((attachment) => attachment.data?.id !== undefined && (attachment.description || '').trim() === '').length
 		},
+
 		/** @return {number} uploads the server refused */
 		failedUploads() {
 			return Object.values(this.attachments).filter((attachment) => attachment.failed === true).length
 		},
+
 		/** @return {boolean} whether an upload has not come back yet */
 		hasPendingUploads() {
-			return Object.values(this.attachments).some(
-				(attachment) => attachment.failed !== true && attachment.data === null,
-			)
+			return Object.values(this.attachments).some((attachment) => attachment.failed !== true && attachment.data === null)
 		},
+
 		/** @return {string[]} the ids the post will carry */
 		mediaIds() {
 			return Object.values(this.attachments)
 				.map((attachment) => attachment.data?.id)
 				.filter((id) => id !== undefined && id !== null)
 		},
+
 		undescribedWarning() {
 			return translatePlural(
 				'social',
@@ -502,11 +547,13 @@ export default {
 				this.undescribed,
 			)
 		},
+
 		charactersLeftLabel() {
 			return this.statusIsTooLong
 				? translatePlural('social', '%n character too many', '%n characters too many', -this.charsLeft)
 				: translatePlural('social', '%n character left', '%n characters left', this.charsLeft)
 		},
+
 		canPost() {
 			// an upload that has not answered yet is worth waiting for; one
 			// that failed used to leave `data: undefined`, which passed this
@@ -529,6 +576,7 @@ export default {
 
 			return true
 		},
+
 		statusIsEmpty() {
 			return this.statusText.trim().length === 0 && this.mediaIds.length === 0
 		},
@@ -576,12 +624,14 @@ export default {
 			return /(?:^|\s)@[a-zA-Z0-9_.-]+/i.test(this.statusText)
 		},
 	},
+
 	watch: {
 		// the warning is part of the draft, and it has its own field
 		spoilerText: 'rememberDraft',
 		showWarning: 'rememberDraft',
 		visibility: 'rememberDraft',
 	},
+
 	mounted() {
 		// tributejs is a plain DOM library, not a component: it attaches to the
 		// contenteditable and appends its menu to the body, which the unscoped
@@ -628,6 +678,7 @@ export default {
 		document.addEventListener('pointerdown', this.onOutsideInteraction)
 		document.addEventListener('focusin', this.onOutsideInteraction)
 	},
+
 	unmounted() {
 		window.clearTimeout(this.refusalTimer)
 		document.removeEventListener('pointerdown', this.onOutsideInteraction)
@@ -639,6 +690,7 @@ export default {
 		eventBus.off('composer-quote', this.onComposerQuote)
 		eventBus.off('shortcut:compose', this.onComposerFocus)
 	},
+
 	methods: {
 		expand() {
 			this.openedByHand = true
@@ -707,11 +759,13 @@ export default {
 			this.$refs.composerInput.replaceChildren(mention, document.createTextNode('\u00a0'))
 			this.updateStatusContent()
 		},
+
 		updateStatusContent() {
 			this.statusContent = this.$refs.composerInput.innerHTML
 			this.statusText = this.plainText()
 			this.rememberDraft()
 		},
+
 		/**
 		 * The composer's contents as the string that would be sent: emoji
 		 * images replaced by their alt text, entities decoded, markup gone.
@@ -731,6 +785,7 @@ export default {
 
 			return he.decode(nodeToPlainText(element).trim())
 		},
+
 		/** Keeps what is in the box, so a failed post or a reload cannot eat it. */
 		rememberDraft() {
 			saveDraft({
@@ -739,6 +794,7 @@ export default {
 				visibility: this.visibility,
 			})
 		},
+
 		/**
 		 * Puts back whatever the last attempt or the last session left, unless
 		 * something else has already filled the composer (a reply mention).
@@ -766,9 +822,11 @@ export default {
 
 			return true
 		},
+
 		clickImportInput() {
 			this.$refs.fileUploadInput.click()
 		},
+
 		async handleFileChange(event) {
 			const target = event.target
 			const files = Array.from(target.files)
@@ -1005,7 +1063,7 @@ export default {
 
 				this.uploading = true
 				this.uploadProgress = index / accepted.length
-				const mediaData = await this.$store.dispatch('createMediaFromFile', { path })
+				const mediaData = await this.timelineStore.createMediaFromFile({ path })
 				this.uploadProgress = (index + 1) / accepted.length
 
 				if (this.attachments[key] === undefined) {
@@ -1052,7 +1110,7 @@ export default {
 				// real progress, from the request itself: the bar used to be
 				// hard-coded to 40% behind a `v-if="false"`
 				this.uploadProgress = index / files.length
-				const mediaData = await this.$store.dispatch('createMedia', {
+				const mediaData = await this.timelineStore.createMedia({
 					file,
 					onProgress: (fraction) => {
 						this.uploadProgress = (index + fraction) / files.length
@@ -1079,6 +1137,7 @@ export default {
 			}
 			this.progressLabel = ''
 		},
+
 		insert(emoji) {
 			if (typeof emoji === 'object') {
 				const category = Object.keys(emoji)[0]
@@ -1095,32 +1154,35 @@ export default {
 				this.$refs.composerInput.innerHTML = div.innerHTML
 			} else {
 				switch (lastChild.tagName) {
-				case 'BR':
-					lastChild.before(div.firstChild)
-					break
-				case 'DIV':
-					switch (lastChild.lastChild.tagName) {
 					case 'BR':
-						lastChild.lastChild.before(div.firstChild)
+						lastChild.before(div.firstChild)
+						break
+					case 'DIV':
+						switch (lastChild.lastChild.tagName) {
+							case 'BR':
+								lastChild.lastChild.before(div.firstChild)
+								break
+							default:
+								lastChild.append(div.firstChild)
+						}
 						break
 					default:
-						lastChild.append(div.firstChild)
-					}
-					break
-				default:
-					lastChild.after(div.firstChild)
+						lastChild.after(div.firstChild)
 				}
 			}
 			this.updateStatusContent()
 		},
+
 		keyup(event) {
 			if (event.ctrlKey) {
 				this.createPost()
 			}
 		},
+
 		updatePostFromTribute() {
 			this.updateStatusContent()
 		},
+
 		n: translatePlural,
 		async createPost() {
 			if (!this.canPost || this.loading) {
@@ -1163,7 +1225,7 @@ export default {
 				// `post` resolves with the created status and rejects when the
 				// server said no; clearing in a `finally` used to throw the
 				// text away on every failure, offline included
-				created = await this.$store.dispatch('post', statusData)
+				created = await this.timelineStore.post(statusData)
 			} finally {
 				this.loading = false
 			}
@@ -1187,18 +1249,20 @@ export default {
 			this.spoilerText = ''
 			clearDraft()
 			this.updateStatusContent()
-			this.$store.dispatch('refreshTimeline')
+			this.timelineStore.refreshTimeline()
 			// the sidebar's modal has no other way of knowing: it cleared the
 			// box and stayed open, which reads as if nothing had happened
 			this.$emit('posted')
 			eventBus.emit('post-published', created)
 		},
+
 		toggleWarning() {
 			this.showWarning = !this.showWarning
 			if (!this.showWarning) {
 				this.spoilerText = ''
 			}
 		},
+
 		togglePoll() {
 			this.showPoll = !this.showPoll
 			if (!this.showPoll) {
@@ -1206,27 +1270,33 @@ export default {
 				this.pollMultiple = false
 			}
 		},
+
 		closeReply() {
 			this.replyTo = null
-			this.$store.commit('setComposerDisplayStatus', false)
+			this.timelineStore.setComposerDisplayStatus(false)
 		},
+
 		removeQuote() {
 			// only the quote goes, unlike closeReply(): the message is the
 			// reader's own and taking the embed back is no reason to lose it
 			this.quoteOf = null
 		},
+
 		remoteSearchAccounts(text) {
 			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search'), { params: { search: text } })
 		},
+
 		remoteSearchHashtags(text) {
 			return axios.get(generateUrl('apps/social/api/v1/global/tags/search'), { params: { search: text } })
 		},
+
 		deletePreview(key) {
 			const newAttachments = { ...this.attachments }
 			delete newAttachments[key]
 			this.attachments = newAttachments
 			this.releasePreview(key)
 		},
+
 		/**
 		 * Lets go of the blob URL a preview was drawn from. Without this the
 		 * file stays in memory for the life of the document.
@@ -1246,6 +1316,7 @@ export default {
 				logger.debug('Could not release a preview URL', { error })
 			}
 		},
+
 		/**
 		 * Remembers what an attachment shows. Kept locally while the post is
 		 * being written and sent when it goes, rather than on every keystroke.
@@ -1261,17 +1332,16 @@ export default {
 		 * the description travels with the post that carries the picture.
 		 */
 		async saveDescriptions() {
-			const described = Object.values(this.attachments).filter(
-				(attachment) => attachment.data?.id
-					&& (attachment.description || '').trim() !== ''
-					&& (attachment.description || '').trim() !== attachment.saved,
-			)
+			const described = Object.values(this.attachments).filter((attachment) => attachment.data?.id
+				&& (attachment.description || '').trim() !== ''
+				&& (attachment.description || '').trim() !== attachment.saved)
 
-			await Promise.all(described.map((attachment) => this.$store.dispatch('describeMedia', {
+			await Promise.all(described.map((attachment) => this.timelineStore.describeMedia({
 				id: attachment.data.id,
 				description: attachment.description.trim(),
 			})))
 		},
+
 		/**
 		 * Saves what an attachment shows as soon as the field is left, so a
 		 * description outlives a post that never went out.
@@ -1292,8 +1362,9 @@ export default {
 				[key]: { ...attachment, description, saved: text },
 			}
 
-			await this.$store.dispatch('describeMedia', { id: attachment.data.id, description: text })
+			await this.timelineStore.describeMedia({ id: attachment.data.id, description: text })
 		},
+
 		describeAttachment({ key, description }) {
 			if (this.attachments[key] === undefined) {
 				return
@@ -1690,6 +1761,7 @@ $composer-duration: 220ms;
 	text-decoration: none;
 }
 </style>
+
 <style lang="scss">
 .tribute-container {
 	position: absolute;

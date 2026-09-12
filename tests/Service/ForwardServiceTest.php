@@ -28,6 +28,7 @@ use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\SignatureService;
 use OCP\ICache;
 use OCP\ICacheFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -310,9 +311,7 @@ class ForwardServiceTest extends TestCase {
 		$this->service->forwardReply($this->activity(), $this->reply());
 	}
 
-	/**
-	 * @dataProvider privateVisibilityProvider
-	 */
+	#[DataProvider('privateVisibilityProvider')]
 	public function testAPrivatePostsThreadStaysWhereItIs(string $visibility): void {
 		$this->streamRequest->method('getStreamById')->willReturn($this->parent(true, $visibility));
 		$this->actorsRequest->method('getFromId')->willReturn($this->alice());
@@ -324,9 +323,7 @@ class ForwardServiceTest extends TestCase {
 		$this->service->forwardReply($this->activity(), $this->reply());
 	}
 
-	/**
-	 * @dataProvider privateVisibilityProvider
-	 */
+	#[DataProvider('privateVisibilityProvider')]
 	public function testAPrivateReplyIsNotPassedOn(string $visibility): void {
 		$this->expectAForwardablePost(['https://a.example/inbox']);
 		$this->expectNothingForwarded();
@@ -337,7 +334,7 @@ class ForwardServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function privateVisibilityProvider(): array {
+	public static function privateVisibilityProvider(): array {
 		return [
 			'followers-only' => [Stream::TYPE_FOLLOWERS],
 			'direct' => [Stream::TYPE_DIRECT],

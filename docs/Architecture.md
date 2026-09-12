@@ -7,9 +7,9 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.17.1  
-**Supported Nextcloud versions:** 28 – 35  
-**Supported PHP versions:** 8.1 – 8.5  
+**App version:** 0.18.0  
+**Supported Nextcloud versions:** 35 – 36  
+**Supported PHP versions:** 8.3 – 8.5  
 
 All of the above come from `appinfo/info.xml`.
 
@@ -21,7 +21,7 @@ All of the above come from `appinfo/info.xml`.
 social/
 ├── appinfo/
 │   ├── info.xml                # App metadata, dependencies, cron jobs, occ commands
-│   └── routes.php              # All HTTP routes
+│   └── routes.php              # One route; the other 201 are attributes on the controller methods
 ├── lib/
 │   ├── AP.php                  # ActivityPub type registry (factory + interface lookup)
 │   ├── AppInfo/
@@ -30,7 +30,7 @@ social/
 │   ├── Controller/             # HTTP entry points (ActivityPub, Mastodon-ish API, local API, OAuth, OStatus, navigation, queue, config, moderation, public pages)
 │   ├── Cron/                   # Background jobs (Cache, Queue, ScheduledPosts; DomainPurge and ActorCleanup are queued with an argument)
 │   ├── Dashboard/              # Nextcloud Dashboard widgets
-│   ├── Db/                     # Query-builder based repositories (`*Request` + `*RequestBuilder` pairs)
+│   ├── Db/                     # Query-builder based repositories (`*Request` + `*RequestBuilder` pairs), on the public `IQueryBuilder`
 │   ├── Exceptions/             # Custom exceptions
 │   ├── Interfaces/             # Per-ActivityPub-type handlers (Activity/, Actor/, Object/, Internal/)
 │   ├── Listeners/              # Event listeners (ProfileSectionListener, UserAccountListener, UserDeletedListener)
@@ -42,7 +42,7 @@ social/
 │   ├── Service/                # Business logic services
 │   ├── Security/               # Key cipher, secret hasher, HTML sanitizer, outbound-address guard
 │   ├── Settings/               # Admin settings (moderation panel: reports + Fediverse access list)
-│   ├── Tools/                  # Vendored helper layer (query builder base, traits, exceptions) — see docs/Technical-Debt.md
+│   ├── Tools/                  # Vendored helper layer (query builder helpers, traits, exceptions) — see docs/Technical-Debt.md
 │   ├── UserMigration/          # Account export/import (`SocialMigrator`, the Nextcloud user-migration framework)
 │   ├── Traits/                 # TDetails
 │   └── WellKnown/              # WebFinger / NodeInfo / host-meta handler and responses
@@ -54,11 +54,11 @@ social/
 │   ├── profile.js              # Profile-page custom element entry
 │   ├── App.vue                 # Root component of the main SPA
 │   ├── router.js               # Vue Router configuration
-│   ├── store/                  # Vuex store (index.js + timeline, account, settings, errors, notifications)
+│   ├── store/                  # Pinia stores (index.js + timeline, account, settings, errors, notifications)
 │   ├── views/                  # Route- and entry-level components
 │   ├── components/             # UI components (`.vue`, plus MessageContent.js)
 │   ├── services/               # eventBus, logger, notifications, clock, draft, shortcuts
-│   ├── mixins/                 # accountMixins, currentUserMixin, serverData
+│   ├── composables/            # useAccount, useCurrentUser, useServerData
 │   ├── directives/             # focusOnCreate
 │   ├── utils/                  # sanitizeHtml (+ its unit test), dominantColour, emojiCodePoint, instanceIdentity, relativeTime, viewTransition
 │   └── types/                  # JSDoc type definitions (ActivityPub, Mastodon)
@@ -71,7 +71,55 @@ There is no `lib/bootstrap.php`; Composer's autoloader is pulled in by `lib/AppI
 
 ---
 
+## HTTP routing
+
+The app registers 202 routes. 201 of them are `#[FrontpageRoute]` attributes on
+the controller method that answers the request, next to the `#[PublicPage]`,
+`#[NoCSRFRequired]` and rate-limit attributes that decide who may call it — url
+and policy in one place. None are `#[ApiRoute]`: that is the OCS type, and the
+server serves OCS routes under `/ocsapp`, which is not where these paths are
+published.
+
+Two things about the order the server reads them in, because two routes of this
+app can match the same url:
+
+- `OC\Route\Router::getAttributeRoutes()` walks `lib/Controller` with a
+  `DirectoryIterator` and reflects over each `*Controller.php`, so attributes
+  are read in method-declaration order **within** a class, and in whatever order
+  the filesystem lists the files **between** classes. Where a url is ambiguous,
+  only the within-a-class order can be relied on:
+  `ActivityPubController::displayPost()` (`/@{username}/{token}`) is declared
+  after `getInbox()`, `outbox()`, `followers()` and `following()` for that
+  reason, and has to stay there.
+- `appinfo/routes.php` is loaded after every attribute route of the app. That is
+  why `ApiController::accountGet()` is still declared there: its
+  `/api/v1/accounts/{id}` accepts slashes in `{id}`, so it also matches
+  `/api/v1/accounts/{account}/lists` and `/api/v1/accounts/{account}/featured_tags`,
+  which live in `ListController` and `DiscoveryController` — no arrangement of
+  attributes can put it after routes of another class.
+
+A route's name is derived, not written: the controller's short name without the
+`Controller` suffix, then `#`, then the method. Two routes on one method
+therefore share a name unless one carries a `postfix`, and the later one wins —
+which is what `NavigationController::navigate()` uses `postfix` for.
+
+---
+
 ## Database Schema
+
+Every query in the app is built by one class chain. `ExtendedQueryBuilder`
+(`lib/Tools/Db/`) holds a query builder the server handed it through
+`IDBConnection::getQueryBuilder()` and delegates the whole `IQueryBuilder`
+interface to it, adding the `limitTo*` / `searchIn*` helpers the `lib/Db/`
+repositories are written against. `SocialCoreQueryBuilder` adds the viewer,
+and `SocialCross`, `SocialLimits`, `SocialFilters` and `SocialQueryBuilder`
+add the joins, visibility filters and pagination on top of it.
+
+It is composition rather than inheritance on purpose: the chain used to extend
+`OC\DB\QueryBuilder\QueryBuilder` from the server's `lib/private/`, which put
+all 68 repository classes on a constructor signature that carries no stability
+promise and broke outright when Nextcloud 35 added a method to the public
+interface. Nothing in `lib/` now names a class outside `OCP\`.
 
 The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all prefixed with `social_`:
 
@@ -86,7 +134,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_hashtag` | Hashtag trend data: a JSON `trend` blob per hashtag, plus one sortable integer column per window (`trend_1h` … `trend_10d`) |
 | `social_instance` | Known federated instances (version, metadata) |
 | `social_req_queue` | Outbound ActivityPub delivery queue |
-| `social_stream` | Core content table: posts, notes, activities |
+| `social_stream` | Core content table: posts, notes, activities. Nine JSON-in-TEXT columns (`to_array`, `cc`, `bcc`, `hashtags`, `tags`, `details`, `instances`, `attachments`, `cache`) beside the scalar ones; `source` holds the ActivityPub wire object verbatim |
 | `social_stream_act` | Per-viewer stream flags (`liked`, `boosted`, `replied`, `bookmarked`, `values`) |
 | `social_stream_dest` | Stream visibility targets (who sees what) |
 | `social_stream_queue` | Inbound stream processing queue |
@@ -114,7 +162,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_announce_read` | Who has dismissed which announcement: one row per (account, announcement), unique on the pair |
 | `social_scheduled` | Posts asked to be published later: one row per waiting post, with the client's request as JSON in `params` and the resolved visibility inside it |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`, and `Version1000Date20260911000004` adds `social_followed_tag` (the hashtags an account follows, unique on (actor, tag) — which is also the index the home timeline reads). `Version1000Date20260911000005` adds `social_list` and `social_list_member` — Mastodon's lists and their membership, the membership table unique on (list, account), which is both what makes adding an account twice a no-op and the index the list timeline joins `social_stream.attributed_to_prim` on. `Version1000Date20260911000006` adds `social_filter` and `social_filter_kw` — the keyword filters an account mutes posts with, indexed by owner and by filter, which are the two reads there are. `Version1000Date20260911000007` adds `social_convo_state`, unique on (account, thread root) — the read and dismissed markers behind `/api/v1/conversations`. The conversations themselves get no table: a conversation is a thread of `social_stream` rows derived from `in_reply_to` at read time, and its id is the nid of the thread root. `Version1000Date20260911000008` adds `social_domain_block`, `social_account_note` and `social_mute_expiry` — the per-account instance blocks, the private notes and the expiry of a timed mute, each unique on the pair it is keyed by, which is both what makes writing one twice a no-op and the index its read path probes. An endorsement is not among them: it is a row in `social_actor_relation` with type `endorse`, which is what that table already holds. `Version1000Date20260911000009` adds `social_stream_rev` (the revisions of an edited status, indexed on (status, id), which is the only read there is) and `Version1000Date20260911000010` adds `social_featured_tag` (the hashtags an account pins to its profile, unique on (actor, tag)). `Version1000Date20260911000011` adds `social_announcement` and `social_announce_read` — the announcements and their dismissals, the dismissal table unique on (account, announcement), which is both what makes dismissing twice a no-op and the index the client read probes. The announcements table gets no index beyond its key: every read of it is its whole active set, and it holds a handful of rows. `Version1000Date20260911000014` adds `social_scheduled` — the posts a client asked to have published later — with two indexes, one per read there is: `(actor_id_prim, scheduled_at)` for one account's list and the daily cap, and `(scheduled_at)` for the cron's "what is due across every account", which the first index cannot answer because its leading column is the account. `Version1000Date20260911000020` adds `forwarded` to `social_report`: whether a report was passed on to the instance that hosts the reported account, which the admin API used to answer as a hardcoded `false`. `Version1000Date20260912000001` adds the two indexes `Version1000Date20260910000001` left out: `social_actor.user_id`, which resolves the logged-in user's actor on every authenticated request and had no index at all, and the four trend windows of `social_hashtag` other than `trend_1d` (`trend_1h`, `trend_12h`, `trend_3d`, `trend_10d`), each of which `getTrending()` filters and orders on. `Version1000Date20260912000002` adds `social_actor.bot` — whether a local account is automated, which is what Mastodon's `bot` reports and what decides whether the actor document says `Service` or `Person`; it was accepted from clients and dropped. `Version1000Date20260912000003` adds `social_strike` — the history of moderation decisions, indexed on the account, which is the only read there is. `Version1000Date20260912000006` adds `social_access_block`, unique on (type, value) — one table for two lists, because what differs between Mastodon's two is a severity column and a count, and neither is worth a second table on an instance that holds tens of these rows. `Version1000Date20260912000005` adds `social_announce_react`, unique on (announcement, account, emoji) — both what makes reacting twice with the same emoji a no-op and the index its two reads use. `Version1000Date20260912000004` adds `social_emoji`, unique on the shortcode — which is both what makes re-adding one a replacement rather than a second row nothing can tell from the first, and the index every read of it uses.
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`, and `Version1000Date20260911000004` adds `social_followed_tag` (the hashtags an account follows, unique on (actor, tag) — which is also the index the home timeline reads). `Version1000Date20260911000005` adds `social_list` and `social_list_member` — Mastodon's lists and their membership, the membership table unique on (list, account), which is both what makes adding an account twice a no-op and the index the list timeline joins `social_stream.attributed_to_prim` on. `Version1000Date20260911000006` adds `social_filter` and `social_filter_kw` — the keyword filters an account mutes posts with, indexed by owner and by filter, which are the two reads there are. `Version1000Date20260911000007` adds `social_convo_state`, unique on (account, thread root) — the read and dismissed markers behind `/api/v1/conversations`. The conversations themselves get no table: a conversation is a thread of `social_stream` rows derived from `in_reply_to` at read time, and its id is the nid of the thread root. `Version1000Date20260911000008` adds `social_domain_block`, `social_account_note` and `social_mute_expiry` — the per-account instance blocks, the private notes and the expiry of a timed mute, each unique on the pair it is keyed by, which is both what makes writing one twice a no-op and the index its read path probes. An endorsement is not among them: it is a row in `social_actor_relation` with type `endorse`, which is what that table already holds. `Version1000Date20260911000009` adds `social_stream_rev` (the revisions of an edited status, indexed on (status, id), which is the only read there is) and `Version1000Date20260911000010` adds `social_featured_tag` (the hashtags an account pins to its profile, unique on (actor, tag)). `Version1000Date20260911000011` adds `social_announcement` and `social_announce_read` — the announcements and their dismissals, the dismissal table unique on (account, announcement), which is both what makes dismissing twice a no-op and the index the client read probes. The announcements table gets no index beyond its key: every read of it is its whole active set, and it holds a handful of rows. `Version1000Date20260911000014` adds `social_scheduled` — the posts a client asked to have published later — with two indexes, one per read there is: `(actor_id_prim, scheduled_at)` for one account's list and the daily cap, and `(scheduled_at)` for the cron's "what is due across every account", which the first index cannot answer because its leading column is the account. `Version1000Date20260911000020` adds `forwarded` to `social_report`: whether a report was passed on to the instance that hosts the reported account, which the admin API used to answer as a hardcoded `false`. `Version1000Date20260912000001` adds the two indexes `Version1000Date20260910000001` left out: `social_actor.user_id`, which resolves the logged-in user's actor on every authenticated request and had no index at all, and the four trend windows of `social_hashtag` other than `trend_1d` (`trend_1h`, `trend_12h`, `trend_3d`, `trend_10d`), each of which `getTrending()` filters and orders on. `Version1000Date20260912000002` adds `social_actor.bot` — whether a local account is automated, which is what Mastodon's `bot` reports and what decides whether the actor document says `Service` or `Person`; it was accepted from clients and dropped. `Version1000Date20260912000003` adds `social_strike` — the history of moderation decisions, indexed on the account, which is the only read there is. `Version1000Date20260912000006` adds `social_access_block`, unique on (type, value) — one table for two lists, because what differs between Mastodon's two is a severity column and a count, and neither is worth a second table on an instance that holds tens of these rows. `Version1000Date20260912000005` adds `social_announce_react`, unique on (announcement, account, emoji) — both what makes reacting twice with the same emoji a no-op and the index its two reads use. `Version1000Date20260912000004` adds `social_emoji`, unique on the shortcode — which is both what makes re-adding one a replacement rather than a second row nothing can tell from the first, and the index every read of it uses. `Version1000Date20260912000007` gives `social_stream` the five post fields that lived only inside the stored wire object: `tags` (the `tag` array as JSON), `language` (`VARCHAR(15)`, a BCP 47 tag, indexed as `social_s_lang`), `updated` (a nullable `DATETIME`) and `quote`/`quote_authorization` (both `TEXT`, ActivityPub ids). Neither id gets a `_prim` companion: nothing in the app looks a post up by what it quotes, and an md5 column plus its index on the largest table is a write cost on every insert for a query nobody makes. The existing rows are filled in afterwards by the `BackfillStreamPostFields` repair step, and `Stream::importFromDatabase()` falls back to the wire object for a row the backfill has not reached.
 
 Two of those deserve a warning.
 
@@ -165,7 +213,7 @@ The business logic lives in `lib/Service/`.
 - **ActivityService** — Wraps items in Create/Update/Delete activities, LD-signs them, resolves target inboxes, and drives the delivery queue. `request()` sends the single highest-priority entry synchronously and kicks off an async request for the rest
 - **ImportService** — Parses incoming ActivityPub JSON into typed model objects (`AP::getItemFromData()`) and dispatches to the matching handler in `lib/Interfaces/`
 - **SignatureService** — RSA-2048 key generation, HTTP Signature verification (checking `date` freshness, then the body against `Content-Length` if the sender sent one and against `Digest`/`Content-Digest`, before the signature itself) and RsaSignature2017 Linked Data signatures. The signing itself is delegated to `HttpSignatureService`. Fetching a signing key this instance does not already hold is bounded — `UNKNOWN_KEY_CONNECT_TIMEOUT` (5 s) for DNS, TCP and TLS within `UNKNOWN_KEY_TIMEOUT` (10 s) overall, what Mastodon allows a peer of its own — and a fetch that failed is remembered so a burst naming the same unknown key costs one fetch and not one each: 300 s (`KEY_FAILURE_TTL`) when the peer answered and the answer was not a usable actor, 30 s (`KEY_UNREACHABLE_TTL`) when it never answered, because that says the peer was having a bad minute rather than anything about the key
-- **HttpSignatureService** — The one place an outbound HTTP signature is produced. A delivery is signed by its own author over `(request-target) content-length date host digest`; an ActivityPub GET is signed over `(request-target) host date` by `signFetch()`, as the instance's own `Application` actor. Never as a person: the owner of a signing key is dereferenced by every peer that checks it, so a borrowed account would appear in every peer's logs as this instance's reader and a block or suspension of it anywhere would stop every signed fetch from here — and an instance whose users have no Social accounts yet would have nobody to borrow. A key that cannot sign raises rather than sending an empty signature, and an instance that cannot produce one at all fetches unsigned, which is what the request was until now
+- **HttpSignatureService** — The one place an outbound HTTP signature is produced. Both entry points take the URL the request will actually be sent to and the body it will actually carry, and answer with the headers to send: `(request-target)` is the path and query of that very URL and `host` its authority, so the signature and the request cannot drift apart. A delivery is signed by its own author over `(request-target) content-length date host digest`; an ActivityPub GET is signed over `(request-target) host date` by `signFetch()`, as the instance's own `Application` actor. Never as a person: the owner of a signing key is dereferenced by every peer that checks it, so a borrowed account would appear in every peer's logs as this instance's reader and a block or suspension of it anywhere would stop every signed fetch from here — and an instance whose users have no Social accounts yet would have nobody to borrow. A key that cannot sign raises rather than sending an empty signature, and an instance that cannot produce one at all fetches unsigned, which is what the request was until now
 - **InstanceActorService** — The instance's own actor and its key pair, served at `/actor`, discoverable as `acct:<host>@<host>`. The key pair lives in two app config values rather than in `oc_social_actor`: a row there is a local account — listed by the directory, resolved by webfinger, offered to the client API, counted in the statistics, handed a followers collection and an outbox — and the instance actor is none of those, so every one of those places would have needed a clause excluding it. The private half is sealed with the instance secret the way an actor's is, so a config dump alone is not enough to sign as this server. Generated on first use; when two requests race, both adopt whichever pair was written last, because that is the one the actor document publishes
 - **LinkifyService** — The plain text somebody types, turned into the HTML every other implementation publishes: `<p>` paragraphs, `<br />`, and links for URLs, mentions (`u-url mention`) and hashtags (`mention hashtag`, `rel="tag"`). Content used to leave as `nl2br(htmlentities(…))`, and peers render `content` without looking for anything to linkify, so every link, mention and hashtag written here arrived everywhere as dead text. The text is escaped first and markup is only ever built around the escaped pieces — nothing is un-escaped and no markup is assembled by interpolating input. The entities are found once, and that same list is what `PostService` addresses the post from and what `StreamService` builds the `tag` array out of, so the markup can never link somebody the `tag` array does not name — which is the list a receiving instance checks a mention against before it notifies anybody
 - **ForwardService** — Inbox forwarding (ActivityPub §7.1.2); see below
@@ -175,7 +223,7 @@ The business logic lives in `lib/Service/`.
 - **InboxLimiter** — Per-minute rate limits on the inbox routes, one spent before the signature is checked and one after; see [Security](#security)
 - **RequestQueueService** — Manages `social_req_queue`: creates entries, hands out the priority entry, and re-offers standby entries once they are due. The `floor(tries^4 / 3)` second backoff and the `MAX_TRIES` (15) give-up are applied by the query (`CoreRequestBuilder::limitToQueueDue()`), and exhausted rows are deleted before the 200-row window is read — filtered in PHP afterwards, the rows of one dead instance permanently occupied that window and starved every other delivery. A delivered row is removed rather than kept as a success row. A row whose delivery fails in a way `ActivityService` does not handle itself — a corrupt signing key, the database going away — is logged and handed back to standby by the caller (`Cron\Queue` and `QueueController`), because it was marked `running` before the attempt: left that way it was never retried, never counted against `MAX_TRIES`, and took the rest of the 200-row batch with it
 - **StreamQueueService** — Manages `social_stream_queue`, the inbound side. Two queue types are implemented. `Cache`: for each Note a received stream references (a reply parent, a boosted post), it fetches that Note, caches its author, stores it, and embeds it in the referencing stream's cache — anything that is not a Note, or whose id does not match the URL it was fetched from, is rejected. `LinkPreview`: reads the page a post links to, once, and stores the card. Any other type is dropped. This side has the same 200-row batch cap and the same in-query backoff, give-up (`MAX_TRIES`, 10 here) and delete-on-success as the outbound queue; it used to keep one permanent row per activity ever cached and was never pruned
-- **CurlService** — Outbound HTTP for ActivityPub fetches, WebFinger and host-meta lookups, and the async self-call that drains a delivery token. The transport is the server's own client (`OCP\Http\Client\IClientService`), so the CA bundle, the proxy configuration and the local-address checks come from the server; what stays here is federation-specific: the protocol fallback (an instance reachable over `http` only), the download size ceiling, and the mapping onto the app's request exceptions
+- **CurlService** — Outbound HTTP for ActivityPub fetches, WebFinger and host-meta lookups, and the async self-call that drains a delivery token. The transport is the server's own client (`OCP\Http\Client\IClientService`), and a caller hands it a method, a URL and at most four options — `headers`, `body`, `timeout`, `json_headers` — which is what the client itself takes; nothing in between describes an HTTP request a second time. So the CA bundle, the proxy configuration and the local-address checks come from the server, and what stays here is federation-specific: the protocol fallback (an instance reachable over `http` only, via `doRequestOverUrls()`), the signed fetch and its one unsigned retry, the download size ceiling, and the mapping onto the app's request exceptions. A URL somebody else wrote — an ActivityPub id, a cached-media link, a previewed page — is requested exactly as it is written rather than taken apart and reassembled, which is also what makes the path a signature covers the path the request is sent to
 - **FediverseService** — Instance-level access control; see [Security](#security)
 - **InstanceService** — Builds and returns the local instance's NodeInfo-style metadata
 
@@ -214,7 +262,7 @@ copy in app storage; the original stays where it was, untouched.
 
 ### System
 
-- **ConfigService** — App/user configuration and the derived URLs (cloud URL, social URL, social address, max download size, self-signed toggle), plus ActivityPub id generation
+- **ConfigService** — App/user configuration and the derived URLs (cloud URL, social URL, social address, max download size, self-signed toggle), plus ActivityPub id generation. It also owns the two config-derived parts of every outbound request: `requestOptions()` (the timeout and connect timeout, whether the peer's certificate has to check out, whether local addresses may be reached) and `activityPubHeaders()` (the `Accept` a federation GET carries and the `Content-Type` a POST does). `withRequestTimeout()` bounds everything a call makes, overriding what the caller asked for
 - **CheckService** — Installation checks (is `/.well-known/webfinger` reachable) and repair of invalid follow and note rows
 - **ClientService** — OAuth 2.0 client registration, authorization and token issuing
 - **DetailsService** — Computes a `StreamDetails` object describing which local viewers a stream reaches
@@ -253,7 +301,7 @@ Every local note carries a `replies` collection at `<post id>/replies`, served p
 5. `RequestQueueService::generateRequestQueue()` writes one `social_req_queue` row per remaining target
 6. At most one row is delivered inline: `RequestQueueService::getPriorityRequest()` hands back the first row only when its priority is `TOP`, or `HIGH`/`MEDIUM` under narrow conditions, and otherwise throws `NoHighPriorityRequestException` so nothing is sent synchronously. If rows remain on standby, `CurlService::asyncWithToken()` fires a request at the app's own `/async/request/{token}` route to drain them
 7. `Cron\Queue` (12-minute interval) retries whatever the query says is due, with the backoff above, after returning rows a dead worker left `running` to standby
-8. Every delivery is an HTTP POST signed by `SignatureService::signRequest()`
+8. Every delivery is an HTTP POST to the queue row's inbox URI. `SignatureService::signRequest()` is given that URL and the body about to be sent and answers with the signed headers; `CurlService::retrieveJson()` sends both
 
 A delivery is retried when the peer's answer says it might accept the activity later — 408, 429 and any 5xx — and the row is dropped only on an answer that says it never will, or once `MAX_TRIES` is reached. A host that has just answered with a transient status is added to the run's failing set, so the rest of the run does not ask it once per queued activity.
 
@@ -412,9 +460,10 @@ answering. Nothing pushes that news: statelessness has a price, and this is it �
 approvals granted are not recorded, so there is no list of who to tell. A peer
 that never re-checks goes on showing the quote. Withdrawal in the other
 direction does arrive promptly: a `Reject` for a quote that was previously
-accepted is applied as a revocation, the stamp comes off the stored wire object
-so later deliveries stop claiming an approval, and the client sees the quote's
-state as `revoked` rather than `rejected`.
+accepted is applied as a revocation, the stamp comes off both the
+`quote_authorization` column and the stored wire object so later deliveries stop
+claiming an approval, and the client sees the quote's state as `revoked` rather
+than `rejected`.
 
 **On the wire.** `quote` is FEP-044f's name and what Mastodon 4.5 reads first;
 `quoteUrl` and `_misskey_quote` are emitted beside it for the servers that
@@ -467,7 +516,7 @@ object": the row stays, its content does not.
 
 ## Frontend Architecture
 
-The user interface is a **Vue 3** front end using Vue Router, Vuex, `@nextcloud/vue` components, `@nextcloud/axios`, DOMPurify (via `src/utils/sanitizeHtml.js`), linkifyjs, and twemoji.
+The user interface is a **Vue 3** front end using Vue Router, Pinia, `@nextcloud/vue` components, `@nextcloud/axios`, DOMPurify (via `src/utils/sanitizeHtml.js`), linkifyjs, and twemoji.
 
 ### Entry bundles
 
@@ -485,7 +534,16 @@ The OStatus bundle and `src/views/OStatus.vue` are therefore dead code today: `O
 
 ### Store
 
-`src/store/index.js` registers five Vuex modules: `timeline`, `account`, `settings`, `errors` and `notifications`. Server-side state is not a store module — it is passed through Nextcloud's initial state as `serverData` and read by the `serverData` mixin.
+`src/store/` holds five Pinia stores — `timeline`, `account`, `settings`, `errors` and `notifications` — and `index.js` creates the Pinia every entry point installs. Components reach them through `mapStores`, or through a composable where the same few values are wanted together: `useServerData`, `useCurrentUser` and `useAccount` in `src/composables/` replaced the three mixins the app used to carry.
+
+Server-side state is not a store: it is passed through Nextcloud's initial state as `serverData` and read by `useServerData`.
+
+The Mastodon and ActivityPub entities the app exchanges are described as JSDoc
+typedefs in `src/types/`, and `npm run typecheck` holds the stores, services and
+utilities to them (`jsconfig.json`). Single-file components are outside that
+check: `tsc` cannot resolve a `.vue` import without `vue-tsc`.
+
+Each store is installed per Pinia instance rather than per module registration, which is the difference that matters for tests — two Pinias give two sets of state, where the Vuex modules shared one object literal between them.
 
 ### Routes and views
 
@@ -626,6 +684,7 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Repair step | `Migration\HashClientSecrets` | `appinfo/info.xml` | Rewrites legacy plaintext client secrets/codes/tokens as sha256 digests, once. Asks the database for the rows that still need converting instead of hydrating the whole client table, and isolates a row it cannot process |
 | Repair step | `Migration\BackfillRemoteVisibility` | `appinfo/info.xml` | Backfills the empty visibility of remote statuses stored before estimation landed (public/unlisted set-based, followers/direct per author), idempotent |
 | Repair step | `Migration\CacheFeaturedCollections` | `appinfo/info.xml` | Rebuilds the cached copy of every local actor when something the cache carries has changed — the `featured` URL, the display name. Gated on a `VERSION` marker rather than re-running on every upgrade, and it counts the local actors before loading any |
+| Repair step | `Migration\BackfillStreamPostFields` | `appinfo/info.xml` | Fills in `social_stream.tags`, `language`, `updated`, `quote` and `quote_authorization` for the rows stored before those columns existed, by re-reading each row's wire object through `Stream::importFromDatabase()` — one parser, not a second copy of it. Pages on the primary key, writes only the rows that disagree, and is gated on a marker so it is not a full scan of the largest table on every later upgrade |
 
 The four timeline tiles (home, mentions, direct, bookmarks) extend
 `Dashboard\TimelineWidget`, which resolves the viewer, builds the `ProbeOptions`
@@ -636,7 +695,7 @@ on the next poll — `setMinId()` would return the oldest matching rows instead 
 the newest. A boost renders as the post it repeats, subtitled with who boosted
 it; a boost or notification whose subject did not resolve has no row.
 
-Twenty-one occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `ExtendedBase.php`, a shared base several of them extend; it calls no `setName()`, so it registers no command of its own. See `docs/OCC-Commands.md`.
+Twenty-one occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `SocialCommand.php`, the base class all of them extend — it declares `--output` and the writers that honour it, in place of the server's private `OC\Core\Command\Base` — and `ExtendedBase.php`, a shared base several of them extend. Neither calls `setName()`, so neither registers a command of its own. See `docs/OCC-Commands.md`.
 
 ---
 
@@ -768,7 +827,7 @@ This file, `docs/API.md` and `docs/OCC-Commands.md` describe the current impleme
 `tests/DocumentationTest.php` mechanically enforces the parts that can be checked, in both directions where that is possible:
 
 - the registered occ commands, **and every option and argument each of them declares** — a documented flag that does not exist, and an existing flag nobody documented, both fail;
-- the HTTP routes of `appinfo/routes.php` against the route tables of `docs/API.md`;
+- the HTTP routes the app registers — the `#[FrontpageRoute]` attributes on the controllers, read by reflection the way the server reads them, plus what is left in `appinfo/routes.php` — against the route tables of `docs/API.md`;
 - the repair steps of `appinfo/info.xml` against the integration table above;
 - the tables declared in `CoreRequestBuilder` against the schema table above;
 - the supported Nextcloud and PHP version ranges, and the app version stated at the top of this file, against `appinfo/info.xml`;

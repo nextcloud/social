@@ -64,7 +64,7 @@ timeline. **Eighteen** call sites in `StreamRequest` still go through
 `getStreamSelectSql()`, which pairs `selectDistinct('s.id')` with the full
 stream column set plus, on some paths, a second `os_*` stream set and two
 cached-actor and cached-document sets. The database sorts or hashes all of it —
-including `content`, `source`, `details`, `cache` and `to_array` — to
+including `content`, `source`, `details`, `cache`, `tags` and `to_array` — to
 deduplicate. Direct messages, account timelines, hashtag timelines,
 notifications, search, `getNoteSince` and `getDescendants` are the ones worth
 moving.
@@ -88,11 +88,34 @@ webfinger both land there.
   names from that era are also not app-prefixed (`sa`, `ts`, `aoa`, …) and live
   in PostgreSQL's schema-global namespace, where another app can collide with
   them. Migrations from 2026 use `social_*`.
-- `Version1000Date20230217000002` adds `social_cache_doc.account` as `NOT NULL`
-  with no default. Fresh installs and MySQL are fine; a PostgreSQL upgrade with
-  existing rows fails with "column contains null values".
+- Every `NOT NULL` column these migrations add carries an explicit default,
+  including `social_cache_doc.account`. PostgreSQL refuses a `NOT NULL` column
+  on a table that already has rows unless there is one ("column contains null
+  values") where MySQL quietly invents the empty string, so the default is what
+  makes such a column safe to add at all. `InitialSchemaTest` holds the four
+  columns on that table to it.
 - `social_stream_act.bookmarked` is `SMALLINT` while its three sibling flags are
   `BOOLEAN`.
+- `social_stream` carries nine JSON-in-TEXT columns — `to_array`, `cc`, `bcc`,
+  `hashtags`, `tags`, `details`, `instances`, `attachments` and `cache` — plus
+  `source`, the whole ActivityPub wire object. None of them can be filtered,
+  indexed or sorted on by any database this app supports, so anything that has
+  to be queried needs a column or a side table of its own, and every insert
+  writes both copies: `hashtags` duplicates `social_stream_tag`, and
+  `to_array`/`cc`/`bcc` duplicate `social_stream_dest`. That is the cost of the
+  arrangement, and it is paid knowingly — the side tables exist *because* the
+  JSON is unqueryable.
+- Five post fields used to be readable only by `json_decode`ing `source` once
+  per timeline row: `tag`, `language`, `updated`, `quote` and
+  `quoteAuthorization`. `Version1000Date20260912000007` gave each a column, so
+  `language` is now an indexed equality (`social_s_lang`) and the other four are
+  read without parsing. `tags` stayed JSON, because the one facet of the `tag`
+  array worth querying — the hashtags — is already `social_stream_tag`, and a
+  second side table would be a second source of truth for it. `quote` and
+  `quote_authorization` have no `_prim` companions: no query filters on either,
+  and an md5 column plus index on the largest table in the app costs every
+  insert for a read nobody makes. Rows written before that step still fall back
+  to `source` until `BackfillStreamPostFields` reaches them.
 - The four `NOT EXISTS` clauses in `StreamPruneService` are assembled by calling
   `getSQL()` on separate query builders and concatenating the strings. The
   sub-builders have their own parameter namespaces, so a

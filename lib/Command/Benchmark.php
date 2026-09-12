@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OC\Core\Command\Base;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
@@ -37,7 +36,7 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
  * Everything it writes carries the same host, so `--clean` can take it all
  * back out again and nothing else is touched.
  */
-class Benchmark extends Base {
+class Benchmark extends SocialCommand {
 	/** every actor, note and follow this command writes lives under this host */
 	public const HOST = 'benchmark.invalid';
 
@@ -54,6 +53,7 @@ class Benchmark extends Base {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:benchmark')
@@ -71,6 +71,7 @@ class Benchmark extends Base {
 			);
 	}
 
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		if ($input->getOption('clean')) {
 			$output->writeln('removed ' . $this->clean() . ' seeded rows');
@@ -145,7 +146,7 @@ class Benchmark extends Base {
 			'<info>Seed this database?</info> (y/N) ', false, '/^(y|Y)/i'
 		);
 
-		if ((bool)$this->getHelper('question')->ask($input, $output, $question)) {
+		if ((bool)$this->questionHelper()->ask($input, $output, $question)) {
 			return true;
 		}
 

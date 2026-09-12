@@ -9,19 +9,19 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OC\Core\Command\Base;
 use OCA\Social\Service\StreamPruneService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class StreamPrune extends Base {
+class StreamPrune extends SocialCommand {
 	public function __construct(
 		private StreamPruneService $streamPruneService,
 	) {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:stream:prune')
@@ -36,6 +36,7 @@ class StreamPrune extends Base {
 			->addOption('dry-run', '', InputOption::VALUE_NONE, 'only count what would be deleted');
 	}
 
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$days = $input->getOption('days');
 		$days = ($days === null) ? null : (int)$days;

@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../TActivityPubMocks.php';
@@ -104,7 +105,7 @@ class StreamQuoteTest extends TestCase {
 	/**
 	 * @return array<string, array{array<string, mixed>}>
 	 */
-	public function quoteAliasProvider(): array {
+	public static function quoteAliasProvider(): array {
 		return [
 			// what Mastodon 4.5 emits alongside `quote`, for older readers
 			'quoteUrl' => [['quoteUrl' => self::QUOTED]],
@@ -115,9 +116,7 @@ class StreamQuoteTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider quoteAliasProvider
-	 */
+	#[DataProvider('quoteAliasProvider')]
 	public function testTheLegacyQuoteAliasesAreReadToo(array $wire): void {
 		$this->assertSame(self::QUOTED, $this->incoming($wire)->getQuote());
 	}
@@ -136,8 +135,10 @@ class StreamQuoteTest extends TestCase {
 	}
 
 	/**
-	 * No column carries any of this: the quote rides in the stored wire object,
-	 * which is re-parsed on load — the way the language and the edit stamp do.
+	 * The quote also rides in the stored wire object, and is read back out of it
+	 * for a row written before `Version1000Date20260912000007` gave it a column
+	 * — the fallback `Stream::importFromDatabase()` keeps for exactly that, and
+	 * the only path a row the backfill has not reached is read through.
 	 */
 	public function testTheQuoteIsReadBackOutOfTheStoredWireObject(): void {
 		$stream = new Stream();

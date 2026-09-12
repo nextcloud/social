@@ -27,6 +27,7 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	public function import(array $data) {
 		//parent::import($data);
 	}
@@ -36,6 +37,7 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 	}
@@ -43,6 +45,7 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		//		$this->addEntryInt('publishedTime', $this->getPublishedTime());
 

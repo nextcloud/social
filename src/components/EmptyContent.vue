@@ -6,7 +6,8 @@
 	<div class="empty-content">
 		<NcEmptyContent :name="item.title" :description="item.description">
 			<template v-if="item.image" #icon>
-				<img class="empty-content__image"
+				<img
+					class="empty-content__image"
 					:src="imageUrl"
 					alt="">
 			</template>
@@ -24,12 +25,14 @@ export default {
 	components: {
 		NcEmptyContent,
 	},
+
 	props: {
 		item: {
 			type: Object,
 			default: () => {},
 		},
 	},
+
 	computed: {
 		/** @return {string} */
 		imageUrl() {
@@ -38,6 +41,7 @@ export default {
 	},
 }
 </script>
+
 <style scoped>
 .empty-content {
 	min-height: 60vh;

@@ -38,6 +38,7 @@ use OCP\Migration\SimpleMigrationStep;
  * scan on PostgreSQL.
  */
 class Version1000Date20260910000002 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

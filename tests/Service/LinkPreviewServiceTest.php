@@ -16,7 +16,6 @@ use OCA\Social\Model\StreamCard;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Model\NCRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -48,15 +47,15 @@ class LinkPreviewServiceTest extends TestCase {
 	private function serves(string $html): callable {
 		$captured = null;
 		$this->curlService->method('doRequest')->willReturnCallback(
-			function (NCRequest $request) use ($html, &$captured): string {
-				$captured = $request;
+			function (string $method, string $url, array $options) use ($html, &$captured): string {
+				$captured = ['method' => $method, 'url' => $url, 'options' => $options];
 
 				return $html;
 			}
 		);
 
 		// by reference: the request only exists once doRequest has been called
-		return static function () use (&$captured): ?NCRequest {
+		return static function () use (&$captured): ?array {
 			return $captured;
 		};
 	}
@@ -201,16 +200,19 @@ class LinkPreviewServiceTest extends TestCase {
 		$this->assertFalse($this->service->generate($this->post('<a href="https://example.org/a">a</a>')));
 	}
 
-	public function testTheFetchAsksForHtmlAndFollowsRedirects(): void {
+	public function testTheFetchAsksForHtmlAndKeepsTheLinkAsItIsWritten(): void {
 		$request = $this->serves('<html><head><title>t</title></head></html>');
 
 		$this->service->generate($this->post('<a href="https://example.org/news/today?ref=social">a</a>'));
 
-		$this->assertSame('example.org', $request()->getHost());
-		$this->assertSame(['https'], $request()->getProtocols(), 'the scheme of the link, never downgraded');
-		$this->assertStringContainsString('/news/today', $request()->getParsedUrl());
-		$this->assertTrue($request()->isFollowLocation());
-		$this->assertSame('text/html,application/xhtml+xml', $request()->getHeaders()['Accept'] ?? '');
+		$this->assertSame('get', $request()['method']);
+		$this->assertSame(
+			'https://example.org/news/today?ref=social',
+			$request()['url'],
+			'the link as written, scheme included and never downgraded'
+		);
+		$this->assertSame('text/html,application/xhtml+xml', $request()['options']['headers']['Accept']);
+		$this->assertSame(5, $request()['options']['timeout'], 'a preview must not hold up the inbox');
 	}
 
 	public function testALongTitleAndDescriptionAreCapped(): void {

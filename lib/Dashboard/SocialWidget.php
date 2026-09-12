@@ -19,22 +19,27 @@ class SocialWidget implements IWidget {
 	) {
 	}
 
+	#[\Override]
 	public function getId(): string {
 		return 'social_notifications';
 	}
 
+	#[\Override]
 	public function getTitle(): string {
 		return $this->l10n->t('Social notifications');
 	}
 
+	#[\Override]
 	public function getOrder(): int {
 		return 10;
 	}
 
+	#[\Override]
 	public function getIconClass(): string {
 		return 'icon-social';
 	}
 
+	#[\Override]
 	public function getUrl(): ?string {
 		// the notifications page, not the JSON endpoint that feeds it
 		return $this->urlGenerator->linkToRoute(
@@ -43,6 +48,7 @@ class SocialWidget implements IWidget {
 		);
 	}
 
+	#[\Override]
 	public function load(): void {
 		\OCP\Util::addScript(Application::APP_ID, 'social-dashboard');
 		\OCP\Util::addStyle(Application::APP_ID, 'dashboard');

@@ -25,6 +25,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MigrationService;
 use OCA\Social\Service\SignatureService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -126,7 +127,7 @@ class MigrationServiceTest extends TestCase {
 		$this->assertSame(['https://old.example/users/alice'], $aliases);
 	}
 
-	/** @dataProvider notAnActorIdProvider */
+	#[DataProvider('notAnActorIdProvider')]
 	public function testAddAliasRefusesWhatIsNotAnActorId(string $alias): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->accountService->expects($this->never())->method('setAlsoKnownAs');
@@ -135,7 +136,7 @@ class MigrationServiceTest extends TestCase {
 		$this->service->addAlias('alice', $alias);
 	}
 
-	public function notAnActorIdProvider(): array {
+	public static function notAnActorIdProvider(): array {
 		return [
 			'a handle' => ['alice@old.example'],
 			'empty' => [''],

@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
-use OC\User\NoUserException;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -22,6 +21,7 @@ use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\NoUserException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -686,7 +686,7 @@ class AccountService {
 				'could not read the account of a local actor, falling back to its display name',
 				['userId' => $actor->getUserId(), 'exception' => $e]
 			);
-			$displayName = (string)$user->getDisplayName();
+			$displayName = $user->getDisplayName();
 		}
 
 		if ($displayName !== '') {

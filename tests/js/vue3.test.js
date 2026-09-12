@@ -21,7 +21,7 @@ import { SHORTCUTS } from '../../src/services/shortcuts.js'
 const SRC = resolve(process.cwd(), 'src')
 
 /** @return {string[]} every .vue and .js file under src/ */
-const sourceFiles = (dir = SRC, found = []) => {
+function sourceFiles(dir = SRC, found = []) {
 	for (const entry of readdirSync(dir)) {
 		const path = join(dir, entry)
 		if (statSync(path).isDirectory()) {
@@ -34,10 +34,12 @@ const sourceFiles = (dir = SRC, found = []) => {
 }
 
 /** A comment mentioning prefers-reduced-motion is not a guard. */
-const withoutComments = (content) => content
-	.replace(/\/\*[\s\S]*?\*\//g, '')
-	.replace(/<!--[\s\S]*?-->/g, '')
-	.replace(/^\s*\/\/.*$/gm, '')
+function withoutComments(content) {
+	return content
+		.replace(/\/\*[\s\S]*?\*\//g, '')
+		.replace(/<!--[\s\S]*?-->/g, '')
+		.replace(/^\s*\/\/.*$/gm, '')
+}
 
 /**
  * Everything inside `@media (prefers-reduced-motion: reduce)` blocks, so the
@@ -47,7 +49,7 @@ const withoutComments = (content) => content
  * @param {string} source a stylesheet or component, comments already stripped
  * @return {string} the guarded declarations, concatenated
  */
-const reducedMotionBlocks = (source) => {
+function reducedMotionBlocks(source) {
 	let guarded = ''
 	const opener = /@media[^{]*prefers-reduced-motion[^{]*\{/g
 	let match
@@ -83,11 +85,11 @@ const files = sourceFiles().map((path) => ({
  * @param {RegExp} pattern what a Vue 2 leftover looks like
  * @return {string[]} `file:line` for every hit
  */
-const hits = (pattern) => files.flatMap(({ name, content }) =>
-	content.split('\n')
+function hits(pattern) {
+	return files.flatMap(({ name, content }) => content.split('\n')
 		.map((line, index) => (pattern.test(line) ? `${name}:${index + 1}` : null))
-		.filter(Boolean),
-)
+		.filter(Boolean))
+}
 
 describe('the frontend is Vue 3, not Vue 2 with a Vue 3 runtime', () => {
 	it('names transition classes the way Vue 3 does', () => {
@@ -154,18 +156,14 @@ describe('the frontend is Vue 3, not Vue 2 with a Vue 3 runtime', () => {
 		const offenders = []
 		for (const { name, content } of files) {
 			const source = withoutComments(content)
-			const moves = [...source.matchAll(
-				/(?:transition|animation|transition-property|animation-name|scroll-behavior)\s*:\s*(?!none|auto|initial|unset)/g,
-			)].length
+			const moves = [...source.matchAll(/(?:transition|animation|transition-property|animation-name|scroll-behavior)\s*:\s*(?!none|auto|initial|unset)/g)].length
 			if (moves === 0) {
 				continue
 			}
 
 			// how much of the file the reduced-motion blocks actually cover
 			const guarded = reducedMotionBlocks(source)
-			const movesGuarded = [...guarded.matchAll(
-				/(?:transition|animation|transition-property|animation-name|scroll-behavior)\s*:/g,
-			)].length
+			const movesGuarded = [...guarded.matchAll(/(?:transition|animation|transition-property|animation-name|scroll-behavior)\s*:/g)].length
 
 			if (guarded === '') {
 				offenders.push(`${name}: ${moves} animated properties, no prefers-reduced-motion block`)
@@ -268,13 +266,11 @@ describe('cards agree on how far off the page they sit', () => {
 		// one hand-rolled rgba here and the timeline stops looking like one surface
 		const offenders = files
 			.filter(({ name }) => name !== 'App.vue')
-			.flatMap(({ name, content }) =>
-				content.split('\n')
-					.map((line, index) => (
-						/box-shadow:\s*[^;]*\b\d+px[^;]*\b(rgba?|hsla?)\(/.test(line) ? `${name}:${index + 1}` : null
-					))
-					.filter(Boolean),
-			)
+			.flatMap(({ name, content }) => content.split('\n')
+				.map((line, index) => (
+					/box-shadow:\s*[^;]*\b\d+px[^;]*\b(rgba?|hsla?)\(/.test(line) ? `${name}:${index + 1}` : null
+				))
+				.filter(Boolean))
 
 		expect(offenders).toEqual([])
 	})

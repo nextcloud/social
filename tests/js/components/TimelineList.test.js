@@ -5,13 +5,16 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { reactive } from 'vue'
 import { showError } from '@nextcloud/dialogs'
 import TimelineList from '../../../src/components/TimelineList.vue'
 import eventBus from '../../../src/services/eventBus.js'
 import { listen } from '@nextcloud/notify_push'
 import EmptyContent from '../../../src/components/EmptyContent.vue'
 import TimelineSkeleton from '../../../src/components/TimelineSkeleton.vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useNotificationsStore } from '../../../src/store/notifications.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
 vi.mock('@nextcloud/notify_push', () => ({ listen: vi.fn(() => false) }))
@@ -23,7 +26,6 @@ vi.mock('@nextcloud/auth', async (importOriginal) => ({
 }))
 
 class FakeIntersectionObserver {
-
 	static instances = []
 
 	constructor(callback, options) {
@@ -34,23 +36,24 @@ class FakeIntersectionObserver {
 		this.disconnect = vi.fn()
 		FakeIntersectionObserver.instances.push(this)
 	}
-
 }
 
 const observer = () => FakeIntersectionObserver.instances.at(-1)
 
-const intersect = async (isIntersecting = true) => {
+async function intersect(isIntersecting = true) {
 	observer().callback([{ isIntersecting }])
 	await flushPromises()
 }
 
-const status = (id) => ({
-	id,
-	created_at: `2026-09-0${id.length}T10:00:00Z`,
-	content: `<p>Status ${id}</p>`,
-	reblog: null,
-	account: { id: '1', acct: 'alice', username: 'alice', display_name: 'Alice' },
-})
+function status(id) {
+	return {
+		id,
+		created_at: `2026-09-0${id.length}T10:00:00Z`,
+		content: `<p>Status ${id}</p>`,
+		reblog: null,
+		account: { id: '1', acct: 'alice', username: 'alice', display_name: 'Alice' },
+	}
+}
 
 const TimelineEntryStub = {
 	name: 'TimelineEntry',
@@ -62,8 +65,16 @@ const TimelineEntryStub = {
 
 const entryIds = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => entry.attributes('data-id'))
 
+// what `getTimelineIdentity` is built from, so a test can swap the list the
+// store is holding the way a navigation does
+function showing(identity) {
+	const [type, account, params] = JSON.parse(identity)
+
+	return { type, account, params }
+}
+
 // `responses` are the successive results of `fetchTimeline`; an Error rejects
-const mountList = ({
+function mountList({
 	timeline = [],
 	parents = [],
 	identity = '["home","",{}]',
@@ -71,7 +82,7 @@ const mountList = ({
 	serverData = { public: false, cloudAddress: 'https://cloud.example.org' },
 	responses = [[]],
 	props = {},
-} = {}) => {
+} = {}) {
 	const dispatch = vi.fn()
 	for (const response of responses) {
 		if (response instanceof Error) {
@@ -82,29 +93,28 @@ const mountList = ({
 	}
 	dispatch.mockResolvedValue([])
 
-	const $store = {
-		dispatch,
-		commit: vi.fn(),
-		getters: reactive({
-			// fresh arrays, as the real getters return, so reverse() cannot leak
-			get getTimeline() {
-				return [...timeline]
-			},
-			get getParentsTimeline() {
-				return [...parents]
-			},
-			getServerData: serverData,
-			getTimelineIdentity: identity,
-		}),
-	}
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	useSettingsStore().setServerData(serverData)
+	const store = useTimelineStore()
+	const notificationsStore = useNotificationsStore()
+	vi.spyOn(store, 'fetchTimeline').mockImplementation(dispatch)
+	vi.spyOn(notificationsStore, 'markNotificationsRead').mockResolvedValue(undefined)
+	store.$patch({
+		statuses: Object.fromEntries([...timeline, ...parents].map((entry) => [entry.id, entry])),
+		timeline: timeline.map((entry) => entry.id),
+		parentsTimeline: parents.map((entry) => entry.id),
+		...showing(identity),
+	})
 	const wrapper = mount(TimelineList, {
 		props: { type: 'home', ...props },
 		global: {
-			mocks: { $store, $route: route },
+			plugins: [pinia],
+			mocks: { $route: route },
 			stubs: { TimelineEntry: TimelineEntryStub },
 		},
 	})
-	return { wrapper, dispatch, $store }
+	return { wrapper, dispatch, store, notificationsStore }
 }
 
 const emptyTitle = (wrapper) => wrapper.findComponent(EmptyContent).props('item').title
@@ -376,26 +386,26 @@ describe('TimelineList', () => {
 		]
 
 		it('records the newest one seen, so the badge stops counting it', () => {
-			const { dispatch } = mountList({
+			const { notificationsStore } = mountList({
 				timeline: notifications,
 				props: { type: 'notifications' },
 				route: { name: 'timeline', params: { type: 'notifications' } },
 			})
 
 			// the highest nid on screen, not the first or the last in the array
-			expect(dispatch).toHaveBeenCalledWith('markNotificationsRead', 1788875057712412)
+			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith(1788875057712412)
 		})
 
 		it('leaves the marker alone on any other timeline', () => {
-			const { dispatch } = mountList({ timeline: notifications, props: { type: 'home' } })
+			const { notificationsStore } = mountList({ timeline: notifications, props: { type: 'home' } })
 
-			expect(dispatch).not.toHaveBeenCalledWith('markNotificationsRead', expect.anything())
+			expect(notificationsStore.markNotificationsRead).not.toHaveBeenCalled()
 		})
 
 		it('records nothing when there is nothing to show', () => {
-			const { dispatch } = mountList({ timeline: [], props: { type: 'notifications' } })
+			const { notificationsStore } = mountList({ timeline: [], props: { type: 'notifications' } })
 
-			expect(dispatch).not.toHaveBeenCalledWith('markNotificationsRead', expect.anything())
+			expect(notificationsStore.markNotificationsRead).not.toHaveBeenCalled()
 		})
 	})
 
@@ -404,13 +414,13 @@ describe('TimelineList', () => {
 			const { dispatch } = mountList()
 			await flushPromises()
 			expect(dispatch).toHaveBeenCalledTimes(1)
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', {})
+			expect(dispatch).toHaveBeenCalledWith({})
 		})
 
 		it('requests the statuses older than the last one shown', async () => {
 			const { dispatch } = mountList({ timeline: [status('30'), status('20')] })
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { max_id: 20 })
+			expect(dispatch).toHaveBeenCalledWith({ max_id: 20 })
 		})
 
 		it('requests the statuses newer than the newest one shown in reverse order', async () => {
@@ -418,12 +428,14 @@ describe('TimelineList', () => {
 			// paging on any other entry refetches a page the store already has.
 			const { dispatch } = mountList({ timeline: [status('30'), status('20')], props: { reverseOrder: true } })
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: 30 })
 		})
 
 		it('shows post-shaped placeholders while the first page loads, not a spinner', async () => {
 			let finish
-			const { wrapper } = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
+			const {
+				wrapper,
+			} = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
 			await flushPromises()
 
 			// an empty page with a spinner says nothing about what is coming
@@ -495,16 +507,16 @@ describe('TimelineList', () => {
 			// the router-view is no longer keyed on the full path, so going
 			// from Home to Global (or to another profile) reuses this
 			// component: without this nothing would ask for the new list
-			const { wrapper, dispatch, $store } = mountList({ responses: [[]] })
+			const { wrapper, dispatch, store } = mountList({ responses: [[]] })
 			await flushPromises()
 			expect(wrapper.findComponent(EmptyContent).exists()).toBe(true)
 			dispatch.mockClear()
 			dispatch.mockResolvedValue([status('9')])
 
-			$store.getters.getTimelineIdentity = '["federated","",{}]'
+			store.$patch(showing('["federated","",{}]'))
 			await flushPromises()
 
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', {})
+			expect(dispatch).toHaveBeenCalledWith({})
 			expect(wrapper.findComponent(EmptyContent).exists()).toBe(false)
 		})
 
@@ -513,27 +525,36 @@ describe('TimelineList', () => {
 			// left `loading` set, so infiniteHandler returned at once and
 			// nothing was ever requested for the list now on screen.
 			let finishHome
-			const { dispatch, $store } = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
+			const {
+				dispatch,
+				store,
+			} = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
 			await flushPromises()
 			dispatch.mockClear()
 			dispatch.mockResolvedValue([status('9')])
 
-			$store.getters.getTimelineIdentity = '["federated","",{}]'
+			store.$patch(showing('["federated","",{}]'))
 			await flushPromises()
 
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', {})
+			expect(dispatch).toHaveBeenCalledWith({})
 			finishHome([])
 		})
 
 		it('lets the previous list\'s answer decide nothing once it arrives', async () => {
 			let finishHome
-			const { wrapper, dispatch, $store } = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
+			const {
+				wrapper,
+				dispatch,
+				store,
+			} = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
 			await flushPromises()
 
 			let finishFederated
 			dispatch.mockClear()
-			dispatch.mockReturnValue(new Promise((resolve) => { finishFederated = resolve }))
-			$store.getters.getTimelineIdentity = '["federated","",{}]'
+			dispatch.mockReturnValue(new Promise((resolve) => {
+				finishFederated = resolve
+			}))
+			store.$patch(showing('["federated","",{}]'))
 			await flushPromises()
 
 			// home answers "nothing more", which used to end the new list
@@ -549,10 +570,10 @@ describe('TimelineList', () => {
 		})
 
 		it('does not start over for the ancestors list, which fetches nothing', async () => {
-			const { dispatch, $store } = mountList({ parents: [status('5')], props: { showParents: true } })
+			const { dispatch, store } = mountList({ parents: [status('5')], props: { showParents: true } })
 			await flushPromises()
 
-			$store.getters.getTimelineIdentity = '["single-post","",{"id":"9"}]'
+			store.$patch(showing('["single-post","",{"id":"9"}]'))
 			await flushPromises()
 
 			expect(dispatch).not.toHaveBeenCalled()
@@ -582,7 +603,7 @@ describe('TimelineList', () => {
 			await intersect()
 
 			expect(dispatch).toHaveBeenCalledTimes(2)
-			expect(dispatch).toHaveBeenLastCalledWith('fetchTimeline', { max_id: 20 })
+			expect(dispatch).toHaveBeenLastCalledWith({ max_id: 20 })
 		})
 
 		it('does nothing when the sentinel leaves the view', async () => {
@@ -594,7 +615,9 @@ describe('TimelineList', () => {
 
 		it('does not request a page while one is still loading', async () => {
 			let finish
-			const { dispatch } = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
+			const {
+				dispatch,
+			} = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
 
 			await intersect()
 			expect(dispatch).toHaveBeenCalledTimes(1)
@@ -625,7 +648,7 @@ describe('TimelineList', () => {
 			// a pushed event refreshes immediately
 			listen.mock.calls[listen.mock.calls.length - 1][1]()
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: 30 })
 			dispatch.mockClear()
 
 			// the 30-second poll is off; the safety net runs every 5 minutes
@@ -635,7 +658,7 @@ describe('TimelineList', () => {
 
 			vi.advanceTimersByTime(270 * 1000)
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: 30 })
 		})
 
 		it('asks for statuses newer than the first one every 30 seconds', async () => {
@@ -647,7 +670,7 @@ describe('TimelineList', () => {
 			await flushPromises()
 
 			expect(dispatch).toHaveBeenCalledTimes(1)
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: 30 })
 		})
 
 		it('polls with the highest id even when a newer-dated status has a lower one', async () => {
@@ -662,7 +685,7 @@ describe('TimelineList', () => {
 			vi.advanceTimersByTime(30 * 1000)
 			await flushPromises()
 
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 50 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: 50 })
 		})
 
 		it('does not poll for ancestors', async () => {

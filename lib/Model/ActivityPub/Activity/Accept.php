@@ -29,6 +29,7 @@ class Accept extends ACore implements JsonSerializable {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 	}
@@ -36,6 +37,7 @@ class Accept extends ACore implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}

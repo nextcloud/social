@@ -10,12 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Security;
 
 use OCA\Social\Security\RemoteAddress;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class RemoteAddressTest extends TestCase {
-	/**
-	 * @dataProvider localIps
-	 */
+	#[DataProvider('localIps')]
 	public function testIsLocalIpForPrivateOrReservedAddresses(string $ip): void {
 		$this->assertTrue(RemoteAddress::isLocalIp($ip));
 	}
@@ -23,7 +22,7 @@ class RemoteAddressTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function localIps(): array {
+	public static function localIps(): array {
 		return [
 			'loopback v4' => ['127.0.0.1'],
 			'private 10/8' => ['10.0.0.1'],
@@ -46,9 +45,7 @@ class RemoteAddressTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider publicHosts
-	 */
+	#[DataProvider('publicHosts')]
 	public function testIsLocalIpForPublicAddressesAndNonIps(string $host): void {
 		$this->assertFalse(RemoteAddress::isLocalIp($host));
 	}
@@ -56,7 +53,7 @@ class RemoteAddressTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function publicHosts(): array {
+	public static function publicHosts(): array {
 		return [
 			'google dns' => ['8.8.8.8'],
 			'cloudflare dns' => ['1.1.1.1'],
@@ -67,9 +64,7 @@ class RemoteAddressTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider localHosts
-	 */
+	#[DataProvider('localHosts')]
 	public function testIsLocalHost(string $host): void {
 		$this->assertTrue(RemoteAddress::isLocalHost($host));
 	}
@@ -77,7 +72,7 @@ class RemoteAddressTest extends TestCase {
 	/**
 	 * @return array<string, array{string}>
 	 */
-	public function localHosts(): array {
+	public static function localHosts(): array {
 		return [
 			'loopback literal' => ['127.0.0.1'],
 			'bracketed v6 loopback' => ['[::1]'],

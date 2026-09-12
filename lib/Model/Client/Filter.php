@@ -263,6 +263,7 @@ class Filter implements JsonSerializable {
 	 * `statuses` is always empty: this app has no per-status filters, and the
 	 * key is not optional for a client that declares it.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		$keywords = [];
 		foreach ($this->keywords as $keyword) {

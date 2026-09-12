@@ -26,6 +26,7 @@ use OCP\Migration\SimpleMigrationStep;
  * breaks Galera/`pxc_strict_mode` and degrades row-based replication.
  */
 class Version1000Date20260907000001 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

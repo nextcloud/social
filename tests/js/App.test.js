@@ -8,25 +8,19 @@ import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, shallowRef } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import App from '../../src/App.vue'
 import ShortcutHelp from '../../src/components/ShortcutHelp.vue'
 import eventBus from '../../src/services/eventBus.js'
-import account from '../../src/store/account.js'
-import errors from '../../src/store/errors.js'
-import settings from '../../src/store/settings.js'
-import timeline from '../../src/store/timeline.js'
+import { useAccountStore } from '../../src/store/account.js'
+import { useSettingsStore } from '../../src/store/settings.js'
+import { useTimelineStore } from '../../src/store/timeline.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
 })
-
-const pristine = {
-	account: structuredClone(account.state),
-	timeline: structuredClone(timeline.state),
-}
 
 const stubs = {
 	NcContent: { props: ['appName'], template: '<div class="content-stub" :data-app-name="appName"><slot /></div>' },
@@ -45,30 +39,34 @@ const baseServerData = {
 	checks: { success: true, checks: { wellknown: true } },
 }
 
-let store
-let dispatch
+let pinia
+let accountStore
+let settingsStore
+let timelineStore
 let route
 let router
-const fetchAccountInfo = vi.fn(async () => undefined)
 
-const setServerData = (overrides = {}) => {
+function setServerData(overrides = {}) {
 	setInitialState('social', 'serverData', { ...baseServerData, ...overrides })
 	window._nc_initial_state?.clear()
 }
 
-const makeStore = () => {
-	Object.assign(account.state, structuredClone(pristine.account))
-	Object.assign(timeline.state, structuredClone(pristine.timeline))
-	store = createStore({
-		modules: {
-			settings,
-			errors,
-			account: { ...account, actions: { ...account.actions, fetchAccountInfo } },
-			timeline: { ...timeline, actions: { ...timeline.actions, refreshTimeline: vi.fn(), fetchTimeline: vi.fn() } },
-		},
-	})
-	dispatch = vi.spyOn(store, 'dispatch')
-	return store
+function makeStore() {
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	settingsStore = useSettingsStore()
+	timelineStore = useTimelineStore()
+	// the network calls the App would make on mount, and the two actions the
+	// assertions below watch for
+	vi.spyOn(accountStore, 'fetchAccountInfo').mockResolvedValue(undefined)
+	// watched, not replaced: what they do to the store is part of the assertions
+	vi.spyOn(accountStore, 'fetchCurrentAccountInfo')
+	vi.spyOn(timelineStore, 'addToTimeline')
+	vi.spyOn(timelineStore, 'refreshTimeline').mockResolvedValue(undefined)
+	vi.spyOn(timelineStore, 'fetchTimeline').mockResolvedValue(undefined)
+
+	return pinia
 }
 
 // $route is exposed through a getter so swapping the ref triggers the
@@ -79,14 +77,15 @@ const routePlugin = {
 	},
 }
 
-const mountApp = () => mount(App, {
-	global: { plugins: [store, routePlugin], mocks: { $router: router }, stubs },
-})
+function mountApp() {
+	return mount(App, {
+		global: { plugins: [pinia, routePlugin], mocks: { $router: router }, stubs },
+	})
+}
 
 describe('App', () => {
 	beforeEach(() => {
 		makeStore()
-		fetchAccountInfo.mockClear()
 		route = shallowRef({ name: 'timeline', params: {}, fullPath: '/timeline' })
 		router = { push: vi.fn() }
 		setServerData()
@@ -136,12 +135,12 @@ describe('App', () => {
 
 	it('imports the server data and loads the current account', () => {
 		mountApp()
-		expect(store.state.settings.serverData).toEqual(baseServerData)
-		expect(dispatch).toHaveBeenCalledWith('fetchCurrentAccountInfo', 'alice@cloud.example.org')
-		expect(store.state.account.currentAccount).toBe('alice@cloud.example.org')
-		// the action dispatches the lookup through its module context
-		expect(fetchAccountInfo).toHaveBeenCalledTimes(1)
-		expect(fetchAccountInfo.mock.calls[0][1]).toBe('alice@cloud.example.org')
+		expect(settingsStore.serverData).toEqual(baseServerData)
+		expect(accountStore.fetchCurrentAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
+		expect(accountStore.currentAccountHandle).toBe('alice@cloud.example.org')
+		// the action asks the account store for the lookup itself
+		expect(accountStore.fetchAccountInfo).toHaveBeenCalledTimes(1)
+		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
 	})
 
 	it('renders the navigation and the routed view inside the app content', () => {
@@ -159,7 +158,7 @@ describe('App', () => {
 		expect(wrapper.find('.content-stub').classes()).toContain('public')
 		expect(wrapper.find('.navigation-stub').exists()).toBe(false)
 		expect(wrapper.find('.router-view-stub').exists()).toBe(true)
-		expect(dispatch).not.toHaveBeenCalledWith('fetchCurrentAccountInfo', expect.anything())
+		expect(accountStore.fetchCurrentAccountInfo).not.toHaveBeenCalled()
 	})
 
 	it('warns administrators about a broken .well-known setup', () => {
@@ -180,7 +179,7 @@ describe('App', () => {
 			const wrapper = mountApp()
 			wrapper.findComponent(stubs.Navigation).vm.$emit('search', 'fediverse')
 
-			expect(store.state.timeline.searchQuery).toBe('fediverse')
+			expect(timelineStore.searchQuery).toBe('fediverse')
 			expect(router.push).toHaveBeenCalledWith({ name: 'search', params: { term: 'fediverse' } })
 		})
 
@@ -201,7 +200,7 @@ describe('App', () => {
 
 			wrapper.findComponent(stubs.Navigation).vm.$emit('search', '   ')
 
-			expect(store.state.timeline.searchQuery).toBe('')
+			expect(timelineStore.searchQuery).toBe('')
 			expect(router.push).toHaveBeenCalledWith({ name: 'timeline' })
 		})
 
@@ -217,11 +216,11 @@ describe('App', () => {
 
 			route.value = { name: 'search', params: { term: 'fediverse' }, fullPath: '/search/fediverse' }
 			await nextTick()
-			expect(store.state.timeline.searchQuery).toBe('fediverse')
+			expect(timelineStore.searchQuery).toBe('fediverse')
 
 			route.value = { name: 'timeline', params: { type: 'federated' }, fullPath: '/timeline/federated' }
 			await nextTick()
-			expect(store.state.timeline.searchQuery).toBe('')
+			expect(timelineStore.searchQuery).toBe('')
 		})
 	})
 
@@ -251,12 +250,12 @@ describe('App', () => {
 			mountApp()
 			const [callback] = addCallback.mock.calls[0]
 			callback({ source: 'timeline.home', payload: status })
-			expect(dispatch).toHaveBeenCalledWith('addToTimeline', [status])
-			expect(store.state.timeline.timeline).toEqual(['s1'])
+			expect(timelineStore.addToTimeline).toHaveBeenCalledWith([status])
+			expect(timelineStore.timeline).toEqual(['s1'])
 
-			dispatch.mockClear()
+			timelineStore.addToTimeline.mockClear()
 			callback({ source: 'timeline.direct', payload: { ...status, id: 's2' } })
-			expect(dispatch).not.toHaveBeenCalledWith('addToTimeline', expect.anything())
+			expect(timelineStore.addToTimeline).not.toHaveBeenCalled()
 		})
 
 		it('adds pushed direct messages on the direct timeline', () => {
@@ -264,10 +263,10 @@ describe('App', () => {
 			mountApp()
 			const [callback] = addCallback.mock.calls[0]
 			callback({ source: 'timeline.direct', payload: status })
-			expect(dispatch).toHaveBeenCalledWith('addToTimeline', [status])
-			dispatch.mockClear()
+			expect(timelineStore.addToTimeline).toHaveBeenCalledWith([status])
+			timelineStore.addToTimeline.mockClear()
 			callback({ source: 'timeline.home', payload: status })
-			expect(dispatch).not.toHaveBeenCalledWith('addToTimeline', expect.anything())
+			expect(timelineStore.addToTimeline).not.toHaveBeenCalled()
 		})
 
 		it('does not register when the push app is disabled', () => {
@@ -298,8 +297,8 @@ describe('App', () => {
 			await flushPromises()
 			// the mutation takes an object payload, so both the flag and the
 			// address are actually stored (the address was dropped by the old bug)
-			expect(store.state.settings.serverData.setup).toBe(false)
-			expect(store.state.settings.serverData.cloudAddress).toBe('https://social.example.org')
+			expect(settingsStore.serverData.setup).toBe(false)
+			expect(settingsStore.serverData.cloudAddress).toBe('https://social.example.org')
 			expect(wrapper.find('.setup h2').exists()).toBe(false)
 			expect(wrapper.find('.router-view-stub').exists()).toBe(true)
 		})

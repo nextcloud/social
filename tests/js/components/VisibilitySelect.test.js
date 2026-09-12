@@ -22,18 +22,20 @@ const ICON_CLASSES = {
  * @param {string} visibility - Currently selected visibility id
  * @param {Function} [errorHandler] - Vue's app-level error handler, to catch what a handler throws
  */
-const mountSelect = (visibility, errorHandler) => mount(VisibilitySelect, {
-	props: { visibility },
-	attachTo: document.body,
-	global: errorHandler ? { config: { errorHandler } } : {},
-})
+function mountSelect(visibility, errorHandler) {
+	return mount(VisibilitySelect, {
+		props: { visibility },
+		attachTo: document.body,
+		global: errorHandler ? { config: { errorHandler } } : {},
+	})
+}
 
 const toggle = (wrapper) => wrapper.find('button.action-item__menutoggle')
 
 const menuEntries = () => Array.from(document.body.querySelectorAll('li.action'))
 
 // floating-vue shows the popover from a timer, so wait until the entries exist
-const openMenu = async (wrapper) => {
+async function openMenu(wrapper) {
 	await toggle(wrapper).trigger('click')
 	for (let attempt = 0; attempt < 50 && menuEntries().length === 0; attempt++) {
 		await new Promise((resolve) => setTimeout(resolve, 10))

@@ -55,6 +55,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 	/**
 	 * @throws ItemNotFoundException
 	 */
+	#[\Override]
 	public function getItemById(string $id): ACore {
 		try {
 			return $this->streamRequest->getStreamById($id);
@@ -66,6 +67,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 	/**
 	 * @throws InvalidOriginException|ItemAlreadyExistsException
 	 */
+	#[\Override]
 	public function activity(Acore $activity, ACore $item): void {
 		/** @var Note $item */
 		if ($activity->getType() === Create::TYPE) {
@@ -147,6 +149,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 	}
 
+	#[\Override]
 	public function save(ACore $item): void {
 		/** @var Note $note */
 		$note = $item;
@@ -280,6 +283,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 	}
 
+	#[\Override]
 	public function delete(ACore $item): void {
 		/** @var Note $item */
 		$this->streamRequest->deleteById($item->getId(), Note::TYPE);

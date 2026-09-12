@@ -44,6 +44,7 @@ use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -101,6 +102,7 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/banner')]
 	public function uploadBanner(): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -141,6 +143,7 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/banner/url')]
 	public function uploadBannerByUrl(string $url = ''): DataResponse {
 		$tmpFile = null;
 		try {
@@ -215,6 +218,7 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/post')]
 	public function postCreate(string $content = '', array $to = [], ?string $type = null, ?string $replyTo = null, $attachments = null, array $hashtags = [], ?array $poll = null, string $spoilerText = ''): DataResponse {
 		$content = $content ?: '';
 		$replyTo = $replyTo ?? '';
@@ -284,6 +288,7 @@ class LocalController extends Controller {
 	#[NoAdminRequired]
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/local/v1/post')]
 	public function postGet(string $id): DataResponse {
 		$this->logger->debug('[LocalController] postGet called', ['id' => $id]);
 		try {
@@ -310,6 +315,7 @@ class LocalController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/local/v1/post/replies')]
 	public function postReplies(string $id, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -329,6 +335,7 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/post')]
 	public function postDelete(string $id): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -353,6 +360,7 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/post/like')]
 	public function postLike(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -375,6 +383,7 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/post/like')]
 	public function postUnlike(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -394,6 +403,7 @@ class LocalController extends Controller {
 
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/home')]
 	public function streamHome(int $since = 0, int $limit = 5): DataResponse {
 		$this->logger->debug('[LocalController] streamHome called', [
 			'since' => $since,
@@ -418,6 +428,7 @@ class LocalController extends Controller {
 
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/notifications')]
 	public function streamNotifications(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -440,6 +451,7 @@ class LocalController extends Controller {
 	#[PublicPage]
 	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/account/{username}/stream', requirements: ['username' => '.+'])]
 	public function streamAccount(string $username, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer();
@@ -462,6 +474,7 @@ class LocalController extends Controller {
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/direct')]
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -479,6 +492,7 @@ class LocalController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/timeline')]
 	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
 		$this->logger->debug('[LocalController] streamTimeline called', [
 			'since' => $since,
@@ -506,6 +520,7 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/tag/{hashtag}/')]
 	public function streamTag(string $hashtag, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -522,6 +537,7 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/federated')]
 	public function streamFederated(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -538,6 +554,7 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/liked')]
 	public function streamLiked(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -550,6 +567,7 @@ class LocalController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/current/follow')]
 	public function actionFollow(string $account): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -566,6 +584,7 @@ class LocalController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/current/follow')]
 	public function actionUnfollow(string $account): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -586,6 +605,7 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/current/info')]
 	public function currentInfo(): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -608,6 +628,7 @@ class LocalController extends Controller {
 	 * @param array $fields [['name' => string, 'value' => string], …]
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/account/fields')]
 	public function accountFields(array $fields = []): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -634,6 +655,7 @@ class LocalController extends Controller {
 	 * @param string $summary the bio as plain text
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/account/summary')]
 	public function accountSummary(string $summary = ''): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -651,6 +673,7 @@ class LocalController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/current/followers')]
 	public function currentFollowers(): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -668,6 +691,7 @@ class LocalController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/current/following')]
 	public function currentFollowing(): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -686,6 +710,7 @@ class LocalController extends Controller {
 
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/account/{username}/info')]
 	public function accountInfo(string $username): DataResponse {
 		try {
 			$this->initViewer();
@@ -712,6 +737,7 @@ class LocalController extends Controller {
 	#[PublicPage]
 	#[AnonRateLimit(limit: 10, period: 300)]
 	#[UserRateLimit(limit: 120, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/account/info')]
 	public function globalAccountInfo(string $account): DataResponse {
 		$this->logger->debug('[LocalController] globalAccountInfo called', ['account' => $account]);
 		try {
@@ -786,6 +812,7 @@ class LocalController extends Controller {
 
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/actor/info')]
 	public function globalActorInfo(string $id): DataResponse {
 		try {
 			$this->initViewer();
@@ -859,6 +886,7 @@ class LocalController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/actor/avatar')]
 	public function globalActorAvatar(string $id): Response {
 		try {
 			$actor = $this->knownActor($id);
@@ -883,6 +911,7 @@ class LocalController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/actor/header')]
 	public function globalActorHeader(string $id): Response {
 		try {
 			$actor = $this->knownActor($id);
@@ -930,6 +959,7 @@ class LocalController extends Controller {
 	 * @throws Exception
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/accounts/search')]
 	public function globalAccountsSearch(string $search): DataResponse {
 		$this->initViewer();
 
@@ -962,6 +992,7 @@ class LocalController extends Controller {
 	 * @throws Exception
 	 */
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/tags/search')]
 	public function globalTagsSearch(string $search): DataResponse {
 		$this->initViewer();
 
@@ -994,6 +1025,7 @@ class LocalController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/local/v1/search')]
 	public function search(string $search): DataResponse {
 		$search = trim($search);
 		$this->initViewer();

@@ -147,6 +147,7 @@ class MastodonList implements JsonSerializable {
 	 * `replies_policy` and `exclusive` off this to draw the list's settings,
 	 * and the owner is not among them.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->getId(),

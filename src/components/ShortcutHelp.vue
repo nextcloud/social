@@ -31,18 +31,21 @@ export default {
 	components: {
 		NcModal,
 	},
+
 	props: {
 		open: {
 			type: Boolean,
 			default: false,
 		},
 	},
+
 	emits: ['close'],
 	computed: {
 		shortcuts() {
 			return SHORTCUTS
 		},
 	},
+
 	methods: {
 		t: translate,
 	},

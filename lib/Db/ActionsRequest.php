@@ -168,7 +168,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$qb = $this->getActionsDeleteSql();
 		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
 		$qb->limitToDBField('object_id_prim', $qb->prim($objectId));
-		$this->limitToType($qb, $type);
+		$qb->limitToType($type);
 
 		$qb->executeStatement();
 	}
@@ -195,7 +195,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public function delete(ACore $item) {
 		$qb = $this->getActionsDeleteSql();
 		$this->limitToIdPrimString($qb, $item->getId());
-		$this->limitToType($qb, $item->getType());
+		$qb->limitToType($item->getType());
 
 		$qb->executeStatement();
 	}

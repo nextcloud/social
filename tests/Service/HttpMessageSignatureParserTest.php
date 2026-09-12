@@ -13,6 +13,7 @@ use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Service\HttpMessageSignatureParser;
 use OCA\Social\Tests\Helper\RsaPssSigner;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -312,16 +313,14 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 	}
 
 	/** @return array<string, array{string}> */
-	public function refusedComponentParameters(): array {
+	public static function refusedComponentParameters(): array {
 		return array_combine(
 			HttpMessageSignatureParser::REFUSED_COMPONENT_PARAMETERS,
 			array_map(fn (string $p): array => [$p], HttpMessageSignatureParser::REFUSED_COMPONENT_PARAMETERS)
 		);
 	}
 
-	/**
-	 * @dataProvider refusedComponentParameters
-	 */
+	#[DataProvider('refusedComponentParameters')]
 	public function testEachSerialisationChangingComponentParameterIsRefusedByName(string $parameter): void {
 		$input = $this->parser->parseSignatureInput('sig=("content-digest";' . $parameter . ' "@method");created=1')['sig'];
 		$request = $this->request('POST', '/inbox', ['content-digest' => 'sha-256=:x:']);
@@ -374,7 +373,7 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 	}
 
 	/** @return array<string, array{string, string}> */
-	public function malformedSignatureInputs(): array {
+	public static function malformedSignatureInputs(): array {
 		return [
 			'not an inner list' => ['sig1="@method"', 'is not an inner list'],
 			'component that is a token, not a string' => ['sig1=(method)', 'component identifiers must be strings'],
@@ -389,9 +388,7 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 		];
 	}
 
-	/**
-	 * @dataProvider malformedSignatureInputs
-	 */
+	#[DataProvider('malformedSignatureInputs')]
 	public function testAMalformedSignatureInputIsRefusedAsASignatureError(string $header, string $message): void {
 		$this->expectException(SignatureException::class);
 		$this->expectExceptionMessage($message);
@@ -399,7 +396,7 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 	}
 
 	/** @return array<string, array{string, string}> */
-	public function malformedSignatures(): array {
+	public static function malformedSignatures(): array {
 		return [
 			'not a byte sequence' => ['sig1="abc"', 'is not a byte sequence'],
 			'unterminated byte sequence' => ['sig1=:abc', 'bad byte sequence'],
@@ -408,9 +405,7 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 		];
 	}
 
-	/**
-	 * @dataProvider malformedSignatures
-	 */
+	#[DataProvider('malformedSignatures')]
 	public function testAMalformedSignatureIsRefusedAsASignatureError(string $header, string $message): void {
 		$this->expectException(SignatureException::class);
 		$this->expectExceptionMessage($message);

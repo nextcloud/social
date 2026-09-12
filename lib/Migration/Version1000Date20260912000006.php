@@ -26,6 +26,7 @@ use OCP\Migration\SimpleMigrationStep;
  * table on an instance that will hold tens of these rows.
  */
 class Version1000Date20260912000006 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

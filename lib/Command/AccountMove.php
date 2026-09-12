@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\MigrationService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -23,13 +22,14 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
  * has to list this account in its `alsoKnownAs`, a `Move` goes out to every
  * follower, and the account here is marked as moved.
  */
-class AccountMove extends Base {
+class AccountMove extends SocialCommand {
 	public function __construct(
 		private MigrationService $migrationService,
 	) {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:move')
@@ -45,6 +45,7 @@ class AccountMove extends Base {
 			->setDescription('Move a local account to another server and tell its followers');
 	}
 
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = (string)$input->getArgument('userId');
 		$target = (string)$input->getArgument('target');
@@ -99,7 +100,7 @@ class AccountMove extends Base {
 			return true;
 		}
 
-		$helper = $this->getHelper('question');
+		$helper = $this->questionHelper();
 		$question = new ConfirmationQuestion(
 			'<info>Do you confirm this operation?</info> (y/N) ', false, '/^(y|Y)/i'
 		);

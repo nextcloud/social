@@ -5,7 +5,8 @@
 <template>
 	<NcAppNavigation>
 		<template #search>
-			<NcAppNavigationSearch v-model="localSearch"
+			<NcAppNavigationSearch
+				v-model="localSearch"
 				:label="t('social', 'Search …')"
 				@update:modelValue="onSearchInput" />
 		</template>
@@ -13,14 +14,16 @@
 			<!-- no `to`, so NcAppNavigationItem renders href="#" and leaves the
 			     default action alone: without .prevent the click also pushes a
 			     bare fragment onto the history -->
-			<NcAppNavigationItem :name="t('social', 'New post')"
+			<NcAppNavigationItem
+				:name="t('social', 'New post')"
 				@click.prevent="showComposer = true">
 				<template #icon>
 					<IconPlus :size="20" />
 				</template>
 			</NcAppNavigationItem>
 
-			<NcAppNavigationItem v-if="hasErrors"
+			<NcAppNavigationItem
+				v-if="hasErrors"
 				:name="t('social', 'Errors')"
 				@click.prevent="showErrors = true">
 				<template #icon>
@@ -39,7 +42,8 @@
 			     stayed lit next to whichever timeline was actually chosen.
 			     navigate() keeps the click in the SPA while leaving a modified
 			     click (new tab, new window) to the browser. -->
-			<NcAppNavigationItem v-for="item in menu.timelines"
+			<NcAppNavigationItem
+				v-for="item in menu.timelines"
 				:key="item.key"
 				:name="item.title"
 				:href="hrefFor(item.to)"
@@ -56,7 +60,8 @@
 			<NcAppNavigationSpacer />
 
 			<NcAppNavigationCaption v-if="trending.length > 0" :name="t('social', 'Trending')" />
-			<NcAppNavigationItem v-for="tag in trending"
+			<NcAppNavigationItem
+				v-for="tag in trending"
 				:key="`trend-${tag.name}`"
 				class="navigation__trend"
 				:name="`#${tag.name}`"
@@ -80,24 +85,27 @@
 			     the Nextcloud login name, pushed to the far edge of the row by the
 			     slot it was in — neither the name they publish under nor their
 			     handle, and aligned with nothing. -->
-			<NcAppNavigationItem class="navigation__profile"
+			<NcAppNavigationItem
+				class="navigation__profile"
 				:name="profileName"
 				:href="hrefFor(menu.profile.to)"
 				:active="isActive(menu.profile)"
 				@click="navigate(menu.profile.to, $event)">
 				<template #icon>
-					<NcAvatar :user="currentUser?.uid"
-						:display-name="currentUser?.displayName"
+					<NcAvatar
+						:user="currentUser?.uid"
+						:displayName="currentUser?.displayName"
 						:size="36"
-						:disable-tooltip="true"
-						:disable-menu="true" />
+						:disableTooltip="true"
+						:disableMenu="true" />
 				</template>
 			</NcAppNavigationItem>
 		</template>
 		<template #footer>
 			<div class="navigation__footer">
 				<NcAppNavigationSettings :name="t('social', 'More')">
-					<NcAppNavigationItem v-for="item in menu.more"
+					<NcAppNavigationItem
+						v-for="item in menu.more"
 						:key="item.key"
 						:name="item.title"
 						:href="hrefFor(item.to)"
@@ -110,7 +118,8 @@
 							<NcCounterBubble :count="item.counter" type="highlighted" />
 						</template>
 					</NcAppNavigationItem>
-					<NcAppNavigationItem :name="t('social', 'Blocked and muted accounts')"
+					<NcAppNavigationItem
+						:name="t('social', 'Blocked and muted accounts')"
 						:href="hrefFor({ name: 'blocked-accounts' })"
 						:active="isActive({ to: { name: 'blocked-accounts' } })"
 						@click="navigate({ name: 'blocked-accounts' }, $event)">
@@ -123,17 +132,19 @@
 		</template>
 	</NcAppNavigation>
 
-	<NcModal v-if="showComposer"
+	<NcModal
+		v-if="showComposer"
 		:name="t('social', 'New post')"
 		@close="showComposer = false">
 		<div class="modal-composer">
 			<!-- the box emptied and the modal stayed open, which reads as if
 			     nothing had been sent -->
-			<Composer start-expanded @posted="showComposer = false" />
+			<Composer startExpanded @posted="showComposer = false" />
 		</div>
 	</NcModal>
 
-	<NcModal v-if="showErrors"
+	<NcModal
+		v-if="showErrors"
 		:name="t('social', 'Errors')"
 		@close="showErrors = false">
 		<div class="modal-errors">
@@ -187,7 +198,12 @@ import { generateUrl } from '@nextcloud/router'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
-import currentuserMixin from '../mixins/currentUserMixin.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useErrorsStore } from '../store/errors.js'
+import { useNotificationsStore } from '../store/notifications.js'
+import { useTimelineStore } from '../store/timeline.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
 
 // the composer pulls the emoji picker and the attachment stack with it:
 // its own chunk keeps all of that out of the entry bundle
@@ -225,8 +241,14 @@ export default {
 		IconCancel,
 		IconAlertCircle,
 	},
+
 	emits: ['search'],
-	mixins: [currentuserMixin],
+	setup() {
+		const { currentUser } = useCurrentUser()
+
+		return { currentUser }
+	},
+
 	data() {
 		return {
 			/** the hashtags the instance is using most, newest counts first */
@@ -239,19 +261,25 @@ export default {
 			searchTimer: null,
 		}
 	},
+
 	computed: {
+		...mapStores(useAccountStore, useErrorsStore, useNotificationsStore, useTimelineStore),
 		hasErrors() {
-			return this.$store.getters.hasErrors
+			return this.errorsStore.hasErrors
 		},
+
 		errorCount() {
-			return this.$store.getters.appErrors.length
+			return this.errorsStore.appErrors.length
 		},
+
 		unreadNotifications() {
-			return this.$store.getters.unreadNotifications
+			return this.notificationsStore.unreadNotifications
 		},
+
 		appErrors() {
-			return this.$store.getters.appErrors
+			return this.errorsStore.appErrors
 		},
+
 		/**
 		 * @return {string} the name the reader publishes under, falling back to
 		 *                  the login name only while the account is still loading
@@ -262,13 +290,16 @@ export default {
 				|| this.currentUser?.uid
 				|| ''
 		},
+
 		currentAccount() {
-			return this.$store.getters.currentAccount
+			return this.accountStore.currentAccount
 		},
+
 		/** what is being searched for, as the URL says it */
 		searchQuery() {
-			return this.$store.getters.getSearchQuery ?? ''
+			return this.timelineStore.getSearchQuery ?? ''
 		},
+
 		menu() {
 			return {
 				timelines: [
@@ -310,6 +341,7 @@ export default {
 						to: { name: 'timeline', params: { type: 'federated' } },
 					},
 				],
+
 				// The sidebar's top level is for the timelines a reader moves
 				// between all day; these three are things they go looking for,
 				// and eight equal-weight entries made the first five harder to
@@ -335,6 +367,7 @@ export default {
 						to: { name: 'timeline', params: { type: 'bookmarks' } },
 					},
 				],
+
 				profile: {
 					key: 'social-profile',
 					icon: 'user',
@@ -344,6 +377,7 @@ export default {
 			}
 		},
 	},
+
 	watch: {
 		// the box has to follow the store, not just read it once: synced only
 		// in mounted() it kept showing a term the reader had already navigated
@@ -355,21 +389,24 @@ export default {
 			},
 		},
 	},
+
 	mounted() {
 		this.fetchTrending()
-		this.$store.dispatch('fetchUnreadNotifications')
+		this.notificationsStore.fetchUnreadNotifications()
 
 		// the badge is only honest if it keeps up: with notify_push the server
 		// says when something arrived, and without it a slow poll is enough
 		this.stopListening = listen('social_timeline', () => {
-			this.$store.dispatch('fetchUnreadNotifications')
+			this.notificationsStore.fetchUnreadNotifications()
 		})
 		if (!this.stopListening) {
 			this.pollTimer = setInterval(
-				() => this.$store.dispatch('fetchUnreadNotifications'), UNREAD_POLL_MS,
+				() => this.notificationsStore.fetchUnreadNotifications(),
+				UNREAD_POLL_MS,
 			)
 		}
 	},
+
 	beforeUnmount() {
 		if (typeof this.stopListening === 'function') {
 			this.stopListening()
@@ -381,6 +418,7 @@ export default {
 			window.clearTimeout(this.searchTimer)
 		}
 	},
+
 	methods: {
 		t: translate,
 		n: translatePlural,
@@ -399,6 +437,7 @@ export default {
 				this.trending = []
 			}
 		},
+
 		/**
 		 * @param {object} tag a Tag entity
 		 * @return {number} how often it was used in the window the server chose
@@ -406,6 +445,7 @@ export default {
 		usesOf(tag) {
 			return Number.parseInt(tag.history?.[0]?.uses ?? 0) || 0
 		},
+
 		/**
 		 * @param {object} tag a Tag entity
 		 * @return {boolean} whether its timeline is the one being shown
@@ -418,6 +458,7 @@ export default {
 		hrefFor(to) {
 			return this.$router.resolve(to).href
 		},
+
 		/**
 		 * Follows the entry inside the app, unless the reader asked the browser
 		 * for something else — the modifier keys and the middle button belong to
@@ -434,6 +475,7 @@ export default {
 			event?.preventDefault()
 			this.$router.push(to)
 		},
+
 		/**
 		 * @param {object} tag a Tag entity
 		 * @return {boolean} whether its timeline is the one being shown
@@ -441,12 +483,15 @@ export default {
 		isTagActive(tag) {
 			return this.$route?.name === 'tags' && this.$route?.params?.tag === tag.name
 		},
+
 		dismissError(id) {
-			this.$store.dispatch('dismissAppError', id)
+			this.errorsStore.dismissAppError(id)
 		},
+
 		clearAllErrors() {
-			this.$store.commit('clearErrors')
+			this.errorsStore.clearErrors()
 		},
+
 		/**
 		 * Searching now costs a request, so it waits for the typing to stop.
 		 * Un-debounced, every keystroke went straight through.
@@ -460,6 +505,7 @@ export default {
 				this.$emit('search', this.localSearch)
 			}, SEARCH_DEBOUNCE_MS)
 		},
+
 		/**
 		 * Whether an entry is the page on screen. An entry matches its own
 		 * route and any dot-namespaced child of it, so Profile stays lit on

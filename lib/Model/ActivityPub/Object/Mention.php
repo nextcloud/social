@@ -22,14 +22,17 @@ class Mention extends Stream implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
+	#[\Override]
 	public function import(array $data): void {
 		parent::import($data);
 	}
 
+	#[\Override]
 	public function importFromDatabase(array $data): void {
 		parent::importFromDatabase($data);
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 

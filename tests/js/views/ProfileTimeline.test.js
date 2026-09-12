@@ -5,12 +5,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, reactive } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import ProfileTimeline from '../../../src/views/ProfileTimeline.vue'
-import timeline from '../../../src/store/timeline.js'
-
-const pristine = structuredClone(timeline.state)
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 const TimelineListStub = {
 	name: 'TimelineList',
@@ -23,25 +21,29 @@ const TimelineEntryStub = {
 	template: '<li class="pinned-entry-stub">{{ item.id }}</li>',
 }
 
+let pinia
 let store
 let dispatch
 
-const mountView = (route) => mount(ProfileTimeline, {
-	global: {
-		plugins: [store],
-		mocks: { $route: route },
-		stubs: { TimelineList: TimelineListStub, TimelineEntry: TimelineEntryStub },
-	},
-})
+function mountView(route) {
+	return mount(ProfileTimeline, {
+		global: {
+			plugins: [pinia],
+			mocks: { $route: route },
+			stubs: { TimelineList: TimelineListStub, TimelineEntry: TimelineEntryStub },
+		},
+	})
+}
 
 const pinnedIds = (wrapper) => wrapper.findAll('.pinned-entry-stub').map((entry) => entry.text())
 
 describe('ProfileTimeline', () => {
 	beforeEach(() => {
-		Object.assign(timeline.state, structuredClone(pristine))
-		store = createStore({ modules: { timeline } })
-		store.commit('addToTimeline', [{ id: 'old', created_at: '2026-01-01T00:00:00Z' }])
-		dispatch = vi.spyOn(store, 'dispatch')
+		pinia = createPinia()
+		setActivePinia(pinia)
+		store = useTimelineStore()
+		store.addToTimeline([{ id: 'old', created_at: '2026-01-01T00:00:00Z' }])
+		dispatch = vi.spyOn(store, 'changeTimelineTypeAccount')
 		vi.spyOn(axios, 'get').mockResolvedValue({ data: [] })
 	})
 
@@ -51,17 +53,17 @@ describe('ProfileTimeline', () => {
 
 	it('switches the store to the posts of the routed account and renders the list', () => {
 		const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' } })
-		expect(dispatch).toHaveBeenCalledWith('changeTimelineTypeAccount', 'bob@remote.example')
-		expect(store.state.timeline.type).toBe('account')
-		expect(store.state.timeline.account).toBe('bob@remote.example')
-		expect(store.state.timeline.timeline).toEqual([])
+		expect(dispatch).toHaveBeenCalledWith('bob@remote.example')
+		expect(store.type).toBe('account')
+		expect(store.account).toBe('bob@remote.example')
+		expect(store.timeline).toEqual([])
 		expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
 	})
 
 	it('leaves the store alone without an account in the route', () => {
 		mountView({ name: 'profile', params: {} })
 		expect(dispatch).not.toHaveBeenCalled()
-		expect(store.state.timeline.timeline).toEqual(['old'])
+		expect(store.timeline).toEqual(['old'])
 	})
 
 	it('reloads when the route points to another account', async () => {
@@ -69,8 +71,8 @@ describe('ProfileTimeline', () => {
 		mountView(route)
 		route.params.account = 'carol'
 		await nextTick()
-		expect(dispatch).toHaveBeenLastCalledWith('changeTimelineTypeAccount', 'carol')
-		expect(store.state.timeline.account).toBe('carol')
+		expect(dispatch).toHaveBeenLastCalledWith('carol')
+		expect(store.account).toBe('carol')
 	})
 
 	describe('pinned posts', () => {
@@ -134,9 +136,9 @@ describe('ProfileTimeline', () => {
 			// they used to live in local component data, and every mutation in
 			// the store is guarded by `state.statuses[id] !== undefined`, so
 			// liking or unpinning a pinned post was a UI no-op
-			expect(store.state.timeline.statuses['pin-1']).toBeDefined()
+			expect(store.statuses['pin-1']).toBeDefined()
 
-			store.commit('likeStatus', { status: { id: 'pin-1' } })
+			store.likeStatus({ status: { id: 'pin-1' } })
 			await nextTick()
 
 			expect(wrapper.findComponent(TimelineEntryStub).props('item')).toMatchObject({
@@ -151,7 +153,7 @@ describe('ProfileTimeline', () => {
 			await flushPromises()
 			expect(pinnedIds(wrapper)).toEqual(['pin-1'])
 
-			store.commit('removeStatus', { id: 'pin-1' })
+			store.removeStatus({ id: 'pin-1' })
 			await nextTick()
 
 			expect(pinnedIds(wrapper)).toEqual([])

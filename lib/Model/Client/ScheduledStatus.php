@@ -204,6 +204,7 @@ class ScheduledStatus implements JsonSerializable {
 	 * the code it already has — and `params.media_ids` alone would make it
 	 * fetch each one.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->getId(),

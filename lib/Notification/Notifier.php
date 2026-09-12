@@ -41,6 +41,7 @@ class Notifier implements INotifier {
 	 * @return string
 	 * @since 17.0.0
 	 */
+	#[\Override]
 	public function getID(): string {
 		return Application::APP_ID;
 	}
@@ -51,6 +52,7 @@ class Notifier implements INotifier {
 	 * @return string
 	 * @since 17.0.0
 	 */
+	#[\Override]
 	public function getName(): string {
 		return $this->l10n->t('Social');
 	}
@@ -62,6 +64,7 @@ class Notifier implements INotifier {
 	 * @return INotification
 	 * @throws InvalidArgumentException
 	 */
+	#[\Override]
 	public function prepare(INotification $notification, string $languageCode): INotification {
 		if ($notification->getApp() !== Application::APP_ID) {
 			throw new InvalidArgumentException();

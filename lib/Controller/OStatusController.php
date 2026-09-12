@@ -22,6 +22,7 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -60,6 +61,7 @@ class OStatusController extends Controller {
 
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/ostatus/follow/')]
 	public function subscribe(string $uri): Response {
 		try {
 			try {
@@ -91,6 +93,7 @@ class OStatusController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/ostatus/followRemote/{local}')]
 	public function followRemote(string $local): Response {
 		try {
 			$following = $this->accountService->getActor($local);
@@ -118,6 +121,7 @@ class OStatusController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/ostatus/link/{local}/{account}')]
 	public function getLink(string $local, string $account): Response {
 		try {
 			$following = $this->accountService->getActor($local);

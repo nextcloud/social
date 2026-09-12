@@ -26,6 +26,8 @@ use PHPUnit\Framework\TestCase;
  * reads and writes, and that a second run asks for nothing.
  */
 class FiltersTablesTest extends TestCase {
+	use RecordsSchemaChanges;
+
 	/** @var array<string, array<string, array{string, array}>> table => column => [type, options] */
 	private array $added = [];
 	/** @var array<string, array<int, array{string[], string, bool}>> table => [columns, name, unique] */
@@ -37,49 +39,14 @@ class FiltersTablesTest extends TestCase {
 
 	/** @param string[] $existing tables the schema already has */
 	private function schemaClosure(array $existing = []): Closure {
-		$added = &$this->added;
-		$indexes = &$this->indexes;
-		$primaryKey = &$this->primaryKey;
-		$created = &$this->created;
-
-		$table = new class($added, $indexes, $primaryKey, $created) {
-			public function __construct(
-				private array &$added,
-				private array &$indexes,
-				private array &$primaryKey,
-				private array &$created,
-			) {
-			}
-
-			private function current(): string {
-				return end($this->created) ?: '';
-			}
-
-			public function addColumn(string $column, string $type, array $options = []): void {
-				$this->added[$this->current()][$column] = [$type, $options];
-			}
-
-			public function setPrimaryKey(array $columns): void {
-				$this->primaryKey[$this->current()] = $columns;
-			}
-
-			public function addIndex(array $columns, string $name): void {
-				$this->indexes[$this->current()][] = [$columns, $name, false];
-			}
-
-			public function addUniqueIndex(array $columns, string $name): void {
-				$this->indexes[$this->current()][] = [$columns, $name, true];
-			}
-		};
-
 		$schema = $this->createMock(ISchemaWrapper::class);
 		$schema->method('hasTable')
 			->willReturnCallback(static fn (string $name): bool => in_array($name, $existing, true));
 		$schema->method('createTable')
-			->willReturnCallback(static function (string $name) use (&$created, $table) {
-				$created[] = $name;
+			->willReturnCallback(function (string $name) {
+				$this->created[] = $name;
 
-				return $table;
+				return $this->recordTable($name);
 			});
 
 		return static fn (): ISchemaWrapper => $schema;
@@ -89,7 +56,10 @@ class FiltersTablesTest extends TestCase {
 	private function migrate(array $existing = []): ?ISchemaWrapper {
 		$step = new Version1000Date20260911000006();
 
-		return $step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($existing), []);
+		$schema = $step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($existing), []);
+		$this->harvestSchemaChangesByTable();
+
+		return $schema;
 	}
 
 	public function testTheTablesAreTheOnesTheCodeReadsAndWrites(): void {

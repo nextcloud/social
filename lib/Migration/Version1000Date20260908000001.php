@@ -21,6 +21,7 @@ use OCP\Migration\SimpleMigrationStep;
  * suite; widened to match auth_code and token (127).
  */
 class Version1000Date20260908000001 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

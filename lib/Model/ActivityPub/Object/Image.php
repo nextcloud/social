@@ -33,6 +33,7 @@ class Image extends Document implements JsonSerializable {
 	 * @throws UrlCloudException
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 	}
@@ -40,6 +41,7 @@ class Image extends Document implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}

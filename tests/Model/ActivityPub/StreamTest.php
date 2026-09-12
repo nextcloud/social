@@ -23,6 +23,7 @@ use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../TActivityPubMocks.php';
@@ -353,7 +354,7 @@ class StreamTest extends TestCase {
 		$this->assertSame([], Stream::subTypesOfNotificationTypes([]));
 	}
 
-	public function notificationTypeProvider(): array {
+	public static function notificationTypeProvider(): array {
 		return [
 			'like' => ['Like', 'favourite'],
 			'announce' => ['Announce', 'reblog'],
@@ -364,9 +365,7 @@ class StreamTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider notificationTypeProvider
-	 */
+	#[DataProvider('notificationTypeProvider')]
 	public function testExportAsNotificationMapsTheSubTypeToMastodonTypes(string $subType, string $expected): void {
 		$actor = new Person();
 		$actor->setPreferredUsername('alice');
@@ -437,10 +436,12 @@ class StreamTest extends TestCase {
 	}
 
 	/**
-	 * `tag` has no column, so a post read back from the database used to
-	 * re-export naming nobody: every Update and every outbox entry told the
-	 * peers that the people the post mentions are not mentioned by it, and a
-	 * hashtag stopped reaching any tag timeline after the first reload.
+	 * A post read back from the database used to re-export naming nobody: every
+	 * Update and every outbox entry told the peers that the people the post
+	 * mentions are not mentioned by it, and a hashtag stopped reaching any tag
+	 * timeline after the first reload. `tag` has had a column of its own since
+	 * `Version1000Date20260912000007`; this is the fallback for a row written
+	 * before it, which is still the only thing an un-backfilled row has.
 	 */
 	public function testMentionsAndHashtagsSurviveTheDatabaseRoundTripViaTheStoredSource(): void {
 		$tags = [
@@ -800,7 +801,7 @@ class StreamTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function clientVisibilityProvider(): array {
+	public static function clientVisibilityProvider(): array {
 		return [
 			'public' => ['public', Stream::TYPE_PUBLIC],
 			'unlisted' => ['unlisted', Stream::TYPE_UNLISTED],
@@ -811,9 +812,7 @@ class StreamTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider clientVisibilityProvider
-	 */
+	#[DataProvider('clientVisibilityProvider')]
 	public function testVisibilityFromClient(string $sent, string $expected): void {
 		$this->assertSame($expected, Stream::visibilityFromClient($sent));
 	}
@@ -1033,7 +1032,7 @@ class StreamTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function languageProvider(): array {
+	public static function languageProvider(): array {
 		return [
 			'a plain primary tag' => ['de', 'de'],
 			'a three letter primary tag' => ['ast', 'ast'],
@@ -1050,9 +1049,7 @@ class StreamTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider languageProvider
-	 */
+	#[DataProvider('languageProvider')]
 	public function testNormalizeLanguage(string $sent, string $expected): void {
 		$this->assertSame($expected, Stream::normalizeLanguage($sent));
 	}

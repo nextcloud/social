@@ -57,6 +57,7 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 	 *
 	 * @throws InvalidOriginException the quoting post is not on the asking server
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		if (!$item instanceof QuoteRequest) {
 			return;
@@ -211,6 +212,7 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 	 *
 	 * @throws InvalidOriginException the answer does not come from the quoted post's server
 	 */
+	#[\Override]
 	public function activity(ACore $activity, ACore $item): void {
 		if (!$item instanceof QuoteRequest) {
 			return;
@@ -263,11 +265,12 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 	/**
 	 * Writes the approval onto our quoting post.
 	 *
-	 * `quoteAuthorization` is a property of the wire object and has no column,
-	 * so the stored source is re-snapshotted and written back — the same path a
-	 * remote edit and `PostService::editPost()` take. Every later delivery of
-	 * the post then carries the stamp, which is what makes Mastodon render the
-	 * quote inline rather than as a bare link.
+	 * `quoteAuthorization` is a property of the wire object as well as a column
+	 * of its own, so the stored source is re-snapshotted and written back
+	 * alongside it — the same path a remote edit and `PostService::editPost()`
+	 * take, and `StreamRequest::update()` writes both in the one statement.
+	 * Every later delivery of the post then carries the stamp, which is what
+	 * makes Mastodon render the quote inline rather than as a bare link.
 	 */
 	private function approve(Stream $post, ACore $accept): void {
 		$post->setQuoteAuthorization($this->resultOf($accept));

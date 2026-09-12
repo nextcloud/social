@@ -10,31 +10,33 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Service\MarkerService;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class MarkerServiceTest extends TestCase {
 	private const USER = 'alice';
 
-	private IConfig|MockObject $config;
+	private IUserConfig|MockObject $userConfig;
 	private MarkerService $service;
 
 	/** in-memory stand-in for the user's stored config value */
 	private string $stored = '{}';
 
 	protected function setUp(): void {
-		$this->config = $this->createMock(IConfig::class);
-		$this->config->method('getUserValue')->willReturnCallback(
-			fn (string $user, string $app, string $key, $default = '') => $this->stored
+		$this->userConfig = $this->createMock(IUserConfig::class);
+		$this->userConfig->method('getValueString')->willReturnCallback(
+			fn (string $user, string $app, string $key, string $default = '') => $this->stored
 		);
-		$this->config->method('setUserValue')->willReturnCallback(
-			function (string $user, string $app, string $key, $value): void {
+		$this->userConfig->method('setValueString')->willReturnCallback(
+			function (string $user, string $app, string $key, string $value): bool {
 				$this->stored = $value;
+
+				return true;
 			}
 		);
 
-		$this->service = new MarkerService($this->config);
+		$this->service = new MarkerService($this->userConfig);
 	}
 
 	public function testAnUnreadTimelineHasNoMarkerAndReadsAsZero(): void {

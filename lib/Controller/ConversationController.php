@@ -22,6 +22,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConversationService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -81,6 +82,7 @@ class ConversationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/conversations')]
 	public function index(
 		int $limit = ConversationService::LIMIT,
 		int $max_id = 0,
@@ -107,6 +109,9 @@ class ConversationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	// `/api/v1/conversations/{id}` cannot read this as a conversation named
+	// "4/read" because `{id}` matches one segment, and it has to stay that way.
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/conversations/{id}/read')]
 	public function read(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:conversations']);
@@ -126,6 +131,7 @@ class ConversationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/conversations/{id}')]
 	public function delete(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:conversations']);

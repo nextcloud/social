@@ -29,12 +29,14 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 	/**
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function activity(Acore $activity, ACore $item): void {
 		if ($activity->getType() === Person::TYPE) {
 			$activity->checkOrigin($item->getId());
 		}
 	}
 
+	#[\Override]
 	public function save(ACore $item): void {
 		/** @var Document $item */
 		if (!$item->isRoot()) {

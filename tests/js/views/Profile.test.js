@@ -5,19 +5,15 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import Profile from '../../../src/views/Profile.vue'
-import account from '../../../src/store/account.js'
-import errors from '../../../src/store/errors.js'
-import settings from '../../../src/store/settings.js'
-import timeline from '../../../src/store/timeline.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
 })
-
-const pristine = structuredClone(account.state)
 
 const ProfileInfoStub = { name: 'ProfileInfo', props: ['uid'], template: '<section class="profile-info-stub" />' }
 const ComposerStub = { name: 'Composer', props: ['initialMention', 'defaultVisibility'], template: '<div class="composer-stub" />' }
@@ -47,51 +43,43 @@ const alice = {
 }
 const known = { 'bob@remote.example': bob, 'carol@cloud.example.org': carol, 'alice@cloud.example.org': alice }
 
-let store
-let dispatch
+let pinia
+let accountStore
 
 // Simulates the server: known handles are put into the store, unknown ones
 // resolve to nothing like the real action does after an error.
-const fetchAccount = vi.fn(async ({ commit }, handle) => {
+const fetchAccount = vi.fn(async (handle) => {
 	await Promise.resolve()
 	const data = known[handle]
 	if (!data) {
 		return undefined
 	}
-	commit('addAccount', { actorId: data.url, data })
+	accountStore.addAccount({ actorId: data.url, data })
+
 	return data
 })
 
-const makeStore = (serverData = {}) => {
-	Object.assign(account.state, structuredClone(pristine))
-	store = createStore({
-		modules: {
-			timeline,
-			settings,
-			errors,
-			account: {
-				...account,
-				actions: {
-					...account.actions,
-					fetchAccountInfo: fetchAccount,
-					fetchPublicAccountInfo: fetchAccount,
-					fetchAccountRelationshipInfo: vi.fn(async () => []),
-				},
-			},
-		},
-	})
-	store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
-	dispatch = vi.spyOn(store, 'dispatch')
-	return store
+function makeStore(serverData = {}) {
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	vi.spyOn(accountStore, 'fetchAccountInfo').mockImplementation(fetchAccount)
+	vi.spyOn(accountStore, 'fetchPublicAccountInfo').mockImplementation(fetchAccount)
+	vi.spyOn(accountStore, 'fetchAccountRelationshipInfo').mockResolvedValue([])
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
+
+	return pinia
 }
 
-const mountProfile = (route) => mount(Profile, {
-	global: {
-		plugins: [store],
-		mocks: { $route: route },
-		stubs: { ProfileInfo: ProfileInfoStub, Composer: ComposerStub, RouterView: RouterViewStub },
-	},
-})
+function mountProfile(route) {
+	return mount(Profile, {
+		global: {
+			plugins: [pinia],
+			mocks: { $route: route },
+			stubs: { ProfileInfo: ProfileInfoStub, Composer: ComposerStub, RouterView: RouterViewStub },
+		},
+	})
+}
 
 describe('Profile', () => {
 	beforeEach(() => {
@@ -107,10 +95,10 @@ describe('Profile', () => {
 		const wrapper = mountProfile({ name: 'profile', params: { account: 'bob@remote.example' } })
 		expect(wrapper.classes()).toContain('icon-loading')
 		expect(wrapper.findComponent(ProfileInfoStub).exists()).toBe(false)
-		expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'bob@remote.example')
+		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('bob@remote.example')
 
 		await flushPromises()
-		expect(dispatch).toHaveBeenCalledWith('fetchAccountRelationshipInfo', ['77'])
+		expect(accountStore.fetchAccountRelationshipInfo).toHaveBeenCalledWith(['77'])
 		expect(wrapper.classes()).not.toContain('icon-loading')
 		expect(wrapper.findComponent(ProfileInfoStub).props('uid')).toBe('bob@remote.example')
 		expect(wrapper.findComponent(RouterViewStub).props('name')).toBe('details')
@@ -118,10 +106,10 @@ describe('Profile', () => {
 
 	it('completes a bare local uid with the instance host before asking the server', async () => {
 		const wrapper = mountProfile({ name: 'profile', params: { account: 'carol' } })
-		expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'carol@cloud.example.org')
+		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('carol@cloud.example.org')
 		await flushPromises()
 		// without a numeric id the relationship lookup falls back to the actor id
-		expect(dispatch).toHaveBeenCalledWith('fetchAccountRelationshipInfo', ['https://cloud.example.org/users/carol'])
+		expect(accountStore.fetchAccountRelationshipInfo).toHaveBeenCalledWith(['https://cloud.example.org/users/carol'])
 		expect(wrapper.findComponent(ProfileInfoStub).props('uid')).toBe('carol')
 	})
 
@@ -131,12 +119,12 @@ describe('Profile', () => {
 		expect(wrapper.classes()).toContain('icon-loading')
 		expect(wrapper.findComponent(ProfileInfoStub).exists()).toBe(false)
 		expect(wrapper.findComponent(RouterViewStub).exists()).toBe(false)
-		expect(dispatch).not.toHaveBeenCalledWith('fetchAccountRelationshipInfo', expect.anything())
+		expect(accountStore.fetchAccountRelationshipInfo).not.toHaveBeenCalled()
 	})
 
 	it('does nothing without an account in the route or the server data', () => {
 		mountProfile({ name: 'profile', params: {} })
-		expect(dispatch).not.toHaveBeenCalled()
+		expect(fetchAccount).not.toHaveBeenCalled()
 	})
 
 	it('reloads when the route switches to another account', async () => {
@@ -146,14 +134,14 @@ describe('Profile', () => {
 
 		route.params.account = 'carol'
 		await flushPromises()
-		expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'carol@cloud.example.org')
+		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('carol@cloud.example.org')
 		expect(wrapper.findComponent(ProfileInfoStub).props('uid')).toBe('carol')
 	})
 
 	describe('composer', () => {
 		beforeEach(() => {
-			store.commit('addAccount', { actorId: alice.url, data: alice })
-			store.commit('setCurrentAccount', 'alice@cloud.example.org')
+			accountStore.addAccount({ actorId: alice.url, data: alice })
+			accountStore.setCurrentAccount('alice@cloud.example.org')
 		})
 
 		it('offers a direct message to the shown account on the posts tab', async () => {
@@ -178,7 +166,7 @@ describe('Profile', () => {
 		})
 
 		it('is hidden while no current account is known', async () => {
-			store.commit('setCurrentAccount', '')
+			accountStore.setCurrentAccount('')
 			const wrapper = mountProfile({ name: 'profile', params: { account: 'bob@remote.example' } })
 			await flushPromises()
 			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
@@ -192,10 +180,10 @@ describe('Profile', () => {
 
 		it('uses the public lookup for the account from the server data and skips the relationship', async () => {
 			const wrapper = mountProfile({ name: undefined, params: {} })
-			expect(dispatch).toHaveBeenCalledWith('fetchPublicAccountInfo', 'carol@cloud.example.org')
+			expect(accountStore.fetchPublicAccountInfo).toHaveBeenCalledWith('carol@cloud.example.org')
 			await flushPromises()
-			expect(dispatch).not.toHaveBeenCalledWith('fetchAccountRelationshipInfo', expect.anything())
-			expect(dispatch).not.toHaveBeenCalledWith('fetchAccountInfo', expect.anything())
+			expect(accountStore.fetchAccountRelationshipInfo).not.toHaveBeenCalled()
+			expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
 			expect(wrapper.findComponent(ProfileInfoStub).props('uid')).toBe('carol')
 			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
 		})
@@ -204,26 +192,13 @@ describe('Profile', () => {
 	describe('when the account cannot be loaded', () => {
 		const NcEmptyContentStub = { name: 'NcEmptyContent', props: ['name', 'description'], template: '<div class="empty-content-stub" :data-name="name" />' }
 
-		// accountLoaded and getAccount read the same store map, so the empty state is
-		// only reachable with accountLoaded forced true while the account stays absent.
+		// the lookup coming back empty is what makes this reachable: it used to
+		// be guarded by `accountLoaded && !accountInfo`, which are the same
+		// question asked twice and so never both true
 		it('renders NcEmptyContent with the not-found message as its name prop', async () => {
-			Object.assign(account.state, structuredClone(pristine))
-			const emptyStore = createStore({
-				modules: {
-					timeline,
-					settings,
-					errors,
-					account: {
-						...account,
-						actions: { ...account.actions, fetchAccountInfo: fetchAccount, fetchPublicAccountInfo: fetchAccount, fetchAccountRelationshipInfo: vi.fn(async () => []) },
-						getters: { ...account.getters, accountLoaded: () => () => true },
-					},
-				},
-			})
-			emptyStore.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org' })
 			const wrapper = mount(Profile, {
 				global: {
-					plugins: [emptyStore],
+					plugins: [makeStore()],
 					mocks: { $route: { name: 'profile', params: { account: 'nobody@remote.example' } } },
 					stubs: { ProfileInfo: ProfileInfoStub, Composer: ComposerStub, RouterView: RouterViewStub, NcEmptyContent: NcEmptyContentStub },
 				},

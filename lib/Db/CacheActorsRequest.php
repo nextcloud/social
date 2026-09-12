@@ -264,9 +264,9 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function getRemoteActorsToUpdate(bool $force = false): array {
 		$qb = $this->getCacheActorsSelectSql();
-		$this->limitToLocal($qb, false);
+		$qb->limitToLocal(false);
 		if (!$force) {
-			$this->limitToCreation($qb, self::CACHE_TTL);
+			$qb->limitToCreation(self::CACHE_TTL);
 			// One cron pass syncs a bounded batch; on a large instance the full set
 			// would be thousands of outbound requests in a single job.
 			$qb->setMaxResults(self::SYNC_BATCH);

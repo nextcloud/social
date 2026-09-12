@@ -90,6 +90,7 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 	}
@@ -97,6 +98,7 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
@@ -108,6 +110,7 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 

@@ -29,6 +29,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\LinkPreviewService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -102,6 +103,7 @@ class ListController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/lists')]
 	public function index(): DataResponse {
 		try {
 			$this->initViewer();
@@ -116,6 +118,7 @@ class ListController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/lists')]
 	public function create(
 		string $title = '',
 		string $replies_policy = MastodonList::DEFAULT_REPLIES_POLICY,
@@ -138,6 +141,7 @@ class ListController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/lists/{id}')]
 	public function get(int $id): DataResponse {
 		try {
 			$this->initViewer();
@@ -155,6 +159,7 @@ class ListController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/lists/{id}')]
 	public function update(
 		int $id,
 		string $title = '',
@@ -184,6 +189,7 @@ class ListController extends Controller {
 	/** Answers `{}`, as Mastodon does, and takes the memberships with it. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/lists/{id}')]
 	public function delete(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:lists']);
@@ -209,6 +215,9 @@ class ListController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	// `/api/v1/lists/{id}` cannot read this as a list named "4/accounts"
+	// because `{id}` matches one segment, and it has to stay that way.
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/lists/{id}/accounts')]
 	public function accounts(
 		int $id,
 		int $limit = self::MEMBERS_LIMIT,
@@ -261,6 +270,7 @@ class ListController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/lists/{id}/accounts')]
 	public function addAccounts(int $id, array|string $account_ids = []): DataResponse {
 		try {
 			$this->initViewer(['write:lists']);
@@ -290,6 +300,7 @@ class ListController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/lists/{id}/accounts')]
 	public function removeAccounts(int $id, array|string $account_ids = []): DataResponse {
 		try {
 			$this->initViewer(['write:lists']);
@@ -316,6 +327,7 @@ class ListController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/{account}/lists', requirements: ['account' => '.+'])]
 	public function accountLists(string $account): DataResponse {
 		try {
 			$this->initViewer();
@@ -347,6 +359,7 @@ class ListController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/timelines/list/{id}')]
 	public function timeline(
 		int $id,
 		int $limit = 20,

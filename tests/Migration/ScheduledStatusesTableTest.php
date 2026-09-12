@@ -26,6 +26,8 @@ use PHPUnit\Framework\TestCase;
  * actually happen, and that a second run asks for nothing.
  */
 class ScheduledStatusesTableTest extends TestCase {
+	use RecordsSchemaChanges;
+
 	private const TABLE = 'social_scheduled';
 
 	/** @var array<string, array{string, array}> column => [type, options] */
@@ -46,30 +48,7 @@ class ScheduledStatusesTableTest extends TestCase {
 			->willReturnCallback(function (string $name) {
 				$this->created[] = $name;
 
-				return new class($this->added, $this->indexes, $this->primaryKey) {
-					public function __construct(
-						private array &$added,
-						private array &$indexes,
-						private array &$primaryKey,
-					) {
-					}
-
-					public function addColumn(string $column, string $type, array $options = []): void {
-						$this->added[$column] = [$type, $options];
-					}
-
-					public function setPrimaryKey(array $columns): void {
-						$this->primaryKey = $columns;
-					}
-
-					public function addIndex(array $columns, string $name): void {
-						$this->indexes[] = [$columns, $name, false];
-					}
-
-					public function addUniqueIndex(array $columns, string $name): void {
-						$this->indexes[] = [$columns, $name, true];
-					}
-				};
+				return $this->recordTable($name);
 			});
 
 		return static fn (): ISchemaWrapper => $schema;
@@ -79,7 +58,10 @@ class ScheduledStatusesTableTest extends TestCase {
 	private function migrate(array $existing = []): ?ISchemaWrapper {
 		$step = new Version1000Date20260911000014();
 
-		return $step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($existing), []);
+		$schema = $step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($existing), []);
+		$this->harvestSchemaChanges();
+
+		return $schema;
 	}
 
 	public function testTheTableIsTheOneTheCodeReadsAndWrites(): void {

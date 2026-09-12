@@ -186,6 +186,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	 * @throws RequestResultNotJsonException
 	 * @throws Exception
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		/** @var Follow $follow */
 		$follow = $item;
@@ -250,6 +251,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	 *
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function activity(Acore $activity, ACore $item): void {
 		/** @var Follow $item */
 		if ($activity->getType() === Undo::TYPE) {

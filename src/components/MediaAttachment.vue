@@ -6,10 +6,12 @@
 	<!-- not focusable on purpose: an image here is already inside the parent's
 	     button, and video and audio carry their own controls. The click is a
 	     convenience for a pointer, never the only way to reach anything -->
-	<div class="attachment"
+	<div
+		class="attachment"
 		role="presentation"
 		@click="$emit('click')">
-		<video v-if="attachment !== null && attachment.type === 'video'"
+		<video
+			v-if="attachment !== null && attachment.type === 'video'"
 			class="attachment__preview"
 			:src="attachment.url"
 			:aria-label="attachment.description || ''"
@@ -17,7 +19,8 @@
 			preload="metadata"
 			@click.stop
 			@loadedmetadata="previewLoaded = true" />
-		<audio v-else-if="attachment !== null && attachment.type === 'audio'"
+		<audio
+			v-else-if="attachment !== null && attachment.type === 'audio'"
 			class="attachment__audio"
 			:src="attachment.url"
 			:aria-label="attachment.description || ''"
@@ -26,10 +29,12 @@
 			@click.stop
 			@loadedmetadata="previewLoaded = true" />
 		<template v-else>
-			<canvas ref="canvas"
+			<canvas
+				ref="canvas"
 				class="attachment__blurhash"
 				:class="{ 'attachment__blurhash--hidden': previewLoaded }" />
-			<img v-if="hasPreview && !previewFailed"
+			<img
+				v-if="hasPreview && !previewFailed"
 				class="attachment__preview attachment__preview--fading"
 				:class="{ 'attachment__preview--shown': previewLoaded }"
 				:src="attachment.preview_url"
@@ -39,7 +44,8 @@
 			<!-- federated media that has gone away used to spin forever: no
 			     @error meant previewLoaded stayed false and the spinner stayed.
 			     So did media the server says outright it has no preview for -->
-			<span v-if="showsPlaceholder"
+			<span
+				v-if="showsPlaceholder"
 				class="attachment__failed"
 				role="img"
 				:aria-label="placeholderLabel">
@@ -63,7 +69,7 @@ export default {
 		ImageOff,
 		NcLoadingIcon,
 	},
-	emits: ['click'],
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon').MediaAttachment>} */
 		attachment: {
@@ -71,17 +77,22 @@ export default {
 			default: null,
 		},
 	},
+
+	emits: ['click'],
+
 	data() {
 		return {
 			previewLoaded: false,
 			previewFailed: false,
 		}
 	},
+
 	computed: {
 		/** @return {boolean} */
 		isAv() {
 			return this.attachment?.type === 'video' || this.attachment?.type === 'audio'
 		},
+
 		/**
 		 * Whether there is a preview to wait for at all. The server sends
 		 * `preview_url: null` when it has none, and Vue drops a null `src`:
@@ -95,10 +106,12 @@ export default {
 				&& typeof this.attachment.preview_url === 'string'
 				&& this.attachment.preview_url !== ''
 		},
+
 		/** @return {boolean} whether the still-image placeholder is on screen */
 		showsPlaceholder() {
 			return !this.isAv && this.attachment !== null && (this.previewFailed || !this.hasPreview)
 		},
+
 		/** @return {string} what the placeholder stands for */
 		placeholderLabel() {
 			const description = this.attachment?.description
@@ -113,6 +126,7 @@ export default {
 				: translate('social', 'No preview available')
 		},
 	},
+
 	watch: {
 		attachment() {
 			this.previewLoaded = false
@@ -120,14 +134,17 @@ export default {
 			this.drawBlurhash()
 		},
 	},
+
 	mounted() {
 		this.drawBlurhash()
 	},
+
 	methods: {
 		onPreviewError() {
 			this.previewFailed = true
 			this.previewLoaded = false
 		},
+
 		drawBlurhash() {
 			if (this.isAv || this.attachment?.meta?.small?.width === undefined) {
 				return

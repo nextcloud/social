@@ -3,21 +3,32 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-const state = {
-	serverData: {},
-}
-const mutations = {
-	setServerData(state, data) {
-		state.serverData = data
-	},
-	setServerDataEntry(state, { key, value }) {
-		state.serverData[key] = value
-	},
-}
-const getters = {
-	getServerData(state) {
-		return state.serverData
-	},
-}
+import { defineStore } from 'pinia'
 
-export default { state, mutations, getters }
+/**
+ * What the server told the page about itself, as `templates/main.php` sent it.
+ */
+export const useSettingsStore = defineStore('settings', {
+	state: () => ({
+		serverData: {},
+	}),
+
+	getters: {
+		/**
+		 * @param {object} state the store state
+		 * @return {import('../composables/useServerData.js').ServerData} the whole block
+		 */
+		getServerData(state) {
+			return state.serverData
+		},
+	},
+
+	actions: {
+		setServerData(data) {
+			this.serverData = data
+		},
+		setServerDataEntry({ key, value }) {
+			this.serverData[key] = value
+		},
+	},
+})

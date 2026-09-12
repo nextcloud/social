@@ -96,7 +96,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function updateDescription(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
-		$this->limitToIdString($qb, $document->getId());
+		$qb->limitToIdString($document->getId());
 		$qb->set('description', $qb->createNamedParameter($document->getDescription()));
 
 		$qb->executeStatement();
@@ -104,7 +104,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 	public function initCaching(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
-		$this->limitToIdString($qb, $document->getId());
+		$qb->limitToIdString($document->getId());
 
 		try {
 			$qb->set(
@@ -121,7 +121,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function endCaching(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
-		$this->limitToIdString($qb, $document->getId());
+		$qb->limitToIdString($document->getId());
 		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()));
 		$qb->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
 		$qb->set('blurhash', $qb->createNamedParameter($document->getBlurHash()));
@@ -149,7 +149,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function getByLocalCopy(string $uuid): Document {
 		$qb = $this->getCacheDocumentsSelectSql();
-		$this->limitToDBField($qb, 'local_copy', $uuid, false);
+		$qb->limitToDBField('local_copy', $uuid, false);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -195,7 +195,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 	public function getByUrl(string $url) {
 		$qb = $this->getCacheDocumentsSelectSql();
-		$this->limitToUrl($qb, $url);
+		$qb->limitToUrl($url);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -245,7 +245,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->limitToIdPrim($qb->prim($id));
 
 		if ($public === true) {
-			$this->limitToPublic($qb);
+			$qb->limitToPublic();
 		}
 
 		$cursor = $qb->executeQuery();
@@ -266,8 +266,8 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function isDuplicate(Document $item): bool {
 		$qb = $this->getCacheDocumentsSelectSql();
-		$this->limitToUrl($qb, $item->getUrl());
-		$this->limitToParentId($qb, $item->getParentId());
+		$qb->limitToUrl($item->getUrl());
+		$qb->limitToParentId($item->getParentId());
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -293,9 +293,9 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function getNotCachedDocuments(int $limit = self::CACHE_BATCH) {
 		$qb = $this->getCacheDocumentsSelectSql();
-		$this->limitToDBFieldEmpty($qb, 'local_copy');
-		$this->limitToCaching($qb, self::CACHING_TIMEOUT);
-		$this->limitToDBFieldInt($qb, 'error', 0);
+		$qb->limitToDBFieldEmpty('local_copy');
+		$qb->limitToCaching(self::CACHING_TIMEOUT);
+		$qb->limitToDBFieldInt('error', 0);
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 		}
@@ -315,7 +315,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function deleteByUrl(string $url) {
 		$qb = $this->getCacheDocumentsDeleteSql();
-		$this->limitToUrl($qb, $url);
+		$qb->limitToUrl($url);
 
 		$qb->executeStatement();
 	}
@@ -325,7 +325,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function deleteById(string $id) {
 		$qb = $this->getCacheDocumentsDeleteSql();
-		$this->limitToIdString($qb, $id);
+		$qb->limitToIdString($id);
 
 		$qb->executeStatement();
 	}

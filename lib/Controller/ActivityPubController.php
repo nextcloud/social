@@ -56,6 +56,7 @@ use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -153,6 +154,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/users/{username}')]
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->actor($username);
@@ -215,6 +217,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/')]
 	public function actorAlias(string $username): Response {
 		return $this->actor($username);
 	}
@@ -239,6 +242,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/inbox')]
 	public function sharedInbox(): Response {
 		$body = '';
 		$origin = '';
@@ -299,6 +303,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/@{username}/inbox')]
 	public function inbox(string $username): Response {
 		$body = '';
 		$origin = '';
@@ -457,6 +462,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/inbox')]
 	public function getInbox(string $username): Response {
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
@@ -481,6 +487,11 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	// Two verbs on one method need two route names: a route is keyed by
+	// controller, method and postfix, so without one the POST registration
+	// replaced the GET and remote servers fetching an outbox got nothing.
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/outbox')]
+	#[FrontpageRoute(verb: 'POST', url: '/@{username}/outbox', postfix: 'post')]
 	public function outbox(string $username, string $page = ''): Response {
 		//		if (!$this->checkSourceActivityStreams()) {
 		//			return $this->socialPubController->outbox($username);
@@ -550,6 +561,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/collections/featured')]
 	public function featured(string $username): Response {
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
@@ -587,6 +599,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/followers')]
 	public function followers(string $username, string $page = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);
@@ -624,6 +637,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/following')]
 	public function following(string $username, string $page = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->following($username);
@@ -663,6 +677,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}/quote_authorizations/{stamp}')]
 	public function displayQuoteAuthorization(string $username, string $token, string $stamp): Response {
 		$quotedId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
@@ -704,6 +719,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/actor')]
 	public function instanceActor(): Response {
 		try {
 			return $this->activityPubSuccess($this->instanceActorService->getActor());
@@ -725,6 +741,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}/replies')]
 	public function replies(string $username, string $token, string $page = ''): Response {
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
@@ -766,6 +783,11 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	// `{token}` is one segment, so this url also matches `/@{username}/inbox`,
+	// `/outbox`, `/followers` and `/following`. Attributes of one class are read
+	// in method-declaration order, which is why this method is declared after
+	// all four: moving it up the file would swallow them.
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}')]
 	public function displayPost(string $username, string $token): Response {
 		try {
 			return $this->fixToken($username, $token);

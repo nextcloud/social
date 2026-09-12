@@ -395,69 +395,8 @@ namespace OC\Cache {
 	}
 }
 
-namespace OC\Core\Command {
-	use Symfony\Component\Console\Input\InputInterface;
-	use Symfony\Component\Console\Output\OutputInterface;
-	class Base {
-		public const OUTPUT_FORMAT_PLAIN = 'plain';
-		public const OUTPUT_FORMAT_JSON = 'json';
-		public const OUTPUT_FORMAT_JSON_PRETTY = 'json_pretty';
-
-		public function __construct() {}
-		protected function configure() {}
-		public function run(InputInterface $input, OutputInterface $output) {}
-		public function setName(string $name) {}
-		public function getHelper(string $name) {}
-		protected function writeArrayInOutputFormat(InputInterface $input, OutputInterface $output, $items, $prefix = '  - ') {
-		}
-	}
-}
-
 namespace OC\Files\ObjectStore {
 	class NoopScanner {}
-}
-
-namespace Symfony\Component\Console\Helper {
-	use Symfony\Component\Console\Output\OutputInterface;
-	class Table {
-		public function __construct(OutputInterface $text) {}
-		public function setHeaders(array $header) {}
-		public function setRows(array $rows) {}
-		public function render() {}
-		public function appendRow(array $row) {}
-	}
-}
-
-namespace Symfony\Component\Console\Input {
-	class InputInterface {
-		public function getOption(string $key) {}
-		public function getArgument(string $key) {}
-		public function isInteractive(): bool {}
-	}
-	class InputArgument {
-		const REQUIRED = 0;
-		const OPTIONAL = 1;
-		const IS_ARRAY = 1;
-	}
-	class InputOption {
-		const VALUE_NONE = 1;
-		const VALUE_REQUIRED = 1;
-		const VALUE_OPTIONAL = 1;
-	}
-}
-
-namespace Symfony\Component\Console\Question {
-	class ConfirmationQuestion {
-		public function __construct(string $text, bool $default, string $accept = 'y') {}
-	}
-}
-
-namespace Symfony\Component\Console\Output {
-	class OutputInterface {
-		public const VERBOSITY_VERBOSE = 1;
-		public function writeln(string $text, int $flat = 0) {}
-		public function write(string $text, int $flat = 0) {}
-	}
 }
 
 namespace OC\User {

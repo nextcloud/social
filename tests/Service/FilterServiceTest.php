@@ -86,7 +86,7 @@ class FilterServiceTest extends TestCase {
 		return $filter;
 	}
 
-	private function status(string $content, array $extra = []): array {
+	private function aStatus(string $content, array $extra = []): array {
 		return array_merge(['id' => '1', 'content' => $content, 'spoiler_text' => ''], $extra);
 	}
 
@@ -97,7 +97,7 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('spoilers', [['banana', false]])];
 
 		$page = $this->service->apply(
-			[$this->status('<p>hello</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>hello</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $page);
@@ -111,7 +111,7 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$page = $this->service->apply(
-			[$this->status('<p>a banana split</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>a banana split</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $page, 'a warn filter leaves the status in the timeline');
@@ -130,7 +130,7 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$page = $this->service->apply(
-			[$this->status('<p>a banana split</p>'), $this->status('<p>an apple</p>')],
+			[$this->aStatus('<p>a banana split</p>'), $this->aStatus('<p>an apple</p>')],
 			Filter::CONTEXT_HOME,
 			$this->viewer(self::ALICE)
 		);
@@ -143,10 +143,10 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('pets', [['cat', true]])];
 
 		$whole = $this->service->apply(
-			[$this->status('<p>look at that cat!</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>look at that cat!</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 		$part = $this->service->apply(
-			[$this->status('<p>read the catalogue</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>read the catalogue</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $whole[0]['filtered'], 'a whole-word keyword matches the word');
@@ -157,7 +157,7 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('pets', [['cat', false]])];
 
 		$page = $this->service->apply(
-			[$this->status('<p>read the catalogue</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>read the catalogue</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $page[0]['filtered']);
@@ -170,7 +170,7 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('tags', [['#spoiler', true]])];
 
 		$page = $this->service->apply(
-			[$this->status('<p>careful, #spoiler ahead</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>careful, #spoiler ahead</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $page[0]['filtered']);
@@ -180,7 +180,7 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('shouting', [['banana', true]])];
 
 		$page = $this->service->apply(
-			[$this->status('<p>BANANA</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>BANANA</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $page[0]['filtered']);
@@ -193,10 +193,10 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('literal', [['c++ (beta)', false]])];
 
 		$matching = $this->service->apply(
-			[$this->status('<p>about c++ (beta) today</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>about c++ (beta) today</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 		$other = $this->service->apply(
-			[$this->status('<p>about cxx beta today</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>about cxx beta today</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $matching[0]['filtered']);
@@ -208,7 +208,7 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('markup', [['href', false]])];
 
 		$page = $this->service->apply(
-			[$this->status('<p><a href="https://example.net/">a link</a></p>')],
+			[$this->aStatus('<p><a href="https://example.net/">a link</a></p>')],
 			Filter::CONTEXT_HOME,
 			$this->viewer(self::ALICE)
 		);
@@ -220,7 +220,7 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('apostrophes', [["don't", false]])];
 
 		$page = $this->service->apply(
-			[$this->status('<p>I don&apos;t think so</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>I don&apos;t think so</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $page[0]['filtered']);
@@ -230,7 +230,7 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('spoilers', [['ending', false]])];
 
 		$page = $this->service->apply(
-			[$this->status('<p>nothing here</p>', ['spoiler_text' => 'the ending'])],
+			[$this->aStatus('<p>nothing here</p>', ['spoiler_text' => 'the ending'])],
 			Filter::CONTEXT_HOME,
 			$this->viewer(self::ALICE)
 		);
@@ -242,12 +242,12 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('food', [['banana', false]], [Filter::CONTEXT_HOME])];
 
 		$described = $this->service->apply(
-			[$this->status('<p>look</p>', ['media_attachments' => [['description' => 'a banana']]])],
+			[$this->aStatus('<p>look</p>', ['media_attachments' => [['description' => 'a banana']]])],
 			Filter::CONTEXT_HOME,
 			$this->viewer(self::ALICE)
 		);
 		$polled = $this->service->apply(
-			[$this->status('<p>vote</p>', ['poll' => ['options' => [['title' => 'banana']]]])],
+			[$this->aStatus('<p>vote</p>', ['poll' => ['options' => [['title' => 'banana']]]])],
 			Filter::CONTEXT_HOME,
 			$this->viewer(self::ALICE)
 		);
@@ -264,7 +264,7 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$page = $this->service->apply(
-			[$this->status('', ['reblog' => $this->status('<p>a banana split</p>')])],
+			[$this->aStatus('', ['reblog' => $this->aStatus('<p>a banana split</p>')])],
 			Filter::CONTEXT_HOME,
 			$this->viewer(self::ALICE)
 		);
@@ -277,7 +277,7 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('spoilers', [['banana', false]])];
 
 		$page = $this->service->apply(
-			[$this->status('', ['reblog' => $this->status('<p>a banana split</p>')])],
+			[$this->aStatus('', ['reblog' => $this->aStatus('<p>a banana split</p>')])],
 			Filter::CONTEXT_HOME,
 			$this->viewer(self::ALICE)
 		);
@@ -292,10 +292,10 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$home = $this->service->apply(
-			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 		$public = $this->service->apply(
-			[$this->status('<p>a banana</p>')], Filter::CONTEXT_PUBLIC, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>a banana</p>')], Filter::CONTEXT_PUBLIC, $this->viewer(self::ALICE)
 		);
 
 		$this->assertSame([], $home);
@@ -312,10 +312,10 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::BOB] = [];
 
 		$alice = $this->service->apply(
-			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 		$bob = $this->service->apply(
-			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::BOB)
+			[$this->aStatus('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::BOB)
 		);
 
 		$this->assertSame([], $alice);
@@ -327,7 +327,7 @@ class FilterServiceTest extends TestCase {
 	public function testAnAnonymousReaderHasNoFiltersAndIsNotAskedAbout(): void {
 		$this->stored[self::ALICE] = [$this->filter('spoilers', [['banana', false]])];
 
-		$page = $this->service->apply([$this->status('<p>a banana</p>')], Filter::CONTEXT_PUBLIC, null);
+		$page = $this->service->apply([$this->aStatus('<p>a banana</p>')], Filter::CONTEXT_PUBLIC, null);
 
 		$this->assertCount(1, $page);
 		$this->assertSame([], $page[0]['filtered']);
@@ -344,7 +344,7 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$page = $this->service->apply(
-			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $page);
@@ -359,7 +359,7 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$page = $this->service->apply(
-			[$this->status('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>a banana</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertSame([], $page);
@@ -372,7 +372,7 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$page = $this->service->apply(
-			[$this->status('<p>anything at all</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>anything at all</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $page);
@@ -386,7 +386,7 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$page = $this->service->apply(
-			[$this->status('<p>a banana split</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>a banana split</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertSame(
@@ -398,8 +398,8 @@ class FilterServiceTest extends TestCase {
 	public function testTheStoreIsReadOncePerViewerPerRequest(): void {
 		$this->stored[self::ALICE] = [$this->filter('spoilers', [['banana', false]])];
 
-		$this->service->apply([$this->status('<p>a</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE));
-		$this->service->apply([$this->status('<p>b</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE));
+		$this->service->apply([$this->aStatus('<p>a</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE));
+		$this->service->apply([$this->aStatus('<p>b</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE));
 
 		$this->assertSame([self::ALICE], $this->asked);
 	}
@@ -410,10 +410,10 @@ class FilterServiceTest extends TestCase {
 		];
 
 		$hidden = $this->service->applyToStatus(
-			$this->status('<p>a banana</p>'), Filter::CONTEXT_THREAD, $this->viewer(self::ALICE)
+			$this->aStatus('<p>a banana</p>'), Filter::CONTEXT_THREAD, $this->viewer(self::ALICE)
 		);
 		$shown = $this->service->applyToStatus(
-			$this->status('<p>an apple</p>'), Filter::CONTEXT_THREAD, $this->viewer(self::ALICE)
+			$this->aStatus('<p>an apple</p>'), Filter::CONTEXT_THREAD, $this->viewer(self::ALICE)
 		);
 
 		$this->assertNull($hidden);
@@ -458,10 +458,10 @@ class FilterServiceTest extends TestCase {
 		$this->stored[self::ALICE] = [$this->filter('cafés', [['café', true]])];
 
 		$word = $this->service->apply(
-			[$this->status('<p>at the café</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>at the café</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 		$inside = $this->service->apply(
-			[$this->status('<p>about cafés</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
+			[$this->aStatus('<p>about cafés</p>')], Filter::CONTEXT_HOME, $this->viewer(self::ALICE)
 		);
 
 		$this->assertCount(1, $word[0]['filtered']);

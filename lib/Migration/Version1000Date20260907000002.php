@@ -24,6 +24,7 @@ use OCP\Migration\SimpleMigrationStep;
  * the timeline anti-join O(1) per row and block/mute operations idempotent.
  */
 class Version1000Date20260907000002 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

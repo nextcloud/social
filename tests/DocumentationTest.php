@@ -9,22 +9,29 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests;
 
+use OCP\AppFramework\Http\Attribute\Route;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use ReflectionAttribute;
+use ReflectionClass;
 
 /**
  * Keeps `docs/` mechanically in sync with the code.
  *
- * Everything here is parsed out of the source files with regular expressions;
- * nothing is instantiated, because the classes involved (commands, in
- * particular) extend server-internal base classes that are not autoloadable in
- * the standalone test suite.
+ * Most of this is parsed out of the source files with regular expressions,
+ * because the classes involved (commands, in particular) extend
+ * server-internal base classes that are not autoloadable in the standalone
+ * test suite. The routes are the exception: they are `#[FrontpageRoute]`
+ * attributes on controller methods, and controllers only extend
+ * `OCP\AppFramework\Controller`, which the OCP stubs provide — so they are
+ * read by reflection, the same way the server reads them.
  *
  * Only contracts that a reader of the docs would act on are asserted: occ
  * command names, HTTP route URLs, supported version ranges and the app
  * version. Counts of internal classes are deliberately not asserted.
  */
 class DocumentationTest extends TestCase {
-	/** Endpoints the app serves outside `appinfo/routes.php`, so the doc may name them. */
+	/** Endpoints the app serves outside its route table, so the doc may name them. */
 	private const NON_ROUTE_ENDPOINTS = [
 		// Registered as an IHandler in lib/WellKnown/WebfingerHandler.php, not as a route.
 		'/.well-known/webfinger',
@@ -40,8 +47,8 @@ class DocumentationTest extends TestCase {
 
 	/**
 	 * Options every command has without declaring one, so a section may name
-	 * them with no `addOption()` to match: `--output` comes from
-	 * `OC\Core\Command\Base`, the rest from Symfony's default definition.
+	 * them with no `addOption()` to match: `--output` comes from the app's own
+	 * `SocialCommand`, the rest from Symfony's default definition.
 	 */
 	private const INHERITED_OPTIONS = [
 		'output',
@@ -97,7 +104,7 @@ class DocumentationTest extends TestCase {
 		$this->assertSame(
 			[],
 			array_values(array_diff($routes, $documented)),
-			'These routes from appinfo/routes.php are undocumented:'
+			'These routes of the app are undocumented:'
 			. ' document these routes in docs/API.md (keep the {placeholder} names verbatim).'
 		);
 	}
@@ -111,7 +118,7 @@ class DocumentationTest extends TestCase {
 			array_values(array_diff($documented, $routes)),
 			'These paths in docs/API.md are not routes:'
 			. ' remove them from docs/API.md, or fix the path (a wrong {placeholder} name'
-			. ' counts as a wrong path) so it matches a url in appinfo/routes.php.'
+			. ' counts as a wrong path) so it matches the url of a route.'
 		);
 	}
 
@@ -261,8 +268,8 @@ class DocumentationTest extends TestCase {
 	 * not part of `social:cache:refresh` while `--rotate-keys` sat in its
 	 * `configure()`, and an operator who read that never rotated a key.
 	 *
-	 * Options every command inherits from `OC\Core\Command\Base` and Symfony
-	 * are not declared per command and are not required to have a row.
+	 * Options every command inherits from `SocialCommand` and Symfony are not
+	 * declared per command and are not required to have a row.
 	 */
 	public function testDocumentedCommandOptionsMatchTheCode(): void {
 		$sections = $this->documentedCommandSections();
@@ -754,18 +761,129 @@ class DocumentationTest extends TestCase {
 		return $match[1];
 	}
 
-	/** Route urls declared in appinfo/routes.php, normalised and sorted. */
-	private function routeUrls(): array {
-		$definition = require __DIR__ . '/../appinfo/routes.php';
-		$this->assertArrayHasKey('routes', $definition, 'appinfo/routes.php declares no routes.');
+	/**
+	 * Two route attributes on one method need two names.
+	 *
+	 * A route is keyed by controller, method and postfix, so a second
+	 * registration without a postfix replaces the first rather than joining
+	 * it. That is how GET `/@{username}/outbox` disappeared behind its own
+	 * POST: both were named `ActivityPub#outbox`, first in the array table and
+	 * then in the attributes that replaced it, and a remote server fetching an
+	 * outbox got nothing.
+	 */
+	public function testRoutesOnTheSameMethodHaveDistinctNames(): void {
+		$collisions = [];
 
+		foreach (glob(__DIR__ . '/../lib/Controller/*.php') as $file) {
+			$source = (string)file_get_contents($file);
+			preg_match_all(
+				'/((?:\t#\[(?:Frontpage|Api)Route\([^\]]*\)\]\n)+)\tpublic function (\w+)/',
+				$source,
+				$matches,
+				PREG_SET_ORDER
+			);
+
+			foreach ($matches as $match) {
+				preg_match_all('/#\[(?:Frontpage|Api)Route\((.*?)\)\]/', $match[1], $routes);
+				if (count($routes[1]) < 2) {
+					continue;
+				}
+
+				$names = array_map(
+					static fn (string $route): string
+						=> preg_match("/postfix:\s*'([^']*)'/", $route, $postfix) ? $postfix[1] : '',
+					$routes[1]
+				);
+
+				if (count(array_unique($names)) !== count($names)) {
+					$collisions[] = basename($file) . '::' . $match[2];
+				}
+			}
+		}
+
+		$this->assertSame(
+			[],
+			$collisions,
+			'These methods carry route attributes that register under the same name,'
+			. ' so all but the last are silently dropped: give each a distinct postfix.'
+		);
+	}
+
+	/**
+	 * Every route url the app registers, normalised and sorted.
+	 *
+	 * Both places a route can be declared are read, because the server reads
+	 * both: the `#[FrontpageRoute]` attributes on the controller methods, and
+	 * whatever is left in `appinfo/routes.php` (see the comment in that file
+	 * for the one route that has to stay there).
+	 */
+	private function routeUrls(): array {
 		$urls = [];
-		foreach ($definition['routes'] as $route) {
+		foreach ($this->attributeRoutes() as $route) {
+			$this->assertArrayHasKey('url', $route, 'A route attribute has no url.');
+			$urls[] = $this->normalisePath((string)$route['url']);
+		}
+		foreach ($this->arrayRoutes() as $route) {
 			$this->assertArrayHasKey('url', $route, 'A route in appinfo/routes.php has no url.');
 			$urls[] = $this->normalisePath((string)$route['url']);
 		}
 
+		$this->assertNotEmpty(
+			$urls,
+			'No routes found at all: the app declares none, or this test stopped'
+			. ' finding them — either way docs/API.md would be checked against nothing.'
+		);
+
 		return $this->normalise($urls);
+	}
+
+	/**
+	 * The route attributes on the controllers, read the way the server reads
+	 * them.
+	 *
+	 * `OC\Route\Router::getAttributeRoutes()` walks `lib/Controller`, reflects
+	 * over every `*Controller.php` in it, and takes every method attribute that
+	 * is an `OCP\AppFramework\Http\Attribute\Route` — which `FrontpageRoute`
+	 * and `ApiRoute` both are. This does the same, so a route this test cannot
+	 * see is a route the server cannot see either.
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	private function attributeRoutes(): array {
+		$files = glob(__DIR__ . '/../lib/Controller/*Controller.php');
+		$this->assertNotEmpty($files, 'No controllers found in lib/Controller/.');
+
+		$routes = [];
+		foreach ($files as $file) {
+			$class = 'OCA\\Social\\Controller\\' . basename($file, '.php');
+			$this->assertTrue(
+				class_exists($class),
+				$file . ' declares no ' . $class . ':'
+				. ' the server reflects over that class name, so its routes would be lost.'
+			);
+
+			foreach ((new ReflectionClass($class))->getMethods() as $method) {
+				$attributes = $method->getAttributes(Route::class, ReflectionAttribute::IS_INSTANCEOF);
+				foreach ($attributes as $attribute) {
+					$routes[] = $attribute->newInstance()->toArray();
+				}
+			}
+		}
+
+		return $routes;
+	}
+
+	/**
+	 * What is still declared the old way, in the `routes` key of
+	 * `appinfo/routes.php`. May legitimately be empty.
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	private function arrayRoutes(): array {
+		$definition = require __DIR__ . '/../appinfo/routes.php';
+		$this->assertIsArray($definition, 'appinfo/routes.php returns no array.');
+
+		return array_values($definition['routes'] ?? []);
 	}
 
 	/**
@@ -881,14 +999,14 @@ class DocumentationTest extends TestCase {
 	 *
 	 * @return iterable<string, array{string, string}>
 	 */
-	public function surveyDocuments(): iterable {
+	public static function surveyDocuments(): iterable {
 		yield 'technical debt' => ['docs/Technical-Debt.md', 'Technical debt and legacy code'];
 		yield 'performance' => ['docs/Performance.md', 'Performance and scalability'];
 		yield 'mastodon compatibility' => ['docs/Mastodon-Compatibility.md', 'Mastodon compatibility'];
 		yield 'mastodon roadmap' => ['docs/Mastodon-Roadmap.md', 'What a full Mastodon replacement still needs'];
 	}
 
-	/** @dataProvider surveyDocuments */
+	#[DataProvider('surveyDocuments')]
 	public function testTheSurveysAreStillHereAndLinkedFromTheReadme(string $path, string $title): void {
 		$document = $this->read($path);
 		$this->assertStringContainsString(

@@ -4,17 +4,15 @@
  */
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import UserEntry from '../../../src/components/UserEntry.vue'
-import account from '../../../src/store/account.js'
-import settings from '../../../src/store/settings.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
 })
-
-const pristine = structuredClone(account.state)
 
 const NcAvatarStub = {
 	name: 'NcAvatar',
@@ -51,23 +49,28 @@ const remote = {
 	note: '<p>Hi <script>alert(1)</script><a href="javascript:alert(2)" onclick="x()">link</a> <a href="https://remote.example/bob" target="_self" rel="opener">site</a></p>',
 }
 
-let store
+let pinia
+let accountStore
 
-const makeStore = (serverData = {}) => {
-	Object.assign(account.state, structuredClone(pristine))
-	store = createStore({ modules: { account, settings } })
-	store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
-	vi.spyOn(store, 'dispatch').mockResolvedValue([])
-	return store
+function makeStore(serverData = {}) {
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
+	vi.spyOn(accountStore, 'fetchRelationship').mockResolvedValue([])
+
+	return pinia
 }
 
-const mountEntry = (item, props = {}) => mount(UserEntry, {
-	props: { item, ...props },
-	global: {
-		plugins: [store],
-		stubs: { NcAvatar: NcAvatarStub, FollowButton: FollowButtonStub, RouterLink: RouterLinkStub },
-	},
-})
+function mountEntry(item, props = {}) {
+	return mount(UserEntry, {
+		props: { item, ...props },
+		global: {
+			plugins: [pinia],
+			stubs: { NcAvatar: NcAvatarStub, FollowButton: FollowButtonStub, RouterLink: RouterLinkStub },
+		},
+	})
+}
 
 describe('UserEntry', () => {
 	beforeEach(() => {
@@ -128,16 +131,16 @@ describe('UserEntry', () => {
 		mountEntry(remote)
 		// a page of twenty followers used to be twenty round-trips, because
 		// the guard tested a `relationship` this component never defined
-		expect(store.dispatch).toHaveBeenCalledWith('fetchRelationship', 'https://remote.example/users/bob')
+		expect(accountStore.fetchRelationship).toHaveBeenCalledWith('https://remote.example/users/bob')
 	})
 
 	it('does not ask again for a relationship the store already knows', () => {
-		store.commit('addRelationship', {
+		accountStore.addRelationship({
 			actorId: remote.id,
 			data: { id: remote.id, following: true, requested: false },
 		})
 		mountEntry(remote)
-		expect(store.dispatch).not.toHaveBeenCalledWith('fetchRelationship', remote.id)
+		expect(accountStore.fetchRelationship).not.toHaveBeenCalledWith(remote.id)
 	})
 
 	it('shows the follow button by default and hides it on request', () => {
@@ -161,7 +164,7 @@ describe('UserEntry', () => {
 
 		it('does not ask the server for a relationship', () => {
 			mountEntry(remote)
-			expect(store.dispatch).not.toHaveBeenCalled()
+			expect(accountStore.fetchRelationship).not.toHaveBeenCalled()
 		})
 	})
 })

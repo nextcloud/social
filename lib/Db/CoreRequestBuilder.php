@@ -9,24 +9,17 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use DateInterval;
 use DateTime;
-use Doctrine\DBAL\Query\QueryBuilder;
-use Exception;
-use OC;
-use OC\DB\Connection;
-use OC\DB\SchemaWrapper;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\IExtendedQueryBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
-use OCP\Server;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -400,7 +393,12 @@ class CoreRequestBuilder {
 			'cache',
 			'creation',
 			'local',
-			'filter_duplicate'
+			'filter_duplicate',
+			'tags',
+			'language',
+			'updated',
+			'quote',
+			'quote_authorization'
 		],
 		self::TABLE_STREAM_ACTIONS => [
 			'id',
@@ -477,9 +475,7 @@ class CoreRequestBuilder {
 	 */
 	public function getQueryBuilder(): SocialQueryBuilder {
 		$qb = new SocialQueryBuilder(
-			$this->dbConnection,
-			OC::$server->get(\OC\SystemConfig::class),
-			$this->logger,
+			$this->dbConnection->getQueryBuilder(),
 			$this->urlGenerator
 		);
 
@@ -515,38 +511,13 @@ class CoreRequestBuilder {
 	}
 
 	/**
-	 * Limit the request to the Id
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param int $id
-	 *
-	 * @deprecated
-	 */
-	protected function limitToId(IQueryBuilder &$qb, int $id) {
-		$this->limitToDBFieldInt($qb, 'id', $id);
-	}
-
-	/**
-	 * Limit the request to the Id (string)
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $id
-	 *
-	 * @deprecated
-	 *
-	 */
-	protected function limitToIdString(IQueryBuilder &$qb, string $id) {
-		$this->limitToDBField($qb, 'id', $id, false);
-	}
-
-	/**
 	 * Limit the request to the prim (md5) form of an id on one of the indexed
 	 * `_prim` columns, matched case-sensitively — see limitToIdPrimString().
 	 */
 	protected function limitToPrim(
 		SocialQueryBuilder $qb, string $field, string $id, string $alias = '',
 	): void {
-		$this->limitToDBField($qb, $field, $qb->prim($id), true, $alias);
+		$qb->limitToDBField($field, $qb->prim($id), true, $alias);
 	}
 
 	/**
@@ -566,253 +537,12 @@ class CoreRequestBuilder {
 	): void {
 		$prim = $qb->prim($id);
 		if ($prim === '') {
-			$this->limitToDBField($qb, $fallback, $id, false);
+			$qb->limitToDBField($fallback, $id, false);
 
 			return;
 		}
 
-		$this->limitToDBField($qb, $field, $prim);
-	}
-
-	/**
-	 * Limit the request to the UserId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $userId
-	 *
-	 * @deprecated
-	 *
-	 */
-	protected function limitToUserId(IQueryBuilder &$qb, string $userId) {
-		$this->limitToDBField($qb, 'user_id', $userId, false);
-	}
-
-	/**
-	 * Limit the request to the ActivityId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $activityId
-	 */
-	protected function limitToActivityId(IQueryBuilder &$qb, string $activityId) {
-		$this->limitToDBField($qb, 'activity_id', $activityId, false);
-	}
-
-	/**
-	 * Limit the request to the Id (string)
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $id
-	 *
-	 * @deprecated
-	 */
-	protected function limitToInReplyTo(IQueryBuilder &$qb, string $id) {
-		$this->limitToDBField($qb, 'in_reply_to', $id, false);
-	}
-
-	/**
-	 * Limit the request to the Type
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $type
-	 */
-	protected function limitToType(IQueryBuilder &$qb, string $type) {
-		$this->limitToDBField($qb, 'type', $type);
-	}
-
-	/**
-	 * Limit the request to the sub-type
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $subType
-	 */
-	protected function limitToSubType(IQueryBuilder &$qb, string $subType) {
-		$this->limitToDBField($qb, 'subtype', $subType);
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $type
-	 */
-	protected function filterType(IQueryBuilder $qb, string $type) {
-		$this->filterDBField($qb, 'type', $type);
-	}
-
-	/**
-	 * Limit the request to the Preferred Username
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $username
-	 */
-	protected function limitToPreferredUsername(IQueryBuilder &$qb, string $username) {
-		$this->limitToDBField($qb, 'preferred_username', $username, false);
-	}
-
-	/**
-	 * search using username
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $username
-	 */
-	protected function searchInPreferredUsername(IQueryBuilder &$qb, string $username) {
-		$dbConn = $this->getConnection();
-		$this->searchInDBField(
-			$qb, 'preferred_username', $dbConn->escapeLikeParameter($username) . '%'
-		);
-	}
-
-	/**
-	 * Limit the request to the ActorId
-	 *
-	 * @param IQueryBuilder $qb
-	 */
-	protected function limitToPublic(IQueryBuilder &$qb) {
-		$this->limitToDBFieldInt($qb, 'public', 1);
-	}
-
-	/**
-	 * Limit the request to the token
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $token
-	 */
-	protected function limitToToken(IQueryBuilder &$qb, string $token) {
-		$this->limitToDBField($qb, 'token', $token);
-	}
-
-	/**
-	 * Limit the results to a given number
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param int $limit
-	 */
-	protected function limitResults(IQueryBuilder $qb, int $limit) {
-		$qb->setMaxResults($limit);
-	}
-
-	/**
-	 * Limit the request to the ActorId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $hashtag
-	 */
-	protected function limitToHashtag(IQueryBuilder &$qb, string $hashtag) {
-		$this->limitToDBField($qb, 'hashtag', $hashtag, false);
-	}
-
-	/**
-	 * Limit the request to the ActorId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $hashtag
-	 * @param bool $all
-	 */
-	protected function searchInHashtag(IQueryBuilder &$qb, string $hashtag, bool $all = false) {
-		$dbConn = $this->getConnection();
-		$this->searchInDBField(
-			$qb, 'hashtag', (($all) ? '%' : '') . $dbConn->escapeLikeParameter($hashtag) . '%'
-		);
-	}
-
-	/**
-	 * Limit the request to the FollowId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param bool $accepted
-	 * @param string $alias
-	 */
-	protected function limitToAccepted(IQueryBuilder &$qb, bool $accepted, string $alias = '') {
-		$this->limitToDBField($qb, 'accepted', ($accepted) ? '1' : '0', true, $alias);
-	}
-
-	/**
-	 * Limit the request to the ServiceId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $objectId
-	 */
-	protected function limitToObjectId(IQueryBuilder &$qb, string $objectId) {
-		$this->limitToDBField($qb, 'object_id', $objectId, false);
-	}
-
-	/**
-	 * Limit the request to the account
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $account
-	 */
-	protected function limitToAccount(IQueryBuilder &$qb, string $account) {
-		$this->limitToDBField($qb, 'account', $account, false);
-	}
-
-	/**
-	 * Limit the request to the account
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $account
-	 */
-	protected function searchInAccount(IQueryBuilder &$qb, string $account) {
-		$dbConn = $this->getConnection();
-		$this->searchInDBField($qb, 'account', $dbConn->escapeLikeParameter($account) . '%');
-	}
-
-	/**
-	 * Limit the request to the creation
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param int $delay
-	 *
-	 * @throws Exception
-	 */
-	protected function limitToCreation(IQueryBuilder &$qb, int $delay = 0) {
-		$date = new DateTime('now');
-		$date->sub(new DateInterval('PT' . $delay . 'M'));
-
-		$this->limitToDBFieldDateTime($qb, 'creation', $date, true);
-	}
-
-	/**
-	 * Limit the request to the creation
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param int $delay
-	 *
-	 * @throws Exception
-	 */
-	protected function limitToCaching(IQueryBuilder &$qb, int $delay = 0) {
-		$date = new DateTime('now');
-		$date->sub(new DateInterval('PT' . $delay . 'M'));
-
-		$this->limitToDBFieldDateTime($qb, 'caching', $date, true);
-	}
-
-	/**
-	 * Limit the request to the url
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $url
-	 */
-	protected function limitToUrl(IQueryBuilder &$qb, string $url) {
-		$this->limitToDBField($qb, 'url', $url);
-	}
-
-	/**
-	 * Limit the request to the url
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $actorId
-	 */
-	protected function limitToAttributedTo(IQueryBuilder &$qb, string $actorId) {
-		$this->limitToDBField($qb, 'attributed_to', $actorId, false);
-	}
-
-	/**
-	 * Limit the request to the status
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param int $status
-	 */
-	protected function limitToStatus(IQueryBuilder &$qb, int $status) {
-		$this->limitToDBFieldInt($qb, 'status', $status);
+		$qb->limitToDBField($field, $prim);
 	}
 
 	/**
@@ -831,9 +561,9 @@ class CoreRequestBuilder {
 	 *
 	 * @param int $maxTries the try count at which a row is abandoned
 	 */
-	protected function limitToQueueDue(IQueryBuilder &$qb, int $maxTries): void {
+	protected function limitToQueueDue(IExtendedQueryBuilder $qb, int $maxTries): void {
 		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$now = time();
 
 		$due = $expr->orX();
@@ -855,192 +585,11 @@ class CoreRequestBuilder {
 		$qb->andWhere($due);
 	}
 
-	/**
-	 * Limit the request to the instance
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param bool $local
-	 */
-	protected function limitToLocal(IQueryBuilder &$qb, bool $local) {
-		$this->limitToDBField($qb, 'local', ($local) ? '1' : '0');
-	}
-
-	/**
-	 * Limit the request to the parent_id
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $parentId
-	 */
-	protected function limitToParentId(IQueryBuilder &$qb, string $parentId) {
-		$this->limitToDBField($qb, 'parent_id', $parentId);
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @throws DateTimeException
-	 * @deprecated
-	 */
-	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
-		try {
-			if ($since > 0) {
-				$dTime = new DateTime();
-				$dTime->setTimestamp($since);
-				$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
-			}
-		} catch (Exception $e) {
-			throw new DateTimeException();
-		}
-
-		$qb->setMaxResults($limit);
-		$pf = $this->defaultSelectAlias;
-		$qb->orderBy($pf . '.published_time', 'desc');
-	}
-
 	//
 	//
 
 	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $value
-	 * @param bool $cs - case sensitive
-	 * @param string $alias
-	 */
-	protected function limitToDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = '',
-	) {
-		$expr = $this->exprLimitToDBField($qb, $field, $value, true, $cs, $alias);
-		$qb->andWhere($expr);
-	}
-
-	protected function filterDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = '',
-	) {
-		$expr = $this->exprLimitToDBField($qb, $field, $value, false, $cs, $alias);
-		$qb->andWhere($expr);
-	}
-
-	protected function exprLimitToDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $eq = true, bool $cs = true,
-		string $alias = '',
-	): string {
-		$expr = $qb->expr();
-
-		$pf = '';
-		if ($qb->getType() === QueryBuilder::SELECT) {
-			$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
-		}
-		$field = $pf . $field;
-
-		$comp = 'eq';
-		if (!$eq) {
-			$comp = 'neq';
-		}
-
-		if ($cs) {
-			return $expr->$comp($field, $qb->createNamedParameter($value));
-		} else {
-			$func = $qb->func();
-
-			return $expr->$comp(
-				$func->lower($field), $func->lower($qb->createNamedParameter($value))
-			);
-		}
-	}
-
-	protected function limitToDBFieldInt(
-		IQueryBuilder &$qb, string $field, int $value, string $alias = '',
-	): void {
-		$expr = $this->exprLimitToDBFieldInt($qb, $field, $value, $alias);
-		$qb->andWhere($expr);
-	}
-
-	protected function exprLimitToDBFieldInt(
-		IQueryBuilder &$qb, string $field, int $value, string $alias = '',
-	): string {
-		$expr = $qb->expr();
-
-		$pf = '';
-		if ($qb->getType() === QueryBuilder::SELECT) {
-			$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
-		}
-		$field = $pf . $field;
-
-		return $expr->eq($field, $qb->createNamedParameter($value));
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 */
-	protected function limitToDBFieldEmpty(IQueryBuilder &$qb, string $field) {
-		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
-		$field = $pf . $field;
-
-		$qb->andWhere($expr->eq($field, $qb->createNamedParameter('')));
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param DateTime $date
-	 * @param bool $orNull
-	 */
-	protected function limitToDBFieldDateTime(
-		IQueryBuilder &$qb, string $field, DateTime $date, bool $orNull = false,
-	) {
-		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
-		$field = $pf . $field;
-
-		if ($orNull === true) {
-			$orX = $expr->orX(
-				$expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)),
-				$expr->isNull($field)
-			);
-		} else {
-			$orX = $expr->orX(
-				$expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE))
-			);
-		}
-		$qb->andWhere($orX);
-	}
-
-	protected function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values): void {
-		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
-		$field = $pf . $field;
-
-		$conditions = [];
-		foreach ($values as $value) {
-			$conditions[] = $expr->eq($field, $qb->createNamedParameter($value));
-		}
-
-		$orX = $expr->orX(...$conditions);
-
-		$qb->andWhere($orX);
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $value
-	 */
-	protected function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
-		$expr = $qb->expr();
-
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
-		$field = $pf . $field;
-
-		$qb->andWhere($expr->iLike($field, $qb->createNamedParameter($value)));
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
+	 * @param IExtendedQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param Person $author
 	 * @param string $alias
@@ -1048,9 +597,9 @@ class CoreRequestBuilder {
 	 * @deprecated - use SocialCrossQueryBuilder:leftJoinCacheActor
 	 */
 	protected function leftJoinCacheActors(
-		IQueryBuilder &$qb, string $fieldActorId, ?Person $author = null, string $alias = '',
+		IExtendedQueryBuilder $qb, string $fieldActorId, ?Person $author = null, string $alias = '',
 	) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
+		if ($qb->getType() !== IExtendedQueryBuilder::SELECT) {
 			return;
 		}
 
@@ -1079,7 +628,7 @@ class CoreRequestBuilder {
 
 		if ($author !== null) {
 			$andX = $expr->andX(
-				$this->exprLimitToDBField($qb, 'attributed_to', $author->getId(), true, false, 's'),
+				$qb->exprLimitToDBField('attributed_to', $author->getId(), true, false, 's'),
 				$expr->eq(
 					$func->lower($this->defaultSelectAlias . '.attributed_to'),
 					$func->lower('ca.id')
@@ -1101,13 +650,13 @@ class CoreRequestBuilder {
 	}
 
 	/**
-	 * @param IQueryBuilder $qb
+	 * @param IExtendedQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param string $alias
 	 */
-	protected function leftJoinAccounts(IQueryBuilder &$qb, string $fieldActorId, string $alias = '',
+	protected function leftJoinAccounts(IExtendedQueryBuilder $qb, string $fieldActorId, string $alias = '',
 	) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
+		if ($qb->getType() !== IExtendedQueryBuilder::SELECT) {
 			return;
 		}
 
@@ -1163,7 +712,7 @@ class CoreRequestBuilder {
 	 * @deprecated
 	 */
 	protected function leftJoinStreamAction(SocialQueryBuilder &$qb) {
-		if ($qb->getType() !== QueryBuilder::SELECT || $this->viewer === null) {
+		if ($qb->getType() !== IExtendedQueryBuilder::SELECT || $this->viewer === null) {
 			return;
 		}
 
@@ -1222,17 +771,17 @@ class CoreRequestBuilder {
 	}
 
 	/**
-	 * @param IQueryBuilder $qb
+	 * @param IExtendedQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param bool $asFollower
 	 * @param string $prefix
 	 * @param string $pf
 	 */
 	protected function leftJoinFollowAsViewer(
-		IQueryBuilder &$qb, string $fieldActorId, bool $asFollower = true,
+		IExtendedQueryBuilder $qb, string $fieldActorId, bool $asFollower = true,
 		string $prefix = 'follow', string $pf = '',
 	) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
+		if ($qb->getType() !== IExtendedQueryBuilder::SELECT) {
 			return;
 		}
 
@@ -1248,7 +797,7 @@ class CoreRequestBuilder {
 
 		// Build all conditions first for andX()
 		$conditions = [];
-		$conditions[] = $this->exprLimitToDBFieldInt($qb, 'accepted', 1, $prefix . '_f');
+		$conditions[] = $qb->exprLimitToDBFieldInt('accepted', 1, $prefix . '_f');
 
 		if ($asFollower === true) {
 			$conditions[] = $expr->eq(
@@ -1308,11 +857,11 @@ class CoreRequestBuilder {
 	}
 
 	/**
-	 * @param IQueryBuilder $qb
+	 * @param IExtendedQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param string $pf
 	 */
-	protected function leftJoinDetails(IQueryBuilder $qb, string $fieldActorId = 'id', string $pf = '') {
+	protected function leftJoinDetails(IExtendedQueryBuilder $qb, string $fieldActorId = 'id', string $pf = '') {
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, true, 'as_follower', $pf);
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, false, 'as_followed', $pf);
 	}
@@ -1346,10 +895,9 @@ class CoreRequestBuilder {
 	/**
 	 * this just empty all tables from the app.
 	 */
-	public function emptyAll() {
-		$schema = new SchemaWrapper(Server::get(Connection::class));
+	public function emptyAll(): void {
 		foreach (array_keys(self::$tables) as $table) {
-			if ($schema->hasTable($table)) {
+			if ($this->dbConnection->tableExists($table)) {
 				$qb = $this->getQueryBuilder();
 				$qb->delete($table);
 				$qb->executeStatement();
@@ -1360,15 +908,12 @@ class CoreRequestBuilder {
 	/**
 	 * this just empty all tables from the app.
 	 */
-	public function uninstallSocialTables() {
-		$schema = new SchemaWrapper(Server::get(Connection::class));
+	public function uninstallSocialTables(): void {
 		foreach (array_keys(self::$tables) as $table) {
-			if ($schema->hasTable($table)) {
-				$schema->dropTable($table);
+			if ($this->dbConnection->tableExists($table)) {
+				$this->dbConnection->dropTable($table);
 			}
 		}
-
-		$schema->performDropTableCalls();
 	}
 
 	/**
@@ -1377,7 +922,7 @@ class CoreRequestBuilder {
 	public function uninstallFromMigrations() {
 		$qb = $this->getQueryBuilder();
 		$qb->delete('migrations');
-		$qb->where($this->exprLimitToDBField($qb, 'app', 'social', true, true));
+		$qb->where($qb->exprLimitToDBField('app', 'social', true, true));
 
 		$qb->executeStatement();
 	}
@@ -1388,12 +933,12 @@ class CoreRequestBuilder {
 	public function uninstallFromJobs() {
 		$qb = $this->getQueryBuilder();
 		$qb->delete('jobs');
-		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Cache', true, true));
+		$qb->where($qb->exprLimitToDBField('class', 'OCA\Social\Cron\Cache', true, true));
 		$qb->executeStatement();
 
 		$qb = $this->getQueryBuilder();
 		$qb->delete('jobs');
-		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Queue', true, true));
+		$qb->where($qb->exprLimitToDBField('class', 'OCA\Social\Cron\Queue', true, true));
 		$qb->executeStatement();
 	}
 }

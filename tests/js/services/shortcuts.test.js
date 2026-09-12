@@ -6,15 +6,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SHORTCUTS, belongsToElement, eventFor, isTyping, listenForShortcuts } from '../../../src/services/shortcuts.js'
 import eventBus from '../../../src/services/eventBus.js'
 
-const press = (key, target = document.body, extra = {}) => ({
-	key,
-	target,
-	preventDefault: vi.fn(),
-	ctrlKey: false,
-	metaKey: false,
-	altKey: false,
-	...extra,
-})
+function press(key, target = document.body, extra = {}) {
+	return {
+		key,
+		target,
+		preventDefault: vi.fn(),
+		ctrlKey: false,
+		metaKey: false,
+		altKey: false,
+		...extra,
+	}
+}
 
 describe('isTyping', () => {
 	it('leaves fields alone', () => {

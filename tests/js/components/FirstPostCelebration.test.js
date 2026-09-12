@@ -13,7 +13,7 @@ import FirstPostCelebration from '../../../src/components/FirstPostCelebration.v
  *
  * @param {boolean} reduce whether the reader asked for no motion
  */
-const setReducedMotion = (reduce) => {
+function setReducedMotion(reduce) {
 	window.matchMedia = vi.fn((query) => ({
 		matches: reduce && query.includes('prefers-reduced-motion'),
 		media: query,

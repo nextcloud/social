@@ -11,6 +11,9 @@ import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vu
 import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusButton.vue'
 import VisibilitySelect from '../../../src/components/Visibility/VisibilitySelect.vue'
 import eventBus from '../../../src/services/eventBus.js'
+import { createPinia, setActivePinia } from 'pinia'
+import { useSettingsStore } from '../../../src/store/settings.js'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 // @nextcloud/auth reads the user from <head>, which the harness does not set
 vi.mock('@nextcloud/auth', async (importOriginal) => ({
@@ -53,25 +56,29 @@ const carol = {
 	avatar: 'https://cloud.example.org/avatar/carol/64',
 }
 
-const replyTo = (account = bob, overrides = {}) => ({
-	id: '42',
-	visibility: 'unlisted',
-	content: '<p>Original post</p>',
-	mentions: [],
-	tags: [],
-	account,
-	...overrides,
-})
+function replyTo(account = bob, overrides = {}) {
+	return {
+		id: '42',
+		visibility: 'unlisted',
+		content: '<p>Original post</p>',
+		mentions: [],
+		tags: [],
+		account,
+		...overrides,
+	}
+}
 
-const quoteOf = (account = bob, overrides = {}) => ({
-	id: '77',
-	visibility: 'public',
-	content: '<p>The post being quoted</p>',
-	mentions: [],
-	tags: [],
-	account,
-	...overrides,
-})
+function quoteOf(account = bob, overrides = {}) {
+	return {
+		id: '77',
+		visibility: 'public',
+		content: '<p>The post being quoted</p>',
+		mentions: [],
+		tags: [],
+		account,
+		...overrides,
+	}
+}
 
 // What the mention autocomplete inserts into the contenteditable
 const MENTION_BOB = '<span class="mention" contenteditable="false">'
@@ -80,22 +87,23 @@ const MENTION_BOB = '<span class="mention" contenteditable="false">'
 
 const wrappers = []
 
-const mountComposer = (props = {}) => {
-	const $store = {
-		// `post` resolves with the created status and with undefined when the
-		// server refused, which is how the composer tells the two apart
-		dispatch: vi.fn((action) => Promise.resolve(
-			action === 'createMedia' || action === 'createMediaFromFile'
-				? media
-				: (action === 'post' ? { id: 'new-1' } : undefined),
-		)),
-		commit: vi.fn(),
-		getters: { getServerData: { public: false, cloudAddress: 'https://cloud.example.org' } },
-	}
+function mountComposer(props = {}) {
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org' })
+	const store = useTimelineStore()
+	// `post` resolves with the created status and with undefined when the
+	// server refused, which is how the composer tells the two apart
+	vi.spyOn(store, 'createMedia').mockResolvedValue(media)
+	vi.spyOn(store, 'createMediaFromFile').mockResolvedValue(media)
+	vi.spyOn(store, 'post').mockResolvedValue({ id: 'new-1' })
+	vi.spyOn(store, 'describeMedia').mockResolvedValue(undefined)
+	vi.spyOn(store, 'refreshTimeline').mockResolvedValue(undefined)
+	vi.spyOn(store, 'setComposerDisplayStatus')
 	const wrapper = mount(Composer, {
 		props,
 		global: {
-			mocks: { $store },
+			plugins: [pinia],
 			stubs: {
 				NcEmojiPicker: { name: 'NcEmojiPicker', emits: ['select'], template: '<div class="emoji-picker-stub"><slot /></div>' },
 				NcAvatar: true,
@@ -105,14 +113,14 @@ const mountComposer = (props = {}) => {
 		},
 	})
 	wrappers.push(wrapper)
-	return { wrapper, $store }
+	return { wrapper, store }
 }
 
 const input = (wrapper) => wrapper.find('.message')
 // untrimmed, unlike DOMWrapper.text(), because inserted emoji end with a space
 const typed = (wrapper) => input(wrapper).element.textContent
 
-const setContent = async (wrapper, html) => {
+async function setContent(wrapper, html) {
 	input(wrapper).element.innerHTML = html
 	await input(wrapper).trigger('input')
 }
@@ -123,7 +131,7 @@ const currentVisibility = (wrapper) => wrapper.findComponent(VisibilitySelect).p
 const selectVisibility = (wrapper, visibility) => wrapper.findComponent(VisibilitySelect).vm.$emit('update:visibility', visibility)
 const pickEmoji = (wrapper, emoji) => wrapper.findComponent({ name: 'NcEmojiPicker' }).vm.$emit('select', emoji)
 
-const attachFile = async (wrapper, file) => {
+async function attachFile(wrapper, file) {
 	const fileInput = wrapper.find('input[type="file"]')
 	Object.defineProperty(fileInput.element, 'files', { value: [file], configurable: true })
 	await fileInput.trigger('change')
@@ -131,7 +139,7 @@ const attachFile = async (wrapper, file) => {
 
 // What the composer holds the picker to: one dialog, several pictures, no
 // folders. `pick()` resolves with the paths, and rejects when it is closed.
-const filePicker = (result) => {
+function filePicker(result) {
 	const builder = {
 		setMultiSelect: vi.fn(() => builder),
 		setMimeTypeFilter: vi.fn(() => builder),
@@ -143,33 +151,33 @@ const filePicker = (result) => {
 	return builder
 }
 
-const addFromFiles = async (wrapper) => {
+async function addFromFiles(wrapper) {
 	await wrapper.find('button[aria-label="Add from Files"]').trigger('click')
 	await flushPromises()
 }
 
-const pickedPaths = ($store) => $store.dispatch.mock.calls
-	.filter(([action]) => action === 'createMediaFromFile')
-	.map(([, payload]) => payload.path)
+const pickedPaths = (store) => store.createMediaFromFile.mock.calls.map(([payload]) => payload.path)
 
 // jsdom has neither DataTransfer nor DragEvent, and constructing one is not
 // what is being tested: what the composer reads off a drag is `types`, `files`
 // and `relatedTarget`, so the fixtures carry exactly those, the same way
 // attachFile fakes the file input's `files`.
-const transfer = (files = [], types = files.length > 0 ? ['Files'] : ['text/plain']) => ({
-	files,
-	types,
-	dropEffect: 'none',
-})
+function transfer(files = [], types = files.length > 0 ? ['Files'] : ['text/plain']) {
+	return {
+		files,
+		types,
+		dropEffect: 'none',
+	}
+}
 
-const dragEvent = (type, { dataTransfer = transfer(), relatedTarget = null } = {}) => {
+function dragEvent(type, { dataTransfer = transfer(), relatedTarget = null } = {}) {
 	const event = new Event(type, { bubbles: true, cancelable: true })
 	Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
 	Object.defineProperty(event, 'relatedTarget', { value: relatedTarget })
 	return event
 }
 
-const pasteEvent = (files = []) => {
+function pasteEvent(files = []) {
 	const event = new Event('paste', { bubbles: true, cancelable: true })
 	Object.defineProperty(event, 'clipboardData', { value: { files } })
 	return event
@@ -177,15 +185,15 @@ const pasteEvent = (files = []) => {
 
 // dispatched on a real element, because vue-test-utils builds a DragEvent
 // jsdom does not have
-const dispatch = async (wrapper, target, event) => {
+async function dispatch(wrapper, target, event) {
 	target.dispatchEvent(event)
 	await wrapper.vm.$nextTick()
 	return event
 }
 
-const postedStatus = ($store) => $store.dispatch.mock.calls.find(([action]) => action === 'post')?.[1]
+const postedStatus = (store) => store.post.mock.calls[0]?.[0]
 
-const addWarning = async (wrapper, text) => {
+async function addWarning(wrapper, text) {
 	await wrapper.find('button[aria-label="Add content warning"]').trigger('click')
 	await wrapper.find('input.content-warning').setValue(text)
 }
@@ -387,12 +395,12 @@ describe('Composer', () => {
 		})
 
 		it('not while an attachment is still uploading', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'Look at this')
 			let finishUpload
-			$store.dispatch.mockImplementation((action) => (action === 'createMedia'
-				? new Promise((resolve) => { finishUpload = resolve })
-				: Promise.resolve()))
+			store.createMedia.mockImplementation(() => new Promise((resolve) => {
+				finishUpload = resolve
+			}))
 
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			expect(canPost(wrapper)).toBe(false)
@@ -406,17 +414,15 @@ describe('Composer', () => {
 	describe('an upload the server refused', () => {
 		let previews = 0
 
-		const failUpload = ($store) => $store.dispatch.mockImplementation(
-			(action) => Promise.resolve(action === 'createMedia' ? undefined : { id: 'new-1' }),
-		)
+		const failUpload = (store) => store.createMedia.mockResolvedValue(undefined)
 
 		it('leaves the post sendable, without the attachment that never arrived', async () => {
 			// createMedia answered with undefined, which was stored as
 			// `data: undefined`; canPost only rejected `null`, so the button
 			// stayed enabled and the submit path then threw on
 			// `preview.data.id` before reaching its try block
-			const { wrapper, $store } = mountComposer()
-			failUpload($store)
+			const { wrapper, store } = mountComposer()
+			failUpload(store)
 			await setContent(wrapper, 'Look at this')
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
@@ -426,12 +432,12 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store)).toMatchObject({ status: 'Look at this', media_ids: [] })
+			expect(postedStatus(store)).toMatchObject({ status: 'Look at this', media_ids: [] })
 		})
 
 		it('marks the failed upload rather than leaving it undefined', async () => {
-			const { wrapper, $store } = mountComposer()
-			failUpload($store)
+			const { wrapper, store } = mountComposer()
+			failUpload(store)
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 
@@ -439,13 +445,10 @@ describe('Composer', () => {
 		})
 
 		it('sends only the ids of the uploads that did arrive', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			let uploads = 0
 			URL.createObjectURL = vi.fn(() => `blob:preview-${++previews}`)
-			$store.dispatch.mockImplementation((action) => {
-				if (action !== 'createMedia') {
-					return Promise.resolve({ id: 'new-1' })
-				}
+			store.createMedia.mockImplementation(() => {
 				uploads += 1
 				return Promise.resolve(uploads === 1 ? media : undefined)
 			})
@@ -462,12 +465,12 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store).media_ids).toEqual([media.id])
+			expect(postedStatus(store).media_ids).toEqual([media.id])
 		})
 
 		it('never asks for a description of an attachment that failed', async () => {
-			const { wrapper, $store } = mountComposer()
-			failUpload($store)
+			const { wrapper, store } = mountComposer()
+			failUpload(store)
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 
@@ -486,8 +489,8 @@ describe('Composer', () => {
 		})
 
 		it('survives a failed post, and so does what was typed', async () => {
-			const { wrapper, $store } = mountComposer()
-			$store.dispatch.mockImplementation((action) => Promise.resolve(action === 'post' ? undefined : undefined))
+			const { wrapper, store } = mountComposer()
+			store.post.mockResolvedValue(undefined)
 			await setContent(wrapper, 'this must not be lost')
 
 			await submitButton(wrapper).trigger('click')
@@ -497,7 +500,7 @@ describe('Composer', () => {
 			// empty box, and the text gone
 			expect(typed(wrapper)).toBe('this must not be lost')
 			expect(stored()).toMatchObject({ text: 'this must not be lost' })
-			expect($store.dispatch).not.toHaveBeenCalledWith('refreshTimeline')
+			expect(store.refreshTimeline).not.toHaveBeenCalled()
 		})
 
 		it('is forgotten once the post is away', async () => {
@@ -587,13 +590,13 @@ describe('Composer', () => {
 
 	describe('attachments', () => {
 		it('uploads a selected file and previews it', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const file = new File(['x'], 'cat.png', { type: 'image/png' })
 
 			await attachFile(wrapper, file)
 
 			expect(URL.createObjectURL).toHaveBeenCalledWith(file)
-			expect($store.dispatch).toHaveBeenCalledWith('createMedia', expect.objectContaining({ file }))
+			expect(store.createMedia).toHaveBeenCalledWith(expect.objectContaining({ file }))
 			const preview = wrapper.findComponent(PreviewGridItem)
 			expect(preview.props('randomKey')).toBe('blob:preview-1')
 			expect(preview.find('.loading-icon').exists()).toBe(true)
@@ -628,7 +631,7 @@ describe('Composer', () => {
 		})
 
 		it('uploads no more than the eight a post can carry', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const fileInput = wrapper.find('input[type="file"]')
 			Object.defineProperty(fileInput.element, 'files', {
 				value: Array.from({ length: 9 }, (unused, index) => new File(['x'], `${index}.png`, { type: 'image/png' })),
@@ -638,7 +641,7 @@ describe('Composer', () => {
 			await fileInput.trigger('change')
 			await flushPromises()
 
-			expect($store.dispatch.mock.calls.filter(([action]) => action === 'createMedia')).toHaveLength(8)
+			expect(store.createMedia.mock.calls).toHaveLength(8)
 			expect(showError).toHaveBeenCalledWith('A post can carry 8 attachments')
 		})
 
@@ -654,7 +657,7 @@ describe('Composer', () => {
 		const beach = '/Photos/beach.jpg'
 
 		it('offers the pictures and videos the reader already has, several at a time', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const builder = filePicker(Promise.resolve([beach]))
 
 			await addFromFiles(wrapper)
@@ -662,18 +665,18 @@ describe('Composer', () => {
 			expect(builder.setMultiSelect).toHaveBeenCalledWith(true)
 			expect(builder.setMimeTypeFilter).toHaveBeenCalledWith(['image/*', 'video/*'])
 			expect(builder.allowDirectories).toHaveBeenCalledWith(false)
-			expect($store.dispatch).toHaveBeenCalledWith('createMediaFromFile', { path: beach })
+			expect(store.createMediaFromFile).toHaveBeenCalledWith({ path: beach })
 		})
 
 		it('sends the path rather than the bytes', async () => {
 			// the whole point: a picture that is already on the server does not
 			// have to be downloaded and uploaded back
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			filePicker(Promise.resolve([beach]))
 
 			await addFromFiles(wrapper)
 
-			expect($store.dispatch).not.toHaveBeenCalledWith('createMedia', expect.anything())
+			expect(store.createMedia).not.toHaveBeenCalled()
 			expect(URL.createObjectURL).not.toHaveBeenCalled()
 		})
 
@@ -689,7 +692,7 @@ describe('Composer', () => {
 		})
 
 		it('sends a picked picture with the post, like any other attachment', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			filePicker(Promise.resolve([beach]))
 			await addFromFiles(wrapper)
 			await setContent(wrapper, 'the sea')
@@ -697,19 +700,12 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store)).toMatchObject({ status: 'the sea', media_ids: [media.id] })
+			expect(postedStatus(store)).toMatchObject({ status: 'the sea', media_ids: [media.id] })
 		})
 
 		it('keeps the pictures that worked when the server refuses one of them', async () => {
-			const { wrapper, $store } = mountComposer()
-			$store.dispatch.mockImplementation((action, payload) => {
-				if (action !== 'createMediaFromFile') {
-					return Promise.resolve(action === 'post' ? { id: 'new-1' } : undefined)
-				}
-				return Promise.resolve(payload.path === '/Photos/gone.jpg'
-					? undefined
-					: { ...media, id: payload.path })
-			})
+			const { wrapper, store } = mountComposer()
+			store.createMediaFromFile.mockImplementation((payload) => Promise.resolve(payload.path === '/Photos/gone.jpg' ? undefined : { ...media, id: payload.path }))
 			filePicker(Promise.resolve([beach, '/Photos/gone.jpg', '/Photos/dunes.jpg']))
 
 			await addFromFiles(wrapper)
@@ -722,11 +718,11 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store).media_ids).toEqual([beach, '/Photos/dunes.jpg'])
+			expect(postedStatus(store).media_ids).toEqual([beach, '/Photos/dunes.jpg'])
 		})
 
 		it('attaches no more than the eight a post can carry, and says so', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const paths = Array.from({ length: 10 }, (unused, index) => `/Photos/${index}.jpg`)
 			filePicker(Promise.resolve(paths))
 
@@ -734,19 +730,19 @@ describe('Composer', () => {
 
 			// the server refuses the ninth outright, so the refusal has to be
 			// explained here, where the eight that fit are not lost with it
-			expect(pickedPaths($store)).toEqual(paths.slice(0, 8))
+			expect(pickedPaths(store)).toEqual(paths.slice(0, 8))
 			expect(showError).toHaveBeenCalledWith('A post can carry 8 attachments')
 		})
 
 		it('counts an upload already in the post against the same ceiling', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 			filePicker(Promise.resolve(Array.from({ length: 8 }, (unused, index) => `/Photos/${index}.jpg`)))
 
 			await addFromFiles(wrapper)
 
-			expect(pickedPaths($store)).toHaveLength(7)
+			expect(pickedPaths(store)).toHaveLength(7)
 			expect(wrapper.findAllComponents(PreviewGridItem)).toHaveLength(8)
 		})
 
@@ -761,11 +757,11 @@ describe('Composer', () => {
 		})
 
 		it('says the pictures are on their way while the requests are in flight', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			let finish
-			$store.dispatch.mockImplementation((action) => (action === 'createMediaFromFile'
-				? new Promise((resolve) => { finish = resolve })
-				: Promise.resolve()))
+			store.createMediaFromFile.mockImplementation(() => new Promise((resolve) => {
+				finish = resolve
+			}))
 			filePicker(Promise.resolve([beach]))
 
 			await addFromFiles(wrapper)
@@ -783,13 +779,13 @@ describe('Composer', () => {
 		})
 
 		it('takes no for an answer when the dialog is closed', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			filePicker(Promise.reject(new Error('FilePicker: No nodes selected')))
 
 			await addFromFiles(wrapper)
 
 			// changing one's mind is not a failure to report
-			expect($store.dispatch).not.toHaveBeenCalledWith('createMediaFromFile', expect.anything())
+			expect(store.createMediaFromFile).not.toHaveBeenCalled()
 			expect(showError).not.toHaveBeenCalled()
 			expect(wrapper.findComponent(PreviewGridItem).exists()).toBe(false)
 		})
@@ -862,7 +858,9 @@ describe('Composer', () => {
 		const lit = (wrapper) => card(wrapper).classes().includes('new-post--drop-target')
 		const picture = () => new File(['x'], 'cat.png', { type: 'image/png' })
 		const dragOver = (wrapper, dataTransfer = transfer([picture()])) => dispatch(
-			wrapper, card(wrapper).element, dragEvent('dragenter', { dataTransfer }),
+			wrapper,
+			card(wrapper).element,
+			dragEvent('dragenter', { dataTransfer }),
 		)
 
 		it('lights the whole card up while a file is over it', async () => {
@@ -922,14 +920,14 @@ describe('Composer', () => {
 		})
 
 		it('attaches a dropped file exactly as the file dialog does', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const file = picture()
 			await dragOver(wrapper)
 
 			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([file]) }))
 			await flushPromises()
 
-			expect($store.dispatch).toHaveBeenCalledWith('createMedia', expect.objectContaining({ file }))
+			expect(store.createMedia).toHaveBeenCalledWith(expect.objectContaining({ file }))
 			expect(wrapper.findComponent(PreviewGridItem).props('preview')).toEqual({ file, data: media, failed: false })
 			expect(lit(wrapper)).toBe(false)
 		})
@@ -948,28 +946,28 @@ describe('Composer', () => {
 		})
 
 		it('refuses a file the file dialog would never have offered', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
 
 			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([notes]) }))
 			await flushPromises()
 
-			expect($store.dispatch).not.toHaveBeenCalledWith('createMedia', expect.anything())
+			expect(store.createMedia).not.toHaveBeenCalled()
 			expect(wrapper.findComponent(PreviewGridItem).exists()).toBe(false)
 			expect(card(wrapper).classes()).toContain('new-post--refused')
 		})
 
 		it('takes the pictures out of a mixed drop and leaves the rest', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const file = picture()
 			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
 
 			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([file, notes]) }))
 			await flushPromises()
 
-			const uploads = $store.dispatch.mock.calls.filter(([action]) => action === 'createMedia')
+			const uploads = store.createMedia.mock.calls
 			expect(uploads).toHaveLength(1)
-			expect(uploads[0][1]).toMatchObject({ file })
+			expect(uploads[0][0]).toMatchObject({ file })
 		})
 
 		it('opens a closed composer', async () => {
@@ -985,7 +983,7 @@ describe('Composer', () => {
 
 	describe('pasting', () => {
 		it('attaches a screenshot from the clipboard', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const shot = new File(['x'], 'screenshot.png', { type: 'image/png' })
 
 			const event = await dispatch(wrapper, input(wrapper).element, pasteEvent([shot]))
@@ -994,32 +992,32 @@ describe('Composer', () => {
 			// prevented, or the browser drops the image into the box as markup
 			// the post cannot carry
 			expect(event.defaultPrevented).toBe(true)
-			expect($store.dispatch).toHaveBeenCalledWith('createMedia', expect.objectContaining({ file: shot }))
+			expect(store.createMedia).toHaveBeenCalledWith(expect.objectContaining({ file: shot }))
 			expect(wrapper.findComponent(PreviewGridItem).props('preview')).toEqual({ file: shot, data: media, failed: false })
 		})
 
 		it('leaves pasted text to the input it was pasted into', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 
 			const event = await dispatch(wrapper, input(wrapper).element, pasteEvent())
 			// what the browser then does, unimpeded
 			await setContent(wrapper, 'pasted words')
 
 			expect(event.defaultPrevented).toBe(false)
-			expect($store.dispatch).not.toHaveBeenCalledWith('createMedia', expect.anything())
+			expect(store.createMedia).not.toHaveBeenCalled()
 			expect(typed(wrapper)).toBe('pasted words')
 			expect(canPost(wrapper)).toBe(true)
 		})
 
 		it('leaves a pasted file of a kind it cannot take to the input', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
 
 			const event = await dispatch(wrapper, input(wrapper).element, pasteEvent([notes]))
 			await flushPromises()
 
 			expect(event.defaultPrevented).toBe(false)
-			expect($store.dispatch).not.toHaveBeenCalledWith('createMedia', expect.anything())
+			expect(store.createMedia).not.toHaveBeenCalled()
 		})
 	})
 
@@ -1054,7 +1052,7 @@ describe('Composer', () => {
 
 	describe('polls', () => {
 		it('attaches the poll options, duration and mode to the post', async () => {
-			const { wrapper, $store } = mountComposer({ defaultVisibility: 'public' })
+			const { wrapper, store } = mountComposer({ defaultVisibility: 'public' })
 			await setContent(wrapper, 'Cats or dogs?')
 
 			await wrapper.find('button[aria-label="Add poll"]').trigger('click')
@@ -1067,7 +1065,7 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store).poll).toEqual({
+			expect(postedStatus(store).poll).toEqual({
 				options: ['Cats', 'Dogs'],
 				expires_in: 3600,
 				multiple: true,
@@ -1075,7 +1073,7 @@ describe('Composer', () => {
 		})
 
 		it('sends no poll when the editor is closed or has fewer than two options', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'no poll here')
 
 			await wrapper.find('button[aria-label="Add poll"]').trigger('click')
@@ -1084,36 +1082,36 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store).poll).toBeUndefined()
+			expect(postedStatus(store).poll).toBeUndefined()
 		})
 	})
 
 	describe('content warnings', () => {
 		it('sends the warning and marks the post sensitive', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'the spoiler itself')
 			await addWarning(wrapper, 'season finale')
 
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store).spoiler_text).toBe('season finale')
-			expect(postedStatus($store).sensitive).toBe(true)
+			expect(postedStatus(store).spoiler_text).toBe('season finale')
+			expect(postedStatus(store).sensitive).toBe(true)
 		})
 
 		it('sends no warning when the field was never opened', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'nothing to warn about')
 
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store).spoiler_text).toBe('')
-			expect(postedStatus($store).sensitive).toBe(false)
+			expect(postedStatus(store).spoiler_text).toBe('')
+			expect(postedStatus(store).sensitive).toBe(false)
 		})
 
 		it('drops a warning that was typed and then withdrawn', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'no longer a spoiler')
 			await addWarning(wrapper, 'season finale')
 			// the same button closes it again
@@ -1122,8 +1120,8 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store).spoiler_text).toBe('')
-			expect(postedStatus($store).sensitive).toBe(false)
+			expect(postedStatus(store).spoiler_text).toBe('')
+			expect(postedStatus(store).sensitive).toBe(false)
 		})
 
 		it('clears the warning once the post is away', async () => {
@@ -1179,7 +1177,7 @@ describe('Composer', () => {
 		})
 
 		it('sends the description with the post', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 			await describe(wrapper, '  a cat asleep on a keyboard  ')
@@ -1188,14 +1186,14 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect($store.dispatch).toHaveBeenCalledWith('describeMedia', {
+			expect(store.describeMedia).toHaveBeenCalledWith({
 				id: media.id,
 				description: 'a cat asleep on a keyboard',
 			})
 		})
 
 		it('saves a description as soon as the field is left', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 			const field = wrapper.find('.preview-item__description')
@@ -1203,21 +1201,21 @@ describe('Composer', () => {
 
 			await field.trigger('input')
 			// a request per letter is what the local copy is kept to avoid
-			expect($store.dispatch).not.toHaveBeenCalledWith('describeMedia', expect.anything())
+			expect(store.describeMedia).not.toHaveBeenCalled()
 
 			await field.trigger('change')
 			await flushPromises()
 
 			// a description written into a post that never went out is still
 			// worth keeping: it belongs to the attachment, not to the post
-			expect($store.dispatch).toHaveBeenCalledWith('describeMedia', {
+			expect(store.describeMedia).toHaveBeenCalledWith({
 				id: media.id,
 				description: 'a cat asleep on a keyboard',
 			})
 		})
 
 		it('does not send the same description again when the post goes', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 			const field = wrapper.find('.preview-item__description')
@@ -1229,11 +1227,11 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect($store.dispatch.mock.calls.filter(([action]) => action === 'describeMedia')).toHaveLength(1)
+			expect(store.describeMedia.mock.calls).toHaveLength(1)
 		})
 
 		it('describes a picture attached from Files the same way', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			filePicker(Promise.resolve(['/Photos/beach.jpg']))
 			await addFromFiles(wrapper)
 			const field = wrapper.find('.preview-item__description')
@@ -1242,7 +1240,7 @@ describe('Composer', () => {
 			await field.trigger('change')
 			await flushPromises()
 
-			expect($store.dispatch).toHaveBeenCalledWith('describeMedia', {
+			expect(store.describeMedia).toHaveBeenCalledWith({
 				id: media.id,
 				description: 'the sea at dusk',
 			})
@@ -1263,7 +1261,7 @@ describe('Composer', () => {
 		})
 
 		it('sends nothing for an attachment left undescribed', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 			await setContent(wrapper, 'look at this')
@@ -1271,23 +1269,22 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect($store.dispatch).not.toHaveBeenCalledWith('describeMedia', expect.anything())
+			expect(store.describeMedia).not.toHaveBeenCalled()
 		})
 	})
 
 	describe('posting', () => {
 		it('sends the plain text of the message with the attachments and visibility', async () => {
-			const { wrapper, $store } = mountComposer({ defaultVisibility: 'public' })
+			const { wrapper, store } = mountComposer({ defaultVisibility: 'public' })
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
-			await setContent(wrapper,
-				`<div>${MENTION_BOB}hello <img class="emoji" alt="😀" src="/apps/social/img/twemoji/1f600.svg"> Tom &amp; Jerry</div>`
-				+ '<div>second line</div>')
+			await setContent(wrapper, `<div>${MENTION_BOB}hello <img class="emoji" alt="😀" src="/apps/social/img/twemoji/1f600.svg"> Tom &amp; Jerry</div>`
+			+ '<div>second line</div>')
 
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store)).toEqual({
+			expect(postedStatus(store)).toEqual({
 				content_type: '',
 				status: '@bob@remote.example hello 😀 Tom & Jerry\nsecond line',
 				visibility: 'public',
@@ -1299,14 +1296,14 @@ describe('Composer', () => {
 		})
 
 		it('locks the input while sending and clears everything afterwards', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 			await setContent(wrapper, 'Hello')
 			let finishPost
-			$store.dispatch.mockImplementation((action) => (action === 'post'
-				? new Promise((resolve) => { finishPost = resolve })
-				: Promise.resolve()))
+			store.post.mockImplementation(() => new Promise((resolve) => {
+				finishPost = resolve
+			}))
 
 			await submitButton(wrapper).trigger('click')
 			expect(input(wrapper).attributes('contenteditable')).toBe('false')
@@ -1320,19 +1317,19 @@ describe('Composer', () => {
 			expect(typed(wrapper)).toBe('')
 			expect(wrapper.findComponent(PreviewGridItem).exists()).toBe(false)
 			expect(canPost(wrapper)).toBe(false)
-			expect($store.dispatch).toHaveBeenLastCalledWith('refreshTimeline')
+			expect(store.refreshTimeline).toHaveBeenCalled()
 		})
 
 		it('posts on Ctrl+Enter but not on Enter alone', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'Hello')
 
 			await input(wrapper).trigger('keyup', { key: 'Enter' })
-			expect(postedStatus($store)).toBeUndefined()
+			expect(postedStatus(store)).toBeUndefined()
 
 			await input(wrapper).trigger('keyup', { key: 'Enter', ctrlKey: true })
 			await flushPromises()
-			expect(postedStatus($store)).toMatchObject({ status: 'Hello' })
+			expect(postedStatus(store)).toMatchObject({ status: 'Hello' })
 		})
 
 		it('tells the rest of the app what went out', async () => {
@@ -1348,10 +1345,10 @@ describe('Composer', () => {
 		})
 
 		it('says nothing on the bus when the server refused the post', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			const published = vi.fn()
 			eventBus.on('post-published', published)
-			$store.dispatch.mockImplementation(() => Promise.resolve(undefined))
+			store.post.mockResolvedValue(undefined)
 			await setContent(wrapper, 'Hello')
 
 			await submitButton(wrapper).trigger('click')
@@ -1361,7 +1358,7 @@ describe('Composer', () => {
 		})
 
 		it('sends no media ids after the only attachment was removed', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 			await wrapper.findComponent(PreviewGridItem).find('button').trigger('click')
@@ -1370,7 +1367,7 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store)).toMatchObject({ media_ids: [] })
+			expect(postedStatus(store)).toMatchObject({ media_ids: [] })
 		})
 	})
 
@@ -1423,14 +1420,14 @@ describe('Composer', () => {
 		})
 
 		it('sends the reply as an answer to the original post', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			eventBus.emit('composer-reply', replyTo(bob))
 			await flushPromises()
 
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store)).toMatchObject({
+			expect(postedStatus(store)).toMatchObject({
 				in_reply_to_id: '42',
 				visibility: 'unlisted',
 				status: '@bob@remote.example',
@@ -1439,14 +1436,14 @@ describe('Composer', () => {
 		})
 
 		it('can be dismissed, which also hides the composer', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			eventBus.emit('composer-reply', replyTo(bob))
 			await flushPromises()
 
 			await wrapper.find('.reply-to button[aria-label="Close reply"]').trigger('click')
 
 			expect(wrapper.find('.reply-to').exists()).toBe(false)
-			expect($store.commit).toHaveBeenCalledWith('setComposerDisplayStatus', false)
+			expect(store.setComposerDisplayStatus).toHaveBeenCalledWith(false)
 		})
 	})
 
@@ -1476,7 +1473,7 @@ describe('Composer', () => {
 		})
 
 		it('sends the quote with the post', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			eventBus.emit('composer-quote', quoteOf(bob))
 			await flushPromises()
 			await setContent(wrapper, 'worth reading')
@@ -1484,12 +1481,12 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store)).toMatchObject({ quote_id: '77', status: 'worth reading' })
+			expect(postedStatus(store)).toMatchObject({ quote_id: '77', status: 'worth reading' })
 			expect(wrapper.find('.quote-of').exists()).toBe(false)
 		})
 
 		it('can be taken back before posting, without losing what was written', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			eventBus.emit('composer-quote', quoteOf(bob))
 			await flushPromises()
 			await setContent(wrapper, 'on second thoughts')
@@ -1502,12 +1499,12 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store).quote_id).toBeUndefined()
-			expect(postedStatus($store).status).toBe('on second thoughts')
+			expect(postedStatus(store).quote_id).toBeUndefined()
+			expect(postedStatus(store).status).toBe('on second thoughts')
 		})
 
 		it('quotes and replies in the same post', async () => {
-			const { wrapper, $store } = mountComposer()
+			const { wrapper, store } = mountComposer()
 			eventBus.emit('composer-reply', replyTo(carol))
 			eventBus.emit('composer-quote', quoteOf(bob))
 			await flushPromises()
@@ -1515,7 +1512,7 @@ describe('Composer', () => {
 			await submitButton(wrapper).trigger('click')
 			await flushPromises()
 
-			expect(postedStatus($store)).toMatchObject({ in_reply_to_id: '42', quote_id: '77' })
+			expect(postedStatus(store)).toMatchObject({ in_reply_to_id: '42', quote_id: '77' })
 		})
 
 		it('is open from the start when it carries a quote', async () => {

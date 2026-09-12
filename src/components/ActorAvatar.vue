@@ -3,7 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<AccountHoverCard v-if="showHoverCard"
+	<AccountHoverCard
+		v-if="showHoverCard"
 		:handle="actor.acct"
 		:fallback="actor"
 		variant="block">
@@ -23,16 +24,19 @@ export default {
 		AccountHoverCard,
 		NcAvatar,
 	},
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Account>} */
 		actor: {
 			type: Object,
 			default: () => {},
 		},
+
 		size: {
 			type: Number,
 			default: 32,
 		},
+
 		/**
 		 * Whether hovering this avatar previews the account. Off where the
 		 * avatar is decoration rather than a reference to somebody — the
@@ -43,11 +47,13 @@ export default {
 			default: true,
 		},
 	},
+
 	data() {
 		return {
 			followingText: t('social', 'Following'),
 		}
 	},
+
 	computed: {
 		/**
 		 * @return {boolean} an actor without a handle cannot be looked up
@@ -55,6 +61,7 @@ export default {
 		showHoverCard() {
 			return this.hoverCard && Boolean(this.actor.acct)
 		},
+
 		/**
 		 * What NcAvatar is given, in one place so the hovered and the plain
 		 * avatar cannot drift apart.
@@ -71,6 +78,7 @@ export default {
 					: { url: this.avatarUrl }),
 			}
 		},
+
 		/** @return {string} */
 		avatarUrl() {
 			// Remote actors are delivered with an avatar URL already pointing at this
@@ -79,6 +87,7 @@ export default {
 			return this.actor.avatar
 				|| generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + encodeURIComponent(this.actor.url ?? ''))
 		},
+
 		/**
 		 * @return {boolean}
 		 */

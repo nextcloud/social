@@ -2,7 +2,7 @@
 	"name": "nextcloud/social",
 	"description": "Social app",
 	"license": "AGPL-3.0-or-later",
-	"version": "0.17.1",
+	"version": "0.18.0",
 	"minimum-stability": "stable",
 	"authors": [
 		{
@@ -13,7 +13,7 @@
 	],
 	"config": {
 		"platform": {
-			"php": "8.1.31"
+			"php": "8.3.16"
 		},
 		"optimize-autoloader": true,
 		"classmap-authoritative": true,
@@ -33,16 +33,17 @@
 		]
 	},
 	"require": {
-		"php": ">=8.1",
+		"php": ">=8.3",
 		"gumlet/php-image-resize": "3.0.*",
 		"friendica/json-ld": "^1.0",
 		"kornrunner/blurhash": "^1.2"
 	},
 	"require-dev": {
-		"phpunit/phpunit": "^9.5",
+		"phpunit/phpunit": "^10.5",
 		"nextcloud/coding-standard": "^1.0.0",
-		"nextcloud/ocp": "dev-master",
-		"vimeo/psalm": "^6.17"
+		"nextcloud/ocp": "dev-stable35",
+		"vimeo/psalm": "^6.17",
+		"symfony/console": "^6.4"
 	},
 	"scripts": {
 		"lint": "find . -name \\*.php -not -path './vendor/*' -not -path './build/*' -print0 | xargs -0 -n1 php -l",

@@ -6,12 +6,25 @@
 /*
  * Hand-written companion of templates/settings/admin.php — not part of the
  * webpack build on purpose: the moderation panel stays dependency-free.
+ *
+ * `OC.generateUrl` is deprecated in favour of `@nextcloud/router`, which is an
+ * import, and importing is the one thing this file cannot do. The global is
+ * still what a non-bundled script has, so the rule is off here rather than
+ * left to warn on every run.
  */
+/* eslint-disable @nextcloud/no-deprecated-globals */
 (function() {
 	'use strict'
 
 	const base = OC.generateUrl('/apps/social/moderation')
 
+	/**
+	 * POST a JSON body to a moderation route and return the decoded answer.
+	 *
+	 * @param {string} path route below /apps/social/moderation
+	 * @param {object} body what to send
+	 * @return {Promise<object>} the decoded response
+	 */
 	async function post(path, body) {
 		const response = await fetch(base + path, {
 			method: 'POST',
@@ -27,6 +40,11 @@
 		return response.json()
 	}
 
+	/**
+	 * Resolve a report, or reopen one, from the button in its row.
+	 *
+	 * @param {Event} event the click
+	 */
 	function onToggleReport(event) {
 		const button = event.target
 		const row = button.closest('tr')
@@ -45,6 +63,9 @@
 	 * Silence, suspend or lift, from the row of the report that prompted it.
 	 * Suspending deletes, so it asks first and says what it will cost.
 	 */
+	/**
+	 * @param {Event} event the click on a moderation button
+	 */
 	function onModerate(event) {
 		const button = event.target.closest('.social-moderate')
 		if (button === null) {
@@ -58,9 +79,12 @@
 			return
 		}
 
-		if (level === 'suspend' && !window.confirm(t('social',
+		const warning = t(
+			'social',
 			'Suspending deletes every post this account has here and refuses anything it sends afterwards. '
-			+ 'Lifting the suspension later will not bring the posts back. Continue?'))) {
+			+ 'Lifting the suspension later will not bring the posts back. Continue?',
+		)
+		if (level === 'suspend' && !window.confirm(warning)) {
 			return
 		}
 
@@ -82,6 +106,11 @@
 			.catch(() => OC.Notification.showTemporary(t('social', 'Could not apply the decision')))
 	}
 
+	/**
+	 * Redraw the Fediverse access list in place.
+	 *
+	 * @param {string[]} list the addresses now on it
+	 */
 	function renderAccessList(list) {
 		const ul = document.getElementById('social-access-list')
 		ul.textContent = ''
@@ -98,6 +127,7 @@
 		})
 	}
 
+	/** Add the address in the input to the Fediverse access list. */
 	function onAddAddress() {
 		const input = document.getElementById('social-access-address')
 		const address = input.value.trim()
@@ -112,6 +142,11 @@
 			.catch(() => OC.Notification.showTemporary(t('social', 'Could not add the instance')))
 	}
 
+	/**
+	 * Remove an address from the access list, from the button in its row.
+	 *
+	 * @param {Event} event the click, which may be on anything in the list
+	 */
 	function onListClick(event) {
 		if (!event.target.classList.contains('social-access-remove')) {
 			return
@@ -122,11 +157,17 @@
 			.catch(() => OC.Notification.showTemporary(t('social', 'Could not remove the instance')))
 	}
 
+	/**
+	 * Switch the access list between an allow list and a block list.
+	 *
+	 * @param {Event} event the change on the select
+	 */
 	function onAccessTypeChange(event) {
 		post('/fediverse/access', { type: event.target.value })
 			.catch(() => OC.Notification.showTemporary(t('social', 'Could not change the access mode')))
 	}
 
+	/** Save the retention window, ignoring anything that is not a day count. */
 	function onSaveRetention() {
 		const days = parseInt(document.getElementById('social-retention-days').value, 10)
 		if (isNaN(days) || days < 0) {

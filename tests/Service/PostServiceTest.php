@@ -38,6 +38,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\L10N\IFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -289,7 +290,7 @@ class PostServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string, string[], string[]}>
 	 */
-	public function visibilityProvider(): array {
+	public static function visibilityProvider(): array {
 		return [
 			'public' => [Stream::TYPE_PUBLIC, ACore::CONTEXT_PUBLIC, [], [self::ACTOR_FOLLOWERS, self::BOB_ID]],
 			'unlisted' => [Stream::TYPE_UNLISTED, self::ACTOR_FOLLOWERS, [], [ACore::CONTEXT_PUBLIC, self::BOB_ID]],
@@ -298,9 +299,7 @@ class PostServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider visibilityProvider
-	 */
+	#[DataProvider('visibilityProvider')]
 	public function testCreatePostAddressesMentionPerVisibility(
 		string $type,
 		string $expectedTo,
@@ -442,7 +441,7 @@ class PostServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string[], string[]}>
 	 */
-	public function inlineTokensProvider(): array {
+	public static function inlineTokensProvider(): array {
 		return [
 			'mention and hashtag' => ['hi @bob@remote.example #Nextcloud', ['bob@remote.example'], ['Nextcloud']],
 			'several of each, deduplicated' => [
@@ -455,9 +454,7 @@ class PostServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider inlineTokensProvider
-	 */
+	#[DataProvider('inlineTokensProvider')]
 	public function testFixRecipientAndHashtagsExtractsInlineTokens(string $content, array $to, array $hashtags): void {
 		$post = $this->post($content);
 
@@ -791,7 +788,7 @@ class PostServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function nextcloudLanguageProvider(): array {
+	public static function nextcloudLanguageProvider(): array {
 		return [
 			'a plain language' => ['fr', 'fr'],
 			'a locale loses its region' => ['en_GB', 'en'],
@@ -801,9 +798,7 @@ class PostServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider nextcloudLanguageProvider
-	 */
+	#[DataProvider('nextcloudLanguageProvider')]
 	public function testTheDefaultLanguageIsDerivedFromTheNextcloudSetting(string $nextcloud, string $expected): void {
 		$this->userLanguage = $nextcloud;
 		$this->expectCreateActivity($note);

@@ -44,6 +44,7 @@ class WebfingerHandler implements IHandler {
 	 *
 	 * @return IResponse|null
 	 */
+	#[\Override]
 	public function handle(
 		string $service,
 		IRequestContext $context,

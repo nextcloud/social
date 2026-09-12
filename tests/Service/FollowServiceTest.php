@@ -31,6 +31,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ModerationService;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -319,7 +320,7 @@ class FollowServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{bool, bool}>
 	 */
-	public function linksProvider(): array {
+	public static function linksProvider(): array {
 		return [
 			'no relation' => [false, false],
 			'local follows actor' => [true, false],
@@ -328,9 +329,7 @@ class FollowServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider linksProvider
-	 */
+	#[DataProvider('linksProvider')]
 	public function testGetLinksBetweenPersonsReportsBothDirections(bool $following, bool $follower): void {
 		$this->followsRequest->method('getByPersons')
 			->willReturnCallback(function (string $actorId, string $remoteId) use ($following, $follower): Follow {
@@ -626,7 +625,7 @@ class FollowServiceTest extends TestCase {
 	 *
 	 * @return array<string, array{array<int, array{string, bool}>, array<string, bool>}>
 	 */
-	public function relationFlagsProvider(): array {
+	public static function relationFlagsProvider(): array {
 		return [
 			'viewer blocks the actor' => [
 				[[ActorRelation::TYPE_BLOCK, true]],
@@ -652,11 +651,10 @@ class FollowServiceTest extends TestCase {
 	}
 
 	/**
-	 * @dataProvider relationFlagsProvider
-	 *
 	 * @param array<int, array{string, bool}> $relations
 	 * @param array<string, bool> $expected
 	 */
+	#[DataProvider('relationFlagsProvider')]
 	public function testGetRelationshipsCarriesTheBlockAndMuteFlags(array $relations, array $expected): void {
 		$this->service->setViewer($this->alice());
 		$this->cacheActorService->method('getFromNids')->willReturn([$this->person(self::BOB_ID, 'bob', 2)]);

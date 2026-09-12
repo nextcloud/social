@@ -56,6 +56,7 @@ class Moderation implements JsonSerializable {
 		return $this->creation;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'actor_id' => $this->actorId,

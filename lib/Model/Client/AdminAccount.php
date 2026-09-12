@@ -205,6 +205,7 @@ class AdminAccount implements JsonSerializable {
 		return $this->account;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->getId(),

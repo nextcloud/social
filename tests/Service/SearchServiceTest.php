@@ -22,6 +22,7 @@ use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -170,7 +171,7 @@ class SearchServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function nonUriSearchProvider(): array {
+	public static function nonUriSearchProvider(): array {
 		return [
 			'empty' => [''],
 			'account' => ['@bob@remote.example'],
@@ -178,7 +179,7 @@ class SearchServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider nonUriSearchProvider */
+	#[DataProvider('nonUriSearchProvider')]
 	public function testSearchUriIgnoresNonUriSearches(string $search): void {
 		$this->cacheActorService->expects($this->never())->method('getFromId');
 

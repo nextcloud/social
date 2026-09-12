@@ -34,6 +34,7 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -330,7 +331,7 @@ class DocumentServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{\Exception, int}> */
-	public function cachingErrorProvider(): array {
+	public static function cachingErrorProvider(): array {
 		return [
 			'wrong mime type' => [new CacheContentMimeTypeException(), DocumentService::ERROR_MIMETYPE],
 			'too big' => [new RequestResultSizeException(), DocumentService::ERROR_SIZE],
@@ -339,7 +340,7 @@ class DocumentServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider cachingErrorProvider */
+	#[DataProvider('cachingErrorProvider')]
 	public function testCacheRemoteDocumentRecordsPermanentErrors(\Exception $failure, int $error): void {
 		$doc = $this->document();
 		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
@@ -357,14 +358,14 @@ class DocumentServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{\Exception}> */
-	public function goneProvider(): array {
+	public static function goneProvider(): array {
 		return [
 			'remote says gone' => [new RequestContentException('gone', 410)],
 			'blocked instance' => [new UnauthorizedFediverseException()],
 		];
 	}
 
-	/** @dataProvider goneProvider */
+	#[DataProvider('goneProvider')]
 	public function testCacheRemoteDocumentDeletesUnreachableDocuments(\Exception $failure): void {
 		$doc = $this->document();
 		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);

@@ -1,7 +1,7 @@
 {
 	"name": "social",
 	"description": "Nextcloud becomes part of the federated social networks!",
-	"version": "0.17.1",
+	"version": "0.18.0",
 	"authors": [
 		{
 			"name": "Benedikt Schächner",
@@ -16,10 +16,11 @@
 		"watch": "NODE_ENV=development webpack --progress --watch --config webpack.common.js",
 		"build": "NODE_ENV=production webpack --progress --config webpack.common.js",
 		"serve": "NODE_ENV=development webpack serve --progress --config webpack.common.js",
-		"lint": "eslint src tests/js",
-		"lint:fix": "eslint src tests/js --fix",
-		"stylelint": "stylelint src",
-		"stylelint:fix": "stylelint src --fix",
+		"lint": "eslint src tests/js js/social-adminSettings.js *.js *.mjs",
+		"typecheck": "tsc -p jsconfig.json",
+		"lint:fix": "eslint src tests/js js/social-adminSettings.js *.js *.mjs --fix",
+		"stylelint": "stylelint src css",
+		"stylelint:fix": "stylelint src css --fix",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
 		"test:watch": "vitest"
@@ -42,12 +43,12 @@
 		"linkify-string": "^4.1.0",
 		"linkifyjs": "^4.1.0",
 		"mitt": "^3.0.1",
+		"pinia": "^4.0.3",
 		"sass": "^1.59.2",
 		"tributejs": "^5.1.3",
 		"vue": "^3.5.42",
 		"vue-material-design-icons": "^5.2.0",
-		"vue-router": "^5.3.1",
-		"vuex": "^4.1.0"
+		"vue-router": "^5.3.1"
 	},
 	"browserslist": [
 		"extends @nextcloud/browserslist-config"
@@ -86,6 +87,7 @@
 		"terser-webpack-plugin": "^5.6.1",
 		"ts-loader": "^9.5.7",
 		"twemoji": "12.0.1",
+		"typescript": "^5.9.3",
 		"vite": "^8.3.0",
 		"vitest": "^5.0.0",
 		"vue-loader": "^17.4.2",

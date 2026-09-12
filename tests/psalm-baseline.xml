@@ -9,15 +9,6 @@
     <InvalidClass>
       <code><![CDATA[Acore]]></code>
     </InvalidClass>
-    <InvalidNullableReturnType>
-      <code><![CDATA[ACore]]></code>
-    </InvalidNullableReturnType>
-    <InvalidPropertyAssignmentValue>
-      <code><![CDATA[$parent]]></code>
-    </InvalidPropertyAssignmentValue>
-    <NullableReturnStatement>
-      <code><![CDATA[$this->parent]]></code>
-    </NullableReturnStatement>
     <TypeDoesNotContainNull>
       <code><![CDATA[$v === null]]></code>
     </TypeDoesNotContainNull>
@@ -26,9 +17,6 @@
     <RedundantCast>
       <code><![CDATA[(bool)($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true')]]></code>
     </RedundantCast>
-    <UndefinedClass>
-      <code><![CDATA[ClientException]]></code>
-    </UndefinedClass>
   </file>
   <file src="lib/Service/StreamQueueService.php">
     <InvalidOperand>

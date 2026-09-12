@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -19,7 +18,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class AccountDelete extends Base {
+class AccountDelete extends SocialCommand {
 	public function __construct(
 		private IUserManager $userManager,
 		private AccountService $accountService,
@@ -29,6 +28,7 @@ class AccountDelete extends Base {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure(): void {
 		parent::configure();
 		$this->setName('social:account:delete')
@@ -39,6 +39,7 @@ class AccountDelete extends Base {
 	/**
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$account = $input->getArgument('account');
 

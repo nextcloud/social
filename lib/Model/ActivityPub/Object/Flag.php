@@ -58,6 +58,7 @@ class Flag extends ACore implements JsonSerializable {
 		return $this;
 	}
 
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 
@@ -73,6 +74,7 @@ class Flag extends ACore implements JsonSerializable {
 		$this->setContent($this->get('content', $data, ''));
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		$result = array_merge(
 			parent::jsonSerialize(),

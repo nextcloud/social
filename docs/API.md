@@ -1,10 +1,10 @@
 # Nextcloud Social API Reference
 
-> This document is written by hand but mechanically checked: `tests/DocumentationTest.php` asserts that the set of routes documented here matches `appinfo/routes.php`. Every route below appears in a table row with its URL exactly as written in `appinfo/routes.php`. Paths that are *not* routes of this app (the `.well-known` discovery documents handled by the Nextcloud WellKnown API) are deliberately written without code spans so that check stays exact.
+> This document is written by hand but mechanically checked: `tests/DocumentationTest.php` asserts that the set of routes documented here matches the set of routes the app registers, which it reads the way the server does — the `#[FrontpageRoute]` attributes on the controller methods, plus what is left in `appinfo/routes.php`. Every route below appears in a table row with its URL exactly as written in the attribute. Paths that are *not* routes of this app (the `.well-known` discovery documents handled by the Nextcloud WellKnown API) are deliberately written without code spans so that check stays exact.
 
 ## Overview
 
-The Social app exposes four groups of endpoints, all registered in `appinfo/routes.php`:
+The Social app exposes four groups of endpoints. Each is registered as a `#[FrontpageRoute]` attribute on the controller method that answers it, with one exception noted at the end of this section:
 
 - **Mastodon-compatible REST API** (`ApiController`, `TagController`, `OAuthController`) — a partial implementation of the Mastodon client API. Several endpoints are stubs; each is marked below.
 - **Custom Local API** (`LocalController`, `ConfigController`) — the endpoints the app's own Vue frontend calls. They are not Mastodon-compatible and their response envelope differs (see Error Responses).
@@ -12,6 +12,10 @@ The Social app exposes four groups of endpoints, all registered in `appinfo/rout
 - **Frontend, document, OStatus and queue endpoints** (`NavigationController`, `OStatusController`, `QueueController`) — HTML pages and internal plumbing.
 
 All URLs are relative to the app's route base, i.e. index.php/apps/social + the URL from the route table (for example, index.php/apps/social/api/v1/statuses).
+
+None of these are OCS routes: `#[ApiRoute]` would put them under `/ocsapp`, which is not where any of these paths are published.
+
+`GET /api/v1/accounts/{id}` is the one route still declared in `appinfo/routes.php`. Its `{id}` accepts slashes, so it also matches `/api/v1/accounts/{account}/lists` and `/api/v1/accounts/{account}/featured_tags`, and it has to be offered to the matcher after them; those two belong to other controllers, and attribute routes are contributed one controller at a time in filesystem order. The array file is loaded after every attribute route of the app, which is the guarantee that route needs.
 
 ### Deprecated: the superseded half of the Custom Local API
 
@@ -558,7 +562,7 @@ JSON-LD responses are emitted through `activityPubSuccess()`, i.e. `Content-Type
 | GET | `/@{username}/inbox` | public, no-csrf | JSON-LD | Empty `OrderedCollection` (`totalItems: 0`) for the actor's inbox; bare `[]` with HTTP 404 if the actor is unknown. |
 | POST | `/inbox` | public, no-csrf | JSON | Shared inbox, same processing (including both rate limits and the same rejection statuses) without the per-actor check. |
 | GET | `/@{username}/outbox` | public, no-csrf | always JSON-LD | Outbox collection. The HTML fallback is commented out in the source, so browsers get JSON-LD too. |
-| POST | `/@{username}/outbox` | public, no-csrf | always JSON-LD | Same route handler as the GET (`ActivityPub#outbox`); posting an activity is **not** implemented — the method only returns the outbox collection. |
+| POST | `/@{username}/outbox` | public, no-csrf | always JSON-LD | Same route handler as the GET, registered as `ActivityPub#outbox_post`; posting an activity is **not** implemented — the method only returns the outbox collection. |
 | GET | `/@{username}/followers` | public, no-csrf | JSON-LD for AP `Accept`, else HTML | Followers collection, or the public Vue page. |
 | GET | `/@{username}/following` | public, no-csrf | JSON-LD for AP `Accept`, else HTML | Following collection, or the public Vue page. |
 | GET | `/@{username}/collections/featured` | public, no-csrf | always JSON-LD | The actor's pinned posts as an `OrderedCollection` whose `orderedItems` carry the full posts (at most 5). This is where remote servers read pinned posts from; the actor document points at it with `featured`. The route has no `Accept` gate and no viewer, so the posts are read through the anonymous visibility filter and only public ones appear — `PinService::pin()` refuses anything narrower in the first place, but posts pinned before that rule existed stop being exposed here with no cleanup step. Unknown actor → error envelope with HTTP 404. |

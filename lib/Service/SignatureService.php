@@ -36,7 +36,6 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
 use OCP\ICache;
@@ -186,15 +185,19 @@ class SignatureService {
 	}
 
 	/**
-	 * @param NCRequest $request
-	 * @param RequestQueue $queue
+	 * The HTTP signature a queued delivery goes out with.
+	 *
+	 * @param string $url the URL the delivery is sent to
+	 * @param string $body the bytes that go on the wire
+	 *
+	 * @return array<string, string> the headers to send
 	 *
 	 * @throws ActorDoesNotExistException
 	 * @throws SignatureException
 	 * @throws SocialAppConfigException
 	 */
-	public function signRequest(NCRequest $request, RequestQueue $queue): void {
-		$this->httpSignatureService->signDelivery($request, $queue);
+	public function signRequest(string $url, string $body, RequestQueue $queue): array {
+		return $this->httpSignatureService->signDelivery($url, $body, $queue);
 	}
 
 	/**

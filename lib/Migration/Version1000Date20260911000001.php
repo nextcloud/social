@@ -28,6 +28,7 @@ use OCP\Migration\SimpleMigrationStep;
  * Existing rows default to 0, which is what they already behaved as.
  */
 class Version1000Date20260911000001 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

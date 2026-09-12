@@ -54,6 +54,7 @@ class ActorCleanup extends QueuedJob {
 		parent::__construct($time);
 	}
 
+	#[\Override]
 	protected function run($argument): void {
 		$actorId = is_array($argument) ? (string)($argument['actor'] ?? '') : '';
 		if ($actorId === '') {

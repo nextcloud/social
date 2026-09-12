@@ -17,6 +17,7 @@ use OCP\Profile\BeforeTemplateRenderedEvent;
  * @template-implements IEventListener<\OCP\EventDispatcher\Event>
  */
 class ProfileSectionListener implements IEventListener {
+	#[\Override]
 	public function handle(Event $event): void {
 		if (!($event instanceof BeforeTemplateRenderedEvent)) {
 			return;

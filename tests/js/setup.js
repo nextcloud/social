@@ -13,12 +13,15 @@
 import { config } from '@vue/test-utils'
 import { vi } from 'vitest'
 
-const translate = (app, text, vars = {}) => Object.entries(vars)
-	.reduce((str, [key, value]) => str.replaceAll(`{${key}}`, String(value)), text)
+function translate(app, text, vars = {}) {
+	return Object.entries(vars)
+		.reduce((str, [key, value]) => str.replaceAll(`{${key}}`, String(value)), text)
+}
 // %n is what @nextcloud/l10n substitutes the count into; leaving it in place
 // made every plural assertion read '%n character left'
-const translatePlural = (app, singular, plural, count, vars = {}) =>
-	translate(app, (count === 1 ? singular : plural).replaceAll('%n', String(count)), { count, ...vars })
+function translatePlural(app, singular, plural, count, vars = {}) {
+	return translate(app, (count === 1 ? singular : plural).replaceAll('%n', String(count)), { count, ...vars })
+}
 
 globalThis.t = translate
 globalThis.n = translatePlural
@@ -68,7 +71,7 @@ config.global.mocks = {
 
 // Node 26 ships an experimental global localStorage that shadows jsdom's and
 // throws without a backing file. Replace it with a plain in-memory Storage.
-const memoryStorage = () => {
+function memoryStorage() {
 	const data = new Map()
 	return {
 		getItem: (key) => (data.has(key) ? data.get(key) : null),
@@ -105,16 +108,12 @@ if (!globalThis.matchMedia) {
 }
 if (!globalThis.ResizeObserver) {
 	globalThis.ResizeObserver = class {
-
 		observe() {} unobserve() {} disconnect() {}
-
 	}
 }
 if (!globalThis.IntersectionObserver) {
 	globalThis.IntersectionObserver = class {
-
 		observe() {} unobserve() {} disconnect() {}
-
 	}
 }
 if (!Element.prototype.scrollIntoView) {

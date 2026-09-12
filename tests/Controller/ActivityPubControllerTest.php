@@ -54,6 +54,7 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -214,14 +215,14 @@ class ActivityPubControllerTest extends TestCase {
 	// actor()
 
 	/** @return iterable<string, array{string}> */
-	public function activityStreamsAcceptHeaders(): iterable {
+	public static function activityStreamsAcceptHeaders(): iterable {
 		yield 'activity+json' => ['application/activity+json'];
 		yield 'ld+json with profile' => ['application/ld+json; profile="https://www.w3.org/ns/activitystreams"'];
 		yield 'ld+json among other types' => ['text/html, application/ld+json;q=0.9'];
 		yield 'whitespace around type' => [' application/activity+json '];
 	}
 
-	/** @dataProvider activityStreamsAcceptHeaders */
+	#[DataProvider('activityStreamsAcceptHeaders')]
 	public function testActorReturnsActivityPubJsonForActivityStreamsClients(string $accept): void {
 		$this->acceptHeader($accept);
 		$actor = $this->localActor('alice');
@@ -234,13 +235,13 @@ class ActivityPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function humanAcceptHeaders(): iterable {
+	public static function humanAcceptHeaders(): iterable {
 		yield 'browser' => ['text/html,application/xhtml+xml,*/*;q=0.8'];
 		yield 'plain json' => ['application/json'];
 		yield 'no header' => [''];
 	}
 
-	/** @dataProvider humanAcceptHeaders */
+	#[DataProvider('humanAcceptHeaders')]
 	public function testActorFallsBackToPublicPageForBrowsers(string $accept): void {
 		$this->acceptHeader($accept);
 		$page = new TemplateResponse('social', 'main');
@@ -554,7 +555,7 @@ class ActivityPubControllerTest extends TestCase {
 	 *
 	 * @return iterable<string, array{Exception, int}>
 	 */
-	public function inboxRejections(): iterable {
+	public static function inboxRejections(): iterable {
 		yield 'blocked instance' => [new UnauthorizedFediverseException('blocked'), Http::STATUS_FORBIDDEN];
 		yield 'bad signature' => [new SignatureException('does not verify'), Http::STATUS_UNAUTHORIZED];
 		yield 'incomplete signature header' => [new MalformedArrayException('keyId'), Http::STATUS_UNAUTHORIZED];
@@ -568,7 +569,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'a fault of our own' => [new SocialAppConfigException('no url'), Http::STATUS_INTERNAL_SERVER_ERROR];
 	}
 
-	/** @dataProvider inboxRejections */
+	#[DataProvider('inboxRejections')]
 	public function testARejectedDeliveryAnswersWhatTheRejectionActuallyIs(Exception $e, int $status): void {
 		$this->signatureService->method('checkRequest')->willThrowException($e);
 
@@ -763,7 +764,7 @@ class ActivityPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function unusablePageParameters(): iterable {
+	public static function unusablePageParameters(): iterable {
 		yield 'absent' => [''];
 		yield 'zero' => ['0'];
 		yield 'negative' => ['-1'];
@@ -771,7 +772,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'an expression' => ['1 OR 1'];
 	}
 
-	/** @dataProvider unusablePageParameters */
+	#[DataProvider('unusablePageParameters')]
 	public function testAnUnusablePageParameterServesTheCollectionItself(string $page): void {
 		$this->acceptHeader('application/activity+json');
 		$actor = $this->localActor('alice');
@@ -870,12 +871,12 @@ class ActivityPubControllerTest extends TestCase {
 	// displayPost()
 
 	/** @return iterable<string, array{string, string}> */
-	public function reservedTokens(): iterable {
+	public static function reservedTokens(): iterable {
 		yield 'outbox' => ['outbox', 'getOutboxCollection'];
 		yield 'Outbox, mixed case' => ['Outbox', 'getOutboxCollection'];
 	}
 
-	/** @dataProvider reservedTokens */
+	#[DataProvider('reservedTokens')]
 	public function testDisplayPostRoutesReservedTokensToTheCollections(string $token, string $method): void {
 		$this->acceptHeader('application/activity+json');
 		$actor = $this->localActor('alice');
@@ -1019,12 +1020,12 @@ class ActivityPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string, int}> */
-	public function requestedReplyPages(): iterable {
+	public static function requestedReplyPages(): iterable {
 		yield 'a numbered page' => ['2', 2];
 		yield "Mastodon's page=true, which means the first" => ['true', 1];
 	}
 
-	/** @dataProvider requestedReplyPages */
+	#[DataProvider('requestedReplyPages')]
 	public function testRepliesServesTheRequestedPage(string $page, int $expected): void {
 		$this->quotablePost();
 		$collectionPage = new OrderedCollectionPage();
@@ -1156,7 +1157,7 @@ class ActivityPubControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function unservableStamps(): iterable {
+	public static function unservableStamps(): iterable {
 		yield 'not base64 at all' => ['not a stamp'];
 		yield 'padded, which we never emit' => [rtrim(strtr(base64_encode('https://remote.example/1'), '+/', '-_'), '=') . '='];
 		yield 'base64 of something that is not an address' => [rtrim(strtr(base64_encode('../../admin'), '+/', '-_'), '=')];
@@ -1168,7 +1169,7 @@ class ActivityPubControllerTest extends TestCase {
 		yield 'empty' => [''];
 	}
 
-	/** @dataProvider unservableStamps */
+	#[DataProvider('unservableStamps')]
 	public function testAStampWeNeverIssuedGetsNoApproval(string $stamp): void {
 		$this->quotablePost();
 

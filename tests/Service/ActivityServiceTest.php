@@ -45,8 +45,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -527,7 +526,9 @@ class ActivityServiceTest extends TestCase {
 			->with(self::TOKEN)
 			->willReturn($direct);
 		$this->requestQueueService->expects($this->once())->method('initRequest')->with($this->identicalTo($direct));
-		$this->signatureService->expects($this->once())->method('signRequest')->with($this->isInstanceOf(NCRequest::class), $this->identicalTo($direct));
+		$this->signatureService->expects($this->once())->method('signRequest')
+			->with($this->isType('string'), $this->isType('string'), $this->identicalTo($direct))
+			->willReturn([]);
 		$this->curlService->expects($this->once())->method('retrieveJson')->willReturn([]);
 		$this->requestQueueService->expects($this->once())->method('endRequest')->with($this->identicalTo($direct), true);
 		$this->requestQueueService->expects($this->once())
@@ -593,77 +594,83 @@ class ActivityServiceTest extends TestCase {
 		$signed = null;
 		$this->signatureService->expects($this->once())
 			->method('signRequest')
-			->with($this->callback(function (NCRequest $request) use (&$signed): bool {
-				$signed = $request;
+			->with(
+				$this->callback(function (string $url) use (&$signed): bool {
+					$signed = $url;
 
-				return true;
-			}), $this->identicalTo($queue));
+					return true;
+				}),
+				$this->isType('string'),
+				$this->identicalTo($queue)
+			)
+			->willReturn(['Signature' => 'keyId="k"']);
 		$sent = null;
 		$this->curlService->expects($this->once())
 			->method('retrieveJson')
-			->with($this->callback(function (NCRequest $request) use (&$sent): bool {
-				$sent = $request;
+			->willReturnCallback(function (string $method, string $url, array $options) use (&$sent): array {
+				$sent = ['method' => $method, 'url' => $url, 'options' => $options];
 
-				return true;
-			}))
-			->willReturn(['ok' => true]);
+				return ['ok' => true];
+			});
 		$this->requestQueueService->expects($this->once())->method('endRequest')->with($this->identicalTo($queue), true);
 		$this->requestQueueService->expects($this->never())->method('deleteRequest');
 
 		$this->service->manageInit();
 		$this->service->manageRequest($queue);
 
-		$this->assertSame($signed, $sent);
-		$this->assertSame(Request::TYPE_POST, $sent->getType());
-		$this->assertSame('remote.example', $sent->getHost());
-		$this->assertSame('/users/bob/inbox', $sent->getPath());
-		$this->assertSame(['https'], $sent->getProtocols());
-		$this->assertSame(10, $sent->getTimeout());
-		$this->assertSame(json_decode($queue->getActivity(), true), $sent->getData());
+		// the URL that is signed is the URL that is sent to — anything else
+		// verifies here and on no peer anywhere
+		$this->assertSame($signed, $sent['url']);
+		$this->assertSame('post', $sent['method']);
+		$this->assertSame(self::BOB_INBOX, $sent['url']);
+		$this->assertSame(10, $sent['options']['timeout']);
+		$this->assertSame(['Signature' => 'keyId="k"'], $sent['options']['headers']);
+		$this->assertSame(
+			json_decode($queue->getActivity(), true),
+			json_decode($sent['options']['body'], true)
+		);
 	}
 
 	/**
-	 * @return array<string, array{int, int}>
+	 * @return array<string, array{int, string}>
 	 */
-	public function requestTypeProvider(): array {
+	public static function requestTypeProvider(): array {
 		return [
-			'inbox is posted to' => [InstancePath::TYPE_INBOX, Request::TYPE_POST],
-			'shared inbox is posted to' => [InstancePath::TYPE_GLOBAL, Request::TYPE_POST],
-			'followers is posted to' => [InstancePath::TYPE_FOLLOWERS, Request::TYPE_POST],
-			'public path is fetched' => [InstancePath::TYPE_PUBLIC, Request::TYPE_GET],
+			'inbox is posted to' => [InstancePath::TYPE_INBOX, 'post'],
+			'shared inbox is posted to' => [InstancePath::TYPE_GLOBAL, 'post'],
+			'followers is posted to' => [InstancePath::TYPE_FOLLOWERS, 'post'],
+			'public path is fetched' => [InstancePath::TYPE_PUBLIC, 'get'],
 		];
 	}
 
-	/**
-	 * @dataProvider requestTypeProvider
-	 */
-	public function testManageRequestPicksHttpMethodFromTargetType(int $pathType, int $expectedMethod): void {
+	#[DataProvider('requestTypeProvider')]
+	public function testManageRequestPicksHttpMethodFromTargetType(int $pathType, string $expectedMethod): void {
 		$sent = null;
-		$this->curlService->method('retrieveJson')->willReturnCallback(function (NCRequest $request) use (&$sent): array {
-			$sent = $request;
+		$this->curlService->method('retrieveJson')->willReturnCallback(
+			function (string $method, string $url, array $options) use (&$sent): array {
+				$sent = $method;
 
-			return [];
-		});
+				return [];
+			}
+		);
 
 		$this->service->manageInit();
 		$this->service->manageRequest($this->queue(self::BOB_INBOX, $pathType));
 
-		$this->assertSame($expectedMethod, $sent->getType());
+		$this->assertSame($expectedMethod, $sent);
 	}
 
 	/**
 	 * @return array<string, array{\Exception}>
 	 */
-	public function deliveredButNoJsonProvider(): array {
+	public static function deliveredButNoJsonProvider(): array {
 		return [
 			'non-json answer' => [new RequestResultNotJsonException()],
 			'instance not authorized' => [new UnauthorizedFediverseException()],
 		];
 	}
 
-	/**
-	 * @dataProvider deliveredButNoJsonProvider
-	 */
+	#[DataProvider('deliveredButNoJsonProvider')]
 	public function testManageRequestTreatsNonJsonAnswersAsDelivered(\Exception $e): void {
 		$queue = $this->queue();
 		$this->curlService->method('retrieveJson')->willThrowException($e);
@@ -677,7 +684,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{\Exception}>
 	 */
-	public function hardErrorProvider(): array {
+	public static function hardErrorProvider(): array {
 		return [
 			'bad content' => [new RequestContentException()],
 			'answer too large' => [new RequestResultSizeException()],
@@ -685,9 +692,7 @@ class ActivityServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider hardErrorProvider
-	 */
+	#[DataProvider('hardErrorProvider')]
 	public function testManageRequestDropsRequestOnHardErrors(\Exception $e): void {
 		$queue = $this->queue();
 		$this->curlService->method('retrieveJson')->willThrowException($e);
@@ -701,7 +706,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{int}>
 	 */
-	public function transientHttpStatusProvider(): array {
+	public static function transientHttpStatusProvider(): array {
 		return [
 			'request timeout' => [408],
 			'rate limited' => [429],
@@ -716,9 +721,8 @@ class ActivityServiceTest extends TestCase {
 	 * A peer that is briefly unwell must not cost us the activity: these used
 	 * to be indistinguishable from a permanent rejection, so every post queued
 	 * for an instance having a bad minute was deleted outright.
-	 *
-	 * @dataProvider transientHttpStatusProvider
 	 */
+	#[DataProvider('transientHttpStatusProvider')]
 	public function testManageRequestRetriesWhenThePeerAnswersWithATransientStatus(int $status): void {
 		$queue = $this->queue();
 		$this->curlService->method('retrieveJson')
@@ -735,7 +739,7 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{int}>
 	 */
-	public function permanentHttpStatusProvider(): array {
+	public static function permanentHttpStatusProvider(): array {
 		return [
 			'bad request' => [400],
 			'unauthorized' => [401],
@@ -745,9 +749,7 @@ class ActivityServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider permanentHttpStatusProvider
-	 */
+	#[DataProvider('permanentHttpStatusProvider')]
 	public function testManageRequestDropsWhenThePeerRejectsTheActivityForGood(int $status): void {
 		$queue = $this->queue();
 		$this->curlService->method('retrieveJson')
@@ -779,16 +781,14 @@ class ActivityServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{\Exception}>
 	 */
-	public function temporaryErrorProvider(): array {
+	public static function temporaryErrorProvider(): array {
 		return [
 			'network error' => [new RequestNetworkException()],
 			'server error' => [new RequestServerException()],
 		];
 	}
 
-	/**
-	 * @dataProvider temporaryErrorProvider
-	 */
+	#[DataProvider('temporaryErrorProvider')]
 	public function testManageRequestMarksFailureAndSkipsSameInstanceForTheRestOfTheRun(\Exception $e): void {
 		$first = $this->queue(self::BOB_INBOX);
 		$second = $this->queue('https://remote.example/users/carol/inbox');
@@ -796,8 +796,8 @@ class ActivityServiceTest extends TestCase {
 
 		$this->curlService->expects($this->exactly(2))
 			->method('retrieveJson')
-			->willReturnCallback(function (NCRequest $request) use ($e): array {
-				if ($request->getHost() === 'remote.example') {
+			->willReturnCallback(function (string $method, string $url) use ($e): array {
+				if (parse_url($url, PHP_URL_HOST) === 'remote.example') {
 					throw $e;
 				}
 

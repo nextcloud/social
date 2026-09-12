@@ -21,6 +21,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
@@ -31,6 +32,7 @@ class InstanceServiceTest extends TestCase {
 	private InstancesRequest|MockObject $instancesRequest;
 	private InstanceStatsRequest|MockObject $statsRequest;
 	private ConfigService|MockObject $configService;
+	private IAppConfig|MockObject $appConfig;
 	private IConfig|MockObject $config;
 	private IUserManager|MockObject $userManager;
 	private CacheDocumentService|MockObject $cacheDocumentService;
@@ -39,6 +41,7 @@ class InstanceServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->instancesRequest = $this->createMock(InstancesRequest::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->appConfig = $this->createMock(IAppConfig::class);
 		$this->config = $this->createMock(IConfig::class);
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->userManager->method('countUsers')->willReturn(['Database' => 3]);
@@ -54,6 +57,7 @@ class InstanceServiceTest extends TestCase {
 			$this->instancesRequest,
 			$this->configService,
 			$this->createMock(MiscService::class),
+			$this->appConfig,
 			$this->config,
 			$urlGenerator,
 			$this->userManager,
@@ -73,7 +77,7 @@ class InstanceServiceTest extends TestCase {
 	}
 
 	private function theming(array $values): void {
-		$this->config->method('getAppValue')
+		$this->appConfig->method('getValueString')
 			->willReturnCallback(
 				fn (string $app, string $key, $default = '') => $values[$app . '.' . $key] ?? $default
 			);
@@ -180,10 +184,12 @@ class InstanceServiceTest extends TestCase {
 		$this->statsRequest->expects($this->once())->method('countLocalStatuses')->willReturn(42);
 		$this->statsRequest->expects($this->once())->method('countRemoteDomains')->willReturn(7);
 		$remembered = null;
-		$this->config->expects($this->once())->method('setAppValue')
+		$this->appConfig->expects($this->once())->method('setValueString')
 			->with('social', InstanceService::STATS_CACHE_KEY, $this->isType('string'))
-			->willReturnCallback(function (string $app, string $key, string $value) use (&$remembered): void {
+			->willReturnCallback(function (string $app, string $key, string $value) use (&$remembered): bool {
 				$remembered = json_decode($value, true);
+
+				return true;
 			});
 
 		$json = json_decode((string)json_encode($this->service->createLocal()->jsonSerialize()), false);
@@ -205,7 +211,7 @@ class InstanceServiceTest extends TestCase {
 		]);
 		$this->statsRequest->expects($this->never())->method('countLocalStatuses');
 		$this->statsRequest->expects($this->never())->method('countRemoteDomains');
-		$this->config->expects($this->never())->method('setAppValue');
+		$this->appConfig->expects($this->never())->method('setValueString');
 
 		$stats = $this->service->createLocal()->getStats();
 
@@ -221,7 +227,7 @@ class InstanceServiceTest extends TestCase {
 		]);
 		$this->statsRequest->method('countLocalStatuses')->willReturn(6);
 		$this->statsRequest->method('countRemoteDomains')->willReturn(3);
-		$this->config->expects($this->once())->method('setAppValue');
+		$this->appConfig->expects($this->once())->method('setValueString');
 
 		$stats = $this->service->createLocal()->getStats();
 

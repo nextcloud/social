@@ -9,13 +9,15 @@
 	  decides whether the component exists at all. Mounted the whole time,
 	  it can roll the first one in like any other change.
 	-->
-	<span v-if="count > 0"
+	<span
+		v-if="count > 0"
 		class="post-action-count rolling-count"
 		:class="rollClass">
 		<span :key="count" class="rolling-count__value rolling-count__value--current">{{ count }}</span>
 		<!-- the digit on its way out; never read aloud, and gone again once
 		     the roll is over, so the element still reads as one number -->
-		<span v-if="leaving !== null"
+		<span
+			v-if="leaving !== null"
 			:key="`leaving-${leaving}`"
 			class="rolling-count__value rolling-count__value--leaving"
 			aria-hidden="true">{{ leaving }}</span>
@@ -35,6 +37,7 @@ export default {
 			default: 0,
 		},
 	},
+
 	data() {
 		return {
 			/** 'up', 'down' or '' when the number is at rest */
@@ -43,20 +46,24 @@ export default {
 			leaving: null,
 		}
 	},
+
 	computed: {
 		/** @return {string|null} */
 		rollClass() {
 			return this.direction === '' ? null : `rolling-count--${this.direction}`
 		},
 	},
+
 	watch: {
 		count(value, previous) {
 			this.roll(value, previous)
 		},
 	},
+
 	beforeUnmount() {
 		window.clearTimeout(this.timer)
 	},
+
 	methods: {
 		/**
 		 * @param {number} value what the count became
@@ -82,6 +89,7 @@ export default {
 				this.leaving = null
 			}, ROLL_MS)
 		},
+
 		/** @return {boolean} */
 		prefersReducedMotion() {
 			return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true

@@ -3,12 +3,14 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<figure class="photo"
+	<figure
+		class="photo"
 		:class="`photo--${fit}`"
 		:style="frameStyle">
 		<!-- video and audio carry their own controls: nesting those inside a
 		     button is invalid, and they need no viewer to be watchable here -->
-		<button v-if="pressable"
+		<button
+			v-if="pressable"
 			type="button"
 			class="photo__open"
 			:aria-label="openLabel"
@@ -19,7 +21,8 @@
 		<!-- the description is what the picture actually is, and a reader who
 		     cannot see the picture is not the only one who wants it -->
 		<template v-if="hasDescription">
-			<button type="button"
+			<button
+				type="button"
 				class="photo__alt"
 				:aria-expanded="descriptionShown ? 'true' : 'false'"
 				:aria-controls="descriptionId"
@@ -27,7 +30,8 @@
 				@click="descriptionShown = !descriptionShown">
 				{{ t('social', 'ALT') }}
 			</button>
-			<figcaption v-show="descriptionShown"
+			<figcaption
+				v-show="descriptionShown"
 				:id="descriptionId"
 				class="photo__description">
 				{{ attachment.description }}
@@ -49,21 +53,25 @@ export default {
 	components: {
 		MediaAttachment,
 	},
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').MediaAttachment>} */
 		attachment: {
 			type: Object,
 			required: true,
 		},
+
 		/** its place in the post, for the label of media without a description */
 		index: {
 			type: Number,
 			default: 0,
 		},
+
 		total: {
 			type: Number,
 			default: 1,
 		},
+
 		/**
 		 * `cover` fills a box shaped like the picture itself; `contain` fits it
 		 * into a box shaped like something else, which is what a carousel of
@@ -74,12 +82,14 @@ export default {
 			default: 'cover',
 			validator: (value) => ['cover', 'contain'].includes(value),
 		},
+
 		/** the box to reserve, overriding the picture's own shape; 0 to derive it */
 		ratio: {
 			type: Number,
 			default: 0,
 		},
 	},
+
 	emits: ['open'],
 	data() {
 		return {
@@ -87,20 +97,24 @@ export default {
 			descriptionId: `social-alt-${sequence++}`,
 		}
 	},
+
 	computed: {
 		/** @return {boolean} */
 		hasDescription() {
 			return typeof this.attachment.description === 'string'
 				&& this.attachment.description.trim() !== ''
 		},
+
 		/** @return {boolean} whether pressing it should open the viewer */
 		pressable() {
 			return this.attachment.type !== 'video' && this.attachment.type !== 'audio'
 		},
+
 		/** @return {boolean} audio has no picture to reserve room for */
 		framed() {
 			return this.attachment.type !== 'audio'
 		},
+
 		/** @return {object} */
 		frameStyle() {
 			if (!this.framed) {
@@ -109,21 +123,24 @@ export default {
 
 			return { aspectRatio: String(this.ratio > 0 ? this.ratio : ratioOf(this.attachment)) }
 		},
+
 		/** @return {string} what opening this attachment will show */
 		openLabel() {
 			return this.hasDescription
 				? translate('social', 'Open attachment: {description}', { description: this.attachment.description })
 				: translate('social', 'Open attachment {number} of {total}', {
-					number: this.index + 1,
-					total: this.total,
-				})
+						number: this.index + 1,
+						total: this.total,
+					})
 		},
 	},
+
 	watch: {
 		attachment() {
 			this.descriptionShown = false
 		},
 	},
+
 	methods: {
 		t: translate,
 	},

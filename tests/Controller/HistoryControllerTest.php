@@ -135,7 +135,7 @@ class HistoryControllerTest extends TestCase {
 		return $person;
 	}
 
-	private function status(int $nid, string $content, string $updated = ''): void {
+	private function aStatus(int $nid, string $content, string $updated = ''): void {
 		$note = new Note();
 		$note->setNid($nid);
 		$note->setId('https://cloud.example/posts/' . $nid);
@@ -158,7 +158,7 @@ class HistoryControllerTest extends TestCase {
 	}
 
 	public function testTheHistoryIsEveryVersionOldestFirst(): void {
-		$this->status(1, 'the third version', '2026-09-11T12:00:00Z');
+		$this->aStatus(1, 'the third version', '2026-09-11T12:00:00Z');
 		$this->stored = [
 			(new StatusRevision())->setContent('the original')->setPublished('2026-09-11T10:00:00Z'),
 			(new StatusRevision())->setContent('the second version')->setPublished('2026-09-11T11:00:00Z'),
@@ -180,7 +180,7 @@ class HistoryControllerTest extends TestCase {
 	 * version an edit replaces rather than only the version it produced.
 	 */
 	public function testTheFirstEntryIsNotTheCurrentText(): void {
-		$this->status(1, 'the current text', '2026-09-11T12:00:00Z');
+		$this->aStatus(1, 'the current text', '2026-09-11T12:00:00Z');
 		$this->stored = [
 			(new StatusRevision())->setContent('the original')->setPublished('2026-09-11T10:00:00Z'),
 			(new StatusRevision())->setContent('the current text')->setPublished('2026-09-11T12:00:00Z'),
@@ -195,7 +195,7 @@ class HistoryControllerTest extends TestCase {
 	}
 
 	public function testAStatusNeverEditedHasOneVersion(): void {
-		$this->status(1, 'posted once');
+		$this->aStatus(1, 'posted once');
 
 		$data = $this->controller()->history(1)->getData();
 
@@ -205,7 +205,7 @@ class HistoryControllerTest extends TestCase {
 	}
 
 	public function testEveryVersionCarriesTheAuthorAccount(): void {
-		$this->status(1, 'posted once');
+		$this->aStatus(1, 'posted once');
 
 		$data = $this->controller()->history(1)->getData();
 
@@ -228,7 +228,7 @@ class HistoryControllerTest extends TestCase {
 
 	/** The viewer is given to the stream layer, which is what filters on it. */
 	public function testTheViewerReachesTheStreamLayer(): void {
-		$this->status(1, 'posted once');
+		$this->aStatus(1, 'posted once');
 
 		$this->controller()->history(1);
 
@@ -244,7 +244,7 @@ class HistoryControllerTest extends TestCase {
 	public function testAnAnonymousCallerIsAnsweredAndNotRefused(): void {
 		$this->hasSession = false;
 		$this->csrf = false;
-		$this->status(1, 'a public post');
+		$this->aStatus(1, 'a public post');
 
 		$response = $this->controller()->history(1);
 
@@ -254,14 +254,14 @@ class HistoryControllerTest extends TestCase {
 
 	public function testABearerTokenWithTheGranularScopeIsAccepted(): void {
 		$this->bearer(['read:statuses']);
-		$this->status(1, 'posted once');
+		$this->aStatus(1, 'posted once');
 
 		$this->assertSame(Http::STATUS_OK, $this->controller()->history(1)->getStatus());
 	}
 
 	public function testTheBroadReadScopeIsAccepted(): void {
 		$this->bearer(['read']);
-		$this->status(1, 'posted once');
+		$this->aStatus(1, 'posted once');
 
 		$this->assertSame(Http::STATUS_OK, $this->controller()->history(1)->getStatus());
 	}
@@ -273,7 +273,7 @@ class HistoryControllerTest extends TestCase {
 	 */
 	public function testASiblingGranularScopeIsRefused(): void {
 		$this->bearer(['read:lists']);
-		$this->status(1, 'posted once');
+		$this->aStatus(1, 'posted once');
 
 		$response = $this->controller()->history(1);
 
@@ -284,7 +284,7 @@ class HistoryControllerTest extends TestCase {
 	/** A write grant is not a read grant. */
 	public function testAWriteScopeIsRefused(): void {
 		$this->bearer(['write']);
-		$this->status(1, 'posted once');
+		$this->aStatus(1, 'posted once');
 
 		$this->assertSame(Http::STATUS_FORBIDDEN, $this->controller()->history(1)->getStatus());
 	}

@@ -3,18 +3,20 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcPopover class="account-hover"
+	<NcPopover
+		class="account-hover"
 		:class="`account-hover--${variant}`"
 		:shown="shown"
 		:triggers="[]"
-		:popover-triggers="[]"
-		:no-focus-trap="true"
+		:popoverTriggers="[]"
+		:noFocusTrap="true"
 		:placement="placement"
-		popover-base-class="account-hover__popover"
-		popup-role="dialog"
+		popoverBaseClass="account-hover__popover"
+		popupRole="dialog"
 		@update:shown="onPopoverShown">
 		<template #trigger="{ attrs }">
-			<span class="account-hover__trigger"
+			<span
+				class="account-hover__trigger"
 				v-bind="attrs"
 				@pointerenter="onPointerEnter"
 				@pointerleave="onPointerLeave"
@@ -25,7 +27,8 @@
 				<slot />
 			</span>
 		</template>
-		<div v-if="shown"
+		<div
+			v-if="shown"
 			class="account-hover-card"
 			role="dialog"
 			:aria-label="t('social', 'Account preview')"
@@ -35,17 +38,19 @@
 			@focusout="onFocusOut">
 			<template v-if="account">
 				<div class="account-hover-card__head">
-					<NcAvatar v-if="isLocal"
+					<NcAvatar
+						v-if="isLocal"
 						:size="48"
 						:user="account.username"
-						:display-name="account.display_name || account.username"
-						:hide-status="true"
-						:disable-tooltip="true" />
-					<NcAvatar v-else
+						:displayName="account.display_name || account.username"
+						:hideStatus="true"
+						:disableTooltip="true" />
+					<NcAvatar
+						v-else
 						:size="48"
 						:url="account.avatar"
-						:hide-status="true"
-						:disable-tooltip="true" />
+						:hideStatus="true"
+						:disableTooltip="true" />
 					<span class="account-hover-card__names">
 						<span class="account-hover-card__name">
 							<AccountDisplayName :text="account.display_name || account.username || handle" :emojis="account.emojis" />
@@ -86,8 +91,10 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { emojifyPlain } from './MessageContent.js'
-import serverData from '../mixins/serverData.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /**
  * A display name with its custom emoji as inline images — what DisplayName.js
@@ -160,15 +167,14 @@ export default {
 		NcAvatar,
 		NcPopover,
 	},
-	mixins: [
-		serverData,
-	],
+
 	props: {
 		/** The account handle to preview, as it appears after the `@` */
 		handle: {
 			type: String,
 			required: true,
 		},
+
 		/**
 		 * What is already known about this account (a status carries its
 		 * author in full), shown while the fetch is on its way.
@@ -179,6 +185,7 @@ export default {
 			type: Object,
 			default: null,
 		},
+
 		/**
 		 * `inline` sits in a run of text (a mention), `block` wraps something
 		 * with a box of its own (an avatar).
@@ -188,11 +195,19 @@ export default {
 			default: 'inline',
 			validator: (value) => ['inline', 'block'].includes(value),
 		},
+
 		placement: {
 			type: String,
 			default: 'bottom-start',
 		},
 	},
+
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
+	},
+
 	data() {
 		return {
 			shown: false,
@@ -202,37 +217,42 @@ export default {
 			focusFromPointer: false,
 		}
 	},
+
 	computed: {
+		...mapStores(useAccountStore),
 		/** @return {import('../types/Mastodon.js').Account|null} what to show, if anything */
 		account() {
 			return this.storedAccount ?? this.fetched ?? this.fallback
 		},
+
 		/**
 		 * Whether this account can be looked up at all.
 		 *
-		 * A public page has nobody logged in and no lookup endpoint to ask, and
-		 * a page mounted without a store (the profile-page integration) has no
-		 * action to dispatch. Both are better served by what the page already
-		 * carried than by a card that stays a skeleton forever.
+		 * A public page has nobody logged in and no lookup endpoint to ask, so
+		 * it is better served by what the page already carried than by a card
+		 * that stays a skeleton forever.
 		 *
 		 * @return {boolean}
 		 */
 		canFetch() {
-			return Boolean(this.$store) && Boolean(this.handle) && !this.serverData.public
+			return Boolean(this.handle) && !this.serverData.public
 		},
+
 		/** @return {import('../types/Mastodon.js').Account|undefined} the store's copy */
 		storedAccount() {
-			// the profile-page integration mounts these components without a store
-			return this.$store?.getters?.getAccount?.(this.handle)
+			return this.accountStore.getAccount(this.handle)
 		},
+
 		/** @return {boolean} */
 		isLocal() {
 			return !(this.account?.acct ?? this.handle).includes('@')
 		},
+
 		/** @return {string} the bio, reduced to markup that is safe to inject */
 		note() {
 			return sanitizeHtml(this.account?.note ?? '')
 		},
+
 		/**
 		 * @return {boolean} whether the numbers are known at all — a card built
 		 * from what a status carried may have none, and "0 followers" would be
@@ -241,14 +261,17 @@ export default {
 		hasCounts() {
 			return this.account?.followers_count !== undefined || this.account?.following_count !== undefined
 		},
+
 		/** @return {number} */
 		followersCount() {
 			return this.account?.followers_count ?? 0
 		},
+
 		/** @return {number} */
 		followingCount() {
 			return this.account?.following_count ?? 0
 		},
+
 		/**
 		 * Whether this account follows the reader — shown only when the answer
 		 * is already in the store. Worth a badge, never worth a request.
@@ -256,9 +279,10 @@ export default {
 		 * @return {boolean}
 		 */
 		followsYou() {
-			return this.$store?.getters?.getRelationshipWith?.(this.account?.id)?.followed_by === true
+			return this.accountStore.getRelationshipWith(this.account?.id)?.followed_by === true
 		},
 	},
+
 	beforeUnmount() {
 		this.clearTimers()
 		if (this.focusResetTimer) {
@@ -266,6 +290,7 @@ export default {
 		}
 		this.stopListeningForEscape()
 	},
+
 	methods: {
 		t: translate,
 		n: translatePlural,
@@ -283,6 +308,7 @@ export default {
 			}
 			this.scheduleOpen()
 		},
+
 		/** @param {PointerEvent} event - the pointerleave */
 		onPointerLeave(event) {
 			if (event?.pointerType === 'touch' || event?.pointerType === 'pen') {
@@ -290,6 +316,7 @@ export default {
 			}
 			this.scheduleClose()
 		},
+
 		/**
 		 * A press is on its way, so the focus that follows it is not a reader
 		 * arriving by keyboard — it is a tap or a click on the link.
@@ -297,6 +324,7 @@ export default {
 		onPointerDown() {
 			this.suppressFocusOpen(0)
 		},
+
 		/**
 		 * Browsers follow a tap with a synthetic mouse enter; cancelling here
 		 * covers the ones that do not report a pointer type. The synthetic
@@ -307,6 +335,7 @@ export default {
 			this.close()
 			this.suppressFocusOpen(700)
 		},
+
 		/**
 		 * Ignore the focus a press is about to hand the link.
 		 *
@@ -327,6 +356,7 @@ export default {
 				this.focusFromPointer = false
 			}, ms)
 		},
+
 		/**
 		 * Keyboard focus is deliberate: no delay, and no request until now.
 		 * Focus taken by a press is not — that reader is following the link.
@@ -338,17 +368,21 @@ export default {
 			this.cancelClose()
 			this.open()
 		},
+
 		onFocusOut() {
 			this.focusFromPointer = false
 			this.scheduleClose()
 		},
+
 		onCardEnter() {
 			this.cancelClose()
 		},
+
 		/** @param {PointerEvent} event - the pointerleave */
 		onCardLeave(event) {
 			this.onPointerLeave(event)
 		},
+
 		/**
 		 * floating-vue closes on click outside by itself; the component state
 		 * has to follow, or the card could never be opened again.
@@ -360,6 +394,7 @@ export default {
 				this.close()
 			}
 		},
+
 		scheduleOpen() {
 			this.cancelClose()
 			if (this.shown || this.openTimer) {
@@ -370,6 +405,7 @@ export default {
 				this.open()
 			}, OPEN_DELAY)
 		},
+
 		scheduleClose() {
 			this.cancelOpen()
 			if (!this.shown || this.closeTimer) {
@@ -380,22 +416,26 @@ export default {
 				this.close()
 			}, CLOSE_DELAY)
 		},
+
 		cancelOpen() {
 			if (this.openTimer) {
 				window.clearTimeout(this.openTimer)
 				this.openTimer = null
 			}
 		},
+
 		cancelClose() {
 			if (this.closeTimer) {
 				window.clearTimeout(this.closeTimer)
 				this.closeTimer = null
 			}
 		},
+
 		clearTimers() {
 			this.cancelOpen()
 			this.cancelClose()
 		},
+
 		open() {
 			// nothing to show, and no way to get it: better no card at all
 			if (this.shown || (!this.account && !this.canFetch)) {
@@ -405,11 +445,13 @@ export default {
 			this.listenForEscape()
 			this.load()
 		},
+
 		close() {
 			this.clearTimers()
 			this.shown = false
 			this.stopListeningForEscape()
 		},
+
 		/**
 		 * Escape dismisses the card wherever the focus happens to be — on the
 		 * mention, inside the card, or nowhere at all because the reader is
@@ -426,12 +468,14 @@ export default {
 			}
 			document.addEventListener('keydown', this.escapeListener)
 		},
+
 		stopListeningForEscape() {
 			if (this.escapeListener) {
 				document.removeEventListener('keydown', this.escapeListener)
 				this.escapeListener = null
 			}
 		},
+
 		/**
 		 * Ask for the account, once. Called from open() and nowhere else: a
 		 * pointer that never rests on a mention costs nothing.
@@ -444,7 +488,7 @@ export default {
 			}
 			let request = pending.get(this.handle)
 			if (request === undefined) {
-				request = Promise.resolve(this.$store.dispatch('fetchAccountInfo', this.handle))
+				request = Promise.resolve(this.accountStore.fetchAccountInfo(this.handle))
 				pending.set(this.handle, request)
 			}
 			const data = await request

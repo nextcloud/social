@@ -20,6 +20,7 @@ use OCA\Social\Service\LikeService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -114,14 +115,14 @@ class ActionServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string, bool}> */
-	public function bookmarkActionProvider(): array {
+	public static function bookmarkActionProvider(): array {
 		return [
 			'bookmark' => ['bookmark', true],
 			'unbookmark' => ['unbookmark', false],
 		];
 	}
 
-	/** @dataProvider bookmarkActionProvider */
+	#[DataProvider('bookmarkActionProvider')]
 	public function testBookmarkTogglesTheLocalFlagAndFederatesNothing(string $action, bool $expected): void {
 		$this->streamService->expects($this->once())->method('getStreamByNid')->willReturn($this->post);
 		$this->likeService->expects($this->never())->method($this->anything());
@@ -134,14 +135,14 @@ class ActionServiceTest extends TestCase {
 	}
 
 	/** @return array<string, array{string}> */
-	public function unsupportedActionProvider(): array {
+	public static function unsupportedActionProvider(): array {
 		return [
 			'mute' => ['mute'],
 			'unmute' => ['unmute'],
 		];
 	}
 
-	/** @dataProvider unsupportedActionProvider */
+	#[DataProvider('unsupportedActionProvider')]
 	public function testUnimplementedActionsAreRefusedInsteadOfSilentlyIgnored(string $action): void {
 		// a silent no-op made the client display a state that was never stored
 		$this->streamService->method('getStreamByNid')->willReturn($this->post);

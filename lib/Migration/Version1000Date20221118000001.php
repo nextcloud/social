@@ -10,12 +10,35 @@ declare(strict_types=1);
 namespace OCA\Social\Migration;
 
 use Closure;
-use Doctrine\DBAL\Schema\SchemaException;
 use OCP\DB\ISchemaWrapper;
+use OCP\DB\Schema\SchemaException;
 use OCP\DB\Types;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
+/**
+ * Creates every table this app started with.
+ *
+ * It used to be four steps: this one, and three more from February and April
+ * 2023 that repaired it. Two of those re-keyed `social_cache_actor` and
+ * `social_cache_doc` from the hashed ActivityPub id onto an autoincrement
+ * `nid` — in two steps, because dropping a primary key and creating its
+ * replacement cannot go in one schema change on every supported platform —
+ * and the third added a `details_update` timestamp. This file had already
+ * been edited to create the repaired shape directly, so what the three
+ * repairs still did for a *new* instance was one column,
+ * `social_cache_doc.account`, which is now created here.
+ *
+ * They are gone rather than kept because the app's floor is Nextcloud 35.
+ * Reaching it means having passed through every Nextcloud major since 24,
+ * and so through every one of those steps: an instance that could still need
+ * them cannot install this version. Their rows stay in `oc_migrations`,
+ * which is harmless.
+ *
+ * What the DDL becomes on each platform is verified against the real DBAL
+ * outside the unit suite; `InitialSchemaTest` records the schema this asks
+ * for, which is what any future squash has to preserve.
+ */
 class Version1000Date20221118000001 extends SimpleMigrationStep {
 	/**
 	 * @param IOutput $output
@@ -25,6 +48,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 	 * @return ISchemaWrapper
 	 * @throws SchemaException
 	 */
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
@@ -971,6 +995,19 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 				'default' => ''
 			]
 		);
+		$table->addColumn(
+			'account', Types::STRING,
+			[
+				// the default is what makes this safe on a table that already
+				// has rows: PostgreSQL refuses a NOT NULL column without one
+				// ("column contains null values") where MySQL quietly fills in
+				// the empty string
+				'notnull' => true,
+				'length' => 127,
+				'default' => '',
+			]
+		);
+
 		$table->addColumn(
 			'meta', Types::TEXT,
 			[

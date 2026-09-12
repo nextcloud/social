@@ -17,6 +17,7 @@ use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
 use OCP\Notification\INotification;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -89,7 +90,7 @@ class NotifierSubjectsTest extends TestCase {
 		);
 	}
 
-	public function subjectProvider(): array {
+	public static function subjectProvider(): array {
 		return [
 			'mention' => ['mention', 'Bob mentioned you in a post'],
 			'favourite' => ['favourite', 'Bob favourited your post'],
@@ -100,18 +101,14 @@ class NotifierSubjectsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider subjectProvider
-	 */
+	#[DataProvider('subjectProvider')]
 	public function testEachSubjectSaysWhoDidWhat(string $subject, string $expected): void {
 		$this->notifier->prepare($this->notification($subject, $this->params()), 'en');
 
 		$this->assertSame($expected, $this->rendered['subject']);
 	}
 
-	/**
-	 * @dataProvider subjectProvider
-	 */
+	#[DataProvider('subjectProvider')]
 	public function testEachSubjectPointsAtWhatItIsAbout(string $subject): void {
 		$this->notifier->prepare($this->notification($subject, $this->params()), 'en');
 
@@ -140,7 +137,7 @@ class NotifierSubjectsTest extends TestCase {
 		$this->assertSame(' favourited your post', $this->rendered['subject']);
 	}
 
-	public function nonUrlProvider(): array {
+	public static function nonUrlProvider(): array {
 		return [
 			'a scheme that is not the web' => ['javascript:alert(1)'],
 			'a path' => ['/apps/social'],
@@ -148,9 +145,7 @@ class NotifierSubjectsTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider nonUrlProvider
-	 */
+	#[DataProvider('nonUrlProvider')]
 	public function testNothingButAWebUrlBecomesTheLink(string $link): void {
 		$this->notifier->prepare(
 			$this->notification('mention', $this->params(['link' => $link])), 'en'
@@ -159,9 +154,7 @@ class NotifierSubjectsTest extends TestCase {
 		$this->assertArrayNotHasKey('link', $this->rendered);
 	}
 
-	/**
-	 * @dataProvider nonUrlProvider
-	 */
+	#[DataProvider('nonUrlProvider')]
 	public function testNothingButAWebUrlBecomesTheIcon(string $avatar): void {
 		$this->notifier->prepare(
 			$this->notification('mention', $this->params(['avatar' => $avatar])), 'en'

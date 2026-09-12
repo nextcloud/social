@@ -104,6 +104,7 @@ class AccessBlock implements JsonSerializable {
 	 * empty — sent rather than omitted, because a client that declares it
 	 * non-optional cannot decode the entity without it.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		if ($this->type === self::TYPE_EMAIL_DOMAIN) {
 			return [

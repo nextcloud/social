@@ -148,6 +148,7 @@ class StreamAction implements JsonSerializable {
 		);
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->getId(),

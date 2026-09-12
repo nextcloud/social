@@ -54,6 +54,7 @@ class Suggestion implements JsonSerializable {
 		return $this->source;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		$this->account->setExportFormat(ACore::FORMAT_LOCAL);
 

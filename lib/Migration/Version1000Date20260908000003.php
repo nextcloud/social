@@ -22,6 +22,7 @@ use OCP\Migration\SimpleMigrationStep;
  * actor). status_ids is a JSON list of reported status ids.
  */
 class Version1000Date20260908000003 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

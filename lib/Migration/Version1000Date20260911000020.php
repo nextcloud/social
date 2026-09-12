@@ -26,6 +26,7 @@ use OCP\Migration\SimpleMigrationStep;
  * is exactly what the default says.
  */
 class Version1000Date20260911000020 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

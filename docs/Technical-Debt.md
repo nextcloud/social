@@ -4,55 +4,53 @@ What in this app is old, borrowed or load-bearing in a way nobody would choose
 today, what is simply dead, and what it would cost to change. Written for
 whoever has to decide where refactoring effort goes.
 
-**Verified against:** app version 0.15.1, 2026-09-12, after the fixes in
-[#2127](https://github.com/nextcloud/social/pull/2127), which are listed under
-[What has been done](#what-has-been-done). Every number was measured on that
+**Verified against:** app version 0.17.0, 2026-09-12, after the wave described
+in [What has been done](#what-has-been-done). Every number was measured on that
 tree rather than carried over, and
 [Reproducing the measurements](#reproducing-the-measurements) gives the command
 for each.
 
+**The support floors are whatever `appinfo/info.xml` declares.** Nothing else in
+the repository holds them: the PHPUnit, lint and appstore workflows read the PHP
+and Nextcloud ranges out of that file, through
+`icewind1991/nextcloud-version-matrix` and a direct `grep php min-version`, so
+changing two attributes there changes what CI tests against. They now say **PHP
+8.3–8.5 and Nextcloud 35–36**, and `composer.json`, `psalm.xml` and the server
+API stubs agree with them rather than contradicting them.
+
 Like [Performance.md](Performance.md), this file is **not** enforced by
-`tests/DocumentationTest.php`: its claims are structural rather than checkable
-against a route table, so nothing fails when it goes stale. Re-measure before
-quoting it. Query and scalability behaviour lives in `Performance.md` and is not
-repeated here; the schema is described in [Architecture.md](Architecture.md).
+`tests/DocumentationTest.php` beyond its title: its claims are structural rather
+than checkable against a route table, so nothing fails when it goes stale.
+Re-measure before quoting it. Query and scalability behaviour lives in
+`Performance.md`; the schema is described in [Architecture.md](Architecture.md).
 
 ---
 
 ## The shape of what is left
 
-The app is 75,870 lines of PHP across 414 files in `lib/`, and about 16,600
-lines of JavaScript and Vue across 81 files in `src/`.
-
-Most of what one expects to find in an app of this age is not here, and a good
-deal of it never was — see [What is not debt](#what-is-not-debt), which lists
-the searches so they do not get repeated. What remains is concentrated rather
-than spread out.
+The app is 76,325 lines of PHP across 415 files in `lib/`, and 17,779 lines of
+JavaScript and Vue across 81 files in `src/`.
 
 | Theme | Severity | Size |
 |---|---|---|
-| Vendored toolkit extending a private core class | **High** | 3,106 LOC |
 | The superseded half of the Custom Local API | Medium | 18 routes |
-| Five post fields readable only by parsing JSON | Medium | — |
-| Vuex + mixins + 100 % Options API | Medium | 1,432 LOC |
-| The 2022–2023 migration block | Low | 1,650 LOC |
-| ESLint 8 (end of life) and PHPUnit 9 (end of life) | Low | — |
-| Translation catalogue covers ~39 % of source strings | Low | — |
+| Delivery re-encodes the bytes it was asked to preserve | Medium | 1 call |
+| Translation catalogue covers under 40 % of source strings | Low | — |
+| PHPUnit 12 | Low | ~3,100 stub migrations |
 
-Two things worth saying before the list.
+The two largest items in every previous version of this document are both gone.
+The vendored toolkit's query builder no longer extends a private core class, and
+the 856-line request model in front of the OCP HTTP client has been deleted
+rather than ported. `lib/Tools/` is 25 files and 2,657 lines of helpers and
+traits now — a third of what it was, and nothing in it reaches outside `OCP\`.
 
-**The debt has a shape.** Draw a line around `lib/Tools/` and
-`lib/Db/CoreRequestBuilder.php` and you have enclosed nearly all of it: 29 of
-the 29 remaining untyped properties, the internally `@deprecated` methods still
-being called, and the one inheritance edge that can break the app without anyone
-changing the app. Outside that line the code is markedly more modern than the
-app's age would predict.
-
-**Several items are blocked by the declared support range, not by effort.**
-`appinfo/info.xml` claims Nextcloud 28–35 and PHP 8.1–8.5. Three separate
-cleanups — `IAppConfig`, a current `nextcloud/ocp`, and `#[\Override]` — each
-require the floor to rise. They are noted where they arise; none of them is a
-matter of someone finding the time.
+**Nothing in `lib/` names a class outside `OCP\` any more,** and a unit test
+holds it there — not the server's private classes, not Doctrine, not Guzzle.
+`\OC::$server`, `OC\SystemConfig`, `OC\DB\Connection`, `OC\DB\SchemaWrapper`,
+`OC\DB\QueryBuilder\QueryBuilder`, `OC\User\NoUserException`,
+`OC\Core\Command\Base`, every `Doctrine\` class and
+`GuzzleHttp\Exception\ClientException` are all gone; the matches that remain
+for those names are sentences in docblocks explaining what used to be there.
 
 ---
 
@@ -62,101 +60,20 @@ Lines of `lib/` by the year they were last touched, from `git blame`:
 
 | Year | Lines | Share |
 |------|-------|-------|
-| 2018 | 8,702 | 11.8% |
-| 2019 | 9,085 | 12.3% |
-| 2020 | 4,150 | 5.6% |
-| 2021 | 11 | 0.0% |
-| 2022 | 7,264 | 9.8% |
-| 2023 | 4,014 | 5.4% |
-| 2024 | 1,122 | 1.5% |
-| 2025 | 51 | 0.1% |
-| 2026 | 39,627 | 53.5% |
+| 2018 | 7,751 | 10.2% |
+| 2019 | 8,506 | 11.1% |
+| 2020 | 3,944 | 5.2% |
+| 2021 | 10 | 0.0% |
+| 2022 | 5,394 | 7.1% |
+| 2023 | 3,491 | 4.6% |
+| 2024 | 1,018 | 1.3% |
+| 2025 | 50 | 0.1% |
+| 2026 | 46,161 | 60.5% |
 
-Run this on a complete checkout: `git blame` can only attribute lines it has
+Run it on a complete checkout: `git blame` can only attribute lines it has
 history for, so a shallow or out-of-date clone silently understates the recent
-share. Measuring it on a checkout that was hundreds of commits behind put 2026
-at 29 % rather than 53 %.
-
-Within that, `lib/Tools/` is frozen: **82 % of it dates from the 2022 import and
-has not been touched since**, 64 lines changed in 2023 and 90 in 2024.
-
----
-
-## The database layer is built on a private core class
-
-This is the largest item in the report, and the only one that can break the app
-without anyone changing the app.
-
-`lib/Tools/` is a re-namespaced copy of the `daita/my-small-php-tools` library —
-27 files, 3,106 lines, vendored into the app rather than required through
-Composer. Every upstream reference has been stripped and the headers rewritten,
-but the provenance is legible in the `NC`-prefixed class names, the PHP 7.0-era
-style, the `@deprecated - 19` / `@deprecated - 21` markers that refer to
-*toolkit* versions rather than app versions, and `git blame`, which attributes
-the files to their original author at `artificial-owl.com`.
-
-It is not dead weight. It is the foundation of the data layer.
-
-### The inheritance edge
-
-```
-lib/Tools/Db/ExtendedQueryBuilder.php:16   use OC\DB\QueryBuilder\QueryBuilder;
-lib/Tools/Db/ExtendedQueryBuilder.php:29   class ExtendedQueryBuilder extends QueryBuilder …
-```
-
-`OC\DB\QueryBuilder\QueryBuilder` lives in the server's `lib/private/` and
-carries no API stability promise. The whole persistence layer descends from it:
-
-```
-OC\DB\QueryBuilder\QueryBuilder          (Nextcloud private)
-  └─ ExtendedQueryBuilder
-       └─ SocialCoreQueryBuilder
-            └─ SocialCrossQueryBuilder
-                 └─ SocialLimitsQueryBuilder
-                      └─ SocialFiltersQueryBuilder
-                           └─ SocialQueryBuilder
-                                └─ 68 files in lib/Db/
-```
-
-`QBMapper` and `Entity` — the API the server offers apps — appear nowhere.
-
-`lib/Db/SocialCoreQueryBuilder.php` hard-codes
-`parent::__construct($connection, $systemConfig, $logger)`, and
-`ExtendedQueryBuilder` declares no constructor at all, so a server release that
-changes that signature is an immediate fatal with no deprecation first. Core has
-already added sharding parameters to it upstream. A refactor that fully respects
-the server's *public* contract can still break every database call in this app,
-and it would arrive as a fatal on somebody's `occ upgrade`.
-
-Because `OC\SystemConfig` is private and not resolvable through app dependency
-injection, `lib/Db/CoreRequestBuilder.php` reaches for it directly with
-`OC::$server->get(\OC\SystemConfig::class)` — the only use of `\OC::$server` in
-production code in the whole app, and it exists solely to feed the private
-parent.
-
-### What the toolkit actually buys
-
-Most of the live surface is thin sugar over the public `IQueryBuilder`:
-`limitToDBField` (61 uses) and `setDefaultSelectAlias` (45 uses) are the two
-that matter, and both amount to `andWhere()` + `expr()->eq()` with a default
-table alias. That is the argument for retiring the toolkit rather than porting
-it.
-
-The rest is duplication. `lib/Db/CoreRequestBuilder.php` reimplements the *same
-ten helpers* that already exist on `ExtendedQueryBuilder` — one copy takes
-`IQueryBuilder &$qb` by reference, the other is a method on the builder.
-`CoreRequestBuilder::leftJoinCacheActors()` and
-`SocialCrossQueryBuilder::leftJoinCacheActor()` are two implementations of one
-join.
-
-### The order to do this in
-
-Moving to `QBMapper` touches every `*Request` class and is not the first step.
-The first step, worth doing on its own, is to stop extending the private class:
-replace `ExtendedQueryBuilder`'s inheritance with composition over the public
-`IQueryBuilder`, keeping only the handful of helpers that carry their weight.
-The two modern security classes that used to sit in this directory have already
-been moved to `lib/Security/`, so nothing recent is mixed in to complicate it.
+share. Measured on a checkout hundreds of commits behind, 2026 came out at
+29 % rather than 60 %.
 
 ---
 
@@ -164,121 +81,37 @@ been moved to `lib/Security/`, so nothing recent is mixed in to complicate it.
 
 The app serves two API designs, and they share the `/api/v1/` prefix.
 
-- **Mastodon-compatible** — `ApiController` (2,736 lines), `ListController`,
+- **Mastodon-compatible** — `ApiController` (2,940 lines), `ListController`,
   `FilterController` and others, through `StreamService::getTimeline(ProbeOptions)`.
-- **Custom local** — `LocalController` (1,090 lines), through the `@deprecated`
-  `StreamService::getStream*()` methods and then `StreamRequest::getTimeline*_dep()`.
+- **Custom local** — `LocalController` (1,068 lines), through the five
+  `@deprecated` `StreamService::getStream*()` methods and the five
+  `StreamRequest::getTimeline*_dep()` query methods behind them.
 
 So `/api/v1/stream/home` (local: `since`/`limit` cursor, default page size 5, no
 `Link` header, `{status, result}` envelope) sits directly beside
 `/api/v1/timelines/home` (Mastodon: `max_id`/`since_id`, page size 20, `Link`
 header, bare entity).
 
-**18 of the 31 `Local#` routes have no caller anywhere in `src/`**, including all
-seven `/api/v1/stream/*` endpoints — the ones still backed by the `_dep` query
-methods. They are now marked deprecated in [API.md](API.md) with the Mastodon
-route to use instead, and kept rather than removed because they are a published
-surface. Retiring them retires that whole query layer; doing it needs a
-deprecation cycle and a release note, not a patch.
+**18 of `LocalController`'s 31 routes have no caller anywhere in `src/`**,
+including all seven `/api/v1/stream/*` endpoints — the ones still backed by the
+`_dep` query methods. They are marked deprecated in [API.md](API.md) with the Mastodon route
+to use instead, and kept rather than removed because they are a published
+surface. Retiring them retires that whole query layer; it needs a deprecation
+cycle and a release note, which is a decision about the app's compatibility
+promise rather than a cleanup.
 
-Routes themselves are still an array: 199 in `appinfo/routes.php`, and zero
-`#[FrontpageRoute]`/`#[ApiRoute]` attributes, although access control is fully
-attribute-based. The policy lives next to the method and the URL lives 200 lines
-away. Low priority, but it is the remaining half of a finished migration.
+### Routes are attributes now
 
----
+201 of the 202 routes moved onto the methods they belong to; one stays in
+`appinfo/routes.php`, and the file explains why. `/api/v1/accounts/{id}` accepts
+slashes, so it also matches two routes that live in other controllers and has to
+be offered to the matcher after them — and attribute routes are contributed one
+controller at a time in filesystem order, so no arrangement of attributes can
+put it last. The array file is loaded after every attribute route, which is the
+guarantee that one route needs.
 
-## Five post fields live only inside JSON
-
-`Stream::importFromDatabase()` runs once per timeline row. It `json_decode`s the
-stored ActivityPub wire object and extracts `tags`, `language`, `updated`,
-`quote` and `quoteAuthorization` from it, because — as the code comments state
-outright — none of the five has a column. It then derives the `remote_likes`,
-`remote_boosts` and `replies` counters from the same JSON, and rehydrates media
-attachments and the cache object from two more JSON columns.
-
-Those five fields are user-visible and cannot be queried, indexed or sorted on.
-Post language in particular is what a language filter would need.
-
-Related, and deliberate rather than accidental: `social_hashtag` stores each
-trend twice (a JSON blob the API returns, and five integer columns because no
-supported database can sort on the JSON), and `social_stream` carries nine
-JSON-in-TEXT columns of which `hashtags` duplicates `social_stream_tag` and
-`to_array`/`cc`/`bcc` duplicate `social_stream_dest`. The side tables exist
-*because* the JSON is unqueryable, so every insert writes both.
-
----
-
-## Frontend
-
-Modern in its framework usage, dated in its architecture.
-
-**Vuex 4, no Pinia.** 1,320 lines across six files; 5 modules, 30 state keys, 40
-mutations, 21 getters, 10 actions; 111 `this.$store.*` references across 20
-files. No module is namespaced, so every mutation and getter name is unique by
-convention only. Two `state` conventions coexist — `notifications.js` uses the
-correct factory form and its own comment explains why the alternative is wrong,
-while the other four use a shared object literal. There are no map helpers at
-all, which is what makes a Pinia migration a 111-site change rather than a
-helper swap.
-
-**100 % Options API.** Zero `<script setup>`, zero `setup()`, and no
-`ref`/`computed`/`reactive`/`watch`/`onMounted` anywhere in `src/`.
-
-**Three mixins, 112 lines, 24 consumers**, all pure bundles of computed
-properties over `$store` and a 1:1 map to composables. `accountMixins` mixes in
-`serverData`, so components inherit a transitive property set they never named,
-and one mixin is imported under four different spellings (`currentuserMixin`,
-`CurrentUserMixin`, `currentUserMixin`, `currentUser`). `accountMixins` also
-carries a comment admitting `accountLoaded` is "somewhat duplicate with
-`accountInfo()`, but needed (for some reason)".
-
-**One dead compatibility branch.** `src/profile.js` registers against
-`window.OCA.Core.ProfileSections` "to keep compatibility with older Nextcloud
-builds". That contract predates Nextcloud 25; the app declares a floor of 28,
-and the branch immediately above it covers the entire supported range.
-
-**JSDoc typedefs that nothing checks.** `src/types/ActivityPub.js` and
-`src/types/Mastodon.js` (237 lines) are imported as types by ten files, but
-there is no root `tsconfig.json` and no `checkJs`, so nothing validates them
-against the real API shapes.
-
-**Unlinted code.** `npm run lint` covers `src` and `tests/js`; `npm run
-stylelint` covers `src`. Outside that: `js/social-adminSettings.js` (160
-hand-written lines shipped to administrators), `css/dashboard.css`,
-`webpack.common.js` and `vitest.config.js`.
-
-**Deprecated global APIs.** Nine uses of `OC.Notification.showTemporary`, while
-`@nextcloud/dialogs` is already a dependency and used in 41 other places.
-
----
-
-## Toolchain
-
-| Tool | Pinned | Status |
-|---|---|---|
-| `nextcloud/ocp` | `dev-master` at a **2024-10-23** commit | **Blocked.** Current dev-master requires PHP 8.3; `info.xml` declares 8.1. |
-| PHPUnit | `^9.5` | End of life. PHPUnit 10+ requires static data providers, across 266 test files. |
-| ESLint | 8.57.1 | End of life. See below. |
-| Psalm | `^6.17` | Current, and running on supported PHP. |
-| Stylelint | `^17.9.1` | Current. |
-
-**ESLint 8 is end of life, and upgrading is a reformatting project rather than a
-dependency bump.** `@nextcloud/eslint-config` 9 requires ESLint 10 and flat
-config, and brings `@stylistic`, `perfectionist` and `antfu` rule sets the app
-has never been held to: a trial run reported **1,615 problems, 1,237 of them
-auto-fixable**, touching nearly every file in `src/`. That is a deliberate
-decision about the codebase's formatting, not a cleanup, and it should be taken
-on its own rather than buried in another change. The trial was reverted.
-
-`IConfig` -> `IAppConfig` is the same shape of problem: `IConfig`'s app-value
-methods are deprecated as of Nextcloud 29, but `IAppConfig`'s typed API is
-`@since 29.0.0` while the declared floor is 28. It becomes a one-file change to
-`ConfigService` the day the floor rises.
-
-`#[\Override]` is PHP 8.3+, so the 266 places Psalm 6 wants it cannot have it
-while the floor is PHP 8.1. That rule is suppressed in `psalm.xml` with the
-reason written down.
+`tests/DocumentationTest.php` reads the attributes by reflection the way the
+server does, and treats an empty route table as a failure rather than a pass.
 
 ---
 
@@ -292,18 +125,26 @@ orders them:
 
 | Era | Steps |
 |---|---|
-| 2022-11-18 | 1 (creates all 14 original tables, 1,450 lines) |
-| 2023-02 to 2023-04 | 3 (all repairs of the 2022 one) |
+| 2022-11-18 | 1 (creates all 14 original tables) |
 | 2026-06-11 | 1 (drops 14 legacy `social_3_*` tables) |
-| 2026-09-07 onward | 26 |
+| 2026-09-07 onward | 28 |
 
 There are numbering gaps at `20260911000003`, `000012` and `000015`–`000019`,
-and twenty-five of thirty steps were authored in a five-day window.
+and most steps were authored in a six-day window.
 
-Two squash candidates are clean: the 2022 creation plus its three 2023 repairs
-(1,650 lines, two of them chasing the same `social_cache_actor` primary-key
-defect), and `Version1000Date20260908000001`, which widens a column introduced
-one day earlier in the same burst.
+The 2023 block is gone: its three steps repaired instances the 2022 step had
+created, and the 2022 step had been edited over the years to produce the
+repaired shape directly, so what they still did for a new instance was one
+column. Running both paths through the test doubles and diffing the schemas is
+what established that.
+
+One squash candidate is left and is deliberately not taken.
+`Version1000Date20260908000001` widens a column introduced one day earlier, and
+both shipped in 0.16.0 — but an instance on 0.15 running Nextcloud 35 has run
+neither, so folding the width into the creating step would leave it with a
+column too narrow for its own client secrets. The argument that retired the 2023
+steps does not transfer: the Nextcloud floor says which server an instance is
+on, not which version of this app.
 
 `Version1000Date20260611000001` drops fourteen `social_3_*` tables that **no
 other file in the tree ever creates** — the creating migrations were deleted and
@@ -311,57 +152,105 @@ only the drop survives, so it is dead weight on every fresh install. The legacy
 naming split it addresses is finished: there is no `social_a2_*` prefix
 anywhere, and all 32 current tables are both read and written.
 
-Squashing is left undone deliberately. It rewrites the upgrade path for every
-existing instance, and the 2022–2023 block is exactly the era with no test
-coverage (`tests/Migration/` holds 11 files against 30 schema steps), so the
-change would be made in the one place where a mistake surfaces as a failed `occ
-upgrade` on somebody's server.
+`tests/Migration/InitialSchemaTest` records what the creation step produces,
+including the columns and keys the retired repairs used to add. That is what any
+further squash has to preserve.
 
 ### Two columns written and never read
 
 `social_stream_dest.id` and `social_stream_tag.id` are autoincrement surrogate
-keys added purely to give those tables a primary key. Neither appears in the
-column lists in `CoreRequestBuilder` nor in the select lists of their request
-builders. These are the two highest-insert-rate side tables in the app, and
-every row pays for a sequence and an index write nothing reads. The primary keys
-are still worth having — this is a note on the cost.
+keys. The new tests record why they exist: both tables shipped in 2022 with no
+primary key at all, only a unique index over the columns that identify a row.
+Neither `id` appears in the column lists in `CoreRequestBuilder` nor in the
+select lists of their request builders. These are the two highest-insert-rate
+side tables in the app, and every row pays for a sequence and an index write
+nothing reads. The keys are still worth having — this is a note on the cost.
+
+---
+
+## Frontend
+
+**Still Options API.** There are `setup()` blocks now, because the composables
+need them, but no `<script setup>` and no wholesale move to composition. That is
+a style question rather than debt: the components are consistent with each other.
+
+**The JSDoc typedefs are checked.** `jsconfig.json` runs `checkJs` over the
+types, services, stores and utilities, and `npm run typecheck` is a script.
+Single-file components are outside it, because `tsc` cannot resolve a `.vue`
+import without `vue-tsc` and every entry point imports one — that is the next
+step here, and it needs a dependency rather than a decision.
+
+**Four ESLint rules are switched off**, in two pairs, and `eslint.config.mjs`
+says why next to each. Sorting imports and named imports (247 reports) detaches
+the comments that explain the side-effect imports; the two component-naming
+rules (8 reports) would rename `Search.vue`, `Poll.vue` and friends, which
+changes what templates say. Neither pair is formatting, which is why they were
+not taken with the rest. A fifth rule, `vue/no-multiple-template-root`, is off
+because this app mounts several roots and the rule is a Vue 2 leftover.
+
+---
+
+## Toolchain
+
+| Tool | Pinned | Status |
+|---|---|---|
+| `nextcloud/ocp` | `dev-stable35` | Matches the declared minimum, so analysis checks this app against the oldest server it claims to support. |
+| PHPUnit | `^11.5` (11.5.56) | Current major minus one. See below. |
+| Psalm | `^6.17` | Current, running on supported PHP. Its baseline covers six files and seven issues, none of them in `lib/Db`. |
+| ESLint | 10.10.0 with `@nextcloud/eslint-config` 9 | Current, flat config, four rules deliberately off. |
+| Stylelint | `^17.15` | Current. |
+| Vitest / jsdom | 5.0 / 30.0 | Current. |
+| webpack / vue-router / vite | 5.110 / 5.3 / 8.3 | Current. |
+| `node-polyfill-webpack-plugin` | exactly `4.0.0` | **Blocked upstream.** `@nextcloud/webpack-vue-config` 6.3.2 peer-pins it; 4.1.0 needs a release there first. |
+
+**PHPUnit 12 is the one version behind, and the gap is measured.** Under 12 this
+suite reports about 3,100 notices — "no expectations were configured for the
+mock object, consider a test stub" — which is a suite-wide `createMock` to
+`createStub` migration, and it needs roughly 2 GB to run where 11 needs 90 MB.
+Nothing in `tests/` blocks it otherwise: providers are static, metadata is
+attributes rather than annotations, and the `onConsecutiveCalls()` calls 12
+removes are gone. It is a day of mechanical work with no correctness payoff,
+which is why it is last.
+
+`terser-webpack-plugin` is a direct devDependency because webpack 5.110 stopped
+hoisting it where `@nextcloud/webpack-vue-config` expects to find it. Worth
+knowing that the build depends on the shared webpack config's internal layout in
+more places than that one.
 
 ---
 
 ## Remaining odds and ends
 
-**`lib/Tools/Model/Request` and `NCRequest`** are 796 lines of hand-rolled HTTP
-request modelling wrapped around `OCP\Http\Client\IClient` — an OCP client
-re-wrapped in a pre-OCP abstraction. Replacing them with `IClientService`
-directly means rewriting the request pipeline and its 39 call sites across ten
-services, including `SignatureService`, which signs based on the request's
-method, path and headers. It is the federation transport, and nothing in the
-test suite exercises it against a real peer, so it wants a dedicated change with
-interop testing behind it.
+**20 `@deprecated` markers in `lib/`, 12 of them on methods with live callers**,
+led by `CoreRequestBuilder::leftJoinStreamAction` (17) and
+`SocialLimitsQueryBuilder::limitPaginate` (8). The worst of them went with the
+request model — `Request::getUrl` had 55 callers and had been deprecated since
+toolkit version 19 — and what is left is concentrated in the query layer.
+`ACore::verify` still carries its `// TODO - Compare this with checkOrigin() -
+and delete this method.` and is down to three callers.
 
-**37 methods in `lib/` carry `@deprecated` and still have live callers**, led by
-`ACore::verify` (19 callers, plus a `// TODO - Compare this with checkOrigin()
-- and delete this method.` above it) and
-`CoreRequestBuilder::leftJoinStreamAction` (18). A `@deprecated` marker with
-nineteen callers is not a plan; it is a note that a plan was intended.
+**Two joins that look like one.** `CoreRequestBuilder::leftJoinCacheActors()`
+joins case-insensitively on the full ActivityPub URL with a hand-written column
+list; `SocialCrossQueryBuilder::leftJoinCacheActor()` joins on the indexed
+hashed id, generates its column list from the schema, and pulls the actor's icon
+with it. The first is the older, slower path — `LOWER()` on unindexed text, as
+`Performance.md` describes. Collapsing them changes which rows match, in
+timeline queries, so it wants a database to check against.
 
-**Constructor promotion is at 148 of 204 (72 %).** The remaining 56 are the ones
+**Constructor promotion is at 151 of 206 (73 %).** The remaining 56 are the ones
 an automated pass should not touch: constructors that do real work in the body,
 that forward a parameter to a parent as well as storing it, or whose property
 name differs from the parameter.
-
-**29 untyped properties remain, all but one in `lib/Tools/`** —
-`Tools/Model/Request.php` accounts for 28.
 
 ---
 
 ## Translations
 
-The frontend contains roughly 344 translatable strings. The best-covered locales
-(`de`, `de_DE`, `en_GB`) carry 135. The median locale across 98 languages
-carries 21, and 47 carry fewer than 20. The strings `Quote`, `Bookmark`,
-`Scheduled`, `Announcement`, `Follow requests` and `Photos` appear in **zero**
-translation files.
+The frontend contains 295 distinct translatable strings. The best-covered
+locales (`de`, `de_DE`, `en_GB`) carry 135. The median locale across 98
+languages carries 21, and 47 carry fewer than 20. The strings `Quote`,
+`Bookmark`, `Scheduled`, `Announcement`, `Follow requests` and `Photos` appear
+in **zero** translation files.
 
 The cause is diagnosed in the header of `.github/workflows/l10n.yml`: nothing in
 the repository ever extracted the source strings, so nothing was ever pushed for
@@ -376,14 +265,26 @@ rather than a code change.
 
 Each item here is a search that does not need repeating.
 
+**Classes from outside `OCP\`: none.** No `OC\DB\QueryBuilder\QueryBuilder`, no
+`\OC::$server`, no `OC\SystemConfig`, no `Doctrine\DBAL\Query\QueryBuilder`. The
+only matches are docblock sentences explaining what was removed.
+
+**Untyped properties: none.** All 35 were typed, including six mutable public
+statics in `TArrayTools` that were constants in everything but name.
+
+**Deprecated server APIs: none.** `IConfig`'s app-value methods (deprecated in
+29) and user-value methods (deprecated in 33) are gone in favour of `IAppConfig`
+and `IUserConfig`; `IConfig` is used only for system values, which are not
+deprecated.
+
 **Vue 2 leftovers: none.** `Vue.prototype`, `new Vue(`, `$listeners`,
 `$set`/`$delete`, `.sync`, `filters:`, `beforeDestroy`, `functional: true` and
 `slot-scope` all return zero hits in `src/`. The only occurrences anywhere are
-the regexes in `tests/js/vue3.test.js`, which holds each at zero.
+the regexes in `tests/js/vue3.test.js`, which holds each at zero. Vuex is gone
+too.
 
 **PHPDoc route annotations: none.** Access control is 100 % PHP 8 attributes,
-403 occurrences across 22 files, zero docblock annotations, with a regression
-test asserting the old form is not reintroduced.
+with a regression test asserting the old form is not reintroduced.
 
 **Legacy PHP constructs: none.** Zero occurrences of `array()`, `list()`,
 `strftime`, `utf8_encode`, `each()`, `create_function`, `ereg*` or
@@ -397,14 +298,21 @@ in `SocialCrossQueryBuilder`, which binds its parameters.
 **Legacy bootstrap: none.** No `appinfo/app.php`, no `appinfo/application.php`.
 `lib/AppInfo/Application.php` is 71 lines of correct `IBootstrap` registration.
 
-**`@nextcloud/vue` v9 usage: current.** All 62 imports use the v9 subpath-export
+**`@nextcloud/vue` v9 usage: current.** All 63 imports use the v9 subpath-export
 style; zero deep `dist/` imports, zero removed or renamed components.
+
+**Unlinted code: none.** `npm run lint` covers `src`, `tests/js`, the hand-written
+`js/social-adminSettings.js` and the root configuration; `npm run stylelint`
+covers `src` and `css`.
 
 **Dead frontend code: none.** The import graph over all 81 files in `src/`
 resolves, and there are no unused exports.
 
 **Dead model classes: none** (70 checked). **Dead exception classes: none** (46
 checked). **Unused controllers: none** (21 checked).
+
+**Repair steps that re-scan on every upgrade: none.** All four carry a version
+marker in app config and return early.
 
 ### A trap worth knowing before you audit this app
 
@@ -428,24 +336,22 @@ sixty when twenty survive the check.
 
 ## What has been done
 
-The items below were closed in
-[#2127](https://github.com/nextcloud/social/pull/2127). They are listed so that
-the next reader can tell what this document has already accounted for.
+### In [#2127](https://github.com/nextcloud/social/pull/2127)
 
 | Item | Outcome |
 |---|---|
 | Source maps in the release tarball | Excluded. The tarball was ~22 MB of maps against 6.7 MB of bundles. |
-| Three disagreeing packaging lists | One list. `build-package.sh` calls `make appstore`; `.nextcloudignore` deleted (krankerl is not installed). 19 phantom entries dropped, and `cypress.config.ts`, `vitest.config.js`, `patches/`, `deploy.sh` no longer ship. |
-| The `elliptic` stub | Replaced with an `overrides` pin on the real `^6.6.1`. The stub claimed to be version 6.6.2, which has never existed on the registry. |
+| Three disagreeing packaging lists | One list. `build-package.sh` calls `make appstore`; `.nextcloudignore` deleted. |
+| The `elliptic` stub | Replaced with an `overrides` pin on the real `^6.6.1`. The stub claimed a version that has never existed on the registry. |
 | Cypress husk | Deleted: 8 files, 1 config, 4 npm scripts, 6 packages, 0 tests. |
 | Unused npm dependencies | `ical.js`, `uuid`, `cypress-wait-until`, `@nextcloud/cypress` dropped; `buffer` and `webpack-dev-server` declared. |
 | Dead code | 3 files and 20 methods with no caller anywhere, 4 dead config constants, an 80-line commented-out block, 4 obsolete Psalm suppressions. |
-| Repair steps re-scanning on every upgrade | `EncryptPrivateKeys`, `HashClientSecrets` and `BackfillRemoteVisibility` now carry markers. `RenameDocumentLocalCopy`, `@deprecated` since 0.7.x, is unregistered and deleted. |
+| Repair steps re-scanning on every upgrade | Markers added; `RenameDocumentLocalCopy` unregistered and deleted. |
 | Missing indexes | `social_actor.user_id` and the four unindexed `trend_*` windows. |
 | Status-id collisions | Width 1e6 -> 1e9, `rand()` -> `random_int()`, and a collision is retried instead of silently dropping the post. |
 | `IInitialStateService` | Migrated to `IInitialState` in four controllers. |
 | `Cron\Queue` | Given the wall-clock budget `QueueController` already had. |
-| The `AP` static registry | Resolved lazily instead of by an `AP::init();` at file scope, and held in a private static behind an accessor. |
+| The `AP` static registry | Resolved lazily instead of by an `AP::init();` at file scope. |
 | Unreachable controller methods | Six deleted from `LocalController`. |
 | Two unbounded loops | `NotificationService::clear()` and `MigrationService::refollowLocalFollowers()` bounded. |
 | The rest of the unbounded work | Closed in [#2132](https://github.com/nextcloud/social/pull/2132), with the N+1 behind `accounts/relationships` and the missing transaction around `StreamRequest::save()`. See [Performance.md](Performance.md), which tracks that category. |
@@ -455,46 +361,92 @@ the next reader can tell what this document has already accounted for.
 | Constructor promotion | 107 -> 148 of 204, and 264 redundant `@param` tags removed with it. |
 | `HtmlSanitizer`, `RemoteAddress` | Moved from `lib/Tools/` to `lib/Security/`. |
 
+### Since then
+
+| Item | Outcome |
+|---|---|
+| ESLint 8 (end of life) | [#2129](https://github.com/nextcloud/social/pull/2129): ESLint 10, `@nextcloud/eslint-config` 9, flat config. |
+| Nine conflicting dependabot bumps | [#2130](https://github.com/nextcloud/social/pull/2130): vue 3.5.42, webpack 5.110, jsdom 30, vue-router 5 with vite 8 behind it, dialogs 7.5. |
+
+### In this wave
+
+| Item | Outcome |
+|---|---|
+| **The five post fields with no column** | `tag`, `language`, `updated`, `quote` and `quoteAuthorization` are columns on `social_stream`, written where a row is written and read with a per-field fallback to the stored JSON, with a repair step backfilling existing rows behind a version marker. `language` is indexed, which is what a language filter needs. |
+| **The private core class under the whole data layer** | `ExtendedQueryBuilder` holds a builder from `IDBConnection::getQueryBuilder()` and delegates all 60 `IQueryBuilder` methods instead of extending `OC\DB\QueryBuilder\QueryBuilder`. The `\OC::$server` reach that fed its private parent is gone, and so are the four `Doctrine\DBAL\Query\QueryBuilder` imports that existed only to read four constants. Nextcloud 35 had already broken the old arrangement by adding `forUpdate()` to the interface. |
+| **The support floors** | PHP 8.1 -> 8.3, Nextcloud 28 -> 35, with `composer.json`'s platform pin and constraint following. |
+| `nextcloud/ocp` two years stale | `dev-master` at a 2024-10-23 commit -> `dev-stable35`. |
+| `#[\Override]` unavailable | 343 methods carry it; the psalm suppression that named the 8.1 floor is gone. |
+| `IConfig` deprecated methods | `IAppConfig` and `IUserConfig` in five files. |
+| PHPUnit 9 (end of life) | 11.5, via 10. All 112 data providers static, 127 annotations to attributes, 11 `withConsecutive()` sites rewritten, config migrated. |
+| Test doubles drifting from the interfaces they double | `FakeConnection` completed; ten hand-rolled anonymous table classes replaced by one `FakeTable`; the test container serves an anonymous session because `Response` resolves one on every render from 35 onward. |
+| Vuex 4, no Pinia | Five Pinia stores, `mapStores` at the call sites, `vuex` removed. |
+| Three mixins, four spellings of one import | Three composables in `src/composables/`. |
+| Dead pre-Nextcloud-25 profile branch | Deleted. |
+| `OC.Notification.showTemporary` | `@nextcloud/dialogs`, imported lazily so the Vue-free admin bundle stays 28 KiB rather than 761 KiB. |
+| Nineteen deferred ESLint rules | Sixteen adopted, ~1,100 reports fixed. Three stay off with the reason next to each. |
+| Unlinted code | The hand-written admin script and the root configuration are linted; `css/` is stylelinted. |
+| 35 untyped properties | Zero. Six mutable public statics became constants. |
+| The 2022–2023 migrations, untested | `InitialSchemaTest` and `SchemaRepairs2023Test`. |
+| Private core classes elsewhere in lib/ | `OC\DB\Connection` (a dead import), `OC\DB\SchemaWrapper` (two `occ social:reset` paths, now `IDBConnection::tableExists()`/`dropTable()`), `Doctrine\DBAL\Schema\SchemaException` (the OCP one exists) and `OC\User\NoUserException` (thrown by this app at this app, now its own). Six analysis suppressions went with them. |
+| Every occ command on a private core class | All twenty-one extend Symfony's `Command` through the app's own `SocialCommand`, whose output is byte-identical to the server's `Base` across 109 diffed cases and the rendered `--help` of every command. |
+| Routes as an array | 201 of 202 moved onto the methods; `DocumentationTest` reads the attributes by reflection and fails on an empty table. |
+| The 2023 migration repairs | Squashed into the step they repair, after measuring that the whole difference they still made was one column. |
+| `CoreRequestBuilder` reimplementing the builder's helpers | 36 methods gone — eleven with no caller, twenty-five identical to the builder's — and 84 call sites now say `$qb->limitToId($id)`. The file lost 450 lines. |
+| Typedefs nothing checked | `jsconfig.json` plus `npm run typecheck`, which found a placeholder relationship missing two fields the server always sends, and a pagination cursor typed as a number while ids are strings. |
+| The hand-rolled HTTP request model | Deleted. Requests go to `IClient` directly, and the signing string was pinned by a test run against both trees before and after — byte for byte identical. |
+| Real defects found on the way | An instance's `local` flag was bound as a string because a parameter type was passed to the wrong function. `Profile.vue`'s "User not found" panel could never appear because one query was being asked twice under two names. And GET `/@{username}/outbox` was shadowed by its own POST, because two route attributes on one method registered under one name — the endpoint a remote server fetches an outbox from was served by the registration the documentation calls not implemented. Pinning the federation wire found five more: a delivery that signed one path and sent to another, a non-default port silently dropped when fetching a remote object, a `?tag[]=` in an id that was a TypeError, a report forward whose digest covered different bytes from the ones sent, and a webfinger response with no subject writing a garbage account name. |
+
 ---
 
 ## Rough order of value for what is left
 
-1. Stop `ExtendedQueryBuilder` extending the private core `QueryBuilder` —
-   composition over the public `IQueryBuilder`, then retire the rest of
-   `lib/Tools/`.
-2. Give `tag`, `language`, `updated`, `quote` and `quoteAuthorization` real
-   columns.
-3. Replace `Tools\Model\Request` and `NCRequest` with `IClientService`, with
-   interop testing behind it.
-4. Retire the 18 uncalled Custom Local API routes on a deprecation cycle.
-5. Vuex -> Pinia, mixins -> composables.
-6. ESLint 10 and the reformatting it implies, as its own decision.
-7. PHPUnit 10+, which means static data providers across 266 files.
-8. Raise the Nextcloud floor to 29, which unblocks `IAppConfig` and a current
-   `nextcloud/ocp` in one move.
-9. Squash the 2022–2023 migration block, once that era has test coverage.
-10. Finish the l10n round trip.
+1. **Send a queued activity's stored bytes.** Delivery decodes and re-encodes
+   the activity it queued, which defeats `ForwardService` on purpose-built
+   input: that service queues `getSource()` precisely so a third party's
+   signature survives, and the transport re-encodes it anyway. It is a wire
+   change, so it wants a real peer to test against.
+2. **Retire the 18 uncalled Custom Local API routes**, and the five
+   `getStream*()` / `getTimeline*_dep()` methods with them. A decision rather
+   than a task: they are a published surface, so either the URLs go with a
+   release note, or they stay and are re-pointed at the modern query path,
+   which changes their paging semantics.
+3. Collapse the two cache-actor joins, with a database to check against.
+4. Finish the l10n round trip — a Transifex round trip, not a code change.
+5. `vue-tsc`, so the single-file components are type-checked too.
+6. PHPUnit 12, which means `createMock` -> `createStub` across the suite.
+7. The last migration squash candidate, if an instance upgrading from 0.15 is
+   no longer a case worth supporting.
 
 ---
 
 ## Reproducing the measurements
 
 ```bash
+# The support floors, and the places that should agree with them
+grep -oE '(php|nextcloud) min-version="[^"]+" max-version="[^"]+"' appinfo/info.xml
+grep -nE '"php": |platform' composer.json | head -3
+grep -rn 'php min-version\|nextcloud-version-matrix' .github/workflows/*.yml | wc -l
+
 # Sizes
-find lib -name '*.php' | wc -l && find lib -name '*.php' -exec wc -l {} + | tail -1
+find lib -name '*.php' | wc -l && find lib -name '*.php' -exec cat {} + | wc -l
+find src -type f \( -name '*.js' -o -name '*.vue' \) | wc -l
 
-# Legacy PHP constructs (all should be 0)
-grep -rnE '\barray\(|\blist\(|strftime|utf8_encode|\beach\(|create_function' lib/ --include='*.php' | wc -l
+# Classes from outside OCP\ (expect only docblock prose)
+grep -rn 'OC\\DB\\QueryBuilder\\QueryBuilder\|OC::\$server\|OC\\SystemConfig\|Doctrine\\DBAL\\Query' lib --include='*.php'
 
-# Docblock route annotations (0) versus attributes
-grep -rn '^\s*\* @\(NoAdminRequired\|PublicPage\|NoCSRFRequired\)' lib/ | wc -l
-grep -rn '#\[\(NoAdminRequired\|PublicPage\|NoCSRFRequired\)\]' lib/ | wc -l
+# Untyped properties (expect 0)
+grep -rnE '^\s*(var|private|protected|public|static|readonly)(\s+(static|readonly))*\s+\$\w+' lib --include='*.php' | wc -l
 
-# The private QueryBuilder edge
-grep -rn 'OC\\DB\\QueryBuilder\\QueryBuilder\|OC::\$server' lib/ --include='*.php'
+# Deprecated server config APIs (expect 0)
+grep -rn 'config->getAppValue\|config->setAppValue\|config->getUserValue\|config->setUserValue' lib --include='*.php' | wc -l
+
+# @deprecated methods that still have callers
+grep -rn '@deprecated' lib --include='*.php' | wc -l
+grep -rn 'leftJoinStreamAction(' lib --include='*.php' | grep -v 'function ' | wc -l
 
 # Constructor promotion adoption
-python3 - <<'EOF'
+python3 - <<'PY'
 import re, glob
 p = n = 0
 for f in glob.glob('lib/**/*.php', recursive=True):
@@ -503,10 +455,10 @@ for f in glob.glob('lib/**/*.php', recursive=True):
         if re.search(r'\b(private|protected|public|readonly)\s', a): p += 1
         elif a.strip(): n += 1
 print('promoted', p, 'of', p + n)
-EOF
+PY
 
 # Custom Local API routes with no caller in src/
-python3 - <<'EOF'
+python3 - <<'PY'
 import re, glob
 routes = [m.groups() for l in open('appinfo/routes.php')
           if (m := re.search(r"'name' => 'Local#(\w+)'.*?'url' => '([^']+)'", l))]
@@ -515,14 +467,31 @@ src = ''.join(open(p, errors='replace').read() for p in glob.glob('src/**/*', re
 for name, url in routes:
     if url.split('{')[0].rstrip('/').lstrip('/') not in src:
         print('uncalled:', url)
-EOF
+PY
 
-# Source maps that would ship (expect 1: the Makefile excludes them)
-grep -c 'js/\*\.map' Makefile
+# Data providers that are not static (expect 0). Matching on the name alone
+# also finds methods like getDatabaseProvider(), so ask which methods the
+# #[DataProvider] attributes actually name.
+python3 - <<'PY'
+import re, glob
+named = set()
+for f in glob.glob('tests/**/*.php', recursive=True):
+    named |= set(re.findall(r"#\[DataProvider\('(\w+)'\)\]", open(f).read()))
+for f in glob.glob('tests/**/*.php', recursive=True):
+    for m in re.finditer(r'public (static )?function (\w+)\(', open(f).read()):
+        if m.group(2) in named and not m.group(1):
+            print('not static:', f, m.group(2))
+PY
+
+# ESLint rules this codebase does not adopt
+grep -c "': 'off'" eslint.config.mjs
 
 # Translation coverage
+grep -rhoE "\b[tn]\('social',\s*'[^']*'" src | sort -u | wc -l
 python3 -c "import json,glob; print(sorted((len(json.load(open(f))['translations']), f) for f in glob.glob('l10n/*.json'))[-3:])"
 
 # Suites
-composer test:unit && composer psalm && npm run lint && npm run stylelint && npm test
+composer test:unit && composer psalm && composer lint \
+  && vendor/bin/php-cs-fixer fix --dry-run \
+  && npm run lint && npm run stylelint && npm test && npm run build
 ```

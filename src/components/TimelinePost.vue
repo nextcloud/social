@@ -6,7 +6,8 @@
 	<article class="post-content" :data-social-status="item.id" :aria-label="postLabel">
 		<div class="post-header">
 			<div class="post-author-wrapper" :title="item.account.acct">
-				<router-link v-if="item.account"
+				<router-link
+					v-if="item.account"
 					:to="{ name: 'profile',
 						params: { account: item.account.acct },
 					}">
@@ -16,7 +17,8 @@
 					<span class="post-author-id">
 						@{{ item.account.username }}
 					</span>
-					<span v-if="!origin.local"
+					<span
+						v-if="!origin.local"
 						class="post-instance"
 						:style="{ '--instance-colour': origin.colour }"
 						:title="t('social', 'Posted from {instance}', { instance: origin.instance })">
@@ -24,7 +26,8 @@
 					</span>
 				</router-link>
 			</div>
-			<button :data-timestamp="timestamp"
+			<button
+				:data-timestamp="timestamp"
 				type="button"
 				class="post-timestamp live-relative-timestamp"
 				:title="formattedDate"
@@ -38,20 +41,23 @@
 			</span>
 			<!-- the byline is 12px text; a 22px globe beside it read as the
 			     loudest thing in the row, and it is the least important -->
-			<VisibilityIcon v-if="visibility"
+			<VisibilityIcon
+				v-if="visibility"
 				:title="visibility.text"
 				class="post-visibility"
 				:size="14"
 				:visibility="visibility.id" />
 		</div>
 		<div v-if="isEditing" class="post-edit-inline">
-			<input v-model="editSpoiler"
+			<input
+				v-model="editSpoiler"
 				type="text"
 				class="post-edit-warning"
 				maxlength="200"
 				:aria-label="t('social', 'Content warning')"
 				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
-			<textarea ref="editInput"
+			<textarea
+				ref="editInput"
 				v-model="editContent"
 				class="post-edit-textarea"
 				:maxlength="MAX_LENGTH"
@@ -59,19 +65,22 @@
 				:placeholder="t('social', 'Edit your post')"
 				@keydown.ctrl.enter="saveEdit" />
 			<div class="post-edit-actions">
-				<span :id="`post-edit-count-${item.id}`"
+				<span
+					:id="`post-edit-count-${item.id}`"
 					class="post-edit-count"
 					:class="{ 'post-edit-count--over': editIsTooLong }"
 					role="status">
 					{{ editCharactersLeftLabel }}
 				</span>
-				<NcButton variant="primary"
+				<NcButton
+					variant="primary"
 					:disabled="!editCanSave"
 					:aria-label="t('social', 'Save')"
 					@click="saveEdit">
 					{{ t('social', 'Save') }}
 				</NcButton>
-				<NcButton :aria-label="t('social', 'Cancel')"
+				<NcButton
+					:aria-label="t('social', 'Cancel')"
 					@click="cancelEdit">
 					{{ t('social', 'Cancel') }}
 				</NcButton>
@@ -84,8 +93,11 @@
 		  happened anyway.
 		-->
 		<div v-else-if="hasSpoiler" class="post-warning">
-			<p class="post-warning__text">{{ item.spoiler_text }}</p>
-			<NcButton variant="secondary"
+			<p class="post-warning__text">
+				{{ item.spoiler_text }}
+			</p>
+			<NcButton
+				variant="secondary"
 				:aria-expanded="warningLifted ? 'true' : 'false'"
 				@click="warningLifted = !warningLifted">
 				{{ warningLifted ? t('social', 'Show less') : t('social', 'Show more') }}
@@ -100,11 +112,13 @@
 		  is not, because its cover has to come before anything it covers.
 		-->
 		<template v-else-if="mediaLeads">
-			<PostAttachment v-if="mediaRevealed"
-				media-first
+			<PostAttachment
+				v-if="mediaRevealed"
+				mediaFirst
 				:attachments="item.media_attachments || []" />
 			<div v-else class="post-sensitive post-sensitive--leading">
-				<NcButton variant="secondary"
+				<NcButton
+					variant="secondary"
 					@click="warningLifted = true">
 					<template #icon>
 						<EyeOff :size="20" />
@@ -132,7 +146,8 @@
 		     when the media leads, which shows this same reveal in the place
 		     the pictures will take. -->
 		<div v-else-if="!hasSpoiler && !mediaLeads" class="post-sensitive">
-			<NcButton variant="secondary"
+			<NcButton
+				variant="secondary"
 				@click="warningLifted = true">
 				<template #icon>
 					<EyeOff :size="20" />
@@ -145,12 +160,14 @@
 		     to animate to a height nobody can know in advance, and the
 		     dialogs below stay outside it: a box collapsing to nothing is
 		     no place to put a modal. -->
-		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public"
+		<div
+			v-if="$route && $route.params.type !== 'notifications' && !serverData.public"
 			class="post-actions-reveal"
 			:class="{ 'post-actions-reveal--held': menuOpen }">
 			<div class="post-actions">
 				<div class="post-action-group">
-					<NcButton :title="t('social', 'Reply')"
+					<NcButton
+						:title="t('social', 'Reply')"
 						:aria-label="t('social', 'Reply')"
 						variant="tertiary"
 						@click="reply">
@@ -160,9 +177,11 @@
 					</NcButton>
 					<RollingCount :count="item.replies_count || 0" />
 				</div>
-				<div class="post-action-group"
+				<div
+					class="post-action-group"
 					:class="{ 'post-action-group--refused': refused === 'boost' }">
-					<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+					<NcButton
+						v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
 						:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 						:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 						:aria-pressed="isBoosted ? 'true' : 'false'"
@@ -170,25 +189,27 @@
 						:class="{ 'post-action--spun': celebrate === 'boost' }"
 						@click="boost">
 						<template #icon>
-							<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+							<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
 						</template>
 					</NcButton>
 					<RollingCount :count="item.reblogs_count || 0" />
 				</div>
-				<div class="post-action-group post-action-group--like"
+				<div
+					class="post-action-group post-action-group--like"
 					:class="{ 'post-action-group--refused': refused === 'like' }">
 					<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
 					<!-- one button whose label changes, not two swapped by v-if:
 					     unmounting the button someone just pressed drops their focus
 					     to the body and loses their place in the timeline -->
-					<NcButton :title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+					<NcButton
+						:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
 						:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
 						:aria-pressed="isLiked ? 'true' : 'false'"
 						variant="tertiary"
 						:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
 						@click="like">
 						<template #icon>
-							<Heart v-if="isLiked" :size="20" fill-color="var(--color-element-error)" />
+							<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
 							<HeartOutline v-else :size="20" />
 						</template>
 					</NcButton>
@@ -203,18 +224,21 @@
 						</template>
 						{{ t('social', 'Quote') }}
 					</NcActionButton>
-					<NcActionButton v-if="item.account.acct === currentAccount?.acct"
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct"
 						icon="icon-rename"
 						@click="editPost">
 						{{ t('social', 'Edit') }}
 					</NcActionButton>
-					<NcActionButton v-if="item.account.acct === currentAccount?.acct"
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct"
 						icon="icon-delete"
 						@click="showDeleteDialog = true">
 						{{ t('social', 'Delete') }}
 					</NcActionButton>
 					<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
-					<NcActionLink v-if="!origin.local && item.url"
+					<NcActionLink
+						v-if="!origin.local && item.url"
 						:href="item.url"
 						target="_blank">
 						<template #icon>
@@ -229,7 +253,8 @@
 						</template>
 						{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
 					</NcActionButton>
-					<NcActionButton v-if="canPin"
+					<NcActionButton
+						v-if="canPin"
 						@click="togglePin">
 						<template #icon>
 							<Pin v-if="!item.pinned" :size="20" />
@@ -237,7 +262,8 @@
 						</template>
 						{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
 					</NcActionButton>
-					<NcActionButton v-if="item.account.acct !== currentAccount?.acct"
+					<NcActionButton
+						v-if="item.account.acct !== currentAccount?.acct"
 						@click="showReportDialog = true">
 						<template #icon>
 							<Flag :size="20" />
@@ -247,20 +273,23 @@
 				</NcActions>
 			</div>
 		</div>
-		<NcDialog v-model:open="showReportDialog"
+		<NcDialog
+			v-model:open="showReportDialog"
 			:name="t('social', 'Report {account}', { account: item.account.acct })"
 			:buttons="reportButtons">
 			<p class="report-hint">
 				{{ t('social', 'The report goes to the moderators of this instance. It is never sent to the reported account or their server.') }}
 			</p>
-			<textarea v-model="reportComment"
+			<textarea
+				v-model="reportComment"
 				class="report-comment"
 				:placeholder="t('social', 'Why are you reporting this post? (optional)')"
 				rows="3" />
 		</NcDialog>
 		<!-- deleting is irreversible and federates: it is not something to
 		     do on the first click of a menu item sitting under "Edit" -->
-		<NcDialog v-model:open="showDeleteDialog"
+		<NcDialog
+			v-model:open="showDeleteDialog"
 			:name="t('social', 'Delete this post?')"
 			:buttons="deleteButtons">
 			<p class="delete-hint">
@@ -271,13 +300,12 @@
 </template>
 
 <script>
-// eslint-disable-next-line no-unused-vars
+
 // side-effect imports: they register the mention plugin and the string
 // interface that the rendered content relies on
 import { fromNow, fullDateTime } from '../utils/relativeTime.js'
 import 'linkify-plugin-mention'
 import 'linkify-string'
-import currentUser from './../mixins/currentUserMixin.js'
 import PostAttachment from './PostAttachment.vue'
 import PostCard from './PostCard.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -311,6 +339,11 @@ import RollingCount from './RollingCount.vue'
 import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useTimelineStore } from '../store/timeline.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /** what the server accepts in one status, the same limit the composer shows */
 const MAX_LENGTH = 500
@@ -344,18 +377,27 @@ export default {
 		DisplayName,
 		VisibilityIcon,
 	},
-	mixins: [currentUser],
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status>} */
 		item: {
 			type: Object,
 			default: () => {},
 		},
+
 		type: {
 			type: String,
 			required: true,
 		},
 	},
+
+	setup() {
+		const { serverData } = useServerData()
+		const { currentUser } = useCurrentUser()
+
+		return { serverData, currentUser }
+	},
+
 	data() {
 		return {
 			MAX_LENGTH,
@@ -380,19 +422,24 @@ export default {
 			now: Date.now(),
 		}
 	},
+
 	computed: {
+		...mapStores(useAccountStore, useTimelineStore),
 		/** @return {boolean} the author asked for the post to be covered */
 		hasSpoiler() {
 			return Boolean(this.item.spoiler_text)
 		},
+
 		/** @return {boolean} anything a warning is supposed to cover */
 		hasMedia() {
 			return this.hasAttachments || this.localPoll !== null || this.showCard || this.hasQuote
 		},
+
 		/** @return {boolean} the post embeds another one, whatever came of it */
 		hasQuote() {
 			return Boolean(this.item.quote)
 		},
+
 		/**
 		 * @return {boolean} whether the media sits behind a reveal. A warning
 		 * covers the whole post; `sensitive` on its own covers only the media,
@@ -401,10 +448,12 @@ export default {
 		hasGatedMedia() {
 			return (this.hasSpoiler || this.item.sensitive === true) && this.hasMedia
 		},
+
 		/** @return {boolean} */
 		mediaRevealed() {
 			return !this.hasGatedMedia || this.warningLifted
 		},
+
 		/**
 		 * @return {boolean} whether the post is laid out around its pictures.
 		 * Not while it is being edited, where the text is the thing being
@@ -414,36 +463,44 @@ export default {
 		mediaLeads() {
 			return this.hasAttachments && !this.hasSpoiler && !this.isEditing
 		},
+
 		/** @return {number} how many characters the edit has left */
 		editCharsLeft() {
 			return MAX_LENGTH - this.editContent.length
 		},
+
 		/** @return {boolean} */
 		editIsTooLong() {
 			return this.editCharsLeft < 0
 		},
+
 		/** @return {boolean} */
 		editCanSave() {
 			return this.editContent.trim() !== '' && !this.editIsTooLong
 		},
+
 		/** @return {string} */
 		editCharactersLeftLabel() {
 			return this.editIsTooLong
 				? n('social', '%n character too many', '%n characters too many', -this.editCharsLeft)
 				: n('social', '%n character left', '%n characters left', this.editCharsLeft)
 		},
+
 		/** Who wrote it, so moving between posts by landmark says something. */
 		postLabel() {
 			return t('social', 'Post by {account}', { account: this.item.account?.acct ?? '' })
 		},
+
 		/** @return {{instance: string, colour: string, local: boolean}} where the author lives */
 		origin() {
 			return originOf(this.item.account?.acct ?? '')
 		},
+
 		/** @return {boolean} a link preview replaces nothing, so media wins */
 		showCard() {
 			return !this.hasAttachments && Boolean(this.item.card?.title)
 		},
+
 		/**
 		 * @return {boolean} own local posts can be pinned to the profile, and
 		 * only the ones anyone may see: a pinned followers-only post was
@@ -456,6 +513,7 @@ export default {
 				&& this.item.local !== false
 				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
 		},
+
 		/**
 		 * @return {boolean} whether this post may be quoted at all. A quote
 		 * carries the audience of the quoter, so the server grants one only for
@@ -465,6 +523,7 @@ export default {
 		canQuote() {
 			return this.item.visibility === 'public' || this.item.visibility === 'unlisted'
 		},
+
 		reportButtons() {
 			return [
 				{
@@ -480,6 +539,7 @@ export default {
 				},
 			]
 		},
+
 		deleteButtons() {
 			return [
 				{
@@ -495,24 +555,28 @@ export default {
 				},
 			]
 		},
+
 		/**
 		 * @return {string}
 		 */
 		relativeTimestamp() {
 			return fromNow(this.item.created_at, new Date(this.now))
 		},
+
 		/**
 		 * @return {string}
 		 */
 		formattedDate() {
 			return fullDateTime(this.item.created_at)
 		},
+
 		/**
 		 * @return {number}
 		 */
 		timestamp() {
 			return Date.parse(this.item.created_at)
 		},
+
 		/**
 		 * @return {boolean}
 		 */
@@ -520,6 +584,7 @@ export default {
 			// TODO: clean media_attachments
 			return (this.item.media_attachments || []).length > 0
 		},
+
 		/**
 		 * @return {boolean}
 		 */
@@ -533,31 +598,37 @@ export default {
 		isLiked() {
 			return this.item.favourited === true
 		},
+
 		/**
 		 * @return {object}
 		 */
 		richParameters() {
 			return {}
 		},
+
 		/**
 		 * @return {boolean}
 		 */
 		isLocal() {
 			return !this.item.account.acct.includes('@')
 		},
+
 		/** @return {import('../types/Mastodon.js').Account} */
 		currentAccount() {
-			return this.$store.getters.currentAccount
+			return this.accountStore.currentAccount
 		},
+
 		/** @return {boolean} */
 		isNotification() {
 			return this.item.type !== undefined
 		},
+
 		/** @return {object} */
 		visibility() {
 			return visibilitiesInfo.find(({ id }) => this.item.visibility === id)
 		},
 	},
+
 	watch: {
 		// a vote cast elsewhere (or reloaded from the server) has to reach the
 		// copy this component renders, or navigating back shows the poll unvoted
@@ -565,6 +636,7 @@ export default {
 			this.localPoll = poll ?? null
 		},
 	},
+
 	mounted() {
 		eventBus.on('timeline:focused', this.rememberFocus)
 		eventBus.on('shortcut:like', this.likeIfFocused)
@@ -575,6 +647,7 @@ export default {
 			this.now = now
 		})
 	},
+
 	unmounted() {
 		eventBus.off('timeline:focused', this.rememberFocus)
 		eventBus.off('shortcut:like', this.likeIfFocused)
@@ -583,6 +656,7 @@ export default {
 		eventBus.off('shortcut:open', this.openIfFocused)
 		this.stopTicking?.()
 	},
+
 	methods: {
 		/**
 		 * @param {import('../types/Mastodon.js').Status} status the post the keyboard moved to
@@ -590,26 +664,31 @@ export default {
 		rememberFocus(status) {
 			this.hasKeyboardFocus = status?.id === this.item.id
 		},
+
 		likeIfFocused() {
 			if (this.hasKeyboardFocus) {
 				this.like()
 			}
 		},
+
 		boostIfFocused() {
 			if (this.hasKeyboardFocus && (this.item.visibility === 'public' || this.item.visibility === 'unlisted')) {
 				this.boost()
 			}
 		},
+
 		replyIfFocused() {
 			if (this.hasKeyboardFocus) {
 				this.reply()
 			}
 		},
+
 		openIfFocused() {
 			if (this.hasKeyboardFocus) {
 				this.getSinglePostTimeline()
 			}
 		},
+
 		/**
 		 * @function getSinglePostTimeline
 		 * @description Opens the conversation the post belongs to.
@@ -636,17 +715,21 @@ export default {
 				},
 			})
 		},
+
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		},
+
 		reply() {
-			this.$store.commit('setComposerDisplayStatus', true)
+			this.timelineStore.setComposerDisplayStatus(true)
 			eventBus.emit('composer-reply', this.item)
 		},
+
 		quote() {
-			this.$store.commit('setComposerDisplayStatus', true)
+			this.timelineStore.setComposerDisplayStatus(true)
 			eventBus.emit('composer-quote', this.item)
 		},
+
 		async sendReport() {
 			try {
 				await axios.post(generateUrl('apps/social/api/v1/reports'), {
@@ -662,10 +745,12 @@ export default {
 				showError(t('social', 'Failed to report the post'))
 			}
 		},
+
 		async boost() {
 			const undo = this.isBoosted
 			await this.act('boost', undo ? 'postUnBoost' : 'postBoost', !undo)
 		},
+
 		editPost() {
 			// never the author's bio: an image-only post has no content, and
 			// seeding the editor from account.note offered to publish it
@@ -678,13 +763,14 @@ export default {
 				}
 			})
 		},
+
 		async saveEdit() {
 			if (!this.editCanSave) {
 				return
 			}
 
 			const warning = this.editSpoiler.trim()
-			const response = await this.$store.dispatch('postEdit', {
+			const response = await this.timelineStore.postEdit({
 				status: this.item,
 				content: this.editContent.trim(),
 				// fixing a typo used to un-hide sensitive content for every
@@ -701,15 +787,18 @@ export default {
 			this.editContent = ''
 			this.editSpoiler = ''
 		},
+
 		cancelEdit() {
 			this.isEditing = false
 			this.editContent = ''
 			this.editSpoiler = ''
 		},
+
 		remove() {
 			this.showDeleteDialog = false
-			this.$store.dispatch('postDelete', this.item)
+			this.timelineStore.postDelete(this.item)
 		},
+
 		/**
 		 * A vote is cast on the component's own copy of the poll; the store
 		 * holds the one every other view reads, so it hears about it too.
@@ -718,18 +807,22 @@ export default {
 		 */
 		updatePoll(poll) {
 			this.localPoll = poll
-			this.$store.commit('updateStatusPoll', { statusId: this.item.id, poll })
+			this.timelineStore.updateStatusPoll({ statusId: this.item.id, poll })
 		},
+
 		toggleBookmark() {
-			this.$store.dispatch('postBookmark', { status: this.item, bookmarked: !this.item.bookmarked })
+			this.timelineStore.postBookmark({ status: this.item, bookmarked: !this.item.bookmarked })
 		},
+
 		togglePin() {
-			this.$store.dispatch('postPin', { status: this.item, pinned: !this.item.pinned })
+			this.timelineStore.postPin({ status: this.item, pinned: !this.item.pinned })
 		},
+
 		async like() {
 			const undo = this.isLiked
 			await this.act('like', undo ? 'postUnlike' : 'postLike', !undo)
 		},
+
 		/**
 		 * Both actions are applied optimistically and rolled back by the store
 		 * when the server refuses — which used to happen invisibly. Confirming
@@ -753,7 +846,7 @@ export default {
 				}, 600)
 			}
 
-			const response = await this.$store.dispatch(action, { status: this.item })
+			const response = await this.timelineStore[action]({ status: this.item })
 			if (response === undefined) {
 				this.celebrate = ''
 				this.refused = name
@@ -813,6 +906,7 @@ function nodeToPlainText(node) {
 	return text
 }
 </script>
+
 <style scoped lang="scss">
 /* the like confirmation: a short overshoot, not a bounce */
 @keyframes post-pop {

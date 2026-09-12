@@ -25,6 +25,7 @@ class AddInterface extends AbstractActivityPubInterface implements IActivityPubI
 	 *
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		$this->featuredCollection->toggle($item, true);
 	}

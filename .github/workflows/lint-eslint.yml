@@ -46,6 +46,7 @@ jobs:
               - 'package.json'
               - 'package-lock.json'
               - 'tsconfig.json'
+              - 'jsconfig.json'
               - 'eslint.config.*'
               - '**.js'
               - '**.ts'
@@ -86,6 +87,11 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Type check
+        # tsc over the plain-JavaScript half of src/, against the JSDoc typedefs
+        # in src/types/. See jsconfig.json for what is in and what is not.
+        run: npm run typecheck
 
   summary:
     permissions:

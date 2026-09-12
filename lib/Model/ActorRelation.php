@@ -97,6 +97,7 @@ class ActorRelation implements JsonSerializable {
 		return $this->creation;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->getId(),

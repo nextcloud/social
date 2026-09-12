@@ -51,10 +51,12 @@ class CacheFeaturedCollections implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Refresh the cached copy of local actors';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		if ($this->configService->getAppValueInt(self::MARKER) >= self::VERSION) {
 			return;

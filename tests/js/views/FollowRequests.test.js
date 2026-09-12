@@ -23,7 +23,7 @@ const API = '/index.php/apps/social/api/v1'
 const bob = { id: '22', acct: 'bob@remote.tld', username: 'bob', display_name: 'Bob', avatar: 'https://remote.tld/bob.png' }
 const carol = { id: '33', acct: 'carol@remote.tld', username: 'carol', display_name: 'Carol', avatar: 'https://remote.tld/carol.png' }
 
-const mountView = async (requests = [bob, carol]) => {
+async function mountView(requests = [bob, carol]) {
 	axios.get.mockResolvedValueOnce({ data: requests })
 	const wrapper = mount(FollowRequests, {
 		global: {

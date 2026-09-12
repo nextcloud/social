@@ -12,7 +12,7 @@
 			<div class="preview-item__actions">
 				<NcButton variant="tertiary-no-background" @click="$emit('delete', randomKey)">
 					<template #icon>
-						<Close :size="16" fill-color="white" />
+						<Close :size="16" fillColor="white" />
 					</template>
 					<span>{{ t('social', 'Delete') }}</span>
 				</NcButton>
@@ -33,7 +33,8 @@
 		<label v-if="!preview.failed" class="preview-item__label" :for="fieldId">
 			{{ t('social', 'Describe this for people who cannot see it') }}
 		</label>
-		<textarea v-if="!preview.failed"
+		<textarea
+			v-if="!preview.failed"
 			:id="fieldId"
 			class="preview-item__description"
 			rows="2"
@@ -58,27 +59,33 @@ export default {
 		NcButton,
 		MediaAttachment,
 	},
-	emits: ['delete', 'describe', 'commitDescription'],
+
 	props: {
 		/** @type {import('vue').PropType<import('./Composer.vue').LocalAttachment>} */
 		preview: {
 			type: Object,
 			required: true,
 		},
+
 		randomKey: {
 			type: String,
 			required: true,
 		},
 	},
+
+	emits: ['delete', 'describe', 'commitDescription'],
+
 	computed: {
 		described() {
 			return (this.preview.description || '').trim() !== ''
 		},
+
 		/** Unique per attachment, so the label points at its own field. */
 		fieldId() {
 			return 'composer-alt-' + this.randomKey
 		},
 	},
+
 	methods: {
 		t: translate,
 	},

@@ -5,9 +5,10 @@
 <template>
 	<blockquote v-if="quote" class="quoted-post" :cite="citeUrl">
 		<template v-if="quotedStatus">
-			<router-link class="quoted-post__author-link"
+			<router-link
+				class="quoted-post__author-link"
 				:to="{ name: 'profile', params: { account: quotedAccount.acct } }">
-				<ActorAvatar :actor="quotedAccount" :size="20" :hover-card="false" />
+				<ActorAvatar :actor="quotedAccount" :size="20" :hoverCard="false" />
 				<span class="quoted-post__author">
 					<DisplayName :text="quotedAccount.display_name" :emojis="quotedAccount.emojis" />
 				</span>
@@ -44,6 +45,7 @@ export default {
 		DisplayName,
 		MessageContent,
 	},
+
 	props: {
 		/**
 		 * The `quote` of a status: `{ state, quoted_status }`, or null when the
@@ -58,6 +60,7 @@ export default {
 			default: null,
 		},
 	},
+
 	computed: {
 		/** @return {?object} the quoted post, when there is one to show */
 		quotedStatus() {
@@ -68,10 +71,12 @@ export default {
 			// a card, so it falls through to the notice
 			return this.quote?.state === 'accepted' && quoted?.account ? quoted : null
 		},
+
 		/** @return {object} */
 		quotedAccount() {
 			return this.quotedStatus.account
 		},
+
 		/** @return {object} the conversation of the quoted post */
 		quotedRoute() {
 			return {
@@ -83,10 +88,12 @@ export default {
 				},
 			}
 		},
+
 		/** @return {string|undefined} what the quotation is of, for the markup */
 		citeUrl() {
 			return this.quotedStatus?.url || undefined
 		},
+
 		/**
 		 * @return {string} why there is no quoted post here. A state this
 		 * version does not know reads as unavailable rather than as an error:
@@ -94,14 +101,14 @@ export default {
 		 */
 		notice() {
 			switch (this.quote.state) {
-			case 'pending':
-				return t('social', 'This quote is waiting for the quoted author to approve it.')
-			case 'rejected':
-				return t('social', 'The author of the quoted post did not allow this quote.')
-			case 'revoked':
-				return t('social', 'The author of the quoted post withdrew their permission for this quote.')
-			default:
-				return t('social', 'The quoted post is not available.')
+				case 'pending':
+					return t('social', 'This quote is waiting for the quoted author to approve it.')
+				case 'rejected':
+					return t('social', 'The author of the quoted post did not allow this quote.')
+				case 'revoked':
+					return t('social', 'The author of the quoted post withdrew their permission for this quote.')
+				default:
+					return t('social', 'The quoted post is not available.')
 			}
 		},
 	},

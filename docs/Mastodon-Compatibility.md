@@ -73,7 +73,8 @@ Most of the value is in the first test. Most of the difficulty is in the third.
 
 ### 3.1 Blocker — the API is not at the domain root
 
-Every route is registered under the app prefix (`appinfo/routes.php`), served at
+Every route is registered under the app prefix (a `#[FrontpageRoute]` on the
+controller method), served at
 `https://host/index.php/apps/social/api/v1/...`. The only things the app
 registers at the server root are the WebFinger, NodeInfo and host-meta well-known
 handlers (`AppInfo\Application`).

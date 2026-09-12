@@ -23,6 +23,7 @@ class UndoInterface extends AbstractActivityPubInterface implements IActivityPub
 	) {
 	}
 
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		// `object` may be a link rather than an embedded object: Mastodon embeds,
 		// most others do not, and returning here meant an Undo from those peers

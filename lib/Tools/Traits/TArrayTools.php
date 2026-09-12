@@ -22,12 +22,15 @@ use Throwable;
  * @package OCA\Social\Tools\Traits
  */
 trait TArrayTools {
-	public static $TYPE_NULL = 'Null';
-	public static $TYPE_STRING = 'String';
-	public static $TYPE_ARRAY = 'Array';
-	public static $TYPE_BOOLEAN = 'Boolean';
-	public static $TYPE_INTEGER = 'Integer';
-	public static $TYPE_SERIALIZABLE = 'Serializable';
+	/** What {@see typeOf()} answers with. Constants, not the mutable public
+	 *  statics they used to be: nothing outside this trait reads them, and
+	 *  nothing should be able to change what a type is called. */
+	public const TYPE_NULL = 'Null';
+	public const TYPE_STRING = 'String';
+	public const TYPE_ARRAY = 'Array';
+	public const TYPE_BOOLEAN = 'Boolean';
+	public const TYPE_INTEGER = 'Integer';
+	public const TYPE_SERIALIZABLE = 'Serializable';
 
 	protected function get(string $k, array $arr, string $default = ''): string {
 		if (!array_key_exists($k, $arr)) {
@@ -282,27 +285,27 @@ trait TArrayTools {
 			$item = $arr[$key];
 
 			if (is_null($item)) {
-				return self::$TYPE_NULL;
+				return self::TYPE_NULL;
 			}
 
 			if (is_string($item)) {
-				return self::$TYPE_STRING;
+				return self::TYPE_STRING;
 			}
 
 			if (is_array($item)) {
-				return self::$TYPE_ARRAY;
+				return self::TYPE_ARRAY;
 			}
 
 			if (is_bool($item)) {
-				return self::$TYPE_BOOLEAN;
+				return self::TYPE_BOOLEAN;
 			}
 
 			if (is_int($item)) {
-				return self::$TYPE_INTEGER;
+				return self::TYPE_INTEGER;
 			}
 
 			if ($item instanceof JsonSerializable) {
-				return self::$TYPE_SERIALIZABLE;
+				return self::TYPE_SERIALIZABLE;
 			}
 
 			throw new UnknownTypeException();

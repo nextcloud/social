@@ -18,11 +18,10 @@ use Symfony\Component\Console\Tester\CommandTester;
 /**
  * Base for the occ command tests.
  *
- * The unit suite cannot test these at all: the commands extend
- * OC\Core\Command\Base, which is server-internal, so tests/Command's
- * placeholder was right about the standalone harness and wrong about the
- * conclusion — the integration suite boots a real server, and symfony/console
- * comes with it. Every command is resolved from the container exactly as occ
+ * The unit suite can read a command's definition — they extend the app's own
+ * SocialCommand, which extends Symfony's Command — but it cannot run one:
+ * that needs services, a database and a question helper. This suite boots a
+ * real server and resolves every command from the container exactly as occ
  * resolves it, so a constructor these tests cannot satisfy is a constructor
  * occ cannot satisfy either.
  */

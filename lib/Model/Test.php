@@ -93,6 +93,7 @@ class Test extends SimpleDataStore implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		$result = array_filter(
 			[

@@ -8,8 +8,6 @@
 namespace OCA\Social\Service;
 
 use Exception;
-use GuzzleHttp\Exception\ClientException;
-use OC\User\NoUserException;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -18,6 +16,7 @@ use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
+use OCA\Social\Exceptions\NoUserException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -26,6 +25,7 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
+use OCP\IAppConfig;
 use OCP\ICache;
 use OCP\IConfig;
 use OCP\IRequest;
@@ -49,6 +49,7 @@ class CheckService {
 		private IUserManager $userManager,
 		?string $userId,
 		private ICache $cache,
+		private IAppConfig $appConfig,
 		private IConfig $config,
 		private IClientService $clientService,
 		private IRequest $request,
@@ -165,7 +166,7 @@ class CheckService {
 			return true;
 		}
 
-		$address = $this->config->getAppValue('social', 'address', '');
+		$address = $this->appConfig->getValueString('social', 'address', '');
 
 		if ($address !== '' && $this->requestWellKnown($address)) {
 			return true;
@@ -327,8 +328,10 @@ class CheckService {
 
 				return true;
 			}
-		} catch (ClientException $e) {
 		} catch (Exception $e) {
+			// a 4xx from the peer, a refused connection, a bad URL: all of them
+			// mean the same thing here, which is that the well-known endpoint
+			// did not answer
 		}
 
 		return false;

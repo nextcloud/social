@@ -32,6 +32,7 @@ class FlagInterface extends AbstractActivityPubInterface implements IActivityPub
 	/**
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		/** @var Flag $flag */
 		$flag = $item;

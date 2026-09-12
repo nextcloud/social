@@ -25,6 +25,7 @@ use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -93,6 +94,7 @@ class HistoryController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/history')]
 	public function history(int $nid): DataResponse {
 		try {
 			$this->initViewer();

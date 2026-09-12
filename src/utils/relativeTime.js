@@ -15,6 +15,13 @@ import { getCanonicalLocale } from '@nextcloud/l10n'
  */
 
 /** the steps a relative time is rounded to, longest first */
+/**
+ * The units `Intl.RelativeTimeFormat` is given, largest first, with how many
+ * seconds each one is. Typed as tuples so the unit stays a unit: inferred, both
+ * halves would be `string | number` and the arithmetic below would be untyped.
+ *
+ * @type {Array<[Intl.RelativeTimeFormatUnit, number]>}
+ */
 const STEPS = [
 	['year', 365 * 24 * 3600],
 	['month', 30 * 24 * 3600],
@@ -26,7 +33,7 @@ const STEPS = [
 ]
 
 /** @return {string} the locale to format in, falling back to the browser's */
-const locale = () => {
+function locale() {
 	try {
 		return getCanonicalLocale()
 	} catch {

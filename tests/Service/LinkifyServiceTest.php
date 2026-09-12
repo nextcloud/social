@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Service\LinkifyService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -98,7 +99,7 @@ class LinkifyServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function urlBoundaryProvider(): array {
+	public static function urlBoundaryProvider(): array {
 		return [
 			'a full stop ends the sentence, not the URL' => ['https://example.invalid/a.', 'https://example.invalid/a'],
 			'a comma likewise' => ['https://example.invalid/a,', 'https://example.invalid/a'],
@@ -109,9 +110,7 @@ class LinkifyServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider urlBoundaryProvider
-	 */
+	#[DataProvider('urlBoundaryProvider')]
 	public function testAUrlEndsWhereTheSentenceDoes(string $text, string $expected): void {
 		$entities = $this->service->entitiesIn($text);
 
@@ -210,7 +209,7 @@ class LinkifyServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, array<int, array{string, string}>}>
 	 */
-	public function entityProvider(): array {
+	public static function entityProvider(): array {
 		return [
 			'a mention and a hashtag' => ['hi @bob@remote.example #Nextcloud', [
 				[LinkifyService::TYPE_MENTION, 'bob@remote.example'],
@@ -231,9 +230,9 @@ class LinkifyServiceTest extends TestCase {
 	}
 
 	/**
-	 * @dataProvider entityProvider
 	 * @param array<int, array{string, string}> $expected
 	 */
+	#[DataProvider('entityProvider')]
 	public function testEntitiesAreFoundWhereTheyAre(string $text, array $expected): void {
 		$found = array_map(
 			static fn (array $entity): array => [$entity['type'], $entity['name']],

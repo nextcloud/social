@@ -201,6 +201,7 @@ class Announcement implements JsonSerializable {
 		return implode('', $paragraphs);
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->getId(),

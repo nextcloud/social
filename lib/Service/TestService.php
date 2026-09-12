@@ -18,7 +18,6 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Test;
 use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
-use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\SimpleDataStore;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -63,16 +62,17 @@ class TestService {
 		}
 		$tests->aObj('tests', $testHostMeta);
 
-		$request = new NCRequest($path);
-		$request->addParam('resource', 'acct:' . $account);
-		$request->setHost($host);
-		$request->setProtocols($protocols);
+		$urls = array_map(
+			static fn (string $protocol): string => $protocol . '://' . $host . $path
+				. '?' . http_build_query(['resource' => 'acct:' . $account]),
+			$protocols
+		);
 
 		$testWebfinger = new Test('webfinger', Test::SEVERITY_MANDATORY);
-		$testWebfinger->sObj('request', $request);
+		$testWebfinger->sArray('request', $urls);
 		$result = [];
 		try {
-			$result = $this->curlService->retrieveJson($request);
+			$result = $this->curlService->retrieveJsonFromFirstReachable($urls, ['json_headers' => false]);
 			$testWebfinger->sArray('result', $result);
 			$testWebfinger->setSuccess(true);
 		} catch (Exception $e) {

@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
@@ -19,7 +18,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class CacheRefresh extends Base {
+class CacheRefresh extends SocialCommand {
 	private CacheActorService $cacheActorService;
 	private HashtagService $hashtagService;
 
@@ -34,6 +33,7 @@ class CacheRefresh extends Base {
 		$this->hashtagService = $hashtagService;
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:cache:refresh')
@@ -49,6 +49,7 @@ class CacheRefresh extends Base {
 	/**
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		// Deliberately opt-in and not part of the cron: rotation invalidates the
 		// key remote servers have cached, and they only recover by re-fetching

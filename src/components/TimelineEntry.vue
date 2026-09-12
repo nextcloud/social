@@ -3,7 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<component :is="element"
+	<component
+		:is="element"
 		class="timeline-entry"
 		:class="{ notification: isNotification, 'with-header': isNotification }"
 		tabindex="-1">
@@ -21,7 +22,8 @@
 				{{ actionSummary }}
 			</span>
 			<span class="notification__details">
-				<router-link v-if="!notificationIsAboutAnAccount && notification.status"
+				<router-link
+					v-if="!notificationIsAboutAnAccount && notification.status"
 					:to="{ name: 'single-post', params: {
 						account: item.account.acct,
 						id: notification.status.id,
@@ -32,7 +34,8 @@
 					:title="notificationFormattedDate">
 					{{ notificationRelativeTimestamp }}
 				</router-link>
-				<span v-else
+				<span
+					v-else
 					class="post-timestamp"
 					:data-timestamp="notification.created_at"
 					:title="notificationFormattedDate">
@@ -52,11 +55,12 @@
 				{{ t('social', 'boosted') }}
 			</div>
 		</template>
-		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :display-follow-button="false" :item="item.account" />
+		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :displayFollowButton="false" :item="item.account" />
 		<template v-else>
 			<div v-if="entryContent" class="wrapper">
 				<TimelineAvatar v-if="!isNotification" class="entry__avatar" :item="entryContent" />
-				<TimelinePost class="entry__content"
+				<TimelinePost
+					class="entry__content"
 					:item="entryContent"
 					:type="type" />
 			</div>
@@ -81,6 +85,8 @@ import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
 import { notificationSummary } from '../services/notifications.js'
 import { onTick } from '../services/clock.js'
+import { mapStores } from 'pinia'
+import { useTimelineStore } from '../store/timeline.js'
 
 export default {
 	name: 'TimelineEntry',
@@ -98,28 +104,34 @@ export default {
 		MessageOutline,
 		MessagePlusOutline,
 	},
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|import('../types/Mastodon.js').Notification>} */
 		item: {
 			type: Object,
 			default: () => {},
 		},
+
 		type: {
 			type: String,
 			required: true,
 		},
+
 		element: {
 			type: String,
 			default: 'li',
 		},
 	},
+
 	data() {
 		return {
 			/** re-read from the shared clock, so the wording stays true */
 			now: Date.now(),
 		}
 	},
+
 	computed: {
+		...mapStores(useTimelineStore),
 		/**
 		 * @return {import('../types/Mastodon.js').Status}
 		 */
@@ -128,39 +140,47 @@ export default {
 				return this.notification.status
 			} else if (this.isBoost) {
 				// We use the object stored in the store so that actions on it are reflected.
-				return this.$store.getters.getStatus(this.item.reblog.id)
+				return this.timelineStore.getStatus(this.item.reblog.id)
 			} else {
 				return this.item
 			}
 		},
+
 		/** @return {boolean} */
 		isNotification() {
 			return this.item.type !== undefined
 		},
+
 		/** @return {string} */
 		notificationFormattedDate() {
 			return fullDateTime(this.notification.created_at)
 		},
+
 		/** @return {string} */
 		notificationRelativeTimestamp() {
 			return fromNow(this.notification.created_at, new Date(this.now))
 		},
+
 		/** @return {boolean} */
 		isBoost() {
 			return this.status.reblog !== null
 		},
+
 		/** @return {import('../types/Mastodon.js').Notification} */
 		notification() {
 			return this.item
 		},
+
 		/** @return {import('../types/Mastodon.js').Status} */
 		status() {
 			return this.item
 		},
+
 		/** @return {boolean} */
 		notificationIsAboutAnAccount() {
 			return ['follow', 'follow_request', 'admin.sign_up', 'admin.report'].includes(this.notification.type)
 		},
+
 		/**
 		 * @return {string}
 		 */
@@ -168,19 +188,23 @@ export default {
 			return notificationSummary(this.notification)
 		},
 	},
+
 	mounted() {
 		this.stopTicking = onTick((now) => {
 			this.now = now
 		})
 	},
+
 	unmounted() {
 		this.stopTicking?.()
 	},
+
 	methods: {
 		t: translate,
 	},
 }
 </script>
+
 <style scoped lang="scss">
 .wrapper {
 	display: flex;

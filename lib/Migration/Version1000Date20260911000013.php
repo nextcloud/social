@@ -64,6 +64,7 @@ use OCP\Migration\SimpleMigrationStep;
  * when the table does not already have it.
  */
 class Version1000Date20260911000013 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

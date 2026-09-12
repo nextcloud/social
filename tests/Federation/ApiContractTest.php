@@ -80,7 +80,7 @@ class ApiContractTest extends TestCase {
 		return $expected;
 	}
 
-	private function status(): Note {
+	private function aStatus(): Note {
 		$note = new Note();
 		$note->setId('https://cloud.example.org/apps/social/@alice/1');
 		$note->setNid(7);
@@ -91,7 +91,7 @@ class ApiContractTest extends TestCase {
 	}
 
 	public function testTheStatusEntityKeysAreStable(): void {
-		$actual = array_keys($this->status()->exportAsLocal());
+		$actual = array_keys($this->aStatus()->exportAsLocal());
 		sort($actual);
 
 		$this->assertSame($this->expectedStatusKeys(), $actual);
@@ -104,7 +104,7 @@ class ApiContractTest extends TestCase {
 	public function testTheSerialisedStatusCarriesExactlyTheSameKeys(): void {
 		$this->assertSame(
 			$this->expectedStatusKeys(),
-			$this->serialisedKeys($this->status()),
+			$this->serialisedKeys($this->aStatus()),
 			'jsonSerialize() and exportAsLocal() must not drift'
 		);
 	}
@@ -120,7 +120,7 @@ class ApiContractTest extends TestCase {
 	 * comes off this one.
 	 */
 	public function testTheClientFormatAddsNothingButTheKnownExtras(): void {
-		$note = $this->status();
+		$note = $this->aStatus();
 		$note->setHashtags(['cats']);
 		$note->setCompleteDetails(true);
 
@@ -146,7 +146,7 @@ class ApiContractTest extends TestCase {
 	 * attachments without `media_attachments`.
 	 */
 	public function testAnEmptyStatusStillCarriesEveryKey(): void {
-		$serialised = (array)json_decode((string)json_encode($this->status()), true);
+		$serialised = (array)json_decode((string)json_encode($this->aStatus()), true);
 
 		$this->assertArrayHasKey('spoiler_text', $serialised);
 		$this->assertSame('', $serialised['spoiler_text']);
@@ -159,7 +159,7 @@ class ApiContractTest extends TestCase {
 	}
 
 	public function testHashtagsAreExportedAsMastodonTags(): void {
-		$note = $this->status();
+		$note = $this->aStatus();
 		$note->setHashtags(['#Cats', 'dogs', '']);
 
 		$this->assertSame(
@@ -172,7 +172,7 @@ class ApiContractTest extends TestCase {
 	}
 
 	public function testAReplyToAnUnknownParentReportsNullRatherThanBreaking(): void {
-		$note = $this->status();
+		$note = $this->aStatus();
 		$note->setInReplyTo('https://remote.example/statuses/999');
 
 		$status = $note->exportAsLocal();
@@ -182,7 +182,7 @@ class ApiContractTest extends TestCase {
 	}
 
 	public function testMentionIdsAreStringsEvenWhenUnresolvable(): void {
-		$note = $this->status();
+		$note = $this->aStatus();
 		// fillMentions() stores an integer 0 for a handle it could not resolve
 		$note->setMentions([
 			['id' => 0, 'username' => 'ghost', 'url' => 'https://remote.example/@ghost', 'acct' => 'ghost'],

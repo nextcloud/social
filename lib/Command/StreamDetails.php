@@ -44,6 +44,7 @@ class StreamDetails extends ExtendedBase {
 	/**
 	 *
 	 */
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:details')
@@ -58,6 +59,7 @@ class StreamDetails extends ExtendedBase {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$output = new ConsoleOutput();
 		$this->output = $output->section();

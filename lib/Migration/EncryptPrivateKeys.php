@@ -43,10 +43,12 @@ class EncryptPrivateKeys implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Encrypt the stored Social actor private keys';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		if ($this->configService->getAppValueInt(self::MARKER) === 1) {
 			return;

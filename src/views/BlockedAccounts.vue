@@ -12,7 +12,8 @@
 		<section>
 			<h3>{{ t('social', 'Blocked') }}</h3>
 			<transition name="empty">
-				<NcEmptyContent v-if="!loading && blocked.length === 0"
+				<NcEmptyContent
+					v-if="!loading && blocked.length === 0"
 					:name="t('social', 'No blocked accounts')"
 					:description="t('social', 'Accounts you block from their profile show up here.')">
 					<template #icon>
@@ -26,13 +27,14 @@
 			<transition-group name="collapse" tag="div" class="blocked-account-list">
 				<div v-for="account in blocked" :key="`block-${account.id}`" class="blocked-account">
 					<div class="blocked-account__user">
-						<NcAvatar :url="account.avatar" :disable-tooltip="true" />
+						<NcAvatar :url="account.avatar" :disableTooltip="true" />
 						<router-link :to="{ name: 'profile', params: { account: account.acct } }">
 							<span class="blocked-account__name">{{ account.display_name || account.username }}</span>
 							<span class="blocked-account__acct">{{ account.acct }}</span>
 						</router-link>
 					</div>
-					<NcButton :disabled="busy.includes(account.id)"
+					<NcButton
+						:disabled="busy.includes(account.id)"
 						:aria-label="t('social', 'Unblock')"
 						@click="unblock(account)">
 						<template #icon>
@@ -47,7 +49,8 @@
 		<section>
 			<h3>{{ t('social', 'Muted') }}</h3>
 			<transition name="empty">
-				<NcEmptyContent v-if="!loading && muted.length === 0"
+				<NcEmptyContent
+					v-if="!loading && muted.length === 0"
 					:name="t('social', 'No muted accounts')"
 					:description="t('social', 'Accounts you mute from their profile show up here.')">
 					<template #icon>
@@ -58,13 +61,14 @@
 			<transition-group name="collapse" tag="div" class="blocked-account-list">
 				<div v-for="account in muted" :key="`mute-${account.id}`" class="blocked-account">
 					<div class="blocked-account__user">
-						<NcAvatar :url="account.avatar" :disable-tooltip="true" />
+						<NcAvatar :url="account.avatar" :disableTooltip="true" />
 						<router-link :to="{ name: 'profile', params: { account: account.acct } }">
 							<span class="blocked-account__name">{{ account.display_name || account.username }}</span>
 							<span class="blocked-account__acct">{{ account.acct }}</span>
 						</router-link>
 					</div>
-					<NcButton :disabled="busy.includes(account.id)"
+					<NcButton
+						:disabled="busy.includes(account.id)"
 						:aria-label="t('social', 'Unmute')"
 						@click="unmute(account)">
 						<template #icon>
@@ -93,6 +97,8 @@ import Cancel from 'vue-material-design-icons/Cancel.vue'
 import VolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 
 export default {
 	name: 'BlockedAccounts',
@@ -104,6 +110,7 @@ export default {
 		VolumeHigh,
 		VolumeOff,
 	},
+
 	data() {
 		return {
 			/** @type {import('../types/Mastodon.js').Account[]} */
@@ -114,9 +121,15 @@ export default {
 			loading: true,
 		}
 	},
+
+	computed: {
+		...mapStores(useAccountStore),
+	},
+
 	async mounted() {
 		await this.fetchAll()
 	},
+
 	methods: {
 		async fetchAll() {
 			this.loading = true
@@ -134,24 +147,27 @@ export default {
 				this.loading = false
 			}
 		},
+
 		/** @param {import('../types/Mastodon.js').Account} account the account to unblock */
 		async unblock(account) {
 			// the store action keeps the relationship state the profile page reads
 			await this.act(account, 'unblockAccount', 'blocked')
 		},
+
 		/** @param {import('../types/Mastodon.js').Account} account the account to unmute */
 		async unmute(account) {
 			await this.act(account, 'unmuteAccount', 'muted')
 		},
+
 		/**
 		 * @param {import('../types/Mastodon.js').Account} account the account acted on
-		 * @param {string} action the store action to dispatch
+		 * @param {string} action the name of the account-store action to call
 		 * @param {string} list the list to take the account off on success
 		 */
 		async act(account, action, list) {
 			this.busy.push(account.id)
 			try {
-				const result = await this.$store.dispatch(action, { id: account.id })
+				const result = await this.accountStore[action]({ id: account.id })
 				// the store reports its own failure; leave the row in place then,
 				// so nothing claims an account was unblocked when it was not
 				if (result) {

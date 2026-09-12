@@ -29,6 +29,7 @@ class Note extends Stream implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
+	#[\Override]
 	public function getHashtags(): array {
 		return $this->hashtags;
 	}
@@ -84,6 +85,7 @@ class Note extends Stream implements JsonSerializable {
 	/**
 	 * @throws ItemAlreadyExistsException
 	 */
+	#[\Override]
 	public function import(array $data): void {
 		parent::import($data);
 
@@ -91,6 +93,7 @@ class Note extends Stream implements JsonSerializable {
 		$this->fillMentions();
 	}
 
+	#[\Override]
 	public function importFromDatabase(array $data): void {
 		parent::importFromDatabase($data);
 
@@ -107,6 +110,7 @@ class Note extends Stream implements JsonSerializable {
 		return $this;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 

@@ -36,6 +36,7 @@ use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -262,16 +263,14 @@ class BoostServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string[]}>
 	 */
-	public function nonPublicNoteProvider(): array {
+	public static function nonPublicNoteProvider(): array {
 		return [
 			'followers-only' => [self::BOB_ID . '/followers', []],
 			'direct' => ['', [self::ALICE_ID]],
 		];
 	}
 
-	/**
-	 * @dataProvider nonPublicNoteProvider
-	 */
+	#[DataProvider('nonPublicNoteProvider')]
 	public function testCreateRefusesToBoostNonPublicNotes(string $to, array $toArray): void {
 		$note = new Note();
 		$note->setId(self::POST_ID);

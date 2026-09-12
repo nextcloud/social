@@ -46,6 +46,11 @@ if (!defined('PHPUNIT_RUN')) {
 	define('PHPUNIT_RUN', 1);
 }
 
+// Doctrine's parameter-type constants, which `IQueryBuilder`'s `PARAM_*` are
+// defined in terms of: without them no repair step that binds a typed parameter
+// can be reached from a test at all.
+require_once __DIR__ . '/Helper/doctrine-parameter-types.php';
+
 // `\OC` is the server's static root and is not part of the OCP stubs. A few code
 // paths reach it for the container, so provide one that hands out registered test
 // doubles (see TestContainer).
@@ -63,15 +68,10 @@ if (!class_exists('OC\\User\\NoUserException', false)) {
 	class_alias(\OCA\Social\Tests\Helper\NoUserException::class, 'OC\\User\\NoUserException');
 }
 
-// Symfony's console output: every IMigrator method takes one, and
-// `symfony/console` is under `replace` in composer.json because the server
-// supplies it, so the standalone suite has no such interface to implement.
-if (!interface_exists('Symfony\\Component\\Console\\Output\\OutputInterface', false)) {
-	class_alias(
-		\OCA\Social\Tests\Helper\ConsoleOutputInterface::class,
-		'Symfony\\Component\\Console\\Output\\OutputInterface'
-	);
-}
+// `symfony/console` is a dev dependency rather than a `replace`d one: the app's
+// own command base class extends Symfony's `Command` and every occ command
+// extends that, so the real classes have to be loadable here. Nothing is
+// aliased over them.
 
 // `OCP\Files\IRootFolder` extends `OC\Hooks\Emitter`, which is server-private
 // and absent from the OCP stubs: without this the interface cannot be loaded at

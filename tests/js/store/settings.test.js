@@ -4,54 +4,54 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 
-import settings from '../../../src/store/settings.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 describe('settings store', () => {
 	let store
 
 	beforeEach(() => {
-		settings.state.serverData = {}
-		store = createStore({ modules: { settings } })
+		setActivePinia(createPinia())
+		store = useSettingsStore()
 	})
 
 	it('starts with an empty serverData object', () => {
-		expect(store.state.settings.serverData).toEqual({})
-		expect(store.getters.getServerData).toEqual({})
+		expect(store.serverData).toEqual({})
+		expect(store.getServerData).toEqual({})
 	})
 
 	it('setServerData replaces the whole server data object', () => {
 		const serverData = { cloudAddress: 'https://cloud.example.org', firstrun: true, isAdmin: false, public: false, setup: false }
 
-		store.commit('setServerData', serverData)
+		store.setServerData(serverData)
 
-		expect(store.getters.getServerData).toEqual(serverData)
+		expect(store.getServerData).toEqual(serverData)
 
-		store.commit('setServerData', { public: true })
+		store.setServerData({ public: true })
 
-		expect(store.getters.getServerData).toEqual({ public: true })
+		expect(store.getServerData).toEqual({ public: true })
 	})
 
 	it('setServerDataEntry sets a single key from an object payload, including falsy values', () => {
-		store.commit('setServerData', { setup: true, cloudAddress: 'https://cloud.example.org' })
+		store.setServerData({ setup: true, cloudAddress: 'https://cloud.example.org' })
 
-		store.commit('setServerDataEntry', { key: 'setup', value: false })
+		store.setServerDataEntry({ key: 'setup', value: false })
 
-		expect(store.getters.getServerData.setup).toBe(false)
-		expect(store.getters.getServerData.cloudAddress).toBe('https://cloud.example.org')
+		expect(store.getServerData.setup).toBe(false)
+		expect(store.getServerData.cloudAddress).toBe('https://cloud.example.org')
 
-		store.commit('setServerDataEntry', { key: 'cloudAddress', value: 'https://social.example.org' })
+		store.setServerDataEntry({ key: 'cloudAddress', value: 'https://social.example.org' })
 
-		expect(store.getters.getServerData.cloudAddress).toBe('https://social.example.org')
+		expect(store.getServerData.cloudAddress).toBe('https://social.example.org')
 	})
 
 	it('exposes the getter reactively so components see the data loaded later', () => {
-		const before = store.getters.getServerData
+		const before = store.getServerData
 
-		store.commit('setServerData', { firstrun: false })
+		store.setServerData({ firstrun: false })
 
 		expect(before).toEqual({})
-		expect(store.getters.getServerData).toEqual({ firstrun: false })
+		expect(store.getServerData).toEqual({ firstrun: false })
 	})
 })

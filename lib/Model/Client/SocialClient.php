@@ -344,6 +344,7 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	 * @return SocialClient
 	 * @throws Exception
 	 */
+	#[\Override]
 	public function importFromDatabase(array $data): self {
 		$this->setId($this->getInt('id', $data));
 		$this->setAppName($this->get('app_name', $data));
@@ -377,6 +378,7 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->getId(),

@@ -47,6 +47,7 @@ class QuoteRequest extends ACore implements JsonSerializable {
 		return $this;
 	}
 
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 
@@ -58,6 +59,7 @@ class QuoteRequest extends ACore implements JsonSerializable {
 	 * and not which post would be doing the quoting, so there is nothing to
 	 * approve: the generic export knows nothing of it.
 	 */
+	#[\Override]
 	public function exportAsActivityPub(): array {
 		if ($this->getInstrument() !== '') {
 			$this->addEntry('instrument', $this->getInstrument());
@@ -66,6 +68,7 @@ class QuoteRequest extends ACore implements JsonSerializable {
 		return parent::exportAsActivityPub();
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}

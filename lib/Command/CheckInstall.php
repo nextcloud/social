@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
@@ -28,7 +27,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 
-class CheckInstall extends Base {
+class CheckInstall extends SocialCommand {
 	use TArrayTools;
 
 	/**
@@ -66,6 +65,7 @@ class CheckInstall extends Base {
 		$this->connection = $connection;
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:check:install')
@@ -80,6 +80,7 @@ class CheckInstall extends Base {
 	/**
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$index = $this->regenerateIndexIfAsked($input, $output);
 		if ($index !== null) {
@@ -158,7 +159,7 @@ class CheckInstall extends Base {
 				return 1;
 			}
 
-			$helper = $this->getHelper('question');
+			$helper = $this->questionHelper();
 			$question = new ConfirmationQuestion(
 				'<info>Do you confirm this operation?</info> (y/N) ', false, '/^(y|Y)/i'
 			);

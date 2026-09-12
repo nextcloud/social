@@ -17,6 +17,7 @@ use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Tools\Traits\TAsync;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -59,6 +60,7 @@ class QueueController extends Controller {
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/async/request/{token}')]
 	public function asyncForRequest(string $token): Response {
 		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 

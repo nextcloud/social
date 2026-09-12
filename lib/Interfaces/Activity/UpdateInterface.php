@@ -15,6 +15,7 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 
 class UpdateInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		if (!$item->hasObject()) {
 			return;

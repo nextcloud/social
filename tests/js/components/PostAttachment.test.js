@@ -9,16 +9,20 @@ import PostAttachment from '../../../src/components/PostAttachment.vue'
 import MediaAttachment from '../../../src/components/MediaAttachment.vue'
 import GalleryCarousel from '../../../src/components/GalleryCarousel.vue'
 import GalleryMedia from '../../../src/components/GalleryMedia.vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
-const attachment = (index) => ({
-	id: `a${index}`,
-	type: 'image',
-	url: `https://cloud.example.org/media/${index}.jpg`,
-	preview_url: `https://cloud.example.org/media/${index}-small.jpg`,
-	description: `Picture ${index}`,
-	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-	meta: { small: { width: 4, height: 3 } },
-})
+function attachment(index) {
+	return {
+		id: `a${index}`,
+		type: 'image',
+		url: `https://cloud.example.org/media/${index}.jpg`,
+		preview_url: `https://cloud.example.org/media/${index}-small.jpg`,
+		description: `Picture ${index}`,
+		blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+		meta: { small: { width: 4, height: 3 } },
+	}
+}
 
 const attachments = (count) => Array.from({ length: count }, (_, index) => attachment(index + 1))
 
@@ -40,13 +44,19 @@ const NcModalStub = {
 	</div>`,
 }
 
-const mountAttachments = (items, props = {}) => mount(PostAttachment, {
-	props: { attachments: items, ...props },
-	global: {
-		mocks: { $store: { getters: { getServerData: { public: false } } } },
-		stubs: { NcModal: NcModalStub },
-	},
-})
+function mountAttachments(items, props = {}) {
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	useSettingsStore().setServerData({ public: false })
+
+	return mount(PostAttachment, {
+		props: { attachments: items, ...props },
+		global: {
+			plugins: [pinia],
+			stubs: { NcModal: NcModalStub },
+		},
+	})
+}
 
 const mountMediaFirst = (items) => mountAttachments(items, { mediaFirst: true })
 

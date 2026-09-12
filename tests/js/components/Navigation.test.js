@@ -5,14 +5,14 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import Navigation from '../../../src/components/Navigation.vue'
 import appRouter from '../../../src/router.js'
 import axios from '@nextcloud/axios'
-import errors from '../../../src/store/errors.js'
-import notifications from '../../../src/store/notifications.js'
-import settings from '../../../src/store/settings.js'
-import timeline from '../../../src/store/timeline.js'
+import { useErrorsStore } from '../../../src/store/errors.js'
+import { useNotificationsStore } from '../../../src/store/notifications.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -46,16 +46,19 @@ const stubs = {
 	Composer: { emits: ['posted'], template: '<div class="composer-stub" @click="$emit(\'posted\')" />' },
 }
 
-let store
+let pinia
+let errorsStore
+let notificationsStore
+let settingsStore
 let router
 
-const mountNavigation = (options = {}, route = { name: 'timeline', params: {} }) => {
+function mountNavigation(options = {}, route = { name: 'timeline', params: {} }) {
 	if (options.unread !== undefined) {
-		store.commit('setUnreadNotifications', options.unread)
+		notificationsStore.setUnreadNotifications(options.unread)
 	}
 
 	return mount(Navigation, {
-		global: { plugins: [store], mocks: { $route: route, $router: router }, stubs },
+		global: { plugins: [pinia], mocks: { $route: route, $router: router }, stubs },
 	})
 }
 
@@ -73,9 +76,13 @@ vi.mock('@nextcloud/axios', () => ({
 
 describe('Navigation', () => {
 	beforeEach(() => {
-		store = createStore({ modules: { errors, settings, notifications } })
-		store.commit('clearErrors')
-		store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org' })
+		pinia = createPinia()
+		setActivePinia(pinia)
+		errorsStore = useErrorsStore()
+		notificationsStore = useNotificationsStore()
+		settingsStore = useSettingsStore()
+		errorsStore.clearErrors()
+		settingsStore.setServerData({ public: false, cloudAddress: 'https://cloud.example.org' })
 		router = {
 			push: vi.fn(),
 			resolve: vi.fn((to) => ({ href: '/resolved/' + to.name + (to.params?.type ? '/' + to.params.type : '') })),
@@ -320,8 +327,8 @@ describe('Navigation', () => {
 
 	describe('errors', () => {
 		beforeEach(() => {
-			store.commit('addError', { title: 'Account lookup failed', message: 'Could not load bob' })
-			store.commit('addError', { title: 'Post failed', message: 'Server unreachable' })
+			errorsStore.addError({ title: 'Account lookup failed', message: 'Could not load bob' })
+			errorsStore.addError({ title: 'Post failed', message: 'Server unreachable' })
 		})
 
 		it('adds an errors entry with the error count', () => {
@@ -331,7 +338,7 @@ describe('Navigation', () => {
 		})
 
 		it('opens a modal listing the errors and dismisses a single one through the store', async () => {
-			const dispatch = vi.spyOn(store, 'dispatch')
+			const dismiss = vi.spyOn(errorsStore, 'dismissAppError')
 			const wrapper = mountNavigation()
 			await item(wrapper, 'Errors').trigger('click')
 
@@ -339,16 +346,16 @@ describe('Navigation', () => {
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Account lookup failed', 'Post failed'])
 			expect(modal.findAll('.modal-errors__message').map((message) => message.text())).toEqual(['Could not load bob', 'Server unreachable'])
 
-			const [firstError] = store.getters.appErrors
+			const [firstError] = errorsStore.appErrors
 			await modal.find('.modal-errors__item button').trigger('click')
-			expect(dispatch).toHaveBeenCalledWith('dismissAppError', firstError.id)
+			expect(dismiss).toHaveBeenCalledWith(firstError.id)
 			await nextTick()
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Post failed'])
 			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('1')
 		})
 
 		it('offers "Dismiss all" only for several errors and clears them all', async () => {
-			const commit = vi.spyOn(store, 'commit')
+			const clear = vi.spyOn(errorsStore, 'clearErrors')
 			const wrapper = mountNavigation()
 			await item(wrapper, 'Errors').trigger('click')
 
@@ -356,7 +363,7 @@ describe('Navigation', () => {
 			expect(dismissAll()).toHaveLength(1)
 
 			await dismissAll()[0].trigger('click')
-			expect(commit).toHaveBeenCalledWith('clearErrors')
+			expect(clear).toHaveBeenCalled()
 			await nextTick()
 			expect(wrapper.find('.modal-errors__item').exists()).toBe(false)
 			expect(dismissAll()).toHaveLength(0)
@@ -364,7 +371,7 @@ describe('Navigation', () => {
 		})
 
 		it('hides "Dismiss all" when only one error is left', async () => {
-			store.commit('dismissError', store.getters.appErrors[1].id)
+			errorsStore.dismissError(errorsStore.appErrors[1].id)
 			const wrapper = mountNavigation()
 			await item(wrapper, 'Errors').trigger('click')
 			expect(wrapper.findAll('.modal-stub button').map((button) => button.text())).toEqual(['Dismiss'])
@@ -372,17 +379,19 @@ describe('Navigation', () => {
 	})
 
 	it('keeps the search box on the term the URL is showing', async () => {
-		const searchStore = createStore({ modules: { errors, settings, notifications, timeline } })
-		searchStore.commit('setServerData', { public: false })
-		searchStore.commit('setSearchQuery', 'nextcloud')
+		const searchPinia = createPinia()
+		setActivePinia(searchPinia)
+		useSettingsStore().setServerData({ public: false })
+		const timelineStore = useTimelineStore()
+		timelineStore.setSearchQuery('nextcloud')
 		const wrapper = mount(Navigation, {
-			global: { plugins: [searchStore], mocks: { $route: { name: 'search', params: { term: 'nextcloud' } }, $router: router }, stubs },
+			global: { plugins: [searchPinia], mocks: { $route: { name: 'search', params: { term: 'nextcloud' } }, $router: router }, stubs },
 		})
 		expect(wrapper.find('.nav-search').element.value).toBe('nextcloud')
 
 		// navigating away clears the query; read once in mounted() the box kept
 		// showing a term nothing was being searched for any more
-		searchStore.commit('setSearchQuery', '')
+		timelineStore.setSearchQuery('')
 		await nextTick()
 		expect(wrapper.find('.nav-search').element.value).toBe('')
 	})
@@ -399,12 +408,13 @@ describe('Navigation entries are links', () => {
 	}
 
 	const mountReal = async (path = '/timeline') => {
-		const realStore = createStore({ modules: { errors, settings, notifications } })
-		realStore.commit('setServerData', { public: false })
+		const realPinia = createPinia()
+		setActivePinia(realPinia)
+		useSettingsStore().setServerData({ public: false })
 		await appRouter.push(path)
 		await appRouter.isReady()
 
-		return mount(Navigation, { global: { plugins: [realStore, appRouter], stubs: realStubs } })
+		return mount(Navigation, { global: { plugins: [realPinia, appRouter], stubs: realStubs } })
 	}
 
 	const link = (wrapper, name) => wrapper.findAll('a').find((anchor) => anchor.text().startsWith(name))

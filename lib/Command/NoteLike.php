@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\MiscService;
@@ -25,7 +24,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @package OCA\Social\Command
  */
-class NoteLike extends Base {
+class NoteLike extends SocialCommand {
 	private StreamService $streamService;
 
 	private LikeService $likeService;
@@ -44,6 +43,7 @@ class NoteLike extends Base {
 	/**
 	 *
 	 */
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:note:like')
@@ -59,6 +59,7 @@ class NoteLike extends Base {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = $input->getArgument('user_id');
 		$noteId = $input->getArgument('note_id');

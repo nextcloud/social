@@ -23,6 +23,7 @@ use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -61,6 +62,7 @@ class ModerationController extends Controller {
 	 * @param string $comment why, for whoever reads the list later
 	 */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/accounts')]
 	public function accountModerate(string $actorId, string $level, string $comment = ''): DataResponse {
 		$actorId = trim($actorId);
 		if ($actorId === '') {
@@ -98,6 +100,7 @@ class ModerationController extends Controller {
 	 * @param string $status one of AdminApiService's statuses, or '' for any
 	 */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/accounts')]
 	public function accounts(
 		string $query = '',
 		string $origin = '',
@@ -177,6 +180,7 @@ class ModerationController extends Controller {
 	 * of them is not zero.
 	 */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/accounts/history')]
 	public function accountHistory(string $actorId): DataResponse {
 		$actorId = trim($actorId);
 		if ($actorId === '') {
@@ -199,6 +203,7 @@ class ModerationController extends Controller {
 
 	/** Takes one post down, whoever wrote it. */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/statuses/remove')]
 	public function statusRemove(string $streamId): DataResponse {
 		$streamId = trim($streamId);
 		if ($streamId === '') {
@@ -211,6 +216,7 @@ class ModerationController extends Controller {
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/reports/{id}/resolve')]
 	public function reportResolve(int $id, bool $resolved = true): DataResponse {
 		try {
 			return new DataResponse($this->reportService->setResolved($id, $resolved));
@@ -220,6 +226,7 @@ class ModerationController extends Controller {
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/fediverse/add')]
 	public function fediverseAdd(string $address): DataResponse {
 		$address = strtolower(trim($address));
 		if ($address === '' || !preg_match('/^[a-z0-9.:\[\]-]+$/', $address)) {
@@ -232,6 +239,7 @@ class ModerationController extends Controller {
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/fediverse/remove')]
 	public function fediverseRemove(string $address): DataResponse {
 		$this->fediverseService->removeAddress(strtolower(trim($address)));
 
@@ -239,6 +247,7 @@ class ModerationController extends Controller {
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/retention')]
 	public function retention(int $days): DataResponse {
 		if ($days < 0 || $days > 3650) {
 			return new DataResponse(['error' => 'invalid retention period'], Http::STATUS_UNPROCESSABLE_ENTITY);
@@ -250,6 +259,7 @@ class ModerationController extends Controller {
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/fediverse/access')]
 	public function fediverseAccess(string $type): DataResponse {
 		try {
 			$this->fediverseService->setAccessType($type);

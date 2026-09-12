@@ -67,6 +67,7 @@ class AdminDomainBlock implements JsonSerializable {
 		return (string)hexdec(substr(md5(strtolower(trim($domain))), 0, 8));
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->getId(),

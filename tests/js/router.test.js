@@ -50,7 +50,7 @@ describe('router', () => {
 
 		expect(route.name).toBe('tags')
 		expect(route.params.tag).toBe('nextcloud')
-		expect(route.matched.map(record => record.name)).toEqual(['timeline', 'tags'])
+		expect(route.matched.map((record) => record.name)).toEqual(['timeline', 'tags'])
 		expect(router.resolve({ name: 'tags', params: { tag: 'nextcloud' } }).fullPath).toBe('/timeline/tags/nextcloud')
 	})
 

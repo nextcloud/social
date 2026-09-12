@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model\Client;
 
 use OCA\Social\Model\Client\AttachmentMetaDim;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class AttachmentMetaDimTest extends TestCase {
@@ -22,7 +23,7 @@ class AttachmentMetaDimTest extends TestCase {
 		$this->assertSame(1.5, $dim->getAspect());
 	}
 
-	public function emptyDimensionProvider(): array {
+	public static function emptyDimensionProvider(): array {
 		return [
 			'no dimensions' => [[]],
 			'one value' => [[100]],
@@ -32,9 +33,7 @@ class AttachmentMetaDimTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider emptyDimensionProvider
-	 */
+	#[DataProvider('emptyDimensionProvider')]
 	public function testConstructorLeavesUnusableDimensionsEmpty(array $dimensions): void {
 		$dim = new AttachmentMetaDim($dimensions);
 

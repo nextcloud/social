@@ -116,6 +116,7 @@ class FeaturedTag implements JsonSerializable {
 	 * account has not posted with the tag: a client renders the field as a
 	 * date and an empty string is not one.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->getId(),

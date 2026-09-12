@@ -115,6 +115,7 @@ class Conversation implements JsonSerializable {
 	 * `id` is a string here and an int in the row, as every other id on this
 	 * wire is: a client that declares `id: String` cannot decode a number.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		foreach ($this->accounts as $account) {
 			$account->setExportFormat(ACore::FORMAT_LOCAL);

@@ -18,7 +18,6 @@ use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\ReportForwardService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Model\NCRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -42,7 +41,7 @@ class ReportForwardServiceTest extends TestCase {
 	private CurlService|MockObject $curlService;
 	private ReportForwardService $service;
 	private string $privateKey = '';
-	/** @var NCRequest[] every request handed to curl */
+	/** @var list<array{method: string, url: string, options: array}> every request handed to curl */
 	private array $sent = [];
 
 	protected function setUp(): void {
@@ -95,11 +94,20 @@ class ReportForwardServiceTest extends TestCase {
 
 	private function captureDelivery(): void {
 		$this->curlService->method('retrieveJson')
-			->willReturnCallback(function (NCRequest $request): array {
-				$this->sent[] = $request;
+			->willReturnCallback(function (string $method, string $url, array $options): array {
+				$this->sent[] = ['method' => $method, 'url' => $url, 'options' => $options];
 
 				return [];
 			});
+	}
+
+	private function body(): string {
+		return $this->sent[0]['options']['body'];
+	}
+
+	/** @return array<string, string> */
+	private function headers(): array {
+		return $this->sent[0]['options']['headers'];
 	}
 
 	public function testTheForwardedFlagNamesTheInstanceAndNotTheReporter(): void {
@@ -108,11 +116,11 @@ class ReportForwardServiceTest extends TestCase {
 
 		$this->assertTrue($this->service->forward($this->report(), $this->remote()));
 
-		$body = json_decode($this->sent[0]->getDataBody(), true);
+		$body = json_decode($this->body(), true);
 		$this->assertSame('Flag', $body['type']);
 		$this->assertSame(self::INSTANCE, $body['actor'], 'the instance forwards, not the reporter');
 		$this->assertStringNotContainsString(
-			self::ALICE, $this->sent[0]->getDataBody(),
+			self::ALICE, $this->body(),
 			'the reporter must not be exposed to the instance they reported'
 		);
 	}
@@ -123,7 +131,7 @@ class ReportForwardServiceTest extends TestCase {
 
 		$this->service->forward($this->report(), $this->remote());
 
-		$body = json_decode($this->sent[0]->getDataBody(), true);
+		$body = json_decode($this->body(), true);
 		$this->assertSame([self::SPAMMER, self::SPAMMER . '/statuses/1'], $body['object']);
 		$this->assertSame('this is spam', $body['content']);
 		$this->assertSame(self::SPAMMER, $body['to']);
@@ -135,7 +143,7 @@ class ReportForwardServiceTest extends TestCase {
 
 		$this->service->forward($this->report(), $this->remote());
 
-		$headers = $this->sent[0]->getHeaders();
+		$headers = $this->headers();
 		$this->assertArrayHasKey('Signature', $headers);
 		$this->assertStringContainsString(
 			'keyId="' . self::INSTANCE . '#main-key"', $headers['Signature']
@@ -145,9 +153,20 @@ class ReportForwardServiceTest extends TestCase {
 			'headers="(request-target) content-length date host digest"', $headers['Signature']
 		);
 		$this->assertSame(
-			'SHA-256=' . base64_encode(hash('sha256', $this->sent[0]->getDataBody(), true)),
+			'SHA-256=' . base64_encode(hash('sha256', $this->body(), true)),
 			$headers['digest']
 		);
+		$this->assertSame((string)strlen($this->body()), $headers['content-length']);
+	}
+
+	/** The timeout the user's own request can afford to wait for. */
+	public function testTheForwardHasAShortTimeout(): void {
+		$this->instanceActorService->method('getSigningActor')->willReturn($this->instanceActor());
+		$this->captureDelivery();
+
+		$this->service->forward($this->report(), $this->remote());
+
+		$this->assertSame(3, $this->sent[0]['options']['timeout']);
 	}
 
 	public function testTheDeliveryGoesToTheReportedAccountsInbox(): void {
@@ -156,8 +175,8 @@ class ReportForwardServiceTest extends TestCase {
 
 		$this->service->forward($this->report(), $this->remote());
 
-		$this->assertSame('spam.example', $this->sent[0]->getHost());
-		$this->assertSame('/users/spammer/inbox', $this->sent[0]->getParsedUrl());
+		$this->assertSame('post', $this->sent[0]['method']);
+		$this->assertSame(self::INBOX, $this->sent[0]['url']);
 	}
 
 	public function testThePersonalInboxIsPreferredOverTheSharedOne(): void {
@@ -171,7 +190,7 @@ class ReportForwardServiceTest extends TestCase {
 
 		// a Flag is about one account; the shared inbox is the fallback for an
 		// instance that publishes no personal one
-		$this->assertSame('/users/spammer/inbox', $this->sent[0]->getParsedUrl());
+		$this->assertSame(self::INBOX, $this->sent[0]['url']);
 	}
 
 	public function testAnEmptyBodyFromTheInboxIsASuccess(): void {
@@ -231,6 +250,6 @@ class ReportForwardServiceTest extends TestCase {
 		$target->setSharedInbox('https://spam.example/inbox');
 
 		$this->assertTrue($this->service->forward($this->report(), $target));
-		$this->assertSame('/inbox', $this->sent[0]->getParsedUrl());
+		$this->assertSame('https://spam.example/inbox', $this->sent[0]['url']);
 	}
 }

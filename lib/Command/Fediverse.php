@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\FediverseService;
@@ -23,7 +22,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @package OCA\Social\Command
  */
-class Fediverse extends Base {
+class Fediverse extends SocialCommand {
 	private FediverseService $fediverseService;
 	private ?OutputInterface $output = null;
 
@@ -32,6 +31,7 @@ class Fediverse extends Base {
 		$this->fediverseService = $fediverseService;
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:fediverse')
@@ -47,6 +47,7 @@ class Fediverse extends Base {
 	/**
 	 * @throws Exception
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$this->output = $output;
 

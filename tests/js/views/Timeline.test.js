@@ -5,17 +5,16 @@
 import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import Timeline from '../../../src/views/Timeline.vue'
 import FirstPostCelebration from '../../../src/components/FirstPostCelebration.vue'
 import HashtagFollowButton from '../../../src/components/HashtagFollowButton.vue'
 import HashtagFollowedList from '../../../src/components/HashtagFollowedList.vue'
 import eventBus from '../../../src/services/eventBus.js'
-import account from '../../../src/store/account.js'
-import errors from '../../../src/store/errors.js'
-import settings from '../../../src/store/settings.js'
-import timeline from '../../../src/store/timeline.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
@@ -26,11 +25,6 @@ vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
 })
-
-const pristine = {
-	account: structuredClone(account.state),
-	timeline: structuredClone(timeline.state),
-}
 
 const ComposerStub = {
 	name: 'Composer',
@@ -51,33 +45,34 @@ const nextcloud = {
 	display_name: 'Nextcloud',
 }
 
-let store
-let dispatch
+let pinia
+let accountStore
+let timelineStore
 
-const makeStore = (serverData = {}) => {
-	Object.assign(account.state, structuredClone(pristine.account))
-	Object.assign(timeline.state, structuredClone(pristine.timeline))
-	store = createStore({
-		modules: {
-			timeline,
-			settings,
-			errors,
-			// network actions are replaced, the synchronous ones stay real
-			account: { ...account, actions: { ...account.actions, fetchAccountInfo: vi.fn(), followAccount: vi.fn() } },
-		},
-	})
-	store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org', firstrun: false, ...serverData })
-	dispatch = vi.spyOn(store, 'dispatch')
-	return store
+function makeStore(serverData = {}) {
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	timelineStore = useTimelineStore()
+	// network actions are replaced, the synchronous ones stay real
+	vi.spyOn(accountStore, 'fetchAccountInfo').mockResolvedValue(undefined)
+	vi.spyOn(accountStore, 'followAccount').mockResolvedValue(undefined)
+	vi.spyOn(timelineStore, 'changeTimelineType')
+	vi.spyOn(timelineStore, 'celebrateFirstPost')
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', firstrun: false, ...serverData })
+
+	return pinia
 }
 
-const mountTimeline = (route = {}) => mount(Timeline, {
-	global: {
-		plugins: [store],
-		mocks: { $route: { name: 'timeline', params: {}, ...route } },
-		stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
-	},
-})
+function mountTimeline(route = {}) {
+	return mount(Timeline, {
+		global: {
+			plugins: [pinia],
+			mocks: { $route: { name: 'timeline', params: {}, ...route } },
+			stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
+		},
+	})
+}
 
 describe('Timeline', () => {
 	beforeEach(() => {
@@ -90,22 +85,22 @@ describe('Timeline', () => {
 
 	it('switches the store to the home timeline when no type is in the route', () => {
 		const wrapper = mountTimeline()
-		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', { type: 'home', params: {} })
-		expect(store.state.timeline.type).toBe('home')
+		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type: 'home', params: {} })
+		expect(timelineStore.type).toBe('home')
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe('home')
 		expect(wrapper.find('h2').exists()).toBe(false)
 	})
 
 	it.each(['direct', 'timeline', 'federated', 'favourites'])('switches the store to the %s timeline from the route', (type) => {
 		const wrapper = mountTimeline({ params: { type } })
-		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', { type, params: {} })
+		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type, params: {} })
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe(type)
 	})
 
 	it('resets the previously loaded posts when switching', () => {
-		store.commit('addToTimeline', [{ id: 'old', created_at: '2026-01-01T00:00:00Z' }])
+		timelineStore.addToTimeline([{ id: 'old', created_at: '2026-01-01T00:00:00Z' }])
 		mountTimeline({ params: { type: 'federated' } })
-		expect(store.state.timeline.timeline).toEqual([])
+		expect(timelineStore.timeline).toEqual([])
 	})
 
 	// the types are the ones the sidebar and the store really use: `timeline`
@@ -131,7 +126,7 @@ describe('Timeline', () => {
 
 	it('loads a hashtag timeline with the tag as parameter and shows the tag as heading', () => {
 		const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
-		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', { type: 'tags', params: { tag: 'nextcloud' } })
+		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type: 'tags', params: { tag: 'nextcloud' } })
 		expect(wrapper.find('h1').text()).toBe('#nextcloud')
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe('tags')
 		expect(wrapper.findComponent(ComposerStub).exists()).toBe(true)
@@ -158,7 +153,7 @@ describe('Timeline', () => {
 		// searching has its own route and asks the server; a banner saying
 		// "Search: «…»" over the unfiltered timeline would be a lie
 		const wrapper = mountTimeline()
-		store.commit('setSearchQuery', 'fediverse')
+		timelineStore.setSearchQuery('fediverse')
 		await nextTick()
 		expect(wrapper.find('.search-active').exists()).toBe(false)
 		expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
@@ -167,7 +162,7 @@ describe('Timeline', () => {
 	it('does not show the welcome box or look up the Nextcloud account after the first run', () => {
 		const wrapper = mountTimeline()
 		expect(wrapper.find('.social__welcome').exists()).toBe(false)
-		expect(dispatch).not.toHaveBeenCalledWith('fetchAccountInfo', expect.anything())
+		expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
 	})
 
 	describe('on the first run', () => {
@@ -179,7 +174,7 @@ describe('Timeline', () => {
 			const wrapper = mountTimeline()
 			expect(wrapper.find('.social__welcome').exists()).toBe(true)
 			expect(wrapper.find('.social-id').text()).toBe('@alice@cloud.example.org')
-			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'nextcloud@mastodon.xyz')
+			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('nextcloud@mastodon.xyz')
 		})
 
 		it('can be closed', async () => {
@@ -193,7 +188,7 @@ describe('Timeline', () => {
 			const follow = wrapper.find('.follow-nextcloud input[type="button"]')
 			expect(follow.element.value).toBe('Follow Nextcloud on mastodon.xyz')
 			await follow.trigger('click')
-			expect(dispatch).toHaveBeenCalledWith('followAccount', { accountToFollow: 'nextcloud@mastodon.xyz' })
+			expect(accountStore.followAccount).toHaveBeenCalledWith({ accountToFollow: 'nextcloud@mastodon.xyz' })
 		})
 
 		it('hides the suggestion while the account is unknown and once it is followed', async () => {
@@ -203,12 +198,12 @@ describe('Timeline', () => {
 			// unknown yet: treated as followed so nothing flashes
 			expect(hidden()).toBe(true)
 
-			store.commit('addAccount', { actorId: nextcloud.url, data: nextcloud })
-			store.commit('addRelationship', { actorId: nextcloud.id, data: { id: nextcloud.id, following: false } })
+			accountStore.addAccount({ actorId: nextcloud.url, data: nextcloud })
+			accountStore.addRelationship({ actorId: nextcloud.id, data: { id: nextcloud.id, following: false } })
 			await nextTick()
 			expect(hidden()).toBe(false)
 
-			store.commit('followAccount', nextcloud.acct)
+			accountStore.markAccountFollowed(nextcloud.acct)
 			await nextTick()
 			expect(hidden()).toBe(true)
 		})
@@ -230,8 +225,8 @@ describe('Timeline', () => {
 		 * @param {number} statusesCount how much this account has posted before
 		 */
 		const readerWithPosts = (statusesCount) => {
-			store.commit('addAccount', { actorId: alice.url, data: { ...alice, statuses_count: statusesCount } })
-			store.commit('setCurrentAccount', 'alice@cloud.example.org')
+			accountStore.addAccount({ actorId: alice.url, data: { ...alice, statuses_count: statusesCount } })
+			accountStore.setCurrentAccount('alice@cloud.example.org')
 		}
 
 		const publish = async (wrapper) => {
@@ -325,18 +320,18 @@ describe('Timeline', () => {
 			eventBus.emit('post-published', { id: '1' })
 			await nextTick()
 
-			expect(store.state.timeline.firstPostCelebration).toBe(false)
-			expect(dispatch).not.toHaveBeenCalledWith('celebrateFirstPost')
+			expect(timelineStore.firstPostCelebration).toBe(false)
+			expect(timelineStore.celebrateFirstPost).not.toHaveBeenCalled()
 		})
 
 		it('leaves no celebration standing for the next timeline when the reader navigates away mid-flight', async () => {
 			const wrapper = mountTimeline()
 			await publish(wrapper)
-			expect(store.state.timeline.firstPostCelebration).toBe(true)
+			expect(timelineStore.firstPostCelebration).toBe(true)
 
 			wrapper.unmount()
 
-			expect(store.state.timeline.firstPostCelebration).toBe(false)
+			expect(timelineStore.firstPostCelebration).toBe(false)
 		})
 	})
 

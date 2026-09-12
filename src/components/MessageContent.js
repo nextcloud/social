@@ -69,11 +69,28 @@ function domToVue(hFn, routerLink, node, context) {
  * lists and code blocks.
  */
 const STRUCTURAL_TAGS = [
-	'P', 'BR', 'SPAN',
-	'DEL', 'S', 'PRE', 'BLOCKQUOTE', 'CODE',
-	'B', 'STRONG', 'U', 'I', 'EM',
-	'UL', 'OL', 'LI',
-	'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+	'P',
+	'BR',
+	'SPAN',
+	'DEL',
+	'S',
+	'PRE',
+	'BLOCKQUOTE',
+	'CODE',
+	'B',
+	'STRONG',
+	'U',
+	'I',
+	'EM',
+	'UL',
+	'OL',
+	'LI',
+	'H1',
+	'H2',
+	'H3',
+	'H4',
+	'H5',
+	'H6',
 ]
 
 /**
@@ -109,7 +126,7 @@ export function emojifyPlain(hFn, text, emojis) {
 	return transformTextRegex(text ?? '', [
 		{
 			regex: customEmojiRegex,
-			onMatch: match => {
+			onMatch: (match) => {
 				const emoji = (emojis ?? []).find((entry) => entry.shortcode === match[1])
 				if (!emoji) {
 					return match[0]
@@ -153,7 +170,7 @@ function transformText(hFn, routerLink, text, context = {}) {
 	return transformTextRegex(text, [
 		{
 			regex: customEmojiRegex,
-			onMatch: match => {
+			onMatch: (match) => {
 				const emoji = (context.emojis ?? []).find((entry) => entry.shortcode === match[1])
 				if (!emoji) {
 					return match[0]
@@ -169,37 +186,31 @@ function transformText(hFn, routerLink, text, context = {}) {
 		},
 		{
 			regex: mentionRegex,
-			onMatch: match => [
+			onMatch: (match) => [
 				match[1],
-				withHoverCard(hFn, match[2].slice(1), hFn(routerLink,
-					{
-						to: {
-							name: 'profile',
-							params: { account: match[2].slice(1) },
-						},
+				withHoverCard(hFn, match[2].slice(1), hFn(routerLink, {
+					to: {
+						name: 'profile',
+						params: { account: match[2].slice(1) },
 					},
-					[match[3]],
-				)),
+				}, [match[3]])),
 			],
 		},
 		{
 			regex: hashTagRegex,
-			onMatch: match => [
+			onMatch: (match) => [
 				match[1],
-				hFn(routerLink,
-					{
-						to: {
-							name: 'tags',
-							params: { tag: match[2].slice(1) },
-						},
+				hFn(routerLink, {
+					to: {
+						name: 'tags',
+						params: { tag: match[2].slice(1) },
 					},
-					[match[2]],
-				),
+				}, [match[2]]),
 			],
 		},
 		{
 			regex: emojiRe,
-			onMatch: match => hFn(
+			onMatch: (match) => hFn(
 				Emoji,
 				{
 					emoji: match[0],
@@ -217,7 +228,7 @@ function transformText(hFn, routerLink, text, context = {}) {
  * @param context
  */
 function cleanCopy(hFn, routerLink, node, context) {
-	const children = Array.from(node.childNodes).map(node => domToVue(hFn, routerLink, node, context))
+	const children = Array.from(node.childNodes).map((node) => domToVue(hFn, routerLink, node, context))
 	return hFn(node.tagName, children)
 }
 
@@ -234,34 +245,34 @@ function cleanLink(hFn, routerLink, node, context) {
 	const tag = matchMention(context.mentions, node.getAttribute('href') ?? '', node.textContent ?? '')
 
 	switch (type) {
-	case 'mention':
-		if (tag) {
+		case 'mention':
+			if (tag) {
+				attributes.rel = 'nofollow noopener noreferrer'
+				attributes.target = '_blank'
+				attributes.href = safeHref(node)
+				attributes.title = tag.name
+
+				return withHoverCard(hFn, tag.acct, hFn('a', attributes, [transformText(hFn, routerLink, node.textContent, context)]))
+			} else {
+				return transformText(hFn, routerLink, node.textContent, context)
+			}
+		case 'hashtag':
+			return hFn(
+				routerLink,
+				{
+					to: {
+						name: 'tags',
+						params: { tag: node.textContent?.slice(1) },
+					},
+				},
+				[node.textContent],
+			)
+		default:
 			attributes.rel = 'nofollow noopener noreferrer'
 			attributes.target = '_blank'
 			attributes.href = safeHref(node)
-			attributes.title = tag.name
 
-			return withHoverCard(hFn, tag.acct, hFn('a', attributes, [transformText(hFn, routerLink, node.textContent, context)]))
-		} else {
-			return transformText(hFn, routerLink, node.textContent, context)
-		}
-	case 'hashtag':
-		return hFn(
-			routerLink,
-			{
-				to: {
-					name: 'tags',
-					params: { tag: node.textContent?.slice(1) },
-				},
-			},
-			[node.textContent],
-		)
-	default:
-		attributes.rel = 'nofollow noopener noreferrer'
-		attributes.target = '_blank'
-		attributes.href = safeHref(node)
-
-		return hFn('a', attributes, [transformText(hFn, routerLink, node.textContent)])
+			return hFn('a', attributes, [transformText(hFn, routerLink, node.textContent)])
 	}
 }
 
@@ -323,7 +334,7 @@ function hostOf(url) {
 // Multi-codepoint sequences (families, professions, skin tones). Truncated
 // upstream, so single-codepoint emoji are matched by the Unicode property
 // fallback below instead.
-// eslint-disable-next-line
+
 const emojiSequenceRe = /(?:\ud83d\udc68\ud83c\udffb\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffc-\udfff]|\ud83d\udc68\ud83c\udffc\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffb\udffd-\udfff]|\ud83d\udc68\ud83c\udffd\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffb\udffc\udffe\udfff]|\ud83d\udc68\ud83c\udffe\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffb-\udffd\udfff]|\ud83d\udc68\ud83c\udfff\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffb-\udffe]|\ud83d\udc69\ud83c\udffb\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffc-\udfff]|\ud83d\udc69\ud83c\udffb\u200d\ud83e\udd1d\u200d\ud83d\udc69\ud83c[\udffc-\udfff]|\ud83d\udc69\ud83c\udffc\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffb\udffd-\udfff]|\ud83d\udc69\ud83c\udffc\u200d\ud83e\udd1d\u200d\ud83d\udc69\ud83c[\udffb\udffd-\udfff]|\ud83d\udc69\ud83c\udffd\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffb\udffc\udffe\udfff]|\ud83d\udc69\ud83c\udffd\u200d\ud83e\udd1d\u200d\ud83d\udc69\ud83c[\udffb\udffc\udffe\udfff]|\ud83d\udc69\ud83c\udffe\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffb-\udffd\udfff]|\ud83d\udc69\ud83c\udffe\u200d\ud83e\udd1d\u200d\ud83d\udc69\ud83c[\udffb-\udffd\udfff]|\ud83d\udc69\ud83c\udfff\u200d\ud83e\udd1d\u200d\ud83d\udc68\ud83c[\udffb-\udffe]|\ud83d\udc69\ud83c\udfff\u200d\ud83e\udd1d\u200d\ud83d\udc69\ud83c[\udffb-\udffe]|\ud83e\uddd1\ud83c\udffb\u200d\ud83e\udd1d\u200d\ud83e\uddd1\ud83c[\udffb-\udfff]|\ud83e\uddd1\ud83c\udffc\u200d\ud83e\udd1d\u200d\ud83e\uddd1\ud83c[\udffb-\udfff]|\ud83e\uddd1\ud83c\udffd\u200d\ud83e\udd1d\u200d\ud83e\uddd1\ud83c[\udffb-\udfff]|\ud83e\uddd1\ud83c\udffe\u200d\ud83e\udd1d\u200d\ud83e\uddd1\ud83c[\udffb-\udfff]|\ud83e\uddd1\ud83c\udfff\u200d\ud83e\udd1d\u200d\ud83e\uddd1\ud83c[\udffb-\udfff]|\ud83e\uddd1\u200d\ud83e\udd1d\u200d\ud83e\uddd1|\ud83d\udc6b\ud83c[\udffb-\udfff]|\ud83d\udc6c\ud83c[\udffb-\udfff]|\ud83d\udc6d\ud83c[\udffb-\udfff]|\ud83d[\udc6b-\udc6d])|(?:\ud83d[\udc68\udc69]|\ud83e\uddd1)(?:\ud83c[\udffb-\udfff])?\u200d(?:\u2695\ufe0f|\u2696\ufe0f|\u2708\ufe0f|\ud83c[\udf3e\udf73\udf7c\udf84\udf93\udfa4\udfa8\udfbb\udfe4]|\ud83d[\udc66-\udc69\udc6e\udc71\udc73\udc77\udc81\udc82\udc86\udc87\udcde\udd25\uddde\udde0\udde2\udde3\udde4\udde5\udde6\uddf3\udfeb\udfed]|\ud83e[\udd0f\udd1a\udd1c\udd20-\udd2d\udd35-\udd39\udd3b-\udd3e\udd40-\udd45\udd47-\udd4b\udd4c\udd4e\udd50-\udd58\udd5a-\udd62\udd64-\udd67\udd69-\udd6c\udd6f-\udd70\udd73-\udd76\udd78-\udd79\udd7c\udd7d\udd80-\udd86\udd88\udd8b-\udd8d\udd8f-\udd93\udd95\udd96\udd98\udda1\udda2\udda5\udda6\udda9\uddab\uddac\uddb0-\uddb2\uddb5\uddb8\uddb9\uddbc\uddbd\uddbf\uddce\uddc0-\uddc5\uddc7\uddcd\uddd0\uddd2-\uddd5\udde3\udde4\udde6\udde8\uddea\uddec-\uddef\uddf3\uddfa\uddfc\uddfe])/
 
 // A plain \u{1F600}-style emoji is a single codepoint the sequence list above never

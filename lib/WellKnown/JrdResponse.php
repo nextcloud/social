@@ -145,6 +145,7 @@ final class JrdResponse implements IResponse {
 	/**
 	 * @since 21.0.0
 	 */
+	#[\Override]
 	public function toHttpResponse(): Response {
 		$data = array_filter(
 			[

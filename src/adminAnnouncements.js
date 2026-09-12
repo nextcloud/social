@@ -20,6 +20,23 @@ import { getRequestToken } from '@nextcloud/auth'
 import { generateUrl } from '@nextcloud/router'
 
 /**
+ * Says something went wrong, in the toast the rest of the app uses.
+ *
+ * Imported when there is something to say rather than at the top: the package
+ * declares no `sideEffects`, so a static import drops all of it — file picker,
+ * Vue runtime and all — into a bundle that otherwise has none of that, and 17
+ * KiB became 761 KiB. This way it arrives in a chunk of its own, the first
+ * time a request fails.
+ *
+ * @param {string} message what to tell the administrator
+ * @return {Promise<void>}
+ */
+async function report(message) {
+	const { showError } = await import('@nextcloud/dialogs')
+	showError(message)
+}
+
+/**
  * The administration routes of the announcements subsystem.
  *
  * @return {string} their base URL
@@ -123,7 +140,7 @@ export async function load() {
 	try {
 		render((await call('GET', '')).announcements)
 	} catch {
-		OC.Notification.showTemporary(t('social', 'Could not read the announcements'))
+		await report(t('social', 'Could not read the announcements'))
 	}
 }
 
@@ -158,9 +175,7 @@ export async function add() {
 		allDay.checked = false
 		render(data.announcements)
 	} catch (error) {
-		OC.Notification.showTemporary(
-			t('social', 'Could not post the announcement') + ': ' + error.message,
-		)
+		await report(t('social', 'Could not post the announcement') + ': ' + error.message)
 	}
 }
 
@@ -185,7 +200,7 @@ export async function remove(event) {
 	try {
 		render((await call('DELETE', '/' + row.dataset.announcementId)).announcements)
 	} catch {
-		OC.Notification.showTemporary(t('social', 'Could not remove the announcement'))
+		await report(t('social', 'Could not remove the announcement'))
 	}
 }
 

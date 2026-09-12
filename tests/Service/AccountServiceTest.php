@@ -40,6 +40,7 @@ use OCP\Accounts\IAccountProperty;
 use OCP\IUser;
 use OCP\IUserManager;
 use OCP\IUserSession;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -438,12 +439,17 @@ class AccountServiceTest extends TestCase {
 		$bob = $this->alice();
 		$bob->setPreferredUsername('bob');
 		$this->actorsRequest->method('getAll')->willReturn([$alice, $bob]);
+		$refreshed = [];
 		$this->actorsRequest->expects($this->exactly(2))
 			->method('getFromUsername')
-			->withConsecutive(['alice'], ['bob'])
-			->willThrowException(new ActorDoesNotExistException());
+			->willReturnCallback(function (string $username) use (&$refreshed): never {
+				$refreshed[] = $username;
+
+				throw new ActorDoesNotExistException();
+			});
 
 		$this->assertSame(2, $this->service->manageCacheLocalActors());
+		$this->assertSame(['alice', 'bob'], $refreshed);
 	}
 
 	public function testManageDeletedActorsSkipsLiveActors(): void {
@@ -463,7 +469,7 @@ class AccountServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, bool}>
 	 */
-	public function displayNameScopeProvider(): array {
+	public static function displayNameScopeProvider(): array {
 		return [
 			// the default scope on a stock Nextcloud: requiring SCOPE_PUBLISHED
 			// meant no local actor ever federated a display name at all
@@ -474,9 +480,7 @@ class AccountServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider displayNameScopeProvider
-	 */
+	#[DataProvider('displayNameScopeProvider')]
 	public function testTheDisplayNameFederatesUnlessTheUserAskedOtherwise(
 		string $scope,
 		bool $expectPublished,
@@ -499,7 +503,7 @@ class AccountServiceTest extends TestCase {
 	/**
 	 * @return array<string, array{string, string}>
 	 */
-	public function handleProvider(): array {
+	public static function handleProvider(): array {
 		return [
 			// already usable: left exactly as it is, so existing installs keep
 			// the handles their actors already have
@@ -517,9 +521,7 @@ class AccountServiceTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider handleProvider
-	 */
+	#[DataProvider('handleProvider')]
 	public function testGenerateHandleFromUserId(string $userId, string $expected): void {
 		$this->actorsRequest->method('getFromUsername')
 			->willThrowException(new ActorDoesNotExistException());
@@ -696,9 +698,8 @@ class AccountServiceTest extends TestCase {
 	 * A bio is plain text, and `<` is a character people type. Stripping tags
 	 * on the way in read the bare `<` as the start of one and swallowed the
 	 * rest of the line: `Maths: a<b and b>c` was stored as `Maths: ac`.
-	 *
-	 * @dataProvider plainTextBios
 	 */
+	#[DataProvider('plainTextBios')]
 	public function testSetSummaryStoresThePlainTextAsItWasTyped(string $typed): void {
 		$alice = $this->alice();
 		$this->aliceIsKnown($alice);
@@ -710,7 +711,7 @@ class AccountServiceTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function plainTextBios(): iterable {
+	public static function plainTextBios(): iterable {
 		yield 'an unclosed angle bracket' => ['Maths: a<b and b>c'];
 		yield 'a bare less-than' => ['I <3 cats & dogs'];
 		yield 'an ampersand entity as typed' => ['bees &amp; goats'];
@@ -721,9 +722,8 @@ class AccountServiceTest extends TestCase {
 	 * The write path was only half of it: the row is flattened again every time
 	 * it is read, so a bio survived being saved and was destroyed on the next
 	 * page load.
-	 *
-	 * @dataProvider plainTextBios
 	 */
+	#[DataProvider('plainTextBios')]
 	public function testAStoredBioSurvivesComingBackOutOfTheDatabase(string $typed): void {
 		$alice = $this->alice();
 

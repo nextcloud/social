@@ -5,12 +5,12 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import ProfileInfo from '../../../src/components/ProfileInfo.vue'
-import account from '../../../src/store/account.js'
-import settings from '../../../src/store/settings.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -22,8 +22,6 @@ vi.mock('@nextcloud/dialogs', async (importOriginal) => ({
 	showError: vi.fn(),
 	showSuccess: vi.fn(),
 }))
-
-const pristine = structuredClone(account.state)
 
 const NcAvatarStub = {
 	name: 'NcAvatar',
@@ -94,32 +92,48 @@ const alice = {
 	fields: [],
 }
 
-let store
+let pinia
+let accountStore
 
-const makeStore = (serverData = {}) => {
-	Object.assign(account.state, structuredClone(pristine))
-	store = createStore({ modules: { account, settings } })
-	store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
-	for (const data of [bob, carol, alice]) {
-		store.commit('addAccount', { actorId: data.url, data })
-	}
-	return store
+// the actions the profile takes, behind one mock, so "nothing was asked of the
+// store" stays a single assertion
+const ACCOUNT_ACTIONS = ['blockAccount', 'unblockAccount', 'muteAccount', 'unmuteAccount', 'fetchAccountInfo']
+
+function spyOnAccountActions(result) {
+	const dispatch = vi.fn().mockResolvedValue(result)
+	ACCOUNT_ACTIONS.forEach((name) => vi.spyOn(accountStore, name).mockImplementation(dispatch))
+
+	return dispatch
 }
 
-const mountProfile = (uid) => mount(ProfileInfo, {
-	props: { uid },
-	global: {
-		plugins: [store],
-		stubs: {
-			NcAvatar: NcAvatarStub,
-			FollowButton: FollowButtonStub,
-			RouterLink: RouterLinkStub,
-			NcModal: NcModalStub,
-			NcActions: NcActionsStub,
-			NcActionButton: NcActionButtonStub,
+function makeStore(serverData = {}) {
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
+	for (const data of [bob, carol, alice]) {
+		accountStore.addAccount({ actorId: data.url, data })
+	}
+
+	return pinia
+}
+
+function mountProfile(uid) {
+	return mount(ProfileInfo, {
+		props: { uid },
+		global: {
+			plugins: [pinia],
+			stubs: {
+				NcAvatar: NcAvatarStub,
+				FollowButton: FollowButtonStub,
+				RouterLink: RouterLinkStub,
+				NcModal: NcModalStub,
+				NcActions: NcActionsStub,
+				NcActionButton: NcActionButtonStub,
+			},
 		},
-	},
-})
+	})
+}
 
 const linkTexts = (wrapper) => wrapper.findAll('.user-profile__info li').map((li) => li.text().replace(/\s+/g, ' '))
 const buttonByText = (wrapper, text) => wrapper.findAll('button').find((button) => button.text() === text)
@@ -212,13 +226,13 @@ describe('ProfileInfo', () => {
 
 	it('paints the header image onto the banner when it changes and clears it when removed', async () => {
 		const wrapper = mountProfile('carol')
-		store.commit('addAccount', { actorId: carol.url, data: { header: 'https://cloud.example.org/carol-header.png' } })
+		accountStore.addAccount({ actorId: carol.url, data: { header: 'https://cloud.example.org/carol-header.png' } })
 		await nextTick()
 		expect(bannerOf(wrapper).element.style.backgroundImage).toContain('https://cloud.example.org/carol-header.png')
 		expect(bannerOf(wrapper).element.style.backgroundSize).toBe('cover')
 		expect(bannerOf(wrapper).classes()).toContain('user-profile__banner--visible')
 
-		store.commit('addAccount', { actorId: carol.url, data: { header: '' } })
+		accountStore.addAccount({ actorId: carol.url, data: { header: '' } })
 		await nextTick()
 		expect(bannerOf(wrapper).element.style.backgroundImage).toBe('')
 		expect(bannerOf(wrapper).element.style.backgroundColor).toBe('var(--color-background-dark)')
@@ -245,7 +259,7 @@ describe('ProfileInfo', () => {
 		})
 
 		it('offers Block and Mute for an account that is neither blocked nor muted', () => {
-			store.commit('addRelationship', { actorId: bob.id, data: relationship() })
+			accountStore.addRelationship({ actorId: bob.id, data: relationship() })
 			const wrapper = mountProfile('bob@remote.example')
 			expect(menuItems(wrapper)).toEqual(['Block', 'Mute'])
 			expect(wrapper.findComponent(FollowButtonStub).exists()).toBe(true)
@@ -253,7 +267,7 @@ describe('ProfileInfo', () => {
 		})
 
 		it('flips to Unblock, shows the Blocked hint and hides the follow button for a blocked account', () => {
-			store.commit('addRelationship', { actorId: bob.id, data: relationship({ blocking: true }) })
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ blocking: true }) })
 			const wrapper = mountProfile('bob@remote.example')
 			expect(menuItems(wrapper)).toEqual(['Unblock', 'Mute'])
 			expect(wrapper.find('.user-profile__blocked-hint').text()).toBe('Blocked')
@@ -261,7 +275,7 @@ describe('ProfileInfo', () => {
 		})
 
 		it('flips to Unmute for a muted account', () => {
-			store.commit('addRelationship', { actorId: bob.id, data: relationship({ muting: true, muting_notifications: true }) })
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ muting: true, muting_notifications: true }) })
 			expect(menuItems(mountProfile('bob@remote.example'))).toEqual(['Block', 'Unmute'])
 		})
 
@@ -270,25 +284,25 @@ describe('ProfileInfo', () => {
 			['Unblock', relationship({ blocking: true }), 'unblockAccount'],
 			['Mute', relationship(), 'muteAccount'],
 			['Unmute', relationship({ muting: true }), 'unmuteAccount'],
-		])('clicking %s dispatches %s with the relationship id', async (label, data, action) => {
-			store.commit('addRelationship', { actorId: bob.id, data })
-			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(data)
+		])('clicking %s calls %s with the relationship id', async (label, data, action) => {
+			accountStore.addRelationship({ actorId: bob.id, data })
+			spyOnAccountActions(data)
 			const wrapper = mountProfile('bob@remote.example')
 
 			await menuItem(wrapper, label).trigger('click')
 			await flushPromises()
 
-			expect(dispatch).toHaveBeenCalledWith(action, { id: '42' })
+			expect(accountStore[action]).toHaveBeenCalledWith({ id: '42' })
 		})
 
 		it('shows no menu on the own profile', () => {
-			store.commit('addRelationship', { actorId: alice.id, data: relationship() })
+			accountStore.addRelationship({ actorId: alice.id, data: relationship() })
 			expect(menuItems(mountProfile('alice'))).toEqual([])
 		})
 
 		it('shows no menu on the public page', () => {
 			makeStore({ public: true })
-			store.commit('addRelationship', { actorId: bob.id, data: relationship() })
+			accountStore.addRelationship({ actorId: bob.id, data: relationship() })
 			expect(menuItems(mountProfile('bob@remote.example'))).toEqual([])
 		})
 	})
@@ -320,7 +334,7 @@ describe('ProfileInfo', () => {
 		})
 
 		it('renders the text of a remote field and links it when it points at a URL', () => {
-			store.commit('addAccount', {
+			accountStore.addAccount({
 				actorId: bob.url,
 				data: {
 					fields: [
@@ -337,7 +351,7 @@ describe('ProfileInfo', () => {
 		})
 
 		it('never turns a javascript: value from a remote server into a link', () => {
-			store.commit('addAccount', {
+			accountStore.addAccount({
 				actorId: bob.url,
 				data: { fields: [{ name: 'Evil', value: '<a href="javascript:alert(1)">click me</a>', verified_at: null }] },
 			})
@@ -353,7 +367,7 @@ describe('ProfileInfo', () => {
 		})
 
 		it('prefills the editor with the own raw field values and saves the trimmed set', async () => {
-			store.commit('addAccount', {
+			accountStore.addAccount({
 				actorId: alice.url,
 				data: {
 					fields: [{ name: 'Website', value: '<a href="https://example.org">example.org</a>', verified_at: null }],
@@ -361,7 +375,7 @@ describe('ProfileInfo', () => {
 				},
 			})
 			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: { result: { account: alice } } })
-			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			spyOnAccountActions(alice)
 			const wrapper = mountProfile('alice')
 
 			await buttonByText(wrapper, 'Edit profile').trigger('click')
@@ -389,12 +403,12 @@ describe('ProfileInfo', () => {
 			})
 			expect(wrapper.find('.modal-stub').exists()).toBe(false)
 			expect(showSuccess).toHaveBeenCalledWith('Profile saved')
-			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
+			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
 		})
 
 		it('drops half-filled rows and can clear every field', async () => {
 			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: { result: { account: alice } } })
-			vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			spyOnAccountActions(alice)
 			const wrapper = mountProfile('alice')
 
 			await buttonByText(wrapper, 'Edit profile').trigger('click')
@@ -407,7 +421,7 @@ describe('ProfileInfo', () => {
 		})
 
 		it('offers at most four rows', async () => {
-			store.commit('addAccount', {
+			accountStore.addAccount({
 				actorId: alice.url,
 				data: {
 					source: {
@@ -451,7 +465,7 @@ describe('ProfileInfo', () => {
 		}
 
 		it('renders the bio of the shown account and strips what is not safe to inject', () => {
-			store.commit('addAccount', {
+			accountStore.addAccount({
 				actorId: bob.url,
 				data: { note: '<p>Hi <a href="https://example.org">there</a></p><script>alert(1)</script>' },
 			})
@@ -465,13 +479,13 @@ describe('ProfileInfo', () => {
 		it('shows a bio block only for an account that has one', () => {
 			expect(mountProfile('bob@remote.example').find('.user-profile__note').exists()).toBe(false)
 
-			store.commit('addAccount', { actorId: bob.url, data: { note: '<p>Hello</p>' } })
+			accountStore.addAccount({ actorId: bob.url, data: { note: '<p>Hello</p>' } })
 
 			expect(mountProfile('bob@remote.example').find('.user-profile__note').exists()).toBe(true)
 		})
 
 		it('fills the edit box with the stored plain text, never with the rendered HTML', async () => {
-			store.commit('addAccount', {
+			accountStore.addAccount({
 				actorId: alice.url,
 				data: { note: '<p>Rendered <b>HTML</b></p>', source: { note: 'Plain <text> bio' } },
 			})
@@ -483,13 +497,13 @@ describe('ProfileInfo', () => {
 		})
 
 		it('sends the bio as the plain text it is stored as and refreshes the account', async () => {
-			store.commit('addAccount', {
+			accountStore.addAccount({
 				actorId: alice.url,
 				data: { note: '<p>Old</p>', source: { note: 'Old' } },
 			})
 			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
 			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
-			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			spyOnAccountActions(alice)
 			const wrapper = mountProfile('alice')
 
 			const modal = await openEditor(wrapper)
@@ -503,17 +517,17 @@ describe('ProfileInfo', () => {
 			expect(patch.mock.calls[0][1]).toEqual({ note: 'A new bio\nover two lines' })
 			expect(wrapper.find('.modal-stub').exists()).toBe(false)
 			expect(showSuccess).toHaveBeenCalledWith('Profile saved')
-			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
+			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
 		})
 
 		it('leaves the stored bio alone when only the other fields were edited', async () => {
-			store.commit('addAccount', {
+			accountStore.addAccount({
 				actorId: alice.url,
 				data: { note: '<p>Old</p>', source: { note: 'Old' } },
 			})
 			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
 			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
-			vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			spyOnAccountActions(alice)
 			const wrapper = mountProfile('alice')
 
 			const modal = await openEditor(wrapper)
@@ -556,7 +570,7 @@ describe('ProfileInfo', () => {
 				release = resolve
 			}))
 			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
-			vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			spyOnAccountActions(alice)
 			const wrapper = mountProfile('alice')
 
 			const modal = await openEditor(wrapper)
@@ -577,7 +591,7 @@ describe('ProfileInfo', () => {
 		it('keeps the editor and the typed bio when the save fails', async () => {
 			vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
 			vi.spyOn(axios, 'patch').mockRejectedValue(new Error('500'))
-			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			const dispatch = spyOnAccountActions(alice)
 			const wrapper = mountProfile('alice')
 
 			const modal = await openEditor(wrapper)
@@ -600,7 +614,7 @@ describe('ProfileInfo', () => {
 
 		beforeEach(() => {
 			post = vi.spyOn(axios, 'post')
-			dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			dispatch = spyOnAccountActions(alice)
 		})
 
 		it('uploads the chosen file, applies the returned banner and refreshes the account', async () => {
@@ -621,7 +635,7 @@ describe('ProfileInfo', () => {
 			expect(body.get('file')).toBe(file)
 			expect(bannerOf(wrapper).element.style.backgroundImage).toContain('https://cloud.example.org/banners/alice.png')
 			expect(showSuccess).toHaveBeenCalledWith('Banner uploaded successfully')
-			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
+			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
 			expect(buttonByText(wrapper.find('.modal-stub'), 'Upload an image').attributes('disabled')).toBeUndefined()
 		})
 
@@ -673,7 +687,7 @@ describe('ProfileInfo', () => {
 			expect(wrapper.find('.modal-stub input[type="url"]').element.value).toBe('')
 			expect(bannerOf(wrapper).element.style.backgroundImage).toContain('https://cloud.example.org/banners/from-url.png')
 			expect(showSuccess).toHaveBeenCalledWith('Banner set successfully')
-			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
+			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
 		})
 
 		it('keeps the modal open and reports when the URL cannot be fetched', async () => {

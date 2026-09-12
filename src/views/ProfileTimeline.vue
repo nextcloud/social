@@ -5,7 +5,8 @@
 <template>
 	<div>
 		<ul v-if="pinned.length" class="profile-pinned">
-			<TimelineEntry v-for="entry in pinned"
+			<TimelineEntry
+				v-for="entry in pinned"
 				:key="`pinned-${entry.id}`"
 				:item="entry"
 				type="account" />
@@ -20,6 +21,8 @@ import { generateUrl } from '@nextcloud/router'
 import TimelineEntry from './../components/TimelineEntry.vue'
 import TimelineList from './../components/TimelineList.vue'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useTimelineStore } from '../store/timeline.js'
 
 export default {
 	name: 'ProfileTimeline',
@@ -27,12 +30,15 @@ export default {
 		TimelineEntry,
 		TimelineList,
 	},
+
 	data() {
 		return {
 			pinnedIds: [],
 		}
 	},
+
 	computed: {
+		...mapStores(useTimelineStore),
 		/**
 		 * The pinned posts, read back out of the store.
 		 *
@@ -47,26 +53,31 @@ export default {
 		 */
 		pinned() {
 			return this.pinnedIds
-				.map((id) => this.$store.getters.getStatus(id))
+				.map((id) => this.timelineStore.getStatus(id))
 				.filter(Boolean)
 		},
 	},
+
 	watch: {
 		'$route.params.account': 'load',
 	},
+
 	beforeMount() {
 		this.load()
 	},
+
 	methods: {
 		load() {
 			this.loadTimeline()
 			this.loadPinned()
 		},
+
 		loadTimeline() {
 			if (this.$route.params.account) {
-				this.$store.dispatch('changeTimelineTypeAccount', this.$route.params.account)
+				this.timelineStore.changeTimelineTypeAccount(this.$route.params.account)
 			}
 		},
+
 		/**
 		 * The pinned posts sit above the timeline, the way every Fediverse
 		 * profile shows them. A failure here leaves the timeline alone.
@@ -84,7 +95,7 @@ export default {
 				)
 				const statuses = Array.isArray(data) ? data : []
 				for (const status of statuses) {
-					this.$store.commit('addToStatuses', status)
+					this.timelineStore.addToStatuses(status)
 				}
 				this.pinnedIds = statuses.map((status) => status.id)
 			} catch (error) {

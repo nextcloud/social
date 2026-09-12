@@ -24,6 +24,7 @@ class DeleteInterface extends AbstractActivityPubInterface implements IActivityP
 	/**
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		$item->checkOrigin($item->getId());
 		$item->checkOrigin($item->getObjectId());

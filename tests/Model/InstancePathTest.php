@@ -10,10 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model;
 
 use OCA\Social\Model\InstancePath;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class InstancePathTest extends TestCase {
-	public function uriProvider(): array {
+	public static function uriProvider(): array {
 		return [
 			'shared inbox' => ['https://mastodon.social/inbox', 'https', 'mastodon.social', '/inbox'],
 			'user inbox with port' => ['http://localhost:8080/users/alice/inbox', 'http', 'localhost', '/users/alice/inbox'],
@@ -22,9 +23,7 @@ class InstancePathTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider uriProvider
-	 */
+	#[DataProvider('uriProvider')]
 	public function testUriIsSplitIntoProtocolAddressAndPath(string $uri, string $protocol, string $address, string $path): void {
 		$instance = new InstancePath($uri);
 

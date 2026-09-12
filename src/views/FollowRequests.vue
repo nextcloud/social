@@ -8,7 +8,8 @@
 		<!-- the empty state waits for the last row to finish collapsing (the
 		     delay is on .empty-enter-active) so the two do not cross -->
 		<transition name="empty">
-			<NcEmptyContent v-if="!loading && requests.length === 0"
+			<NcEmptyContent
+				v-if="!loading && requests.length === 0"
 				:name="t('social', 'No pending follow requests')"
 				:description="t('social', 'When your account is locked, people asking to follow you show up here.')">
 				<template #icon>
@@ -22,14 +23,15 @@
 		<transition-group name="collapse" tag="div" class="follow-request-list">
 			<div v-for="account in requests" :key="account.id" class="follow-request">
 				<div class="follow-request__user">
-					<NcAvatar :url="account.avatar" :disable-tooltip="true" />
+					<NcAvatar :url="account.avatar" :disableTooltip="true" />
 					<router-link :to="{ name: 'profile', params: { account: account.acct } }">
 						<span class="follow-request__name">{{ account.display_name || account.username }}</span>
 						<span class="follow-request__acct">{{ account.acct }}</span>
 					</router-link>
 				</div>
 				<div class="follow-request__actions">
-					<NcButton :disabled="busy.includes(account.id)"
+					<NcButton
+						:disabled="busy.includes(account.id)"
 						variant="primary"
 						:aria-label="t('social', 'Accept')"
 						@click="decide(account, true)">
@@ -38,7 +40,8 @@
 						</template>
 						{{ t('social', 'Accept') }}
 					</NcButton>
-					<NcButton :disabled="busy.includes(account.id)"
+					<NcButton
+						:disabled="busy.includes(account.id)"
 						:aria-label="t('social', 'Reject')"
 						@click="decide(account, false)">
 						<template #icon>
@@ -77,6 +80,7 @@ export default {
 		Check,
 		Close,
 	},
+
 	data() {
 		return {
 			/** @type {import('../types/Mastodon.js').Account[]} */
@@ -85,9 +89,11 @@ export default {
 			loading: true,
 		}
 	},
+
 	async mounted() {
 		await this.fetchRequests()
 	},
+
 	methods: {
 		async fetchRequests() {
 			this.loading = true
@@ -101,6 +107,7 @@ export default {
 				this.loading = false
 			}
 		},
+
 		/**
 		 * @param {import('../types/Mastodon.js').Account} account the requester
 		 * @param {boolean} accept accept or reject

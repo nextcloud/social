@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OC\Core\Command\Base;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
@@ -19,7 +18,7 @@ use OCA\Social\Service\StreamQueueService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class QueueProcess extends Base {
+class QueueProcess extends SocialCommand {
 	private RequestQueueService $requestQueueService;
 	private ConfigService $configService;
 
@@ -38,6 +37,7 @@ class QueueProcess extends Base {
 	/**
 	 *
 	 */
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:queue:process')
@@ -48,6 +48,7 @@ class QueueProcess extends Base {
 	 * @param InputInterface $input
 	 * @param OutputInterface $output
 	 */
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$output->writeLn('processing requests queue');
 		$this->processRequestQueue($output);

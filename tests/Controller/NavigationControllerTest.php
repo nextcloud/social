@@ -31,6 +31,7 @@ use OCP\IGroupManager;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -365,14 +366,14 @@ class NavigationControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string, string}> */
-	public function documentEndpoints(): iterable {
+	public static function documentEndpoints(): iterable {
 		yield 'documentGet' => ['documentGet', 'getFromCacheAsViewer'];
 		yield 'documentGetPublic' => ['documentGetPublic', 'getFromCache'];
 		yield 'resizedGet' => ['resizedGet', 'getResizedFromCacheAsViewer'];
 		yield 'resizedGetPublic' => ['resizedGetPublic', 'getResizedFromCache'];
 	}
 
-	/** @dataProvider documentEndpoints */
+	#[DataProvider('documentEndpoints')]
 	public function testMissingDocumentsAreReportedAsFailures(string $action, string $method): void {
 		$this->documentService->method($method)->willThrowException(new CacheDocumentDoesNotExistException('missing'));
 

@@ -7,12 +7,14 @@
 		<!-- three pictures and up are a set, not a stack of thumbnails: they are
 		     paged through one at a time instead of shrunk until nothing in them
 		     can be made out -->
-		<GalleryCarousel v-if="isCarousel"
+		<GalleryCarousel
+			v-if="isCarousel"
 			ref="carousel"
 			:attachments="attachments"
 			@open="showModal" />
 		<div v-else-if="mediaFirst" class="gallery-mosaic" :class="`gallery-mosaic--${attachments.length}`">
-			<GalleryMedia v-for="(item, index) in attachments"
+			<GalleryMedia
+				v-for="(item, index) in attachments"
 				:key="item.id ?? index"
 				ref="frames"
 				:attachment="item"
@@ -27,7 +29,8 @@
 				     Video and audio carry their own controls: nesting those
 				     inside a button is invalid, and they need no viewer to be
 				     watchable where they are -->
-				<button v-if="isPressable(item)"
+				<button
+					v-if="isPressable(item)"
 					ref="thumbnails"
 					type="button"
 					class="attachment"
@@ -37,7 +40,8 @@
 				</button>
 				<MediaAttachment v-else ref="thumbnails" :attachment="item" />
 			</template>
-			<button v-if="attachments.length > 4"
+			<button
+				v-if="attachments.length > 4"
 				type="button"
 				class="attachment more-attachments"
 				:aria-label="n('social', 'Show %n more attachment', 'Show %n more attachments', attachments.length - 4)"
@@ -45,21 +49,24 @@
 				<span aria-hidden="true">+</span>
 			</button>
 		</div>
-		<NcModal v-if="modal"
+		<NcModal
+			v-if="modal"
 			:name="currentLabel"
-			:has-previous="current > 0"
-			:has-next="current < (attachments.length - 1)"
+			:hasPrevious="current > 0"
+			:hasNext="current < (attachments.length - 1)"
 			size="full"
 			@close="closeModal"
 			@previous="current--"
 			@next="current++">
 			<div ref="viewer" class="attachment__viewer">
-				<video v-if="attachments[current].type === 'video'"
+				<video
+					v-if="attachments[current].type === 'video'"
 					:src="attachments[current].url"
 					:aria-label="attachments[current].description || ''"
 					controls
 					autoplay />
-				<audio v-else-if="attachments[current].type === 'audio'"
+				<audio
+					v-else-if="attachments[current].type === 'audio'"
 					:src="attachments[current].url"
 					:aria-label="attachments[current].description || ''"
 					controls />
@@ -75,7 +82,6 @@
 </template>
 
 <script>
-import serverData from '../mixins/serverData.js'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import MediaAttachment from './MediaAttachment.vue'
 import GalleryCarousel from './GalleryCarousel.vue'
@@ -85,6 +91,7 @@ import { nameForTransition, withViewTransition } from '../utils/viewTransition.j
 
 /** one name per document: only one lightbox is ever open */
 import { translate, translatePlural } from '@nextcloud/l10n'
+import { useServerData } from '../composables/useServerData.js'
 
 const MEDIA_TRANSITION = 'social-media'
 
@@ -99,15 +106,14 @@ export default {
 		GalleryCarousel,
 		GalleryMedia,
 	},
-	mixins: [
-		serverData,
-	],
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').MediaAttachment[]>} */
 		attachments: {
 			type: Array,
 			default: Array,
 		},
+
 		/**
 		 * Whether the media leads the post. The thumbnail grid stays for the
 		 * places where the text comes first, so nothing but a picture post
@@ -118,12 +124,20 @@ export default {
 			default: false,
 		},
 	},
+
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
+	},
+
 	data() {
 		return {
 			modal: false,
 			current: 0,
 		}
 	},
+
 	computed: {
 		/** What the open viewer is showing, so the dialog has a name. */
 		currentLabel() {
@@ -132,13 +146,16 @@ export default {
 			return attachment?.description
 				? attachment.description
 				: translate('social', 'Attachment {number} of {total}', {
-					number: this.current + 1, total: this.attachments.length,
-				})
+						number: this.current + 1,
+						total: this.attachments.length,
+					})
 		},
+
 		/** @return {boolean} */
 		isCarousel() {
 			return this.mediaFirst && this.attachments.length >= CAROUSEL_FROM
 		},
+
 		/**
 		 * @return {number} the shape of a mosaic tile. A lone picture keeps its
 		 * own; a pair is squared off, because two tiles of different heights
@@ -147,6 +164,7 @@ export default {
 		mosaicRatio() {
 			return this.attachments.length === 1 ? ratioOf(this.attachments[0], DEFAULT_RATIO) : 1
 		},
+
 		/** @return {import('../types/Mastodon.js').MediaAttachment[]} */
 		attachementsSlice() {
 			if (this.attachments.length <= 4) {
@@ -156,6 +174,7 @@ export default {
 			}
 		},
 	},
+
 	methods: {
 		t: translate,
 		n: translatePlural,
@@ -175,11 +194,13 @@ export default {
 		isPressable(attachment) {
 			return attachment?.type !== 'video' && attachment?.type !== 'audio'
 		},
+
 		openLabel(attachment, index) {
 			return attachment.description
 				? translate('social', 'Open attachment: {description}', { description: attachment.description })
 				: translate('social', 'Open attachment {number}', { number: index + 1 })
 		},
+
 		/**
 		 * The element the tapped picture is showing in, whichever layout it is.
 		 *
@@ -195,6 +216,7 @@ export default {
 
 			return frame?.$el ?? frame ?? null
 		},
+
 		/**
 		 * The tapped thumbnail and the opened viewer share a name for the
 		 * length of the transition, so the browser grows one into the other
@@ -215,6 +237,7 @@ export default {
 
 			release()
 		},
+
 		async closeModal() {
 			const release = nameForTransition(this.$refs.viewer ?? null, MEDIA_TRANSITION)
 			const thumbnail = this.frameAt(this.current)
@@ -230,6 +253,7 @@ export default {
 	},
 }
 </script>
+
 <style lang="scss" scoped>
 .post-attachments {
 	.attachments-container {

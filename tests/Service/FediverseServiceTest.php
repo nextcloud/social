@@ -17,6 +17,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\MiscService;
 use OCP\BackgroundJob\IJobList;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -265,9 +266,7 @@ class FediverseServiceTest extends TestCase {
 		$this->assertTrue($this->service->isListed('SPAM.Example'));
 	}
 
-	/**
-	 * @dataProvider provideSubdomainsOfAListedDomain
-	 */
+	#[DataProvider('provideSubdomainsOfAListedDomain')]
 	public function testAListedDomainCoversWhatIsUnderIt(string $address): void {
 		// a suspension that only matched the exact string lasted as long as it
 		// took to point another wildcard record at the same host
@@ -276,7 +275,7 @@ class FediverseServiceTest extends TestCase {
 		$this->assertTrue($this->service->isListed($address), $address . ' should be covered');
 	}
 
-	public function provideSubdomainsOfAListedDomain(): iterable {
+	public static function provideSubdomainsOfAListedDomain(): iterable {
 		yield 'the domain itself' => ['evil.test'];
 		yield 'www' => ['www.evil.test'];
 		yield 'a deeper label' => ['a.b.evil.test'];
@@ -286,16 +285,14 @@ class FediverseServiceTest extends TestCase {
 		yield 'padded' => [' www.evil.test '];
 	}
 
-	/**
-	 * @dataProvider provideNamesThatMerelyLookSimilar
-	 */
+	#[DataProvider('provideNamesThatMerelyLookSimilar')]
 	public function testASuffixMatchStopsAtALabelBoundary(string $address): void {
 		$this->withAccess('all_but', ['evil.test']);
 
 		$this->assertFalse($this->service->isListed($address), $address . ' is a different name');
 	}
 
-	public function provideNamesThatMerelyLookSimilar(): iterable {
+	public static function provideNamesThatMerelyLookSimilar(): iterable {
 		yield 'longer label' => ['notevil.test'];
 		yield 'different tld' => ['evil.testing'];
 		yield 'the parent' => ['test'];

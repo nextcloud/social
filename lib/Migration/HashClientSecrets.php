@@ -44,10 +44,12 @@ class HashClientSecrets implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Hash the stored Social OAuth client secrets and tokens';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		if ($this->configService->getAppValueInt(self::MARKER) === 1) {
 			return;

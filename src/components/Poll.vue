@@ -12,20 +12,23 @@
 					<Check v-if="poll.own_votes && poll.own_votes.includes(index)" :size="16" />
 				</span>
 				<span class="poll__result-bar">
-					<span class="poll__result-fill"
+					<span
+						class="poll__result-fill"
 						:style="{ width: revealed ? percentage(option) + '%' : 0, transitionDelay: index * 80 + 'ms' }" />
 				</span>
 			</div>
 		</template>
 		<template v-else>
 			<label v-for="(option, index) in poll.options" :key="index" class="poll__option">
-				<input v-model="selected"
+				<input
+					v-model="selected"
 					:type="poll.multiple ? 'checkbox' : 'radio'"
 					:value="index"
 					:name="groupName">
 				{{ option.title }}
 			</label>
-			<NcButton :disabled="selectedIndices.length === 0 || voting"
+			<NcButton
+				:disabled="selectedIndices.length === 0 || voting"
 				variant="primary"
 				@click="vote">
 				{{ t('social', 'Vote') }}
@@ -61,6 +64,7 @@ export default {
 		NcButton,
 		Check,
 	},
+
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Poll>} */
 		poll: {
@@ -68,6 +72,7 @@ export default {
 			required: true,
 		},
 	},
+
 	emits: ['update:poll'],
 	data() {
 		return {
@@ -84,6 +89,27 @@ export default {
 			revealed: false,
 		}
 	},
+
+	computed: {
+		/** @return {boolean} */
+		showResults() {
+			return this.poll.voted || this.poll.expired
+		},
+
+		/** @return {number[]} */
+		selectedIndices() {
+			if (this.poll.multiple) {
+				return this.selected
+			}
+			return this.selected === null ? [] : [this.selected]
+		},
+
+		/** @return {string} */
+		expiry() {
+			return fromNow(this.poll.expires_at)
+		},
+	},
+
 	watch: {
 		showResults: {
 			handler(shown) {
@@ -94,26 +120,11 @@ export default {
 					})
 				}
 			},
+
 			immediate: true,
 		},
 	},
-	computed: {
-		/** @return {boolean} */
-		showResults() {
-			return this.poll.voted || this.poll.expired
-		},
-		/** @return {number[]} */
-		selectedIndices() {
-			if (this.poll.multiple) {
-				return this.selected
-			}
-			return this.selected === null ? [] : [this.selected]
-		},
-		/** @return {string} */
-		expiry() {
-			return fromNow(this.poll.expires_at)
-		},
-	},
+
 	methods: {
 		/**
 		 * @param {object} option a poll option
@@ -125,6 +136,7 @@ export default {
 			}
 			return Math.round((option.votes_count / this.poll.votes_count) * 100)
 		},
+
 		async vote() {
 			this.voting = true
 			try {

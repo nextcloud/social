@@ -8,15 +8,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import GalleryCarousel from '../../../src/components/GalleryCarousel.vue'
 import GalleryMedia from '../../../src/components/GalleryMedia.vue'
 
-const photo = (index) => ({
-	id: `a${index}`,
-	type: 'image',
-	url: `https://cloud.example.org/media/${index}.jpg`,
-	preview_url: `https://cloud.example.org/media/${index}-small.jpg`,
-	description: `Picture ${index}`,
-	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-	meta: { original: { width: 1600, height: 1200 }, small: { width: 4, height: 3 } },
-})
+function photo(index) {
+	return {
+		id: `a${index}`,
+		type: 'image',
+		url: `https://cloud.example.org/media/${index}.jpg`,
+		preview_url: `https://cloud.example.org/media/${index}-small.jpg`,
+		description: `Picture ${index}`,
+		blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+		meta: { original: { width: 1600, height: 1200 }, small: { width: 4, height: 3 } },
+	}
+}
 
 const photos = (count) => Array.from({ length: count }, (_, index) => photo(index + 1))
 

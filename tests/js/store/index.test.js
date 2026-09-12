@@ -3,54 +3,66 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import store from '../../../src/store/index.js'
+import pinia, {
+	useAccountStore,
+	useErrorsStore,
+	useNotificationsStore,
+	useSettingsStore,
+	useTimelineStore,
+} from '../../../src/store/index.js'
 
 describe('root store', () => {
+	beforeEach(() => {
+		setActivePinia(pinia)
+	})
+
 	afterEach(() => {
-		vi.unstubAllEnvs()
 		vi.restoreAllMocks()
 	})
 
-	it('registers the timeline, account, settings, errors and notifications modules without namespaces', () => {
-		expect(store.hasModule('timeline')).toBe(true)
-		expect(store.hasModule('account')).toBe(true)
-		expect(store.hasModule('settings')).toBe(true)
-		expect(store.hasModule('errors')).toBe(true)
-		expect(store.hasModule('notifications')).toBe(true)
-		expect(Object.keys(store.state).sort()).toEqual(['account', 'errors', 'notifications', 'settings', 'timeline'])
-
-		expect(store.getters.getTimeline).toEqual([])
-		expect(typeof store.getters.getAccount).toBe('function')
-		expect(store.getters.getServerData).toEqual({})
-		expect(store.getters.hasErrors).toBe(false)
+	it('is the one Pinia the entry points install', () => {
+		expect(typeof pinia.install).toBe('function')
 	})
 
-	it('lets modules dispatch each other\'s actions through the shared namespace', async () => {
-		await store.dispatch('addAppError', { title: 't', message: 'm' })
+	it('registers a store per id the first time it is asked for', () => {
+		useTimelineStore()
+		useAccountStore()
+		useSettingsStore()
+		useErrorsStore()
+		useNotificationsStore()
 
-		expect(store.getters.appErrors).toHaveLength(1)
-
-		store.commit('clearErrors')
+		expect(Object.keys(pinia.state.value).sort())
+			.toEqual(['account', 'errors', 'notifications', 'settings', 'timeline'])
 	})
 
-	it('runs in strict mode outside production and rejects mutations made outside a handler', () => {
-		vi.spyOn(console, 'warn').mockImplementation(() => {})
-		expect(store.strict).toBe(true)
-
-		expect(() => {
-			store.state.settings.serverData = { tampered: true }
-		}).toThrow(/do not mutate vuex store state outside mutation handlers/)
+	it('exposes the same surface the modules did', () => {
+		expect(useTimelineStore().getTimeline).toEqual([])
+		expect(typeof useAccountStore().getAccount).toBe('function')
+		expect(useSettingsStore().getServerData).toEqual({})
+		expect(useErrorsStore().hasErrors).toBe(false)
 	})
 
-	it('disables strict mode in production builds', async () => {
-		vi.stubEnv('NODE_ENV', 'production')
-		vi.resetModules()
+	it('lets one store call another', async () => {
+		const errors = useErrorsStore()
+		vi.spyOn(errors, 'addAppError')
 
-		const { default: productionStore } = await import('../../../src/store/index.js')
+		// the account store reports a lookup failure through the errors store
+		await useAccountStore().fetchAccountInfo('bob@remote.tld')
 
-		expect(productionStore.strict).toBe(false)
-		expect(productionStore.hasModule('timeline')).toBe(true)
+		expect(errors.addAppError).toHaveBeenCalled()
+	})
+
+	it('gives every Pinia its own state, so one test cannot leak into the next', () => {
+		useTimelineStore().setSearchQuery('fediverse')
+		expect(useTimelineStore().getSearchQuery).toBe('fediverse')
+
+		setActivePinia(createPinia())
+
+		// the four modules that shared one object literal used to answer
+		// 'fediverse' here, which was invisible with a single store
+		expect(useTimelineStore().getSearchQuery).toBe('')
 	})
 })

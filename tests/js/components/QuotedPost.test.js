@@ -17,33 +17,39 @@ const bob = {
 	emojis: [],
 }
 
-const quoted = (overrides = {}) => ({
-	id: '77',
-	url: 'https://remote.example/@bob/77',
-	content: '<p>The post being quoted</p>',
-	visibility: 'public',
-	mentions: [],
-	tags: [],
-	emojis: [],
-	account: bob,
-	quote: null,
-	...overrides,
-})
+function quoted(overrides = {}) {
+	return {
+		id: '77',
+		url: 'https://remote.example/@bob/77',
+		content: '<p>The post being quoted</p>',
+		visibility: 'public',
+		mentions: [],
+		tags: [],
+		emojis: [],
+		account: bob,
+		quote: null,
+		...overrides,
+	}
+}
 
-const mountQuote = (quote) => mount(QuotedPost, {
-	props: { quote },
-	global: {
-		stubs: {
-			ActorAvatar: true,
-			RouterLink: RouterLinkStub,
+function mountQuote(quote) {
+	return mount(QuotedPost, {
+		props: { quote },
+		global: {
+			stubs: {
+				ActorAvatar: true,
+				RouterLink: RouterLinkStub,
+			},
 		},
-	},
-})
+	})
+}
 
 const card = (wrapper) => wrapper.find('.quoted-post')
 const notice = (wrapper) => wrapper.find('.quoted-post__notice')
-const openLink = (wrapper) => wrapper.findAllComponents(RouterLinkStub)
-	.find((link) => link.classes().includes('quoted-post__open'))
+function openLink(wrapper) {
+	return wrapper.findAllComponents(RouterLinkStub)
+		.find((link) => link.classes().includes('quoted-post__open'))
+}
 
 describe('QuotedPost', () => {
 	describe('an accepted quote', () => {

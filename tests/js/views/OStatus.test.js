@@ -5,14 +5,11 @@
 /* global setInitialState */
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import OStatus from '../../../src/views/OStatus.vue'
-import account from '../../../src/store/account.js'
-import errors from '../../../src/store/errors.js'
-import settings from '../../../src/store/settings.js'
-
-const pristine = structuredClone(account.state)
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 const NcAvatarStub = {
 	name: 'NcAvatar',
@@ -28,33 +25,30 @@ const ActorAvatarStub = {
 const bob = { id: 'https://remote.example/users/bob', url: 'https://remote.example/users/bob', acct: 'bob@remote.example', username: 'bob', display_name: 'Bob' }
 const currentUser = { uid: 'alice', displayName: 'Alice' }
 
-let store
-let dispatch
+let pinia
+let accountStore
+let settingsStore
 let pending
 const fetchAccount = vi.fn(() => pending)
 
-const setState = (key, value) => {
+function setState(key, value) {
 	setInitialState('social', key, value)
 	window._nc_initial_state?.clear()
 }
 
-const makeStore = () => {
-	Object.assign(account.state, structuredClone(pristine))
-	store = createStore({
-		modules: {
-			settings,
-			errors,
-			account: {
-				...account,
-				actions: { ...account.actions, fetchAccountInfo: fetchAccount, fetchPublicAccountInfo: fetchAccount, followAccount: vi.fn() },
-			},
-		},
-	})
-	dispatch = vi.spyOn(store, 'dispatch')
-	return store
+function makeStore() {
+	pinia = createPinia()
+	setActivePinia(pinia)
+	accountStore = useAccountStore()
+	settingsStore = useSettingsStore()
+	vi.spyOn(accountStore, 'fetchAccountInfo').mockImplementation(fetchAccount)
+	vi.spyOn(accountStore, 'fetchPublicAccountInfo').mockImplementation(fetchAccount)
+	vi.spyOn(accountStore, 'followAccount').mockResolvedValue(undefined)
+
+	return pinia
 }
 
-const mountView = () => mount(OStatus, { global: { plugins: [store], stubs: { NcAvatar: NcAvatarStub, ActorAvatar: ActorAvatarStub } } })
+const mountView = () => mount(OStatus, { global: { plugins: [pinia], stubs: { NcAvatar: NcAvatarStub, ActorAvatar: ActorAvatarStub } } })
 
 describe('OStatus', () => {
 	beforeEach(() => {
@@ -77,10 +71,10 @@ describe('OStatus', () => {
 
 		it('imports the server data and current user and looks up the remote account', () => {
 			mountView()
-			expect(store.state.settings.serverData).toEqual(serverData)
+			expect(settingsStore.serverData).toEqual(serverData)
 			expect(window.oc_current_user).toEqual(currentUser)
-			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'bob@remote.example')
-			expect(dispatch).not.toHaveBeenCalledWith('fetchPublicAccountInfo', expect.anything())
+			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('bob@remote.example')
+			expect(accountStore.fetchPublicAccountInfo).not.toHaveBeenCalled()
 		})
 
 		it('asks the logged-in user to confirm, naming the account before it is loaded', () => {
@@ -114,12 +108,12 @@ describe('OStatus', () => {
 			expect(wrapper.findAll('h2').map((heading) => heading.text())).toEqual(['Follow on Nextcloud Social', 'Bob'])
 		})
 
-		it('dispatches the follow with the cloud id of the current user and the account handle on submit', async () => {
+		it('follows with the cloud id of the current user and the account handle on submit', async () => {
 			pending = Promise.resolve(bob)
 			const wrapper = mountView()
 			await flushPromises()
 			await wrapper.find('form').trigger('submit')
-			expect(dispatch).toHaveBeenCalledWith('followAccount', expect.objectContaining({ currentAccount: 'alice@cloud.example.org', accountToFollow: 'bob@remote.example' }))
+			expect(accountStore.followAccount).toHaveBeenCalledWith(expect.objectContaining({ currentAccount: 'alice@cloud.example.org', accountToFollow: 'bob@remote.example' }))
 		})
 	})
 
@@ -132,8 +126,8 @@ describe('OStatus', () => {
 
 		it('looks up the local account publicly and explains the redirect', () => {
 			const wrapper = mountView()
-			expect(dispatch).toHaveBeenCalledWith('fetchPublicAccountInfo', 'carol')
-			expect(dispatch).not.toHaveBeenCalledWith('fetchAccountInfo', expect.anything())
+			expect(accountStore.fetchPublicAccountInfo).toHaveBeenCalledWith('carol')
+			expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
 			expect(wrapper.text()).toContain('You are going to follow:')
 			expect(wrapper.find('h2').text()).toBe('carol')
 			expect(wrapper.findComponent(NcAvatarStub).props('user')).toBe('carol')

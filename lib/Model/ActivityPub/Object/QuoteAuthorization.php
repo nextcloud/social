@@ -68,6 +68,7 @@ class QuoteAuthorization extends ACore implements JsonSerializable {
 		return $this->interactionTarget;
 	}
 
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 		$this->setAttributedTo($this->validate(ACore::AS_ID, 'attributedTo', $data, ''));
@@ -75,6 +76,7 @@ class QuoteAuthorization extends ACore implements JsonSerializable {
 		$this->setInteractionTarget($this->validate(ACore::AS_ID, 'interactionTarget', $data, ''));
 	}
 
+	#[\Override]
 	public function exportAsActivityPub(): array {
 		$this->addEntry('attributedTo', $this->getAttributedTo());
 		$this->addEntry('interactingObject', $this->getInteractingObject());
@@ -83,6 +85,7 @@ class QuoteAuthorization extends ACore implements JsonSerializable {
 		return parent::exportAsActivityPub();
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}

@@ -4,9 +4,10 @@
  */
 
 import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
-import { translate as t } from '@nextcloud/l10n'
 import { showError } from '@nextcloud/dialogs'
+import { translate as t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
+import { defineStore } from 'pinia'
 
 import logger from '../services/logger.js'
 
@@ -18,34 +19,31 @@ import logger from '../services/logger.js'
  * cleared here too. Nothing is stored in the browser: a per-device idea of
  * "unread" is worse than none.
  */
-export default {
-	// a function, unlike its neighbours: a shared object literal is one piece
-	// of state for every store built from the module, which is invisible with
-	// one store and confusing the moment a test builds a second
+export const useNotificationsStore = defineStore('notifications', {
 	state: () => ({
 		unread: 0,
 	}),
 
-	mutations: {
-		setUnreadNotifications(state, count) {
-			state.unread = count
-		},
-	},
-
 	getters: {
+		/**
+		 * @param {object} state the store state
+		 * @return {number} what the badge shows
+		 */
 		unreadNotifications(state) {
 			return state.unread
 		},
 	},
 
 	actions: {
+		setUnreadNotifications(count) {
+			this.unread = count
+		},
+
 		/** Reads the count. Failure is silent: a badge is not worth a toast. */
-		async fetchUnreadNotifications(context) {
+		async fetchUnreadNotifications() {
 			try {
-				const { data } = await axios.get(
-					generateUrl('apps/social/api/v1/notifications/unread_count'),
-				)
-				context.commit('setUnreadNotifications', Number(data?.count) || 0)
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/notifications/unread_count'))
+				this.setUnreadNotifications(Number(data?.count) || 0)
 			} catch (error) {
 				logger.error('Failed to read the unread notification count', { error })
 			}
@@ -56,15 +54,14 @@ export default {
 		 * straight away rather than waiting for the server to agree — the
 		 * reader is looking at the notifications, so the badge is already wrong.
 		 *
-		 * @param {object} context the store
 		 * @param {string|number} lastReadId the newest notification now seen
 		 */
-		async markNotificationsRead(context, lastReadId) {
+		async markNotificationsRead(lastReadId) {
 			if (!lastReadId) {
 				return
 			}
 
-			context.commit('setUnreadNotifications', 0)
+			this.setUnreadNotifications(0)
 
 			try {
 				await axios.post(generateUrl('apps/social/api/v1/markers'), {
@@ -74,8 +71,8 @@ export default {
 				showError(t('social', 'Could not save your place in the notifications'))
 				logger.error('Failed to move the notifications marker', { error })
 				// put back whatever the server actually thinks
-				context.dispatch('fetchUnreadNotifications')
+				this.fetchUnreadNotifications()
 			}
 		},
 	},
-}
+})

@@ -22,7 +22,7 @@ class Cache implements JsonSerializable {
 	use TArrayTools;
 
 	/** @var CacheItem[] */
-	private $items = [];
+	private array $items = [];
 
 	public function __construct() {
 	}
@@ -169,6 +169,7 @@ class Cache implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		$ids = array_map(
 			function (CacheItem $item) {

@@ -13,8 +13,6 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Model\ActivityPub\Actor\InstanceActor;
 use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Service\InstanceActorService;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -58,19 +56,14 @@ class HttpSignatureServiceTest extends TestCase {
 		);
 	}
 
-	private function fetch(string $path = '/users/bob', string $host = 'remote.example'): NCRequest {
-		$request = new NCRequest($path, Request::TYPE_GET);
-		$request->setHost($host);
-		$request->setProtocol('https');
-		$request->addHeader('Accept', 'application/activity+json');
-
-		return $request;
+	private function url(string $path = '/users/bob', string $host = 'remote.example'): string {
+		return 'https://' . $host . $path;
 	}
 
 	/** @return array<string, string> */
-	private function signatureParts(NCRequest $request): array {
+	private function signatureParts(array $headers): array {
 		$parts = [];
-		foreach (explode(',', $request->getHeaders()['Signature']) as $entry) {
+		foreach (explode(',', $headers['Signature']) as $entry) {
 			[$k, $v] = explode('=', $entry, 2);
 			$parts[$k] = trim($v, '"');
 		}
@@ -84,11 +77,10 @@ class HttpSignatureServiceTest extends TestCase {
 	 */
 	public function testAFetchIsSignedWithTheInstanceActorsKey(): void {
 		$this->signsWith(self::$privateKey);
-		$request = $this->fetch();
 
-		$this->assertTrue($this->service()->signFetch($request));
+		$headers = $this->service()->signFetch($this->url());
 
-		$parts = $this->signatureParts($request);
+		$parts = $this->signatureParts($headers);
 		$this->assertSame(self::INSTANCE_ACTOR . '#main-key', $parts['keyId']);
 		$this->assertSame('rsa-sha256', $parts['algorithm']);
 		$this->assertSame('(request-target) host date', $parts['headers']);
@@ -100,25 +92,19 @@ class HttpSignatureServiceTest extends TestCase {
 	 */
 	public function testAFetchSignsNeitherDigestNorContentLength(): void {
 		$this->signsWith(self::$privateKey);
-		$request = $this->fetch();
 
-		$this->service()->signFetch($request);
+		$headers = $this->service()->signFetch($this->url());
 
-		$headers = $request->getHeaders();
-		$this->assertArrayNotHasKey('digest', $headers);
-		$this->assertArrayNotHasKey('content-length', $headers);
+		$this->assertSame(['host', 'date', 'Signature'], array_keys($headers));
 		$this->assertSame('remote.example', $headers['host']);
 		$this->assertNotEmpty($headers['date']);
 	}
 
 	public function testTheSignedStringIsTheRequestAsItGoesOut(): void {
 		$this->signsWith(self::$privateKey);
-		$request = $this->fetch('/users/bob/outbox');
-		$request->addParam('page', '2');
 
-		$this->service()->signFetch($request);
+		$headers = $this->service()->signFetch($this->url('/users/bob/outbox?page=2'));
 
-		$headers = $request->getHeaders();
 		$expected = implode("\n", [
 			'(request-target): get /users/bob/outbox?page=2',
 			'host: remote.example',
@@ -129,11 +115,30 @@ class HttpSignatureServiceTest extends TestCase {
 			1,
 			openssl_verify(
 				$expected,
-				base64_decode($this->signatureParts($request)['signature']),
+				base64_decode($this->signatureParts($headers)['signature']),
 				self::$publicKey,
 				OPENSSL_ALGO_SHA256
 			)
 		);
+	}
+
+	/**
+	 * A peer on a non-default port serves a different vhost for it, and checks
+	 * the signed `host` against the authority it was asked for.
+	 */
+	public function testANonDefaultPortIsPartOfTheSignedHost(): void {
+		$this->signsWith(self::$privateKey);
+
+		$headers = $this->service()->signFetch('https://remote.example:8443/users/bob');
+
+		$this->assertSame('remote.example:8443', $headers['host']);
+	}
+
+	public function testTheDefaultPortIsNotWrittenIntoTheSignedHost(): void {
+		$this->signsWith(self::$privateKey);
+
+		$this->assertSame('remote.example', $this->service()->signFetch('https://remote.example:443/x')['host']);
+		$this->assertSame('remote.example', $this->service()->signFetch('http://remote.example:80/x')['host']);
 	}
 
 	/**
@@ -145,10 +150,8 @@ class HttpSignatureServiceTest extends TestCase {
 		$this->signsWith(self::$privateKey);
 		$service = $this->service();
 
-		$first = $this->fetch();
-		$second = $this->fetch('/users/carol');
-		$service->signFetch($first);
-		$service->signFetch($second);
+		$first = $service->signFetch($this->url());
+		$second = $service->signFetch($this->url('/users/carol'));
 
 		$this->assertSame(self::INSTANCE_ACTOR . '#main-key', $this->signatureParts($first)['keyId']);
 		$this->assertSame(self::INSTANCE_ACTOR . '#main-key', $this->signatureParts($second)['keyId']);
@@ -161,17 +164,13 @@ class HttpSignatureServiceTest extends TestCase {
 	 */
 	public function testWithoutAnInstanceActorTheFetchGoesOutUnsigned(): void {
 		$this->instanceActorService->method('getSigningActor')->willReturn(null);
-		$request = $this->fetch();
 
-		$this->assertFalse($this->service()->signFetch($request));
-		$this->assertArrayNotHasKey('Signature', $request->getHeaders());
+		$this->assertSame([], $this->service()->signFetch($this->url()));
 	}
 
 	public function testAnUnusableKeyLeavesTheRequestUnsigned(): void {
 		$this->signsWith('not a key');
-		$request = $this->fetch();
 
-		$this->assertFalse($this->service()->signFetch($request));
-		$this->assertArrayNotHasKey('Signature', $request->getHeaders());
+		$this->assertSame([], $this->service()->signFetch($this->url()));
 	}
 }

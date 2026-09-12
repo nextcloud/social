@@ -183,6 +183,7 @@ class Document extends ACore implements JsonSerializable {
 	/**
 	 * @return bool
 	 */
+	#[\Override]
 	public function isPublic(): bool {
 		return $this->public;
 	}
@@ -258,6 +259,7 @@ class Document extends ACore implements JsonSerializable {
 	 * @throws UrlCloudException
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 
@@ -279,6 +281,7 @@ class Document extends ACore implements JsonSerializable {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
@@ -313,6 +316,7 @@ class Document extends ACore implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		$result = array_merge(
 			parent::jsonSerialize(),

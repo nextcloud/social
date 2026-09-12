@@ -7,6 +7,10 @@ import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TimelinePost from '../../../src/components/TimelinePost.vue'
 import eventBus from '../../../src/services/eventBus.js'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 const alice = {
 	id: '1',
@@ -28,23 +32,25 @@ const bob = {
 	note: '',
 }
 
-const makeItem = (overrides = {}) => ({
-	id: '101',
-	uri: 'https://cloud.example.org/@alice/101',
-	created_at: '2026-09-01T10:00:00Z',
-	content: '<p>Hello <strong>world</strong></p>',
-	visibility: 'public',
-	replies_count: 0,
-	reblogs_count: 0,
-	favourites_count: 0,
-	reblogged: false,
-	favourited: false,
-	media_attachments: [],
-	mentions: [],
-	tags: [],
-	account: alice,
-	...overrides,
-})
+function makeItem(overrides = {}) {
+	return {
+		id: '101',
+		uri: 'https://cloud.example.org/@alice/101',
+		created_at: '2026-09-01T10:00:00Z',
+		content: '<p>Hello <strong>world</strong></p>',
+		visibility: 'public',
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0,
+		reblogged: false,
+		favourited: false,
+		media_attachments: [],
+		mentions: [],
+		tags: [],
+		account: alice,
+		...overrides,
+	}
+}
 
 // NcActions only renders its entries inside a popover once opened; these
 // stand-ins render them inline so the menu content can be asserted.
@@ -76,7 +82,18 @@ const NcDialogStub = {
 		+ '<slot /></div>',
 }
 
-const mountPost = ({
+const POST_ACTIONS = [
+	'postLike',
+	'postUnlike',
+	'postBoost',
+	'postUnBoost',
+	'postEdit',
+	'postDelete',
+	'postPin',
+	'postBookmark',
+]
+
+function mountPost({
 	item = makeItem(),
 	route = { name: 'timeline', params: { type: 'home' } },
 	currentAccount = alice,
@@ -84,17 +101,25 @@ const mountPost = ({
 	// the like/boost store actions answer with the updated status, and with
 	// nothing at all when they had to roll the change back
 	dispatch = vi.fn().mockResolvedValue(makeItem()),
-} = {}) => {
-	const $store = {
-		dispatch,
-		commit: vi.fn(),
-		getters: { currentAccount, getServerData: serverData },
+} = {}) {
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	useSettingsStore().setServerData(serverData)
+	const accountStore = useAccountStore()
+	if (currentAccount) {
+		accountStore.addAccount({ actorId: currentAccount.url, data: currentAccount })
+		accountStore.setCurrentAccount(`${currentAccount.acct}@cloud.example.org`)
 	}
+	const store = useTimelineStore()
+	// one mock behind every action the post can take, so "nothing happened"
+	// stays a single assertion
+	POST_ACTIONS.forEach((action) => vi.spyOn(store, action).mockImplementation(dispatch))
 	const $router = { push: vi.fn() }
 	const wrapper = mount(TimelinePost, {
 		props: { item, type: 'home' },
 		global: {
-			mocks: { $store, $route: route, $router },
+			plugins: [pinia],
+			mocks: { $route: route, $router },
 			stubs: {
 				NcActions: NcActionsStub,
 				NcActionButton: NcActionButtonStub,
@@ -105,23 +130,26 @@ const mountPost = ({
 			},
 		},
 	})
-	return { wrapper, item, $store, $router }
+	return { wrapper, item, store, dispatch, $router }
 }
 
 // the media-first layout is about order: the picture leads and the text reads
 // as its caption underneath
-const isBefore = (first, second) =>
-	Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+function isBefore(first, second) {
+	return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+}
 
-const photo = (index = 1) => ({
-	id: `m${index}`,
-	type: 'image',
-	url: `https://cloud.example.org/m${index}.jpg`,
-	preview_url: `https://cloud.example.org/m${index}-small.jpg`,
-	description: `Picture ${index}`,
-	blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
-	meta: { original: { width: 1600, height: 1200 } },
-})
+function photo(index = 1) {
+	return {
+		id: `m${index}`,
+		type: 'image',
+		url: `https://cloud.example.org/m${index}.jpg`,
+		preview_url: `https://cloud.example.org/m${index}-small.jpg`,
+		description: `Picture ${index}`,
+		blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+		meta: { original: { width: 1600, height: 1200 } },
+	}
+}
 
 const attachmentsOf = (wrapper) => wrapper.findComponent({ name: 'PostAttachment' })
 
@@ -205,34 +233,34 @@ describe('TimelinePost', () => {
 		})
 
 		it('acts on the post the keyboard is on, and ignores the others', async () => {
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store, dispatch } = mountPost()
 			eventBus.emit('timeline:focused', item)
 			await wrapper.vm.$nextTick()
 
 			eventBus.emit('shortcut:like')
 			await flushPromises()
-			expect($store.dispatch).toHaveBeenCalledWith('postLike', expect.objectContaining({ status: item }))
+			expect(store.postLike).toHaveBeenCalledWith(expect.objectContaining({ status: item }))
 
 			// the keyboard moves on: this post stops answering
 			eventBus.emit('timeline:focused', { ...item, id: 'somewhere-else' })
 			await wrapper.vm.$nextTick()
-			$store.dispatch.mockClear()
+			dispatch.mockClear()
 
 			eventBus.emit('shortcut:like')
 			eventBus.emit('shortcut:boost')
 			await flushPromises()
-			expect($store.dispatch).not.toHaveBeenCalled()
+			expect(dispatch).not.toHaveBeenCalled()
 		})
 
 		it('refuses to boost what cannot be boosted', async () => {
-			const { wrapper, item, $store } = mountPost({ item: makeItem({ visibility: 'direct' }) })
+			const { wrapper, item, dispatch } = mountPost({ item: makeItem({ visibility: 'direct' }) })
 			eventBus.emit('timeline:focused', item)
 			await wrapper.vm.$nextTick()
 
 			eventBus.emit('shortcut:boost')
 			await flushPromises()
 
-			expect($store.dispatch).not.toHaveBeenCalled()
+			expect(dispatch).not.toHaveBeenCalled()
 		})
 
 		it('opens the focused post', async () => {
@@ -430,11 +458,11 @@ describe('TimelinePost', () => {
 		it('opens the composer and hands it the post to quote', async () => {
 			const onQuote = vi.fn()
 			eventBus.on('composer-quote', onQuote)
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store } = mountPost()
 
 			await menuItem(wrapper, 'Quote').trigger('click')
 
-			expect($store.commit).toHaveBeenCalledWith('setComposerDisplayStatus', true)
+			expect(store.composerDisplayStatus).toBe(true)
 			expect(onQuote).toHaveBeenCalledTimes(1)
 			expect(onQuote.mock.calls[0][0]).toEqual(item)
 		})
@@ -460,9 +488,7 @@ describe('TimelinePost', () => {
 
 		it('keeps the like button in place as the state changes', async () => {
 			const { wrapper } = mountPost()
-			const like = () => wrapper.findAll('button').find(
-				(button) => /Like/.test(button.attributes('aria-label') ?? ''),
-			)
+			const like = () => wrapper.findAll('button').find((button) => /Like/.test(button.attributes('aria-label') ?? ''))
 
 			const before = like().element
 			expect(like().attributes('aria-pressed')).toBe('false')
@@ -479,9 +505,7 @@ describe('TimelinePost', () => {
 
 		it('says whether a post is boosted, not only how the icon is filled', async () => {
 			const { wrapper } = mountPost()
-			const boost = () => wrapper.findAll('button').find(
-				(button) => /[Bb]oost/.test(button.attributes('aria-label') ?? ''),
-			)
+			const boost = () => wrapper.findAll('button').find((button) => /[Bb]oost/.test(button.attributes('aria-label') ?? ''))
 
 			expect(boost().attributes('aria-pressed')).toBe('false')
 			await wrapper.setProps({ item: makeItem({ reblogged: true }) })
@@ -708,11 +732,11 @@ describe('TimelinePost', () => {
 		it('opens the composer and hands it the status to reply to', async () => {
 			const onReply = vi.fn()
 			eventBus.on('composer-reply', onReply)
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store } = mountPost()
 
 			await actionButton(wrapper, 'Reply').trigger('click')
 
-			expect($store.commit).toHaveBeenCalledWith('setComposerDisplayStatus', true)
+			expect(store.composerDisplayStatus).toBe(true)
 			expect(onReply).toHaveBeenCalledTimes(1)
 			expect(onReply.mock.calls[0][0]).toEqual(item)
 		})
@@ -731,44 +755,44 @@ describe('TimelinePost', () => {
 		})
 
 		it('boosts a post that is not boosted yet', async () => {
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store, dispatch } = mountPost()
 			await actionButton(wrapper, 'Boost').trigger('click')
-			expect($store.dispatch).toHaveBeenCalledTimes(1)
-			expect($store.dispatch).toHaveBeenCalledWith('postBoost', expect.objectContaining({ status: item }))
+			expect(dispatch).toHaveBeenCalledTimes(1)
+			expect(store.postBoost).toHaveBeenCalledWith(expect.objectContaining({ status: item }))
 		})
 
 		it('undoes the boost of an already boosted post', async () => {
-			const { wrapper, item, $store } = mountPost({ item: makeItem({ reblogged: true }) })
+			const { wrapper, item, store, dispatch } = mountPost({ item: makeItem({ reblogged: true }) })
 			expect(actionButton(wrapper, 'Boost').exists()).toBe(false)
 
 			await actionButton(wrapper, 'Undo boost').trigger('click')
 
-			expect($store.dispatch).toHaveBeenCalledTimes(1)
-			expect($store.dispatch).toHaveBeenCalledWith('postUnBoost', expect.objectContaining({ status: item }))
+			expect(dispatch).toHaveBeenCalledTimes(1)
+			expect(store.postUnBoost).toHaveBeenCalledWith(expect.objectContaining({ status: item }))
 		})
 	})
 
 	describe('like', () => {
 		it('likes a post that is not liked yet', async () => {
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store, dispatch } = mountPost()
 			expect(actionButton(wrapper, 'Like').find('.heart-outline-icon').exists()).toBe(true)
 			expect(actionButton(wrapper, 'Undo Like').exists()).toBe(false)
 
 			await actionButton(wrapper, 'Like').trigger('click')
 
-			expect($store.dispatch).toHaveBeenCalledTimes(1)
-			expect($store.dispatch).toHaveBeenCalledWith('postLike', expect.objectContaining({ status: item }))
+			expect(dispatch).toHaveBeenCalledTimes(1)
+			expect(store.postLike).toHaveBeenCalledWith(expect.objectContaining({ status: item }))
 		})
 
 		it('removes the like from a liked post', async () => {
-			const { wrapper, item, $store } = mountPost({ item: makeItem({ favourited: true }) })
+			const { wrapper, item, store, dispatch } = mountPost({ item: makeItem({ favourited: true }) })
 			expect(actionButton(wrapper, 'Like').exists()).toBe(false)
 			expect(actionButton(wrapper, 'Undo Like').find('.heart-icon').exists()).toBe(true)
 
 			await actionButton(wrapper, 'Undo Like').trigger('click')
 
-			expect($store.dispatch).toHaveBeenCalledTimes(1)
-			expect($store.dispatch).toHaveBeenCalledWith('postUnlike', expect.objectContaining({ status: item }))
+			expect(dispatch).toHaveBeenCalledTimes(1)
+			expect(store.postUnlike).toHaveBeenCalledWith(expect.objectContaining({ status: item }))
 		})
 
 		it('confirms the like with the heart, and only when liking', async () => {
@@ -830,21 +854,21 @@ describe('TimelinePost', () => {
 		})
 
 		it('offers Pin to profile for an own post and pins it', async () => {
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store } = mountPost()
 
 			expect(menuItem(wrapper, 'Pin to profile')).toBeDefined()
 			await menuItem(wrapper, 'Pin to profile').trigger('click')
 
-			expect($store.dispatch).toHaveBeenCalledWith('postPin', { status: item, pinned: true })
+			expect(store.postPin).toHaveBeenCalledWith({ status: item, pinned: true })
 		})
 
 		it('flips to Unpin from profile for a post that is already pinned', async () => {
-			const { wrapper, item, $store } = mountPost({ item: makeItem({ pinned: true }) })
+			const { wrapper, item, store } = mountPost({ item: makeItem({ pinned: true }) })
 
 			expect(menuItem(wrapper, 'Pin to profile')).toBeUndefined()
 			await menuItem(wrapper, 'Unpin from profile').trigger('click')
 
-			expect($store.dispatch).toHaveBeenCalledWith('postPin', { status: item, pinned: false })
+			expect(store.postPin).toHaveBeenCalledWith({ status: item, pinned: false })
 		})
 
 		it('never offers pinning for somebody else\'s post or a remote one', () => {
@@ -869,28 +893,28 @@ describe('TimelinePost', () => {
 		})
 
 		it('asks before deleting, and only then deletes', async () => {
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store } = mountPost()
 
 			await menuItem(wrapper, 'Delete').trigger('click')
 			// one click on a menu item sitting right under "Edit" used to be
 			// enough for something irreversible and federated
-			expect($store.dispatch).not.toHaveBeenCalledWith('postDelete', item)
+			expect(store.postDelete).not.toHaveBeenCalledWith(item)
 
 			const dialog = wrapper.findAll('.nc-dialog').find((el) => el.text().includes('Delete this post?'))
 			expect(dialog).toBeDefined()
 
 			await dialog.find('.nc-dialog__button--1').trigger('click')
-			expect($store.dispatch).toHaveBeenCalledWith('postDelete', item)
+			expect(store.postDelete).toHaveBeenCalledWith(item)
 		})
 
 		it('leaves the post alone when the delete confirmation is cancelled', async () => {
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store } = mountPost()
 
 			await menuItem(wrapper, 'Delete').trigger('click')
 			const dialog = wrapper.findAll('.nc-dialog').find((el) => el.text().includes('Delete this post?'))
 			await dialog.find('.nc-dialog__button--0').trigger('click')
 
-			expect($store.dispatch).not.toHaveBeenCalledWith('postDelete', item)
+			expect(store.postDelete).not.toHaveBeenCalledWith(item)
 			expect(wrapper.findAll('.nc-dialog').some((el) => el.text().includes('Delete this post?'))).toBe(false)
 		})
 
@@ -904,14 +928,14 @@ describe('TimelinePost', () => {
 		})
 
 		it('saves the trimmed text and leaves edit mode', async () => {
-			const { wrapper, item, $store } = mountPost()
+			const { wrapper, item, store } = mountPost()
 			await menuItem(wrapper, 'Edit').trigger('click')
 
 			await wrapper.find('textarea').setValue('  Edited text  ')
 			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
 			await flushPromises()
 
-			expect($store.dispatch).toHaveBeenCalledWith('postEdit', {
+			expect(store.postEdit).toHaveBeenCalledWith({
 				status: item,
 				content: 'Edited text',
 				spoiler_text: '',
@@ -925,7 +949,7 @@ describe('TimelinePost', () => {
 			// saveEdit always sent spoiler_text: '' and sensitive: false, so
 			// fixing a typo un-hid sensitive content for every follower
 			const item = makeItem({ spoiler_text: 'politics', sensitive: true, content: '<p>Old</p>' })
-			const { wrapper, $store } = mountPost({ item })
+			const { wrapper, store } = mountPost({ item })
 
 			await menuItem(wrapper, 'Edit').trigger('click')
 			expect(wrapper.find('input.post-edit-warning').element.value).toBe('politics')
@@ -934,7 +958,7 @@ describe('TimelinePost', () => {
 			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
 			await flushPromises()
 
-			expect($store.dispatch).toHaveBeenCalledWith('postEdit', {
+			expect(store.postEdit).toHaveBeenCalledWith({
 				status: item,
 				content: 'New text',
 				spoiler_text: 'politics',
@@ -944,7 +968,7 @@ describe('TimelinePost', () => {
 
 		it('lets the warning be changed and removed from the inline editor', async () => {
 			const item = makeItem({ spoiler_text: 'politics', sensitive: true, content: '<p>Old</p>' })
-			const { wrapper, $store } = mountPost({ item })
+			const { wrapper, store } = mountPost({ item })
 
 			await menuItem(wrapper, 'Edit').trigger('click')
 			await wrapper.find('input.post-edit-warning').setValue('  ')
@@ -952,7 +976,7 @@ describe('TimelinePost', () => {
 			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
 			await flushPromises()
 
-			expect($store.dispatch).toHaveBeenCalledWith('postEdit', expect.objectContaining({
+			expect(store.postEdit).toHaveBeenCalledWith(expect.objectContaining({
 				spoiler_text: '',
 				// the post was flagged sensitive; dropping the warning does
 				// not silently unflag the media
@@ -961,7 +985,7 @@ describe('TimelinePost', () => {
 		})
 
 		it('never seeds the editor from the author bio, and refuses an over-long edit', async () => {
-			const { wrapper, $store } = mountPost({
+			const { wrapper, store } = mountPost({
 				item: makeItem({ content: '', account: { ...alice, note: '<p>the bio</p>' } }),
 			})
 
@@ -974,7 +998,7 @@ describe('TimelinePost', () => {
 
 			await wrapper.find('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true })
 			await flushPromises()
-			expect($store.dispatch).not.toHaveBeenCalledWith('postEdit', expect.anything())
+			expect(store.postEdit).not.toHaveBeenCalled()
 		})
 
 		it('keeps the editor open when the server refuses the edit', async () => {
@@ -989,36 +1013,36 @@ describe('TimelinePost', () => {
 		})
 
 		it('saves on Ctrl+Enter', async () => {
-			const { wrapper, $store } = mountPost()
+			const { wrapper, store } = mountPost()
 			await menuItem(wrapper, 'Edit').trigger('click')
 
 			await wrapper.find('textarea').setValue('Quick fix')
 			await wrapper.find('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true })
 			await flushPromises()
 
-			expect($store.dispatch).toHaveBeenCalledWith('postEdit', expect.objectContaining({ content: 'Quick fix' }))
+			expect(store.postEdit).toHaveBeenCalledWith(expect.objectContaining({ content: 'Quick fix' }))
 		})
 
 		it('refuses to save an empty edit and stays in edit mode', async () => {
-			const { wrapper, $store } = mountPost()
+			const { wrapper, dispatch } = mountPost()
 			await menuItem(wrapper, 'Edit').trigger('click')
 
 			await wrapper.find('textarea').setValue('   ')
 			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
 			await flushPromises()
 
-			expect($store.dispatch).not.toHaveBeenCalled()
+			expect(dispatch).not.toHaveBeenCalled()
 			expect(wrapper.find('textarea').exists()).toBe(true)
 		})
 
 		it('cancels without saving and restores the content', async () => {
-			const { wrapper, $store } = mountPost()
+			const { wrapper, dispatch } = mountPost()
 			await menuItem(wrapper, 'Edit').trigger('click')
 			await wrapper.find('textarea').setValue('Never saved')
 
 			await wrapper.find('.post-edit-actions button[aria-label="Cancel"]').trigger('click')
 
-			expect($store.dispatch).not.toHaveBeenCalled()
+			expect(dispatch).not.toHaveBeenCalled()
 			expect(wrapper.find('textarea').exists()).toBe(false)
 			expect(wrapper.find('.post-message strong').text()).toBe('world')
 

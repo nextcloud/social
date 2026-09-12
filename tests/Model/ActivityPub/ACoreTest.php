@@ -19,6 +19,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\LinkedDataSignature;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class ACoreTest extends TestCase {
@@ -77,7 +78,7 @@ class ACoreTest extends TestCase {
 		$this->assertContains('https://a.example/users/alice/followers', $filtered);
 	}
 
-	public function publicAudienceProvider(): array {
+	public static function publicAudienceProvider(): array {
 		$followers = 'https://a.example/users/alice/followers';
 
 		return [
@@ -88,9 +89,7 @@ class ACoreTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider publicAudienceProvider
-	 */
+	#[DataProvider('publicAudienceProvider')]
 	public function testIsPublicLooksForThePublicCollectionInToOrCc(array $to, array $cc, bool $expected): void {
 		$item = new ACore();
 		$item->setToArray($to);
@@ -134,7 +133,7 @@ class ACoreTest extends TestCase {
 		$this->assertSame('mastodon.social', $child->getRoot()->getOrigin());
 	}
 
-	public function invalidOriginProvider(): array {
+	public static function invalidOriginProvider(): array {
 		return [
 			'other host' => ['https://evil.example/users/alice'],
 			'no host' => ['not-a-url'],
@@ -142,9 +141,7 @@ class ACoreTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider invalidOriginProvider
-	 */
+	#[DataProvider('invalidOriginProvider')]
 	public function testCheckOriginRejectsForeignIds(string $id): void {
 		$item = new ACore();
 		$item->setOrigin('mastodon.social', 1, 0);
@@ -162,7 +159,7 @@ class ACoreTest extends TestCase {
 		$this->assertSame('https://mastodon.social:8443/users/alice', $item->getId());
 	}
 
-	public function mismatchingUrlProvider(): array {
+	public static function mismatchingUrlProvider(): array {
 		return [
 			'host' => ['https://evil.example/inbox'],
 			'scheme' => ['http://mastodon.social/inbox'],
@@ -170,9 +167,7 @@ class ACoreTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider mismatchingUrlProvider
-	 */
+	#[DataProvider('mismatchingUrlProvider')]
 	public function testVerifyRejectsMismatchingUrls(string $url): void {
 		$item = new ACore();
 		$item->setId('https://mastodon.social/users/alice');
@@ -182,7 +177,7 @@ class ACoreTest extends TestCase {
 		$item->verify($url);
 	}
 
-	public function validEntryProvider(): array {
+	public static function validEntryProvider(): array {
 		return [
 			'id is kept' => [ACore::AS_ID, 'https://a.example/x', 'https://a.example/x'],
 			'type is kept' => [ACore::AS_TYPE, 'Note', 'Note'],
@@ -195,9 +190,7 @@ class ACoreTest extends TestCase {
 		];
 	}
 
-	/**
-	 * @dataProvider validEntryProvider
-	 */
+	#[DataProvider('validEntryProvider')]
 	public function testValidateEntryStringNormalisesByKind(int $as, string $value, string $expected): void {
 		$this->assertSame($expected, (new ACore())->validateEntryString($as, $value));
 	}

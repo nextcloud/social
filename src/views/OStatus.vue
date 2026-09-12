@@ -11,7 +11,7 @@
 				{{ t('social', 'Please confirm that you want to follow this account:') }}
 			</p>
 
-			<NcAvatar :url="avatarUrl" :disable-tooltip="true" :size="128" />
+			<NcAvatar :url="avatarUrl" :disableTooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<form v-if="!isFollowing" @submit.prevent="follow">
 				<input type="submit" class="primary" :value="t('social', 'Follow')">
@@ -30,10 +30,11 @@
 		<!-- Some unauthenticated user wants to follow a local account -->
 		<div v-if="serverData.local">
 			<p>{{ t('social', 'You are going to follow:') }}</p>
-			<NcAvatar :user="serverData.local" :disable-tooltip="true" :size="128" />
+			<NcAvatar :user="serverData.local" :disableTooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<form @submit.prevent="followRemote">
-				<input v-model="remote"
+				<input
+					v-model="remote"
 					type="text"
 					:aria-label="t('social', 'Your account, as name@domain')"
 					:placeholder="t('social', 'name@domain of your federation account')">
@@ -49,11 +50,13 @@
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import axios from '@nextcloud/axios'
-import accountMixins from '../mixins/accountMixins.js'
-import currentuserMixin from '../mixins/currentUserMixin.js'
 import ActorAvatar from '../components/ActorAvatar.vue'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useSettingsStore } from '../store/settings.js'
+import { useServerData } from '../composables/useServerData.js'
 
 export default {
 	name: 'OStatus',
@@ -62,26 +65,46 @@ export default {
 		NcAvatar,
 		NcButton,
 	},
-	mixins: [
-		accountMixins,
-		currentuserMixin,
-	],
+
+	setup() {
+		const { serverData, hostname } = useServerData()
+
+		return { serverData, hostname }
+	},
+
 	data() {
 		return {
 			remote: '',
 			account: {},
 		}
 	},
+
 	computed: {
+		...mapStores(useAccountStore, useSettingsStore),
 		isFollowing() {
-			return this.$store.getters.isFollowingUser(this.account.id)
+			return this.accountStore.isFollowingUser(this.account.id)
 		},
+
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.account.id)
 		},
+
+		/**
+		 * This page is public, so the reader is not the page's user: the
+		 * server puts whoever is signed in into the initial state, and the
+		 * handle is built from that rather than from @nextcloud/auth.
+		 *
+		 * @return {object} the signed-in user
+		 */
 		currentUser() {
 			return window.oc_current_user
 		},
+
+		/** @return {string} the signed-in reader's own handle */
+		cloudId() {
+			return this.currentUser.uid + '@' + this.hostname
+		},
+
 		/**
 		 * The logged-in user rendered as a (local) actor for ActorAvatar.
 		 *
@@ -91,6 +114,7 @@ export default {
 			const uid = this.currentUser?.uid ?? ''
 			return { username: uid, acct: uid }
 		},
+
 		displayName() {
 			if (typeof this.account.id === 'undefined') {
 				return (this.serverData.account ? this.serverData.account : this.serverData.local)
@@ -99,6 +123,7 @@ export default {
 			return (this.account.display_name ? this.account.display_name : this.account.acct)
 		},
 	},
+
 	beforeMount() {
 		// importing server data into the store and fetching viewed account's information
 		try {
@@ -106,14 +131,14 @@ export default {
 			if (serverData.currentUser) {
 				window.oc_current_user = JSON.parse(JSON.stringify(serverData.currentUser))
 			}
-			this.$store.commit('setServerData', serverData)
+			this.settingsStore.setServerData(serverData)
 			if (this.serverData.account && !this.serverData.local) {
-				this.$store.dispatch('fetchAccountInfo', this.serverData.account).then((result) => {
+				this.accountStore.fetchAccountInfo(this.serverData.account).then((result) => {
 					this.account = result
 				})
 			}
 			if (this.serverData.local) {
-				this.$store.dispatch('fetchPublicAccountInfo', this.serverData.local).then((result) => {
+				this.accountStore.fetchPublicAccountInfo(this.serverData.local).then((result) => {
 					this.account = result
 				})
 			}
@@ -121,17 +146,20 @@ export default {
 			/* empty */
 		}
 	},
+
 	methods: {
 		follow() {
-			this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account.acct }).then(() => {
+			this.accountStore.followAccount({ currentAccount: this.cloudId, accountToFollow: this.account.acct }).then(() => {
 
 			})
 		},
+
 		followRemote() {
 			axios.get(generateUrl(`/apps/social/api/v1/ostatus/link/${this.serverData.local}/` + encodeURI(this.remote))).then((a) => {
 				window.location = a.data.result.url
 			})
 		},
+
 		close() {
 			window.close()
 		},

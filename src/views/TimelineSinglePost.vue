@@ -7,19 +7,22 @@
 		<Composer v-show="composerDisplayStatus" />
 		<!-- the three lists are one conversation; the spine says so -->
 		<div class="thread">
-			<TimelineList v-if="timeline"
+			<TimelineList
+				v-if="timeline"
 				class="thread__ancestors"
-				:show-parents="true"
+				:showParents="true"
 				:type="$route.params.type"
-				:reverse-order="true" />
-			<TimelineEntry v-if="singlePost"
+				:reverseOrder="true" />
+			<TimelineEntry
+				v-if="singlePost"
 				ref="mainPost"
 				class="main-post"
 				:item="singlePost"
 				type="single-post"
 				element="div" />
 			<!-- a deleted post is not an empty page: say so -->
-			<NcEmptyContent v-else
+			<NcEmptyContent
+				v-else
 				:name="t('social', 'This post is not available')"
 				:description="t('social', 'It may have been deleted, or this server never received it.')">
 				<template #icon>
@@ -38,12 +41,13 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import CommentRemoveOutline from 'vue-material-design-icons/CommentRemoveOutline.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
-import currentUserMixin from '../mixins/currentUserMixin.js'
-import accountMixins from '../mixins/accountMixins.js'
-import serverData from '../mixins/serverData.js'
 import { loadState } from '@nextcloud/initial-state'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useTimelineStore } from '../store/timeline.js'
+import { useServerData } from '../composables/useServerData.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -56,23 +60,23 @@ export default {
 		TimelineEntry,
 		TimelineList,
 	},
-	mixins: [
-		accountMixins,
-		currentUserMixin,
-		serverData,
-	],
-	data() {
-		return {
-			uid: this.$route.params.account,
-		}
+
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
 	},
+
 	computed: {
+		...mapStores(useAccountStore, useTimelineStore),
 		singlePost() {
-			return this.$store.getters.getSinglePost
+			return this.timelineStore.getSinglePost
 		},
+
 		composerDisplayStatus() {
-			return this.$store.getters.getComposerDisplayStatus
+			return this.timelineStore.getComposerDisplayStatus
 		},
+
 		/**
 		 * Whose post this is. The route says so; this used to be read off
 		 * window.location by splitting the href and slicing a '@' off the
@@ -83,13 +87,16 @@ export default {
 		account() {
 			return String(this.$route.params.account ?? '').replace(/^@/, '')
 		},
+
 		timeline() {
-			return this.$store.getters.getTimeline
+			return this.timelineStore.getTimeline
 		},
+
 		parentsTimeline() {
-			return this.$store.getters.getParentsTimeline
+			return this.timelineStore.getParentsTimeline
 		},
 	},
+
 	watch: {
 		'$route.params.id': 'load',
 		parentsTimeline(_, previousValue) {
@@ -106,6 +113,7 @@ export default {
 			this.$nextTick(() => this.$refs.mainPost?.$el?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 		},
 	},
+
 	async beforeMount() {
 		// Keep the handler so unmounted() removes only this one — a bare
 		// eventBus.off('composer-reply') would also detach the Composer's.
@@ -118,9 +126,11 @@ export default {
 
 		await this.load()
 	},
+
 	unmounted() {
 		eventBus.off('composer-reply', this.onComposerReply)
 	},
+
 	methods: {
 		t: translate,
 		/**
@@ -130,9 +140,9 @@ export default {
 		 */
 		async load() {
 			// read before the reset: changeTimelineType prunes the status index
-			const singlePost = this.$store.getters.getPostFromTimeline(this.$route.params.id) ?? this.postFromInitialState()
+			const singlePost = this.timelineStore.getPostFromTimeline(this.$route.params.id) ?? this.postFromInitialState()
 
-			this.$store.dispatch('changeTimelineType', {
+			this.timelineStore.changeTimelineType({
 				type: 'single-post',
 				params: {
 					account: this.account,
@@ -141,11 +151,14 @@ export default {
 					singlePost: this.$route.params.id || singlePost?.id,
 				},
 			})
-			this.$store.commit('addToStatuses', singlePost)
+			this.timelineStore.addToStatuses(singlePost)
 
-			const response = await this.$store.dispatch(this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo', this.account)
-			this.uid = response?.username ?? this.uid
+			// the account is loaded for the post's author card; nothing here
+			// reads the answer, which is why it is not kept
+			const fetchMethod = this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo'
+			await this.accountStore[fetchMethod](this.account)
 		},
+
 		/**
 		 * The post the server rendered into the page, for a permalink opened
 		 * cold. `loadState` throws when the key is absent — which is what a

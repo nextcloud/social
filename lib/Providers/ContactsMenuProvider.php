@@ -10,8 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Providers;
 
 use Exception;
-use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\NoUserException;
 use OCA\Social\Service\AccountService;
 use OCP\Contacts\ContactsMenu\IActionFactory;
 use OCP\Contacts\ContactsMenu\IEntry;
@@ -39,6 +39,7 @@ class ContactsMenuProvider implements IProvider {
 	/**
 	 * @param IEntry $entry
 	 */
+	#[\Override]
 	public function process(IEntry $entry): void {
 		try {
 			$user = $this->getUserFromEntry($entry);

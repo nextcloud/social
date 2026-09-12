@@ -13,8 +13,12 @@
  * every session and every instance — no storage, no coordination.
  */
 
-/** Spread hues around the wheel; the same host always lands on the same one. */
-const hash = (value) => {
+/**
+ * Spread hues around the wheel; the same host always lands on the same one.
+ *
+ * @param value
+ */
+function hash(value) {
 	let h = 0
 	for (let i = 0; i < value.length; i++) {
 		h = (h * 31 + value.charCodeAt(i)) % 360360
@@ -52,7 +56,14 @@ export function instanceOf(acct) {
  */
 const TARGET_CONTRAST = 4.5
 
-/** One channel of an hsl() colour, 0..1. */
+/**
+ * One channel of an hsl() colour, 0..1.
+ *
+ * @param hue
+ * @param saturation
+ * @param lightness
+ * @param n
+ */
 function channel(hue, saturation, lightness, n) {
 	const a = saturation * Math.min(lightness, 1 - lightness)
 	const k = (n + hue / 30) % 12
@@ -60,7 +71,13 @@ function channel(hue, saturation, lightness, n) {
 	return lightness - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
 }
 
-/** Relative luminance per WCAG 2, from an hsl() triple. */
+/**
+ * Relative luminance per WCAG 2, from an hsl() triple.
+ *
+ * @param hue
+ * @param saturation
+ * @param lightness
+ */
 function luminance(hue, saturation, lightness) {
 	const linear = (value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
 
@@ -69,7 +86,13 @@ function luminance(hue, saturation, lightness) {
 		+ 0.0722 * linear(channel(hue, saturation, lightness, 4))
 }
 
-/** Contrast of a colour against white, per WCAG 2. */
+/**
+ * Contrast of a colour against white, per WCAG 2.
+ *
+ * @param hue
+ * @param saturation
+ * @param lightness
+ */
 function contrastWithWhite(hue, saturation, lightness) {
 	return 1.05 / (luminance(hue, saturation, lightness) + 0.05)
 }

@@ -44,10 +44,12 @@ class BackfillRemoteVisibility implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Backfill the visibility of remote statuses stored before estimation landed';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		if ($this->configService->getAppValueInt(self::MARKER) === 1) {
 			return;

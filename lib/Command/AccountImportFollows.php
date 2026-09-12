@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
-use OC\Core\Command\Base;
 use OCA\Social\Service\MigrationService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -20,13 +19,14 @@ use Symfony\Component\Console\Output\OutputInterface;
  * Re-creates the follows of a Mastodon `following_accounts.csv` from a local
  * account: the other half of moving an account here.
  */
-class AccountImportFollows extends Base {
+class AccountImportFollows extends SocialCommand {
 	public function __construct(
 		private MigrationService $migrationService,
 	) {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:import-follows')
@@ -38,6 +38,7 @@ class AccountImportFollows extends Base {
 			->setDescription('Follow every account of a Mastodon following_accounts.csv export');
 	}
 
+	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = (string)$input->getArgument('userId');
 		$path = (string)$input->getArgument('csv');

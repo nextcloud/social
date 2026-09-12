@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\AppInfo\Application;
-use OCP\IConfig;
+use OCP\Config\IUserConfig;
 
 /**
  * How far through a timeline someone has read.
@@ -31,7 +31,7 @@ class MarkerService {
 	private const CONFIG_KEY = 'markers';
 
 	public function __construct(
-		private IConfig $config,
+		private IUserConfig $userConfig,
 	) {
 	}
 
@@ -40,7 +40,7 @@ class MarkerService {
 	 */
 	public function getAll(string $userId): array {
 		$stored = json_decode(
-			$this->config->getUserValue($userId, Application::APP_ID, self::CONFIG_KEY, '{}'),
+			$this->userConfig->getValueString($userId, Application::APP_ID, self::CONFIG_KEY, '{}'),
 			true
 		);
 
@@ -98,8 +98,8 @@ class MarkerService {
 		];
 
 		$markers[$timeline] = $marker;
-		$this->config->setUserValue(
-			$userId, Application::APP_ID, self::CONFIG_KEY, json_encode($markers)
+		$this->userConfig->setValueString(
+			$userId, Application::APP_ID, self::CONFIG_KEY, (string)json_encode($markers)
 		);
 
 		return $marker;

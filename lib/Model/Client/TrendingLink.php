@@ -41,6 +41,7 @@ class TrendingLink implements JsonSerializable {
 		return $this->shares;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return array_merge(
 			$this->card->jsonSerialize(),

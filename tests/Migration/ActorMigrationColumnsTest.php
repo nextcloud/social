@@ -25,26 +25,13 @@ use PHPUnit\Framework\TestCase;
  * schema the step asks for, and that it asks for nothing twice.
  */
 class ActorMigrationColumnsTest extends TestCase {
+	use RecordsSchemaChanges;
+
 	/** @var array<string, array{string, array}> column => [type, options] */
 	private array $added = [];
 
 	private function schemaClosure(bool $hasTable = true, array $existing = []): Closure {
-		$added = &$this->added;
-		$table = new class($existing, $added) {
-			public function __construct(
-				private array $existing,
-				private array &$added,
-			) {
-			}
-
-			public function hasColumn(string $column): bool {
-				return in_array($column, $this->existing, true);
-			}
-
-			public function addColumn(string $column, string $type, array $options = []): void {
-				$this->added[$column] = [$type, $options];
-			}
-		};
+		$table = $this->recordTable('social_actor', $existing);
 
 		$schema = $this->createMock(ISchemaWrapper::class);
 		$schema->method('hasTable')->with('social_actor')->willReturn($hasTable);
@@ -56,6 +43,7 @@ class ActorMigrationColumnsTest extends TestCase {
 	public function testTheFlagsAreOptInSmallints(): void {
 		$step = new Version1000Date20260911000002();
 		$step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure(), []);
+		$this->harvestSchemaChanges();
 
 		foreach (['discoverable', 'indexable'] as $flag) {
 			$this->assertArrayHasKey($flag, $this->added);
@@ -69,6 +57,7 @@ class ActorMigrationColumnsTest extends TestCase {
 	public function testTheMigrationColumnsAreNullableText(): void {
 		$step = new Version1000Date20260911000002();
 		$step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure(), []);
+		$this->harvestSchemaChanges();
 
 		foreach (['also_known_as', 'moved_to'] as $column) {
 			$this->assertArrayHasKey($column, $this->added);
@@ -88,6 +77,7 @@ class ActorMigrationColumnsTest extends TestCase {
 			$this->schemaClosure(true, ['discoverable', 'indexable', 'also_known_as', 'moved_to']),
 			[]
 		);
+		$this->harvestSchemaChanges();
 
 		$this->assertSame([], $this->added);
 	}

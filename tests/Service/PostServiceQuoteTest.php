@@ -229,8 +229,10 @@ class PostServiceQuoteTest extends TestCase {
 	}
 
 	/**
-	 * The stored wire object is where the quote lives — no column carries it —
-	 * so the snapshot taken at creation has to hold it.
+	 * The quote has a column since `Version1000Date20260912000007`, and the
+	 * stored wire object is still what federates on the next Update — so the
+	 * snapshot taken at creation has to hold it too. Both copies are written
+	 * from this one assembled note, which is what keeps them from disagreeing.
 	 */
 	public function testTheQuoteIsInTheStoredWireObject(): void {
 		$this->holding($this->quoted());

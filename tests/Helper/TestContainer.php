@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Helper;
 
+use OCP\IUserSession;
 use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;
 use Psr\Log\LoggerInterface;
@@ -35,9 +36,18 @@ class TestContainer implements ContainerInterface {
 		$this->services[$id] = $service;
 	}
 
-	/** Back to the defaults: only a silent logger is known. */
+	/**
+	 * Back to the defaults: a silent logger, and a session with nobody in it.
+	 *
+	 * The session is a default rather than something each test registers
+	 * because `Response::getHeaders()` resolves one on every render from
+	 * Nextcloud 35 onward. See {@see AnonymousUserSession}.
+	 */
 	public function reset(): void {
-		$this->services = [LoggerInterface::class => new NullLogger()];
+		$this->services = [
+			LoggerInterface::class => new NullLogger(),
+			IUserSession::class => new AnonymousUserSession(),
+		];
 	}
 
 	public function get(string $id): object {

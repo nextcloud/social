@@ -46,6 +46,7 @@ class InstanceActor extends Application implements JsonSerializable {
 		return $this->getId() . '#main-key';
 	}
 
+	#[\Override]
 	public function exportAsActivityPub(): array {
 		return [
 			'@context' => [
@@ -85,10 +86,12 @@ class InstanceActor extends Application implements JsonSerializable {
 	 * The instance actor has no client-facing form: it is not an account, and
 	 * nothing in the Mastodon API should ever return it.
 	 */
+	#[\Override]
 	public function exportAsLocal(): array {
 		return [];
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return $this->exportAsActivityPub();
 	}

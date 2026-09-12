@@ -171,6 +171,7 @@ class MediaAttachment implements JsonSerializable {
 		return $this;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		if ($this->getExportFormat() === ACore::FORMAT_LOCAL) {
 			return $this->asLocal();

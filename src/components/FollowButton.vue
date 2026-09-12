@@ -16,7 +16,8 @@
 		  container — so a keyboard user and every touch device had no way to
 		  unfollow anyone at all. The label changes on hover and focus instead.
 		-->
-		<NcButton v-if="relationship.following"
+		<NcButton
+			v-if="relationship.following"
 			:disabled="loading"
 			class="follow-button follow-button--following"
 			:class="{ 'follow-button--confirmed': celebrating, 'follow-button--refused': refused }"
@@ -30,11 +31,13 @@
 			<template #icon>
 				<!-- keyed by the state they stand for: the icon is replaced,
 				     not restyled, so each one fades in on its own arrival -->
-				<CloseOctagon v-if="unfollowIntent"
+				<CloseOctagon
+					v-if="unfollowIntent"
 					key="unfollow"
 					:size="20"
 					class="follow-button__icon" />
-				<Check v-else
+				<Check
+					v-else
 					key="following"
 					:size="20"
 					class="follow-button__icon follow-button__check" />
@@ -43,13 +46,15 @@
 				{{ unfollowIntent ? t('social', 'Unfollow') : t('social', 'Following') }}
 			</span>
 		</NcButton>
-		<NcButton v-else-if="relationship.requested"
+		<NcButton
+			v-else-if="relationship.requested"
 			:disabled="true"
 			variant="secondary"
 			class="follow-button">
 			<span key="requested" class="follow-button__label">{{ t('social', 'Requested') }}</span>
 		</NcButton>
-		<NcButton v-else
+		<NcButton
+			v-else
 			:disabled="loading"
 			variant="primary"
 			class="follow-button"
@@ -69,7 +74,8 @@
 
 		<!-- unfollowing is quiet and easy to do by accident, and on a locked
 		     account following again means asking again -->
-		<NcDialog v-model:open="confirmUnfollow"
+		<NcDialog
+			v-model:open="confirmUnfollow"
 			:name="t('social', 'Unfollow {account}?', { account: uid })"
 			:buttons="unfollowButtons">
 			<p class="unfollow-hint">
@@ -80,14 +86,17 @@
 </template>
 
 <script>
-import accountMixins from '../mixins/accountMixins.js'
-import currentUser from '../mixins/currentUserMixin.js'
 import Check from 'vue-material-design-icons/Check.vue'
 import CloseOctagon from 'vue-material-design-icons/CloseOctagon.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import { translate } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
+import { useAccount } from '../composables/useAccount.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /** how long the confirmation plays, the same window a liked post celebrates for */
 const CELEBRATION_MS = 600
@@ -102,16 +111,22 @@ export default {
 		NcButton,
 		NcDialog,
 	},
-	mixins: [
-		accountMixins,
-		currentUser,
-	],
+
 	props: {
 		uid: {
 			type: String,
 			default: '',
 		},
 	},
+
+	setup(props) {
+		const { serverData } = useServerData()
+		const { cloudId } = useCurrentUser()
+		const { profileAccount, relationship } = useAccount(() => props.uid)
+
+		return { serverData, cloudId, profileAccount, relationship }
+	},
+
 	data() {
 		return {
 			loading: false,
@@ -126,15 +141,19 @@ export default {
 			refused: false,
 		}
 	},
+
 	computed: {
+		...mapStores(useAccountStore),
 		/** @return {boolean} */
 		isCurrentUserFollowing() {
-			return this.$store.getters.isFollowingUser(this.profileAccount)
+			return this.accountStore.isFollowingUser(this.profileAccount)
 		},
+
 		/** @return {import('../types/Mastodon.js').Account} */
 		currentAccount() {
-			return this.$store.getters.currentAccount
+			return this.accountStore.currentAccount
 		},
+
 		unfollowButtons() {
 			return [
 				{
@@ -151,22 +170,25 @@ export default {
 			]
 		},
 	},
+
 	beforeUnmount() {
 		window.clearTimeout(this.celebrationTimer)
 		window.clearTimeout(this.refusalTimer)
 	},
+
 	methods: {
 		t: translate,
 		askToUnfollow() {
 			this.confirmUnfollow = true
 		},
+
 		async follow() {
 			logger.debug('Following an account', { account: this.profileAccount })
 			try {
 				this.loading = true
 				// the label goes ahead of the server, and comes back if it has to
 				this.pending = true
-				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.profileAccount })
+				await this.accountStore.followAccount({ currentAccount: this.cloudId, accountToFollow: this.profileAccount })
 				// the store commits the follow only when the server took it —
 				// on a refusal it reports the error itself and commits nothing,
 				// which is the only signal this component gets
@@ -185,12 +207,13 @@ export default {
 				this.pending = false
 			}
 		},
+
 		async unfollow() {
 			this.confirmUnfollow = false
 			logger.debug('Unfollowing an account', { account: this.profileAccount })
 			try {
 				this.loading = true
-				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
+				await this.accountStore.unfollowAccount({ currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
 				if (this.relationship?.following) {
 					this.refuse()
 				}
@@ -202,6 +225,7 @@ export default {
 				this.unfollowIntent = false
 			}
 		},
+
 		/** The follow landed: the button that replaces this one arrives celebrating. */
 		celebrate() {
 			if (this.prefersReducedMotion()) {
@@ -216,6 +240,7 @@ export default {
 				this.celebrating = false
 			}, CELEBRATION_MS)
 		},
+
 		/** The server would not have it: take the optimistic state back visibly. */
 		refuse() {
 			this.celebrating = false
@@ -225,6 +250,7 @@ export default {
 				this.refused = false
 			}, REFUSAL_MS)
 		},
+
 		/** @return {boolean} */
 		prefersReducedMotion() {
 			return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
@@ -232,6 +258,7 @@ export default {
 	},
 }
 </script>
+
 <style scoped lang="scss">
 	/* the confirmation a follow deserves: the same short overshoot a like
 	   gives the heart, and the same ring thrown out behind it */

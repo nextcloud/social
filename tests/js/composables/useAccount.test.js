@@ -5,44 +5,42 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createStore } from 'vuex'
+import { createPinia, setActivePinia } from 'pinia'
 import { h } from 'vue'
 
-import accountMixins from '../../../src/mixins/accountMixins.js'
-import account from '../../../src/store/account.js'
-import settings from '../../../src/store/settings.js'
+import { useAccount } from '../../../src/composables/useAccount.js'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 const alice = { id: '11', acct: 'alice', username: 'alice', display_name: 'Alice', url: 'https://cloud.example.org/@alice' }
 const bob = { id: '22', acct: 'bob@remote.tld', username: 'bob', display_name: 'Bob', url: 'https://remote.tld/@bob' }
 
 const Probe = {
-	mixins: [accountMixins],
 	props: { uid: { type: String, default: '' } },
+	setup(props) {
+		return useAccount(() => props.uid)
+	},
 	render: () => h('div'),
 }
 
-describe('accountMixins', () => {
-	let store
+describe('useAccount', () => {
+	let pinia
+	let accountStore
+	let settingsStore
 	let wrapper
 
 	const mountWith = (uid) => {
-		wrapper = mount(Probe, { props: { uid }, global: { plugins: [store] } })
+		wrapper = mount(Probe, { props: { uid }, global: { plugins: [pinia] } })
 		return wrapper.vm
 	}
 
 	beforeEach(() => {
 		vi.spyOn(console, 'debug').mockImplementation(() => {})
-		Object.assign(account.state, {
-			currentAccount: '',
-			accounts: {},
-			accountsFollowers: {},
-			accountsFollowings: {},
-			accountsRelationships: {},
-			accountIdMap: {},
-		})
-		settings.state.serverData = {}
-		store = createStore({ modules: { account, settings } })
-		store.commit('setServerData', { cloudAddress: 'https://cloud.example.org' })
+		pinia = createPinia()
+		setActivePinia(pinia)
+		accountStore = useAccountStore()
+		settingsStore = useSettingsStore()
+		settingsStore.setServerData({ cloudAddress: 'https://cloud.example.org' })
 	})
 
 	afterEach(() => {
@@ -62,12 +60,14 @@ describe('accountMixins', () => {
 		expect(mountWith('').profileAccount).toBe('')
 	})
 
-	it('accountInfo and accountLoaded reflect whether the account is in the store', async () => {
+	// the two were a store getter each, and the second one's comment called it
+	// "somewhat duplicate with accountInfo(), but needed (for some reason)"
+	it('accountInfo and accountLoaded are the same lookup, asked once', async () => {
 		const vm = mountWith('alice')
 		expect(vm.accountLoaded).toBe(false)
 		expect(vm.accountInfo).toBeUndefined()
 
-		store.commit('addAccount', { actorId: alice.url, data: alice })
+		accountStore.addAccount({ actorId: alice.url, data: alice })
 		await wrapper.vm.$nextTick()
 
 		expect(vm.accountLoaded).toBe(true)
@@ -75,8 +75,8 @@ describe('accountMixins', () => {
 	})
 
 	it('isLocal is true for accounts of this server and false for remote ones', () => {
-		store.commit('addAccount', { actorId: alice.url, data: alice })
-		store.commit('addAccount', { actorId: bob.url, data: bob })
+		accountStore.addAccount({ actorId: alice.url, data: alice })
+		accountStore.addAccount({ actorId: bob.url, data: bob })
 
 		expect(mountWith('alice').isLocal).toBe(true)
 		wrapper.unmount()
@@ -88,19 +88,19 @@ describe('accountMixins', () => {
 	})
 
 	it('relationship looks up the relationship by the account id once both are loaded', async () => {
-		store.commit('addAccount', { actorId: bob.url, data: bob })
+		accountStore.addAccount({ actorId: bob.url, data: bob })
 		const vm = mountWith('bob@remote.tld')
 		expect(vm.relationship).toBeUndefined()
 
 		const relationship = { id: bob.id, following: true, requested: false }
-		store.commit('addRelationship', { actorId: bob.id, data: relationship })
+		accountStore.addRelationship({ actorId: bob.id, data: relationship })
 		await wrapper.vm.$nextTick()
 
 		expect(vm.relationship).toEqual(relationship)
 	})
 
 	it('relationship is falsy when the account itself is unknown', () => {
-		store.commit('addRelationship', { actorId: bob.id, data: { id: bob.id, following: true } })
+		accountStore.addRelationship({ actorId: bob.id, data: { id: bob.id, following: true } })
 
 		expect(mountWith('bob@remote.tld').relationship).toBeFalsy()
 	})

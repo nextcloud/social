@@ -67,7 +67,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 				(int)($trend[$period] ?? 0), IQueryBuilder::PARAM_INT
 			));
 		}
-		$this->limitToHashtag($qb, $hashtag);
+		$qb->limitToHashtag($hashtag);
 
 		$qb->executeStatement();
 	}
@@ -204,7 +204,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	public function getHashtag(string $hashtag): array {
 		$qb = $this->getHashtagsSelectSql();
 
-		$this->limitToHashtag($qb, $hashtag);
+		$qb->limitToHashtag($hashtag);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -225,8 +225,8 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	 */
 	public function searchHashtags(string $hashtag, bool $all): array {
 		$qb = $this->getHashtagsSelectSql();
-		$this->searchInHashtag($qb, $hashtag, $all);
-		$this->limitResults($qb, 25);
+		$qb->searchInHashtag($hashtag, $all);
+		$qb->limitResults(25);
 
 		$hashtags = [];
 		$cursor = $qb->executeQuery();

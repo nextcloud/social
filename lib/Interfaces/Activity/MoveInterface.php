@@ -47,6 +47,7 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 	/**
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		$item->checkOrigin($item->getId());
 		$item->checkOrigin($item->getObjectId());

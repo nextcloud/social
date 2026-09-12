@@ -11,7 +11,8 @@
 			{{ announcement }}
 		</div>
 		<transition name="pill">
-			<button v-if="arrived > 0"
+			<button
+				v-if="arrived > 0"
 				class="new-posts-pill"
 				:aria-label="n('social', 'Show %n new post', 'Show %n new posts', arrived)"
 				@click="showArrived">
@@ -20,7 +21,8 @@
 			</button>
 		</transition>
 		<transition-group name="list" tag="ul">
-			<TimelineEntry v-for="(entry, index) in timeline"
+			<TimelineEntry
+				v-for="(entry, index) in timeline"
 				:key="entry.id"
 				:class="{ 'timeline-entry--focused': index === focused }"
 				:item="entry"
@@ -62,10 +64,14 @@ import Refresh from 'vue-material-design-icons/Refresh.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import TimelineEntry from './TimelineEntry.vue'
 import TimelineSkeleton from './TimelineSkeleton.vue'
-import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
 import eventBus from '../services/eventBus.js'
+import { mapStores } from 'pinia'
+import { useNotificationsStore } from '../store/notifications.js'
+import { useTimelineStore } from '../store/timeline.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /**
  * How many times fetchNewStatuses() may follow itself in one tick. It recursed
@@ -84,21 +90,31 @@ export default {
 		TimelineSkeleton,
 		EmptyContent,
 	},
-	mixins: [CurrentUserMixin],
+
 	props: {
 		type: {
 			type: String,
 			default: () => 'home',
 		},
+
 		showParents: {
 			type: Boolean,
 			default: false,
 		},
+
 		reverseOrder: {
 			type: Boolean,
 			default: false,
 		},
 	},
+
+	setup() {
+		const { serverData } = useServerData()
+		const { currentUser } = useCurrentUser()
+
+		return { serverData, currentUser }
+	},
+
 	data() {
 		return {
 			infoHidden: false,
@@ -131,45 +147,55 @@ export default {
 					title: t('social', 'No posts found'),
 					description: t('social', 'Posts from people you follow will show up here'),
 				},
+
 				direct: {
 					image: 'img/undraw/direct.svg',
 					title: t('social', 'No direct messages found'),
 					description: t('social', 'Posts directed to you will show up here'),
 				},
+
 				timeline: {
 					image: 'img/undraw/local.svg',
 					title: t('social', 'No local posts found'),
 					description: t('social', 'Posts from other people on this instance will show up here'),
 				},
+
 				notifications: {
 					image: 'img/undraw/notifications.svg',
 					title: t('social', 'No notifications found'),
 					description: t('social', 'You have not received any notifications yet'),
 				},
+
 				federated: {
 					image: 'img/undraw/global.svg',
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here'),
 				},
+
 				favourites: {
 					image: 'img/undraw/likes.svg',
 					title: t('social', 'No liked posts found'),
 				},
+
 				profile: {
 					image: 'img/undraw/profile.svg',
 					title: t('social', 'You have not tooted yet'),
 				},
+
 				tags: {
 					image: 'img/undraw/profile.svg',
 					title: t('social', 'No posts found for this tag'),
 				},
+
 				'single-post': {
 					title: this.showParents ? '' : t('social', 'No replies found'),
 				},
 			},
 		}
 	},
+
 	computed: {
+		...mapStores(useNotificationsStore, useTimelineStore),
 		/**
 		 * What has just changed, in one sentence. Only the thing worth saying:
 		 * a reader does not need to hear about every page that loads while
@@ -188,10 +214,12 @@ export default {
 
 			return ''
 		},
+
 		/** @return {string} which list the store is holding */
 		timelineIdentity() {
-			return this.$store.getters.getTimelineIdentity
+			return this.timelineStore.getTimelineIdentity
 		},
+
 		/** @return {boolean} nothing to show, and nothing went wrong */
 		showEmptyContent() {
 			return this.error === null
@@ -199,6 +227,7 @@ export default {
 				&& this.timeline.length === 0
 				&& this.emptyContentData.title !== ''
 		},
+
 		/**
 		 * What to say when the list is empty. This used to write to
 		 * `this.emptyContent[...]` from inside the computed, which mutated
@@ -233,14 +262,15 @@ export default {
 
 		timeline() {
 			const timeline = this.showParents
-				? this.$store.getters.getParentsTimeline
-				: this.$store.getters.getTimeline
+				? this.timelineStore.getParentsTimeline
+				: this.timelineStore.getTimeline
 
 			// a copy: .reverse() sorts in place, and this array comes from a
 			// cached Vuex getter that every other reader shares
 			return this.reverseOrder ? [...timeline].reverse() : timeline
 		},
 	},
+
 	watch: {
 		/**
 		 * The router-view is no longer keyed on the full path, so switching
@@ -253,6 +283,7 @@ export default {
 				this.resetAndLoad()
 			}
 		},
+
 		// reading the notifications is what marks them read; the badge should
 		// not survive the reader looking straight at what it is counting
 		timeline: {
@@ -265,14 +296,16 @@ export default {
 				// a Notification entity carries the row id as `id`, a string;
 				// statuses carry the same number again as `nid`
 				const newest = entries.reduce(
-					(highest, entry) => Math.max(highest, Number(entry.id ?? entry.nid) || 0), 0,
+					(highest, entry) => Math.max(highest, Number(entry.id ?? entry.nid) || 0),
+					0,
 				)
 				if (newest > 0) {
-					this.$store.dispatch('markNotificationsRead', newest)
+					this.notificationsStore.markNotificationsRead(newest)
 				}
 			},
 		},
 	},
+
 	mounted() {
 		// The ancestors list in the single-post view renders the same
 		// /context response its sibling fetches: it used to page, poll and
@@ -297,6 +330,7 @@ export default {
 		document.addEventListener('visibilitychange', this.pollOnReturn)
 		this.setupIntersectionObserver()
 	},
+
 	unmounted() {
 		document.removeEventListener('visibilitychange', this.pollOnReturn)
 		eventBus.off('shortcut:next', this.focusNext)
@@ -306,6 +340,7 @@ export default {
 			this.observer.disconnect()
 		}
 	},
+
 	methods: {
 		setupIntersectionObserver() {
 			this.observer = new IntersectionObserver((entries) => {
@@ -319,6 +354,7 @@ export default {
 				}
 			})
 		},
+
 		/** Starts this timeline over: a different type is a different list. */
 		resetAndLoad() {
 			this.generation += 1
@@ -333,14 +369,18 @@ export default {
 			this.pollFailureReported = false
 			this.infiniteHandler()
 		},
+
 		/** What the retry button does. */
 		retry() {
 			this.error = null
 			this.allLoaded = false
 			this.infiniteHandler()
 		},
+
 		async infiniteHandler() {
-			if (this.loading) return
+			if (this.loading) {
+				return
+			}
 			this.loading = true
 
 			const generation = this.generation
@@ -362,7 +402,7 @@ export default {
 			}
 
 			try {
-				const response = await this.$store.dispatch('fetchTimeline', params)
+				const response = await this.timelineStore.fetchTimeline(params)
 				if (generation !== this.generation) {
 					return
 				}
@@ -389,6 +429,7 @@ export default {
 				}
 			}
 		},
+
 		/**
 		 * The polling tick. Asking while the tab is hidden is traffic nobody
 		 * is waiting for — on an instance with many open tabs it is most of
@@ -402,6 +443,7 @@ export default {
 
 			this.fetchNewStatuses()
 		},
+
 		/** Catches up once, on the way back to a tab that was left. */
 		pollOnReturn() {
 			if (document.visibilityState !== 'visible' || this.hiddenSince === 0) {
@@ -414,12 +456,15 @@ export default {
 				this.fetchNewStatuses()
 			}
 		},
+
 		focusNext() {
 			this.moveFocus(1)
 		},
+
 		focusPrevious() {
 			this.moveFocus(-1)
 		},
+
 		/**
 		 * Moves the keyboard's attention through the list and scrolls it into
 		 * view, so j/k reads a timeline without touching the mouse.
@@ -452,6 +497,7 @@ export default {
 				})
 			})
 		},
+
 		showArrived() {
 			this.arrived = 0
 			window.scrollTo({
@@ -466,6 +512,7 @@ export default {
 				this.$el.querySelector('.timeline-entry')?.focus({ preventScroll: true })
 			})
 		},
+
 		t: translate,
 		n: translatePlural,
 		/**
@@ -484,7 +531,7 @@ export default {
 			const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
 
 			try {
-				const response = await this.$store.dispatch('fetchTimeline', {
+				const response = await this.timelineStore.fetchTimeline({
 					min_id: ids.length === 0 ? undefined : Math.max(...ids),
 				})
 				this.pollFailureReported = false

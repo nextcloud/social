@@ -8,8 +8,9 @@ import { mount } from '@vue/test-utils'
 
 import SetupChecks from '../../../src/components/SetupChecks.vue'
 
-const mountChecks = (checks, addresses = { configured: '', expected: '' }) =>
-	mount(SetupChecks, { props: { checks, addresses } })
+function mountChecks(checks, addresses = { configured: '', expected: '' }) {
+	return mount(SetupChecks, { props: { checks, addresses } })
+}
 
 describe('SetupChecks', () => {
 	it('says nothing when everything passes', () => {

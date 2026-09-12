@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCP\Server;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -52,9 +53,7 @@ class StreamFilterTest extends TestCase {
 		return $viewer;
 	}
 
-	/**
-	 * @dataProvider hiddenLevelProbes
-	 */
+	#[DataProvider('hiddenLevelProbes')]
 	public function testEveryTimelineLevelBuildsValidSqlWithRelationsPresent(string $probe): void {
 		// one relation of each kind, so all three branches of the filter are live
 		$this->actorRelationRequest->save(self::VIEWER, self::BLOCKED, ActorRelation::TYPE_BLOCK);
@@ -76,7 +75,7 @@ class StreamFilterTest extends TestCase {
 		$this->assertIsArray($result);
 	}
 
-	public function hiddenLevelProbes(): array {
+	public static function hiddenLevelProbes(): array {
 		return [
 			'public (full filter)' => [ProbeOptions::PUBLIC],
 			'home (full filter + follow join)' => [ProbeOptions::HOME],

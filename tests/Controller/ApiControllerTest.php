@@ -75,6 +75,7 @@ use OCP\ITempManager;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -804,7 +805,7 @@ class ApiControllerTest extends TestCase {
 	// timelines
 
 	/** @return iterable<string, array{string}> */
-	public function supportedTimelines(): iterable {
+	public static function supportedTimelines(): iterable {
 		yield 'home' => ['home'];
 		yield 'account' => ['account'];
 		yield 'public' => ['public'];
@@ -813,7 +814,7 @@ class ApiControllerTest extends TestCase {
 		yield 'case-insensitive' => ['HOME'];
 	}
 
-	/** @dataProvider supportedTimelines */
+	#[DataProvider('supportedTimelines')]
 	public function testTimelinesProbesTheRequestedTimelineWithPagination(string $timeline): void {
 		$this->loggedInAs();
 		$posts = [$this->createMock(Stream::class)];
@@ -834,14 +835,14 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function unsupportedTimelines(): iterable {
+	public static function unsupportedTimelines(): iterable {
 		yield 'trending' => ['trending'];
 		yield 'notifications' => ['notifications'];
 		yield 'hashtag' => ['hashtag'];
 		yield 'empty' => [''];
 	}
 
-	/** @dataProvider unsupportedTimelines */
+	#[DataProvider('unsupportedTimelines')]
 	public function testTimelinesRejectsUnknownTimelineNames(string $timeline): void {
 		$this->loggedInAs();
 		$this->streamService->expects($this->never())->method('getTimeline');
@@ -899,14 +900,14 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function statusActions(): iterable {
+	public static function statusActions(): iterable {
 		yield 'favourite' => ['favourite'];
 		yield 'unfavourite' => ['unfavourite'];
 		yield 'reblog' => ['reblog'];
 		yield 'unreblog' => ['unreblog'];
 	}
 
-	/** @dataProvider statusActions */
+	#[DataProvider('statusActions')]
 	public function testStatusActionDispatchesToActionServiceAsTheViewersActor(string $action): void {
 		$this->loggedInAs();
 		$actor = $this->createMock(Person::class);
@@ -3110,9 +3111,8 @@ class ApiControllerTest extends TestCase {
 	 * that must not differ between them are the ones a mistake would be
 	 * invisible in: an attachment that arrived public would be readable over
 	 * the unauthenticated /media/{uuid} route before any post had said so.
-	 *
-	 * @dataProvider waysToAttachAPicture
 	 */
+	#[DataProvider('waysToAttachAPicture')]
 	public function testEveryWayInStoresTheSameKindOfDocument(string $how): void {
 		$this->loggedInAs();
 		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
@@ -3142,7 +3142,7 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/** @return iterable<string, array{string}> */
-	public function waysToAttachAPicture(): iterable {
+	public static function waysToAttachAPicture(): iterable {
 		yield 'uploaded from the device' => ['upload'];
 		yield 'picked out of Nextcloud Files' => ['from-file'];
 	}
