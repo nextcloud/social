@@ -168,7 +168,10 @@ class WebfingerHandlerTest extends TestCase {
 			'aliases' => [self::ACTOR_URL, 'https://cloud.example/index.php/u/alice'],
 			'links' => [
 				['rel' => 'self', 'type' => 'application/activity+json', 'href' => self::ACTOR_URL],
-				['rel' => 'http://webfinger.net/rel/profile-page', 'type' => 'text/html', 'href' => 'https://cloud.example/index.php/u/alice'],
+				// the *social* profile: this is where a peer sends a reader who
+				// clicks the handle, and the Nextcloud user page carries none
+				// of the account's posts. It stays an alias, above.
+				['rel' => 'http://webfinger.net/rel/profile-page', 'type' => 'text/html', 'href' => self::ACTOR_URL],
 				['rel' => 'http://ostatus.org/schema/1.0/subscribe', 'template' => 'https://cloud.example/index.php/apps/social/ostatus/follow/?uri={uri}'],
 			],
 		], $this->jsonOf($response));

@@ -152,10 +152,16 @@ class WebfingerHandler implements IHandler {
 		$response->addAlias($href);
 		$response->addLink('self', 'application/activity+json', $href);
 
-		// Nextcloud profile page
-		$profilePageUrl = $this->configService->getCloudUrl() . '/u/' . $actor->getPreferredUsername();
-		$response->addAlias($profilePageUrl);
-		$response->addLink('http://webfinger.net/rel/profile-page', 'text/html', $profilePageUrl);
+		// The profile a remote reader is sent to has to be the *social* one:
+		// `rel=profile-page` is what a peer follows when somebody clicks the
+		// handle, and the Nextcloud user page has none of the account's posts
+		// on it — it is the profile of a Nextcloud user, not of a fediverse
+		// actor. The Nextcloud page stays an alias, which is what an alias is
+		// for: another name this account answers to.
+		$socialProfileUrl = $this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername();
+		$nextcloudProfileUrl = $this->configService->getCloudUrl() . '/u/' . $actor->getPreferredUsername();
+		$response->addAlias($nextcloudProfileUrl);
+		$response->addLink('http://webfinger.net/rel/profile-page', 'text/html', $socialProfileUrl);
 
 		// Ostatus subscribe url
 		$subscribe = $this->configService->getSocialUrl() . 'ostatus/follow/?uri={uri}';

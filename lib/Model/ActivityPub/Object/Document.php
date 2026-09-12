@@ -376,6 +376,10 @@ class Document extends ACore implements JsonSerializable {
 			$media->setType($type);
 		}
 
+		// the whole of it, not just the half the client entity shows: what
+		// goes back out as an ActivityPub Document has to state it
+		$media->setMediaType($this->getMediaType());
+
 		if (!is_null($urlGenerator)) {
 			$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
 			// video/audio carry no resized copy; the preview is the media itself

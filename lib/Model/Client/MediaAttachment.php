@@ -27,6 +27,7 @@ class MediaAttachment implements JsonSerializable {
 
 	private string $id = '';
 	private string $type = '';
+	private string $mediaType = '';
 	private ?string $url = null;
 	private string $previewUrl = '';
 	private ?string $remoteUrl = null;
@@ -54,6 +55,24 @@ class MediaAttachment implements JsonSerializable {
 
 	public function getType(): string {
 		return $this->type;
+	}
+
+	/**
+	 * The full media type (`image/jpeg`), as opposed to `type`, which is the
+	 * half of it Mastodon's client entity carries (`image`).
+	 *
+	 * Kept because the ActivityPub `Document` this becomes on the way out has
+	 * to state it: a peer that does not sniff the file has nothing else to go
+	 * on, and this was an empty string on every attachment this app federated.
+	 */
+	public function getMediaType(): string {
+		return $this->mediaType;
+	}
+
+	public function setMediaType(string $mediaType): self {
+		$this->mediaType = $mediaType;
+
+		return $this;
 	}
 
 	public function setUrl(string $url): self {
@@ -227,7 +246,7 @@ class MediaAttachment implements JsonSerializable {
 		return
 			[
 				'type' => Document::TYPE,
-				'mediaType' => '',
+				'mediaType' => $this->getMediaType(),
 				'url' => $this->getUrl(),
 				// the wire carries the alt text as `name`
 				'name' => ($this->getDescription() === '') ? null : $this->getDescription(),
