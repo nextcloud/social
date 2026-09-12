@@ -54,11 +54,11 @@ social/
 │   ├── profile.js              # Profile-page custom element entry
 │   ├── App.vue                 # Root component of the main SPA
 │   ├── router.js               # Vue Router configuration
-│   ├── store/                  # Vuex store (index.js + timeline, account, settings, errors, notifications)
+│   ├── store/                  # Pinia stores (index.js + timeline, account, settings, errors, notifications)
 │   ├── views/                  # Route- and entry-level components
 │   ├── components/             # UI components (`.vue`, plus MessageContent.js)
 │   ├── services/               # eventBus, logger, notifications, clock, draft, shortcuts
-│   ├── mixins/                 # accountMixins, currentUserMixin, serverData
+│   ├── composables/            # useAccount, useCurrentUser, useServerData
 │   ├── directives/             # focusOnCreate
 │   ├── utils/                  # sanitizeHtml (+ its unit test), dominantColour, emojiCodePoint, instanceIdentity, relativeTime, viewTransition
 │   └── types/                  # JSDoc type definitions (ActivityPub, Mastodon)
@@ -481,7 +481,7 @@ object": the row stays, its content does not.
 
 ## Frontend Architecture
 
-The user interface is a **Vue 3** front end using Vue Router, Vuex, `@nextcloud/vue` components, `@nextcloud/axios`, DOMPurify (via `src/utils/sanitizeHtml.js`), linkifyjs, and twemoji.
+The user interface is a **Vue 3** front end using Vue Router, Pinia, `@nextcloud/vue` components, `@nextcloud/axios`, DOMPurify (via `src/utils/sanitizeHtml.js`), linkifyjs, and twemoji.
 
 ### Entry bundles
 
@@ -499,7 +499,11 @@ The OStatus bundle and `src/views/OStatus.vue` are therefore dead code today: `O
 
 ### Store
 
-`src/store/index.js` registers five Vuex modules: `timeline`, `account`, `settings`, `errors` and `notifications`. Server-side state is not a store module — it is passed through Nextcloud's initial state as `serverData` and read by the `serverData` mixin.
+`src/store/` holds five Pinia stores — `timeline`, `account`, `settings`, `errors` and `notifications` — and `index.js` creates the Pinia every entry point installs. Components reach them through `mapStores`, or through a composable where the same few values are wanted together: `useServerData`, `useCurrentUser` and `useAccount` in `src/composables/` replaced the three mixins the app used to carry.
+
+Server-side state is not a store: it is passed through Nextcloud's initial state as `serverData` and read by `useServerData`.
+
+Each store is installed per Pinia instance rather than per module registration, which is the difference that matters for tests — two Pinias give two sets of state, where the Vuex modules shared one object literal between them.
 
 ### Routes and views
 
