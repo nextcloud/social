@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { createApp, defineCustomElement, h } from 'vue'
+import { defineCustomElement, h } from 'vue'
 import ProfilePageIntegration from './views/ProfilePageIntegration.vue'
 import { generateFilePath } from '@nextcloud/router'
-import { translate, translatePlural } from '@nextcloud/l10n'
 
 // eslint-disable-next-line
 const requestToken = window.OC?.requestToken
@@ -34,20 +33,10 @@ if (!customElements.get(profileSectionTagName)) {
 	customElements.define(profileSectionTagName, SocialProfileSectionElement)
 }
 
-if (window.OCA?.Profile?.ProfileSections) {
-	window.OCA.Profile.ProfileSections.registerSection({
-		id: 'social-profile-section',
-		order: 0,
-		tagName: profileSectionTagName,
-	})
-} else if (window.OCA?.Core?.ProfileSections) {
-	// Keep compatibility with older Nextcloud builds that still use the legacy callback contract.
-	window.OCA.Core.ProfileSections.registerSection((el, userId) => {
-		const app = createApp(ProfilePageIntegration, { userId })
-		app.config.globalProperties.t = translate
-		app.config.globalProperties.n = translatePlural
-		app.config.globalProperties.OC = window.OC
-		app.config.globalProperties.OCA = window.OCA
-		return app
-	})
-}
+// `OCA.Profile.ProfileSections` is the registry of every supported Nextcloud;
+// the `OCA.Core` callback contract it replaced was gone before the app's floor.
+window.OCA?.Profile?.ProfileSections?.registerSection({
+	id: 'social-profile-section',
+	order: 0,
+	tagName: profileSectionTagName,
+})
