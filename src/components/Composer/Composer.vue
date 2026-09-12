@@ -411,7 +411,7 @@ export default {
 							return item.original.value
 						},
 						selectTemplate(item) {
-							let tag = ''
+							let tag
 							if (typeof item === 'undefined') {
 								tag = this.currentMentionTextSnapshot
 							} else {
@@ -1320,7 +1320,7 @@ function rememberedVisibility() {
 	let remembered
 	try {
 		remembered = window.localStorage.getItem('social.lastPostType') ?? ''
-	} catch (error) {
+	} catch {
 		return ''
 	}
 

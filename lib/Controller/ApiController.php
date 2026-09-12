@@ -38,7 +38,9 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Filter;
@@ -51,6 +53,7 @@ use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
+use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
@@ -170,6 +173,7 @@ class ApiController extends Controller {
 		private ITempManager $tempManager,
 		private FilterService $filterService,
 		private BannerService $bannerService,
+		private AvatarService $avatarService,
 		private AccountRelationService $accountRelationService,
 		private ScheduledStatusService $scheduledStatusService,
 	) {
@@ -257,14 +261,24 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * Minimal Mastodon-style profile update: `locked` (manually approve
-	 * followers), `note` (the bio), `discoverable` and `indexable` (the actor
-	 * flags) and `fields_attributes` (profile metadata) are supported.
-	 * `display_name` is not: the name belongs to the Nextcloud account and is
-	 * changed there. Returns the updated account entity.
+	 * Mastodon's profile update: `display_name`, `note` (the bio), `avatar` and
+	 * `header` (multipart), `locked` (manually approve followers),
+	 * `discoverable`, `indexable` and `bot` (the actor flags),
+	 * `source[privacy]` (the default audience) and `fields_attributes` (the
+	 * profile metadata). Returns the updated account entity.
 	 *
 	 * Every field is optional and only what was sent is written, which is what
-	 * lets a client that edits one thing leave the rest alone.
+	 * lets a client that edits one thing leave the rest alone. Three of them
+	 * used to be accepted and dropped — `display_name`, `avatar` and `bot` —
+	 * so a client's profile editor, which sends the whole form in one PATCH,
+	 * got a 200 and showed the name and picture unchanged.
+	 *
+	 * The name and the picture belong to the Nextcloud account rather than to
+	 * the actor, so they are written there and the actor cache is refreshed. A
+	 * backend that owns either of them (LDAP, SAML, anything provisioned from
+	 * elsewhere) makes this a **422** rather than a silent success: the profile
+	 * looks the same afterwards either way, and only one of those two tells the
+	 * user why.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -294,10 +308,20 @@ class ApiController extends Controller {
 				$changed = true;
 			}
 
+			// an absent display name is a client that did not mention it. A
+			// backend that owns the name raises, and the client sees the
+			// refusal rather than a 200 over an unchanged profile
+			if (array_key_exists('display_name', $input)) {
+				$this->accountService->setDisplayName(
+					$this->currentSession(), (string)$input['display_name']
+				);
+				$changed = true;
+			}
+
 			// only the flags that were sent: a client updating the display
 			// name must not reset the ones it did not mention
 			$flags = [];
-			foreach (['discoverable', 'indexable'] as $flag) {
+			foreach (['discoverable', 'indexable', 'bot'] as $flag) {
 				if (array_key_exists($flag, $input)) {
 					$flags[$flag] = $this->formBool($input[$flag]);
 				}
@@ -307,13 +331,20 @@ class ApiController extends Controller {
 				$changed = true;
 			}
 
-			// Mastodon sends the banner as `header`, multipart, on this same
-			// route. The avatar is not accepted: it is the Nextcloud account's
-			// picture, changed where the account is, exactly as the display
-			// name is — see the note in docs/API.md.
+			// Mastodon sends both pictures multipart on this same route: the
+			// banner as `header`, the avatar as `avatar`. The avatar is the
+			// Nextcloud account's picture — the same one the whole server shows
+			// — so it is written there, and a backend that owns it raises
+			// rather than answering 200 over an unchanged picture.
 			$header = $_FILES['header'] ?? [];
 			if ($header !== [] && ($header['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
 				$this->bannerService->setFromTempFile($this->currentSession(), $header['tmp_name']);
+				$changed = true;
+			}
+
+			$avatar = $_FILES['avatar'] ?? [];
+			if ($avatar !== [] && ($avatar['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+				$this->avatarService->setFromTempFile($this->currentSession(), $avatar['tmp_name']);
 				$changed = true;
 			}
 
@@ -363,14 +394,22 @@ class ApiController extends Controller {
 	 *
 	 * @return array<string, mixed>
 	 */
+	/**
+	 * Mastodon's **CredentialAccount**: the Account entity plus `source`.
+	 *
+	 * Only the two credentials routes build one, because `source` is the
+	 * account's own copy of its settings and `source.follow_requests_count` is
+	 * nobody's business but theirs. It used to come out of the model on every
+	 * Account this app emitted, including other people's and anonymous reads.
+	 */
 	private function accountEntity(Person $account): array {
 		// the viewer is already in local format, see initViewer()
 		$data = $account->jsonSerialize();
+		$data['source'] = $account->exportSourceAsLocal();
 
-		// `source` is the account's own copy of its settings, and the default
-		// audience is the one of them this app keeps per user rather than on
-		// the actor: the model has no way to know it
-		if ($account->isLocal() && isset($data['source'])) {
+		// the default audience is the one setting this app keeps per user
+		// rather than on the actor: the model has no way to know it
+		if ($account->isLocal()) {
 			$data['source']['privacy'] = $this->accountService->getDefaultPrivacy(
 				$this->currentSession()
 			);
@@ -1468,6 +1507,104 @@ class ApiController extends Controller {
 			$this->scheduledStatusService->delete($actor, $id);
 
 			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The accounts that favourited a status, newest first.
+	 *
+	 * Mastodon's `favourited_by`, and the reason a tap on a favourite count is
+	 * not a dead end. The status is resolved through the visibility filter
+	 * first, so one the caller may not read is a **404** and no reaction of it
+	 * is looked at — the list of who liked a post is as private as the post.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function statusFavouritedBy(int $nid, int $limit = 40): DataResponse {
+		return $this->reactedBy($nid, Like::TYPE, $limit);
+	}
+
+	/** The accounts that boosted a status, newest first. Mastodon's `reblogged_by`. */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function statusRebloggedBy(int $nid, int $limit = 40): DataResponse {
+		return $this->reactedBy($nid, Announce::TYPE, $limit);
+	}
+
+	private function reactedBy(int $nid, string $type, int $limit): DataResponse {
+		try {
+			$this->initViewer(false);
+			$limit = min(max($limit, 1), 80);
+			$post = $this->streamService->getStreamByNid($nid);
+
+			return new DataResponse(
+				$this->actionService->reactedBy($post, $type, $limit), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Mastodon's account search: what a composer calls to complete a `@handle`
+	 * as somebody types it.
+	 *
+	 * `/api/v2/search` answers accounts too, but no client uses it for
+	 * autocomplete — they call this one, and this app did not have it, so
+	 * mention completion failed in every client that offers it.
+	 *
+	 * `resolve` asks this instance to go and find an account it has never seen,
+	 * which is what makes completing a handle from another server work at all.
+	 * It fires only for a viewer, and only for something shaped like an
+	 * address or a handle, the same rule `/api/v2/search` follows.
+	 *
+	 * `following` narrows the answer to accounts the viewer follows, which is
+	 * what a client asks for when it is completing a reply rather than a search.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 10, period: 60)]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function accountsSearch(
+		string $q = '',
+		int $limit = 40,
+		bool $resolve = false,
+		bool $following = false,
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+			$q = trim($q);
+			$limit = min(max($limit, 1), 80);
+
+			if ($q === '') {
+				return new DataResponse([], Http::STATUS_OK);
+			}
+
+			$found = $this->searchService->searchAccounts($q);
+			if ($resolve) {
+				$found = array_merge($this->searchService->searchUri($q), $found);
+			}
+
+			$accounts = [];
+			foreach ($found as $account) {
+				$accounts[$account->getId()] = $account->setExportFormat(ACore::FORMAT_LOCAL);
+			}
+			$accounts = array_values($accounts);
+
+			// `following=true` is a client completing a reply rather than
+			// searching: it wants the people already in the conversation's
+			// reach, not everybody this instance has ever cached
+			if ($following) {
+				$accounts = array_values(array_filter(
+					$accounts,
+					fn (Person $account): bool
+						=> $this->followService->getRelationshipWith($account)->isFollowing()
+				));
+			}
+
+			return new DataResponse(array_slice($accounts, 0, $limit), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

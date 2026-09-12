@@ -138,6 +138,30 @@ class ActionsRequest extends ActionsRequestBuilder {
 	}
 
 	/**
+	 * Who did one thing to one post, newest first: the rows behind Mastodon's
+	 * `favourited_by` and `reblogged_by`.
+	 *
+	 * The actor of each row is joined in, because the answer is a page of
+	 * accounts rather than of actions — a row whose actor this instance has
+	 * never cached has nothing to show and is left out by the caller.
+	 *
+	 * @return ACore[]
+	 */
+	public function getActionsOnObject(string $objectId, string $type, int $limit = 0, int $offset = 0): array {
+		$qb = $this->getActionsSelectSql();
+		$this->limitToPrim($qb, 'object_id_prim', $objectId);
+		$qb->limitToType($type);
+		$this->leftJoinCacheActors($qb, 'actor_id');
+		$qb->orderBy('a.creation', 'desc');
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+			$qb->setFirstResult($offset);
+		}
+
+		return $this->getActionsFromRequest($qb);
+	}
+
+	/**
 	 * Removes one action, addressed the way it is looked up.
 	 */
 	public function deleteAction(string $actorId, string $objectId, string $type): void {

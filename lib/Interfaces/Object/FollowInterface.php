@@ -109,22 +109,17 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	}
 
 	public function confirmFollowRequest(Follow $follow): void {
+		// Record the acceptance here first. Delivering the Accept used to come
+		// first, and everything below it — the accepted flag, the follower
+		// count, the notification — was skipped when that delivery threw. A
+		// peer that was briefly unreachable therefore left the row pending for
+		// ever, with nothing to retry it, and for a follower on this very
+		// instance the delivery is dropped as our own (see
+		// ActivityService::isOurs()), so a local follow could never be
+		// accepted at all. Whether the Accept reaches the other server is a
+		// question for the delivery queue, not for whether this server
+		// considers the follow accepted.
 		try {
-			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
-
-			$accept = AP::instance()->getItemFromType(Accept::TYPE);
-			$accept->generateUniqueIdFromActor($follow->getObjectId(), 'accept/follows');
-			$accept->setActorId($follow->getObjectId());
-			$accept->setObject($follow);
-			//			$follow->setParent($accept);
-
-			$accept->addInstancePath(
-				new InstancePath(
-					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
-				)
-			);
-
-			$this->activityService->request($accept);
 			$this->followsRequest->accepted($follow);
 
 			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
@@ -133,7 +128,35 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			$this->generateNotification($follow);
 		} catch (Exception $e) {
 			$this->miscService->log(
-				'exception while confirmFollowRequest: ' . get_class($e) . ' - ' . $e->getMessage(),
+				'exception while accepting a follow: ' . get_class($e) . ' - ' . $e->getMessage(),
+				2
+			);
+
+			return;
+		}
+
+		try {
+			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
+			if ($remoteActor->isLocal()) {
+				// both sides are on this instance: there is nobody to tell
+				return;
+			}
+
+			$accept = AP::instance()->getItemFromType(Accept::TYPE);
+			$accept->generateUniqueIdFromActor($follow->getObjectId(), 'accept/follows');
+			$accept->setActorId($follow->getObjectId());
+			$accept->setObject($follow);
+
+			$accept->addInstancePath(
+				new InstancePath(
+					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
+				)
+			);
+
+			$this->activityService->request($accept);
+		} catch (Exception $e) {
+			$this->miscService->log(
+				'exception while sending an Accept: ' . get_class($e) . ' - ' . $e->getMessage(),
 				2
 			);
 		}

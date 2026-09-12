@@ -47,7 +47,7 @@ export const FIRST_POST_KEY = 'social.firstPostCelebrated'
 function alreadyCelebrated() {
 	try {
 		return window.localStorage.getItem(FIRST_POST_KEY) !== null
-	} catch (error) {
+	} catch {
 		return false
 	}
 }
@@ -58,7 +58,7 @@ function alreadyCelebrated() {
 function rememberCelebrated() {
 	try {
 		window.localStorage.setItem(FIRST_POST_KEY, String(Date.now()))
-	} catch (error) {
+	} catch {
 		// nothing to do about it: `firstPostCelebrated` in the state still
 		// stops a second celebration for as long as this page is open
 	}
@@ -600,7 +600,7 @@ const actions = {
 			logger.error('Failed to change the pinned state', { error })
 		}
 	},
-	refreshTimeline(context) {
+	refreshTimeline() {
 		return this.dispatch('fetchTimeline')
 	},
 	async fetchTimeline(context, params = {}) {
@@ -612,7 +612,7 @@ const actions = {
 		// because there happens to be exactly one store, which is the trap
 		// store/notifications.js already documents
 		const current = context.state
-		let url = ''
+		let url
 		switch (current.type) {
 		case 'account':
 			url = generateUrl(`apps/social/api/v1/accounts/${current.account}/statuses`)

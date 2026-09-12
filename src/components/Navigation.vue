@@ -6,7 +6,7 @@
 	<NcAppNavigation>
 		<template #search>
 			<NcAppNavigationSearch v-model="localSearch"
-				:label="t('social', 'Search …')"
+				:label="t('social', 'Search …')"
 				@update:modelValue="onSearchInput" />
 		</template>
 		<template #list>
@@ -395,7 +395,7 @@ export default {
 					params: { limit: 5 },
 				})
 				this.trending = Array.isArray(data) ? data : []
-			} catch (error) {
+			} catch {
 				this.trending = []
 			}
 		},

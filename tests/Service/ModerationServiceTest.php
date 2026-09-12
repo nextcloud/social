@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\AccountNotesRequest;
 use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -19,10 +20,13 @@ use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Moderation;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\StreamService;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -39,9 +43,12 @@ use Psr\Log\NullLogger;
  */
 class ModerationServiceTest extends TestCase {
 	private const SPAMMER = 'https://spam.example/users/spammer';
+	private const LOCAL_ACTOR = 'https://cloud.example.org/apps/social/@alice';
 
 	private ModerationRequest|MockObject $moderationRequest;
 	private StreamRequest|MockObject $streamRequest;
+	private ActorsRequest|MockObject $actorsRequest;
+	private AccountService|MockObject $accountService;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private FollowsRequest|MockObject $followsRequest;
 	private ActorRelationRequest|MockObject $actorRelationRequest;
@@ -66,6 +73,8 @@ class ModerationServiceTest extends TestCase {
 		$this->requestQueueRequest = $this->createMock(RequestQueueRequest::class);
 		$this->streamService = $this->createMock(StreamService::class);
 
+		$this->actorsRequest = $this->createMock(ActorsRequest::class);
+		$this->accountService = $this->createMock(AccountService::class);
 		$this->service = new ModerationService(
 			$this->moderationRequest,
 			$this->streamRequest,
@@ -75,6 +84,8 @@ class ModerationServiceTest extends TestCase {
 			$this->streamDestRequest,
 			$this->requestQueueRequest,
 			$this->streamService,
+			$this->actorsRequest,
+			$this->accountService,
 			new NullLogger(),
 			$this->domainBlocksRequest,
 			$this->accountNotesRequest,
@@ -108,6 +119,48 @@ class ModerationServiceTest extends TestCase {
 		$this->cacheActorsRequest->expects($this->once())->method('deleteCacheById')->with(self::SPAMMER);
 
 		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
+	}
+
+	/**
+	 * A suspension used to stop at this instance's own edge: the posts went
+	 * here, the actor stopped being served here, and every remote instance
+	 * carried on holding a full copy of an account a moderator had removed.
+	 */
+	public function testSuspendingALocalAccountTellsTheFediverse(): void {
+		$alice = new Person();
+		$alice->setId(self::LOCAL_ACTOR);
+		$this->actorsRequest->method('getFromId')->with(self::LOCAL_ACTOR)->willReturn($alice);
+		$this->accountService->expects($this->once())
+			->method('federateActorDelete')
+			->with($this->identicalTo($alice));
+
+		$this->service->decide(self::LOCAL_ACTOR, Moderation::SUSPEND);
+	}
+
+	/**
+	 * Somebody else's actor is not ours to delete, and a `Delete` we signed for
+	 * it is not one any other server would act on. Suspending a remote account
+	 * is a decision about what this instance shows.
+	 */
+	public function testSuspendingARemoteAccountFederatesNothing(): void {
+		$this->actorsRequest->method('getFromId')
+			->willThrowException(new ActorDoesNotExistException());
+		$this->accountService->expects($this->never())->method('federateActorDelete');
+
+		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
+	}
+
+	/** A moderator waiting on a delivery queue is a moderator who cannot moderate. */
+	public function testTheSuspensionStandsEvenIfItCannotBeFederated(): void {
+		$alice = new Person();
+		$alice->setId(self::LOCAL_ACTOR);
+		$this->actorsRequest->method('getFromId')->willReturn($alice);
+		$this->accountService->method('federateActorDelete')
+			->willThrowException(new \Exception('the queue is down'));
+		$this->moderationRequest->expects($this->once())->method('save');
+		$this->streamRequest->expects($this->once())->method('deleteByAuthor');
+
+		$this->service->decide(self::LOCAL_ACTOR, Moderation::SUSPEND);
 	}
 
 	public function testSuspendingCutsTheAccountOutOfDeliveryAndOfTimelines(): void {
@@ -213,7 +266,8 @@ class ModerationServiceTest extends TestCase {
 		$service = new ModerationService(
 			$this->moderationRequest, $this->streamRequest, $this->cacheActorsRequest,
 			$this->followsRequest, $this->actorRelationRequest, $this->streamDestRequest,
-			$this->requestQueueRequest, $this->createMock(StreamService::class), $logger,
+			$this->requestQueueRequest, $this->createMock(StreamService::class),
+			$this->actorsRequest, $this->accountService, $logger,
 			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest
 		);
 

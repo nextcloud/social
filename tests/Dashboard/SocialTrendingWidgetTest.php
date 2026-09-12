@@ -94,6 +94,33 @@ class SocialTrendingWidgetTest extends TestCase {
 		$this->assertSame([], $this->widget->getItemsV2('alice')->getItems());
 	}
 
+	/**
+	 * The dashboard prints the half-empty message above the rows, so sending
+	 * one while there are rows put "Nothing is trending" directly on top of
+	 * the hashtags the widget had just listed.
+	 */
+	public function testAPopulatedTileSendsNoHalfEmptyMessage(): void {
+		$this->hashtagService->method('getTrending')->willReturn([
+			['hashtag' => 'nextcloud', 'trend' => ['1d' => ['total' => 4, 'accounts' => 2]]],
+		]);
+		$this->urlGenerator->method('linkToRoute')->willReturn('/apps/social/timeline/tags/nextcloud');
+
+		$items = $this->widget->getItemsV2('alice');
+
+		$this->assertNotSame([], $items->getItems());
+		$this->assertSame('', $items->getHalfEmptyContentMessage());
+	}
+
+	public function testAnEmptyTileKeepsBothMessages(): void {
+		$this->hashtagService->method('getTrending')->willReturn([]);
+
+		$items = $this->widget->getItemsV2('alice');
+
+		$this->assertSame([], $items->getItems());
+		$this->assertSame('Nothing is trending yet', $items->getEmptyContentMessage());
+		$this->assertSame('Nothing is trending', $items->getHalfEmptyContentMessage());
+	}
+
 	public function testFailureLeavesTheTileEmptyWithAMessage(): void {
 		$this->hashtagService->method('getTrending')->willThrowException(new Exception('nope'));
 

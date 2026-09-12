@@ -69,7 +69,7 @@ export function dominantColour(url) {
 					g: Math.round(g / counted),
 					b: Math.round(b / counted),
 				})
-			} catch (error) {
+			} catch {
 				// a canvas tainted by a cross-origin image throws on read
 				resolve(null)
 			}

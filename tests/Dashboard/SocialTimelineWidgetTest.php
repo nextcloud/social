@@ -165,7 +165,10 @@ class SocialTimelineWidgetTest extends TestCase {
 		$this->assertSame(ProbeOptions::HOME, $options->getProbe());
 		$this->assertSame(5, $options->getLimit());
 		$this->assertSame('Follow some accounts to see their posts here', $items->getEmptyContentMessage());
-		$this->assertSame('No recent posts', $items->getHalfEmptyContentMessage());
+		$this->assertSame(
+			'', $items->getHalfEmptyContentMessage(),
+			'the dashboard prints this above the rows, so a widget with rows must not send one'
+		);
 		$list = $items->getItems();
 		$this->assertCount(2, $list, 'a boost whose subject did not resolve has nothing to show');
 		$this->assertSame(
@@ -264,6 +267,22 @@ class SocialTimelineWidgetTest extends TestCase {
 
 		$this->assertSame('https://remote.example/users/gone', $items[0]->getSubtitle());
 		$this->assertSame('', $items[0]->getIconUrl());
+	}
+
+	/**
+	 * "No recent posts" used to be sent whether or not there were posts, and
+	 * the dashboard renders it above the rows: the widget announced an empty
+	 * timeline directly on top of the posts it had just listed.
+	 */
+	public function testAnEmptyTimelineStillCarriesBothMessages(): void {
+		$this->viewer();
+		$this->streamService->method('getTimeline')->willReturn([]);
+
+		$items = $this->widget->getItemsV2('alice', null, 5);
+
+		$this->assertSame([], $items->getItems());
+		$this->assertSame('Follow some accounts to see their posts here', $items->getEmptyContentMessage());
+		$this->assertSame('No recent posts', $items->getHalfEmptyContentMessage());
 	}
 
 	public function testFailuresYieldAnEmptyWidgetWithAnErrorMessage(): void {

@@ -484,6 +484,14 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public function setBot(bool $bot): self {
 		$this->bot = $bot;
 
+		// The flag and the actor type are one fact. A peer reads `type`, a
+		// client reads `bot`, and an account marked automated here that went on
+		// serving `Person` would have told the two of them different things.
+		// Only ever between these two: an `Application` stays an `Application`.
+		if ($this->getType() === self::TYPE || $this->getType() === Service::TYPE) {
+			$this->setType($bot ? Service::TYPE : self::TYPE);
+		}
+
 		return $this;
 	}
 
@@ -863,9 +871,16 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$this->setFields($this->extractFieldsFromAttachment($source));
 		}
 
-		// the cached row keeps the actor type it was served as, which is the
-		// only thing that ever said the account is automated
-		$this->setBot(in_array($this->getType(), self::BOT_TYPES, true));
+		// A cached remote row keeps the actor type it was served as, which is
+		// the only thing that ever said the account is automated. A local row
+		// has the flag itself, because nothing else stores it: the type this
+		// app serves *is* the flag, so reading it back off the type would be
+		// circular.
+		if (array_key_exists('bot', $data)) {
+			$this->setBot($this->getInt('bot', $data, 0) === 1);
+		} else {
+			$this->setBot(in_array($this->getType(), self::BOT_TYPES, true));
+		}
 
 		// local actor rows carry the canonical fields in their own column
 		$storedFields = json_decode($this->get('fields', $data, ''), true);
@@ -1032,6 +1047,35 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The `source` half of Mastodon's CredentialAccount: an account's own
+	 * editable copy of its settings.
+	 *
+	 * Deliberately *not* part of `exportAsLocal()`. It used to be, so every
+	 * Account entity this app emitted carried it — somebody else's profile,
+	 * a search result, a page of followers, an anonymous read — and with it
+	 * `follow_requests_count`, which is nobody's business but the account's
+	 * own. Mastodon puts `source` on exactly two routes, and so does this:
+	 * `verify_credentials` and `update_credentials`, which are the two that
+	 * know they are answering the account itself.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function exportSourceAsLocal(): array {
+		$details = $this->getDetailsAll();
+
+		return [
+			'privacy' => $this->getPrivacy(),
+			'sensitive' => $this->isSensitive(),
+			'language' => $this->getLanguage(),
+			// the account's own editable copy, so the bio is the plain text it
+			// is stored as, never the rendered HTML
+			'note' => $this->isLocal() ? $this->getSummary() : $this->getDescription(),
+			'fields' => $this->getFields(),
+			'follow_requests_count' => $this->getInt('count.follow_requests', $details),
+		];
+	}
+
+	/**
 	 * @return array
 	 */
 	public function exportAsLocal(): array {
@@ -1069,16 +1113,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				// null, not '', while nothing was posted: a date-or-null field in Mastodon's entity
 				'last_status_at' => $this->get('last_post_creation', $details) !== ''
 					? $this->get('last_post_creation', $details) : null,
-				'source' => [
-					'privacy' => $this->getPrivacy(),
-					'sensitive' => $this->isSensitive(),
-					'language' => $this->getLanguage(),
-					// `source` is the account's own editable copy, so the bio is the
-					// plain text it is stored as, never the rendered HTML
-					'note' => $this->isLocal() ? $this->getSummary() : $this->getDescription(),
-					'fields' => $this->getFields(),
-					'follow_requests_count' => $this->getInt('count.follow_requests', $details)
-				],
 				'emojis' => $this->getEmojis(),
 				'fields' => $fields
 			];

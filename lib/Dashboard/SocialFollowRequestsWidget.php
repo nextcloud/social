@@ -153,10 +153,12 @@ class SocialFollowRequestsWidget implements IAPIWidgetV2, IIconWidget, IButtonWi
 				);
 			}
 
+			// the dashboard prints the half-empty message above the rows, so a
+			// widget with rows must not send one
 			return new WidgetItems(
 				$items,
 				$this->l10n->t('No follow requests'),
-				$this->l10n->t('No new follow requests'),
+				$items === [] ? $this->l10n->t('No new follow requests') : '',
 			);
 		} catch (Exception $e) {
 			$this->logger->warning('could not build the social_follow_requests dashboard widget', [
