@@ -78,7 +78,7 @@
 		"eslint-plugin-import": "^2.32.0",
 		"eslint-plugin-n": "^16.0.0",
 		"eslint-plugin-vue": "^9.33.0",
-		"jsdom": "^26.1.0",
+		"jsdom": "^30.0.1",
 		"node-polyfill-webpack-plugin": "^4.0.0",
 		"sass-loader": "^16.0.8",
 		"style-loader": "^4.0.0",
