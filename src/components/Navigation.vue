@@ -186,8 +186,6 @@ import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
-import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
-import IconEarth from 'vue-material-design-icons/Earth.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
@@ -233,8 +231,6 @@ export default {
 		IconHome,
 		IconBell,
 		IconCommentAccount,
-		IconAccountMultiple,
-		IconEarth,
 		IconHeart,
 		IconPlus,
 		IconBookmark,
@@ -309,6 +305,11 @@ export default {
 						icon: IconHome,
 						title: t('social', 'Home'),
 						to: { name: 'timeline' },
+						// Local and Global are scopes of this page rather than
+						// pages of their own now that the switcher sets them,
+						// so the entry stays lit while the reader is on one:
+						// otherwise the sidebar shows nothing chosen at all
+						covers: ['', 'timeline', 'federated'],
 					},
 					{
 						key: 'social-photos',
@@ -334,18 +335,6 @@ export default {
 						icon: IconCommentAccount,
 						title: t('social', 'Direct messages'),
 						to: { name: 'timeline', params: { type: 'direct' } },
-					},
-					{
-						key: 'social-local',
-						icon: IconAccountMultiple,
-						title: t('social', 'Local'),
-						to: { name: 'timeline', params: { type: 'timeline' } },
-					},
-					{
-						key: 'social-global',
-						icon: IconEarth,
-						title: t('social', 'Global'),
-						to: { name: 'timeline', params: { type: 'federated' } },
 					},
 				],
 
@@ -528,6 +517,13 @@ export default {
 			const name = String(route.name ?? '')
 			if (name !== to.name && !name.startsWith(to.name + '.')) {
 				return false
+			}
+
+			// an entry whose page is read at more than one scope owns all of
+			// them: the type says which, and the switcher on the page says
+			// which one of the entry's own scopes is being read
+			if (item.covers !== undefined) {
+				return item.covers.includes(String(route.params.type ?? ''))
 			}
 
 			// An optional param the URL leaves out still arrives as '', so the

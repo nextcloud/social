@@ -101,8 +101,6 @@ describe('Navigation', () => {
 			'Explore',
 			'Notifications',
 			'Direct messages',
-			'Local',
-			'Global',
 			'Alice',
 			'Follow requests',
 			'Liked posts',
@@ -135,18 +133,26 @@ describe('Navigation', () => {
 			'Explore',
 			'Notifications',
 			'Direct messages',
-			'Local',
-			'Global',
 			'Alice',
 		])
+	})
+
+	/**
+	 * They are scopes of the Home page, set by the switcher above the posts,
+	 * rather than places of their own — and two ways to reach the same list,
+	 * one of which says it is somewhere else, is one too many.
+	 */
+	it('does not list Local and Global, which the switcher sets', () => {
+		const names = itemNames(mountNavigation())
+
+		expect(names).not.toContain('Local')
+		expect(names).not.toContain('Global')
 	})
 
 	it.each([
 		['Home', { name: 'timeline' }],
 		['Notifications', { name: 'timeline', params: { type: 'notifications' } }],
 		['Direct messages', { name: 'timeline', params: { type: 'direct' } }],
-		['Local', { name: 'timeline', params: { type: 'timeline' } }],
-		['Global', { name: 'timeline', params: { type: 'federated' } }],
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
@@ -238,8 +244,9 @@ describe('Navigation', () => {
 		['/timeline/', 'Home'],
 		['/timeline/notifications', 'Notifications'],
 		['/timeline/direct', 'Direct messages'],
-		['/timeline/timeline', 'Local'],
-		['/timeline/federated', 'Global'],
+		['/timeline/timeline', 'Home'],
+		['/timeline/federated', 'Home'],
+		['/timeline/photos', 'Photos'],
 		['/timeline/favourites', 'Liked posts'],
 		['/timeline/bookmarks', 'Bookmarks'],
 		['/follow_requests', 'Follow requests'],
@@ -425,8 +432,6 @@ describe('Navigation entries are links', () => {
 		['Home', '/index.php/apps/social/timeline'],
 		['Notifications', '/index.php/apps/social/timeline/notifications'],
 		['Direct messages', '/index.php/apps/social/timeline/direct'],
-		['Local', '/index.php/apps/social/timeline/timeline'],
-		['Global', '/index.php/apps/social/timeline/federated'],
 		['Follow requests', '/index.php/apps/social/follow_requests'],
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
@@ -443,7 +448,7 @@ describe('Navigation entries are links', () => {
 		// timeline the reader had actually chosen.
 		const entry = (wrapper, name) => wrapper.findAll('li').find((li) => li.text().startsWith(name))
 		const lit = (wrapper, names) => names.filter((name) => entry(wrapper, name)?.find('.app-navigation-entry').classes().includes('active'))
-		const names = ['Home', 'Notifications', 'Direct messages', 'Local', 'Global', 'Liked posts', 'Bookmarks']
+		const names = ['Home', 'Photos', 'Notifications', 'Direct messages', 'Liked posts', 'Bookmarks']
 
 		expect(lit(await mountReal('/timeline/direct'), names)).toEqual(['Direct messages'])
 		expect(lit(await mountReal('/timeline'), names)).toEqual(['Home'])

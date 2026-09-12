@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.3  
+**App version:** 0.19.4  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -387,7 +387,7 @@ for it, since registration stores whatever scope string arrives.
 
 **Blocks that are about an address.** Mastodon keeps three lists for this — IP blocks, email-domain blocks, canonical email blocks — and all three exist to police a sign-up. This app has no sign-up: an account is a Nextcloud account and the server decides who gets one. So two of the three are given the only meanings they can honestly have, and the third is not implemented rather than stored and never consulted. An **IP block** at `no_access` is enforced in `AccessBlockMiddleware`, which every request this app serves passes through — "no access" is a statement about the whole app, and a block that held on the inbox but not on the API, or on last month's routes but not on the ones added since, is not what an admin switched on; it answers **403**, so a peer stops redelivering. The two sign-up severities are refused at the API rather than stored. An **email-domain block** is checked once, in `AccountService::createActor()`: whether a Nextcloud account gets a fediverse identity at all, which is the same question Mastodon asks one step earlier and is the only one left that is this app's to answer. A **canonical email block** is a hash of the address of a deleted Mastodon account, kept so the same person cannot sign up again; nothing here holds an account's address after deletion, because the address is not this app's to hold. Ranges are matched on packed bytes (`inet_pton`) rather than on text, which is the only way `::1` and `0:0:0:0:0:0:0:1` are the same address and the only way a prefix that falls inside a byte means anything.
 
-**The timeline switcher.** `TimelineSwitcher.vue` sits above the posts on the three timelines that are the same place seen from three distances — the home timeline (`My Feed`), `timeline` (Local) and `federated` (Global) — and on no others: everywhere else it would be a switch between three places the reader is not. It routes rather than fetching, so `Timeline.vue` and the store go on being the single answer to "which timeline is this". The values are the route's own words rather than the labels, because `timeline` is what the store calls the local one and `federated` the global one, and a second vocabulary in a component that only routes would be one more place for the two to disagree; `home` is the route with no `type` at all, so it is pushed as the bare route rather than as `type: 'home'`, which names a timeline nothing serves. The sidebar keeps its Local and Global entries: two ways to reach a page costs nothing, and removing them would leave somebody reading notifications two clicks from the local timeline instead of one.
+**The timeline switcher.** `TimelineSwitcher.vue` sits above the posts on the three timelines that are the same place seen from three distances — the home timeline (`My Feed`), `timeline` (Local) and `federated` (Global) — and on no others: everywhere else it would be a switch between three places the reader is not. It routes rather than fetching, so `Timeline.vue` and the store go on being the single answer to "which timeline is this". The values are the route's own words rather than the labels, because `timeline` is what the store calls the local one and `federated` the global one, and a second vocabulary in a component that only routes would be one more place for the two to disagree; `home` is the route with no `type` at all, so it is pushed as the bare route rather than as `type: 'home'`, which names a timeline nothing serves. Local and Global have **left the sidebar**: they are scopes of the page the switcher sets rather than places of their own, and two entries that lead to the same list while saying it is somewhere else are two too many. The Home entry stays lit while either is being read — `isActive()` honours a `covers` list on a menu entry, which is the set of `type` params that entry owns — so the sidebar never shows nothing chosen.
 
 It is built from plain buttons rather than from `NcCheckboxRadioSwitch`, for the one thing that component cannot do: a single indicator that *travels* between the three. Three controls that light up tell you where you landed; one pill that slides tells you where you came from, which is what makes a switch feel like a switch. The cost is that the accessibility is hand-written rather than inherited, so it is written in full — a `radiogroup` of `radio` buttons, `aria-checked`, arrow keys in both axes that wrap at the ends, a roving tabindex so the control is one tab stop rather than three, and the focus following the selection the way it does in a radio group. The pill itself is `aria-hidden`: what it shows is already on the options. Every option is `flex: 1 1 0` so all three are as wide as the widest, which is what lets a pill of one third of the track land exactly on one of them whatever the labels translate to; below 500px the labels go and the icons stay. The states are written as `.switcher .switcher__option` rather than as one class because the server styles bare `button` elements and its `button:not(.button-vue, [class^="vs__"]):hover` is the more specific selector — left alone, Nextcloud's hover colour paints over the pill on the option you just chose. The movement — the slide, the overshoot, the kick the chosen icon gives, the turn the globe makes — is all inside `@media (prefers-reduced-motion: reduce)`, which switches every bit of it off.
 
@@ -608,11 +608,23 @@ a quote that silently renders as nothing is indistinguishable from a bug. A
 quoted post that itself quotes something is not nested a second time — the
 component prints one line and stops, so no chain and no cycle can recurse.
 
-**The Photos view.** The sidebar's `Photos`, directly under Home, is the home
-timeline with `only_media` — the people you follow, but only what they showed
-rather than what they said. It is the same query and the same filters, one
-predicate narrower, so nothing about visibility, blocks, mutes or silencing is
-decided twice.
+**The Photos view.** The sidebar's `Photos`, directly under Home, is a timeline
+with `only_media` — what people showed rather than what they said. It is the
+same query and the same filters, one predicate narrower, so nothing about
+visibility, blocks, mutes or silencing is decided twice.
+
+Which people is the same switcher: Photos carries it too, so the photos of the
+people you follow, of this instance and of everywhere are one control apart.
+The scope rides in the **query** (`/timeline/photos?scope=timeline`) rather than
+in a `type` of its own, for two reasons: the sidebar's Photos entry stays lit
+whichever scope is being read, and the page is one page with a filter on it
+rather than three pages that happen to look alike. It is the route's own three
+words there as well (`timeline`, `federated`, and nothing at all for My Feed),
+so no part of this translates between two vocabularies. The scope arrives from
+the address bar, so `Timeline.vue` reads it rather than trusting it: anything
+that is not one of the two named scopes is the default. It is also part of what
+`Timeline.vue` reports as the timeline's params, which is what makes changing it
+refetch instead of leaving the previous photos on screen.
 
 **One column, one owner.** `--social-column` in `App.vue` is the width of the
 timeline — 900px — and every view that shows the same column reads it from

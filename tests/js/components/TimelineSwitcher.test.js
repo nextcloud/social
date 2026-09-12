@@ -6,11 +6,11 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TimelineSwitcher from '../../../src/components/TimelineSwitcher.vue'
 
-function mountSwitcher(type) {
+function mountSwitcher(type, photos = false) {
 	const push = vi.fn()
 
 	const wrapper = mount(TimelineSwitcher, {
-		props: { type },
+		props: { type, photos },
 		global: { mocks: { $router: { push } } },
 		attachTo: document.body,
 	})
@@ -130,6 +130,48 @@ describe('TimelineSwitcher', () => {
 		await options(wrapper)[1].trigger('click')
 
 		expect(push).not.toHaveBeenCalled()
+	})
+
+	// photos: the same three, read as a scope on one page
+
+	/**
+	 * Photos is one page with a scope on it rather than three pages of its
+	 * own, so the sidebar's Photos entry stays lit whichever is chosen.
+	 */
+	it.each([
+		['Local', 1, 'timeline'],
+		['Global', 2, 'federated'],
+	])('scopes the photo feed to %s without leaving it', async (label, index, scope) => {
+		const { wrapper, push } = mountSwitcher('home', true)
+
+		await options(wrapper)[index].trigger('click')
+
+		expect(push).toHaveBeenCalledWith({
+			name: 'timeline',
+			params: { type: 'photos' },
+			query: { scope },
+		})
+	})
+
+	/** My Feed is the photo page with no scope on it, not `scope=home`. */
+	it('drops the scope for My Feed photos', async () => {
+		const { wrapper, push } = mountSwitcher('federated', true)
+
+		await options(wrapper)[0].trigger('click')
+
+		expect(push).toHaveBeenCalledWith({
+			name: 'timeline',
+			params: { type: 'photos' },
+			query: {},
+		})
+	})
+
+	it('says the same three things on the photo feeds', () => {
+		const { wrapper } = mountSwitcher('timeline', true)
+
+		expect(options(wrapper).map((option) => option.text()))
+			.toEqual(['My Feed', 'Local', 'Global'])
+		expect(options(wrapper)[1].attributes('aria-checked')).toBe('true')
 	})
 
 	// the keyboard

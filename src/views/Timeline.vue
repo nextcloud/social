@@ -36,7 +36,10 @@
 		<!-- the three timelines that are the same place seen from three
 		     distances: switching between them is something a reader does while
 		     reading, not something they navigate to -->
-		<TimelineSwitcher v-if="isFeed" :type="type" />
+		<TimelineSwitcher
+			v-if="isFeed"
+			:type="scope"
+			:photos="type === 'photos'" />
 
 		<div class="timeline-heading-row">
 			<!-- the page had no heading at all outside tags and notifications, so
@@ -129,10 +132,30 @@ export default {
 		},
 
 		/**
-		 * @return {boolean} whether this is one of the three the switcher offers
+		 * @return {boolean} whether the three scopes are what this page shows
 		 */
 		isFeed() {
-			return ['home', 'timeline', 'federated'].includes(this.type)
+			return ['home', 'timeline', 'federated', 'photos'].includes(this.type)
+		},
+
+		/**
+		 * Which of the three scopes is being read.
+		 *
+		 * Photos is one page with a scope on it rather than three pages, so on
+		 * it the scope comes from the query; everywhere else the type *is* the
+		 * scope. A query that says anything else is read as the default rather
+		 * than trusted: it arrives from the address bar.
+		 *
+		 * @return {string} `home`, `timeline` or `federated`
+		 */
+		scope() {
+			if (this.type !== 'photos') {
+				return this.type
+			}
+
+			const scope = String(this.$route.query.scope ?? '')
+
+			return ['timeline', 'federated'].includes(scope) ? scope : 'home'
 		},
 
 		/**
@@ -155,6 +178,10 @@ export default {
 				return { tag: this.$route.params.tag }
 			} else if (this.$route.name === 'single-post') {
 				return this.$route.params
+			} else if (this.type === 'photos') {
+				// part of what identifies this timeline, so that changing the
+				// scope refetches rather than leaving the previous photos up
+				return { scope: this.scope }
 			}
 			return {}
 		},

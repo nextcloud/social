@@ -69,7 +69,7 @@ function mountTimeline(route = {}) {
 	return mount(Timeline, {
 		global: {
 			plugins: [pinia],
-			mocks: { $route: { name: 'timeline', params: {}, ...route } },
+			mocks: { $route: { name: 'timeline', params: {}, query: {}, ...route } },
 			stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
 		},
 	})
@@ -454,6 +454,7 @@ describe('Timeline', () => {
 		['home', {}],
 		['local', { params: { type: 'timeline' } }],
 		['global', { params: { type: 'federated' } }],
+		['photos', { params: { type: 'photos' } }],
 	])('offers the switcher on the %s timeline', (name, route) => {
 		const wrapper = mountTimeline(route)
 
@@ -464,13 +465,49 @@ describe('Timeline', () => {
 		const wrapper = mountTimeline({ params: { type: 'federated' } })
 
 		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe('federated')
+		expect(wrapper.findComponent(TimelineSwitcher).props('photos')).toBe(false)
+	})
+
+	// photos: the same three scopes, read as a query on one page
+
+	it('tells the switcher that the photo feeds are photo feeds', () => {
+		const wrapper = mountTimeline({ params: { type: 'photos' } })
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('photos')).toBe(true)
+	})
+
+	it.each([
+		[{}, 'home'],
+		[{ scope: 'timeline' }, 'timeline'],
+		[{ scope: 'federated' }, 'federated'],
+	])('reads the photo scope %o as %s', (query, scope) => {
+		const wrapper = mountTimeline({ params: { type: 'photos' }, query })
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe(scope)
+	})
+
+	/** It arrives from the address bar, so it is read rather than trusted. */
+	it.each(['', 'home', 'notifications', 'nonsense'])('falls back to My Feed for the scope %s', (scope) => {
+		const wrapper = mountTimeline({ params: { type: 'photos' }, query: { scope } })
+
+		expect(wrapper.findComponent(TimelineSwitcher).props('type')).toBe('home')
+	})
+
+	/** The scope is part of what identifies the timeline, or the previous
+	 *  photos would stay on screen when it changes. */
+	it('refetches the photos when the scope changes', () => {
+		mountTimeline({ params: { type: 'photos' }, query: { scope: 'federated' } })
+
+		expect(timelineStore.changeTimelineType)
+			.toHaveBeenCalledWith({ type: 'photos', params: { scope: 'federated' } })
 	})
 
 	/**
 	 * Everywhere else it would be a switch between three places you are not:
-	 * these views are reached from the sidebar and are not one of the three.
+	 * these views are reached from the sidebar and are not read at three
+	 * distances.
 	 */
-	it.each(['notifications', 'direct', 'photos', 'favourites', 'bookmarks'])(
+	it.each(['notifications', 'direct', 'favourites', 'bookmarks'])(
 		'does not offer the switcher on %s',
 		(type) => {
 			const wrapper = mountTimeline({ params: { type } })

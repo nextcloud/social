@@ -62,16 +62,30 @@ import IconHome from 'vue-material-design-icons/Home.vue'
  * the route's own words rather than the labels: `timeline` is what the store
  * calls the local one and `federated` the global one, and translating between
  * two vocabularies in a component that only routes would be one more place for
- * them to disagree.
+ * them to disagree. Photos uses the same three words in its `scope` query for
+ * the same reason.
  */
 export default {
 	name: 'TimelineSwitcher',
 
 	props: {
-		/** The timeline being shown, as `Timeline.vue` names it. */
+		/** Which of the three is being shown, in the route's own words. */
 		type: {
 			type: String,
 			required: true,
+		},
+
+		/**
+		 * Whether the three are the *photo* feeds rather than the whole ones.
+		 *
+		 * Photos is one page with a scope on it rather than three pages, so
+		 * the scope rides in the query: the sidebar's Photos entry stays lit
+		 * whichever of the three is chosen, which it would not if each were a
+		 * `type` of its own.
+		 */
+		photos: {
+			type: Boolean,
+			default: false,
 		},
 	},
 
@@ -125,11 +139,31 @@ export default {
 				return
 			}
 
+			this.$router.push(this.routeFor(type))
+		},
+
+		/**
+		 * The same three words in both families, so nothing here translates
+		 * between two vocabularies.
+		 *
+		 * @param {string} type one of the three
+		 * @return {object} where to go for it
+		 */
+		routeFor(type) {
+			if (this.photos) {
+				// the page is the same one; only the scope on it changes
+				return {
+					name: 'timeline',
+					params: { type: 'photos' },
+					query: type === 'home' ? {} : { scope: type },
+				}
+			}
+
 			// `home` is the bare route: passing `type: 'home'` would ask for a
 			// timeline of that name, which nothing serves
-			this.$router.push(type === 'home'
+			return type === 'home'
 				? { name: 'timeline' }
-				: { name: 'timeline', params: { type } })
+				: { name: 'timeline', params: { type } }
 		},
 
 		/**
