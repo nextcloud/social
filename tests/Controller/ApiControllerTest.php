@@ -35,6 +35,7 @@ use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
+use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
@@ -128,6 +129,7 @@ class ApiControllerTest extends TestCase {
 	private AccountRelationService|MockObject $accountRelationService;
 	private ScheduledStatusService|MockObject $scheduledStatusService;
 	private BannerService|MockObject $bannerService;
+	private AvatarService|MockObject $avatarService;
 	private FilterService|MockObject $filterService;
 	private IRootFolder|MockObject $rootFolder;
 	private ITempManager|MockObject $tempManager;
@@ -215,6 +217,7 @@ class ApiControllerTest extends TestCase {
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
 		$this->accountRelationService->method('withoutExpiredMutes')->willReturnArgument(1);
 		$this->bannerService = $this->createMock(BannerService::class);
+		$this->avatarService = $this->createMock(AvatarService::class);
 		$this->filterService = $this->createMock(FilterService::class);
 		$this->filterService->method('apply')->willReturnArgument(0);
 		$this->filterService->method('applyToNotifications')->willReturnArgument(0);
@@ -289,6 +292,7 @@ class ApiControllerTest extends TestCase {
 			$this->tempManager,
 			$this->filterService,
 			$this->bannerService,
+			$this->avatarService,
 			$this->accountRelationService,
 			$this->scheduledStatusService
 		);
@@ -314,8 +318,11 @@ class ApiControllerTest extends TestCase {
 		$viewer = $this->createMock(Person::class);
 		$viewer->method('getPreferredUsername')->willReturn($uid);
 		$viewer->method('getId')->willReturn('https://cloud.example/apps/social/@' . $uid);
-		// the credentials routes answer with the serialised entity
+		// the credentials routes answer with the serialised entity plus `source`,
+		// which they ask the model for separately — everywhere else must not
+		// have it, see testSourceIsNotPartOfAnOrdinaryAccountEntity
 		$viewer->method('jsonSerialize')->willReturn(['id' => '7', 'username' => $uid]);
+		$viewer->method('exportSourceAsLocal')->willReturn(['privacy' => 'public', 'follow_requests_count' => 2]);
 		$this->cacheActorService->method('getFromLocalAccount')->with($uid)->willReturn($viewer);
 
 		return $viewer;
@@ -696,7 +703,30 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->verifyCredentials();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($viewer->jsonSerialize(), $response->getData());
+		$data = $response->getData();
+		$this->assertSame('7', $data['id']);
+		$this->assertSame('alice', $data['username']);
+		// this is the CredentialAccount: the one entity that carries `source`
+		$this->assertSame(2, $data['source']['follow_requests_count']);
+	}
+
+	/**
+	 * `source` is the account's own copy of its settings, and
+	 * `follow_requests_count` is how many people are waiting on its approval.
+	 * The model used to emit it on every Account, so a search result, a page of
+	 * followers or an anonymous profile read carried it too.
+	 */
+	public function testOnlyTheCredentialsRoutesCarrySource(): void {
+		$this->loggedInAs();
+		$target = $this->knownTarget();
+		// the route hands the model back and lets it serialise itself, so the
+		// guarantee has to be that nothing asks the model for its source
+		$target->expects($this->never())->method('exportSourceAsLocal');
+
+		$response = $this->controller()->accountGet('42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($target, $response->getData());
 	}
 
 	public function testVerifyCredentialsIsUnauthorizedForAnonymous(): void {
@@ -715,11 +745,12 @@ class ApiControllerTest extends TestCase {
 
 		$viewer = $this->createMock(Person::class);
 		$viewer->method('jsonSerialize')->willReturn(['username' => 'alice']);
+		$viewer->method('exportSourceAsLocal')->willReturn([]);
 		$this->cacheActorService->method('getFromLocalAccount')->with('alice')
 			->will($this->onConsecutiveCalls($this->throwException(new CacheActorDoesNotExistException()), $viewer));
 		$this->accountService->expects($this->once())->method('cacheLocalActorByUsername')->with('alice');
 
-		$this->assertSame(['username' => 'alice'], $this->controller()->verifyCredentials()->getData());
+		$this->assertSame('alice', $this->controller()->verifyCredentials()->getData()['username']);
 	}
 
 	public function testSavedSearchesIsEmptyForAViewerAndUnauthorizedOtherwise(): void {
@@ -1417,7 +1448,8 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->updateCredentials();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($viewer->jsonSerialize(), $response->getData());
+		$this->assertSame('7', $response->getData()['id']);
+		$this->assertSame($viewer->exportSourceAsLocal(), $response->getData()['source']);
 	}
 
 	public function testUpdateCredentialsCanUnlockTheAccount(): void {
@@ -1436,7 +1468,54 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->updateCredentials();
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($viewer->jsonSerialize(), $response->getData());
+		$this->assertSame('alice', $response->getData()['username']);
+	}
+
+	/**
+	 * A client's profile editor sends the whole form in one PATCH. These three
+	 * were parsed and dropped, so somebody changing their name, picture and bio
+	 * together got a 200 and only the bio.
+	 */
+	public function testUpdateCredentialsWritesTheDisplayName(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['display_name' => 'Alice of Wonderland']);
+		$this->accountService->expects($this->once())
+			->method('setDisplayName')->with('alice', 'Alice of Wonderland');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	/** A backend that owns the name says so rather than answering 200. */
+	public function testUpdateCredentialsSaysSoWhenTheNameIsNotOursToChange(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['display_name' => 'Alice']);
+		$this->accountService->method('setDisplayName')
+			->willThrowException(new InvalidActionException('managed outside Nextcloud'));
+
+		$response = $this->controller()->updateCredentials();
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+	}
+
+	public function testUpdateCredentialsCarriesTheBotFlag(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['bot' => 'true']);
+		$this->accountService->expects($this->once())
+			->method('setActorFlags')->with('alice', ['bot' => true]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsStoresAnUploadedAvatar(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn([]);
+		$tmp = (string)tempnam(sys_get_temp_dir(), 'social-avatar');
+		$this->tempFiles[] = $tmp;
+		file_put_contents($tmp, 'avatar bytes');
+		$_FILES['avatar'] = ['tmp_name' => $tmp, 'error' => UPLOAD_ERR_OK, 'name' => 'me.png'];
+		$this->avatarService->expects($this->once())->method('setFromTempFile')->with('alice', $tmp);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
 	}
 
 	public function testUpdateCredentialsStoresTheDefaultAudience(): void {
@@ -1630,6 +1709,84 @@ class ApiControllerTest extends TestCase {
 			$this->controller('Bearer s3cret')->accountFollow('42'),
 			'token scope does not allow this request (needs follow or write)'
 		);
+	}
+
+	// favourited_by / reblogged_by / accounts search
+
+	public function testFavouritedByListsTheAccountsThatLikedThePost(): void {
+		$this->loggedInAs();
+		$post = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->with(9)->willReturn($post);
+		$alice = $this->createMock(Person::class);
+		$this->actionService->expects($this->once())
+			->method('reactedBy')
+			->with($this->identicalTo($post), 'Like', 40)
+			->willReturn([$alice]);
+
+		$response = $this->controller()->statusFavouritedBy(9);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([$alice], $response->getData());
+	}
+
+	public function testRebloggedByAsksForBoostsRatherThanLikes(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')->willReturn($this->createMock(Stream::class));
+		$this->actionService->expects($this->once())
+			->method('reactedBy')
+			->with($this->anything(), 'Announce', 40)
+			->willReturn([]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->statusRebloggedBy(9)->getStatus());
+	}
+
+	/** Who liked a post is as private as the post: a 404 is a 404 all the way down. */
+	public function testReactionsOfAPostTheReaderMayNotSeeAreA404(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')
+			->willThrowException(new StreamNotFoundException());
+		$this->actionService->expects($this->never())->method('reactedBy');
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND, $this->controller()->statusFavouritedBy(9)->getStatus()
+		);
+	}
+
+	public function testAccountsSearchCompletesAHandle(): void {
+		$this->loggedInAs();
+		$bob = $this->createMock(Person::class);
+		$bob->method('getId')->willReturn('https://remote.example/users/bob');
+		$bob->method('setExportFormat')->willReturnSelf();
+		$this->searchService->expects($this->once())->method('searchAccounts')->with('bob')->willReturn([$bob]);
+		$this->searchService->expects($this->never())->method('searchUri');
+
+		$this->assertSame([$bob], $this->controller()->accountsSearch('bob')->getData());
+	}
+
+	/** Without this, completing a handle from a server we have never seen finds nothing. */
+	public function testAccountsSearchGoesAndLooksWhenAskedTo(): void {
+		$this->loggedInAs();
+		$bob = $this->createMock(Person::class);
+		$bob->method('getId')->willReturn('https://remote.example/users/bob');
+		$bob->method('setExportFormat')->willReturnSelf();
+		$this->searchService->method('searchAccounts')->willReturn([]);
+		$this->searchService->expects($this->once())
+			->method('searchUri')->with('@bob@remote.example')->willReturn([$bob]);
+
+		$data = $this->controller()->accountsSearch('@bob@remote.example', 40, true)->getData();
+
+		$this->assertSame([$bob], $data);
+	}
+
+	public function testAccountsSearchWithoutATermIsAnEmptyList(): void {
+		$this->loggedInAs();
+		$this->searchService->expects($this->never())->method('searchAccounts');
+
+		$this->assertSame([], $this->controller()->accountsSearch('  ')->getData());
+	}
+
+	public function testAccountsSearchRequiresAViewer(): void {
+		$this->assertUnauthorized($this->controller()->accountsSearch('bob'));
 	}
 
 	// search v2

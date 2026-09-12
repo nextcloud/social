@@ -71,7 +71,7 @@ class ApiContractTest extends TestCase {
 		$expected = [
 			'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
-			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'quote',
+			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'poll', 'quote',
 			'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
 			'tags', 'uri', 'url', 'visibility',
 		];
@@ -207,7 +207,7 @@ class ApiContractTest extends TestCase {
 			'acct', 'avatar', 'avatar_static', 'bot', 'created_at', 'discoverable',
 			'display_name', 'emojis', 'fields', 'followers_count', 'following_count',
 			'group', 'header', 'header_static', 'id', 'indexable', 'last_status_at', 'locked',
-			'nid', 'note', 'source', 'statuses_count', 'url', 'username',
+			'nid', 'note', 'statuses_count', 'url', 'username',
 		];
 		$actual = array_keys($account);
 		sort($expected);

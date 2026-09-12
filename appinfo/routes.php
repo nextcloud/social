@@ -168,6 +168,8 @@ return [
 		['name' => 'Api#statusDelete', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'DELETE'],
 		['name' => 'Api#statusSource', 'url' => '/api/v1/statuses/{nid}/source', 'verb' => 'GET'],
 		['name' => 'Api#statusContext', 'url' => '/api/v1/statuses/{nid}/context', 'verb' => 'GET'],
+		['name' => 'Api#statusFavouritedBy', 'url' => '/api/v1/statuses/{nid}/favourited_by', 'verb' => 'GET'],
+		['name' => 'Api#statusRebloggedBy', 'url' => '/api/v1/statuses/{nid}/reblogged_by', 'verb' => 'GET'],
 		['name' => 'History#history', 'url' => '/api/v1/statuses/{nid}/history', 'verb' => 'GET'],
 		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],
 		['name' => 'Api#scheduledStatuses', 'url' => '/api/v1/scheduled_statuses', 'verb' => 'GET'],
@@ -197,10 +199,11 @@ return [
 		['name' => 'Discovery#accountFeaturedTags', 'url' => '/api/v1/accounts/{account}/featured_tags', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'List#accountLists', 'url' => '/api/v1/accounts/{account}/lists', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'Api#accountFollowing', 'url' => '/api/v1/accounts/{account}/following', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
+		['name' => 'Api#accountsSearch', 'url' => '/api/v1/accounts/search', 'verb' => 'GET'],
 		// Last of the /accounts routes on purpose, and it has to stay last:
 		// {id} accepts slashes (a client may hold an actor URI rather than a
 		// numeric id), so it would otherwise swallow 'relationships', 'lookup',
-		// 'verify_credentials' and the {account} sub-routes.
+		// 'verify_credentials', 'search' and the {account} sub-routes.
 		['name' => 'Api#accountGet', 'url' => '/api/v1/accounts/{id}', 'verb' => 'GET', 'requirements' => ['id' => '.+']],
 
 		['name' => 'Local#streamHome', 'url' => '/api/v1/stream/home', 'verb' => 'GET'],
