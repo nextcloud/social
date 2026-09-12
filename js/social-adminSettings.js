@@ -79,9 +79,12 @@
 			return
 		}
 
-		if (level === 'suspend' && !window.confirm(t('social',
+		const warning = t(
+			'social',
 			'Suspending deletes every post this account has here and refuses anything it sends afterwards. '
-			+ 'Lifting the suspension later will not bring the posts back. Continue?'))) {
+			+ 'Lifting the suspension later will not bring the posts back. Continue?',
+		)
+		if (level === 'suspend' && !window.confirm(warning)) {
 			return
 		}
 
