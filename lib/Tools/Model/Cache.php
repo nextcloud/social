@@ -22,7 +22,7 @@ class Cache implements JsonSerializable {
 	use TArrayTools;
 
 	/** @var CacheItem[] */
-	private $items = [];
+	private array $items = [];
 
 	public function __construct() {
 	}

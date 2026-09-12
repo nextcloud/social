@@ -21,6 +21,7 @@ use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use OCA\Social\Tools\Traits\TStringTools;
+use RuntimeException;
 
 class ACore extends Item implements JsonSerializable, IQueryRow {
 	use TArrayTools;
@@ -109,8 +110,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	public const FORMAT_LOCAL = 2;
 	public const FORMAT_NOTIFICATION = 3;
 
-	/** @var null Item */
-	private $parent = null;
+	private ?ACore $parent = null;
 
 	private string $requestToken = '';
 	private array $entries = [];
@@ -165,6 +165,10 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @return ACore
 	 */
 	public function getParent(): ACore {
+		if ($this->parent === null) {
+			throw new RuntimeException('this item is the root: guard with isRoot()');
+		}
+
 		return $this->parent;
 	}
 

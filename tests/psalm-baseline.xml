@@ -9,15 +9,6 @@
     <InvalidClass>
       <code><![CDATA[Acore]]></code>
     </InvalidClass>
-    <InvalidNullableReturnType>
-      <code><![CDATA[ACore]]></code>
-    </InvalidNullableReturnType>
-    <InvalidPropertyAssignmentValue>
-      <code><![CDATA[$parent]]></code>
-    </InvalidPropertyAssignmentValue>
-    <NullableReturnStatement>
-      <code><![CDATA[$this->parent]]></code>
-    </NullableReturnStatement>
     <TypeDoesNotContainNull>
       <code><![CDATA[$v === null]]></code>
     </TypeDoesNotContainNull>

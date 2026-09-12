@@ -21,19 +21,19 @@ class CacheItem implements JsonSerializable {
 	use TArrayTools;
 
 	/** @var string */
-	private $url = '';
+	private string $url = '';
 
 	/** @var string */
-	private $content = '';
+	private string $content = '';
 
 	/** @var int */
-	private $status = 0;
+	private int $status = 0;
 
 	/** @var int */
-	private $error = 0;
+	private int $error = 0;
 
 	/** @var int */
-	private $creation = 0;
+	private int $creation = 0;
 
 	public function __construct(string $url) {
 		$this->url = $url;

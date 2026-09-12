@@ -22,8 +22,7 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class SimpleDataStore implements JsonSerializable {
 	use TArrayTools;
 
-	/** @var array */
-	private $data;
+	private array $data;
 
 	public function __construct(?array $data = []) {
 		if (!is_array($data)) {

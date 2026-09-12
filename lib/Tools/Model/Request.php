@@ -28,68 +28,48 @@ class Request implements JsonSerializable {
 	public const QS_VAR_DUPLICATE = 1;
 	public const QS_VAR_ARRAY = 2;
 
-	/** @var string */
-	private $protocol = '';
+	private string $protocol = '';
 
-	/** @var array */
-	private $protocols = ['https'];
+	private array $protocols = ['https'];
 
-	/** @var string */
-	private $host = '';
+	private string $host = '';
 
-	/** @var int */
-	private $port = 0;
+	private int $port = 0;
 
-	/** @var string */
-	private $url = '';
+	private string $url = '';
 
-	/** @var string */
-	private $baseUrl = '';
+	private string $baseUrl = '';
 
-	/** @var int */
-	private $type = 0;
+	private int $type = 0;
 
-	/** @var bool */
-	private $binary = false;
+	private bool $binary = false;
 
-	/** @var bool */
-	private $verifyPeer = true;
+	private bool $verifyPeer = true;
 
-	/** @var bool */
-	private $httpErrorsAllowed = false;
+	private bool $httpErrorsAllowed = false;
 
-	/** @var bool */
-	private $followLocation = true;
+	private bool $followLocation = true;
 
-	/** @var array */
-	private $headers = [];
+	private array $headers = [];
 
-	/** @var array */
-	private $cookies = [];
+	private array $cookies = [];
 
-	/** @var array */
-	private $params = [];
+	private array $params = [];
 
-	/** @var array */
-	private $data = [];
+	private array $data = [];
 
-	/** @var int */
-	private $queryStringType = self::QS_VAR_DUPLICATE;
+	private int $queryStringType = self::QS_VAR_DUPLICATE;
 
-	/** @var int */
-	private $timeout = 10;
+	private int $timeout = 10;
 
 	/** Seconds allowed for DNS+TCP+TLS alone; 0 means "share the read budget". */
 	private int $connectTimeout = 0;
 
-	/** @var string */
-	private $userAgent = '';
+	private string $userAgent = '';
 
-	/** @var int */
-	private $resultCode = 0;
+	private int $resultCode = 0;
 
-	/** @var string */
-	private $contentType = '';
+	private string $contentType = '';
 
 	public function __construct(string $url = '', int $type = 0, bool $binary = false) {
 		$this->url = $url;
