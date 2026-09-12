@@ -58,7 +58,10 @@ class HashtagService {
 	 * @throws SocialAppConfigException
 	 */
 	public function manageHashtags(): int {
-		$current = $this->hashtagsRequest->getAll();
+		// only the rows that claim a trend: those are the only ones this can
+		// have anything to clear, and the alternative was reading every hashtag
+		// the instance has ever seen on every cron run
+		$current = $this->hashtagsRequest->getWithAnyTrend();
 
 		$time = time();
 		$hashtags = [

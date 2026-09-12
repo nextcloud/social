@@ -490,6 +490,62 @@ class FollowServiceTest extends TestCase {
 		$this->service->setViewer($alice);
 	}
 
+	/**
+	 * The relationship queries are asked once for a whole page — see
+	 * `FollowsRequest::getBetweenMany()`. These helpers say the same thing the
+	 * old per-pair mocks said, in the shape the batch reads.
+	 *
+	 * @param array<string, bool> $following actor id => accepted
+	 * @param array<string, bool> $followedBy actor id => accepted
+	 */
+	private function followsBetween(array $following, array $followedBy = []): void {
+		$map = static function (array $pairs, bool $mineFirst): array {
+			$out = [];
+			foreach ($pairs as $actorId => $accepted) {
+				$follow = new Follow();
+				$follow->setActorId($mineFirst ? self::ALICE_ID : $actorId);
+				$follow->setObjectId($mineFirst ? $actorId : self::ALICE_ID);
+				$follow->setAccepted($accepted);
+				$out[$actorId] = $follow;
+			}
+
+			return $out;
+		};
+
+		$this->followsRequest->method('getBetweenMany')->willReturn([
+			'following' => $map($following, true),
+			'followedBy' => $map($followedBy, false),
+		]);
+	}
+
+	/**
+	 * The count is the point. Built one at a time this was six round trips per
+	 * account — two follow rows, the blocks and mutes, the note, the mute's
+	 * expiry — so a client asking about a page of forty paid two hundred and
+	 * forty. Asserted rather than described, because an N+1 comes back by
+	 * somebody adding one innocent lookup inside the loop.
+	 */
+	public function testAPageOfRelationshipsCostsTheSameQueriesAsOne(): void {
+		$this->service->setViewer($this->alice());
+		$people = [];
+		for ($nid = 2; $nid <= 21; $nid++) {
+			$people[] = $this->person('https://remote.example/users/p' . $nid, 'p' . $nid, $nid);
+		}
+		$this->cacheActorService->method('getFromNids')->willReturn($people);
+
+		// each of these answers the whole page, and each may be asked once
+		$this->followsRequest->expects($this->once())->method('getBetweenMany')
+			->willReturn(['following' => [], 'followedBy' => []]);
+		$this->actorRelationRequest->expects($this->once())->method('getBetweenMany')->willReturn([]);
+		$this->followsRequest->expects($this->never())->method('getByPersons');
+		$this->actorRelationRequest->expects($this->never())->method('getBetween');
+		$this->accountRelationService->expects($this->once())->method('decorateMany');
+
+		$relationships = $this->service->getRelationships(array_map('strval', range(2, 21)));
+
+		$this->assertCount(20, $relationships);
+	}
+
 	public function testGetRelationshipsResolvesNidsAndUrlsAndSkipsTheViewer(): void {
 		$alice = $this->alice();
 		$bob = $this->person(self::BOB_ID, 'bob', 2);
@@ -504,17 +560,12 @@ class FollowServiceTest extends TestCase {
 			->method('getFromId')
 			->with(self::CAROL_ID)
 			->willReturn($carol);
-		$this->followsRequest->method('getByPersons')
-			->willReturnCallback(function (string $actorId, string $remoteId): Follow {
-				// alice follows bob (accepted), bob follows alice (accepted),
-				// alice asked to follow carol (pending), carol does not follow alice
-				return match ([$actorId, $remoteId]) {
-					[self::ALICE_ID, self::BOB_ID] => $this->follow($actorId, $remoteId, true),
-					[self::BOB_ID, self::ALICE_ID] => $this->follow($actorId, $remoteId, true),
-					[self::ALICE_ID, self::CAROL_ID] => $this->follow($actorId, $remoteId, false),
-					default => throw new FollowNotFoundException(),
-				};
-			});
+		// alice follows bob (accepted), bob follows alice (accepted),
+		// alice asked to follow carol (pending), carol does not follow alice
+		$this->followsBetween(
+			[self::BOB_ID => true, self::CAROL_ID => false],
+			[self::BOB_ID => true]
+		);
 
 		$relationships = $this->service->getRelationships(['2', self::CAROL_ID, '1']);
 
@@ -538,13 +589,7 @@ class FollowServiceTest extends TestCase {
 		$bob = $this->person(self::BOB_ID, 'bob', 2);
 		$this->service->setViewer($alice);
 		$this->cacheActorService->method('getFromNids')->willReturn([$bob]);
-		$this->followsRequest->method('getByPersons')
-			->willReturnCallback(function (string $actorId, string $remoteId): Follow {
-				return match ([$actorId, $remoteId]) {
-					[self::BOB_ID, self::ALICE_ID] => $this->follow($actorId, $remoteId, false),
-					default => throw new FollowNotFoundException(),
-				};
-			});
+		$this->followsBetween([], [self::BOB_ID => false]);
 
 		$relationship = $this->service->getRelationships(['2'])[0];
 
@@ -558,13 +603,7 @@ class FollowServiceTest extends TestCase {
 		$bob = $this->person(self::BOB_ID, 'bob', 2);
 		$this->service->setViewer($alice);
 		$this->cacheActorService->method('getFromNids')->willReturn([$bob]);
-		$this->followsRequest->method('getByPersons')
-			->willReturnCallback(function (string $actorId, string $remoteId): Follow {
-				return match ([$actorId, $remoteId]) {
-					[self::BOB_ID, self::ALICE_ID] => $this->follow($actorId, $remoteId, true),
-					default => throw new FollowNotFoundException(),
-				};
-			});
+		$this->followsBetween([], [self::BOB_ID => true]);
 
 		$relationship = $this->service->getRelationships(['2'])[0];
 
@@ -621,17 +660,17 @@ class FollowServiceTest extends TestCase {
 	public function testGetRelationshipsCarriesTheBlockAndMuteFlags(array $relations, array $expected): void {
 		$this->service->setViewer($this->alice());
 		$this->cacheActorService->method('getFromNids')->willReturn([$this->person(self::BOB_ID, 'bob', 2)]);
-		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
+		$this->followsBetween([]);
 
 		$this->actorRelationRequest->expects($this->once())
-			->method('getBetween')
-			->with(self::ALICE_ID, self::BOB_ID)
-			->willReturn(array_map(
+			->method('getBetweenMany')
+			->with(self::ALICE_ID, [self::BOB_ID])
+			->willReturn([self::BOB_ID => array_map(
 				fn (array $relation): ActorRelation => (new ActorRelation())
 					->setType($relation[0])
 					->setNotifications($relation[1]),
 				$relations
-			));
+			)]);
 
 		$relationships = $this->service->getRelationships(['2']);
 
@@ -645,11 +684,13 @@ class FollowServiceTest extends TestCase {
 	public function testGetRelationshipWithAlwaysReturnsAnEntryCarryingTheFlags(): void {
 		$this->service->setViewer($this->alice());
 		$this->cacheActorService->expects($this->never())->method('getFromNids');
-		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
+		// one account goes down the same batched path as a page of them, which
+		// is the point: two implementations would be two answers
+		$this->followsBetween([]);
 		$this->actorRelationRequest->expects($this->once())
-			->method('getBetween')
-			->with(self::ALICE_ID, self::BOB_ID)
-			->willReturn([(new ActorRelation())->setType(ActorRelation::TYPE_BLOCK)]);
+			->method('getBetweenMany')
+			->with(self::ALICE_ID, [self::BOB_ID])
+			->willReturn([self::BOB_ID => [(new ActorRelation())->setType(ActorRelation::TYPE_BLOCK)]]);
 
 		$relationship = $this->service->getRelationshipWith($this->person(self::BOB_ID, 'bob', 2));
 

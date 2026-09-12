@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.16.0  
+**App version:** 0.16.1  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -585,6 +585,7 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Contacts Menu | `ContactsMenuProvider` | `appinfo/info.xml` | "Follow %s on Social" entry linking to the actor page |
 | Background Jobs | `Cron\Cache` | `appinfo/info.xml` | 12-minute interval: reaps deleted actors, refreshes local and remote actor caches, caches documents, recomputes hashtag trends, prunes remote statuses past retention (bounded to 5000 per run), syncs remote timelines |
 | Background Jobs | `Cron\Queue` | `appinfo/info.xml` | 12-minute interval: drains the outbound request queue and the inbound stream queue |
+| Background Jobs | `Cron\ActorCleanup` | queued by `PersonInterface::delete()` | Finishes detaching a deleted account from the posts that addressed it, when there are more of them than one inbox request should rewrite. Not in `appinfo/info.xml`, for the same reason `Cron\DomainPurge` is not: it is meaningless without an argument. Re-queues itself while rows remain |
 | Background Jobs | `Cron\DomainPurge` | queued by `FediverseService::addAddress()` | Queued with a domain when one is added to the deny list, never registered in `appinfo/info.xml` — a job listed there is added once at install time with no argument, and this one is meaningless without a domain. Runs 10 batches of `DomainPurgeService` per pass and re-queues itself while anything of the domain is left |
 | Background Jobs | `Cron\ScheduledPosts` | `appinfo/info.xml` | 5-minute interval: publishes the scheduled posts whose time has come, at most 50 per run. Shorter than the other two jobs on purpose — a post may be published up to one cron period late, and a period longer than the five minutes' notice the API demands would promise a precision the app cannot keep |
 | Repair step | `Migration\EncryptPrivateKeys` | `appinfo/info.xml` | Seals legacy plaintext actor private keys with ICrypto, once. A row it cannot process is named and skipped rather than aborting `occ upgrade` with the instance in maintenance mode |

@@ -168,6 +168,49 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
+	 * The follow rows between one actor and a *set* of others, both ways round.
+	 *
+	 * Answers the same two questions `getByPersons()` does — does the viewer
+	 * follow them, do they follow the viewer — for a whole page in two queries
+	 * rather than two per account.
+	 *
+	 * @param string[] $others
+	 *
+	 * @return array{following: array<string, Follow>, followedBy: array<string, Follow>}
+	 */
+	public function getBetweenMany(string $actorId, array $others): array {
+		if ($others === []) {
+			return ['following' => [], 'followedBy' => []];
+		}
+
+		return [
+			'following' => $this->followsOneWay($actorId, $others, 'actor_id_prim', 'object_id_prim'),
+			'followedBy' => $this->followsOneWay($actorId, $others, 'object_id_prim', 'actor_id_prim'),
+		];
+	}
+
+	/**
+	 * @param string[] $others
+	 *
+	 * @return array<string, Follow>
+	 */
+	private function followsOneWay(string $actorId, array $others, string $mine, string $theirs): array {
+		$qb = $this->getFollowsSelectSql();
+		$prims = array_map(static fn (string $id): string => $qb->prim($id), $others);
+		$qb->andWhere($qb->expr()->eq('f.' . $mine, $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->in('f.' . $theirs, $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)));
+
+		$follows = [];
+		foreach ($this->getFollowsFromRequest($qb) as $follow) {
+			// keyed by the *other* actor, whichever end of the row that is
+			$other = ($mine === 'actor_id_prim') ? $follow->getObjectId() : $follow->getActorId();
+			$follows[$other] = $follow;
+		}
+
+		return $follows;
+	}
+
+	/**
 	 * @param string $actorId
 	 *
 	 * @return int

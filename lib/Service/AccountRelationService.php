@@ -228,6 +228,37 @@ class AccountRelationService {
 	 * hand where this is called, and asking for it again would be a query for
 	 * something the caller just read.
 	 */
+	/**
+	 * `decorate()` for a whole page, in two queries instead of two per account.
+	 *
+	 * The single-account version is a lookup of the note and a lookup of the
+	 * mute's expiry; asked about forty accounts it was eighty round trips.
+	 * `domain_blocking` is not among them: it reads a per-viewer list that is
+	 * already memoised, so the first account pays for it and the rest do not.
+	 *
+	 * @param array<string, Relationship> $relationships keyed by actor id
+	 */
+	public function decorateMany(array $relationships, string $viewerId, ?int $now = null): void {
+		if ($relationships === []) {
+			return;
+		}
+
+		$actorIds = array_keys($relationships);
+		$notes = $this->accountNotesRequest->getNotes($viewerId, $actorIds);
+		$expiries = $this->muteExpiryRequest->getExpiries($viewerId, $actorIds);
+		$now ??= time();
+
+		foreach ($relationships as $actorId => $relationship) {
+			$relationship->setDomainBlocking($this->domainBlockService->isBlocking($viewerId, $actorId));
+			$relationship->setNote($notes[$actorId] ?? '');
+
+			$expiresAt = $expiries[$actorId] ?? 0;
+			if ($relationship->isMuting() && $expiresAt !== 0 && $expiresAt <= $now) {
+				$relationship->setMuting(false)->setMutingNotifications(false);
+			}
+		}
+	}
+
 	public function decorate(
 		Relationship $relationship, string $viewerId, string $actorId, ?int $now = null,
 	): Relationship {

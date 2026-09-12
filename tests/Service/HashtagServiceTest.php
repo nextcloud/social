@@ -81,7 +81,7 @@ class HashtagServiceTest extends TestCase {
 			['nextcloud', 2 * 86400, 1],
 			['php', 5 * 86400, 1],
 		], $requestedSince);
-		$this->hashtagsRequest->method('getAll')->willReturn([['hashtag' => 'nextcloud', 'trend' => []]]);
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([['hashtag' => 'nextcloud', 'trend' => []]]);
 
 		$updated = [];
 		$this->hashtagsRequest->expects($this->once())
@@ -111,7 +111,7 @@ class HashtagServiceTest extends TestCase {
 
 	public function testManageHashtagsWithoutRecentNotesTouchesNothing(): void {
 		$this->streamRequest->method('countHashtagsSince')->willReturn([]);
-		$this->hashtagsRequest->method('getAll')->willReturn([['hashtag' => 'old']]);
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([['hashtag' => 'old']]);
 		$this->hashtagsRequest->expects($this->never())->method('save');
 		$this->hashtagsRequest->expects($this->never())->method('update');
 
@@ -126,7 +126,7 @@ class HashtagServiceTest extends TestCase {
 			['nextcloud', 30, 1],
 			['nextcloud', 45, 1],
 		], $requestedSince);
-		$this->hashtagsRequest->method('getAll')->willReturn([]);
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([]);
 
 		$saved = [];
 		$this->hashtagsRequest->expects($this->once())
@@ -152,7 +152,7 @@ class HashtagServiceTest extends TestCase {
 		// "trending" long after the last post that used it
 		$requestedSince = [];
 		$this->counting([['current', 60, 1]], $requestedSince);
-		$this->hashtagsRequest->method('getAll')->willReturn([
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([
 			['hashtag' => 'lastweek', 'trend' => ['1h' => 0, '12h' => 0, '1d' => 0, '3d' => 4, '10d' => 9]],
 		]);
 
@@ -180,7 +180,7 @@ class HashtagServiceTest extends TestCase {
 		$requestedSince = [];
 		$this->counting([['steady', 60, 2]], $requestedSince);
 		$steady = ['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2];
-		$this->hashtagsRequest->method('getAll')->willReturn([
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([
 			['hashtag' => 'steady', 'trend' => $steady, 'counters' => $steady],
 		]);
 
@@ -199,7 +199,7 @@ class HashtagServiceTest extends TestCase {
 		$requestedSince = [];
 		$this->counting([['steady', 60, 2]], $requestedSince);
 		$steady = ['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2];
-		$this->hashtagsRequest->method('getAll')->willReturn([
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([
 			[
 				'hashtag' => 'steady',
 				'trend' => $steady,
@@ -225,7 +225,7 @@ class HashtagServiceTest extends TestCase {
 		$this->streamRequest->expects($this->exactly(count(HashtagService::PERIODS)))
 			->method('countHashtagsSince')
 			->willReturn([]);
-		$this->hashtagsRequest->method('getAll')->willReturn([]);
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([]);
 
 		$this->service->manageHashtags();
 	}
