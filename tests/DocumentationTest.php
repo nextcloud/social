@@ -872,7 +872,8 @@ class DocumentationTest extends TestCase {
 	 * The two surveys stay in the repository, and stay reachable.
 	 *
 	 * `docs/Technical-Debt.md` was written once before and lived only in a
-	 * working tree, so it was lost without anything noticing. Their *contents*
+	 * working tree, so it was lost without anything noticing. All three of these
+	 * began as reports written outside the repository. Their *contents*
 	 * are deliberately not asserted — a test over "45% of lib is older than
 	 * 2023" would either be brittle or be the fix — but a file that is deleted,
 	 * renamed, or quietly orphaned from the README is something a test can
@@ -883,6 +884,7 @@ class DocumentationTest extends TestCase {
 	public function surveyDocuments(): iterable {
 		yield 'technical debt' => ['docs/Technical-Debt.md', 'Technical debt and legacy code'];
 		yield 'performance' => ['docs/Performance.md', 'Performance and scalability'];
+		yield 'mastodon compatibility' => ['docs/Mastodon-Compatibility.md', 'Mastodon compatibility'];
 	}
 
 	/** @dataProvider surveyDocuments */

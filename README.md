@@ -39,7 +39,7 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - 🔒 **Locked accounts and approvable follow requests** — `PATCH /api/v1/accounts/update_credentials` with `locked` toggles `manuallyApprovesFollowers`; an incoming follow towards a locked account stays pending (with a `follow_request` notification) until the owner authorizes or rejects it via `/api/v1/follow_requests` (`lib/Interfaces/Object/FollowInterface.php`).
 - 🛡️ **Instance access list** — an allow-list or deny-list of remote hosts, enforced on incoming activities and outgoing requests. Managed with `occ social:fediverse`; see [docs/OCC-Commands.md](https://github.com/nextcloud/social/blob/master/docs/OCC-Commands.md) for the details and its limits.
 - 📋 **Lists** — group the accounts you follow and read them as their own timeline (`/api/v1/lists`, `/api/v1/timelines/list/{id}`). A list is private to whoever made it.
-- 🔑 **Mastodon-compatible API** — the Mastodon client API's core surface plus OAuth 2 authorization: third-party clients can log in, read every timeline, post (with media and polls), follow/unfollow, favourite/boost/bookmark, search (`/api/v2/search`), manage follow requests and report. No streaming endpoint or push subscriptions — clients poll. See [docs/API.md](https://github.com/nextcloud/social/blob/master/docs/API.md) for exactly which routes exist.
+- 🔑 **Mastodon-compatible API** — the Mastodon client API's core surface plus OAuth 2 authorization: read every timeline, post (with media and polls), follow/unfollow, favourite/boost/bookmark, search (`/api/v2/search`), manage follow requests and report. **Third-party Mastodon clients cannot reach it yet**: every route is served under `/apps/social/`, and the Mastodon client protocol has no way to be told about a non-root API base, so a client asked for your domain looks for `/api/v1/...` and finds nothing. Serving those paths at the domain root is the one thing standing between this and stock clients — see [docs/Mastodon-Compatibility.md](https://github.com/nextcloud/social/blob/master/docs/Mastodon-Compatibility.md). No streaming endpoint or push subscriptions either — clients poll. See [docs/API.md](https://github.com/nextcloud/social/blob/master/docs/API.md) for exactly which routes exist.
 
 ### 🚧 Not implemented yet
 
@@ -168,6 +168,10 @@ occ social:reset
   This prompts twice and then empties every Social table. `occ social:reset
   --uninstall` additionally drops the tables, migrations, background jobs and app
   config. See [docs/OCC-Commands.md](https://github.com/nextcloud/social/blob/master/docs/OCC-Commands.md) for all commands.
+- [docs/Mastodon-Compatibility.md](https://github.com/nextcloud/social/blob/master/docs/Mastodon-Compatibility.md)
+  answers how close this is to Mastodon in the three senses that can mean —
+  whether its clients work, whether peers can tell the difference, and whether an
+  instance could move onto it.
 - Before picking up refactoring work, read
   [docs/Technical-Debt.md](https://github.com/nextcloud/social/blob/master/docs/Technical-Debt.md)
   — what in the app is old, borrowed or load-bearing, and what changing it would
