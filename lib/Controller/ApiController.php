@@ -344,7 +344,7 @@ class ApiController extends Controller {
 
 			$avatar = $_FILES['avatar'] ?? [];
 			if ($avatar !== [] && ($avatar['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-				$this->avatarService->setFromTempFile($this->currentSession(), $avatar['tmp_name']);
+				$this->avatarService->setFromTempFile($this->currentSession(), $avatar);
 				$changed = true;
 			}
 
@@ -1582,8 +1582,8 @@ class ApiController extends Controller {
 				return new DataResponse([], Http::STATUS_OK);
 			}
 
-			$found = $this->searchService->searchAccounts($q);
-			if ($resolve) {
+			$found = $this->searchService->searchAccounts($q, $limit);
+			if ($resolve && (str_starts_with($q, '@') || str_starts_with($q, 'http'))) {
 				$found = array_merge($this->searchService->searchUri($q), $found);
 			}
 
@@ -1591,7 +1591,7 @@ class ApiController extends Controller {
 			foreach ($found as $account) {
 				$accounts[$account->getId()] = $account->setExportFormat(ACore::FORMAT_LOCAL);
 			}
-			$accounts = array_values($accounts);
+			$accounts = array_slice(array_values($accounts), 0, $limit);
 
 			// `following=true` is a client completing a reply rather than
 			// searching: it wants the people already in the conversation's

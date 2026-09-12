@@ -1513,7 +1513,7 @@ class ApiControllerTest extends TestCase {
 		$this->tempFiles[] = $tmp;
 		file_put_contents($tmp, 'avatar bytes');
 		$_FILES['avatar'] = ['tmp_name' => $tmp, 'error' => UPLOAD_ERR_OK, 'name' => 'me.png'];
-		$this->avatarService->expects($this->once())->method('setFromTempFile')->with('alice', $tmp);
+		$this->avatarService->expects($this->once())->method('setFromTempFile')->with('alice', $_FILES['avatar']);
 
 		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
 	}
@@ -1757,7 +1757,7 @@ class ApiControllerTest extends TestCase {
 		$bob = $this->createMock(Person::class);
 		$bob->method('getId')->willReturn('https://remote.example/users/bob');
 		$bob->method('setExportFormat')->willReturnSelf();
-		$this->searchService->expects($this->once())->method('searchAccounts')->with('bob')->willReturn([$bob]);
+		$this->searchService->expects($this->once())->method('searchAccounts')->with('bob', 40)->willReturn([$bob]);
 		$this->searchService->expects($this->never())->method('searchUri');
 
 		$this->assertSame([$bob], $this->controller()->accountsSearch('bob')->getData());
@@ -1769,7 +1769,8 @@ class ApiControllerTest extends TestCase {
 		$bob = $this->createMock(Person::class);
 		$bob->method('getId')->willReturn('https://remote.example/users/bob');
 		$bob->method('setExportFormat')->willReturnSelf();
-		$this->searchService->method('searchAccounts')->willReturn([]);
+		$this->searchService->expects($this->once())
+			->method('searchAccounts')->with('@bob@remote.example', 40)->willReturn([]);
 		$this->searchService->expects($this->once())
 			->method('searchUri')->with('@bob@remote.example')->willReturn([$bob]);
 
@@ -1787,6 +1788,39 @@ class ApiControllerTest extends TestCase {
 
 	public function testAccountsSearchRequiresAViewer(): void {
 		$this->assertUnauthorized($this->controller()->accountsSearch('bob'));
+	}
+
+	public function testAccountsSearchDoesNotResolvePlainSearchTerms(): void {
+		$this->loggedInAs();
+		$bob = $this->createMock(Person::class);
+		$bob->method('getId')->willReturn('https://remote.example/users/bob');
+		$bob->method('setExportFormat')->willReturnSelf();
+		$this->searchService->expects($this->once())->method('searchAccounts')->with('bob', 40)->willReturn([$bob]);
+		$this->searchService->expects($this->never())->method('searchUri');
+
+		$this->assertSame([$bob], $this->controller()->accountsSearch('bob', 40, true)->getData());
+	}
+
+	public function testAccountsSearchCapsFollowingChecksAtTheRequestedLimit(): void {
+		$this->loggedInAs();
+		$resolved = $this->createMock(Person::class);
+		$resolved->method('getId')->willReturn('https://remote.example/users/resolved');
+		$resolved->method('setExportFormat')->willReturnSelf();
+		$cached = $this->createMock(Person::class);
+		$cached->method('getId')->willReturn('https://remote.example/users/cached');
+		$cached->method('setExportFormat')->willReturnSelf();
+		$this->searchService->expects($this->once())
+			->method('searchAccounts')->with('@bob@remote.example', 1)->willReturn([$cached]);
+		$this->searchService->expects($this->once())
+			->method('searchUri')->with('@bob@remote.example')->willReturn([$resolved]);
+		$relationship = (new Relationship(42))->setFollowing(true);
+		$this->followService->expects($this->once())
+			->method('getRelationshipWith')->with($resolved)->willReturn($relationship);
+
+		$this->assertSame(
+			[$resolved],
+			$this->controller()->accountsSearch('@bob@remote.example', 1, true, true)->getData()
+		);
 	}
 
 	// search v2
