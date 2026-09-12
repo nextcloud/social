@@ -18,6 +18,13 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public const CACHING_TIMEOUT = 5; // 5 min
 
+	/**
+	 * How many uncached documents one pass may take on. Each one is an
+	 * outbound HTTP request, so this is a bound on the cron slot rather than on
+	 * the work: what is left over is the next run's.
+	 */
+	public const CACHE_BATCH = 50;
+
 	public function save(Document $document): void {
 		$qb = $this->getCacheDocumentsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($document->getId()))
@@ -273,11 +280,25 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * @return Document[]
 	 * @throws Exception
 	 */
-	public function getNotCachedDocuments() {
+	/**
+	 * The documents waiting to be fetched, at most `CACHE_BATCH` of them.
+	 *
+	 * Capped because the caller does one outbound HTTP request per row, inside
+	 * a cron slot: an instance that was offline for a day, or that has just
+	 * followed a busy account, came back to a backlog it tried to fetch in a
+	 * single pass. Its two siblings — `CacheActorsRequest::getRemoteActorsToUpdateDetails()`
+	 * and `StreamQueueRequest::getStandby()` — were capped long ago and this one
+	 * was missed. The rest of the backlog is picked up on the next run, which is
+	 * what the other two do.
+	 */
+	public function getNotCachedDocuments(int $limit = self::CACHE_BATCH) {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$this->limitToDBFieldEmpty($qb, 'local_copy');
 		$this->limitToCaching($qb, self::CACHING_TIMEOUT);
 		$this->limitToDBFieldInt($qb, 'error', 0);
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
 
 		$documents = [];
 		$cursor = $qb->executeQuery();

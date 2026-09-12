@@ -100,6 +100,36 @@ class ActorRelationRequest extends ActorRelationRequestBuilder {
 	}
 
 	/**
+	 * Every relation between one actor and a *set* of others, keyed by the
+	 * other's id.
+	 *
+	 * The single-pair version answers one account; a client asking about a page
+	 * of forty paid forty round trips for it, and the same again for the follow
+	 * rows and the notes. Same query, one `IN`.
+	 *
+	 * @param string[] $objectIds
+	 *
+	 * @return array<string, ActorRelation[]>
+	 */
+	public function getBetweenMany(string $actorId, array $objectIds): array {
+		if ($objectIds === []) {
+			return [];
+		}
+
+		$qb = $this->getActorRelationSelectSql();
+		$prims = array_map(static fn (string $id): string => $qb->prim($id), $objectIds);
+		$qb->andWhere($qb->expr()->eq('ar.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->in('ar.object_id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)));
+
+		$relations = [];
+		foreach ($this->fetchAll($qb) as $relation) {
+			$relations[$relation->getObjectId()][] = $relation;
+		}
+
+		return $relations;
+	}
+
+	/**
 	 * @return ActorRelation[]
 	 */
 	public function getByActor(string $actorId, string $type, int $limit = 40): array {

@@ -680,7 +680,7 @@ The app files themselves are not removed, and the app is not disabled.
 ## Background Jobs
 
 The app registers three `TimedJob`s in `appinfo/info.xml`, run by Nextcloud's
-cron, and queues a fourth job on demand:
+cron, and queues two more on demand:
 
 | Job | Class | Description |
 |-----|-------|-------------|
@@ -688,3 +688,4 @@ cron, and queues a fourth job on demand:
 | Queue processing | `OCA\Social\Cron\Queue` | Every 12 minutes. Processes the outbound request queue **and** the stream queue, like `social:queue:process`. |
 | Scheduled posts | `OCA\Social\Cron\ScheduledPosts` | Every 5 minutes. Publishes the posts whose `scheduled_at` has passed, at most 50 per run. Shorter than the other two on purpose: a scheduled post may be published up to one cron period late, and a longer period would promise a precision the five-minute minimum on `scheduled_at` implies but the app could not keep. |
 | Domain purge | `OCA\Social\Cron\DomainPurge` | Queued with a domain when one is added to the deny list — not registered in `appinfo/info.xml`, because a job listed there is added once at install time with no argument. Does 10 batches of 50 accounts per run and re-queues itself while anything of the domain is left. |
+| Actor cleanup | `OCA\Social\Cron\ActorCleanup` | Queued with an actor id when a deleted account is addressed by more posts than one inbox request should rewrite — not in `appinfo/info.xml`, for the same reason as the domain purge. Rewrites 2000 posts per run and re-queues itself while any remain. Without it, the rewrite ran inline in the request a peer was waiting on for its `Delete`, so the peer timed out, re-sent, and the work started over. |

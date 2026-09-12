@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Actor;
 
+use OCA\Social\Cron\ActorCleanup;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\AnnouncementsRequest;
@@ -35,9 +36,11 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\StreamDest;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\BackgroundJob\IJobList;
 
 /**
  * Class PersonService
@@ -46,6 +49,16 @@ use OCA\Social\Tools\Traits\TArrayTools;
  */
 class PersonInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
+
+	/**
+	 * How many posts one inbox request may rewrite before the rest becomes a
+	 * job. Enough that an ordinary account is finished inline; small enough
+	 * that the peer waiting on the `Delete` gets its answer.
+	 */
+	private const DETACH_INLINE = 500;
+
+	/** rows per query while walking them */
+	private const DETACH_PAGE = 100;
 
 	public function __construct(
 		private ActionsRequest $actionsRequest,
@@ -66,6 +79,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		private FeaturedTagsRequest $featuredTagsRequest,
 		private AnnouncementsRequest $announcementsRequest,
 		private ScheduledStatusesRequest $scheduledStatusesRequest,
+		private IJobList $jobList,
 	) {
 	}
 
@@ -163,52 +177,109 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		// first, we delete all post generate by actor
 		$this->streamRequest->deleteByAuthor($actor->getId());
 
-		// then we look for link to the actor as dest
-		foreach ($this->streamDestRequest->getRelatedToActor($actor) as $streamDest) {
-			if ($streamDest->getType() !== 'recipient') {
-				continue;
-			}
+		if (!$this->detachRecipient($actor, self::DETACH_INLINE)) {
+			// More posts address this account than one request may rewrite.
+			// The rest is finished by a job, because the alternative is doing
+			// it here: this runs inside the HTTP request a peer is waiting on
+			// for its `Delete`, and a peer that times out re-sends it — so the
+			// work would start again from the beginning, for ever, on exactly
+			// the accounts that have too much of it.
+			$this->jobList->add(ActorCleanup::class, ['actor' => $actor->getId()]);
 
-			try {
-				$stream = $this->streamRequest->getStream($streamDest->getStreamId());
-			} catch (StreamNotFoundException $e) {
-				continue;
-			}
-
-			// upgrading to[] and cc[] without the deleted actor and follow uri
-			switch ($streamDest->getSubtype()) {
-				case 'to':
-					if ($stream->getTo() === $actor->getId()) {
-						// the post was addressed to this account alone: it is
-						// gone, and there is nothing left to rewrite on it
-						$this->removeStreamAndRelated($streamDest->getStreamId());
-
-						continue 2;
-					}
-
-					$arr = array_diff(
-						$stream->getToArray(),
-						[$actor->getId(), $actor->getFollowers(), $actor->getFollowing()]
-					);
-					if (!empty(array_diff($stream->getToArray(), $arr))) {
-						$stream->setToArray($arr);
-						$this->streamRequest->update($stream);
-					}
-					break;
-				case 'cc':
-					$arr = array_diff(
-						$stream->getCcArray(),
-						[$actor->getId(), $actor->getFollowers(), $actor->getFollowing()]
-					);
-					if (!empty(array_diff($stream->getCcArray(), $arr))) {
-						$stream->setCcArray($arr);
-						$this->streamRequest->update($stream);
-					}
-					break;
-			}
+			return;
 		}
 
 		$this->streamDestRequest->deleteRelatedToActor($actor->getId());
+	}
+
+	/**
+	 * Rewrites the posts that address an account, in pages, and says whether it
+	 * reached the end.
+	 *
+	 * Public so `Cron\ActorCleanup` can carry on where a request stopped: the
+	 * two must do the same work, and two copies of this walk would be two
+	 * chances to leave a post addressed to an account that no longer exists.
+	 *
+	 * @return bool true when nothing is left to detach
+	 */
+	public function detachRecipient(Person $actor, int $maxRows): bool {
+		$afterId = 0;
+		$seen = 0;
+
+		while ($seen < $maxRows) {
+			$page = $this->streamDestRequest->getRelatedToActor(
+				$actor, min(self::DETACH_PAGE, $maxRows - $seen), $afterId
+			);
+			if ($page === []) {
+				return true;
+			}
+
+			foreach ($page as $streamDest) {
+				$afterId = $streamDest->getId();
+				$seen++;
+				$this->detachOne($actor, $streamDest);
+			}
+
+			if (count($page) < self::DETACH_PAGE) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Drops the rows that said a post was addressed to this account, once
+	 * every post that carried it has been rewritten. Public for the same
+	 * reason `detachRecipient()` is: the job has to be able to finish what a
+	 * request started.
+	 */
+	public function forgetRecipient(string $actorId): void {
+		$this->streamDestRequest->deleteRelatedToActor($actorId);
+	}
+
+	private function detachOne(Person $actor, StreamDest $streamDest): void {
+		if ($streamDest->getType() !== 'recipient') {
+			return;
+		}
+
+		try {
+			$stream = $this->streamRequest->getStream($streamDest->getStreamId());
+		} catch (StreamNotFoundException $e) {
+			return;
+		}
+
+		// upgrading to[] and cc[] without the deleted actor and follow uri
+		switch ($streamDest->getSubtype()) {
+			case 'to':
+				if ($stream->getTo() === $actor->getId()) {
+					// the post was addressed to this account alone: it is
+					// gone, and there is nothing left to rewrite on it
+					$this->removeStreamAndRelated($streamDest->getStreamId());
+
+					return;
+				}
+
+				$arr = array_diff(
+					$stream->getToArray(),
+					[$actor->getId(), $actor->getFollowers(), $actor->getFollowing()]
+				);
+				if (!empty(array_diff($stream->getToArray(), $arr))) {
+					$stream->setToArray($arr);
+					$this->streamRequest->update($stream);
+				}
+				break;
+			case 'cc':
+				$arr = array_diff(
+					$stream->getCcArray(),
+					[$actor->getId(), $actor->getFollowers(), $actor->getFollowing()]
+				);
+				if (!empty(array_diff($stream->getCcArray(), $arr))) {
+					$stream->setCcArray($arr);
+					$this->streamRequest->update($stream);
+				}
+				break;
+		}
 	}
 
 	/**

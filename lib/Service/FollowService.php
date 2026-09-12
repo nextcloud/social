@@ -47,6 +47,16 @@ use Throwable;
 class FollowService {
 	use TArrayTools;
 
+	/**
+	 * The most followers one read of the legacy `/api/v1/current/followers`
+	 * answers with. It has no cursor to page on — Mastodon's
+	 * `/api/v1/accounts/{account}/followers` is the route with one, and this
+	 * one is listed as superseded by it in docs/API.md — so the choice was a
+	 * bound or an account with fifty thousand followers loading all of them,
+	 * hydrated, into the memory of one request.
+	 */
+	public const FOLLOWERS_PAGE = 500;
+
 	private ?Person $viewer = null;
 
 	public function __construct(
@@ -296,8 +306,8 @@ class FollowService {
 	 *
 	 * @psalm-return array<Follow>
 	 */
-	public function getFollowers(Person $actor): array {
-		return $this->followsRequest->getFollowersByActorId($actor->getId());
+	public function getFollowers(Person $actor, int $limit = self::FOLLOWERS_PAGE): array {
+		return $this->followsRequest->getFollowersByActorId($actor->getId(), $limit);
 	}
 
 	/**
@@ -427,15 +437,85 @@ class FollowService {
 			}
 		}
 
-		foreach ($actorNids as $actorNid => $actorId) {
-			if ($actorNid === $this->viewer->getNid()) {
-				continue; // ignore current session
-			}
+		unset($actorNids[$this->viewer->getNid()]); // ignore current session
 
-			$relationships[] = $this->generateRelationship($actorNid, $this->viewer->getId(), $actorId);
+		return $this->generateRelationships($this->viewer->getId(), $actorNids);
+	}
+
+	/**
+	 * Relationships for a whole page of accounts, in a fixed number of queries.
+	 *
+	 * Built one at a time, this was six round trips per account — the two
+	 * follow rows, the blocks and mutes, the note, and the mute's expiry — so a
+	 * client asking about a page of forty paid two hundred and forty. The same
+	 * five queries answer any number of accounts, because every one of them was
+	 * already a lookup on (viewer, account) and `IN` takes a list.
+	 *
+	 * @param array<int, string> $actorNids actor id keyed by nid
+	 *
+	 * @return Relationship[]
+	 */
+	private function generateRelationships(string $viewerId, array $actorNids): array {
+		if ($actorNids === []) {
+			return [];
 		}
 
-		return $relationships;
+		$actorIds = array_values($actorNids);
+		$follows = $this->followsRequest->getBetweenMany($viewerId, $actorIds);
+		$relations = $this->actorRelationRequest->getBetweenMany($viewerId, $actorIds);
+
+		$relationships = [];
+		foreach ($actorNids as $actorNid => $actorId) {
+			$relationship = new Relationship($actorNid);
+
+			$following = $follows['following'][$actorId] ?? null;
+			if ($following !== null) {
+				$following->isAccepted()
+					? $relationship->setFollowing(true)
+					: $relationship->setRequested(true);
+			}
+
+			$followedBy = $follows['followedBy'][$actorId] ?? null;
+			if ($followedBy !== null) {
+				// a pending row the other way is what /api/v1/follow_requests
+				// lists, and what a client shows approve/reject for
+				$followedBy->isAccepted()
+					? $relationship->setFollowedBy(true)
+					: $relationship->setRequestedBy(true);
+			}
+
+			foreach ($relations[$actorId] ?? [] as $relation) {
+				$this->applyRelation($relationship, $relation);
+			}
+
+			$relationships[$actorId] = $relationship;
+		}
+
+		// the note, the domain block and the expiry of a mute, for the whole
+		// page at once — see AccountRelationService::decorateMany()
+		$this->accountRelationService->decorateMany($relationships, $viewerId);
+
+		return array_values($relationships);
+	}
+
+	private function applyRelation(Relationship $relationship, ActorRelation $relation): void {
+		switch ($relation->getType()) {
+			case ActorRelation::TYPE_BLOCK:
+				$relationship->setBlocking(true);
+				break;
+			case ActorRelation::TYPE_BLOCKED_BY:
+				$relationship->setBlockedBy(true);
+				break;
+			case ActorRelation::TYPE_MUTE:
+				$relationship->setMuting(true);
+				$relationship->setMutingNotifications($relation->isNotifications());
+				break;
+			case AccountRelationService::TYPE_ENDORSE:
+				// the row is already in hand; reading it again would be a query
+				// for something this loop just read
+				$relationship->setEndorsed(true);
+				break;
+		}
 	}
 
 	/**
@@ -454,62 +534,15 @@ class FollowService {
 		return $this->generateRelationship($target->getNid(), $this->viewer->getId(), $target->getId());
 	}
 
+	/**
+	 * One account's relationship with the viewer.
+	 *
+	 * Built by the same code the page version uses, deliberately: two
+	 * implementations of "what is the relationship between these two" is two
+	 * places for the answer to differ, and the route that draws a follow button
+	 * and the route that draws a list of them have to agree.
+	 */
 	private function generateRelationship(int $nid, string $viewerId, string $actorId): Relationship {
-		$relationship = new Relationship($nid);
-
-		try {
-			$follow = $this->followsRequest->getByPersons($viewerId, $actorId);
-			if ($follow->isAccepted()) {
-				$relationship->setFollowing(true);
-			} else {
-				$relationship->setRequested(true);
-			}
-		} catch (FollowNotFoundException $e) {
-			$this->logger->debug('generateRelationship - not following', [
-				'viewerId' => $viewerId,
-				'actorId' => $actorId,
-				'nid' => $nid,
-			]);
-		}
-
-		try {
-			$follow = $this->followsRequest->getByPersons($actorId, $viewerId);
-			if ($follow->isAccepted()) {
-				$relationship->setFollowedBy(true);
-			} else {
-				// the row behind /api/v1/follow_requests: this account has asked
-				// to follow the viewer and is waiting to be let in, which is
-				// what a client shows the approve/reject buttons for
-				$relationship->setRequestedBy(true);
-			}
-		} catch (FollowNotFoundException $e) {
-		}
-
-		foreach ($this->actorRelationRequest->getBetween($viewerId, $actorId) as $relation) {
-			switch ($relation->getType()) {
-				case ActorRelation::TYPE_BLOCK:
-					$relationship->setBlocking(true);
-					break;
-				case ActorRelation::TYPE_BLOCKED_BY:
-					$relationship->setBlockedBy(true);
-					break;
-				case ActorRelation::TYPE_MUTE:
-					$relationship->setMuting(true);
-					$relationship->setMutingNotifications($relation->isNotifications());
-					break;
-				case AccountRelationService::TYPE_ENDORSE:
-					// the row is already in hand; reading it again would be a
-					// query for something this loop just read
-					$relationship->setEndorsed(true);
-					break;
-			}
-		}
-
-		// `domain_blocking`, `note` and the expiry of a mute are each a lookup
-		// on (viewer, account), and a mute that has run out is still a row: the
-		// read is what stops reporting it
-		$this->accountRelationService->decorate($relationship, $viewerId, $actorId);
-
-		return $relationship;
+		return $this->generateRelationships($viewerId, [$nid => $actorId])[0] ?? new Relationship($nid);
 	}
 }

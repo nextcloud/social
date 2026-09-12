@@ -106,6 +106,46 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	}
 
 	/**
+	 * The hashtags that currently claim a trend — the only rows the trends cron
+	 * can act on.
+	 *
+	 * It used to read the whole table for this, on every run, to find the few
+	 * rows that have fallen out of the widest window and need their counters
+	 * cleared. Everything else it read was a hashtag with nothing to change.
+	 * The set this returns is inherently small: it is the trending list.
+	 *
+	 * @return array
+	 */
+	public function getWithAnyTrend(int $limit = 0): array {
+		$qb = $this->getHashtagsSelectSql();
+		foreach (self::TREND_COLUMNS as $column) {
+			$qb->addSelect('h.' . $column);
+		}
+
+		$anyWindow = $qb->expr()->orX();
+		foreach (self::TREND_COLUMNS as $column) {
+			$anyWindow->add($qb->expr()->gt('h.' . $column, $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+		}
+		$qb->andWhere($anyWindow);
+
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
+
+		$hashtags = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$hashtags[] = array_merge(
+				$this->parseHashtagsSelectSql($data),
+				['counters' => self::countersFromRow($data)]
+			);
+		}
+		$cursor->closeCursor();
+
+		return $hashtags;
+	}
+
+	/**
 	 * The sortable counters of one row, keyed by window.
 	 *
 	 * @return array<string, int>
