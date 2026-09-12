@@ -448,6 +448,7 @@ the next reader can tell what this document has already accounted for.
 | The `AP` static registry | Resolved lazily instead of by an `AP::init();` at file scope, and held in a private static behind an accessor. |
 | Unreachable controller methods | Six deleted from `LocalController`. |
 | Two unbounded loops | `NotificationService::clear()` and `MigrationService::refollowLocalFollowers()` bounded. |
+| The rest of the unbounded work | Closed in [#2132](https://github.com/nextcloud/social/pull/2132), with the N+1 behind `accounts/relationships` and the missing transaction around `StreamRequest::save()`. See [Performance.md](Performance.md), which tracks that category. |
 | `tests/stub.phpstub` | `QueryBuilder::SELECT` was the string `'select'`; Doctrine assigns the int `0`, so 28 comparisons were verified against fiction. Fixed and pinned by a test. |
 | Psalm 5 -> 6 | Now runs on supported PHP. Found five real type defects and five orphaned access-control attributes. |
 | Stylelint 15 -> 17 | Seven deprecated CSS declarations removed. |

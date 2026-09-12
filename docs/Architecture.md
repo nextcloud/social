@@ -28,7 +28,7 @@ social/
 │   │   └── Application.php     # Bootstrap, integration registration
 │   ├── Command/                # occ CLI commands (+ ExtendedBase, a shared base that registers no command of its own)
 │   ├── Controller/             # HTTP entry points (ActivityPub, Mastodon-ish API, local API, OAuth, OStatus, navigation, queue, config, moderation, public pages)
-│   ├── Cron/                   # Background jobs (Cache, Queue, ScheduledPosts)
+│   ├── Cron/                   # Background jobs (Cache, Queue, ScheduledPosts; DomainPurge and ActorCleanup are queued with an argument)
 │   ├── Dashboard/              # Nextcloud Dashboard widgets
 │   ├── Db/                     # Query-builder based repositories (`*Request` + `*RequestBuilder` pairs)
 │   ├── Exceptions/             # Custom exceptions
