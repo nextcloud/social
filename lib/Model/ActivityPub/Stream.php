@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub;
 
 use DateTime;
+use DateTimeZone;
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
@@ -373,6 +374,33 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->updated = $updated;
 
 		return $this;
+	}
+
+	/**
+	 * The `updated` column of a stream row, as the ActivityPub property.
+	 *
+	 * The column is a datetime and holds UTC — `StreamRequest` converts before
+	 * it binds — so the instant survives, while the exact text a peer sent does
+	 * not: an `updated` of `2026-09-12T10:00:00+02:00` reads back as
+	 * `2026-09-12T08:00:00Z`. That is the same moment written the way this app
+	 * writes its own edits (`PostService::editPost()`), and nothing anywhere
+	 * compares the two as strings.
+	 *
+	 * Empty for a row with no edit time, which is `NULL` in the column and the
+	 * ordinary case: most posts are never edited.
+	 */
+	private static function updatedFromRow(string $stored): string {
+		if ($stored === '') {
+			return '';
+		}
+
+		try {
+			return (new DateTime($stored, new DateTimeZone('UTC')))
+				->setTimezone(new DateTimeZone('UTC'))
+				->format('Y-m-d\TH:i:s\Z');
+		} catch (Exception) {
+			return '';
+		}
 	}
 
 	/**
@@ -841,28 +869,61 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 		$this->setDetailsAll($this->getArray('details', $data, []));
 
+		// Five fields that used to be read out of the stored wire object and
+		// nowhere else, because none of them had a column;
+		// Version1000Date20260912000003 gave each one its own, and the column
+		// is what is read now. The reasoning that put them in the JSON is kept
+		// below, at the fallback, because the fallback is still what a row
+		// written before that step is read through.
+		//
+		// `tag`, the mentions and hashtags a post names: re-exported on every
+		// Update and every outbox entry, so a post that loses it tells its
+		// peers that the people it names are not named by it.
+		$this->setTags($this->validateArray(self::AS_TAGS, 'tags', $data, []));
+		// the language and the edit stamp, both rewritten by an Update — a
+		// remote edit through NoteInterface as much as a local one through
+		// PostService::editPost()
+		$this->setLanguage($this->get('language', $data, ''));
+		$this->setUpdated(self::updatedFromRow($this->get('updated', $data, '')));
+		// the quote and its approval, the same kind of thing: a property of the
+		// wire object, rewritten whenever the wire object is
+		$this->setQuote($this->validate(self::AS_ID, 'quote', $data, ''));
+		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quote_authorization', $data, ''));
+
 		$source = $this->get('source', $data, '');
 		if ($source !== '') {
 			$sourceData = json_decode($source, true);
 			if (is_array($sourceData)) {
+				// Emoji still come from the raw wire object rather than from
+				// the `tags` column: an emoji tag carries an `icon`, and what
+				// `AS_TAGS` validation keeps of a tag is its type, href and
+				// name — the column holds the post's tags as the model holds
+				// them, which is already without the icons.
 				$this->setEmojis($this->extractEmojisFromTag($sourceData));
-				// `tag` has no column of its own, so a post read back from the
-				// database used to re-export with no mentions and no hashtags
-				// at all: every Update and every outbox entry told the peers
-				// that the people the post names are not named by it. It rides
-				// in the stored wire object like the rest of them.
-				$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $sourceData, []));
-				// neither has a column; both ride in the stored wire object,
-				// which is the one thing an Update rewrites — a remote edit
-				// through NoteInterface as much as a local one through
-				// PostService::editPost()
-				$this->setLanguage(self::languageOf($sourceData));
-				$this->setUpdated($this->validate(self::AS_DATE, 'updated', $sourceData, ''));
-				// the quote and its approval have no column either, and are the
-				// same kind of thing: a property of the wire object, rewritten
-				// whenever the wire object is
-				$this->setQuote($this->quoteIdOf($sourceData));
-				$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $sourceData, ''));
+
+				// The fallback, for a row stored before the columns existed and
+				// not yet reached by the BackfillStreamPostFields repair step:
+				// the schema change lands during `occ upgrade` and the backfill
+				// runs after it, so an instance serves reads in between. Each
+				// field falls back on its own, because a post may legitimately
+				// have four of the five empty.
+				if ($this->getTags() === []) {
+					$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $sourceData, []));
+				}
+				if ($this->getLanguage() === '') {
+					$this->setLanguage(self::languageOf($sourceData));
+				}
+				if ($this->getUpdated() === '') {
+					$this->setUpdated($this->validate(self::AS_DATE, 'updated', $sourceData, ''));
+				}
+				if ($this->getQuote() === '') {
+					$this->setQuote($this->quoteIdOf($sourceData));
+				}
+				if ($this->getQuoteAuthorization() === '') {
+					$this->setQuoteAuthorization(
+						$this->validate(self::AS_ID, 'quoteAuthorization', $sourceData, '')
+					);
+				}
 				$details = $this->getDetailsAll();
 				if (!array_key_exists('remote_likes', $details) && isset($sourceData['likes']['totalItems'])) {
 					$remoteLikes = (int)$sourceData['likes']['totalItems'];

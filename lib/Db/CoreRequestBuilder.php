@@ -399,7 +399,12 @@ class CoreRequestBuilder {
 			'cache',
 			'creation',
 			'local',
-			'filter_duplicate'
+			'filter_duplicate',
+			'tags',
+			'language',
+			'updated',
+			'quote',
+			'quote_authorization'
 		],
 		self::TABLE_STREAM_ACTIONS => [
 			'id',

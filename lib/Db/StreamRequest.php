@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
+use DateTimeZone;
 use Exception;
 use InvalidArgumentException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -188,6 +189,13 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->set('summary', $qb->createNamedParameter($stream->getSummary()));
 		$qb->set('sensitive', $qb->createNamedParameter($stream->isSensitive() ? 1 : 0));
 		$qb->set('source', $qb->createNamedParameter($stream->getSource()));
+		// the five fields an Update rewrites, in their own columns since
+		// Version1000Date20260912000003. They are still inside the wire object
+		// this same statement stores, and still read from there for a row
+		// written before that step — but an edit that changed the language or
+		// took an approval back has to change the column too, or the column and
+		// the object it was copied from disagree from the next read on.
+		$this->setPostFields($qb, $stream, false);
 		if ($stream->getType() === Note::TYPE && $stream instanceof Note) {
 			$qb->set('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags(), JSON_UNESCAPED_SLASHES)));
 			$qb->set(
@@ -1619,6 +1627,50 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * The five fields that used to live only inside the stored wire object,
+	 * written to the columns Version1000Date20260912000003 added.
+	 *
+	 * One helper for both write paths on purpose: an insert and an edit have to
+	 * agree about what the columns hold, and `sensitive` is the reminder of
+	 * what happens when only one of the two writes a field.
+	 *
+	 * `updated` is bound as a date in UTC. Doctrine renders a DateTime in
+	 * whatever zone the object carries, so a remote `updated` of
+	 * `2026-09-12T10:00:00+02:00` would otherwise be stored as 10:00 and read
+	 * back as 10:00 UTC — the right text for the wrong instant.
+	 */
+	private function setPostFields(IQueryBuilder $qb, Stream $stream, bool $insert): void {
+		$values = [
+			'tags' => [json_encode($stream->getTags(), JSON_UNESCAPED_SLASHES), IQueryBuilder::PARAM_STR],
+			'language' => [$stream->getLanguage(), IQueryBuilder::PARAM_STR],
+			'quote' => [$stream->getQuote(), IQueryBuilder::PARAM_STR],
+			'quote_authorization' => [$stream->getQuoteAuthorization(), IQueryBuilder::PARAM_STR],
+			'updated' => [$this->updatedAsDate($stream->getUpdated()), IQueryBuilder::PARAM_DATE],
+		];
+
+		foreach ($values as $column => [$value, $type]) {
+			if ($insert) {
+				$qb->setValue($column, $qb->createNamedParameter($value, $type));
+			} else {
+				$qb->set($column, $qb->createNamedParameter($value, $type));
+			}
+		}
+	}
+
+	/** The ActivityPub `updated` of a post as a UTC date, or null for one never edited. */
+	private function updatedAsDate(string $updated): ?DateTime {
+		if ($updated === '') {
+			return null;
+		}
+
+		try {
+			return (new DateTime($updated))->setTimezone(new DateTimeZone('UTC'));
+		} catch (Exception) {
+			return null;
+		}
+	}
+
+	/**
 	 * Insert a new Stream in the database.
 	 *
 	 * @param Stream $stream
@@ -1695,6 +1747,8 @@ class StreamRequest extends StreamRequestBuilder {
 				)
 			)
 			->setValue('local', $qb->createNamedParameter(($stream->isLocal()) ? '1' : '0'));
+
+		$this->setPostFields($qb, $stream, true);
 
 		try {
 			$dTime = new DateTime();

@@ -135,8 +135,10 @@ class StreamQuoteTest extends TestCase {
 	}
 
 	/**
-	 * No column carries any of this: the quote rides in the stored wire object,
-	 * which is re-parsed on load — the way the language and the edit stamp do.
+	 * The quote also rides in the stored wire object, and is read back out of it
+	 * for a row written before `Version1000Date20260912000003` gave it a column
+	 * — the fallback `Stream::importFromDatabase()` keeps for exactly that, and
+	 * the only path a row the backfill has not reached is read through.
 	 */
 	public function testTheQuoteIsReadBackOutOfTheStoredWireObject(): void {
 		$stream = new Stream();

@@ -148,10 +148,11 @@ class PostService {
 		// at all. Nothing here can name somebody the tags do not.
 		$note->setContent($this->linkifyService->toHtml($post->getContent(), $note->getTags()));
 
-		// the stored source is what survives the database and federates on
-		// Update — a poll's options and counts, and for every post the
-		// language, which has no column of its own: snapshot the assembled
-		// object
+		// the stored source is what federates on Update, and for a poll it is
+		// the only place the options and their counts are kept. The language,
+		// the tags, the quote and its approval are snapshotted here too and
+		// written to their own columns by StreamRequest; both copies come from
+		// this one assembled object, so they cannot disagree.
 		$this->snapshotSource($note);
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
