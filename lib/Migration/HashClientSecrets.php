@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Migration;
 
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Security\SecretHasher;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
@@ -19,9 +20,13 @@ use Throwable;
 /**
  * Rewrites plaintext OAuth client secrets, authorization codes and access
  * tokens into their sha256 form. New values are written hashed from the
- * start; this only exists for rows created before that. Runs on every
- * upgrade and is a no-op once nothing is left to convert — one query that
- * selects the plaintext rows and comes back empty.
+ * start; this only exists for rows created before that.
+ *
+ * The marker is what keeps it affordable. Coming back empty still meant running
+ * the query, on every `occ upgrade` for the life of the instance, with the
+ * instance in maintenance mode. It is only set once a run finishes with nothing
+ * left behind, so a row that could not be rewritten is still retried on the
+ * next upgrade.
  *
  * A row that cannot be rewritten is reported and left alone rather than
  * allowed to end the upgrade: the plaintext form is still understood on
@@ -30,12 +35,20 @@ use Throwable;
 class HashClientSecrets implements IRepairStep {
 	private const COLUMNS = ['app_client_secret', 'auth_code', 'token'];
 
+	private const MARKER = 'migration_client_secrets_hashed';
+
 	private IDBConnection $connection;
 	private SecretHasher $secretHasher;
+	private ConfigService $configService;
 
-	public function __construct(IDBConnection $connection, SecretHasher $secretHasher) {
+	public function __construct(
+		IDBConnection $connection,
+		SecretHasher $secretHasher,
+		ConfigService $configService,
+	) {
 		$this->connection = $connection;
 		$this->secretHasher = $secretHasher;
+		$this->configService = $configService;
 	}
 
 	public function getName(): string {
@@ -43,8 +56,14 @@ class HashClientSecrets implements IRepairStep {
 	}
 
 	public function run(IOutput $output): void {
+		if ($this->configService->getAppValueInt(self::MARKER) === 1) {
+			return;
+		}
+
 		$rows = $this->unhashedRows();
 		if ($rows === []) {
+			$this->configService->setAppValue(self::MARKER, '1');
+
 			return;
 		}
 
@@ -70,7 +89,9 @@ class HashClientSecrets implements IRepairStep {
 			$output->info('Hashed the credentials of ' . $converted . ' Social OAuth client(s)');
 		}
 
-		if ($failed !== []) {
+		if ($failed === []) {
+			$this->configService->setAppValue(self::MARKER, '1');
+		} else {
 			$output->warning(
 				'The credentials of ' . count($failed) . ' Social OAuth client(s) are still stored '
 				. 'in plaintext: ' . implode(', ', $failed) . '. They keep working, and the next '

@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Migration;
 use Exception;
 use OCA\Social\Migration\EncryptPrivateKeys;
 use OCA\Social\Security\PrivateKeyCipher;
+use OCA\Social\Service\ConfigService;
 use OCP\Migration\IOutput;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -22,6 +23,7 @@ use PHPUnit\Framework\TestCase;
  */
 class EncryptPrivateKeysTest extends TestCase {
 	private PrivateKeyCipher|MockObject $keyCipher;
+	private ConfigService|MockObject $configService;
 	private IOutput|MockObject $output;
 	/** @var string[] */
 	private array $warnings = [];
@@ -29,6 +31,9 @@ class EncryptPrivateKeysTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		$this->keyCipher = $this->createMock(PrivateKeyCipher::class);
+		// the marker short-circuits the step, so it has to read as unset here
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getAppValueInt')->willReturn(0);
 		$this->output = $this->createMock(IOutput::class);
 		$this->warnings = [];
 		$this->output->method('warning')->willReturnCallback(
@@ -56,7 +61,7 @@ class EncryptPrivateKeysTest extends TestCase {
 			}
 		);
 
-		(new EncryptPrivateKeys($connection, $this->keyCipher))->run($this->output);
+		(new EncryptPrivateKeys($connection, $this->keyCipher, $this->configService))->run($this->output);
 
 		$writes = $connection->writes();
 		$this->assertCount(1, $writes, 'the row that could be sealed is still written');
@@ -73,7 +78,7 @@ class EncryptPrivateKeysTest extends TestCase {
 		$connection = new FakeConnection([[]]);
 		$this->output->expects($this->never())->method('startProgress');
 
-		(new EncryptPrivateKeys($connection, $this->keyCipher))->run($this->output);
+		(new EncryptPrivateKeys($connection, $this->keyCipher, $this->configService))->run($this->output);
 
 		$this->assertSame([], $connection->writes());
 		$this->assertCount(1, $connection->queries, 'one select that comes back empty');
@@ -82,11 +87,36 @@ class EncryptPrivateKeysTest extends TestCase {
 	public function testOnlyBarePemKeysAreSelected(): void {
 		$connection = new FakeConnection([[]]);
 
-		(new EncryptPrivateKeys($connection, $this->keyCipher))->run($this->output);
+		(new EncryptPrivateKeys($connection, $this->keyCipher, $this->configService))->run($this->output);
 
 		$this->assertSame(
 			['private_key LIKE -----BEGIN%'],
 			$connection->queries[0]->wheres
 		);
 	}
+
+	public function testTheMarkerStopsTheScanOnLaterUpgrades(): void {
+		// the step used to LIKE-scan social_actor on every `occ upgrade` for the
+		// life of the instance, with the instance in maintenance mode, only to
+		// find nothing to do. Once a run finishes clean, it must not look again.
+		$connection = new FakeConnection([[]]);
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getAppValueInt')->willReturn(1);
+
+		(new EncryptPrivateKeys($connection, $this->keyCipher, $configService))->run($this->output);
+
+		$this->assertSame([], $connection->queries, 'the marker did not stop the scan');
+	}
+
+	public function testACleanRunSetsTheMarker(): void {
+		$connection = new FakeConnection([[]]);
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getAppValueInt')->willReturn(0);
+		$configService->expects($this->once())
+			->method('setAppValue')
+			->with('migration_actor_keys_encrypted', '1');
+
+		(new EncryptPrivateKeys($connection, $this->keyCipher, $configService))->run($this->output);
+	}
+
 }
