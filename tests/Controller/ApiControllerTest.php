@@ -304,6 +304,8 @@ class ApiControllerTest extends TestCase {
 	 */
 	/** the stored `source.privacy` of the logged-in account */
 	private string $defaultPrivacy = 'public';
+	/** @var array<string, mixed> what the viewer's `source` half answers */
+	private array $viewerSource = ['privacy' => 'public', 'follow_requests_count' => 2];
 
 	private function loggedInAs(string $uid = 'alice'): Person {
 		$user = $this->createMock(IUser::class);
@@ -322,7 +324,10 @@ class ApiControllerTest extends TestCase {
 		// which they ask the model for separately — everywhere else must not
 		// have it, see testSourceIsNotPartOfAnOrdinaryAccountEntity
 		$viewer->method('jsonSerialize')->willReturn(['id' => '7', 'username' => $uid]);
-		$viewer->method('exportSourceAsLocal')->willReturn(['privacy' => 'public', 'follow_requests_count' => 2]);
+		// a property rather than a fixed value: a second method() on the same
+		// mock never wins over the first, so a test that wants a different
+		// source sets this instead
+		$viewer->method('exportSourceAsLocal')->willReturnCallback(fn (): array => $this->viewerSource);
 		$this->cacheActorService->method('getFromLocalAccount')->with($uid)->willReturn($viewer);
 
 		return $viewer;
@@ -1821,6 +1826,82 @@ class ApiControllerTest extends TestCase {
 			[$resolved],
 			$this->controller()->accountsSearch('@bob@remote.example', 1, true, true)->getData()
 		);
+	}
+
+	// instance/peers, instance/activity, preferences, familiar_followers
+
+	public function testPeersAnswersTheInstancesThisOneHasHeardOf(): void {
+		$this->instanceService->method('getPeers')->willReturn(['a.example', 'b.example']);
+
+		$response = $this->controller()->instancePeers();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['a.example', 'b.example'], $response->getData());
+	}
+
+	public function testActivityAnswersTheWeeklySeries(): void {
+		$week = ['week' => '1700000000', 'statuses' => '12', 'logins' => '0', 'registrations' => '0'];
+		$this->instanceService->method('getWeeklyActivity')->willReturn([$week]);
+
+		$this->assertSame([$week], $this->controller()->instanceActivity()->getData());
+	}
+
+	/**
+	 * A client that cannot read these guesses, and the guess it makes is
+	 * `public` — which is how somebody whose default is followers-only ends up
+	 * posting to the world.
+	 */
+	public function testPreferencesCarryTheAccountsPostingDefaults(): void {
+		$viewer = $this->loggedInAs();
+		$this->viewerSource = ['sensitive' => true, 'language' => 'de'];
+		// the shared mock reads this property, see setUp()
+		$this->defaultPrivacy = 'private';
+
+		$data = $this->controller()->preferences()->getData();
+
+		$this->assertSame('private', $data['posting:default:visibility']);
+		$this->assertTrue($data['posting:default:sensitive']);
+		$this->assertSame('de', $data['posting:default:language']);
+		$this->assertSame('default', $data['reading:expand:media']);
+	}
+
+	public function testPreferencesReportNoLanguageAsNullRatherThanEmpty(): void {
+		$viewer = $this->loggedInAs();
+		$this->viewerSource = ['language' => ''];
+
+		$this->assertNull($this->controller()->preferences()->getData()['posting:default:language']);
+	}
+
+	public function testPreferencesRequireAViewer(): void {
+		$this->assertUnauthorized($this->controller()->preferences());
+	}
+
+	public function testFamiliarFollowersAnswersPerAccount(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$target->method('getNid')->willReturn(42);
+		$known = $this->createMock(Person::class);
+		$known->method('setExportFormat')->willReturnSelf();
+		$this->followService->expects($this->once())
+			->method('familiarFollowers')
+			->with($this->identicalTo($viewer), $this->identicalTo($target))
+			->willReturn([$known]);
+
+		$data = $this->controller()->familiarFollowers(['42'])->getData();
+
+		$this->assertCount(1, $data);
+		$this->assertSame('42', $data[0]['id']);
+		$this->assertSame([$known], $data[0]['accounts']);
+	}
+
+	/** A client may send one id or twenty; both are `id`. */
+	public function testFamiliarFollowersAcceptsASingleId(): void {
+		$this->loggedInAs();
+		$target = $this->knownTarget();
+		$target->method('getNid')->willReturn(42);
+		$this->followService->method('familiarFollowers')->willReturn([]);
+
+		$this->assertCount(1, $this->controller()->familiarFollowers('42')->getData());
 	}
 
 	// search v2

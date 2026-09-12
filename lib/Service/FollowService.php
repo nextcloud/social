@@ -57,6 +57,9 @@ class FollowService {
 	 */
 	public const FOLLOWERS_PAGE = 500;
 
+	/** Accounts one familiar-followers answer carries; Mastodon shows a handful. */
+	public const FAMILIAR_MAX = 10;
+
 	private ?Person $viewer = null;
 
 	public function __construct(
@@ -408,6 +411,28 @@ class FollowService {
 	/**
 	 * @return Relationship[]
 	 */
+	/**
+	 * The people the viewer follows who also follow this account — the
+	 * "followed by X and 3 others you know" line on a profile.
+	 *
+	 * Answers nothing for the viewer's own profile, which is what Mastodon
+	 * does: everybody who follows you is somebody you know of.
+	 *
+	 * @return Person[]
+	 */
+	public function familiarFollowers(Person $viewer, Person $target, int $limit = self::FAMILIAR_MAX): array {
+		if ($viewer->getId() === $target->getId()) {
+			return [];
+		}
+
+		$ids = $this->followsRequest->getFamiliarFollowers($viewer->getId(), $target->getId(), $limit);
+		if ($ids === []) {
+			return [];
+		}
+
+		return array_values($this->cacheActorService->getCachedFromIds($ids));
+	}
+
 	public function getRelationships(array $ids): array {
 		$actorNids = $relationships = [];
 

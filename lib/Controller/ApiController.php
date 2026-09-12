@@ -130,6 +130,9 @@ class ApiController extends Controller {
 
 	/** where a used Idempotency-Key is remembered, and for how long */
 	private const IDEMPOTENCY_CACHE = 'social_idempotency';
+
+	/** Accounts one `familiar_followers` call answers for; Mastodon's cap too. */
+	private const FAMILIAR_FOLLOWERS_MAX = 20;
 	private const IDEMPOTENCY_TTL = 3600;
 
 	/**
@@ -1605,6 +1608,118 @@ class ApiController extends Controller {
 			}
 
 			return new DataResponse(array_slice($accounts, 0, $limit), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The instances this one has heard of.
+	 *
+	 * Mastodon's `/api/v1/instance/peers`, which instance browsers and
+	 * "about this server" pages read. A bare array of hostnames, which is what
+	 * the peer of every cached remote actor amounts to, and the same walk the
+	 * `domain_count` statistic uses — two walks would be two answers.
+	 *
+	 * Public, as Mastodon's is: it says who this instance federates with, not
+	 * who its users are.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 10, period: 60)]
+	public function instancePeers(): DataResponse {
+		try {
+			return new DataResponse($this->instanceService->getPeers(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Mastodon's weekly activity series: twelve weeks of statuses, logins and
+	 * registrations.
+	 *
+	 * `registrations` is always `0` and says so in the docs: an account here is
+	 * a Nextcloud user, created by the server rather than by this app, so there
+	 * is no registration for it to count. `logins` is likewise not this app's
+	 * to know. What it does know is how many statuses were published in a week,
+	 * which is the series a client actually plots.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 10, period: 60)]
+	public function instanceActivity(): DataResponse {
+		try {
+			return new DataResponse($this->instanceService->getWeeklyActivity(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The viewer's own posting defaults, as Mastodon's `/api/v1/preferences`.
+	 *
+	 * Every value here is one the account already has somewhere — the default
+	 * audience it posts with, whether its posts are marked sensitive, the
+	 * language, and whether media and spoilers are expanded — and a client that
+	 * cannot read them guesses, which is how a client ends up posting publicly
+	 * for somebody whose default is followers-only.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function preferences(): DataResponse {
+		try {
+			$this->initViewer(true);
+			$source = $this->viewer->exportSourceAsLocal();
+
+			return new DataResponse([
+				'posting:default:visibility' => $this->accountService->getDefaultPrivacy(
+					$this->currentSession()
+				),
+				'posting:default:sensitive' => (bool)($source['sensitive'] ?? false),
+				'posting:default:language' => ($source['language'] ?? '') !== ''
+					? $source['language'] : null,
+				// this app has no per-account reading preferences; Mastodon's
+				// defaults are what a client assumes when they are absent, so
+				// sending them is what stops it assuming something else
+				'reading:expand:media' => 'default',
+				'reading:expand:spoilers' => false,
+			], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Who, of the people the viewer follows, also follows each named account.
+	 *
+	 * Mastodon's `familiar_followers`, which draws the "followed by X and 3
+	 * others you know" line on a profile. Absent, that line is simply missing
+	 * from every profile a client shows.
+	 *
+	 * @param array<mixed>|string $id one or more account ids
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function familiarFollowers(array|string $id = []): DataResponse {
+		try {
+			$this->initViewer(true);
+			$ids = is_array($id) ? $id : [$id];
+
+			$familiar = [];
+			foreach (array_slice($ids, 0, self::FAMILIAR_FOLLOWERS_MAX) as $one) {
+				$target = $this->resolveTargetAccount((string)$one);
+				$accounts = $this->followService->familiarFollowers($this->viewer, $target);
+				$familiar[] = [
+					'id' => (string)$target->getNid(),
+					'accounts' => array_map(
+						static fn (Person $account): Person => $account->setExportFormat(ACore::FORMAT_LOCAL),
+						$accounts
+					),
+				];
+			}
+
+			return new DataResponse($familiar, Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

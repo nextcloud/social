@@ -263,6 +263,71 @@ class FilterControllerTest extends TestCase {
 		return $filter;
 	}
 
+	// Mastodon's v1 filters, over the v2 ones
+
+	/**
+	 * A v1 filter is a v2 *keyword* carrying its parent's contexts and expiry,
+	 * because v1 has no notion of a filter with several phrases. The two APIs
+	 * therefore number different things, which is what this pins.
+	 */
+	public function testAV1FilterIsAKeywordOfAV2Filter(): void {
+		$this->controller()->create(
+			'spoilers', ['home', 'public'], 'hide', null,
+			[['keyword' => 'banana'], ['keyword' => 'mango']]
+		);
+
+		$data = $this->controller()->indexV1()->getData();
+
+		$this->assertCount(2, $data, 'one v1 filter per keyword, not per filter');
+		$this->assertSame('banana', $data[0]['phrase']);
+		$this->assertSame(['home', 'public'], $data[0]['context']);
+		$this->assertTrue($data[0]['irreversible'], 'v1 name for filter_action: hide');
+		$this->assertSame('mango', $data[1]['phrase']);
+	}
+
+	public function testCreatingAV1FilterMakesAFilterHoldingThatOneKeyword(): void {
+		$data = $this->controller()->createV1('banana', ['home'], 'true', 'true')->getData();
+
+		$this->assertSame('banana', $data['phrase']);
+		$this->assertTrue($data['whole_word']);
+		$this->assertTrue($data['irreversible']);
+		$this->assertSame('banana', $this->filters[1]->getTitle());
+		$this->assertCount(1, $this->filters[1]->getKeywords());
+	}
+
+	public function testChangingAV1FilterLeavesWhatItDidNotName(): void {
+		$this->controller()->createV1('banana', ['home', 'thread'], 'true');
+
+		$this->controller()->updateV1(1, 'mango');
+		$data = $this->controller()->getV1(1)->getData();
+
+		$this->assertSame('mango', $data['phrase']);
+		$this->assertSame(['home', 'thread'], $data['context'], 'the contexts were not named');
+		$this->assertTrue($data['irreversible'], 'nor was the action');
+	}
+
+	/**
+	 * A v2 filter with no keywords matches nothing; left behind it would show
+	 * in the v2 list as an empty filter the user never made.
+	 */
+	public function testDeletingTheLastV1FilterTakesTheFilterWithIt(): void {
+		$this->controller()->createV1('banana', ['home']);
+
+		$this->controller()->deleteV1(1);
+
+		$this->assertSame([], $this->controller()->index()->getData());
+	}
+
+	/** A 403 would tell the caller it is there. */
+	public function testAV1FilterOfAnotherAccountIsNotFound(): void {
+		$bob = $this->stored(self::BOB);
+		$keywords = $bob->getKeywords();
+
+		$response = $this->controller()->getV1($keywords[0]->getId());
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+	}
+
 	public function testCreatingAFilterAnswersWithTheFilter(): void {
 		$response = $this->controller()->create(
 			'spoilers',
