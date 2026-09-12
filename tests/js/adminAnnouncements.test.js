@@ -2,8 +2,11 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+import { showError } from '@nextcloud/dialogs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { add, formatDate, load, mount, remove, render } from '../../src/adminAnnouncements.js'
+
+vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
 
 const SECTION = `
 	<div id="social-announcements">
@@ -47,8 +50,8 @@ const cells = (row) => Array.from(row.querySelectorAll('td')).map((cell) => cell
 describe('the announcements section of the admin settings', () => {
 	beforeEach(() => {
 		document.body.innerHTML = SECTION
-		OC.Notification.showTemporary = vi.fn()
 		vi.restoreAllMocks()
+		showError.mockClear()
 	})
 
 	it('lists what the instance is telling everybody', async () => {
@@ -123,7 +126,7 @@ describe('the announcements section of the admin settings', () => {
 
 		await add()
 
-		expect(OC.Notification.showTemporary).toHaveBeenCalledWith(
+		expect(showError).toHaveBeenCalledWith(
 			expect.stringContaining('starts_at and ends_at are given together or not at all'),
 		)
 		// what was typed is still there to correct
@@ -168,7 +171,7 @@ describe('the announcements section of the admin settings', () => {
 
 		await load()
 
-		expect(OC.Notification.showTemporary).toHaveBeenCalledWith('Could not read the announcements')
+		expect(showError).toHaveBeenCalledWith('Could not read the announcements')
 	})
 
 	it('does nothing on a page that has no announcements section', () => {
