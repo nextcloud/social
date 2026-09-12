@@ -152,9 +152,13 @@ class SilencedInstanceTimelineTest extends TestCase {
 
 		$this->fediverseService->silenceAddress('noisy.test');
 
+		$timeline = $this->timeline($viewer, ProbeOptions::PUBLIC);
+		sort($timeline);
+
+		// order is the timeline's own business; what is on it is the point
 		$this->assertSame(
-			[self::BASE . '/notes/quiet', self::BASE . '/notes/lookalike'],
-			$this->timeline($viewer, ProbeOptions::PUBLIC),
+			[self::BASE . '/notes/lookalike', self::BASE . '/notes/quiet'],
+			$timeline,
 			'the silenced instance, or a name that merely looks like it, was still on the timeline'
 		);
 	}
