@@ -16,7 +16,9 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -42,10 +44,10 @@ class ModerationControllerTest extends TestCase {
 		);
 	}
 
-	public function testModerationRoutesRequireAnAdminAndCsrf(): void {
+	public function testModerationRoutesRequireASessionAndCsrf(): void {
 		// no PublicPage/NoAdminRequired/NoCSRFRequired — neither as attribute
 		// nor as legacy annotation: the server only dispatches these routes
-		// for an admin session with a CSRF token
+		// for a logged-in session with a CSRF token
 		$reflection = new \ReflectionClass(ModerationController::class);
 		$doc = (string)$reflection->getDocComment();
 		$attributes = [];
@@ -61,6 +63,31 @@ class ModerationControllerTest extends TestCase {
 			foreach ($attributes as $attribute) {
 				$this->assertStringNotContainsString($relaxation, $attribute);
 			}
+		}
+	}
+
+	/**
+	 * Without the attribute a method here is admin-only, which is safe and
+	 * wrong: the page around it opens for a delegated moderator and the
+	 * buttons on it would answer 403.
+	 */
+	public function testEveryModerationActionIsOpenToADelegatedModerator(): void {
+		$reflection = new \ReflectionClass(ModerationController::class);
+
+		foreach ($reflection->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+			if ($method->isConstructor() || $method->getDeclaringClass()->getName() !== ModerationController::class) {
+				continue;
+			}
+
+			$attributes = $method->getAttributes(AuthorizedAdminSetting::class);
+			$this->assertCount(
+				1, $attributes, $method->getName() . '() carries no AuthorizedAdminSetting'
+			);
+			$this->assertSame(
+				['settings' => AdminSettings::class],
+				$attributes[0]->getArguments(),
+				$method->getName() . '() is delegated through the wrong settings class'
+			);
 		}
 	}
 

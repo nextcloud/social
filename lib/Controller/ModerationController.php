@@ -16,15 +16,24 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
 /**
- * Admin-only moderation actions behind the Social section of the admin
- * settings. Every route requires an admin session and a CSRF token — none of
- * this is part of the client API.
+ * Moderation actions behind the Social section of the admin settings. Every
+ * route requires a session and a CSRF token — none of this is part of the
+ * client API.
+ *
+ * `AuthorizedAdminSetting` rather than the admin-by-default a controller has
+ * without `NoAdminRequired`: an administrator passes, and so does a group the
+ * administrator has handed `AdminSettings` to under Administration
+ * privileges, which is what lets somebody moderate without administering the
+ * whole server. The page itself is reachable to exactly the same people,
+ * because core gates it on the same delegation.
  */
 class ModerationController extends Controller {
 	public function __construct(
@@ -44,6 +53,7 @@ class ModerationController extends Controller {
 	 * @param string $level 'silence', 'suspend', or '' to lift
 	 * @param string $comment why, for whoever reads the list later
 	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function accountModerate(string $actorId, string $level, string $comment = ''): DataResponse {
 		$actorId = trim($actorId);
 		if ($actorId === '') {
@@ -64,6 +74,7 @@ class ModerationController extends Controller {
 	}
 
 	/** Takes one post down, whoever wrote it. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function statusRemove(string $streamId): DataResponse {
 		$streamId = trim($streamId);
 		if ($streamId === '') {
@@ -75,6 +86,7 @@ class ModerationController extends Controller {
 		return new DataResponse(['stream_id' => $streamId]);
 	}
 
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function reportResolve(int $id, bool $resolved = true): DataResponse {
 		try {
 			return new DataResponse($this->reportService->setResolved($id, $resolved));
@@ -83,6 +95,7 @@ class ModerationController extends Controller {
 		}
 	}
 
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function fediverseAdd(string $address): DataResponse {
 		$address = strtolower(trim($address));
 		if ($address === '' || !preg_match('/^[a-z0-9.:\[\]-]+$/', $address)) {
@@ -94,12 +107,14 @@ class ModerationController extends Controller {
 		return new DataResponse(['list' => $this->fediverseService->getListedAddresses()]);
 	}
 
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function fediverseRemove(string $address): DataResponse {
 		$this->fediverseService->removeAddress(strtolower(trim($address)));
 
 		return new DataResponse(['list' => $this->fediverseService->getListedAddresses()]);
 	}
 
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function retention(int $days): DataResponse {
 		if ($days < 0 || $days > 3650) {
 			return new DataResponse(['error' => 'invalid retention period'], Http::STATUS_UNPROCESSABLE_ENTITY);
@@ -110,6 +125,7 @@ class ModerationController extends Controller {
 		return new DataResponse(['retentionDays' => $days]);
 	}
 
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function fediverseAccess(string $type): DataResponse {
 		try {
 			$this->fediverseService->setAccessType($type);

@@ -46,6 +46,17 @@ class ConfigService {
 	/** days to keep remote statuses nobody local cares about; 0 disables */
 	public const SOCIAL_RETENTION_DAYS = 'retention_days';
 
+	/**
+	 * Instances whose accounts are silenced rather than blocked: out of the
+	 * public and global timelines, still readable by whoever follows them.
+	 *
+	 * The middle tier a domain block did not have. Without it the only answer
+	 * to an instance that is a nuisance rather than a menace was to cut it off
+	 * entirely, which also cuts off the local users who deliberately follow
+	 * somebody there.
+	 */
+	public const SOCIAL_SILENCED_LIST = 'silenced_list';
+
 	public array $defaults = [
 		self::CLOUD_URL => '',
 		self::SOCIAL_URL => '',
@@ -56,7 +67,8 @@ class ConfigService {
 		self::SOCIAL_ACCESS_LIST => '[]',
 		self::SOCIAL_SELF_SIGNED => '0',
 		self::SOCIAL_INBOX_THROTTLE => '300',
-		self::SOCIAL_RETENTION_DAYS => '0'
+		self::SOCIAL_RETENTION_DAYS => '0',
+		self::SOCIAL_SILENCED_LIST => '[]'
 	];
 
 	public array $accessTypeList = [

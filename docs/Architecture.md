@@ -302,7 +302,26 @@ An activity that is understood but has no handler is still answered 200 (see bel
 | `Accept` / `Reject` (QuoteRequest) | The answer to a request of ours: the approval is written onto the quoting post, or the quote is marked rejected |
 | `Move` | Actions, follows, streams and cached documents are repointed to the target actor — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused |
 
+**Who may moderate.** Nextcloud's own settings delegation, and nothing beside
+it. `AdminSettings` implements `IDelegatedSettings`, so an administrator can
+hand the Social section to a group under *Administration privileges*; the page
+then opens for that group because core gates it on the delegation, the buttons
+on it work because every `ModerationController` and admin `AnnouncementController`
+method carries `#[AuthorizedAdminSetting(settings: AdminSettings::class)]`, and
+the Mastodon admin API agrees because `AdminApiService::isAdministrator()` asks
+`IManager::getAllowedAdminSettings('social', $user)`. Before this, moderating
+meant administering the whole server — a great deal of power to hand somebody
+so they can act on a report — and a second list of moderators kept somewhere of
+this app's own would have been one more thing to disagree with the page.
+`getAuthorizedAppConfig()` is deliberately empty: a delegate writes the
+retention period and the access list through the validating routes above, not
+through core's raw app-config endpoint. The check is asked of the *user id*,
+never of the token: a scope on an OAuth token says only that some client asked
+for it, since registration stores whatever scope string arrives.
+
 **Moderation.** `social_moderation` holds what the *instance* has decided about an account, as against `social_actor_relation`, which holds what one of its users has. Two levels: `silence` keeps the account reachable for its followers and drops it from the public and global timelines (`StreamRequest::filterSilencedActors()`, a small NOT IN rather than a join, because a moderator acts rarely); `suspend` deletes the account's streams and cached actor, makes `ImportService::parseIncomingRequest()` refuse everything it sends afterwards, and — for a local account — stops it acting at all: posting, editing, boosting, liking and following each ask `ModerationService::assertNotSuspended()` first, so the refusal holds for every entry point rather than for whichever controller was remembered — without that last part a suspension would undo itself the next time the account posted. Lifting removes the record; it cannot undo a deletion, and the admin panel says so before suspending.
+
+**Silencing an instance.** The same middle tier, applied to a whole server. A domain block (`social:fediverse add`, followed by `social:domain:purge`) cuts the instance off in both directions and deletes what it already sent, which also cuts off the local users who deliberately follow somebody there — so the tool was too blunt to reach for and the nuisance stayed. `social:fediverse silence <host>` adds the host to a second list (the `silenced_list` app value, read by `FediverseService::getSilencedAddresses()`) and changes exactly one thing: `StreamRequest::filterSilencedInstances()` drops the instance's posts from the **public**, **global**, **hashtag** and **followed-tag** timelines. Delivery, fetching, webfinger, following, and the home timeline of somebody who already follows the account are untouched — a silence is deliberately not enforced in `authorized()`. The clause is a `LIKE` on `s.attributed_to` rather than on a host column, because there is none: an actor id begins with the scheme and host, so the domain and everything under it is a prefix match, read the way a domain block reads subdomains. `LIKE` is not indexed, which is why it runs only on the timelines that need it and why the list is meant to stay an admin-written handful. Nothing is deleted, so `social:fediverse unsilence` brings the posts back — the difference between this and a block, whose purge does not come back.
 
 **Inbox forwarding (ActivityPub §7.1.2).** A reply to a local post arrives from the replier's instance and from nowhere else, so the followers of the local post would never see it: everyone would read a different, shorter thread. `ForwardService::forwardReply()` therefore passes such a reply on to the followers of the post it replies to, and `NoteInterface::activity()` offers it every newly stored note (a re-delivery finds the note already stored and is not offered again, so nobody is sent the same reply twice).
 

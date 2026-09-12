@@ -14,9 +14,11 @@ use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Settings\AdminSection;
 use OCA\Social\Settings\AdminSettings;
 use OCP\IL10N;
 use OCP\L10N\IFactory;
+use OCP\Settings\IDelegatedSettings;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -32,6 +34,14 @@ class AdminSettingsTest extends TestCase {
 	private ModerationService|MockObject $moderationService;
 	private ReportService|MockObject $reportService;
 	private AdminSettings $settings;
+
+	/** Translates nothing, which is what a test needs of it. */
+	private function l10n(): IL10N {
+		$l10n = $this->createMock(IL10N::class);
+		$l10n->method('t')->willReturnArgument(0);
+
+		return $l10n;
+	}
 
 	protected function setUp(): void {
 		// getForm() registers the page's script, which resolves the l10n factory
@@ -53,6 +63,7 @@ class AdminSettingsTest extends TestCase {
 			$this->createMock(ConfigService::class),
 			$this->moderationService,
 			$this->federationHealthService,
+			$this->l10n(),
 		);
 	}
 
@@ -204,5 +215,25 @@ class AdminSettingsTest extends TestCase {
 		$html = $this->render($this->summary(['failing' => 500, 'truncated' => true]));
 
 		$this->assertStringContainsString('only the first few hundred were counted', $html);
+	}
+
+	/**
+	 * Moderating used to mean administering the whole server. The section is
+	 * offered in Administration privileges so an administrator can hand it to
+	 * a group and nothing else with it.
+	 */
+	public function testTheSectionCanBeDelegated(): void {
+		$this->assertInstanceOf(IDelegatedSettings::class, $this->settings);
+		$this->assertSame('Moderation', $this->settings->getName());
+		$this->assertSame(AdminSection::SECTION_ID, $this->settings->getSection());
+	}
+
+	/**
+	 * A delegate writes through ModerationController, which validates what it
+	 * is given; core's own app-config route would let them write any key under
+	 * `social` as a raw string.
+	 */
+	public function testDelegationCarriesNoAppConfigWriteAccess(): void {
+		$this->assertSame([], $this->settings->getAuthorizedAppConfig());
 	}
 }

@@ -20,8 +20,10 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AnnouncementService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -116,6 +118,7 @@ class AnnouncementController extends Controller {
 	}
 
 	/** Every announcement there is, for the administration page. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function adminIndex(): DataResponse {
 		return new DataResponse(['announcements' => $this->announcementService->adminList()]);
 	}
@@ -124,6 +127,7 @@ class AnnouncementController extends Controller {
 	 * Posts one, and answers with the whole list so the page redraws from what
 	 * is stored rather than from what it hoped was stored.
 	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function adminCreate(
 		string $text = '',
 		string $starts_at = '',
@@ -140,6 +144,7 @@ class AnnouncementController extends Controller {
 	}
 
 	/** Removes one, with every dismissal of it, and answers with the rest. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function adminDelete(int $id): DataResponse {
 		try {
 			$this->announcementService->delete($id);

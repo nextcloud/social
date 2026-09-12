@@ -20,8 +20,11 @@ class AdminSection implements IIconSection {
 	) {
 	}
 
+	/** The section id, as the settings routes and the delegation use it. */
+	public const SECTION_ID = 'social';
+
 	public function getID(): string {
-		return 'social';
+		return self::SECTION_ID;
 	}
 
 	public function getName(): string {

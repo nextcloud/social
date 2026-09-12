@@ -481,7 +481,7 @@ php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
 
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `action` | No | `''` | One of `list`, `add`, `remove`, `test`, `reset`, or empty |
+| `action` | No | `''` | One of `list`, `add`, `remove`, `test`, `reset`, `silence`, `unsilence`, `silenced`, or empty |
 | `address` | No | `''` | Address / host the action applies to |
 
 | Option | Value | Description |
@@ -501,8 +501,31 @@ command first prints the current access type and then runs the action:
 | `remove <address>` | Remove the address from the list |
 | `test <address>` | Print `Authorized` or `Unauthorized` for that address |
 | `reset` | Empty the list |
+| `silence <address>` | Silence the instance: keep it out of the public, global and hashtag timelines |
+| `unsilence <address>` | Lift the silence |
+| `silenced` | Print the silenced instances under `- Silenced:` |
 
-An unknown action throws `specify action: add, remove, list, reset`.
+An unknown action throws
+`specify action: add, remove, list, reset, silence, unsilence, silenced`.
+`silence` and `unsilence` without an address throw `specify an address to
+silence` / `... to unsilence`.
+
+**Silencing, the tier between a block and nothing.** A block cuts the instance
+off in both directions and `social:domain:purge` deletes what it already sent,
+which also cuts off the local users who deliberately follow somebody there — so
+the tool was too blunt to reach for and the nuisance stayed. A silence stores
+the host in a second list (`silenced_list`) and changes one thing: posts whose
+author is on that instance are left out of the **public**, **global**,
+**hashtag** and **followed-tag** timelines (`StreamRequest::filterSilencedInstances()`).
+Delivery, fetching, webfinger, search by address, following, and the home
+timeline of somebody who follows the account are all untouched — a silence is
+not enforced in `authorized()`. Nothing is deleted, so `unsilence` brings the
+posts back.
+
+The match is on the author's actor id, so it covers the domain **and everything
+under it** the way a deny-list entry does: silencing `noisy.test` also silences
+`sub.noisy.test`, and not `notnoisy.test`. The two lists are independent — an
+instance can be silenced, blocked, both or neither.
 
 **What is actually enforced.** There is a single list (`access_list`) whose meaning
 depends on `access_type`: with `all_but` every address that is *not* listed is

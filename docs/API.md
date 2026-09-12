@@ -317,10 +317,17 @@ Incoming federated reports (`Flag` activities from other instances) are stored t
 ### Admin API (Mastodon)
 
 Mastodon's `/api/v1/admin/*`, over the moderation the admin panel has always
-had. Every route requires a **Nextcloud administrator**: the user behind the
-bearer token (or behind the session) is resolved first and asked of
-`IGroupManager::isAdmin()`, and anyone else is a **403** having had nothing
-done on their behalf. A scope is *not* that check and cannot be — this app's
+had. Every route requires a **moderator**: the user behind the bearer token (or
+behind the session) is resolved first and asked of
+`AdminApiService::isAdministrator()`, and anyone else is a **403** having had
+nothing done on their behalf. A moderator is a Nextcloud administrator, or
+somebody an administrator has handed the **Social** settings section to under
+*Administration privileges* — Nextcloud's own settings delegation
+(`IManager::getAllowedAdminSettings()`), which is the same gate the admin panel
+and its buttons sit behind, so the two cannot disagree about who may act.
+Moderating otherwise meant administering the whole server, which is a great
+deal of power to hand somebody so they can act on a report. Nothing is
+delegated by default, so out of the box only administrators pass. A scope is *not* that check and cannot be — this app's
 OAuth registration stores whatever scope string a client asks for, so
 `admin:write` on a token says only that some client asked for it. The scope is
 required in addition, as Mastodon requires it: a bearer token needs
