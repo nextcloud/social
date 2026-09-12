@@ -45,11 +45,12 @@ rather than ported. `lib/Tools/` is 25 files and 2,657 lines of helpers and
 traits now — a third of what it was, and nothing in it reaches outside `OCP\`.
 
 **Nothing in `lib/` names a class outside `OCP\` any more,** and a unit test
-holds it there. `\OC::$server`, `OC\SystemConfig`, `OC\DB\Connection`,
-`OC\DB\SchemaWrapper`, `OC\DB\QueryBuilder\QueryBuilder`,
-`OC\User\NoUserException`, `OC\Core\Command\Base` and every `Doctrine\`
-class are gone; the matches that remain for those names are sentences in
-docblocks explaining what used to be there.
+holds it there — not the server's private classes, not Doctrine, not Guzzle.
+`\OC::$server`, `OC\SystemConfig`, `OC\DB\Connection`, `OC\DB\SchemaWrapper`,
+`OC\DB\QueryBuilder\QueryBuilder`, `OC\User\NoUserException`,
+`OC\Core\Command\Base`, every `Doctrine\` class and
+`GuzzleHttp\Exception\ClientException` are all gone; the matches that remain
+for those names are sentences in docblocks explaining what used to be there.
 
 ---
 
@@ -195,7 +196,7 @@ because this app mounts several roots and the rule is a Vue 2 leftover.
 |---|---|---|
 | `nextcloud/ocp` | `dev-stable35` | Matches the declared minimum, so analysis checks this app against the oldest server it claims to support. |
 | PHPUnit | `^11.5` (11.5.56) | Current major minus one. See below. |
-| Psalm | `^6.17` | Current, running on supported PHP. Its baseline covers six files; nothing in `lib/Db` is in it any more. |
+| Psalm | `^6.17` | Current, running on supported PHP. Its baseline covers six files and seven issues, none of them in `lib/Db`. |
 | ESLint | 10.10.0 with `@nextcloud/eslint-config` 9 | Current, flat config, four rules deliberately off. |
 | Stylelint | `^17.15` | Current. |
 | Vitest / jsdom | 5.0 / 30.0 | Current. |
