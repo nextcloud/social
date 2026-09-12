@@ -98,10 +98,26 @@ class StreamRequest extends StreamRequestBuilder {
 			}
 
 			try {
-				$qb->executeStatement();
+				// One transaction, because the three writes are one fact. The
+				// recipient rows are what put a post in a timeline: a post
+				// stored without them exists, is in nobody's timeline, and
+				// nothing ever notices — `StreamDestRequest::create()` logs a
+				// failure and carries on, so the partial state was silent as
+				// well as permanent.
+				$this->dbConnection->beginTransaction();
 
-				$this->streamDestRequest->generateStreamDest($stream);
-				$this->streamTagsRequest->generateStreamTags($stream);
+				try {
+					$qb->executeStatement();
+
+					$this->streamDestRequest->generateStreamDest($stream);
+					$this->streamTagsRequest->generateStreamTags($stream);
+
+					$this->dbConnection->commit();
+				} catch (\Throwable $t) {
+					$this->dbConnection->rollBack();
+
+					throw $t;
+				}
 
 				return;
 			} catch (DBException $e) {

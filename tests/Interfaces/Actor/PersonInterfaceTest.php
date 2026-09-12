@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Actor;
 
+use OCA\Social\Cron\ActorCleanup;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -47,6 +48,7 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 			$this->featuredTagsRequest,
 			$this->announcementsRequest,
 			$this->scheduledStatusesRequest,
+			$this->jobList,
 		);
 	}
 
@@ -69,8 +71,11 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 		return $cached;
 	}
 
+	private int $destId = 0;
+
 	private function dest(string $streamId, string $subtype, string $type = 'recipient'): StreamDest {
 		$dest = new StreamDest();
+		$dest->setId(++$this->destId);
 		$dest->setStreamId($streamId)
 			->setActorId(self::BOB)
 			->setType($type)
@@ -190,6 +195,80 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 		$this->assertSame([self::CAROL], array_values($copied->getCcArray()));
 		$this->assertSame([self::CAROL], $unrelated->getToArray());
 		$this->assertEqualsCanonicalizing([$addressed->getId(), $copied->getId()], $updated);
+	}
+
+	/**
+	 * The rewrite runs inside the inbox request a peer is waiting on for its
+	 * `Delete`. An account that has been addressed by more posts than one
+	 * request can rewrite hands the rest to a job — because the alternative is
+	 * the peer timing out and re-sending, which starts the whole walk again.
+	 */
+	public function testDeleteOfAWidelyAddressedActorFinishesInAJob(): void {
+		$bob = $this->bob();
+		// ten full pages and then the end: more than one request may rewrite,
+		// but finite, so a walk with no bound would run to the end and be
+		// caught by the two expectations below rather than by hanging
+		$pages = 0;
+		$this->streamDestRequest->method('getRelatedToActor')
+			->willReturnCallback(function () use (&$pages): array {
+				if (++$pages > 10) {
+					return [];
+				}
+
+				return array_map(
+					fn (int $i): StreamDest => $this->dest(self::REMOTE_URL . '/notes/' . $i, 'to'),
+					range(1, 100)
+				);
+			});
+		$this->streamRequest->method('getStream')->willThrowException(new StreamNotFoundException());
+		// the rows stay until the job has finished with them
+		$this->streamDestRequest->expects($this->never())->method('deleteRelatedToActor');
+		$this->jobList->expects($this->once())
+			->method('add')
+			->with(ActorCleanup::class, ['actor' => self::BOB]);
+
+		$this->handler->delete($bob);
+	}
+
+	/** An ordinary account is finished where it started, with no job at all. */
+	public function testDeleteOfAnOrdinaryActorNeedsNoJob(): void {
+		$bob = $this->bob();
+		$this->streamDestRequest->method('getRelatedToActor')->willReturn([]);
+		$this->streamDestRequest->expects($this->once())
+			->method('deleteRelatedToActor')->with(self::BOB);
+		$this->jobList->expects($this->never())->method('add');
+
+		$this->handler->delete($bob);
+	}
+
+	/**
+	 * Paging by offset would skip rows, because the walk deletes and rewrites
+	 * the posts behind them as it goes and the set shrinks underneath it. Each
+	 * page asks for what comes after the last id it saw.
+	 */
+	public function testTheWalkAsksForWhatComesAfterTheLastRowItSaw(): void {
+		$bob = $this->bob();
+		$afterIds = [];
+		$page = 0;
+		$this->streamDestRequest->method('getRelatedToActor')
+			->willReturnCallback(function ($actor, $limit, $afterId) use (&$afterIds, &$page): array {
+				$afterIds[] = $afterId;
+				if (++$page > 2) {
+					return [];
+				}
+
+				return array_map(
+					fn (int $i): StreamDest => $this->dest(self::REMOTE_URL . '/notes/' . $i, 'to'),
+					range(1, 100)
+				);
+			});
+		$this->streamRequest->method('getStream')->willThrowException(new StreamNotFoundException());
+
+		$this->handler->delete($bob);
+
+		$this->assertSame(0, $afterIds[0], 'the first page starts at the beginning');
+		$this->assertGreaterThan(0, $afterIds[1], 'the second page starts after the first');
+		$this->assertGreaterThan($afterIds[1], $afterIds[2]);
 	}
 
 	public function testDeleteRemovesDirectMessagesSentToTheActor(): void {

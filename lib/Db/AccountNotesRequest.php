@@ -65,6 +65,36 @@ class AccountNotesRequest extends AccountNotesRequestBuilder {
 	}
 
 	/** '' when this account wrote no note about that one. */
+	/**
+	 * The viewer's notes about a *set* of accounts, keyed by account id.
+	 *
+	 * One query for a page of relationships rather than one per account: the
+	 * single-pair version above is for the routes that answer about one.
+	 *
+	 * @param string[] $objectIds
+	 *
+	 * @return array<string, string>
+	 */
+	public function getNotes(string $actorId, array $objectIds): array {
+		if ($objectIds === []) {
+			return [];
+		}
+
+		$qb = $this->getAccountNotesSelectSql();
+		$prims = array_map(static fn (string $id): string => $qb->prim($id), $objectIds);
+		$qb->andWhere($qb->expr()->eq('an.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->in('an.object_id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)));
+
+		$notes = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$notes[(string)($data['object_id'] ?? '')] = (string)($data['note'] ?? '');
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
 	public function getNote(string $actorId, string $objectId): string {
 		$qb = $this->getAccountNotesSelectSql();
 		$qb->andWhere($qb->expr()->eq('an.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))

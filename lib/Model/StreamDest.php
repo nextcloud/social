@@ -16,6 +16,8 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class StreamDest implements IQueryRow, JsonSerializable {
 	use TArrayTools;
 
+	/** the row's own id, for a caller that pages through these */
+	private int $id = 0;
 	private string $streamId = '';
 	private string $actorId = '';
 	private string $type = '';
@@ -26,6 +28,16 @@ class StreamDest implements IQueryRow, JsonSerializable {
 
 	public function setStreamId(string $streamId): self {
 		$this->streamId = $streamId;
+
+		return $this;
+	}
+
+	public function getId(): int {
+		return $this->id;
+	}
+
+	public function setId(int $id): self {
+		$this->id = $id;
 
 		return $this;
 	}
@@ -65,6 +77,7 @@ class StreamDest implements IQueryRow, JsonSerializable {
 	}
 
 	public function importFromDatabase(array $data): void {
+		$this->setId($this->getInt('id', $data));
 		$this->setStreamId($this->get('stream_id', $data));
 		$this->setActorId($this->get('actor_id', $data));
 		$this->setType($this->get('type', $data));

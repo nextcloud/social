@@ -4,7 +4,7 @@ A survey of the query and scalability behaviour of this app: what costs what,
 what is bounded, and what is still known to be wrong. Every claim below was
 checked against the code rather than carried over from a previous survey.
 
-**Verified against:** app version 0.16.0, `master`, 2026-09-12 — re-checked
+**Verified against:** app version 0.16.1, `master`, 2026-09-12 — re-checked
 after the federation, compatibility and dependency waves landed.
 
 This file is **not** enforced by `tests/DocumentationTest.php` — its claims are
@@ -17,40 +17,25 @@ same change as any work on a read path.
 
 ### Unbounded work
 
-| Where | What happens | Cost grows with |
-|-------|--------------|-----------------|
-| `CacheDocumentsRequest::getNotCachedDocuments()` | No `setMaxResults`. `DocumentService::manageCacheDocuments()` loops the whole set with one outbound HTTP fetch per row, so a backlog of uncached avatars is attempted in a single cron slot. Its two siblings are capped — `CacheActorsRequest::getRemoteActorsToUpdateDetails()` at `SYNC_BATCH`, `StreamQueueRequest::getStandby()` at `STANDBY_BATCH` — and this one was missed. **The last unbounded cron loop.** | uncached remote media |
-| `PersonInterface::deleteStreamFromActor()` | An incoming `Delete` for a remote actor walks `StreamDestRequest::getRelatedToActor()` — which takes a `$limit` and is called without one — and issues a `getStream()` and possibly an `update()` per row, inline in the HTTP request the peer is waiting on. The peer times out and re-sends, and the work starts again. | posts that ever addressed that actor |
-| `FollowService::getFollowers()` | Returns every follower row, hydrated with its `Person` and details, for `LocalController::followers()`. The delivery path no longer goes near it (see below); this is the web UI's own list, and it has no paging at all. | one account's followers |
-| `HashtagsRequest::getAll()` | `HashtagService::manageHashtags()` calls it with no limit on every cron run, reading the whole hashtag table into memory to diff it against five aggregates. | distinct hashtags ever used |
+Nothing is unbounded any more. What is left is bounded work that
+could still be cheaper, and the schema items at the end.
 
-### One query per row on two read paths
+| Where | What it costs now |
+|-------|-------------------|
+| `StreamRequest::getDescendants()` | A thread is walked a level at a time, each level one query, bounded by depth and by page size. Fine for a conversation; a thread thousands deep is still thousands of levels. |
+| `CacheActorService::getFromId()` | An uncached actor is fetched over HTTP inside the request that asked for it. Bounded by the access list and a timeout, but it is network in a read path. |
+| `StreamPruneService` | The retention pass is `NOT EXISTS` over the largest table, which is a sequential scan by design. It runs from cron and from `occ`, never from a request. |
 
-- **`GET /api/v1/accounts/search?following=true`** filters the candidates by
-  calling `FollowService::getRelationshipWith()` once per account, and each of
-  those is its own `social_follow` lookup plus the block, mute and note reads
-  behind a `Relationship`. Bounded — the candidate list is sliced to `limit`
-  first, at most 80 — but it is still up to 80 round trips to answer one
-  autocomplete keystroke, and clients call this on every keystroke.
-- **`FollowService::getRelationships()`**, which `/api/v1/accounts/relationships`
-  uses, resolves the actors in one batch and then builds each relationship the
-  same one-at-a-time way. A client asking about a page of 40 accounts pays 40
-  times.
+### Transactions
 
-Both want the same thing: one query that reads the viewer's follow, block, mute
-and note rows for a *set* of actor ids. The join already exists per row; it is
-the loop around it that is the cost.
+`StreamRequest::save()` is now one transaction: the post, its recipient rows
+and its tags go in together or not at all, and `StreamDestRequest::create()`
+raises instead of logging a failure and carrying on. It was the one place where
+a partial write was both permanent and silent — the recipient rows are what put
+a post in a timeline, so the post existed and was in nobody's.
 
-### No transactions, anywhere
+Two places still have no transaction and want one:
 
-`beginTransaction` appears nowhere in `lib/`. Three places where that is
-visible:
-
-- `StreamRequest::save()` — insert the stream, then N recipient rows, then M
-  tag rows. `StreamDestRequest::create()` swallows every `DBException`
-  silently, and the recipient rows are what put a post in a timeline: a partial
-  failure leaves a post that exists and is in nobody's timeline, permanently
-  and invisibly.
 - `StreamActionService::saveAction()` — update, and insert if no row was
   affected. Two concurrent likes both see nothing affected and both insert. On
   MySQL/MariaDB `rowCount()` returns *changed* rows, so setting a flag to the
@@ -127,38 +112,31 @@ here so a reader who finds that report knows why the code no longer matches it.
 | `MigrationService` re-followed on behalf of every local follower from one unbounded read | Paged at `REFOLLOW_PAGE`, bounded at `REFOLLOW_MAX` |
 | `social_actor.user_id` had no index, and it is what resolves the logged-in user's actor on every authenticated request | `Version1000Date20260912000001` adds `social_a_uid`, and the four `social_hashtag` trend columns got theirs |
 | `ReportService` and the account entity leaked `source` on every read, so every Account query carried `follow_requests_count` | `source` is built by the two credentials routes only; nothing else asks the database for it |
+| `getNotCachedDocuments()` read every uncached document and fetched each one over HTTP in a single cron slot | Capped at `CACHE_BATCH`; the rest is the next run's, which is what its two siblings already did |
+| `deleteStreamFromActor()` walked every post that ever addressed an account, inline in the inbox request a peer was waiting on — so the peer timed out, re-sent the `Delete`, and the walk started again | Paged by keyset (`DETACH_PAGE`), bounded per request (`DETACH_INLINE`), and finished by `Cron\ActorCleanup`, which re-queues itself while rows remain |
+| A page of relationships cost six queries per account — two follow rows, the blocks and mutes, the note, the mute's expiry | Five queries for any number of accounts (`getBetweenMany()`, `getNotes()`, `getExpiries()`), and the single-account route goes down the same path so the two cannot disagree |
+| `HashtagService::manageHashtags()` read every hashtag the instance had ever seen on every cron run | `getWithAnyTrend()` reads only the rows that claim a trend — the only ones it can change |
+| `FollowService::getFollowers()` hydrated every follower for a route with no cursor | Bounded at `FOLLOWERS_PAGE`; the paging route is `/api/v1/accounts/{account}/followers` |
+| `StreamRequest::save()` wrote the post, then its recipients, then its tags, outside any transaction, and the recipient insert swallowed its failure | One transaction, and `StreamDestRequest::create()` raises. A post that cannot have recipients is not stored at all, so the delivery can be retried into a clean state |
 
 ## What to do next
 
-Ordered by what it buys against what it costs, not by severity. The first three
-are an afternoon each; the fourth is the one that changes how the app scales.
-
-1. **Cap `getNotCachedDocuments()`.** One line, and it is the last unbounded
-   cron loop in the app. An instance that has been offline for a day currently
-   tries to fetch its whole media backlog in one slot.
-2. **Bound `deleteStreamFromActor()`.** It is the only unbounded read left on an
-   *inbound request* path, and the failure mode is the bad one: the peer times
-   out, re-sends the `Delete`, and the work starts over. Page it, or move it to
-   the stream queue where the rest of the inbox work already lives.
-3. **One query for a set of relationships.** Kills the N+1 behind
-   `accounts/search?following=true` and `accounts/relationships` at once, and
-   those are the two routes a client calls most often per keystroke and per
-   page.
-4. **Move the eighteen read paths onto `getStreamNidsSelectSql()`.** This is the
-   big one: every timeline that is not home or public still makes the database
-   sort or hash `content`, `source`, `details`, `cache` and `to_array` to
-   deduplicate a page of twenty rows. It is also the most mechanical — the
-   pattern exists, it is proven on five paths, and each move is
-   independently testable. Do notifications first: it carries two full stream
-   column sets, two cached-actor sets and two cached-document sets, and it is
-   polled by every client on a timer.
-5. **A transaction around `StreamRequest::save()`**, and the
-   insert-then-catch-unique shape for `StreamActionService::saveAction()` that
-   `ActorRelationRequest` and `StreamCardsRequest` already use. This is
-   correctness rather than speed: today a partial save leaves a post that exists
-   and is in nobody's timeline, invisibly.
-6. **`FollowService::getFollowers()`** needs paging before an instance has an
-   account with tens of thousands of followers, not after.
-7. The schema items, next time a migration touches those tables. The
-   `social_follow` index order is the one worth doing deliberately: it is the
-   reason a duplicate accepted/pending pair can exist at all.
+1. **Move the eighteen read paths onto `getStreamNidsSelectSql()`.** The one
+   item left that changes how the app scales. Every timeline that is not home or
+   public still makes the database sort or hash `content`, `source`, `details`,
+   `cache` and `to_array` to deduplicate a page of twenty rows. It is also the
+   most mechanical: the pattern exists, it is proven on seven paths, and each
+   move is independently testable. Do notifications first — it carries two full
+   stream column sets, two cached-actor sets and two cached-document sets, and
+   every client polls it on a timer.
+2. **`StreamActionService::saveAction()`** wants the
+   insert-then-catch-unique-then-update shape its two neighbours already use.
+   Correctness rather than speed: two concurrent likes can both insert today.
+3. **`ModerationRequest::save()`** wants a transaction around its delete and
+   insert, for the same reason.
+4. **The schema items**, next time a migration touches those tables. The
+   `social_follow` index order is the one worth doing deliberately: it is why a
+   duplicate accepted/pending pair can exist at all.
+5. **An index on `social_actor.preferred_username`**, or a `*_prim` column for
+   it, if the public actor endpoint and webfinger ever show up in a profile.
+   Both still compare `LOWER(column)` against `LOWER(?)`.

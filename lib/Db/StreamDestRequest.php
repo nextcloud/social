@@ -19,6 +19,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\DB\Exception as DBException;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -63,6 +64,12 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 				return;
 			}
 
+			// Raised, not swallowed. A recipient row is what puts a post in a
+			// timeline, so a post saved without one exists and is in nobody's
+			// timeline — and the log line was the only trace of it. Its caller
+			// writes these inside the transaction that stores the post, where
+			// throwing rolls the whole save back and the post can be saved
+			// again. A duplicate is still not an error: that is the line above.
 			$this->logger->error('could not store the recipient of a stream', [
 				'streamId' => $streamId,
 				'actorId' => $actorId,
@@ -70,6 +77,8 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 				'subtype' => $subType,
 				'exception' => $e,
 			]);
+
+			throw $e;
 		}
 	}
 
@@ -161,7 +170,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 *
 	 * @return StreamDest[]
 	 */
-	public function getRelatedToActor(Person $actor, int $limit = 0): array {
+	public function getRelatedToActor(Person $actor, int $limit = 0, int $afterId = 0): array {
 		$qb = $this->getStreamDestSelectSql();
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
@@ -172,6 +181,16 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowing()))
 		);
 		$qb->where($orX);
+
+		// Keyset paging, not an offset. The caller rewrites and sometimes
+		// deletes the posts behind these rows as it walks them, so the set
+		// shrinks underneath an offset and every shift skips a row — which for
+		// this caller means a post left addressed to an account that is gone.
+		// An id the caller has already passed cannot come back.
+		if ($afterId > 0) {
+			$qb->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)));
+		}
+		$qb->orderBy('id', 'asc');
 
 		return $this->getStreamDestsFromRequest($qb);
 	}

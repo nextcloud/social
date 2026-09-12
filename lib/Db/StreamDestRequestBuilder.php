@@ -53,7 +53,8 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('sd.actor_id', 'sd.stream_id', 'sd.type', 'sd.subtype')
+		// `sd.id` is what `getRelatedToActor()` pages on; nothing else reads it
+		$qb->select('sd.id', 'sd.actor_id', 'sd.stream_id', 'sd.type', 'sd.subtype')
 			->from(self::TABLE_STREAM_DEST, 'sd');
 
 		$this->defaultSelectAlias = 'sd';

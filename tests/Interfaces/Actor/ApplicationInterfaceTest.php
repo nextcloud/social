@@ -37,6 +37,7 @@ class ApplicationInterfaceTest extends ActorInterfaceTestCase {
 			$this->featuredTagsRequest,
 			$this->announcementsRequest,
 			$this->scheduledStatusesRequest,
+			$this->jobList,
 		);
 	}
 

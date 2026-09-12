@@ -32,6 +32,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
+use OCP\BackgroundJob\IJobList;
 use PHPUnit\Framework\MockObject\MockObject;
 
 require_once __DIR__ . '/../ActivityPubTestCase.php';
@@ -80,6 +81,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 	protected FeaturedTagsRequest|MockObject $featuredTagsRequest;
 	protected AnnouncementsRequest|MockObject $announcementsRequest;
 	protected ScheduledStatusesRequest|MockObject $scheduledStatusesRequest;
+	protected IJobList|MockObject $jobList;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -100,6 +102,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->featuredTagsRequest = $this->createMock(FeaturedTagsRequest::class);
 		$this->announcementsRequest = $this->createMock(AnnouncementsRequest::class);
 		$this->scheduledStatusesRequest = $this->createMock(ScheduledStatusesRequest::class);
+		$this->jobList = $this->createMock(IJobList::class);
 		$this->actorService = $this->createMock(ActorService::class);
 
 		$this->handler = $this->createHandler();
