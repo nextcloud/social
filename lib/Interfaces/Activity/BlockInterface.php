@@ -37,6 +37,7 @@ class BlockInterface extends AbstractActivityPubInterface implements IActivityPu
 	) {
 	}
 
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		$item->checkOrigin($item->getActorId());
 
@@ -61,6 +62,7 @@ class BlockInterface extends AbstractActivityPubInterface implements IActivityPu
 	/**
 	 * Undo{Block}: the remote actor lifted the block.
 	 */
+	#[\Override]
 	public function activity(ACore $activity, ACore $item): void {
 		if ($activity->getType() !== Undo::TYPE) {
 			return;

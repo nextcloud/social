@@ -161,6 +161,7 @@ class CacheItem implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'url' => $this->getUrl(),

@@ -30,6 +30,7 @@ class AccountMove extends Base {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:move')

@@ -29,6 +29,7 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 	) {
 	}
 
+	#[\Override]
 	public function save(ACore $item): void {
 		/** @var SocialAppNotification $notification */
 		$notification = $item;
@@ -74,6 +75,7 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 		return false;
 	}
 
+	#[\Override]
 	public function update(ACore $item): void {
 		/** @var SocialAppNotification $notification */
 		$notification = $item;
@@ -83,6 +85,7 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 		$this->streamRequest->update($notification, true);
 	}
 
+	#[\Override]
 	public function delete(ACore $item): void {
 		/** @var Stream $item */
 		$this->streamRequest->deleteById($item->getId(), SocialAppNotification::TYPE);

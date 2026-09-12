@@ -89,6 +89,7 @@ use OCP\Migration\SimpleMigrationStep;
  * produces no statement at all.
  */
 class Version1000Date20260911000005 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

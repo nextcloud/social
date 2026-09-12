@@ -44,6 +44,7 @@ class Timeline extends ExtendedBase {
 	/**
 	 *
 	 */
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:timeline')

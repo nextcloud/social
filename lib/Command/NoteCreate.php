@@ -56,6 +56,7 @@ class NoteCreate extends Base {
 	/**
 	 *
 	 */
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:note:create')

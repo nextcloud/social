@@ -66,6 +66,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	 * @throws InvalidOriginException
 	 * @throws Exception
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		/** @var ACore $item */
 		$item->checkOrigin($item->getId());
@@ -86,6 +87,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	 * @throws RequestServerException
 	 * @throws UnauthorizedFediverseException
 	 */
+	#[\Override]
 	public function activity(Acore $activity, ACore $item): void {
 		/** @var Announce $announce */
 		$announce = $item;
@@ -100,6 +102,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	/**
 	 * @throws ItemNotFoundException
 	 */
+	#[\Override]
 	public function getItem(ACore $item): ACore {
 		throw new ItemNotFoundException();
 	}
@@ -107,6 +110,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	/**
 	 * @throws ItemNotFoundException
 	 */
+	#[\Override]
 	public function getItemById(string $id): ACore {
 		throw new ItemNotFoundException();
 	}
@@ -114,6 +118,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	/**
 	 * @throws Exception
 	 */
+	#[\Override]
 	public function save(ACore $item): void {
 		/** @var Announce $item */
 		if ($item->hasActor()) {
@@ -183,6 +188,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	 * @throws UnauthorizedFediverseException
 	 * @throws MalformedArrayException
 	 */
+	#[\Override]
 	public function delete(ACore $item): void {
 		try {
 			$knownItem
@@ -207,6 +213,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		$this->undoAnnounceAction($item);
 	}
 
+	#[\Override]
 	public function event(ACore $item, string $source): void {
 	}
 

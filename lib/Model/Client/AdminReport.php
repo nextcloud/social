@@ -121,6 +121,7 @@ class AdminReport implements JsonSerializable {
 		return $this->statuses;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->report->getId(),

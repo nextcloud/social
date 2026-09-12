@@ -32,6 +32,7 @@ class Fediverse extends Base {
 		$this->fediverseService = $fediverseService;
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:fediverse')

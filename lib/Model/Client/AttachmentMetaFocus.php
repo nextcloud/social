@@ -40,6 +40,7 @@ class AttachmentMetaFocus implements JsonSerializable {
 		return $this->y;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'x' => $this->getX(),

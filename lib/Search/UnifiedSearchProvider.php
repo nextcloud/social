@@ -58,6 +58,7 @@ class UnifiedSearchProvider implements IProvider {
 	/**
 	 * return unique id of the provider
 	 */
+	#[\Override]
 	public function getId(): string {
 		return self::PROVIDER_ID;
 	}
@@ -65,6 +66,7 @@ class UnifiedSearchProvider implements IProvider {
 	/**
 	 * @return string
 	 */
+	#[\Override]
 	public function getName(): string {
 		return $this->l10n->t('Social');
 	}
@@ -75,6 +77,7 @@ class UnifiedSearchProvider implements IProvider {
 	 *
 	 * @return int
 	 */
+	#[\Override]
 	public function getOrder(string $route, array $routeParameters): int {
 		return self::ORDER;
 	}
@@ -86,6 +89,7 @@ class UnifiedSearchProvider implements IProvider {
 	 * @return SearchResult
 	 * @throws AccountDoesNotExistException
 	 */
+	#[\Override]
 	public function search(IUser $user, ISearchQuery $query): SearchResult {
 		$this->initViewer($user);
 		$search = trim($query->getTerm());

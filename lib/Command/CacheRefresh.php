@@ -34,6 +34,7 @@ class CacheRefresh extends Base {
 		$this->hashtagService = $hashtagService;
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:cache:refresh')

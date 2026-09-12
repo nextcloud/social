@@ -57,6 +57,7 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 	 *
 	 * @throws InvalidOriginException the quoting post is not on the asking server
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		if (!$item instanceof QuoteRequest) {
 			return;
@@ -211,6 +212,7 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 	 *
 	 * @throws InvalidOriginException the answer does not come from the quoted post's server
 	 */
+	#[\Override]
 	public function activity(ACore $activity, ACore $item): void {
 		if (!$item instanceof QuoteRequest) {
 			return;

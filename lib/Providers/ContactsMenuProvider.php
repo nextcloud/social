@@ -39,6 +39,7 @@ class ContactsMenuProvider implements IProvider {
 	/**
 	 * @param IEntry $entry
 	 */
+	#[\Override]
 	public function process(IEntry $entry): void {
 		try {
 			$user = $this->getUserFromEntry($entry);

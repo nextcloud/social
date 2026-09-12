@@ -23,6 +23,7 @@ class RejectInterface extends AbstractActivityPubInterface implements IActivityP
 	) {
 	}
 
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		// see AcceptInterface: a link rather than an embedded object is normal
 		// outside Mastodon, and used to be dropped

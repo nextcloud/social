@@ -744,6 +744,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @throws UrlCloudException
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 		$this->setEmojis($this->extractEmojisFromTag($data));
@@ -787,6 +788,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return $this
 	 */
+	#[\Override]
 	public function importFromLocal(array $data): self {
 		parent::importFromLocal($data);
 
@@ -830,6 +832,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
@@ -956,6 +959,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $html;
 	}
 
+	#[\Override]
 	public function exportAsActivityPub(): array {
 		if ($this->getPublicKey() !== '') {
 			$this->setDisplayW3ContextSecurity(true);
@@ -1078,6 +1082,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function exportAsLocal(): array {
 		if ($this->hasIcon()) {
 			$avatar = $this->getIcon()->getMediaUrl(Server::get(IURLGenerator::class));

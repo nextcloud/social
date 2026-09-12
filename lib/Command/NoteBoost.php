@@ -36,6 +36,7 @@ class NoteBoost extends Base {
 	/**
 	 *
 	 */
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:note:boost')

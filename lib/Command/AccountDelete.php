@@ -29,6 +29,7 @@ class AccountDelete extends Base {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure(): void {
 		parent::configure();
 		$this->setName('social:account:delete')

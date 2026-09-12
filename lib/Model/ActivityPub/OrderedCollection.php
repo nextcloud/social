@@ -107,6 +107,7 @@ class OrderedCollection extends ACore implements JsonSerializable {
 		return $collection;
 	}
 
+	#[\Override]
 	public function import(array $data): self {
 		parent::import($data);
 		$this->setFirst($this->validate(ACore::AS_USERNAME, 'first', $data, ''))
@@ -116,6 +117,7 @@ class OrderedCollection extends ACore implements JsonSerializable {
 		return $this;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return array_filter(
 			array_merge(

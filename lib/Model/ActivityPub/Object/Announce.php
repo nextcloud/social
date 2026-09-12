@@ -33,6 +33,7 @@ class Announce extends Stream implements JsonSerializable {
 	 *
 	 * @throws Exception
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 
@@ -43,6 +44,7 @@ class Announce extends Stream implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function exportAsLocal(): array {
 		$result = parent::exportAsLocal();
 

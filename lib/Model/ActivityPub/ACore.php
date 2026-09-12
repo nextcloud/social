@@ -201,6 +201,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	/**
 	 * @return string
 	 */
+	#[\Override]
 	public function getObjectId(): string {
 		if ($this->hasObject()) {
 			return $this->getObject()
@@ -756,6 +757,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function importFromDatabase(array $data) {
 		// TODO: check if validate is needed when importing from database;
 		$this->setNid($this->getInt('nid', $data));
@@ -806,6 +808,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		if ($this->getExportFormat() === self::FORMAT_LOCAL) {
 			return $this->exportAsLocal();

@@ -210,6 +210,7 @@ class LinkedDataSignature implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'type' => $this->getType(),

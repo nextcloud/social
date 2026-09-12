@@ -23,6 +23,7 @@ class AcceptInterface extends AbstractActivityPubInterface implements IActivityP
 	) {
 	}
 
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		// An Accept whose `object` is a link used to be dropped, which left the
 		// follow pending forever: no posts arrive, and a later unfollow sends an

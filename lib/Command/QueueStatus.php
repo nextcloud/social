@@ -32,6 +32,7 @@ class QueueStatus extends Base {
 	/**
 	 *
 	 */
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:queue:status')

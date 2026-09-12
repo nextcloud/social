@@ -21,6 +21,7 @@ use OCP\Migration\SimpleMigrationStep;
  * their actor row as JSON.
  */
 class Version1000Date20260908000004 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

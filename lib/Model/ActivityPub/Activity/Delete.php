@@ -29,6 +29,7 @@ class Delete extends ACore implements JsonSerializable {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 		$this->setActorId($this->validate(ACore::AS_ID, 'actor', $data, ''));
@@ -37,6 +38,7 @@ class Delete extends ACore implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}

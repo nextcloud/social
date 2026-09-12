@@ -29,6 +29,7 @@ class Add extends ACore implements JsonSerializable {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 		// the collection the object is added to / removed from: without it a
@@ -39,6 +40,7 @@ class Add extends ACore implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return array_merge(
 			parent::jsonSerialize(),

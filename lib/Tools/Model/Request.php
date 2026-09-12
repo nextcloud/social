@@ -736,6 +736,7 @@ class Request implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'protocols' => $this->getProtocols(),

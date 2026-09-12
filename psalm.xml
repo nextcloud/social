@@ -24,15 +24,6 @@
 		</ignoreFiles>
 	</extraFiles>
 	<issueHandlers>
-		<!--
-			#[\Override] is PHP 8.3+, and appinfo/info.xml declares 8.1 as the
-			floor, so the attribute Psalm wants here cannot be written yet.
-		-->
-		<MissingOverrideAttribute>
-			<errorLevel type="suppress">
-				<directory name="lib" />
-			</errorLevel>
-		</MissingOverrideAttribute>
 		<UndefinedDocblockClass>
 			<errorLevel type="suppress">
 				<referencedClass name="Doctrine\DBAL\Schema\Schema" />

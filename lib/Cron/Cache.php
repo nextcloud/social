@@ -54,6 +54,7 @@ class Cache extends TimedJob {
 		$this->logger = $logger;
 	}
 
+	#[\Override]
 	protected function run($argument) {
 		$this->step('manageDeletedActors', function (): void {
 			$this->accountService->manageDeletedActors();

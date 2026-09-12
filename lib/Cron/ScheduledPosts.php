@@ -47,6 +47,7 @@ class ScheduledPosts extends TimedJob {
 		$this->setInterval(5 * 60);
 	}
 
+	#[\Override]
 	protected function run($argument) {
 		try {
 			$published = $this->scheduledStatusService->publishDue();

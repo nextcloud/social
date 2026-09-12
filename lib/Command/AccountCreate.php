@@ -39,6 +39,7 @@ class AccountCreate extends Base {
 		$this->miscService = $miscService;
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:create')

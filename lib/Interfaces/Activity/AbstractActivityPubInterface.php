@@ -14,15 +14,18 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 
 class AbstractActivityPubInterface implements IActivityPubInterface {
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 	}
 
+	#[\Override]
 	public function processResult(ACore $item): void {
 	}
 
 	/**
 	 * @throws ItemNotFoundException
 	 */
+	#[\Override]
 	public function getItem(ACore $item): ACore {
 		throw new ItemNotFoundException();
 	}
@@ -30,22 +33,28 @@ class AbstractActivityPubInterface implements IActivityPubInterface {
 	/**
 	 * @throws ItemNotFoundException
 	 */
+	#[\Override]
 	public function getItemById(string $id): ACore {
 		throw new ItemNotFoundException();
 	}
 
+	#[\Override]
 	public function save(ACore $item): void {
 	}
 
+	#[\Override]
 	public function update(ACore $item): void {
 	}
 
+	#[\Override]
 	public function delete(ACore $item): void {
 	}
 
+	#[\Override]
 	public function event(ACore $item, string $source): void {
 	}
 
+	#[\Override]
 	public function activity(ACore $activity, ACore $item): void {
 	}
 }

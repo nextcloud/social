@@ -132,6 +132,7 @@ class InstancePath implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'uri' => $this->getUri(),

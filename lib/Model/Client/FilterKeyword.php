@@ -89,6 +89,7 @@ class FilterKeyword implements JsonSerializable {
 		return mb_substr(trim($raw), 0, self::MAX_KEYWORD, 'UTF-8');
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->id,

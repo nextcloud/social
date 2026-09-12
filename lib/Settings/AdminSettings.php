@@ -48,6 +48,7 @@ class AdminSettings implements IDelegatedSettings {
 	) {
 	}
 
+	#[\Override]
 	public function getForm(): TemplateResponse {
 		Util::addScript('social', 'social-adminSettings');
 		// its own bundle rather than a second panel in the hand-written one:
@@ -84,10 +85,12 @@ class AdminSettings implements IDelegatedSettings {
 		return $decisions;
 	}
 
+	#[\Override]
 	public function getSection(): string {
 		return AdminSection::SECTION_ID;
 	}
 
+	#[\Override]
 	public function getPriority(): int {
 		return 50;
 	}

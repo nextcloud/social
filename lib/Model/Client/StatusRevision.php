@@ -152,6 +152,7 @@ class StatusRevision implements JsonSerializable {
 	 * StatusEdit is only ever read by a Mastodon client, and the federated
 	 * shape of an actor is not something any of them can decode.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		$account = $this->getAccount();
 		if ($account !== null) {

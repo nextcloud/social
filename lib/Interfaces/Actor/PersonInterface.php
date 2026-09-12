@@ -86,6 +86,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 	/**
 	 * @throws ItemNotFoundException
 	 */
+	#[\Override]
 	public function getItem(ACore $item): ACore {
 		throw new ItemNotFoundException();
 	}
@@ -93,6 +94,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 	/**
 	 * @throws ItemNotFoundException
 	 */
+	#[\Override]
 	public function getItemById(string $id): ACore {
 		try {
 			$actor = $this->cacheActorsRequest->getFromId($id);
@@ -106,6 +108,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 	/**
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function activity(Acore $activity, ACore $item): void {
 		/** @var Person $item */
 		$activity->checkOrigin($item->getId());
@@ -121,6 +124,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 	}
 
+	#[\Override]
 	public function save(ACore $item): void {
 		/** @var Person $person */
 		$person = $item;
@@ -132,6 +136,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 	}
 
+	#[\Override]
 	public function delete(ACore $item): void {
 		if (!($item instanceof Person)) {
 			return;

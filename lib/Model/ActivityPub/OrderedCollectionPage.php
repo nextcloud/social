@@ -103,6 +103,7 @@ class OrderedCollectionPage extends ACore implements JsonSerializable {
 		return $this;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return array_filter(
 			array_merge(

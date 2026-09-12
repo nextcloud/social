@@ -167,6 +167,7 @@ class Report implements JsonSerializable {
 	/**
 	 * The Mastodon Report entity.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->getId(),

@@ -66,6 +66,7 @@ class CheckInstall extends Base {
 		$this->connection = $connection;
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:check:install')

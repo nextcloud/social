@@ -107,12 +107,14 @@ class Question extends Note implements JsonSerializable {
 		return null;
 	}
 
+	#[\Override]
 	public function import(array $data): void {
 		parent::import($data);
 
 		$this->parsePollData($data);
 	}
 
+	#[\Override]
 	public function importFromDatabase(array $data): void {
 		parent::importFromDatabase($data);
 
@@ -150,6 +152,7 @@ class Question extends Note implements JsonSerializable {
 	 * The wire shape Mastodon understands: options in oneOf/anyOf with their
 	 * counts in replies.totalItems, plus endTime and votersCount.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 		if ($this->options === []) {
@@ -177,6 +180,7 @@ class Question extends Note implements JsonSerializable {
 	 * The Mastodon Poll entity, carried in the status as `poll`. The viewer's
 	 * own votes come from the per-viewer stream action (`poll_votes`).
 	 */
+	#[\Override]
 	public function exportAsLocal(): array {
 		$result = parent::exportAsLocal();
 		if ($this->options === []) {

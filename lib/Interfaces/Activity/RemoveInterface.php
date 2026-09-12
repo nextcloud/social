@@ -25,6 +25,7 @@ class RemoveInterface extends AbstractActivityPubInterface implements IActivityP
 	 *
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		$this->featuredCollection->toggle($item, false);
 	}

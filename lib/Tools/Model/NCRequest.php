@@ -50,6 +50,7 @@ class NCRequest extends Request {
 		return $this;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return array_merge(
 			parent::jsonSerialize(),

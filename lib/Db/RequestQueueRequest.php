@@ -271,6 +271,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * delay(n))`; the threshold falls out of the same expression. A row that
 	 * has never been attempted has a NULL `last`.
 	 */
+	#[\Override]
 	protected function limitToQueueDue(IQueryBuilder &$qb, int $maxTries): void {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';

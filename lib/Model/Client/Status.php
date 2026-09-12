@@ -184,6 +184,7 @@ class Status implements \JsonSerializable {
 		return $this->poll;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'sensitive' => $this->isSensitive(),

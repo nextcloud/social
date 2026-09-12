@@ -24,6 +24,7 @@ class Move extends ACore implements JsonSerializable {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 		$this->setActorId($this->validate(ACore::AS_ID, 'actor', $data, ''));
@@ -36,6 +37,7 @@ class Move extends ACore implements JsonSerializable {
 	 * activity is worth sending: the generic export knows nothing of it, so a
 	 * Move without this override says an account moved and not where to.
 	 */
+	#[\Override]
 	public function exportAsActivityPub(): array {
 		if ($this->getTarget() !== '') {
 			$this->addEntry('target', $this->getTarget());
@@ -47,6 +49,7 @@ class Move extends ACore implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}

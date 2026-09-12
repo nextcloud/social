@@ -38,6 +38,7 @@ class QueueProcess extends Base {
 	/**
 	 *
 	 */
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:queue:process')

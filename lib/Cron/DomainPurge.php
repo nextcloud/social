@@ -55,6 +55,7 @@ class DomainPurge extends QueuedJob {
 		parent::__construct($time);
 	}
 
+	#[\Override]
 	protected function run($argument): void {
 		$domain = is_array($argument) ? (string)($argument['domain'] ?? '') : '';
 		if ($domain === '') {

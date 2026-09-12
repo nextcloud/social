@@ -20,6 +20,7 @@ use OCP\Migration\SimpleMigrationStep;
  * actor row; new follows towards a locked account wait as follow requests.
  */
 class Version1000Date20260908000002 extends SimpleMigrationStep {
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

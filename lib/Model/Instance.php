@@ -292,6 +292,7 @@ class Instance implements IQueryRow, JsonSerializable {
 	 *
 	 * @return $this
 	 */
+	#[\Override]
 	public function importFromDatabase(array $data): self {
 		$this->setLocal($this->getBool('local', $data));
 		$this->setUri($this->get('uri', $data));
@@ -324,6 +325,7 @@ class Instance implements IQueryRow, JsonSerializable {
 	 * list and reports the instance as unreachable. `contact_account` is
 	 * always present (null when unset) for the same reason.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'uri' => $this->getUri(),

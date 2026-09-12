@@ -345,6 +345,7 @@ class SimpleDataStore implements JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return $this->data;
 	}

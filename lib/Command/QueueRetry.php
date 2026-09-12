@@ -51,6 +51,7 @@ class QueueRetry extends Base {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:queue:retry')

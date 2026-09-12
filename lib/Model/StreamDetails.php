@@ -105,6 +105,7 @@ class StreamDetails implements JsonSerializable {
 		return $this;
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'stream' => $this->getStream(),

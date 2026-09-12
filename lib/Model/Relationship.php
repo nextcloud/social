@@ -213,6 +213,7 @@ class Relationship implements JsonSerializable {
 	 * Swift's Codable) fails to decode an integer, so the follow/block/mute
 	 * button state broke after every action that returns one of these.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->getId(),

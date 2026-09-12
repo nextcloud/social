@@ -54,6 +54,7 @@ class Queue extends TimedJob {
 		$this->logger = $logger;
 	}
 
+	#[\Override]
 	protected function run($argument) {
 		$deadline = time() + self::MAX_DURATION;
 

@@ -41,6 +41,7 @@ class Version1000Date20260912000001 extends SimpleMigrationStep {
 		'trend_10d' => 'social_h_t10d',
 	];
 
+	#[\Override]
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();

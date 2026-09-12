@@ -49,6 +49,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	/**
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		/** @var Like $like */
 		$like = $item;
@@ -64,6 +65,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	/**
 	 * @throws InvalidOriginException
 	 */
+	#[\Override]
 	public function activity(ACore $activity, ACore $item): void {
 		/** @var Like $like */
 		$like = $item;
@@ -78,6 +80,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	/**
 	 * @throws ItemNotFoundException
 	 */
+	#[\Override]
 	public function getItem(ACore $item): ACore {
 		try {
 			return $this->actionsRequest->getAction(
@@ -94,6 +97,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	/**
 	 * @throws ItemAlreadyExistsException
 	 */
+	#[\Override]
 	public function save(ACore $item): void {
 		try {
 			$this->actionsRequest->getActionFromItem($item);
@@ -121,6 +125,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 	}
 
+	#[\Override]
 	public function delete(ACore $item): void {
 		$this->actionsRequest->delete($item);
 		$this->undoLikeAction($item);

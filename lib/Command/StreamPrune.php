@@ -22,6 +22,7 @@ class StreamPrune extends Base {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:stream:prune')

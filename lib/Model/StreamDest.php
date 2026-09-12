@@ -76,6 +76,7 @@ class StreamDest implements IQueryRow, JsonSerializable {
 		return $this->subtype;
 	}
 
+	#[\Override]
 	public function importFromDatabase(array $data): void {
 		$this->setId($this->getInt('id', $data));
 		$this->setStreamId($this->get('stream_id', $data));
@@ -84,6 +85,7 @@ class StreamDest implements IQueryRow, JsonSerializable {
 		$this->setSubtype($this->get('subtype', $data));
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'streamId' => $this->getStreamId(),

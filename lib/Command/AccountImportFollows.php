@@ -27,6 +27,7 @@ class AccountImportFollows extends Base {
 		parent::__construct();
 	}
 
+	#[\Override]
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:import-follows')

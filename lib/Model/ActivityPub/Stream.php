@@ -695,6 +695,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function import(array $data) {
 		parent::import($data);
 
@@ -822,6 +823,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @param array $data
 	 */
+	#[\Override]
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
@@ -899,6 +901,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setCache($cache);
 	}
 
+	#[\Override]
 	public function importFromLocal(array $data) {
 		parent::importFromLocal($data);
 
@@ -953,6 +956,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function exportAsActivityPub(): array {
 		$result = array_merge(
 			parent::exportAsActivityPub(),
@@ -1059,6 +1063,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return array
 	 */
+	#[\Override]
 	public function exportAsLocal(): array {
 		$actions = ($this->hasAction()) ? $this->getAction()->getValues() : [];
 		$favorited = false;
@@ -1450,6 +1455,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return array_values(array_intersect_key($subTypes, array_flip($types)));
 	}
 
+	#[\Override]
 	public function exportAsNotification(): array {
 		// TODO - implements:
 		// status = Someone you enabled notifications for has posted a status
@@ -1473,6 +1479,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return array_merge(parent::exportAsNotification(), $result);
 	}
 
+	#[\Override]
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 
@@ -1502,6 +1509,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * It went unnoticed because `ApiContractTest` asserted against
 	 * `exportAsLocal()`, which is not what a client receives.
 	 */
+	#[\Override]
 	protected function cleanArray(array &$arr) {
 		if ($this->getExportFormat() === self::FORMAT_LOCAL) {
 			return;

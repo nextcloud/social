@@ -117,6 +117,7 @@ class StreamCard implements JsonSerializable {
 	 * Mastodon's PreviewCard. The fields this app cannot fill are still
 	 * present, so clients that read them blindly keep working.
 	 */
+	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'url' => $this->getUrl(),
