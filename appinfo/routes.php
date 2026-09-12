@@ -291,6 +291,8 @@ return [
 		['name' => 'Moderation#accountHistory', 'url' => '/moderation/accounts/history', 'verb' => 'GET'],
 		['name' => 'Moderation#accountModerate', 'url' => '/moderation/accounts', 'verb' => 'POST'],
 		['name' => 'Moderation#statusRemove', 'url' => '/moderation/statuses/remove', 'verb' => 'POST'],
+		['name' => 'Announcement#react', 'url' => '/api/v1/announcements/{id}/reactions/{name}', 'verb' => 'PUT', 'requirements' => ['id' => '\d+', 'name' => '.+']],
+		['name' => 'Announcement#unreact', 'url' => '/api/v1/announcements/{id}/reactions/{name}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+', 'name' => '.+']],
 		['name' => 'Announcement#adminIndex', 'url' => '/admin/announcements', 'verb' => 'GET'],
 		['name' => 'Announcement#adminCreate', 'url' => '/admin/announcements', 'verb' => 'POST'],
 		['name' => 'Announcement#adminDelete', 'url' => '/admin/announcements/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']]

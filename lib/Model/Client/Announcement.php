@@ -20,13 +20,17 @@ use JsonSerializable;
  * A client renders `content` as HTML, so a stray `<` in a notice about an XML
  * config file must not become a tag.
  *
- * `mentions`, `statuses`, `tags`, `emojis` and `reactions` are always empty
- * here — an announcement is plain text, nothing is parsed out of it and there
- * is no reaction route — but every one of them is sent, because Mastodon
- * documents all five as non-optional and a client that declares them so
- * cannot decode the entity without them. `read` is the one Mastodon marks
- * optional, and it is always sent too: every reader of this entity is an
- * authenticated account, which is the condition Mastodon sends it under.
+ * `mentions`, `statuses`, `tags` and `emojis` are always empty here — an
+ * announcement is plain text and nothing is parsed out of it — but all four
+ * are sent, because Mastodon documents them as non-optional and a client that
+ * declares them so cannot decode the entity without them. `read` is the one
+ * Mastodon marks optional, and it is always sent too: every reader of this
+ * entity is an authenticated account, which is the condition Mastodon sends it
+ * under.
+ *
+ * `reactions` was in that list until there was a route to write one. It is the
+ * only thing an account can say back about an instance-wide notice, and
+ * without it the only thing anybody could do with one was put it away.
  *
  * `startsAt`/`endsAt` are timestamps and `0` means "no such bound", not 1970:
  * `isActiveAt()` is what every reader compares with, so the two cannot be
@@ -52,6 +56,8 @@ class Announcement implements JsonSerializable {
 	private int $publishedAt = 0;
 	private int $updatedAt = 0;
 	private bool $read = false;
+	/** @var array<string, array{count: int, me: bool}> emoji => count and ours */
+	private array $reactions = [];
 
 	public function setId(int $id): self {
 		$this->id = $id;
@@ -214,8 +220,55 @@ class Announcement implements JsonSerializable {
 			'statuses' => [],
 			'tags' => [],
 			'emojis' => [],
-			'reactions' => [],
+			'reactions' => $this->exportReactions(),
 		];
+	}
+
+	/**
+	 * @param array<string, array{count: int, me: bool}> $reactions
+	 */
+	public function setReactions(array $reactions): self {
+		$this->reactions = $reactions;
+
+		return $this;
+	}
+
+	/** @return array<string, array{count: int, me: bool}> */
+	public function getReactions(): array {
+		return $this->reactions;
+	}
+
+	/**
+	 * Mastodon's `Reaction`, most-reacted first and alphabetical within a tie,
+	 * so a client redrawing the same announcement does not reshuffle it.
+	 *
+	 * `url` and `static_url` belong to a custom emoji and are absent for a
+	 * Unicode one — Mastodon omits them rather than sending null, and a client
+	 * reads their presence as "this is a picture, not a character". This app
+	 * fills them in from what it publishes, in AnnouncementService.
+	 *
+	 * @return array[]
+	 */
+	private function exportReactions(): array {
+		$names = array_keys($this->reactions);
+		usort($names, fn (string $a, string $b): int
+			=> [$this->reactions[$b]['count'], $a] <=> [$this->reactions[$a]['count'], $b]);
+
+		$reactions = [];
+		foreach ($names as $name) {
+			$reaction = [
+				'name' => $name,
+				'count' => $this->reactions[$name]['count'],
+				'me' => $this->reactions[$name]['me'],
+			];
+			if (($this->reactions[$name]['url'] ?? '') !== '') {
+				$reaction['url'] = $this->reactions[$name]['url'];
+				$reaction['static_url'] = $this->reactions[$name]['url'];
+			}
+			$reactions[] = $reaction;
+		}
+
+		return $reactions;
 	}
 
 	/** The datetime format every Mastodon entity in this app is dated with. */

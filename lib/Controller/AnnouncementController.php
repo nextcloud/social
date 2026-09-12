@@ -117,6 +117,50 @@ class AnnouncementController extends Controller {
 		}
 	}
 
+	/**
+	 * Puts an emoji on an announcement, for the viewer, and answers `{}` as
+	 * Mastodon does.
+	 *
+	 * The only thing an account can say back about an instance-wide notice.
+	 * Until this route existed, the only thing anybody could do with one was
+	 * put it away, and `Announcement.reactions` was always `[]`.
+	 *
+	 * The emoji is in the path, as it is on Mastodon, so it arrives
+	 * percent-encoded and the router has already decoded it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function react(int $id, string $name): DataResponse {
+		try {
+			$this->initViewer(['write:favourites']);
+			$this->announcementService->react($id, $this->viewer->getId(), $name);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Takes one back. Taking back one that was never there answers `{}` too:
+	 * a client that has lost track of what it sent should not be told the
+	 * announcement does not exist.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function unreact(int $id, string $name): DataResponse {
+		try {
+			$this->initViewer(['write:favourites']);
+			$this->announcementService->unreact($id, $this->viewer->getId(), $name);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
 	/** Every announcement there is, for the administration page. */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	public function adminIndex(): DataResponse {

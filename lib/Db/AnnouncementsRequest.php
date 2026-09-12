@@ -152,6 +152,14 @@ class AnnouncementsRequest extends AnnouncementsRequestBuilder {
 		$qb = $this->getReadsDeleteSql();
 		$qb->where($qb->expr()->eq('announcement_id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
 		$qb->executeStatement();
+
+		// and the reactions to it, for the same reason as the dismissals: the
+		// announcement is gone for everybody, read or not, reacted to or not
+		$reactions = $this->getReactionsDeleteSql();
+		$reactions->where($reactions->expr()->eq(
+			'announcement_id', $reactions->createNamedParameter($id, IQueryBuilder::PARAM_INT)
+		));
+		$reactions->executeStatement();
 	}
 
 	/**
@@ -215,6 +223,95 @@ class AnnouncementsRequest extends AnnouncementsRequestBuilder {
 	}
 
 	/**
+	 * Records a reaction. Reacting twice with the same emoji is a no-op, which
+	 * is what the unique index is for.
+	 */
+	public function react(int $announcementId, string $actorId, string $name): void {
+		$qb = $this->getReactionsInsertSql();
+		$qb->setValue('announcement_id', $qb->createNamedParameter($announcementId, IQueryBuilder::PARAM_INT))
+			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
+			->setValue('name', $qb->createNamedParameter($name))
+			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+
+		try {
+			$qb->executeStatement();
+		} catch (DBException $e) {
+			if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+		}
+	}
+
+	/** Takes one back. Taking back one that was never there is a no-op. */
+	public function unreact(int $announcementId, string $actorId, string $name): void {
+		$qb = $this->getReactionsDeleteSql();
+		$qb->where($qb->expr()->eq('announcement_id', $qb->createNamedParameter($announcementId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->eq('name', $qb->createNamedParameter($name)));
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * How many of each reaction those announcements carry, and which of them
+	 * this account is among — in one query rather than one per announcement,
+	 * because a client reads the whole active set at once.
+	 *
+	 * The account is in the statement, so `me` can only ever describe the
+	 * account being answered.
+	 *
+	 * @param int[] $announcementIds
+	 *
+	 * @return array<int, array<string, array{count: int, me: bool}>>
+	 *                                                                announcement id => emoji => the count and whether it is ours
+	 */
+	public function reactionsOn(string $actorId, array $announcementIds): array {
+		if ($announcementIds === []) {
+			return [];
+		}
+
+		$qb = $this->getReactionsSelectSql();
+		$qb->andWhere($qb->expr()->in(
+			're.announcement_id',
+			$qb->createNamedParameter($announcementIds, IQueryBuilder::PARAM_INT_ARRAY)
+		));
+
+		$prim = $qb->prim($actorId);
+		$reactions = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$id = $this->getInt('announcement_id', $data);
+			$name = $this->get('name', $data, '');
+			if (!isset($reactions[$id][$name])) {
+				$reactions[$id][$name] = ['count' => 0, 'me' => false];
+			}
+			$reactions[$id][$name]['count']++;
+			if ($this->get('actor_id_prim', $data, '') === $prim) {
+				$reactions[$id][$name]['me'] = true;
+			}
+		}
+		$cursor->closeCursor();
+
+		return $reactions;
+	}
+
+	/** How many distinct emoji one account has put on one announcement. */
+	public function countReactionsBy(int $announcementId, string $actorId): int {
+		$qb = $this->getReactionsSelectSql();
+		$qb->andWhere($qb->expr()->eq('re.announcement_id', $qb->createNamedParameter($announcementId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('re.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
+
+		$count = 0;
+		$cursor = $qb->executeQuery();
+		while ($cursor->fetch()) {
+			$count++;
+		}
+		$cursor->closeCursor();
+
+		return $count;
+	}
+
+	/**
 	 * Everything an account leaves behind here when it is deleted. Called from
 	 * the account-deletion path, like every other deleteRelatedId(). The
 	 * announcements themselves are the instance's and stay.
@@ -223,6 +320,12 @@ class AnnouncementsRequest extends AnnouncementsRequestBuilder {
 		$qb = $this->getReadsDeleteSql();
 		$qb->where($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
 		$qb->executeStatement();
+
+		$reactions = $this->getReactionsDeleteSql();
+		$reactions->where($reactions->expr()->eq(
+			'actor_id_prim', $reactions->createNamedParameter($reactions->prim($actorId))
+		));
+		$reactions->executeStatement();
 	}
 
 	/**
