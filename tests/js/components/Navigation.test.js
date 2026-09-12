@@ -95,7 +95,6 @@ describe('Navigation', () => {
 
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {
 		expect(itemNames(mountNavigation())).toEqual([
-			'New post',
 			'Home',
 			'Photos',
 			'Explore',
@@ -127,7 +126,6 @@ describe('Navigation', () => {
 
 		const topLevel = itemNames(wrapper).filter((name) => !moreNames(wrapper).includes(name))
 		expect(topLevel).toEqual([
-			'New post',
 			'Home',
 			'Photos',
 			'Explore',
@@ -302,10 +300,45 @@ describe('Navigation', () => {
 		}
 	})
 
+	// the call to action
+
+	/**
+	 * The one thing in the sidebar that is not a place to go. It was a
+	 * navigation row with `href="#"`, which needed a `.prevent` to stop the
+	 * bare fragment becoming a history entry; a button has nowhere to go.
+	 */
+	it('offers New post as a button rather than as a row', () => {
+		const wrapper = mountNavigation()
+		const button = wrapper.find('.navigation__compose')
+
+		expect(button.element.tagName).toBe('BUTTON')
+		expect(button.text()).toContain('New post')
+		expect(itemNames(wrapper)).not.toContain('New post')
+	})
+
+	/** It is what the app is for, so it comes before the places to go. */
+	it('puts it above everything else in the sidebar', () => {
+		const wrapper = mountNavigation()
+		const first = wrapper.find('nav').element.querySelector('.navigation__compose, .nav-item')
+
+		expect(first.classList.contains('navigation__compose')).toBe(true)
+	})
+
+	/**
+	 * The primary variant, which is what a call to action looks like here, and
+	 * the full width of the sidebar rather than a button floating in it.
+	 */
+	it('looks like the call to action it is', () => {
+		const button = mountNavigation().find('.navigation__compose')
+
+		expect(button.classes()).toContain('button-vue--primary')
+		expect(button.classes()).toContain('button-vue--wide')
+	})
+
 	it('opens the composer modal from "New post"', async () => {
 		const wrapper = mountNavigation()
 		expect(wrapper.find('.modal-stub').exists()).toBe(false)
-		await item(wrapper, 'New post').trigger('click')
+		await wrapper.find('.navigation__compose').trigger('click')
 		const modal = wrapper.find('.modal-stub')
 		expect(modal.attributes('data-name')).toBe('New post')
 		expect(modal.find('.composer-stub').exists()).toBe(true)
@@ -313,7 +346,7 @@ describe('Navigation', () => {
 
 	it('closes the composer modal once the post is away', async () => {
 		const wrapper = mountNavigation()
-		await item(wrapper, 'New post').trigger('click')
+		await wrapper.find('.navigation__compose').trigger('click')
 		expect(wrapper.find('.modal-stub').exists()).toBe(true)
 
 		// the composer cleared its box and the modal stayed open, which reads
@@ -342,7 +375,7 @@ describe('Navigation', () => {
 
 		it('adds an errors entry with the error count', () => {
 			const wrapper = mountNavigation()
-			expect(itemNames(wrapper).slice(0, 3)).toEqual(['New post', 'Errors', 'Home'])
+			expect(itemNames(wrapper).slice(0, 2)).toEqual(['Errors', 'Home'])
 			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('2')
 		})
 
@@ -473,14 +506,21 @@ describe('Navigation entries are links', () => {
 		await vi.waitFor(() => expect(appRouter.currentRoute.value.name).toBe('follow-requests'))
 	})
 
+	/**
+	 * It is a button rather than a link with `href="#"`, so there is no
+	 * fragment to land in the address bar and nothing to prevent: the composer
+	 * opens and the page the reader was on stays the page they are on.
+	 */
 	it('opens the composer without navigating anywhere', async () => {
 		const wrapper = await mountReal()
-		const event = new MouseEvent('click', { bubbles: true, cancelable: true })
-		link(wrapper, 'New post').element.dispatchEvent(event)
+
+		await wrapper.find('.navigation__compose').trigger('click')
 		await flushPromises()
 
-		// nothing to route to, so the bare href="#" must not become a history entry
-		expect(event.defaultPrevented).toBe(true)
+		expect(wrapper.find('.navigation__compose').element.tagName).toBe('BUTTON')
+		// the modal is teleported out of the component, so it is looked for
+		// where it actually lands
+		expect(document.querySelector('.modal-composer')).not.toBeNull()
 		expect(appRouter.currentRoute.value.name).toBe('timeline')
 	})
 })

@@ -275,6 +275,20 @@ describe('cards agree on how far off the page they sit', () => {
 		expect(offenders).toEqual([])
 	})
 
+	/**
+	 * Movement is a choice the reader has already made in their system
+	 * settings, and a component that animates without reading it overrules
+	 * them. Every file that animates anything answers it in the same file.
+	 */
+	it('lets a reader turn off whatever moves', () => {
+		const offenders = files
+			.filter(({ content }) => /@keyframes|animation:|transition:/.test(content))
+			.filter(({ content }) => !content.includes('prefers-reduced-motion'))
+			.map(({ name }) => name)
+
+		expect(offenders).toEqual([])
+	})
+
 	it('raises a card on hover rather than only bordering it', () => {
 		const post = files.find(({ name }) => name === 'components/TimelinePost.vue').content
 
