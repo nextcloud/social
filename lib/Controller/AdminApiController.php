@@ -27,6 +27,7 @@ use OCA\Social\Service\MetricsService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -115,6 +116,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/accounts')]
 	public function accounts(
 		string $origin = '',
 		string $status = '',
@@ -152,6 +154,7 @@ class AdminApiController extends Controller {
 	/** One account, by numeric id, actor id or handle. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/accounts/{id}', requirements: ['id' => '.+'])]
 	public function account(string $id): DataResponse {
 		try {
 			$this->initAdmin();
@@ -176,6 +179,12 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	// `{id}` accepts slashes here and on account(): a suspended account, whose
+	// cached actor the suspension purged, is named by its actor id and no
+	// longer by a numeric one. That makes account()'s `/api/v1/admin/accounts/{id}`
+	// match this url too, and only the verb keeps them apart — so every action
+	// route under `/api/v1/admin/accounts/{id}/` has to stay a POST.
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/accounts/{id}/action', requirements: ['id' => '.+'])]
 	public function accountAction(
 		string $id,
 		string $type = '',
@@ -209,6 +218,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/accounts/{id}/enable', requirements: ['id' => '.+'])]
 	public function accountEnable(string $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -221,6 +231,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/accounts/{id}/unsilence', requirements: ['id' => '.+'])]
 	public function accountUnsilence(string $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -235,6 +246,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/accounts/{id}/unsuspend', requirements: ['id' => '.+'])]
 	public function accountUnsuspend(string $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -255,6 +267,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/reports')]
 	public function reports(
 		string $resolved = '',
 		string $account_id = '',
@@ -286,6 +299,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/reports/{id}')]
 	public function report(int $id): DataResponse {
 		try {
 			$this->initAdmin();
@@ -298,6 +312,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/reports/{id}/resolve')]
 	public function reportResolve(int $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -312,6 +327,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/reports/{id}/reopen')]
 	public function reportReopen(int $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -324,6 +340,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/reports/{id}/assign_to_self')]
 	public function reportAssignToSelf(int $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -338,6 +355,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/reports/{id}/unassign')]
 	public function reportUnassign(int $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -351,6 +369,7 @@ class AdminApiController extends Controller {
 	/** The instance-wide access list, as domain blocks. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/domain_blocks')]
 	public function domainBlocks(): DataResponse {
 		try {
 			$this->initAdmin();
@@ -363,6 +382,7 @@ class AdminApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/domain_blocks/{id}')]
 	public function domainBlock(string $id): DataResponse {
 		try {
 			$this->initAdmin();
@@ -385,6 +405,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/domain_blocks')]
 	public function domainBlockCreate(string $domain = '', string $severity = ''): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -405,6 +426,7 @@ class AdminApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/admin/domain_blocks/{id}')]
 	public function domainBlockUpdate(string $id, string $severity = ''): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
@@ -419,6 +441,7 @@ class AdminApiController extends Controller {
 	/** Lifts a block and answers with the entry that was lifted. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/admin/domain_blocks/{id}')]
 	public function domainBlockRemove(string $id): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);

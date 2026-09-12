@@ -24,6 +24,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FollowService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -94,6 +95,7 @@ class FollowerController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/remove_from_followers', requirements: ['id' => '.+'])]
 	public function remove(string $id): DataResponse {
 		try {
 			$this->initViewer(['write:follows', 'follow']);

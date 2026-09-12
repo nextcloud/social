@@ -85,6 +85,7 @@ use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -221,6 +222,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/apps/verify_credentials')]
 	public function appsCredentials() {
 		try {
 			$this->initViewer(true);
@@ -257,6 +259,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/verify_credentials')]
 	public function verifyCredentials() {
 		try {
 			$this->initViewer(true);
@@ -289,6 +292,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'PATCH', url: '/api/v1/accounts/update_credentials')]
 	public function updateCredentials(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -462,6 +466,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/follow_requests')]
 	public function followRequests(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -479,12 +484,14 @@ class ApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/follow_requests/{id}/authorize', requirements: ['id' => '.+'])]
 	public function followRequestAuthorize(string $id): DataResponse {
 		return $this->followRequestAction($id, true);
 	}
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/follow_requests/{id}/reject', requirements: ['id' => '.+'])]
 	public function followRequestReject(string $id): DataResponse {
 		return $this->followRequestAction($id, false);
 	}
@@ -512,6 +519,7 @@ class ApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/polls/{nid}')]
 	public function pollGet(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -534,6 +542,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/polls/{nid}/votes')]
 	public function pollVote(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -563,6 +572,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/reports')]
 	public function reportNew(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -665,6 +675,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/custom_emojis')]
 	public function customEmojis(): DataResponse {
 		return new DataResponse($this->emojiService->visible(), Http::STATUS_OK);
 	}
@@ -709,6 +720,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/saved_searches/list.json')]
 	public function savedSearches(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -726,6 +738,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/')]
 	public function instance(): DataResponse {
 		$local = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
 
@@ -740,6 +753,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/instance')]
 	public function instanceV2(): DataResponse {
 		$local = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
 
@@ -753,6 +767,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses')]
 	public function statusNew(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -961,6 +976,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/statuses/{nid}')]
 	public function statusUpdate(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -994,6 +1010,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media')]
 	public function mediaNew(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1054,6 +1071,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media/from-file')]
 	public function mediaFromFile(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1173,6 +1191,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v2/media')]
 	public function mediaNewV2(): DataResponse {
 		return $this->mediaNew();
 	}
@@ -1183,6 +1202,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/media/{nid}')]
 	public function mediaGet(string $nid, string $preview = ''): Response {
 		try {
 			$this->initViewer(true);
@@ -1199,6 +1219,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/media/{nid}')]
 	public function mediaUpdate(string $nid): Response {
 		try {
 			$this->initViewer(true);
@@ -1247,6 +1268,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/media/{uuid}')]
 	public function mediaOpen(string $uuid): Response {
 		if (strpos($uuid, '.') > 0) {
 			[$uuid] = explode('.', $uuid, 2);
@@ -1300,6 +1322,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[AnonRateLimit(limit: 60, period: 60)]
 	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/timelines/{timeline}/')]
 	public function timelines(
 		string $timeline,
 		bool $local = false,
@@ -1388,6 +1411,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}')]
 	public function statusGet(int $nid): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -1409,6 +1433,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/context')]
 	public function statusContext(int $nid): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -1441,6 +1466,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/statuses/{nid}')]
 	public function statusDelete(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1477,6 +1503,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/source')]
 	public function statusSource(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1516,6 +1543,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/{act}')]
 	public function statusAction(int $nid, string $act): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1543,6 +1571,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/scheduled_statuses')]
 	public function scheduledStatuses(
 		int $limit = 20,
 		int $max_id = 0,
@@ -1565,6 +1594,7 @@ class ApiController extends Controller {
 	/** One waiting post. One that is not the viewer's is a 404, not a refusal. */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/scheduled_statuses/{id}')]
 	public function scheduledStatusGet(int $id): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1579,6 +1609,7 @@ class ApiController extends Controller {
 	/** Moves a waiting post to another time; the five-minute rule applies again. */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/scheduled_statuses/{id}')]
 	public function scheduledStatusUpdate(int $id): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1596,6 +1627,7 @@ class ApiController extends Controller {
 	/** Cancels a waiting post. Mastodon answers an empty object. */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/scheduled_statuses/{id}')]
 	public function scheduledStatusDelete(int $id): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1618,6 +1650,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/favourited_by')]
 	public function statusFavouritedBy(int $nid, int $limit = 40): DataResponse {
 		return $this->reactedBy($nid, Like::TYPE, $limit);
 	}
@@ -1625,6 +1658,7 @@ class ApiController extends Controller {
 	/** The accounts that boosted a status, newest first. Mastodon's `reblogged_by`. */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/reblogged_by')]
 	public function statusRebloggedBy(int $nid, int $limit = 40): DataResponse {
 		return $this->reactedBy($nid, Announce::TYPE, $limit);
 	}
@@ -1663,6 +1697,7 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 10, period: 60)]
 	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/search')]
 	public function accountsSearch(
 		string $q = '',
 		int $limit = 40,
@@ -1824,6 +1859,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/follow', requirements: ['id' => '.+'])]
 	public function accountFollow(string $id): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1842,6 +1878,7 @@ class ApiController extends Controller {
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/unfollow', requirements: ['id' => '.+'])]
 	public function accountUnfollow(string $id): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1870,6 +1907,7 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 10, period: 60)]
 	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/search')]
 	public function search(string $q = '', string $type = '', int $limit = 20, bool $resolve = false): DataResponse {
 		return $this->searchV2($q, $type, $limit, $resolve);
 	}
@@ -1888,6 +1926,7 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 10, period: 60)]
 	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/search')]
 	public function searchV2(string $q = '', string $type = '', int $limit = 20, bool $resolve = false): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1956,6 +1995,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/trends/tags')]
 	public function trendTags(int $limit = 10, string $period = HashtagService::PERIOD_DEFAULT): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -1977,24 +2017,28 @@ class ApiController extends Controller {
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/block', requirements: ['id' => '.+'])]
 	public function accountBlock(string $id): DataResponse {
 		return $this->relationshipAction($id, 'block');
 	}
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/unblock', requirements: ['id' => '.+'])]
 	public function accountUnblock(string $id): DataResponse {
 		return $this->relationshipAction($id, 'unblock');
 	}
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/mute', requirements: ['id' => '.+'])]
 	public function accountMute(string $id, bool $notifications = true, int $duration = 0): DataResponse {
 		return $this->relationshipAction($id, 'mute', $notifications, $duration);
 	}
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/unmute', requirements: ['id' => '.+'])]
 	public function accountUnmute(string $id): DataResponse {
 		return $this->relationshipAction($id, 'unmute');
 	}
@@ -2038,12 +2082,14 @@ class ApiController extends Controller {
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/blocks')]
 	public function blocks(int $limit = 40): DataResponse {
 		return $this->listRelatedAccounts(ActorRelation::TYPE_BLOCK, $limit);
 	}
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/mutes')]
 	public function mutes(int $limit = 40): DataResponse {
 		return $this->listRelatedAccounts(ActorRelation::TYPE_MUTE, $limit);
 	}
@@ -2084,6 +2130,15 @@ class ApiController extends Controller {
 	 * until this route existed there was nothing to do with one: tapping an
 	 * author, a mention, a boost or a notification asked for a profile that no
 	 * route answered.
+	 *
+	 * The only route of this app that is not a `#[FrontpageRoute]`: `{id}`
+	 * accepts slashes, so this url also matches `/api/v1/accounts/{account}/lists`
+	 * and `/api/v1/accounts/{account}/featured_tags`, which belong to other
+	 * controllers, and a route has to be offered to the matcher after the
+	 * routes it can swallow. Attribute routes are contributed one controller at
+	 * a time in whatever order the filesystem lists them, so it is declared in
+	 * `appinfo/routes.php` instead, which the server loads after all of them.
+	 * See the comment in that file.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -2113,6 +2168,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 120, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/lookup')]
 	public function accountLookup(string $acct = ''): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -2199,6 +2255,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/relationships')]
 	public function relationships(array $id = []): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -2223,6 +2280,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[AnonRateLimit(limit: 60, period: 60)]
 	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/{account}/statuses', requirements: ['account' => '.+'])]
 	public function accountStatuses(
 		string $account,
 		int $limit = 20,
@@ -2280,6 +2338,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[AnonRateLimit(limit: 60, period: 60)]
 	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/{account}/following', requirements: ['account' => '.+'])]
 	public function accountFollowing(
 		string $account,
 		int $limit = 20,
@@ -2328,6 +2387,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[AnonRateLimit(limit: 60, period: 60)]
 	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/{account}/followers', requirements: ['account' => '.+'])]
 	public function accountFollowers(
 		string $account,
 		int $limit = 20,
@@ -2378,6 +2438,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/favourites/')]
 	public function favourites(
 		int $limit = 20,
 		int $max_id = 0,
@@ -2407,6 +2468,7 @@ class ApiController extends Controller {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/bookmarks')]
 	public function bookmarks(
 		int $limit = 20,
 		int $max_id = 0,
@@ -2446,6 +2508,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/notifications/unread_count')]
 	public function notificationsUnreadCount(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -2470,6 +2533,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/markers')]
 	public function markersGet(array $timeline = []): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -2496,6 +2560,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/markers')]
 	public function markersSet(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -2524,6 +2589,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/notifications')]
 	public function notifications(
 		int $limit = 20,
 		int $max_id = 0,
@@ -2580,6 +2646,7 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/timelines/tag/{hashtag}')]
 	public function tag(
 		string $hashtag,
 		int $limit = 20,

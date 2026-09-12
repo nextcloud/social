@@ -31,6 +31,7 @@ use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -109,6 +110,7 @@ class DiscoveryController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/directory')]
 	public function directory(
 		int $offset = 0,
 		int $limit = DirectoryService::LIMIT,
@@ -137,6 +139,7 @@ class DiscoveryController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/suggestions')]
 	public function suggestions(int $limit = SuggestionService::LIMIT): DataResponse {
 		try {
 			$this->initViewer(['read']);
@@ -160,6 +163,7 @@ class DiscoveryController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/suggestions')]
 	public function suggestionsV1(int $limit = SuggestionService::LIMIT): DataResponse {
 		try {
 			$this->initViewer(['read']);
@@ -187,6 +191,7 @@ class DiscoveryController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/trends/statuses')]
 	public function trendStatuses(
 		int $limit = TrendService::LIMIT,
 		int $offset = 0,
@@ -208,6 +213,7 @@ class DiscoveryController extends Controller {
 	/** The links most often attached to a public status in the window. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/trends/links')]
 	public function trendLinks(
 		int $limit = TrendService::LIMIT,
 		int $offset = 0,
@@ -227,6 +233,7 @@ class DiscoveryController extends Controller {
 	/** The viewer's own featured tags. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/featured_tags')]
 	public function featuredTags(): DataResponse {
 		try {
 			$this->initViewer(['read:accounts']);
@@ -249,6 +256,7 @@ class DiscoveryController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/featured_tags')]
 	public function featureTag(string $name = ''): DataResponse {
 		try {
 			$this->initViewer(['write:accounts']);
@@ -264,6 +272,7 @@ class DiscoveryController extends Controller {
 	/** Answers `{}`, as Mastodon does. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/featured_tags/{id}', requirements: ['id' => '\\d+'])]
 	public function unfeatureTag(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:accounts']);
@@ -281,6 +290,9 @@ class DiscoveryController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	// Not reachable as a featured tag with the id "suggestions": the `{id}` of
+	// unfeatureTag() is a `\d+`, and it has to stay one.
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/featured_tags/suggestions')]
 	public function featuredTagSuggestions(): DataResponse {
 		try {
 			$this->initViewer(['read:accounts']);
@@ -302,6 +314,7 @@ class DiscoveryController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/{account}/featured_tags', requirements: ['account' => '.+'])]
 	public function accountFeaturedTags(string $account): DataResponse {
 		try {
 			$this->initViewer(['read'], false);

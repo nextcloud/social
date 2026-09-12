@@ -24,6 +24,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -88,6 +89,7 @@ class FilterController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/filters')]
 	public function index(): DataResponse {
 		try {
 			$this->initViewer(['read:filters', 'read']);
@@ -301,6 +303,7 @@ class FilterController extends Controller {
 	/** One filter of the viewer. Somebody else's is a 404, not a 403. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/filters/{id}', requirements: ['id' => '\\d+'])]
 	public function get(int $id): DataResponse {
 		try {
 			$this->initViewer(['read:filters', 'read']);
@@ -323,6 +326,7 @@ class FilterController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v2/filters')]
 	public function create(
 		string $title = '',
 		array $context = [],
@@ -374,6 +378,7 @@ class FilterController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v2/filters/{id}', requirements: ['id' => '\\d+'])]
 	public function update(
 		int $id,
 		?string $title = null,
@@ -422,6 +427,7 @@ class FilterController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v2/filters/{id}', requirements: ['id' => '\\d+'])]
 	public function delete(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:filters', 'write']);
@@ -438,6 +444,7 @@ class FilterController extends Controller {
 	/** The keywords of one of the viewer's filters. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/filters/{id}/keywords', requirements: ['id' => '\\d+'])]
 	public function keywords(int $id): DataResponse {
 		try {
 			$this->initViewer(['read:filters', 'read']);
@@ -456,6 +463,7 @@ class FilterController extends Controller {
 	/** Adds one keyword to one of the viewer's filters. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v2/filters/{id}/keywords', requirements: ['id' => '\\d+'])]
 	public function addKeyword(int $id, string $keyword = '', mixed $whole_word = false): DataResponse {
 		try {
 			$this->initViewer(['write:filters', 'write']);
@@ -476,6 +484,7 @@ class FilterController extends Controller {
 	/** One keyword, of one of the viewer's filters. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/filters/keywords/{id}', requirements: ['id' => '\\d+'])]
 	public function getKeyword(int $id): DataResponse {
 		try {
 			$this->initViewer(['read:filters', 'read']);
@@ -490,6 +499,7 @@ class FilterController extends Controller {
 	/** Changes one keyword. What is not named is left as it is. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v2/filters/keywords/{id}', requirements: ['id' => '\\d+'])]
 	public function updateKeyword(int $id, ?string $keyword = null, mixed $whole_word = null): DataResponse {
 		try {
 			$this->initViewer(['write:filters', 'write']);
@@ -513,6 +523,7 @@ class FilterController extends Controller {
 	/** Removes one keyword; the filter itself stays. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v2/filters/keywords/{id}', requirements: ['id' => '\\d+'])]
 	public function deleteKeyword(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:filters', 'write']);

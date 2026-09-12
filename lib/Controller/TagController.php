@@ -22,6 +22,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -80,6 +81,7 @@ class TagController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/followed_tags')]
 	public function followedTags(int $limit = 20, int $max_id = 0, int $min_id = 0): DataResponse {
 		try {
 			$this->initViewer();
@@ -103,6 +105,7 @@ class TagController extends Controller {
 	/** One hashtag, and whether the viewer follows it. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/tags/{hashtag}')]
 	public function get(string $hashtag): DataResponse {
 		try {
 			$this->initViewer();
@@ -125,6 +128,10 @@ class TagController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	// `/api/v1/tags/{hashtag}` cannot read this as a tag named "foo/follow"
+	// because `{hashtag}` matches one segment. It has to stay that way: a `.+`
+	// requirement on the lookup would swallow both action routes.
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/tags/{hashtag}/follow')]
 	public function follow(string $hashtag): DataResponse {
 		try {
 			$this->initViewer(['write', 'follow']);
@@ -140,6 +147,7 @@ class TagController extends Controller {
 	/** Unfollows it; unfollowing what was never followed is not an error either. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/tags/{hashtag}/unfollow')]
 	public function unfollow(string $hashtag): DataResponse {
 		try {
 			$this->initViewer(['write', 'follow']);

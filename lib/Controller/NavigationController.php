@@ -25,6 +25,7 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -78,6 +79,14 @@ class NavigationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	// The client-side router owns `/follow_requests` and `/blocked`; the server
+	// has to answer them too, or reloading or bookmarking one of those pages is
+	// a 404. `postfix` keeps the route names apart: a route is keyed by
+	// controller, method and postfix, so three routes on one method without it
+	// would leave only the last.
+	#[FrontpageRoute(verb: 'GET', url: '/')]
+	#[FrontpageRoute(verb: 'GET', url: '/follow_requests', postfix: 'followrequests')]
+	#[FrontpageRoute(verb: 'GET', url: '/blocked', postfix: 'blocked')]
 	public function navigate(string $path = ''): TemplateResponse {
 		$this->logger->info('[NavigationController] navigate() called', [
 			'path' => $path,
@@ -214,6 +223,7 @@ class NavigationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/timeline/{path}', requirements: ['path' => '.+'], defaults: ['path' => ''])]
 	public function timeline(string $path = ''): TemplateResponse {
 		return $this->navigate();
 	}
@@ -261,6 +271,7 @@ class NavigationController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/document/get')]
 	public function documentGet(string $id): Response {
 		$this->logger->debug('[NavigationController] documentGet called', ['id' => $id]);
 		try {
@@ -290,6 +301,7 @@ class NavigationController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/document/public')]
 	public function documentGetPublic(string $id): Response {
 		$this->logger->debug('[NavigationController] documentGetPublic called', ['id' => $id]);
 		try {
@@ -318,6 +330,7 @@ class NavigationController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/document/get/resized')]
 	public function resizedGet(string $id): Response {
 		try {
 			$mime = '';
@@ -337,6 +350,7 @@ class NavigationController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/document/public/resized')]
 	public function resizedGetPublic(string $id): Response {
 		try {
 			$mime = '';

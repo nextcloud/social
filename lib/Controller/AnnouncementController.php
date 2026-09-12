@@ -24,6 +24,7 @@ use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -88,6 +89,7 @@ class AnnouncementController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/announcements')]
 	public function index(): DataResponse {
 		try {
 			$this->initViewer();
@@ -106,6 +108,7 @@ class AnnouncementController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/announcements/{id}/dismiss', requirements: ['id' => '\\d+'])]
 	public function dismiss(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:accounts']);
@@ -163,6 +166,7 @@ class AnnouncementController extends Controller {
 
 	/** Every announcement there is, for the administration page. */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/admin/announcements')]
 	public function adminIndex(): DataResponse {
 		return new DataResponse(['announcements' => $this->announcementService->adminList()]);
 	}
@@ -172,6 +176,7 @@ class AnnouncementController extends Controller {
 	 * is stored rather than from what it hoped was stored.
 	 */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/admin/announcements')]
 	public function adminCreate(
 		string $text = '',
 		string $starts_at = '',
@@ -189,6 +194,7 @@ class AnnouncementController extends Controller {
 
 	/** Removes one, with every dismissal of it, and answers with the rest. */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/admin/announcements/{id}', requirements: ['id' => '\\d+'])]
 	public function adminDelete(int $id): DataResponse {
 		try {
 			$this->announcementService->delete($id);

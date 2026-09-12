@@ -28,6 +28,7 @@ use OCA\Social\Service\DomainBlockService;
 use OCA\Social\Service\FollowService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -99,6 +100,7 @@ class RelationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/domain_blocks')]
 	public function domainBlocks(int $limit = DomainBlockService::LIMIT): DataResponse {
 		try {
 			$this->initViewer(['read:blocks']);
@@ -116,6 +118,7 @@ class RelationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/domain_blocks')]
 	public function blockDomain(string $domain = ''): DataResponse {
 		try {
 			$this->initViewer(['write:blocks']);
@@ -130,6 +133,7 @@ class RelationController extends Controller {
 	/** Unblocking an instance that was not blocked answers `{}` as well. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/domain_blocks')]
 	public function unblockDomain(string $domain = ''): DataResponse {
 		try {
 			$this->initViewer(['write:blocks']);
@@ -150,6 +154,7 @@ class RelationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/note', requirements: ['id' => '.+'])]
 	public function note(string $id, string $comment = ''): DataResponse {
 		try {
 			$this->initViewer(['write:accounts']);
@@ -165,6 +170,7 @@ class RelationController extends Controller {
 	/** Features the account on the viewer's profile. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/pin', requirements: ['id' => '.+'])]
 	public function pin(string $id): DataResponse {
 		try {
 			$this->initViewer(['write:accounts']);
@@ -180,6 +186,7 @@ class RelationController extends Controller {
 	/** Stops featuring it. Unfeaturing one that was not featured is not an error. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/unpin', requirements: ['id' => '.+'])]
 	public function unpin(string $id): DataResponse {
 		try {
 			$this->initViewer(['write:accounts']);
@@ -200,6 +207,7 @@ class RelationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/endorsements')]
 	public function endorsements(int $limit = self::ENDORSEMENTS_LIMIT): DataResponse {
 		try {
 			$this->initViewer(['read:accounts']);

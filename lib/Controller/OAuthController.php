@@ -22,6 +22,7 @@ use OCA\Social\Service\InstanceService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\BruteForceProtection;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -64,6 +65,7 @@ class OAuthController extends Controller {
 	/** `/.well-known/nodeinfo/2.0` */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/.well-known/nodeinfo/2.0')]
 	public function nodeinfo2(): Response {
 		return new DataResponse($this->nodeInfo('2.0'), Http::STATUS_OK);
 	}
@@ -133,6 +135,7 @@ class OAuthController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/apps')]
 	public function apps(
 		string $client_name = '',
 		$redirect_uris = '',
@@ -199,6 +202,7 @@ class OAuthController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/oauth/authorize')]
 	public function authorize(
 		string $client_id,
 		string $redirect_uri,
@@ -248,6 +252,7 @@ class OAuthController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/oauth/authorize')]
 	public function authorizing(
 		string $client_id,
 		string $redirect_uri,
@@ -332,6 +337,7 @@ class OAuthController extends Controller {
 	#[NoAdminRequired]
 	#[PublicPage]
 	#[BruteForceProtection(action: 'socialOauthToken')]
+	#[FrontpageRoute(verb: 'POST', url: '/oauth/token')]
 	public function token(
 		string $client_id,
 		string $client_secret,
@@ -415,6 +421,7 @@ class OAuthController extends Controller {
 	#[NoAdminRequired]
 	#[PublicPage]
 	#[BruteForceProtection(action: 'socialOauthToken')]
+	#[FrontpageRoute(verb: 'POST', url: '/oauth/revoke')]
 	public function revoke(string $client_id, string $client_secret, string $token): DataResponse {
 		try {
 			$client = $this->clientService->getFromClientId($client_id);

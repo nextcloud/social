@@ -18,6 +18,7 @@ use OCA\Social\Tools\Model\SimpleDataStore;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -41,6 +42,7 @@ class ConfigController extends Controller {
 		$this->miscService = $miscService;
 	}
 
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/config/cloudAddress')]
 	public function setCloudAddress(string $cloudAddress): DataResponse {
 		$this->configService->setCloudUrl($cloudAddress);
 
@@ -53,6 +55,7 @@ class ConfigController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/local/')]
 	public function local(): DataResponse {
 		$setup = false;
 		try {
@@ -75,6 +78,7 @@ class ConfigController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/test/{account}/')]
 	public function remote(string $account): DataResponse {
 		if ($account === '' || $this->configService->getSystemValue('social.tests') === '') {
 			return $this->local();

@@ -21,6 +21,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\NotificationService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
@@ -71,6 +72,7 @@ class NotificationController extends Controller {
 	/** One notification of the viewer's, as the notification timeline serves it. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/notifications/{id}', requirements: ['id' => '\\d+'])]
 	public function get(int $id): DataResponse {
 		try {
 			$this->initViewer(['read:notifications']);
@@ -90,6 +92,7 @@ class NotificationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/notifications/{id}/dismiss', requirements: ['id' => '\\d+'])]
 	public function dismiss(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:notifications']);
@@ -108,6 +111,7 @@ class NotificationController extends Controller {
 	/** Dismisses every notification the viewer has, and answers `{}`. */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/notifications/clear')]
 	public function clear(): DataResponse {
 		try {
 			$this->initViewer(['write:notifications']);

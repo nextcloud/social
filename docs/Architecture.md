@@ -21,7 +21,7 @@ All of the above come from `appinfo/info.xml`.
 social/
 ├── appinfo/
 │   ├── info.xml                # App metadata, dependencies, cron jobs, occ commands
-│   └── routes.php              # All HTTP routes
+│   └── routes.php              # One route; the other 201 are attributes on the controller methods
 ├── lib/
 │   ├── AP.php                  # ActivityPub type registry (factory + interface lookup)
 │   ├── AppInfo/
@@ -68,6 +68,40 @@ social/
 ```
 
 There is no `lib/bootstrap.php`; Composer's autoloader is pulled in by `lib/AppInfo/Application.php`.
+
+---
+
+## HTTP routing
+
+The app registers 202 routes. 201 of them are `#[FrontpageRoute]` attributes on
+the controller method that answers the request, next to the `#[PublicPage]`,
+`#[NoCSRFRequired]` and rate-limit attributes that decide who may call it — url
+and policy in one place. None are `#[ApiRoute]`: that is the OCS type, and the
+server serves OCS routes under `/ocsapp`, which is not where these paths are
+published.
+
+Two things about the order the server reads them in, because two routes of this
+app can match the same url:
+
+- `OC\Route\Router::getAttributeRoutes()` walks `lib/Controller` with a
+  `DirectoryIterator` and reflects over each `*Controller.php`, so attributes
+  are read in method-declaration order **within** a class, and in whatever order
+  the filesystem lists the files **between** classes. Where a url is ambiguous,
+  only the within-a-class order can be relied on:
+  `ActivityPubController::displayPost()` (`/@{username}/{token}`) is declared
+  after `getInbox()`, `outbox()`, `followers()` and `following()` for that
+  reason, and has to stay there.
+- `appinfo/routes.php` is loaded after every attribute route of the app. That is
+  why `ApiController::accountGet()` is still declared there: its
+  `/api/v1/accounts/{id}` accepts slashes in `{id}`, so it also matches
+  `/api/v1/accounts/{account}/lists` and `/api/v1/accounts/{account}/featured_tags`,
+  which live in `ListController` and `DiscoveryController` — no arrangement of
+  attributes can put it after routes of another class.
+
+A route's name is derived, not written: the controller's short name without the
+`Controller` suffix, then `#`, then the method. Two routes on one method
+therefore share a name unless one carries a `postfix`, and the later one wins —
+which is what `NavigationController::navigate()` uses `postfix` for.
 
 ---
 
@@ -793,7 +827,7 @@ This file, `docs/API.md` and `docs/OCC-Commands.md` describe the current impleme
 `tests/DocumentationTest.php` mechanically enforces the parts that can be checked, in both directions where that is possible:
 
 - the registered occ commands, **and every option and argument each of them declares** — a documented flag that does not exist, and an existing flag nobody documented, both fail;
-- the HTTP routes of `appinfo/routes.php` against the route tables of `docs/API.md`;
+- the HTTP routes the app registers — the `#[FrontpageRoute]` attributes on the controllers, read by reflection the way the server reads them, plus what is left in `appinfo/routes.php` — against the route tables of `docs/API.md`;
 - the repair steps of `appinfo/info.xml` against the integration table above;
 - the tables declared in `CoreRequestBuilder` against the schema table above;
 - the supported Nextcloud and PHP version ranges, and the app version stated at the top of this file, against `appinfo/info.xml`;
