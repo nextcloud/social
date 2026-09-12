@@ -11,6 +11,7 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Security\PrivateKeyCipher;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -105,7 +106,12 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		$actor->importFromDatabase($data);
 		$actor->setPrivateKey($this->keyCipher->open($actor->getPrivateKey()));
 		$actor->setId($root . '@' . $actor->getPreferredUsername());
-		$actor->setType('Person');
+		// The type follows the `bot` flag rather than being fixed here: an
+		// account marked automated is served as a `Service`, and that is the
+		// only thing on the wire which says so. Setting it to Person on every
+		// read left the flag true on the client entity and the actor document
+		// saying Person — the two of them disagreeing about the same fact.
+		$actor->setType($actor->isBot() ? Service::TYPE : Person::TYPE);
 		$actor->setInbox($actor->getId() . '/inbox')
 			->setOutbox($actor->getId() . '/outbox')
 			->setUserId($this->get('user_id', $data, ''))
