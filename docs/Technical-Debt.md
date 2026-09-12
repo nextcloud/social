@@ -4,9 +4,10 @@ What in this app is old, borrowed or load-bearing in a way nobody would choose
 today, what is simply dead, and what it would cost to change. Written for
 whoever has to decide where refactoring effort goes.
 
-**Verified against:** app version 0.15.1, 2026-09-12, after the wave of fixes
-described in [What has been done](#what-has-been-done). Every number was
-measured on that tree rather than carried over, and
+**Verified against:** app version 0.15.1, 2026-09-12, after the fixes in
+[#2127](https://github.com/nextcloud/social/pull/2127), which are listed under
+[What has been done](#what-has-been-done). Every number was measured on that
+tree rather than carried over, and
 [Reproducing the measurements](#reproducing-the-measurements) gives the command
 for each.
 
@@ -427,8 +428,9 @@ sixty when twenty survive the check.
 
 ## What has been done
 
-The items below were closed on branch `fix/technical-debt-wave`. They are listed
-so that the next reader can tell what this document has already accounted for.
+The items below were closed in
+[#2127](https://github.com/nextcloud/social/pull/2127). They are listed so that
+the next reader can tell what this document has already accounted for.
 
 | Item | Outcome |
 |---|---|
