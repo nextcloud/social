@@ -1583,7 +1583,7 @@ class ApiController extends Controller {
 			}
 
 			$found = $this->searchService->searchAccounts($q);
-			if ($resolve) {
+			if ($resolve && (str_starts_with($q, '@') || str_starts_with($q, 'http'))) {
 				$found = array_merge($this->searchService->searchUri($q), $found);
 			}
 

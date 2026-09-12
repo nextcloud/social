@@ -163,6 +163,41 @@ class ModerationServiceTest extends TestCase {
 		$this->service->decide(self::LOCAL_ACTOR, Moderation::SUSPEND);
 	}
 
+	public function testAnUnexpectedLookupFailureIsLoggedRatherThanMisclassified(): void {
+		$logger = $this->createMock(LoggerInterface::class);
+		$logger->expects($this->once())->method('error')
+			->with(
+				'could not federate a suspension',
+				$this->callback(fn (array $context): bool
+					=> $context['actor'] === self::LOCAL_ACTOR
+						&& $context['exception'] instanceof \RuntimeException)
+			);
+
+		$service = new ModerationService(
+			$this->moderationRequest,
+			$this->streamRequest,
+			$this->cacheActorsRequest,
+			$this->followsRequest,
+			$this->actorRelationRequest,
+			$this->streamDestRequest,
+			$this->requestQueueRequest,
+			$this->streamService,
+			$this->actorsRequest,
+			$this->accountService,
+			$logger,
+			$this->domainBlocksRequest,
+			$this->accountNotesRequest,
+			$this->muteExpiryRequest
+		);
+
+		$this->actorsRequest->method('getFromId')
+			->willThrowException(new \RuntimeException('database busy'));
+		$this->accountService->expects($this->never())->method('federateActorDelete');
+
+		$service->decide(self::LOCAL_ACTOR, Moderation::SUSPEND);
+		$this->addToAssertionCount(1);
+	}
+
 	public function testSuspendingCutsTheAccountOutOfDeliveryAndOfTimelines(): void {
 		// a suspension that left these behind kept delivering every local post
 		// to the account, and kept its posts addressed into local timelines

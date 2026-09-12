@@ -20,6 +20,7 @@ use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\Moderation;
@@ -145,14 +146,11 @@ class ModerationService {
 	private function federateSuspension(string $actorId): void {
 		try {
 			$actor = $this->actorsRequest->getFromId($actorId);
-		} catch (\Exception $e) {
-			// not one of ours, which is the ordinary case for a suspension
-			return;
-		}
-
-		try {
 			$this->accountService->federateActorDelete($actor);
 			$this->logger->info('suspension federated', ['actor' => $actorId]);
+		} catch (ActorDoesNotExistException $e) {
+			// not one of ours, which is the ordinary case for a suspension
+			return;
 		} catch (\Exception $e) {
 			$this->logger->error('could not federate a suspension', [
 				'actor' => $actorId, 'exception' => $e,
