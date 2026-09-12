@@ -10,8 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Migration;
 
 use OCA\Social\Db\CoreRequestBuilder;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Security\SecretHasher;
+use OCA\Social\Service\ConfigService;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;

@@ -51,7 +51,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IInitialStateService;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -101,8 +101,8 @@ class ActivityPubControllerTest extends TestCase {
 	private $instanceActorService;
 	/** @var ConfigService&MockObject */
 	private $configService;
-	/** @var IInitialStateService&MockObject */
-	private $initialStateService;
+	/** @var IInitialState&MockObject */
+	private $initialState;
 	/** @var InboxLimiter&MockObject */
 	private $inboxLimiter;
 	/** @var LoggerInterface&MockObject */
@@ -125,7 +125,7 @@ class ActivityPubControllerTest extends TestCase {
 		$this->pinService = $this->createMock(PinService::class);
 		$this->instanceActorService = $this->createMock(InstanceActorService::class);
 		$this->configService = $this->createMock(ConfigService::class);
-		$this->initialStateService = $this->createMock(IInitialStateService::class);
+		$this->initialState = $this->createMock(IInitialState::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
 
 		$this->configService->method('getSocialUrl')->willReturn(self::SOCIAL_URL);
@@ -149,7 +149,7 @@ class ActivityPubControllerTest extends TestCase {
 			$this->pinService,
 			$this->instanceActorService,
 			$this->configService,
-			$this->initialStateService,
+			$this->initialState,
 			$this->logger
 		);
 	}
@@ -923,9 +923,9 @@ class ActivityPubControllerTest extends TestCase {
 		$this->streamService->method('getStreamById')->with(self::SOCIAL_URL . '@alice/abc123', true)->willReturn($stream);
 
 		$states = [];
-		$this->initialStateService->method('provideInitialState')
-			->willReturnCallback(function (string $app, string $key, $data) use (&$states): void {
-				$states[$app][$key] = $data;
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $data) use (&$states): void {
+				$states['social'][$key] = $data;
 			});
 
 		$response = $this->controller->displayPost('alice', 'abc123');
@@ -941,8 +941,8 @@ class ActivityPubControllerTest extends TestCase {
 		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
 
 		$keys = [];
-		$this->initialStateService->method('provideInitialState')
-			->willReturnCallback(function (string $app, string $key, $data) use (&$keys): void {
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $data) use (&$keys): void {
 				$keys[] = $key;
 			});
 

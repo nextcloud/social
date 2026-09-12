@@ -60,7 +60,7 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IInitialStateService;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 use Psr\Log\LoggerInterface;
 
@@ -80,7 +80,7 @@ class ActivityPubController extends Controller {
 	private FollowService $followService;
 	private StreamService $streamService;
 	private ConfigService $configService;
-	private IInitialStateService $initialStateService;
+	private IInitialState $initialState;
 	private LoggerInterface $logger;
 
 	public function __construct(
@@ -99,7 +99,7 @@ class ActivityPubController extends Controller {
 		private PinService $pinService,
 		private InstanceActorService $instanceActorService,
 		ConfigService $configService,
-		IInitialStateService $initialStateService,
+		IInitialState $initialState,
 		LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -115,7 +115,7 @@ class ActivityPubController extends Controller {
 		$this->followService = $followService;
 		$this->streamService = $streamService;
 		$this->configService = $configService;
-		$this->initialStateService = $initialStateService;
+		$this->initialState = $initialState;
 		$this->logger = $logger;
 
 		$this->registerResponder('activity+json', function ($response) {
@@ -766,10 +766,10 @@ class ActivityPubController extends Controller {
 			'setup' => false,
 		];
 
-		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+		$this->initialState->provideInitialState('serverData', $serverData);
 
 		if ($post !== null) {
-			$this->initialStateService->provideInitialState(Application::APP_ID, 'item', $post);
+			$this->initialState->provideInitialState('item', $post);
 		}
 
 		return new TemplateResponse(Application::APP_ID, 'main', []);

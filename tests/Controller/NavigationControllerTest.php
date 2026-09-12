@@ -24,10 +24,10 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IConfig;
 use OCP\IGroupManager;
-use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -40,8 +40,8 @@ class NavigationControllerTest extends TestCase {
 	private $request;
 	/** @var IConfig&MockObject */
 	private $config;
-	/** @var IInitialStateService&MockObject */
-	private $initialStateService;
+	/** @var IInitialState&MockObject */
+	private $initialState;
 	/** @var IURLGenerator&MockObject */
 	private $urlGenerator;
 	/** @var AccountService&MockObject */
@@ -63,7 +63,7 @@ class NavigationControllerTest extends TestCase {
 
 		$this->request = $this->createMock(IRequest::class);
 		$this->config = $this->createMock(IConfig::class);
-		$this->initialStateService = $this->createMock(IInitialStateService::class);
+		$this->initialState = $this->createMock(IInitialState::class);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->documentService = $this->createMock(DocumentService::class);
@@ -71,9 +71,9 @@ class NavigationControllerTest extends TestCase {
 		$this->checkService = $this->createMock(CheckService::class);
 		$this->groupManager = $this->createMock(IGroupManager::class);
 
-		$this->initialStateService->method('provideInitialState')
-			->willReturnCallback(function (string $app, string $key, $data): void {
-				$this->states[$app][$key] = $data;
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $data): void {
+				$this->states['social'][$key] = $data;
 			});
 		$this->urlGenerator->method('getBaseUrl')->willReturn('https://cloud.example/');
 
@@ -96,7 +96,7 @@ class NavigationControllerTest extends TestCase {
 			$this->request,
 			$userId,
 			$this->config,
-			$this->initialStateService,
+			$this->initialState,
 			$this->urlGenerator,
 			$this->accountService,
 			$this->documentService,
