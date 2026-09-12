@@ -686,7 +686,7 @@ class AccountService {
 				'could not read the account of a local actor, falling back to its display name',
 				['userId' => $actor->getUserId(), 'exception' => $e]
 			);
-			$displayName = (string)$user->getDisplayName();
+			$displayName = $user->getDisplayName();
 		}
 
 		if ($displayName !== '') {

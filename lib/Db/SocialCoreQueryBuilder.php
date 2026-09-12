@@ -9,12 +9,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OC\SystemConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use RuntimeException;
 use OCA\Social\Tools\Db\ExtendedQueryBuilder;
-use OCP\IDBConnection;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IURLGenerator;
-use Psr\Log\LoggerInterface;
 
 /**
  * Class SocialCoreQueryBuilder
@@ -33,12 +32,10 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 	private ?Person $viewer = null;
 
 	public function __construct(
-		IDBConnection $connection,
-		SystemConfig $systemConfig,
-		LoggerInterface $logger,
+		IQueryBuilder $queryBuilder,
 		protected IURLGenerator $urlGenerator,
 	) {
-		parent::__construct($connection, $systemConfig, $logger);
+		parent::__construct($queryBuilder);
 	}
 
 	public function hasViewer(): bool {
@@ -49,7 +46,18 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 		$this->viewer = $viewer;
 	}
 
+	/**
+	 * The actor the rows are being read for.
+	 *
+	 * Guard with `hasViewer()`: this used to declare `Person` while returning
+	 * the nullable property, so an unguarded call died on a TypeError inside
+	 * the getter rather than saying what was missing.
+	 */
 	public function getViewer(): Person {
+		if ($this->viewer === null) {
+			throw new RuntimeException('no viewer set on this query: guard with hasViewer()');
+		}
+
 		return $this->viewer;
 	}
 

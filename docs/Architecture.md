@@ -8,8 +8,8 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
 **App version:** 0.17.1  
-**Supported Nextcloud versions:** 28 – 35  
-**Supported PHP versions:** 8.1 – 8.5  
+**Supported Nextcloud versions:** 35 – 36  
+**Supported PHP versions:** 8.3 – 8.5  
 
 All of the above come from `appinfo/info.xml`.
 
@@ -30,7 +30,7 @@ social/
 │   ├── Controller/             # HTTP entry points (ActivityPub, Mastodon-ish API, local API, OAuth, OStatus, navigation, queue, config, moderation, public pages)
 │   ├── Cron/                   # Background jobs (Cache, Queue, ScheduledPosts; DomainPurge and ActorCleanup are queued with an argument)
 │   ├── Dashboard/              # Nextcloud Dashboard widgets
-│   ├── Db/                     # Query-builder based repositories (`*Request` + `*RequestBuilder` pairs)
+│   ├── Db/                     # Query-builder based repositories (`*Request` + `*RequestBuilder` pairs), on the public `IQueryBuilder`
 │   ├── Exceptions/             # Custom exceptions
 │   ├── Interfaces/             # Per-ActivityPub-type handlers (Activity/, Actor/, Object/, Internal/)
 │   ├── Listeners/              # Event listeners (ProfileSectionListener, UserAccountListener, UserDeletedListener)
@@ -42,7 +42,7 @@ social/
 │   ├── Service/                # Business logic services
 │   ├── Security/               # Key cipher, secret hasher, HTML sanitizer, outbound-address guard
 │   ├── Settings/               # Admin settings (moderation panel: reports + Fediverse access list)
-│   ├── Tools/                  # Vendored helper layer (query builder base, traits, exceptions) — see docs/Technical-Debt.md
+│   ├── Tools/                  # Vendored helper layer (query builder helpers, traits, exceptions) — see docs/Technical-Debt.md
 │   ├── UserMigration/          # Account export/import (`SocialMigrator`, the Nextcloud user-migration framework)
 │   ├── Traits/                 # TDetails
 │   └── WellKnown/              # WebFinger / NodeInfo / host-meta handler and responses
@@ -72,6 +72,20 @@ There is no `lib/bootstrap.php`; Composer's autoloader is pulled in by `lib/AppI
 ---
 
 ## Database Schema
+
+Every query in the app is built by one class chain. `ExtendedQueryBuilder`
+(`lib/Tools/Db/`) holds a query builder the server handed it through
+`IDBConnection::getQueryBuilder()` and delegates the whole `IQueryBuilder`
+interface to it, adding the `limitTo*` / `searchIn*` helpers the `lib/Db/`
+repositories are written against. `SocialCoreQueryBuilder` adds the viewer,
+and `SocialCross`, `SocialLimits`, `SocialFilters` and `SocialQueryBuilder`
+add the joins, visibility filters and pagination on top of it.
+
+It is composition rather than inheritance on purpose: the chain used to extend
+`OC\DB\QueryBuilder\QueryBuilder` from the server's `lib/private/`, which put
+all 68 repository classes on a constructor signature that carries no stability
+promise and broke outright when Nextcloud 35 added a method to the public
+interface. Nothing in `lib/` now names a class outside `OCP\`.
 
 The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all prefixed with `social_`:
 

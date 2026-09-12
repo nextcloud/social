@@ -10,10 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
-use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\RequestQueueService;
+use OCA\Social\Tools\IExtendedQueryBuilder;
 use OCP\DB\Exception;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -273,7 +273,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 */
 	protected function limitToQueueDue(IQueryBuilder &$qb, int $maxTries): void {
 		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$now = time();
 
 		$due = $expr->orX();

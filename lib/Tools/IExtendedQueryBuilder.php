@@ -22,6 +22,20 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  */
 interface IExtendedQueryBuilder extends IQueryBuilder {
 	/**
+	 * The statement types `IQueryBuilder::getType()` reports.
+	 *
+	 * The public interface returns the number but never names it, so the app
+	 * used to import `Doctrine\DBAL\Query\QueryBuilder` — a third-party class
+	 * it does not depend on — in four files purely to read these four
+	 * constants. `QueryBuilderTypeConstantsTest` holds them to the values
+	 * Doctrine assigns.
+	 */
+	public const SELECT = 0;
+	public const DELETE = 1;
+	public const UPDATE = 2;
+	public const INSERT = 3;
+
+	/**
 	 * @param string $alias
 	 *
 	 * @return IExtendedQueryBuilder
@@ -77,7 +91,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @param string $alias
 	 */
 	public function limitToDBField(string $field, string $value, bool $cs = true, string $alias = '',
-	);
+	): void;
 
 	/**
 	 * @param string $field
@@ -88,7 +102,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @return mixed
 	 */
 	public function filterDBField(string $field, string $value, bool $cs = true, string $alias = '',
-	);
+	): void;
 
 	public function exprLimitToDBField(
 		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = '',
@@ -96,7 +110,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 
 	public function limitToDBFieldArray(
 		string $field, array $values, bool $cs = true, string $alias = '',
-	);
+	): void;
 
 	/**
 	 * @param string $field
@@ -107,7 +121,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 		string $field, array $values, bool $eq = true, bool $cs = true, string $alias = '',
 	): ICompositeExpression;
 
-	public function limitToDBFieldInt(string $field, int $value, string $alias = '');
+	public function limitToDBFieldInt(string $field, int $value, string $alias = ''): void;
 
 	/**
 	 * @param string $field
@@ -119,7 +133,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	/**
 	 * @param string $field
 	 */
-	public function limitToDBFieldEmpty(string $field);
+	public function limitToDBFieldEmpty(string $field): void;
 
 	/**
 	 * @param string $field
@@ -127,7 +141,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @param bool $orNull
 	 */
 	public function limitToDBFieldDateTime(string $field, DateTime $date, bool $orNull = false,
-	);
+	): void;
 
 	/**
 	 * @param string $field
@@ -135,5 +149,5 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 *
 	 * @return mixed
 	 */
-	public function searchInDBField(string $field, string $value);
+	public function searchInDBField(string $field, string $value): void;
 }

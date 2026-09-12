@@ -25,26 +25,13 @@ use PHPUnit\Framework\TestCase;
  * that re-adds an existing column fails the upgrade it is part of.
  */
 class ReportModeratorColumnsTest extends TestCase {
+	use RecordsSchemaChanges;
+
 	/** @var array<string, array{string, array}> column => [type, options] */
 	private array $added = [];
 
 	private function schemaClosure(bool $hasTable = true, array $existing = []): Closure {
-		$added = &$this->added;
-		$table = new class($existing, $added) {
-			public function __construct(
-				private array $existing,
-				private array &$added,
-			) {
-			}
-
-			public function hasColumn(string $column): bool {
-				return in_array($column, $this->existing, true);
-			}
-
-			public function addColumn(string $column, string $type, array $options = []): void {
-				$this->added[$column] = [$type, $options];
-			}
-		};
+		$table = $this->recordTable('social_report', $existing);
 
 		$schema = $this->createMock(ISchemaWrapper::class);
 		$schema->method('hasTable')->with('social_report')->willReturn($hasTable);
@@ -56,6 +43,7 @@ class ReportModeratorColumnsTest extends TestCase {
 	private function applyStep(bool $hasTable = true, array $existing = []): void {
 		(new Version1000Date20260911000013())
 			->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($hasTable, $existing), []);
+		$this->harvestSchemaChanges();
 	}
 
 	public function testTheModeratorsAreBoundedUserIdsAndNotActorIds(): void {

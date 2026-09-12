@@ -31,11 +31,11 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 	<repository type="git">https://github.com/nextcloud/social.git</repository>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
 	<dependencies>
-		<php min-version="8.1" max-version="8.5" />
+		<php min-version="8.3" max-version="8.5" />
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>
-		<nextcloud min-version="28" max-version="35" />
+		<nextcloud min-version="35" max-version="36" />
 	</dependencies>
 
 	<background-jobs>

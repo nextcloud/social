@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -30,7 +29,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $aliasFollowing
 	 */
 	public function selectDestFollowing(string $aliasDest = 'sd', string $aliasFollowing = 'f') {
-		if ($this->getType() !== QueryBuilder::SELECT) {
+		if ($this->getType() !== self::SELECT) {
 			return;
 		}
 
@@ -51,7 +50,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * unaffected by whether any exist.
 	 */
 	public function leftJoinFollowing(string $alias = 'f'): void {
-		if ($this->getType() !== QueryBuilder::SELECT || !$this->hasViewer()) {
+		if ($this->getType() !== self::SELECT || !$this->hasViewer()) {
 			return;
 		}
 
@@ -73,7 +72,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $link
 	 */
 	public function linkToStreamTags(string $alias = 'st', string $link = '') {
-		if ($this->getType() !== QueryBuilder::SELECT) {
+		if ($this->getType() !== self::SELECT) {
 			return;
 		}
 
@@ -89,7 +88,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $link
 	 */
 	public function linkToCacheActors(string $alias = 'ca', string $link = '', bool $innerJoin = true) {
-		if ($this->getType() !== QueryBuilder::SELECT) {
+		if ($this->getType() !== self::SELECT) {
 			return;
 		}
 
@@ -223,7 +222,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		string $prefix = 'cd_',
 		string $alias = 'cd',
 	) {
-		if ($this->getType() !== QueryBuilder::SELECT) {
+		if ($this->getType() !== self::SELECT) {
 			return;
 		}
 
@@ -291,7 +290,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		string $alias = '',
 		string $leftAlias = 'os',
 	) {
-		if ($this->getType() !== QueryBuilder::SELECT) {
+		if ($this->getType() !== self::SELECT) {
 			return;
 		}
 
@@ -332,8 +331,8 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 */
 	private function exprVisibleToViewer(string $alias): ICompositeExpression {
 		$dest = $this->getTableName(CoreRequestBuilder::TABLE_STREAM_DEST);
-		$recipient = $this->createNamedParameter('recipient');
-		$public = $this->createNamedParameter($this->prim(Stream::CONTEXT_PUBLIC));
+		$recipient = (string)$this->createNamedParameter('recipient');
+		$public = (string)$this->createNamedParameter($this->prim(Stream::CONTEXT_PUBLIC));
 
 		$conditions = [
 			'EXISTS (SELECT 1 FROM ' . $dest . ' vdp WHERE vdp.stream_id = ' . $alias . '.id_prim'
@@ -342,7 +341,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		if ($this->hasViewer()) {
 			$follows = $this->getTableName(CoreRequestBuilder::TABLE_FOLLOWS);
-			$viewer = $this->createNamedParameter($this->prim($this->getViewer()->getId()));
+			$viewer = (string)$this->createNamedParameter($this->prim($this->getViewer()->getId()));
 
 			$conditions[] = $this->expr()->eq($alias . '.attributed_to_prim', $viewer);
 			$conditions[] = 'EXISTS (SELECT 1 FROM ' . $dest . ' vdv WHERE vdv.stream_id = ' . $alias
@@ -371,7 +370,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		string $prefix = '',
 		?Person $author = null,
 	) {
-		if ($this->getType() !== QueryBuilder::SELECT) {
+		if ($this->getType() !== self::SELECT) {
 			return;
 		}
 
@@ -400,7 +399,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $alias
 	 */
 	public function leftJoinFollowStatus(string $alias = 'fs') {
-		if ($this->getType() !== QueryBuilder::SELECT || !$this->hasViewer()) {
+		if ($this->getType() !== self::SELECT || !$this->hasViewer()) {
 			return;
 		}
 
@@ -423,7 +422,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $alias
 	 */
 	public function selectStreamActions(string $alias = 'sa'): void {
-		if ($this->getType() !== QueryBuilder::SELECT) {
+		if ($this->getType() !== self::SELECT) {
 			return;
 		}
 
@@ -443,7 +442,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $alias
 	 */
 	public function leftJoinStreamAction(string $alias = 'sa'): void {
-		if ($this->getType() !== QueryBuilder::SELECT || !$this->hasViewer()) {
+		if ($this->getType() !== self::SELECT || !$this->hasViewer()) {
 			return;
 		}
 

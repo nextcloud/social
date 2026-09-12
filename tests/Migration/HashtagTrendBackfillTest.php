@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Migration;
 
 use Closure;
+use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Migration\Version1000Date20260910000003;
 use OCP\DB\ISchemaWrapper;
 use OCP\Migration\IOutput;
@@ -24,6 +25,8 @@ use PHPUnit\Framework\TestCase;
  * on a quiet instance, and the trends endpoint reads the columns.
  */
 class HashtagTrendBackfillTest extends TestCase {
+	use RecordsSchemaChanges;
+
 	private const LAGGING = [
 		'hashtag' => '#lagging',
 		'trend' => '{"1h":0,"12h":1,"1d":5,"3d":7,"10d":9}',
@@ -50,16 +53,11 @@ class HashtagTrendBackfillTest extends TestCase {
 	}
 
 	private function schemaClosure(bool $hasTable = true, bool $hasColumns = true): Closure {
-		$table = new class($hasColumns) {
-			public function __construct(
-				private bool $hasColumns,
-			) {
-			}
-
-			public function hasColumn(string $column): bool {
-				return $this->hasColumns;
-			}
-		};
+		// the step reads every trend column before it backfills any of them
+		$table = $this->recordTable(
+			'social_hashtag',
+			$hasColumns ? array_values(HashtagsRequest::TREND_COLUMNS) : [],
+		);
 
 		$schema = $this->createMock(ISchemaWrapper::class);
 		$schema->method('hasTable')->willReturn($hasTable);

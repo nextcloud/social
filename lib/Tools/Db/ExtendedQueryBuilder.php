@@ -11,28 +11,367 @@ namespace OCA\Social\Tools\Db;
 
 use DateInterval;
 use DateTime;
-use Doctrine\DBAL\Query\QueryBuilder as DBALQueryBuilder;
 use Exception;
-use OC\DB\QueryBuilder\QueryBuilder;
 use OCA\Social\Tools\Exceptions\RowNotFoundException;
 use OCA\Social\Tools\IExtendedQueryBuilder;
 use OCA\Social\Tools\IQueryRow;
+use OCP\DB\IResult;
+use OCP\DB\QueryBuilder\ConflictResolutionMode;
 use OCP\DB\QueryBuilder\ICompositeExpression;
+use OCP\DB\QueryBuilder\ILiteral;
+use OCP\DB\QueryBuilder\IParameter;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\DB\QueryBuilder\IQueryFunction;
+use OCP\IDBConnection;
 
 /**
- * Class ExtendedQueryBuilder
+ * The app's query-builder helpers, wrapped around a query builder the server
+ * handed us rather than extending one we built ourselves.
  *
- * @package OCA\Social\Tools\Db
+ * This class used to extend `OC\DB\QueryBuilder\QueryBuilder`, which lives in
+ * the server's `lib/private/` and carries no stability promise. Every one of
+ * the 68 classes in `lib/Db/` descends from this one, so that edge put the
+ * whole persistence layer on a private constructor signature: when core added
+ * sharding parameters to it, the app got a fatal on `occ upgrade` with no
+ * deprecation first, and when Nextcloud 35 added `forUpdate()` to the public
+ * interface, the private class no longer satisfied the interface this class
+ * claims to implement.
+ *
+ * Composition removes both failure modes. The inner builder comes from
+ * `IDBConnection::getQueryBuilder()`, so the server constructs its own object
+ * with whatever arguments it currently takes, and everything below is
+ * delegation to the public `IQueryBuilder` contract. The fluent methods return
+ * `$this` rather than the inner builder, so chains stay on the helper class.
  */
-class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder {
+class ExtendedQueryBuilder implements IExtendedQueryBuilder {
 	public string $defaultSelectAlias = '';
 
+	public function __construct(
+		protected IQueryBuilder $queryBuilder,
+	) {
+	}
+
 	/**
-	 * @param string $alias
+	 * The query builder this one delegates to.
 	 *
-	 * @return IExtendedQueryBuilder
+	 * Exposed for the rare caller that needs to hand the server its own object
+	 * back; everything inside the app should use the delegating methods.
 	 */
+	public function getQueryBuilder(): IQueryBuilder {
+		return $this->queryBuilder;
+	}
+
+	public function automaticTablePrefix($enabled) {
+		$this->queryBuilder->automaticTablePrefix($enabled);
+
+		return $this;
+	}
+
+	public function expr() {
+		return $this->queryBuilder->expr();
+	}
+
+	public function func() {
+		return $this->queryBuilder->func();
+	}
+
+	public function getType() {
+		return $this->queryBuilder->getType();
+	}
+
+	public function getConnection() {
+		return $this->queryBuilder->getConnection();
+	}
+
+	public function getState() {
+		return $this->queryBuilder->getState();
+	}
+
+	public function executeQuery(?IDBConnection $connection = null): IResult {
+		return $this->queryBuilder->executeQuery($connection);
+	}
+
+	public function executeStatement(?IDBConnection $connection = null): int {
+		return $this->queryBuilder->executeStatement($connection);
+	}
+
+	public function getSQL() {
+		return $this->queryBuilder->getSQL();
+	}
+
+	public function setParameter($key, $value, $type = null) {
+		$this->queryBuilder->setParameter($key, $value, $type);
+
+		return $this;
+	}
+
+	public function setParameters(array $params, array $types = array (
+)) {
+		$this->queryBuilder->setParameters($params, $types);
+
+		return $this;
+	}
+
+	public function getParameters() {
+		return $this->queryBuilder->getParameters();
+	}
+
+	public function getParameter($key) {
+		return $this->queryBuilder->getParameter($key);
+	}
+
+	public function getParameterTypes() {
+		return $this->queryBuilder->getParameterTypes();
+	}
+
+	public function getParameterType($key) {
+		return $this->queryBuilder->getParameterType($key);
+	}
+
+	public function setFirstResult($firstResult) {
+		$this->queryBuilder->setFirstResult($firstResult);
+
+		return $this;
+	}
+
+	public function getFirstResult() {
+		return $this->queryBuilder->getFirstResult();
+	}
+
+	public function setMaxResults($maxResults) {
+		$this->queryBuilder->setMaxResults($maxResults);
+
+		return $this;
+	}
+
+	public function getMaxResults() {
+		return $this->queryBuilder->getMaxResults();
+	}
+
+	public function select(...$selects) {
+		$this->queryBuilder->select(...$selects);
+
+		return $this;
+	}
+
+	public function selectAlias($select, $alias): static {
+		$this->queryBuilder->selectAlias($select, $alias);
+
+		return $this;
+	}
+
+	public function selectDistinct($select) {
+		$this->queryBuilder->selectDistinct($select);
+
+		return $this;
+	}
+
+	public function addSelect(...$select) {
+		$this->queryBuilder->addSelect(...$select);
+
+		return $this;
+	}
+
+	public function delete($delete = null, $alias = null) {
+		$this->queryBuilder->delete($delete, $alias);
+
+		return $this;
+	}
+
+	public function update($update = null, $alias = null) {
+		$this->queryBuilder->update($update, $alias);
+
+		return $this;
+	}
+
+	public function insert($insert = null) {
+		$this->queryBuilder->insert($insert);
+
+		return $this;
+	}
+
+	public function from($from, $alias = null) {
+		$this->queryBuilder->from($from, $alias);
+
+		return $this;
+	}
+
+	public function join($fromAlias, $join, $alias, $condition = null) {
+		$this->queryBuilder->join($fromAlias, $join, $alias, $condition);
+
+		return $this;
+	}
+
+	public function innerJoin($fromAlias, $join, $alias, $condition = null) {
+		$this->queryBuilder->innerJoin($fromAlias, $join, $alias, $condition);
+
+		return $this;
+	}
+
+	public function leftJoin($fromAlias, $join, $alias, $condition = null) {
+		$this->queryBuilder->leftJoin($fromAlias, $join, $alias, $condition);
+
+		return $this;
+	}
+
+	public function rightJoin($fromAlias, $join, $alias, $condition = null) {
+		$this->queryBuilder->rightJoin($fromAlias, $join, $alias, $condition);
+
+		return $this;
+	}
+
+	public function set($key, $value) {
+		$this->queryBuilder->set($key, $value);
+
+		return $this;
+	}
+
+	public function where(...$predicates) {
+		$this->queryBuilder->where(...$predicates);
+
+		return $this;
+	}
+
+	public function andWhere(...$where) {
+		$this->queryBuilder->andWhere(...$where);
+
+		return $this;
+	}
+
+	public function orWhere(...$where) {
+		$this->queryBuilder->orWhere(...$where);
+
+		return $this;
+	}
+
+	public function groupBy(...$groupBys) {
+		$this->queryBuilder->groupBy(...$groupBys);
+
+		return $this;
+	}
+
+	public function addGroupBy(...$groupBy) {
+		$this->queryBuilder->addGroupBy(...$groupBy);
+
+		return $this;
+	}
+
+	public function setValue($column, $value) {
+		$this->queryBuilder->setValue($column, $value);
+
+		return $this;
+	}
+
+	public function values(array $values) {
+		$this->queryBuilder->values($values);
+
+		return $this;
+	}
+
+	public function having(...$having) {
+		$this->queryBuilder->having(...$having);
+
+		return $this;
+	}
+
+	public function andHaving(...$having) {
+		$this->queryBuilder->andHaving(...$having);
+
+		return $this;
+	}
+
+	public function orHaving(...$having) {
+		$this->queryBuilder->orHaving(...$having);
+
+		return $this;
+	}
+
+	public function orderBy(ILiteral|IParameter|IQueryFunction|string $sort, \SortDirection|string|null $order = null): static {
+		$this->queryBuilder->orderBy($sort, $order);
+
+		return $this;
+	}
+
+	public function addOrderBy(ILiteral|IParameter|IQueryFunction|string $sort, \SortDirection|string|null $order = null): static {
+		$this->queryBuilder->addOrderBy($sort, $order);
+
+		return $this;
+	}
+
+	public function getQueryPart($queryPartName) {
+		return $this->queryBuilder->getQueryPart($queryPartName);
+	}
+
+	public function getQueryParts() {
+		return $this->queryBuilder->getQueryParts();
+	}
+
+	public function resetQueryParts($queryPartNames = null) {
+		$this->queryBuilder->resetQueryParts($queryPartNames);
+
+		return $this;
+	}
+
+	public function resetQueryPart($queryPartName) {
+		$this->queryBuilder->resetQueryPart($queryPartName);
+
+		return $this;
+	}
+
+	public function createNamedParameter($value, $type = IQueryBuilder::PARAM_STR, $placeHolder = null) {
+		return $this->queryBuilder->createNamedParameter($value, $type, $placeHolder);
+	}
+
+	public function createPositionalParameter($value, $type = IQueryBuilder::PARAM_STR) {
+		return $this->queryBuilder->createPositionalParameter($value, $type);
+	}
+
+	public function createParameter($name) {
+		return $this->queryBuilder->createParameter($name);
+	}
+
+	public function createFunction($call) {
+		return $this->queryBuilder->createFunction($call);
+	}
+
+	public function getLastInsertId(): int {
+		return $this->queryBuilder->getLastInsertId();
+	}
+
+	public function getTableName($table) {
+		return $this->queryBuilder->getTableName($table);
+	}
+
+	public function prefixTableName(string $table): string {
+		return $this->queryBuilder->prefixTableName($table);
+	}
+
+	public function getColumnName($column, $tableAlias = '') {
+		return $this->queryBuilder->getColumnName($column, $tableAlias);
+	}
+
+	public function hintShardKey(string $column, mixed $value, bool $overwrite = false): static {
+		$this->queryBuilder->hintShardKey($column, $value, $overwrite);
+
+		return $this;
+	}
+
+	public function runAcrossAllShards(): static {
+		$this->queryBuilder->runAcrossAllShards();
+
+		return $this;
+	}
+
+	public function getOutputColumns(): array {
+		return $this->queryBuilder->getOutputColumns();
+	}
+
+	public function forUpdate(ConflictResolutionMode $conflictResolutionMode = ConflictResolutionMode::Ordinary): static {
+		$this->queryBuilder->forUpdate($conflictResolutionMode);
+
+		return $this;
+	}
+
 	public function setDefaultSelectAlias(string $alias): IExtendedQueryBuilder {
 		$this->defaultSelectAlias = $alias;
 
@@ -112,7 +451,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param bool $cs - case sensitive
 	 * @param string $alias
 	 */
-	public function limitToDBField(string $field, string $value, bool $cs = true, string $alias = '') {
+	public function limitToDBField(string $field, string $value, bool $cs = true, string $alias = ''): void {
 		$expr = $this->exprLimitToDBField($field, $value, true, $cs, $alias);
 
 		$this->andWhere($expr);
@@ -125,7 +464,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param string $alias
 	 */
 	public function filterDBField(string $field, string $value, bool $cs = true, string $alias = '',
-	) {
+	): void {
 		$expr = $this->exprLimitToDBField($field, $value, false, $cs, $alias);
 		$this->andWhere($expr);
 	}
@@ -136,7 +475,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$expr = $this->expr();
 
 		$pf = '';
-		if ($this->getType() === DBALQueryBuilder::SELECT) {
+		if ($this->getType() === self::SELECT) {
 			$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.';
 		}
 		$field = $pf . $field;
@@ -165,7 +504,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 */
 	public function limitToDBFieldArray(
 		string $field, array $values, bool $cs = true, string $alias = '',
-	) {
+	): void {
 		$expr = $this->exprLimitToDBFieldArray($field, $values, true, $cs, $alias);
 		$this->andWhere($expr);
 	}
@@ -185,7 +524,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$expr = $this->expr();
 
 		$pf = '';
-		if ($this->getType() === DBALQueryBuilder::SELECT) {
+		if ($this->getType() === self::SELECT) {
 			$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.';
 		}
 		$field = $pf . $field;
@@ -218,7 +557,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param int $value
 	 * @param string $alias
 	 */
-	public function limitToDBFieldInt(string $field, int $value, string $alias = '') {
+	public function limitToDBFieldInt(string $field, int $value, string $alias = ''): void {
 		$expr = $this->exprLimitToDBFieldInt($field, $value, $alias, true);
 		$this->andWhere($expr);
 	}
@@ -228,7 +567,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$expr = $this->expr();
 
 		$pf = '';
-		if ($this->getType() === DBALQueryBuilder::SELECT) {
+		if ($this->getType() === self::SELECT) {
 			$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.';
 		}
 		$field = $pf . $field;
@@ -244,10 +583,10 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	/**
 	 * @param string $field
 	 */
-	public function limitToDBFieldEmpty(string $field) {
+	public function limitToDBFieldEmpty(string $field): void {
 		$expr = $this->expr();
 		$pf
-			= ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
+			= ($this->getType() === self::SELECT) ? $this->getDefaultSelectAlias()
 															  . '.' : '';
 		$field = $pf . $field;
 
@@ -259,10 +598,10 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param DateTime $date
 	 * @param bool $orNull
 	 */
-	public function limitToDBFieldDateTime(string $field, DateTime $date, bool $orNull = false) {
+	public function limitToDBFieldDateTime(string $field, DateTime $date, bool $orNull = false): void {
 		$expr = $this->expr();
 		$pf
-			= ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
+			= ($this->getType() === self::SELECT) ? $this->getDefaultSelectAlias()
 															  . '.' : '';
 		$field = $pf . $field;
 
@@ -281,10 +620,10 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param string $field
 	 * @param string $value
 	 */
-	public function searchInDBField(string $field, string $value) {
+	public function searchInDBField(string $field, string $value): void {
 		$expr = $this->expr();
 
-		$pf = ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
+		$pf = ($this->getType() === self::SELECT) ? $this->getDefaultSelectAlias()
 																. '.' : '';
 		$field = $pf . $field;
 
@@ -345,7 +684,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @return string
 	 */
 	public function exprLimitInArray(string $field, array $values, string $alias = ''): string {
-		if ($this->getType() === DBALQueryBuilder::SELECT) {
+		if ($this->getType() === self::SELECT) {
 			$field = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.' . $field;
 		}
 

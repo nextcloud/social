@@ -11,9 +11,7 @@ namespace OCA\Social\Db;
 
 use DateInterval;
 use DateTime;
-use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
-use OC;
 use OC\DB\Connection;
 use OC\DB\SchemaWrapper;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -22,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Tools\IExtendedQueryBuilder;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
@@ -477,9 +476,7 @@ class CoreRequestBuilder {
 	 */
 	public function getQueryBuilder(): SocialQueryBuilder {
 		$qb = new SocialQueryBuilder(
-			$this->dbConnection,
-			OC::$server->get(\OC\SystemConfig::class),
-			$this->logger,
+			$this->dbConnection->getQueryBuilder(),
 			$this->urlGenerator
 		);
 
@@ -833,7 +830,7 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToQueueDue(IQueryBuilder &$qb, int $maxTries): void {
 		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$now = time();
 
 		$due = $expr->orX();
@@ -930,7 +927,7 @@ class CoreRequestBuilder {
 		$expr = $qb->expr();
 
 		$pf = '';
-		if ($qb->getType() === QueryBuilder::SELECT) {
+		if ($qb->getType() === IExtendedQueryBuilder::SELECT) {
 			$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
 		}
 		$field = $pf . $field;
@@ -964,7 +961,7 @@ class CoreRequestBuilder {
 		$expr = $qb->expr();
 
 		$pf = '';
-		if ($qb->getType() === QueryBuilder::SELECT) {
+		if ($qb->getType() === IExtendedQueryBuilder::SELECT) {
 			$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
 		}
 		$field = $pf . $field;
@@ -978,7 +975,7 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToDBFieldEmpty(IQueryBuilder &$qb, string $field) {
 		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
 		$qb->andWhere($expr->eq($field, $qb->createNamedParameter('')));
@@ -994,7 +991,7 @@ class CoreRequestBuilder {
 		IQueryBuilder &$qb, string $field, DateTime $date, bool $orNull = false,
 	) {
 		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
 		if ($orNull === true) {
@@ -1012,7 +1009,7 @@ class CoreRequestBuilder {
 
 	protected function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values): void {
 		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
 		$conditions = [];
@@ -1033,7 +1030,7 @@ class CoreRequestBuilder {
 	protected function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
 		$expr = $qb->expr();
 
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
 		$qb->andWhere($expr->iLike($field, $qb->createNamedParameter($value)));
@@ -1050,7 +1047,7 @@ class CoreRequestBuilder {
 	protected function leftJoinCacheActors(
 		IQueryBuilder &$qb, string $fieldActorId, ?Person $author = null, string $alias = '',
 	) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
+		if ($qb->getType() !== IExtendedQueryBuilder::SELECT) {
 			return;
 		}
 
@@ -1107,7 +1104,7 @@ class CoreRequestBuilder {
 	 */
 	protected function leftJoinAccounts(IQueryBuilder &$qb, string $fieldActorId, string $alias = '',
 	) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
+		if ($qb->getType() !== IExtendedQueryBuilder::SELECT) {
 			return;
 		}
 
@@ -1163,7 +1160,7 @@ class CoreRequestBuilder {
 	 * @deprecated
 	 */
 	protected function leftJoinStreamAction(SocialQueryBuilder &$qb) {
-		if ($qb->getType() !== QueryBuilder::SELECT || $this->viewer === null) {
+		if ($qb->getType() !== IExtendedQueryBuilder::SELECT || $this->viewer === null) {
 			return;
 		}
 
@@ -1232,7 +1229,7 @@ class CoreRequestBuilder {
 		IQueryBuilder &$qb, string $fieldActorId, bool $asFollower = true,
 		string $prefix = 'follow', string $pf = '',
 	) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
+		if ($qb->getType() !== IExtendedQueryBuilder::SELECT) {
 			return;
 		}
 

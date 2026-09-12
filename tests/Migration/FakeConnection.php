@@ -170,7 +170,15 @@ class FakeConnection implements IDBConnection {
 		throw new LogicException('migrateToSchema() is not part of this double');
 	}
 
-	public function getDatabaseProvider(): string {
+	public function getTypedQueryBuilder(): \OCP\DB\QueryBuilder\ITypedQueryBuilder {
+		throw new LogicException('getTypedQueryBuilder() is not part of this double');
+	}
+
+	public function truncateTable(string $table, bool $cascade): void {
+		throw new LogicException('truncateTable() is not part of this double');
+	}
+
+	public function getDatabaseProvider(bool $strict = false): string {
 		throw new LogicException('getDatabaseProvider() is not part of this double');
 	}
 

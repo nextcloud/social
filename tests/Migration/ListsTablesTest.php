@@ -26,6 +26,8 @@ use PHPUnit\Framework\TestCase;
  * the routes actually take, and that a second run asks for nothing.
  */
 class ListsTablesTest extends TestCase {
+	use RecordsSchemaChanges;
+
 	private const LISTS = 'social_list';
 	private const MEMBERS = 'social_list_member';
 
@@ -50,31 +52,7 @@ class ListsTablesTest extends TestCase {
 				$this->indexes[$name] = [];
 				$this->primaryKeys[$name] = [];
 
-				return new class($name, $this->added, $this->indexes, $this->primaryKeys) {
-					public function __construct(
-						private string $table,
-						private array &$added,
-						private array &$indexes,
-						private array &$primaryKeys,
-					) {
-					}
-
-					public function addColumn(string $column, string $type, array $options = []): void {
-						$this->added[$this->table][$column] = [$type, $options];
-					}
-
-					public function setPrimaryKey(array $columns): void {
-						$this->primaryKeys[$this->table] = $columns;
-					}
-
-					public function addIndex(array $columns, string $name): void {
-						$this->indexes[$this->table][] = [$columns, $name, false];
-					}
-
-					public function addUniqueIndex(array $columns, string $name): void {
-						$this->indexes[$this->table][] = [$columns, $name, true];
-					}
-				};
+				return $this->recordTable($name);
 			});
 
 		return static fn (): ISchemaWrapper => $schema;
@@ -84,7 +62,10 @@ class ListsTablesTest extends TestCase {
 	private function migrate(array $existing = []): ?ISchemaWrapper {
 		$step = new Version1000Date20260911000005();
 
-		return $step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($existing), []);
+		$schema = $step->changeSchema($this->createMock(IOutput::class), $this->schemaClosure($existing), []);
+		$this->harvestSchemaChangesByTable();
+
+		return $schema;
 	}
 
 	public function testBothTablesAreTheOnesTheCodeReadsAndWrites(): void {
