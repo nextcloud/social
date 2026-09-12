@@ -188,6 +188,19 @@ A list is private to the account that made it, and that is the whole of its acce
 
 `replies_policy` and `exclusive` are stored and handed back faithfully, and **neither yet changes which posts a timeline selects**: `exclusive` does not remove members from the home timeline, and `replies_policy` does not filter replies out of the list timeline.
 
+### Pixelfed's own routes
+
+Pixelfed speaks the Mastodon client API for almost everything; what follows is the small surface that is its own. **This is not all of Pixelfed's `v1.1`** — it is the part its official app calls to start up and to draw discover. Routes are added when something asks for them, not to fill in a namespace.
+
+Nothing here ranks or selects anything of its own: discover is the same `TrendService` the Mastodon trend routes use and the same `SuggestionService` behind `/api/v2/suggestions`, so a post or an account cannot be popular on one route and absent from the other.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v2/config` | public, no-csrf | — | The numbers and switches the Pixelfed app reads once, on launch, before it will draw anything. Answered without a viewer, because the app asks before anybody has signed in. **Every value is derived, never restated**: the ceilings come from the constants the server enforces and the mime list is asked of `CacheDocumentService::filterMimeTypes()`, so the client cannot be told a limit the server does not keep. `open_registration` is always `false` — an account here exists because a Nextcloud user does. The `features` block says what *this* app does, including the things it does not (`live_streaming`, `push_notifications`, `circles` are `false`): announcing a screen that is not there is worse than not announcing it. |
+| GET | `/api/v1.1/discover/accounts/popular` | public, no-csrf (viewer required, `read` scope) | `limit` (20, max 20) | The same suggestions `/api/v2/suggestions` answers, unwrapped — Mastodon wraps each account in a `{source, account}` suggestion and Pixelfed sends the accounts themselves. Needs a viewer, as the Mastodon route does: there is no anonymous "accounts you might follow". |
+| GET | `/api/v1.1/discover/posts` | public, no-csrf | `limit` (20, max 20), `offset` (0), `period` | The same answer as `/api/v2/discover/posts`, at the path the app asks for — a second route onto one implementation, not a second implementation. |
+| GET | `/api/v1.1/discover/posts/hashtags` | public, no-csrf | `limit` (20, max 20), `period` | The trending tags `/api/v1/trends/tags` answers, for the row of tags above the discover grid. |
+
 ### Collections
 
 Pixelfed's albums: a set of the owner's own posts, in an order the owner chooses. Mastodon defines nothing equivalent, so these are Pixelfed's route shapes — a client that knows Pixelfed finds them where it expects them.
