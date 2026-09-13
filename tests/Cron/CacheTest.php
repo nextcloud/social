@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\StreamPruneService;
@@ -41,6 +42,7 @@ class CacheTest extends TestCase {
 	private $streamService;
 	private $streamPruneService;
 	private PollService|MockObject $pollService;
+	private GroupListService|MockObject $groupListService;
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
 	/** @var IJobList&MockObject */
@@ -65,6 +67,7 @@ class CacheTest extends TestCase {
 		$this->logger = $this->createMock(LoggerInterface::class);
 
 		$this->pollService = $this->createMock(PollService::class);
+		$this->groupListService = $this->createMock(GroupListService::class);
 
 		$this->job = new Cache(
 			$time,
@@ -76,7 +79,8 @@ class CacheTest extends TestCase {
 			$this->streamPruneService,
 			$this->cacheActorsRequest,
 			$this->pollService,
-			$this->logger
+			$this->logger,
+			$this->groupListService
 		);
 	}
 
@@ -99,6 +103,8 @@ class CacheTest extends TestCase {
 		$this->cacheActorService->expects($this->once())->method('manageDetailsRemoteActors');
 		$this->documentService->expects($this->once())->method('manageCacheDocuments');
 		$this->hashtagService->expects($this->once())->method('manageHashtags');
+		// the catch-all behind the group listener runs every pass
+		$this->groupListService->expects($this->once())->method('reconcile');
 		$bob = $this->createMock(Person::class);
 		$carol = $this->createMock(Person::class);
 		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')->with(false)->willReturn([$bob, $carol]);

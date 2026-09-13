@@ -26,6 +26,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
 use OCP\AppFramework\Controller;
@@ -85,6 +86,7 @@ class ListController extends Controller {
 		private LinkPreviewService $linkPreviewService,
 		private ListsRequest $listsRequest,
 		private PlaceService $placeService,
+		private GroupListService $groupListService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -109,6 +111,13 @@ class ListController extends Controller {
 	public function index(): DataResponse {
 		try {
 			$this->initViewer();
+			// the lists the viewer's groups give them, made when they would
+			// notice they were missing; a failure here must not cost the sidebar
+			try {
+				$this->groupListService->ensureForViewer($this->viewer);
+			} catch (Throwable $e) {
+				$this->logger->warning('[ListController] could not make the group lists', ['exception' => $e]);
+			}
 
 			return new DataResponse(
 				$this->listsRequest->getByActor($this->viewer->getId()), Http::STATUS_OK
@@ -172,7 +181,10 @@ class ListController extends Controller {
 			$this->initViewer(['write:lists']);
 			$list = $this->ownedList($id);
 
-			$list->setTitle($this->title($title));
+			if (!GroupListService::isGroupList($list)) {
+				// a group list is called what the group is called
+				$list->setTitle($this->title($title));
+			}
 			if ($replies_policy !== '') {
 				$list->setRepliesPolicy($this->repliesPolicy($replies_policy));
 			}
@@ -195,7 +207,7 @@ class ListController extends Controller {
 	public function delete(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:lists']);
-			$this->listsRequest->delete($this->ownedList($id));
+			$this->listsRequest->delete($this->notAGroupList($this->ownedList($id)));
 
 			return new DataResponse([], Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -276,7 +288,7 @@ class ListController extends Controller {
 	public function addAccounts(int $id, array|string $account_ids = []): DataResponse {
 		try {
 			$this->initViewer(['write:lists']);
-			$list = $this->ownedList($id);
+			$list = $this->notAGroupList($this->ownedList($id));
 
 			// resolved before anything is written, so a request naming one
 			// account that may not be added adds none of them — a partly
@@ -306,7 +318,7 @@ class ListController extends Controller {
 	public function removeAccounts(int $id, array|string $account_ids = []): DataResponse {
 		try {
 			$this->initViewer(['write:lists']);
-			$list = $this->ownedList($id);
+			$list = $this->notAGroupList($this->ownedList($id));
 
 			foreach ($this->accountIds($account_ids) as $accountId) {
 				// resolved, not trusted: the row is keyed by the actor id, and
@@ -405,6 +417,23 @@ class ListController extends Controller {
 	 */
 	private function ownedList(int $id): MastodonList {
 		return $this->listsRequest->getOwnedById($this->viewer->getId(), $id);
+	}
+
+	/**
+	 * A group list's members are the group's and its existence is the
+	 * membership's: neither is the owner's to edit here. Leaving the group
+	 * is what removes the list, in the place the group is managed.
+	 *
+	 * @throws InvalidResourceException a 422, with the reason
+	 */
+	private function notAGroupList(MastodonList $list): MastodonList {
+		if (GroupListService::isGroupList($list)) {
+			throw new InvalidResourceException(
+				'This list follows the Nextcloud group "' . $list->getTitle() . '": its members are the group\'s, and it goes when you leave the group'
+			);
+		}
+
+		return $list;
 	}
 
 	/**

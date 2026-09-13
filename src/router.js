@@ -78,6 +78,12 @@ const router = createRouter({
 					path: 'tags/:tag',
 					name: 'tags',
 				},
+				// a list's timeline: the id is the list's, and the page is the
+				// same timeline view read through it
+				{
+					path: 'list/:id',
+					name: 'list',
+				},
 			],
 		},
 		{

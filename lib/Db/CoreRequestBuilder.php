@@ -198,6 +198,7 @@ class CoreRequestBuilder {
 			'title',
 			'replies_policy',
 			'exclusive',
+			'group_id',
 			'creation'
 		],
 		self::TABLE_LIST_MEMBERS => [

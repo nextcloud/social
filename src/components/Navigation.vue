@@ -89,6 +89,27 @@
 			</NcAppNavigationItem>
 
 			<NcAppNavigationSpacer v-if="trending.length > 0" />
+
+			<!-- the reader's lists: the ones their Nextcloud groups give them
+			     first, since nobody made those and they are what a colleague
+			     looks for, then the ones they made themselves -->
+			<NcAppNavigationCaption v-if="lists.length > 0" :name="t('social', 'Lists')" />
+			<NcAppNavigationItem
+				v-for="list in lists"
+				:key="`list-${list.id}`"
+				class="navigation__list"
+				:name="list.title"
+				:title="list.nextcloud_group ? t('social', 'Everyone in the Nextcloud group {group} who has a Social account', { group: list.title }) : undefined"
+				:href="hrefFor({ name: 'list', params: { id: list.id } })"
+				:active="isListActive(list)"
+				@click="navigate({ name: 'list', params: { id: list.id } }, $event)">
+				<template #icon>
+					<IconAccountGroup v-if="list.nextcloud_group" :size="20" />
+					<IconFormatListBulleted v-else :size="20" />
+				</template>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationSpacer v-if="lists.length > 0" />
 		</template>
 		<template #footer>
 			<div class="navigation__footer">
@@ -215,6 +236,8 @@ import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
 import IconPound from 'vue-material-design-icons/Pound.vue'
+import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
+import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { listen } from '@nextcloud/notify_push'
@@ -263,6 +286,8 @@ export default {
 		IconPlus,
 		IconBookmark,
 		IconPound,
+		IconAccountGroup,
+		IconFormatListBulleted,
 		IconCancel,
 		IconCog,
 		IconAlertCircle,
@@ -279,6 +304,8 @@ export default {
 		return {
 			/** the hashtags the instance is using most, newest counts first */
 			trending: [],
+			/** the reader's lists, the group-bound ones first */
+			lists: [],
 			localSearch: '',
 			showComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
@@ -475,6 +502,7 @@ export default {
 
 	mounted() {
 		this.fetchTrending()
+		this.fetchLists()
 		this.notificationsStore.fetchUnreadNotifications()
 		this.openComposerFromQuery()
 
@@ -541,6 +569,34 @@ export default {
 			} catch {
 				this.trending = []
 			}
+		},
+
+		/**
+		 * The reader's lists. Asking for them is also what makes the group
+		 * lists they are missing, so this is asked once per page and the
+		 * answer drawn as it comes.
+		 */
+		async fetchLists() {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/lists'))
+				const lists = Array.isArray(data) ? data : []
+				// group lists first: nobody made them, and they are what a
+				// colleague is looking for; within each kind, as the server orders
+				this.lists = [
+					...lists.filter((list) => list.nextcloud_group),
+					...lists.filter((list) => !list.nextcloud_group),
+				]
+			} catch {
+				this.lists = []
+			}
+		},
+
+		/**
+		 * @param {object} list a List entity
+		 * @return {boolean} whether its timeline is the one being shown
+		 */
+		isListActive(list) {
+			return this.$route.name === 'list' && String(this.$route.params.id ?? '') === String(list.id)
 		},
 
 		/**
