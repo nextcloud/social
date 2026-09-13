@@ -311,4 +311,39 @@ describe('TimelineSinglePost', () => {
 		expect(other).toHaveBeenCalledTimes(1)
 		eventBus.off('composer-reply', other)
 	})
+
+	describe('the spine', () => {
+		/**
+		 * The line behind the avatars says that what it runs through is one
+		 * conversation. Beside a post with nothing above it and nothing below
+		 * it there is no conversation to say anything about, and the line ran
+		 * from nothing to nothing.
+		 */
+		it('is not drawn beside a post that is on its own', async () => {
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(wrapper.find('.thread').classes()).not.toContain('thread--connected')
+		})
+
+		it('is drawn when the post has replies', async () => {
+			const wrapper = mountView()
+			await flushPromises()
+			// the replies arrive after the view does: `load()` resets the
+			// timeline on its way in
+			store.addToTimeline({ ancestors: [], descendants: [status] })
+			await nextTick()
+
+			expect(wrapper.find('.thread').classes()).toContain('thread--connected')
+		})
+
+		it('is drawn when the post is itself a reply', async () => {
+			const wrapper = mountView()
+			await flushPromises()
+			store.addToTimeline({ ancestors: [parent], descendants: [] })
+			await nextTick()
+
+			expect(wrapper.find('.thread').classes()).toContain('thread--connected')
+		})
+	})
 })

@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.23  
+**App version:** 0.19.24  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -805,6 +805,18 @@ uses `history.state.back` — which the router writes whenever it navigates insi
 the app — to tell a post opened from a timeline from one opened from a link
 somebody sent: the first goes back, the second goes to the home timeline, because
 a button inside the app should not be the thing that leaves it.
+
+**One card, and a line only when there is a conversation.** The post a page is
+about used to be drawn inside two boxes: `TimelinePost`'s own card, and around
+it a second card in `TimelineSinglePost` — white ground, padding, rounded
+corners, a shadow, and a border in the accent colour on top of that. What marks
+the post the page is about is that it is the one at the top with the thread
+hanging off it, so `.main-post` is spacing and stacking now and the card inside
+does the drawing. The 24px it is indented by is the 16 of margin plus the 8 of
+padding the lists above and below take, which is what puts every avatar in the
+conversation on one line — the line the spine runs down. And the spine itself
+is drawn only when `hasThread` holds, meaning there is a parent or a reply:
+beside a post with neither, it was a line from nothing to nothing.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`

@@ -18,7 +18,7 @@
 		</NcButton>
 		<Composer v-show="composerDisplayStatus" />
 		<!-- the three lists are one conversation; the spine says so -->
-		<div class="thread">
+		<div class="thread" :class="{ 'thread--connected': hasThread }">
 			<TimelineList
 				v-if="timeline"
 				class="thread__ancestors"
@@ -110,6 +110,20 @@ export default {
 
 		parentsTimeline() {
 			return this.timelineStore.getParentsTimeline
+		},
+
+		/**
+		 * Whether there is a conversation here, or only the one post.
+		 *
+		 * The spine is a line drawn behind the avatars to say that what it runs
+		 * through belongs together. With nothing above the post and nothing
+		 * below it there is nothing to say, and the line is a mark beside a
+		 * single card with no other end.
+		 *
+		 * @return {boolean}
+		 */
+		hasThread() {
+			return this.parentsTimeline.length > 0 || this.timeline.length > 0
 		},
 	},
 
@@ -238,12 +252,15 @@ export default {
 /**
  * A reply chain used to read as three unrelated stacks of cards. The spine is
  * a single line behind the avatars: everything on it belongs to the same
- * conversation, and the post being read sits raised off it.
+ * conversation.
+ *
+ * Only when there is one. A post with no parent and no replies is a single
+ * card, and the line beside it ran from nothing to nothing.
  */
 .thread {
 	position: relative;
 
-	&::before {
+	&--connected::before {
 		content: '';
 		position: absolute;
 		top: 12px;
@@ -262,18 +279,20 @@ export default {
 	}
 }
 
-/* The post being read is raised off the thread rather than outlined on it. It
-   carried a border in the accent colour as well, around a card that has a
-   border of its own, so a post on its own page was drawn inside two boxes. */
+/* The post being read is the card, and this is spacing around it. It used to
+   be a second card: white ground, 20px of padding, rounded corners, a shadow,
+   and an accent border on top of all that — so a post on its own page was
+   drawn inside two boxes, one nested in the other about ten pixels out. What
+   marks the post the page is about is that it is the one at the top with the
+   thread hanging off it, which needs no frame of its own. */
 .main-post {
 	position: relative;
 	z-index: 1;
-	background: var(--color-main-background);
-	border-radius: 8px;
-	padding: 20px;
-	box-sizing: content-box;
 	margin: 16px 0;
-	box-shadow: var(--social-elevation-resting);
+	/* the lists above and below sit 16px out and pad 8 inside that, so this
+	   takes the 24 that puts its avatar on the same line as theirs — which is
+	   the line the spine runs down */
+	margin-inline-start: 24px;
 }
 
 #app-content {
