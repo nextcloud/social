@@ -50,7 +50,7 @@
 import { fromNow } from '../utils/relativeTime.js'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../services/toast.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import Check from 'vue-material-design-icons/Check.vue'
 import logger from '../services/logger.js'

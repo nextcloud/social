@@ -8,7 +8,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../../../src/services/toast.js'
 
 import HashtagFollowButton from '../../../src/components/HashtagFollowButton.vue'
 import logger from '../../../src/services/logger.js'
@@ -17,7 +17,7 @@ import { useSettingsStore } from '../../../src/store/settings.js'
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn() },
 }))
-vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
+vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
 	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))

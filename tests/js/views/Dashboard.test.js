@@ -5,7 +5,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../../../src/services/toast.js'
 import { listen } from '@nextcloud/notify_push'
 import Dashboard from '../../../src/views/Dashboard.vue'
 
@@ -14,7 +14,7 @@ vi.hoisted(() => {
 	document.head.dataset.userDisplayname = 'Alice'
 })
 
-vi.mock('@nextcloud/dialogs', async (importOriginal) => ({
+vi.mock('../../../src/services/toast.js', async (importOriginal) => ({
 	...await importOriginal(),
 	showError: vi.fn(),
 }))

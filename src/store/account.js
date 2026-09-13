@@ -4,7 +4,7 @@
  */
 
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../services/toast.js'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'

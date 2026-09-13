@@ -10,7 +10,7 @@ const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 const { showError, showSuccess } = vi.hoisted(() => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 
 vi.mock('@nextcloud/axios', () => ({ default: { get, post } }))
-vi.mock('@nextcloud/dialogs', () => ({ showError, showSuccess }))
+vi.mock('../../../src/services/toast.js', () => ({ showError, showSuccess }))
 vi.mock('@nextcloud/router', () => ({ generateUrl: (path) => `/${path}` }))
 vi.mock('@nextcloud/l10n', () => ({
 	t: (app, text) => text,
