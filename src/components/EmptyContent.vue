@@ -5,11 +5,13 @@
 <template>
 	<div class="timeline-empty" :class="{ 'timeline-empty--bare': !item.image }">
 		<NcEmptyContent :name="item.title" :description="item.description">
-			<template v-if="item.image" #icon>
+			<template v-if="item.image || illustration" #icon>
 				<img
+					v-if="item.image"
 					class="timeline-empty__image"
 					:src="imageUrl"
 					alt="">
+				<component :is="illustration" v-else class="timeline-empty__illustration" />
 			</template>
 		</NcEmptyContent>
 	</div>
@@ -19,11 +21,21 @@
 
 import { linkTo } from '@nextcloud/router'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NoReplies from './illustrations/NoReplies.vue'
+
+/**
+ * The drawings that are markup rather than a file in img/undraw, by the name an
+ * empty state asks for them under.
+ */
+const ILLUSTRATIONS = {
+	'no-replies': NoReplies,
+}
 
 export default {
 	name: 'EmptyContent',
 	components: {
 		NcEmptyContent,
+		NoReplies,
 	},
 
 	props: {
@@ -37,6 +49,17 @@ export default {
 		/** @return {string} */
 		imageUrl() {
 			return linkTo('social', this.item.image)
+		},
+
+		/**
+		 * The small drawing this state asks for, if it asks for one. A state
+		 * has either this or a full illustration from `img/undraw`, never both:
+		 * the big ones hold 60% of the window open for themselves.
+		 *
+		 * @return {object|null}
+		 */
+		illustration() {
+			return ILLUSTRATIONS[this.item.illustration] ?? null
 		},
 	},
 }
@@ -58,14 +81,37 @@ export default {
 }
 
 /*
- * Most of the 60vh is room for the illustration. A state that has none is a
- * line of text, and holding 60% of the window open under it — which is what
- * "No replies found" did under every post with no replies — says the page is
- * still loading something.
+ * Most of the 60vh is room for the full-size illustration. A state without one
+ * is a small drawing over a line of text, and holding 60% of the window open
+ * under it — which is what "No replies found" did under every post with no
+ * replies — says the page is still loading something.
  */
 .timeline-empty--bare {
 	min-height: 0;
 	padding: 20px 0 28px;
+}
+
+/*
+ * And its words are an aside, not a heading: this sits under a post somebody
+ * came to read, and at the h2 size NcEmptyContent gives it, "No replies yet"
+ * was the loudest thing on the page it is the smallest part of.
+ */
+.timeline-empty--bare :deep(.empty-content__name) {
+	font-size: 1rem;
+	font-weight: normal;
+	color: var(--color-text-maxcontrast);
+}
+
+.timeline-empty__illustration {
+	display: block;
+	/* it arrives with the same movement the big ones do */
+	animation: empty-content-settle .45s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.timeline-empty__illustration {
+		animation: none;
+	}
 }
 
 .timeline-empty__image {
@@ -114,8 +160,15 @@ export default {
 	margin-bottom: 90px;
 }
 
-/* that margin is the gap under the illustration; with none there is no gap */
+/* that margin is the gap under a full-size illustration; a small one needs a
+   fraction of it, and a state with no drawing at all needs none */
 .timeline-empty--bare :deep(.empty-content__icon) {
 	margin-bottom: 0;
+	width: auto;
+	height: auto;
+}
+
+.timeline-empty--bare:has(.timeline-empty__illustration) :deep(.empty-content__icon) {
+	margin-bottom: 12px;
 }
 </style>

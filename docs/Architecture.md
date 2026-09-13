@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.24  
+**App version:** 0.19.25  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -817,6 +817,17 @@ padding the lists above and below take, which is what puts every avatar in the
 conversation on one line — the line the spine runs down. And the spine itself
 is drawn only when `hasThread` holds, meaning there is a parent or a reply:
 beside a post with neither, it was a line from nothing to nothing.
+
+Under it, "No replies yet" is a small drawing over a line of muted text rather
+than a heading. `EmptyContent` takes an optional `illustration` name alongside
+the `image` the timelines use, resolved through a map of components that draw
+themselves in markup — `NoReplies` is two speech bubbles in `currentColor` over
+the page's own background, so it follows the theme with no filter to correct it
+on dark. It is a component and not another file in `img/undraw` because those
+eight illustrations are licensed for this app by permission covering those eight
+and nothing else (see `img/undraw/readme.md`); anything new has to be ours. A
+state with a small drawing keeps the compact layout — the 60vh of height is room
+for the full-size ones only.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`

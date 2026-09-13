@@ -226,7 +226,8 @@ export default {
 				},
 
 				'single-post': {
-					title: this.showParents ? '' : t('social', 'No replies found'),
+					illustration: 'no-replies',
+					title: this.showParents ? '' : t('social', 'No replies yet'),
 				},
 			},
 		}
