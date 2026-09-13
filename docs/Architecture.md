@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.15  
+**App version:** 0.19.22  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -400,7 +400,7 @@ for it, since registration stores whatever scope string arrives.
 
 **The timeline switcher.** `TimelineSwitcher.vue` sits above the posts on the three timelines that are the same place seen from three distances — the home timeline (`My Feed`), `timeline` (Local) and `federated` (Global) — and on no others: everywhere else it would be a switch between three places the reader is not. It routes rather than fetching, so `Timeline.vue` and the store go on being the single answer to "which timeline is this". The values are the route's own words rather than the labels, because `timeline` is what the store calls the local one and `federated` the global one, and a second vocabulary in a component that only routes would be one more place for the two to disagree; `home` is the route with no `type` at all, so it is pushed as the bare route rather than as `type: 'home'`, which names a timeline nothing serves. Local and Global have **left the sidebar**: they are scopes of the page the switcher sets rather than places of their own, and two entries that lead to the same list while saying it is somewhere else are two too many. The Home entry stays lit while either is being read — `isActive()` honours a `covers` list on a menu entry, which is the set of `type` params that entry owns — so the sidebar never shows nothing chosen.
 
-It is built from plain buttons rather than from `NcCheckboxRadioSwitch`, for the one thing that component cannot do: a single indicator that *travels* between the three. Three controls that light up tell you where you landed; one pill that slides tells you where you came from, which is what makes a switch feel like a switch. The cost is that the accessibility is hand-written rather than inherited, so it is written in full — a `radiogroup` of `radio` buttons, `aria-checked`, arrow keys in both axes that wrap at the ends, a roving tabindex so the control is one tab stop rather than three, and the focus following the selection the way it does in a radio group. The pill itself is `aria-hidden`: what it shows is already on the options. Every option is `flex: 1 1 0` so all three are as wide as the widest, which is what lets a pill of one third of the track land exactly on one of them whatever the labels translate to; below 500px the labels go and the icons stay. The states are written as `.switcher .switcher__option` rather than as one class because the server styles bare `button` elements and its `button:not(.button-vue, [class^="vs__"]):hover` is the more specific selector — left alone, Nextcloud's hover colour paints over the pill on the option you just chose. The movement — the slide, the overshoot, the kick the chosen icon gives, the turn the globe makes — is all inside `@media (prefers-reduced-motion: reduce)`, which switches every bit of it off.
+It is built from plain buttons rather than from `NcCheckboxRadioSwitch`, for the one thing that component cannot do: a single indicator that *travels* between the three. Three controls that light up tell you where you landed; one pill that slides tells you where you came from, which is what makes a switch feel like a switch. The cost is that the accessibility is hand-written rather than inherited, so it is written in full — a `radiogroup` of `radio` buttons, `aria-checked`, arrow keys in both axes that wrap at the ends, a roving tabindex so the control is one tab stop rather than three, and the focus following the selection the way it does in a radio group. The pill itself is `aria-hidden`: what it shows is already on the options. The track is 42px — 30 for an option, 3 of padding either side — which is a little under a Nextcloud button, because the control labels a timeline rather than competing with it. Every option is `flex: 1 1 0` so all three are as wide as the widest, which is what lets a pill of one third of the track land exactly on one of them whatever the labels translate to; below 500px the labels go and the icons stay. The states are written as `.switcher .switcher__option` rather than as one class because the server styles bare `button` elements and its `button:not(.button-vue, [class^="vs__"]):hover` is the more specific selector — left alone, Nextcloud's hover colour paints over the pill on the option you just chose. The movement — the slide, the overshoot, the kick the chosen icon gives, the turn the globe makes — is all inside `@media (prefers-reduced-motion: reduce)`, which switches every bit of it off.
 
 It chooses between whatever it is given rather than between three timelines it knows about: each option carries a `value`, a label, an icon and the route it stands for, and the component routes and animates. That is why a **profile** carries the same control — Posts, Photos and Videos are the same shape of choice, one account seen three ways rather than three places — and why the words in those routes are the route's own (`timeline`, `federated`, `image`, `video`) rather than the labels beside them.
 
@@ -799,6 +799,42 @@ has instead of a geography. Two sample-size rules keep those from being noise:
 an hour is not named until three posts fall in it, and a hashtag's average is
 not reported until it has been used twice.
 
+**And the way back out.** A post opened from a timeline is somewhere the reader
+went *into*, so `TimelineSinglePost` carries a Back button above the thread. It
+uses `history.state.back` — which the router writes whenever it navigates inside
+the app — to tell a post opened from a timeline from one opened from a link
+somebody sent: the first goes back, the second goes to the home timeline, because
+a button inside the app should not be the thing that leaves it.
+
+**A post is a link to itself.** Pressing anywhere on a post in a timeline opens
+the post with its replies — the card, its picture, its video. `TimelinePost`
+works out `postRoute`, which is `null` for exactly one post: the one whose page
+the reader is already on (`$route.params.id`). A reply on that page is another
+post and links to its own page like any other. `onPostClick` is what keeps the
+card from swallowing everything else: a link, a button, a control, a modified
+click asking for a tab, or a press that ended a text selection all keep their
+meaning. Below the card, `PostAttachment` takes the same route as a `to` prop —
+where it is set, a press on the media routes; where it is `null`, it opens the
+viewer — and `MediaAttachment` takes an `interactive` flag that decides whether
+a video gets `controls` at all. A player in a timeline would put a play button
+in the way of the post and swallow the press meant to open it; the poster is
+what the reader is choosing from. On the post's own page the media is the
+subject again: the picture opens full size, the video plays.
+
+**An avatar is a link.** `ActorAvatar` and `TimelineAvatar` wrap the face in a
+link to the account, so the most obvious thing on screen to click does the
+obvious thing wherever either is used. Three cases, because a link has to go
+somewhere that exists: the router where there is one; the account's own address
+where there is not, which is the profile section this app adds to a Nextcloud
+user page — a custom element running an app of its own, where a `router-link`
+resolves to nothing and takes the avatar with it; and nothing at all for an
+actor with neither a handle nor an address. Each link is named ("Open the
+profile of @alice"), because its only content is an avatar with empty alt text.
+`link: false` turns it off where the avatar already sits inside a link — two
+nested anchors is invalid and the browser resolves it by dropping content — and
+on the composer's reply and quote lines, where following one would abandon a
+draft.
+
 **Account previews.** `AccountHoverCard.vue` is the card that opens when the
 pointer rests on an avatar or a mention, fetched once per handle and cached in
 the account store. It answers "who is this?" without opening the profile, so it
@@ -855,6 +891,17 @@ refetch instead of leaving the previous photos on screen.
 **Posts, Photos and Videos on a profile.** The same switcher, above the account's posts, asking the server a different question rather than filtering the page on screen — a page filtered in the client is a page that can come back empty while there are still videos to find. The tab rides in the query (`/@alice?media=video`) so a profile stays one route and every link to it still names the same one, and the word is the API's own.
 
 Behind it: `only_media` is Mastodon's own parameter on `/api/v1/accounts/{id}/statuses` and had never been passed on; `media_type` is a **Social extension** that narrows it to one kind, because Mastodon has nothing finer and two tabs need the difference. `ProbeOptions::setMediaType()` takes only the three kinds an attachment can be — `image`, `video`, `audio`, which are the first half of its MIME type and so the only values the column can hold — and reads anything else as no preference, since the value arrives from a query string. `media_type` implies `only_media`: a post with no attachments cannot be one carrying a video. The predicate is `SocialLimitsQueryBuilder::limitToMediaType()`, a `LIKE` on `"type":"video"` in the stored attachments — the column holds them as the client sees them, there is no column to compare and no JSON support to rely on across the three databases this app supports, and a description containing the same text is stored with its quotes escaped so it cannot collide. Unindexed, like the silenced-instance filter and for the same reason: it runs on a list something else has already narrowed to one account. Pinned posts are left out of a filtered tab, being about the account rather than about a kind of attachment.
+
+**The composer is on your own profile and nowhere else.** Every profile used to
+carry one, pre-filled with a mention of whoever it belonged to and set to a
+direct message — so a page for reading an account looked like a page for writing
+to them, and a stranger's profile asked "what would you like to share?". Your
+own profile is a page you post from, the way the home timeline is; somebody
+else's is a page you read. The sub-routes go with it: a list of followers is not
+a place to post from either. Direct messages are still written from the Direct
+messages timeline, which sets the visibility the same way.
+
+**The tab also decides how it is drawn**, and there is nothing beside it to say otherwise: Posts is what somebody wrote, so it is a list of posts; Photos and Videos are what they showed, so they are grids. There used to be a grid/list switch here, remembered across profiles, and it could disagree with the tab — `ProfileMediaGrid` kept only the posts carrying a picture, so Posts showed sixteen of them as a list and three as a grid, with nothing to say where the other thirteen had gone. One question, one answer. The empty state comes from `TimelineList` in both views for the same reason: the grid carried one of its own that said "No photos yet" whatever the tab was, so an account with no videos was told it had no photos.
 
 **The Videos view.** The sidebar's `Videos`, directly under Photos, is the same
 page again with `only_video` — this app's own narrowing of `only_media`, because

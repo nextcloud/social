@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import { mount } from '@vue/test-utils'
+import { mount, RouterLinkStub } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
 import ActorAvatar from '../../../src/components/ActorAvatar.vue'
@@ -19,7 +19,13 @@ const NcAvatarStub = {
 function mountAvatar(props) {
 	return mount(ActorAvatar, {
 		props,
-		global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
+		global: {
+			plugins: [createPinia()],
+			stubs: { NcAvatar: NcAvatarStub, RouterLink: RouterLinkStub },
+			// the component asks whether there is a router before it decides
+			// what to wrap the avatar in
+			mocks: { $router: {} },
+		},
 	})
 }
 
@@ -45,6 +51,46 @@ describe('ActorAvatar', () => {
 		const avatar = mountAvatar({ actor: local }).findComponent(NcAvatarStub)
 		expect(avatar.props('disableTooltip')).toBe(true)
 		expect(avatar.props('hideStatus')).toBe(true)
+	})
+
+	it('opens the profile when the avatar is clicked', () => {
+		// a face is the most obvious thing on screen to click, and it did
+		// nothing at all
+		const wrapper = mountAvatar({ actor: remote })
+		const link = wrapper.findComponent(RouterLinkStub)
+
+		expect(link.exists()).toBe(true)
+		expect(link.props('to')).toEqual({ name: 'profile', params: { account: 'bob@remote.example' } })
+		expect(link.attributes('aria-label')).toContain('bob@remote.example')
+	})
+
+	it('links nothing where the avatar already sits inside one', () => {
+		// two nested anchors is invalid, and the browser resolves it by
+		// dropping content
+		const wrapper = mountAvatar({ actor: remote, link: false })
+
+		expect(wrapper.findComponent(RouterLinkStub).exists()).toBe(false)
+		expect(wrapper.find('a').exists()).toBe(false)
+	})
+
+	it('falls back to the account\'s own address where there is no router', () => {
+		// the profile section on a Nextcloud user page is a custom element with
+		// an app of its own and no router in it
+		const wrapper = mount(ActorAvatar, {
+			props: { actor: remote },
+			global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
+		})
+		const anchor = wrapper.find('a')
+
+		expect(anchor.attributes('href')).toBe('https://remote.example/users/bob')
+		expect(anchor.attributes('rel')).toContain('noopener')
+	})
+
+	it('links nowhere for an actor with no handle and no address', () => {
+		const wrapper = mountAvatar({ actor: { username: 'ghost', acct: '' } })
+
+		expect(wrapper.find('a').exists()).toBe(false)
+		expect(wrapper.findComponent(RouterLinkStub).exists()).toBe(false)
 	})
 
 	it('leaves the account preview to this app, for a local actor as much as a remote one', () => {

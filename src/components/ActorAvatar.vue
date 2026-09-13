@@ -10,14 +10,19 @@
 		:handle="actor.acct"
 		:fallback="actor"
 		variant="block">
-		<NcAvatar v-bind="avatarProps" />
+		<component :is="linkTag" v-bind="linkProps">
+			<NcAvatar v-bind="avatarProps" />
+		</component>
 	</AccountHoverCard>
-	<NcAvatar v-else v-bind="avatarProps" />
+	<component :is="linkTag" v-else v-bind="linkProps">
+		<NcAvatar v-bind="avatarProps" />
+	</component>
 </template>
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import { generateUrl } from '@nextcloud/router'
+import { translate as t } from '@nextcloud/l10n'
 import AccountHoverCard from './AccountHoverCard.vue'
 
 export default {
@@ -48,6 +53,21 @@ export default {
 			type: Boolean,
 			default: true,
 		},
+
+		/**
+		 * Whether clicking this avatar opens the account's profile.
+		 *
+		 * On by default, because a face is the most obvious thing on screen to
+		 * click and doing nothing is the one thing it should not do. Off where
+		 * the avatar already sits inside a link — nesting one anchor in another
+		 * is invalid and the browser resolves it by dropping content — and
+		 * where following it would interrupt something, as it would from the
+		 * composer's reply and quote lines.
+		 */
+		link: {
+			type: Boolean,
+			default: true,
+		},
 	},
 
 	data() {
@@ -62,6 +82,50 @@ export default {
 		 */
 		showHoverCard() {
 			return this.hoverCard && Boolean(this.actor.acct)
+		},
+
+		/**
+		 * What wraps the avatar: the router where there is one, a plain link
+		 * where there is not, and nothing at all where there is nowhere to go.
+		 *
+		 * The profile section this app adds to a Nextcloud user's page is a
+		 * custom element with an app of its own and no router in it, so a
+		 * `router-link` there resolves to nothing and swallows the avatar. The
+		 * account's own address is what that surface can offer instead.
+		 *
+		 * @return {string}
+		 */
+		linkTag() {
+			if (!this.link || !this.actor?.acct) {
+				return 'span'
+			}
+			if (this.$router !== undefined) {
+				return 'router-link'
+			}
+
+			return (this.actor.url) ? 'a' : 'span'
+		},
+
+		/** @return {object} what that wrapper needs */
+		linkProps() {
+			if (this.linkTag === 'span') {
+				return {}
+			}
+
+			const label = t('social', 'Open the profile of {account}', { account: this.actor.acct })
+			if (this.linkTag === 'router-link') {
+				return {
+					to: { name: 'profile', params: { account: this.actor.acct } },
+					'aria-label': label,
+				}
+			}
+
+			return {
+				href: this.actor.url,
+				target: '_blank',
+				rel: 'nofollow noopener noreferrer',
+				'aria-label': label,
+			}
 		},
 
 		/**

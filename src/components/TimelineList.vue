@@ -58,7 +58,11 @@
 		<div ref="sentinel" class="list-sentinel">
 			<div v-if="loading && timeline.length > 0" class="icon-loading" />
 			<div v-else-if="!loading && !allLoaded" class="list-end" />
-			<EmptyContent v-if="showEmptyContent && display !== 'grid'" :item="emptyContentData" />
+			<!-- in both views: the grid used to carry an empty state of its own
+			     that said "No photos yet" whatever the tab was, so an account
+			     with no videos was told it had no photos. This one knows which
+			     tab asked -->
+			<EmptyContent v-if="showEmptyContent" :item="emptyContentData" />
 		</div>
 	</div>
 </template>

@@ -47,7 +47,7 @@
 			<div class="boost">
 				<Repeat :size="16" />
 				<router-link :to="{ name: 'profile', params: { account: item.account.acct } }">
-					<ActorAvatar :actor="item.account" :size="16" />
+					<ActorAvatar :actor="item.account" :size="16" :link="false" />
 					<span :title="item.account.acct" class="post-author">
 						{{ item.account.display_name }}&ensp;
 					</span>

@@ -21,22 +21,29 @@
 			:fallback="item.account"
 			variant="block"
 			placement="bottom-start">
+			<!-- the face beside a post is the most obvious thing on screen to
+			     click, and it did nothing. `component :is` because the profile
+			     section on a Nextcloud user page runs an app with no router in
+			     it, where a `router-link` resolves to nothing and would take
+			     the avatar with it -->
 			<!-- `disableMenu`: NcAvatar hangs Nextcloud's own profile card off a
 			     local account's avatar on hover, and it opened over this one.
 			     See ActorAvatar, which says the rest. -->
-			<NcAvatar
-				v-if="isLocal"
-				class="messages__avatar__icon"
-				:hideStatus="true"
-				:user="item.account.username"
-				:displayName="item.account.display_name"
-				:disableMenu="true"
-				:disableTooltip="true" />
-			<NcAvatar
-				v-else
-				:url="item.account.avatar"
-				:disableMenu="true"
-				:disableTooltip="true" />
+			<component :is="linkTag" v-bind="linkProps">
+				<NcAvatar
+					v-if="isLocal"
+					class="messages__avatar__icon"
+					:hideStatus="true"
+					:user="item.account.username"
+					:displayName="item.account.display_name"
+					:disableMenu="true"
+					:disableTooltip="true" />
+				<NcAvatar
+					v-else
+					:url="item.account.avatar"
+					:disableMenu="true"
+					:disableTooltip="true" />
+			</component>
 		</AccountHoverCard>
 	</div>
 </template>
@@ -73,6 +80,43 @@ export default {
 		/** @return {boolean} */
 		isLocal() {
 			return !this.item.account.acct.includes('@')
+		},
+
+		/**
+		 * @return {string} what wraps the avatar — see the note in ActorAvatar,
+		 * which follows the same three cases for the same reason
+		 */
+		linkTag() {
+			if (!this.item.account.acct) {
+				return 'span'
+			}
+			if (this.$router !== undefined) {
+				return 'router-link'
+			}
+
+			return (this.item.account.url) ? 'a' : 'span'
+		},
+
+		/** @return {object} what that wrapper needs */
+		linkProps() {
+			if (this.linkTag === 'span') {
+				return {}
+			}
+
+			const label = t('social', 'Open the profile of {account}', { account: this.item.account.acct })
+			if (this.linkTag === 'router-link') {
+				return {
+					to: { name: 'profile', params: { account: this.item.account.acct } },
+					'aria-label': label,
+				}
+			}
+
+			return {
+				href: this.item.account.url,
+				target: '_blank',
+				rel: 'nofollow noopener noreferrer',
+				'aria-label': label,
+			}
 		},
 
 		/** @return {{instance: string, colour: string, local: boolean}} where the author lives */

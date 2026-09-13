@@ -11,7 +11,8 @@
 			v-if="isCarousel"
 			ref="carousel"
 			:attachments="attachments"
-			@open="showModal" />
+			:interactive="to === null"
+			@open="openMedia" />
 		<div v-else-if="mediaFirst" class="gallery-mosaic" :class="`gallery-mosaic--${attachments.length}`">
 			<GalleryMedia
 				v-for="(item, index) in attachments"
@@ -21,7 +22,8 @@
 				:index="index"
 				:total="attachments.length"
 				:ratio="mosaicRatio"
-				@open="showModal(index)" />
+				:interactive="to === null"
+				@open="openMedia(index)" />
 		</div>
 		<div v-else class="attachments-container">
 			<template v-for="(item, index) in attachementsSlice" :key="index">
@@ -35,8 +37,20 @@
 					type="button"
 					class="attachment"
 					:aria-label="openLabel(item, index)"
-					@click="showModal(index)">
-					<MediaAttachment :attachment="item" />
+					@click="openMedia(index)">
+					<MediaAttachment :attachment="item" :interactive="to === null" />
+				</button>
+				<!-- video and audio carry their own controls where the media is
+				     the subject, and nesting those in a button is invalid. In a
+				     timeline they carry none, so this one is pressable too -->
+				<button
+					v-else-if="to !== null"
+					ref="thumbnails"
+					type="button"
+					class="attachment"
+					:aria-label="openLabel(item, index)"
+					@click="openMedia(index)">
+					<MediaAttachment :attachment="item" :interactive="false" />
 				</button>
 				<MediaAttachment v-else ref="thumbnails" :attachment="item" />
 			</template>
@@ -45,7 +59,7 @@
 				type="button"
 				class="attachment more-attachments"
 				:aria-label="n('social', 'Show %n more attachment', 'Show %n more attachments', attachments.length - 4)"
-				@click="showModal(3)">
+				@click="openMedia(3)">
 				<span aria-hidden="true">+</span>
 			</button>
 		</div>
@@ -122,6 +136,22 @@ export default {
 		mediaFirst: {
 			type: Boolean,
 			default: false,
+		},
+
+		/**
+		 * Where a press on the media goes, or `null` to open the viewer here.
+		 *
+		 * A post in a timeline is a link to itself: pressing its picture opens
+		 * the post, with its replies, and the picture opens full size from
+		 * there. Pressing it in the timeline used to open the viewer straight
+		 * away, which put the reader in a lightbox over a conversation they
+		 * had not seen.
+		 *
+		 * @type {import('vue').PropType<object|null>}
+		 */
+		to: {
+			type: Object,
+			default: null,
 		},
 	},
 
@@ -224,6 +254,23 @@ export default {
 		 *
 		 * @param {number} index which attachment was tapped
 		 */
+		/**
+		 * A press on one of the attachments.
+		 *
+		 * Either it opens the post — in a timeline, where the picture is a
+		 * link to the conversation it belongs to — or it opens the viewer,
+		 * which is what the post's own page does.
+		 *
+		 * @param {number} index which attachment was pressed
+		 */
+		openMedia(index) {
+			if (this.to === null) {
+				return this.showModal(index)
+			}
+
+			this.$router.push(this.to)
+		},
+
 		async showModal(index) {
 			const thumbnail = this.frameAt(index)
 			const release = nameForTransition(thumbnail, MEDIA_TRANSITION)

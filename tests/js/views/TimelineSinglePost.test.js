@@ -67,12 +67,14 @@ function makeStore(serverData = {}) {
 // every view registers an event bus listener, so unmount them after each test
 const mounted = []
 
+const $router = { back: vi.fn(), push: vi.fn() }
+
 function mountView(route = reactive({ name: 'single-post', params: { account: 'bob', id: '123' } })) {
 	const wrapper = mount(TimelineSinglePost, {
 		attachTo: document.body,
 		global: {
 			plugins: [pinia],
-			mocks: { $route: route },
+			mocks: { $route: route, $router },
 			stubs: {
 				Composer: ComposerStub,
 				TimelineList: TimelineListStub,
@@ -92,6 +94,45 @@ describe('TimelineSinglePost', () => {
 		setState('item', fromServer)
 		makeStore()
 		fetchAccount.mockClear()
+		$router.back.mockClear()
+		$router.push.mockClear()
+	})
+
+	describe('the way back', () => {
+		const backButton = (wrapper) => wrapper.find('.thread__back')
+
+		it('goes back to wherever the reader came from', async () => {
+			// the router writes `back` into the history state whenever it
+			// navigates inside the app
+			window.history.replaceState({ back: '/apps/social/timeline/home' }, '', '/apps/social/@bob/123')
+			const wrapper = mountView()
+
+			await backButton(wrapper).trigger('click')
+
+			expect($router.back).toHaveBeenCalled()
+			expect($router.push).not.toHaveBeenCalled()
+		})
+
+		it('goes to the home timeline when the post was opened from a link', async () => {
+			// there is nothing behind this page inside the app, and going back
+			// would leave it — which is not what a button inside it should do
+			window.history.replaceState({}, '', '/apps/social/@bob/123')
+			const wrapper = mountView()
+
+			await backButton(wrapper).trigger('click')
+
+			expect($router.back).not.toHaveBeenCalled()
+			expect($router.push).toHaveBeenCalledWith({ name: 'timeline', params: { type: 'home' } })
+		})
+
+		it('is the first thing on the page, and says what it does', () => {
+			const wrapper = mountView()
+			const button = backButton(wrapper)
+
+			expect(button.exists()).toBe(true)
+			expect(button.text()).toBe('Back')
+			expect(button.attributes('aria-label')).toBe('Back')
+		})
 	})
 
 	afterEach(() => {

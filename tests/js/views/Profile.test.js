@@ -144,22 +144,31 @@ describe('Profile', () => {
 			accountStore.setCurrentAccount('alice@cloud.example.org')
 		})
 
-		it('offers a direct message to the shown account on the posts tab', async () => {
-			const wrapper = mountProfile({ name: 'profile', params: { account: 'bob@remote.example' } })
-			await flushPromises()
-			const composer = wrapper.findComponent(ComposerStub)
-			expect(composer.props('defaultVisibility')).toBe('direct')
-			expect(composer.props('initialMention')).toEqual(bob)
-		})
-
-		it('does not pre-fill a mention on the own profile', async () => {
+		it('is offered on the reader\'s own profile, as it is on their timeline', async () => {
 			const wrapper = mountProfile({ name: 'profile', params: { account: 'alice' } })
 			await flushPromises()
-			expect(wrapper.findComponent(ComposerStub).props('initialMention')).toBeNull()
+			const composer = wrapper.findComponent(ComposerStub)
+
+			expect(composer.exists()).toBe(true)
+			// a post from your own profile is an ordinary post: no mention of
+			// anybody, and whatever visibility you last chose
+			expect(composer.props('initialMention')).toBeFalsy()
+			expect(composer.props('defaultVisibility')).toBeFalsy()
 		})
 
-		it('is hidden on the followers and following tabs', async () => {
-			const wrapper = mountProfile({ name: 'profile.followers', params: { account: 'bob@remote.example' } })
+		it('is not offered on somebody else\'s profile', async () => {
+			// every profile used to carry one, pre-filled with a mention of
+			// whoever it belonged to and set to a direct message, which put a
+			// box asking "what would you like to share?" on a stranger's page
+			const wrapper = mountProfile({ name: 'profile', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+
+			expect(wrapper.findComponent(ProfileInfoStub).exists()).toBe(true)
+			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
+		})
+
+		it('is hidden on the followers and following tabs of the own profile', async () => {
+			const wrapper = mountProfile({ name: 'profile.followers', params: { account: 'alice' } })
 			await flushPromises()
 			expect(wrapper.findComponent(ProfileInfoStub).exists()).toBe(true)
 			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
@@ -167,7 +176,7 @@ describe('Profile', () => {
 
 		it('is hidden while no current account is known', async () => {
 			accountStore.setCurrentAccount('')
-			const wrapper = mountProfile({ name: 'profile', params: { account: 'bob@remote.example' } })
+			const wrapper = mountProfile({ name: 'profile', params: { account: 'alice' } })
 			await flushPromises()
 			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
 		})

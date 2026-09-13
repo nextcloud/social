@@ -214,7 +214,10 @@ export default {
 	align-items: center;
 	justify-content: center;
 	min-width: 0;
-	min-height: 36px;
+	/* 30, with the track's 3px of padding either side, is a 36px control. It
+	   was 36 — a 48px control, taller than a Nextcloud button and the loudest
+	   thing above a timeline it only labels */
+	min-height: 30px;
 	padding: 0 16px;
 	border: none;
 	border-radius: var(--border-radius-pill, 100px);

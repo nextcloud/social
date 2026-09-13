@@ -7,15 +7,17 @@
 		class="photo"
 		:class="`photo--${fit}`"
 		:style="frameStyle">
-		<!-- video and audio carry their own controls: nesting those inside a
-		     button is invalid, and they need no viewer to be watchable here -->
+		<!-- video and audio carry their own controls where the media is the
+		     subject, and nesting those inside a button is invalid. Where it is
+		     not — a timeline, where the post is a link to itself — they carry
+		     none, so everything here is pressable -->
 		<button
-			v-if="pressable"
+			v-if="pressable || !interactive"
 			type="button"
 			class="photo__open"
 			:aria-label="openLabel"
 			@click="$emit('open')">
-			<MediaAttachment :attachment="attachment" />
+			<MediaAttachment :attachment="attachment" :interactive="interactive" />
 		</button>
 		<MediaAttachment v-else :attachment="attachment" />
 		<!-- the description is what the picture actually is, and a reader who
@@ -59,6 +61,16 @@ export default {
 		attachment: {
 			type: Object,
 			required: true,
+		},
+
+		/**
+		 * Whether the media is the thing the reader came to look at, which
+		 * decides whether a video plays here or opens the post. See
+		 * `MediaAttachment`, which the flag is for.
+		 */
+		interactive: {
+			type: Boolean,
+			default: true,
 		},
 
 		/** its place in the post, for the label of media without a description */

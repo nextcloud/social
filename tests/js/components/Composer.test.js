@@ -149,8 +149,13 @@ async function pickEmoji(wrapper, emoji) {
  */
 async function openEmojiPicker(wrapper) {
 	await wrapper.find('button[aria-label="Add emoji"]').trigger('click')
-	// the picker is fetched before it is mounted, which is more than one tick
-	await vi.waitUntil(() => wrapper.findComponent({ name: 'NcEmojiPicker' }).exists())
+	// The picker is fetched before it is mounted, which is more than one tick:
+	// the press awaits a real `import()` of `@nextcloud/vue`, and resolving a
+	// module graph that size in jsdom is not instant. `waitUntil` defaults to a
+	// second, which this beat comfortably on its own and lost when the whole
+	// suite ran back to back — so it waits on the condition rather than on a
+	// second, and only fails if the picker never arrives at all.
+	await vi.waitUntil(() => wrapper.findComponent({ name: 'NcEmojiPicker' }).exists(), { timeout: 15000 })
 	await flushPromises()
 }
 

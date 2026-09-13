@@ -12,36 +12,10 @@
 			:value="kind"
 			:label="t('social', 'Which of their posts to show')" />
 
-		<!-- A profile is a grid on Pixelfed and a timeline here. Both, then,
-		     with the choice remembered: somebody who came for the grid should
-		     not have to ask for it on every profile they open. -->
-		<div class="profile-views" role="tablist" :aria-label="t('social', 'Profile view')">
-			<NcButton
-				role="tab"
-				:aria-selected="String(view === 'grid')"
-				:variant="view === 'grid' ? 'secondary' : 'tertiary'"
-				:aria-label="t('social', 'Grid')"
-				@click="setView('grid')">
-				<template #icon>
-					<ViewGridOutline :size="20" />
-				</template>
-			</NcButton>
-			<NcButton
-				role="tab"
-				:aria-selected="String(view === 'timeline')"
-				:variant="view === 'timeline' ? 'secondary' : 'tertiary'"
-				:aria-label="t('social', 'Timeline')"
-				@click="setView('timeline')">
-				<template #icon>
-					<FormatListBulletedSquare :size="20" />
-				</template>
-			</NcButton>
-		</div>
-
 		<!-- pinned posts belong to the account, not to a kind of attachment:
 		     on Photos they would be whatever that account pinned, pictures or
 		     not, above a page that promised pictures -->
-		<ul v-if="pinned.length && view === 'timeline' && kind === ''" class="profile-pinned">
+		<ul v-if="pinned.length && kind === ''" class="profile-pinned">
 			<TimelineEntry
 				v-for="entry in pinned"
 				:key="`pinned-${entry.id}`"
@@ -49,57 +23,35 @@
 				type="account" />
 		</ul>
 
-		<TimelineList :display="view" :account="$route.params.account" />
+		<TimelineList :display="display" :account="$route.params.account" />
 	</div>
 </template>
 
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import FormatListBulletedSquare from 'vue-material-design-icons/FormatListBulletedSquare.vue'
 import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import IconTextBoxMultiple from 'vue-material-design-icons/TextBoxMultiple.vue'
-import NcButton from '@nextcloud/vue/components/NcButton'
 import TimelineEntry from './../components/TimelineEntry.vue'
 import TimelineList from './../components/TimelineList.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
-import ViewGridOutline from 'vue-material-design-icons/ViewGridOutline.vue'
 import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 import { mapStores } from 'pinia'
 import { useTimelineStore } from '../store/timeline.js'
 
-const VIEW_KEY = 'social-profile-view'
-
-/**
- * @return {string} the remembered choice, defaulting to the timeline -- which
- *                  is what this app has always shown and what somebody who
- *                  never asks for the grid should keep getting.
- */
-function readStoredView() {
-	try {
-		return window.localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'timeline'
-	} catch {
-		return 'timeline'
-	}
-}
-
 export default {
 	name: 'ProfileTimeline',
 	components: {
-		FormatListBulletedSquare,
-		NcButton,
 		TimelineEntry,
 		TimelineList,
 		TimelineSwitcher,
-		ViewGridOutline,
 	},
 
 	data() {
 		return {
 			pinnedIds: [],
-			view: readStoredView(),
 		}
 	},
 
@@ -120,6 +72,24 @@ export default {
 			const media = String(this.$route.query?.media ?? '')
 
 			return ['image', 'video'].includes(media) ? media : ''
+		},
+
+		/**
+		 * How the tab is drawn, which is a property of the tab rather than a
+		 * choice on top of it.
+		 *
+		 * There used to be a grid/list switch here, remembered across
+		 * profiles. It could disagree with the tab: the grid kept only the
+		 * posts that carried a picture, so Posts showed sixteen of them as a
+		 * list and three as a grid, and nothing said where the other thirteen
+		 * had gone. Posts is what somebody wrote, which is a list; Photos and
+		 * Videos are what they showed, which is a grid. One question, one
+		 * answer.
+		 *
+		 * @return {string} 'grid' or 'timeline'
+		 */
+		display() {
+			return (this.kind === '') ? 'timeline' : 'grid'
 		},
 
 		/**
@@ -173,22 +143,6 @@ export default {
 	methods: {
 		t,
 
-		/**
-		 * Remembered across profiles and reloads. A failure to write is
-		 * ignored: the choice is a convenience, and a browser that refuses
-		 * storage should still get a working profile.
-		 *
-		 * @param {string} view either 'grid' or 'timeline'
-		 */
-		setView(view) {
-			this.view = view
-			try {
-				window.localStorage.setItem(VIEW_KEY, view)
-			} catch (error) {
-				logger.debug('Could not remember the profile view', { error })
-			}
-		},
-
 		load() {
 			this.loadTimeline()
 			this.loadPinned()
@@ -232,12 +186,5 @@ export default {
 .profile-pinned {
 	list-style: none;
 	margin-bottom: calc(var(--default-grid-baseline) * 4);
-}
-
-.profile-views {
-	display: flex;
-	justify-content: flex-end;
-	gap: var(--default-grid-baseline);
-	margin-bottom: calc(var(--default-grid-baseline) * 2);
 }
 </style>

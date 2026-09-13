@@ -585,7 +585,7 @@ The followers and following lists of an arbitrary account are reachable through 
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| POST | `/api/v1/banner` | user, no-csrf | `file` (multipart, `$_FILES['file']`) | Stores the upload as the current user's header image, updates the actor cache and federates an Update. Returns `{"result": {"url", "id"}, "status": 1}`. |
+| POST | `/api/v1/banner` | user, no-csrf | `file` (multipart, `$_FILES['file']`) | Stores the upload as the current user's header image, updates the actor cache and federates an Update. Returns `{"result": {"url", "id"}, "status": 1}`. A file that is not a readable image, is of a refused type, or is over the ceiling is a **400**: the file is the problem and the reader can pick another one. It used to be a 500, which told them the server had broken and logged a fault against it. |
 | POST | `/api/v1/banner/url` | user, no-csrf | `url` (string, default `''`, required in practice) | Downloads the image at the given `url` with cURL (follows up to 5 redirects, 30 s timeout, user agent `Nextcloud-Social/0.10`) and stores it as the current user's header image. Same response shape. An empty `url`, or a non-2xx response, fails. |
 
 ### Migration

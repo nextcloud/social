@@ -3,7 +3,12 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<article class="post-content" :data-social-status="item.id" :aria-label="postLabel">
+	<article
+		class="post-content"
+		:class="{ 'post-content--openable': postRoute !== null }"
+		:data-social-status="item.id"
+		:aria-label="postLabel"
+		@click="onPostClick">
 		<div class="post-header">
 			<div class="post-author-wrapper" :title="item.account.acct">
 				<router-link
@@ -115,6 +120,7 @@
 			<PostAttachment
 				v-if="mediaRevealed"
 				mediaFirst
+				:to="mediaRoute"
 				:attachments="item.media_attachments || []" />
 			<div v-else class="post-sensitive post-sensitive--leading">
 				<NcButton
@@ -136,7 +142,10 @@
 		<template v-if="mediaRevealed">
 			<QuotedPost v-if="item.quote" :quote="item.quote" />
 			<Poll v-if="localPoll" :poll="localPoll" @update:poll="updatePoll" />
-			<PostAttachment v-if="hasAttachments && !mediaLeads" :attachments="item.media_attachments || []" />
+			<PostAttachment
+				v-if="hasAttachments && !mediaLeads"
+				:to="mediaRoute"
+				:attachments="item.media_attachments || []" />
 			<PostCard v-if="showCard" :card="item.card" />
 		</template>
 		<!-- not when there is a content warning: that already renders a
@@ -425,6 +434,48 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useTimelineStore),
+
+		/**
+		 * Where this post lives, or `null` when the reader is already there.
+		 *
+		 * A post in a timeline is a link to itself: a press anywhere on it
+		 * that is not a link or a button opens it with its replies, and its
+		 * pictures and videos open from there. The post whose page this is
+		 * behaves the other way round — the picture opens full size, the video
+		 * plays — because that is what the reader came for.
+		 *
+		 * A reply on that page is another post, so it links to its own page
+		 * like any other.
+		 *
+		 * @return {object|null}
+		 */
+		postRoute() {
+			if (!this.item?.account?.acct || this.item?.id === undefined) {
+				return null
+			}
+
+			const isTheOneBeingRead = this.$route?.name === 'single-post'
+				&& String(this.$route.params?.id) === String(this.item.id)
+
+			return isTheOneBeingRead
+				? null
+				: {
+						name: 'single-post',
+						params: {
+						// acct, not username: two remote accounts can share a
+						// username, and the route has to name one of them
+							account: this.item.account.acct,
+							id: this.item.id,
+							type: 'single-post',
+						},
+					}
+		},
+
+		/** @return {object|null} where a press on the media goes */
+		mediaRoute() {
+			return this.postRoute
+		},
+
 		/** @return {boolean} the author asked for the post to be covered */
 		hasSpoiler() {
 			return Boolean(this.item.spoiler_text)
@@ -698,6 +749,43 @@ export default {
 		 * on the Global and Federated timelines. The server serves the context
 		 * of any status it has (`/api/v1/statuses/{nid}/context`), local or not.
 		 */
+		/**
+		 * A press somewhere on the post that was not meant for something else.
+		 *
+		 * The whole card opens the post, the way a row in a list opens the
+		 * thing it stands for.
+		 *
+		 * Everything interactive inside a post keeps its press: a mention, a
+		 * hashtag, a link somebody wrote, the action buttons, the poll, the
+		 * author's name, the media — which has a handler of its own that routes
+		 * to the same place anyway. What is left is the body of the card, and
+		 * pressing that opens the post.
+		 *
+		 * A selection is left alone as well: dragging across a post to copy a
+		 * sentence ends in a click, and navigating away from what somebody has
+		 * just highlighted is the worst possible answer to it.
+		 *
+		 * @param {MouseEvent} event the press
+		 */
+		onPostClick(event) {
+			if (this.postRoute === null || event.defaultPrevented || event.button !== 0) {
+				return
+			}
+			// a modified click is the reader asking for a tab or a window, and
+			// the card is not a link, so there is nothing to hand them
+			if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+				return
+			}
+			if (event.target?.closest?.('a, button, input, textarea, select, label, video, audio, [role="button"], .post-actions, .v-popper')) {
+				return
+			}
+			if ((window.getSelection?.()?.toString() ?? '') !== '') {
+				return
+			}
+
+			this.$router.push(this.postRoute)
+		},
+
 		getSinglePostTimeline() {
 			if (!this.item.account?.acct || this.item.id === undefined) {
 				logger.warn('Cannot open a post without an account and an id', { post: this.item })
@@ -931,6 +1019,10 @@ function nodeToPlainText(node) {
 	0%, 100% { transform: translateX(0); }
 	25% { transform: translateX(-4px); }
 	75% { transform: translateX(4px); }
+}
+
+.post-content--openable {
+	cursor: pointer;
 }
 
 .post-content {
