@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 /**
@@ -111,6 +112,16 @@ class StarterPack implements JsonSerializable {
 
 	#[\Override]
 	public function jsonSerialize(): array {
+		// A `Person` serialises as an ActivityPub actor unless it is told
+		// otherwise, and what asks for a pack is a client reading Mastodon
+		// `Account` entities -- `acct`, `display_name`, `avatar`. Handing it
+		// `preferredUsername` and an `@context` is not a thinner answer but a
+		// different one: every field it reads is absent, so an opened pack drew
+		// a row per account with no name, no handle and no picture in it.
+		foreach ($this->accounts as $account) {
+			$account->setExportFormat(ACore::FORMAT_LOCAL);
+		}
+
 		return [
 			'id' => $this->getSlug(),
 			'name' => $this->getName(),

@@ -140,9 +140,34 @@ const buttonByText = (wrapper, text) => wrapper.findAll('button').find((button) 
 const bannerOf = (wrapper) => wrapper.find('.user-profile__banner')
 
 describe('ProfileInfo', () => {
+	/**
+	 * What `verify_credentials` answers.
+	 *
+	 * The editor reads the bio from there and not from the account on the
+	 * page, because `/global/account/info` -- which is what draws this page,
+	 * and is answered to anybody -- carries no `source` at all. A fixture that
+	 * put `source` on the page's account is how the empty-bio bug survived its
+	 * own tests, so none of them does that any more.
+	 */
+	let credentials
+
 	beforeEach(() => {
 		makeStore()
+		credentials = { source: { note: '', fields: [] } }
+		vi.spyOn(axios, 'get').mockImplementation((url) => (
+			String(url).endsWith('/accounts/verify_credentials')
+				? Promise.resolve({ data: credentials })
+				: Promise.resolve({ data: {} })
+		))
 	})
+
+	/** Clicks Edit profile and lets the read behind it settle. */
+	const openProfileEditor = async (wrapper) => {
+		await buttonByText(wrapper, 'Edit profile').trigger('click')
+		await flushPromises()
+
+		return wrapper.find('.modal-stub')
+	}
 
 	afterEach(() => {
 		vi.restoreAllMocks()
@@ -203,7 +228,7 @@ describe('ProfileInfo', () => {
 	it('only lets the viewer edit the banner of their own profile', async () => {
 		const own = mountProfile('alice')
 		expect(bannerOf(own).classes()).toContain('user-profile__banner--editable')
-		await buttonByText(own, 'Edit profile').trigger('click')
+		await openProfileEditor(own)
 		expect(buttonByText(own.find('.modal-stub'), 'Upload an image')).toBeDefined()
 		expect(own.find('.modal-stub input[type="url"]').exists()).toBe(true)
 
@@ -371,14 +396,15 @@ describe('ProfileInfo', () => {
 				actorId: alice.url,
 				data: {
 					fields: [{ name: 'Website', value: '<a href="https://example.org">example.org</a>', verified_at: null }],
-					source: { fields: [{ name: 'Website', value: 'https://example.org' }] },
 				},
 			})
+			// the raw values, which only the account's own copy carries
+			credentials = { source: { note: '', fields: [{ name: 'Website', value: 'https://example.org' }] } }
 			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: { result: { account: alice } } })
 			spyOnAccountActions(alice)
 			const wrapper = mountProfile('alice')
 
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			await openProfileEditor(wrapper)
 			const modal = wrapper.find('.modal-stub')
 			// scoped to the field rows: the dialog also holds the banner controls
 			const inputs = modal.findAll('.user-profile__fields-row input')
@@ -411,7 +437,7 @@ describe('ProfileInfo', () => {
 			spyOnAccountActions(alice)
 			const wrapper = mountProfile('alice')
 
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			await openProfileEditor(wrapper)
 			const modal = wrapper.find('.modal-stub')
 			await modal.findAll('input')[0].setValue('a label without a value')
 			await buttonByText(modal, 'Save').trigger('click')
@@ -421,22 +447,20 @@ describe('ProfileInfo', () => {
 		})
 
 		it('offers at most four rows', async () => {
-			accountStore.addAccount({
-				actorId: alice.url,
-				data: {
-					source: {
-						fields: [
-							{ name: 'One', value: '1' },
-							{ name: 'Two', value: '2' },
-							{ name: 'Three', value: '3' },
-							{ name: 'Four', value: '4' },
-						],
-					},
+			credentials = {
+				source: {
+					note: '',
+					fields: [
+						{ name: 'One', value: '1' },
+						{ name: 'Two', value: '2' },
+						{ name: 'Three', value: '3' },
+						{ name: 'Four', value: '4' },
+					],
 				},
-			})
+			}
 			const wrapper = mountProfile('alice')
 
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			await openProfileEditor(wrapper)
 			const modal = wrapper.find('.modal-stub')
 			expect(modal.findAll('.user-profile__fields-row')).toHaveLength(4)
 			expect(buttonByText(modal, 'Add field')).toBeUndefined()
@@ -446,7 +470,7 @@ describe('ProfileInfo', () => {
 			vi.spyOn(axios, 'put').mockRejectedValue(new Error('500'))
 			const wrapper = mountProfile('alice')
 
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			await openProfileEditor(wrapper)
 			await buttonByText(wrapper.find('.modal-stub'), 'Save').trigger('click')
 			await flushPromises()
 
@@ -459,10 +483,7 @@ describe('ProfileInfo', () => {
 	describe('bio', () => {
 		const bioBox = (wrapper) => wrapper.find('#social-profile-bio')
 		const bioCount = (wrapper) => wrapper.find('#social-profile-bio-count')
-		const openEditor = async (wrapper) => {
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
-			return wrapper.find('.modal-stub')
-		}
+		const openEditor = (wrapper) => openProfileEditor(wrapper)
 
 		it('renders the bio of the shown account and strips what is not safe to inject', () => {
 			accountStore.addAccount({
@@ -485,10 +506,12 @@ describe('ProfileInfo', () => {
 		})
 
 		it('fills the edit box with the stored plain text, never with the rendered HTML', async () => {
+			// no `source` here: this is what `/global/account/info` answers
 			accountStore.addAccount({
 				actorId: alice.url,
-				data: { note: '<p>Rendered <b>HTML</b></p>', source: { note: 'Plain <text> bio' } },
+				data: { note: '<p>Rendered <b>HTML</b></p>' },
 			})
+			credentials = { source: { note: 'Plain <text> bio' } }
 			const wrapper = mountProfile('alice')
 
 			await openEditor(wrapper)
@@ -496,11 +519,64 @@ describe('ProfileInfo', () => {
 			expect(bioBox(wrapper).element.value).toBe('Plain <text> bio')
 		})
 
-		it('sends the bio as the plain text it is stored as and refreshes the account', async () => {
+		/**
+		 * The bug this replaced: `source` was taken off the account the page
+		 * was drawn from, and that route carries none -- it is answered to
+		 * anybody, and `source` holds things only the account may read. The box
+		 * opened empty over a bio that was still there.
+		 */
+		it('asks the account itself rather than reading the page it is drawn on', async () => {
+			accountStore.addAccount({ actorId: alice.url, data: { note: '<p>Stored</p>' } })
+			credentials = { source: { note: 'Stored' } }
+			const wrapper = mountProfile('alice')
+
+			await openEditor(wrapper)
+
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/verify_credentials')
+			expect(bioBox(wrapper).element.value).toBe('Stored')
+		})
+
+		/**
+		 * A bio nobody could read is never one this editor sends back: both
+		 * halves stay empty and equal, which is exactly what `bioChanged`
+		 * asks, so a failed read cannot erase what is stored.
+		 */
+		it('cannot erase the bio when it could not be read', async () => {
+			accountStore.addAccount({ actorId: alice.url, data: { note: '<p>Stored</p>' } })
+			vi.spyOn(axios, 'get').mockRejectedValue(new Error('500'))
+			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
+			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
+			spyOnAccountActions(alice)
+			const wrapper = mountProfile('alice')
+
+			const modal = await openEditor(wrapper)
+			await buttonByText(modal, 'Save').trigger('click')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith('Could not load your profile for editing')
+			expect(put).toHaveBeenCalledTimes(1)
+			expect(patch).not.toHaveBeenCalled()
+		})
+
+		it('takes the profile fields from the account\'s own copy', async () => {
 			accountStore.addAccount({
 				actorId: alice.url,
-				data: { note: '<p>Old</p>', source: { note: 'Old' } },
+				data: { note: '', fields: [{ name: 'Stale', value: 'from the page' }] },
 			})
+			credentials = { source: { note: '', fields: [{ name: 'Pronouns', value: 'they/them' }] } }
+			const wrapper = mountProfile('alice')
+
+			const modal = await openEditor(wrapper)
+
+			// scoped to the field rows: the dialog also holds the banner controls
+			const inputs = modal.findAll('.user-profile__fields-row input')
+			expect(inputs[0].element.value).toBe('Pronouns')
+			expect(inputs[1].element.value).toBe('they/them')
+		})
+
+		it('sends the bio as the plain text it is stored as and refreshes the account', async () => {
+			accountStore.addAccount({ actorId: alice.url, data: { note: '<p>Old</p>' } })
+			credentials = { source: { note: 'Old' } }
 			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
 			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
 			spyOnAccountActions(alice)
@@ -521,10 +597,8 @@ describe('ProfileInfo', () => {
 		})
 
 		it('leaves the stored bio alone when only the other fields were edited', async () => {
-			accountStore.addAccount({
-				actorId: alice.url,
-				data: { note: '<p>Old</p>', source: { note: 'Old' } },
-			})
+			accountStore.addAccount({ actorId: alice.url, data: { note: '<p>Old</p>' } })
+			credentials = { source: { note: 'Old' } }
 			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: {} })
 			const patch = vi.spyOn(axios, 'patch').mockResolvedValue({ data: {} })
 			spyOnAccountActions(alice)
@@ -620,7 +694,7 @@ describe('ProfileInfo', () => {
 		it('uploads the chosen file, applies the returned banner and refreshes the account', async () => {
 			post.mockResolvedValue({ data: { result: { url: 'https://cloud.example.org/banners/alice.png' } } })
 			const wrapper = mountProfile('alice')
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			await openProfileEditor(wrapper)
 			const file = new File(['png'], 'banner.png', { type: 'image/png' })
 			const input = wrapper.find('input[type="file"]')
 			Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
@@ -649,7 +723,7 @@ describe('ProfileInfo', () => {
 		it('reports a failed upload and unlocks the buttons again', async () => {
 			post.mockRejectedValue(new Error('500'))
 			const wrapper = mountProfile('alice')
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			await openProfileEditor(wrapper)
 			const input = wrapper.find('input[type="file"]')
 			Object.defineProperty(input.element, 'files', { value: [new File(['x'], 'b.png', { type: 'image/png' })], configurable: true })
 
@@ -666,7 +740,7 @@ describe('ProfileInfo', () => {
 			const wrapper = mountProfile('alice')
 			expect(wrapper.find('.modal-stub').exists()).toBe(false)
 
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			await openProfileEditor(wrapper)
 			const modal = wrapper.find('.modal-stub')
 			expect(modal.find('h3').text()).toBe('Edit profile')
 			const apply = buttonByText(modal, 'Apply')
@@ -693,7 +767,7 @@ describe('ProfileInfo', () => {
 		it('keeps the modal open and reports when the URL cannot be fetched', async () => {
 			post.mockRejectedValue(new Error('400'))
 			const wrapper = mountProfile('alice')
-			await buttonByText(wrapper, 'Edit profile').trigger('click')
+			await openProfileEditor(wrapper)
 			await wrapper.find('.modal-stub input[type="url"]').setValue('https://example.com/broken.jpg')
 			await buttonByText(wrapper.find('.modal-stub'), 'Apply').trigger('click')
 			await flushPromises()

@@ -8,17 +8,14 @@
 			{{ t('social', 'Discover') }}
 		</h2>
 
-		<div class="discover__tabs" role="tablist" :aria-label="t('social', 'Discover')">
-			<NcButton
-				v-for="tab in tabs"
-				:key="tab.id"
-				role="tab"
-				:aria-selected="String(tab.id === active)"
-				:variant="tab.id === active ? 'secondary' : 'tertiary'"
-				@click="select(tab.id)">
-				{{ tab.name }}
-			</NcButton>
-		</div>
+		<!-- the same control the timelines and a profile are switched with:
+		     four lists of one screen, chosen while reading rather than
+		     navigated to -->
+		<TimelineSwitcher
+			:options="tabs"
+			:value="active"
+			:label="t('social', 'What to discover')"
+			@update:value="select" />
 
 		<div v-if="error" class="discover__error" role="alert">
 			<p>{{ error }}</p>
@@ -168,7 +165,10 @@ import Compass from 'vue-material-design-icons/Compass.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
+import Pound from 'vue-material-design-icons/Pound.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
+import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import TrendingHashtags from '../components/TrendingHashtags.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import axios from '@nextcloud/axios'
@@ -207,6 +207,7 @@ export default {
 		NcEmptyContent,
 		NcLoadingIcon,
 		ProfileMediaGrid,
+		TimelineSwitcher,
 		TrendingHashtags,
 		Refresh,
 	},
@@ -230,11 +231,14 @@ export default {
 
 	computed: {
 		tabs() {
+			// no `to` on any of them: the switcher pushes a route where an
+			// option has one and hands the pick back where it does not, and
+			// which of these four is on screen is this page's own state
 			return [
-				{ id: 'accounts', name: t('social', 'People') },
-				{ id: 'packs', name: t('social', 'Starter packs') },
-				{ id: 'posts', name: t('social', 'Pictures') },
-				{ id: 'tags', name: t('social', 'Hashtags') },
+				{ value: 'accounts', label: t('social', 'People'), icon: AccountMultipleOutline },
+				{ value: 'packs', label: t('social', 'Starter packs'), icon: AccountMultiplePlusOutline },
+				{ value: 'posts', label: t('social', 'Pictures'), icon: ImageMultiple },
+				{ value: 'tags', label: t('social', 'Hashtags'), icon: Pound },
 			]
 		},
 	},
@@ -368,13 +372,6 @@ export default {
 		margin-bottom: calc(var(--default-grid-baseline) * 2);
 	}
 
-	&__tabs {
-		display: flex;
-		gap: var(--default-grid-baseline);
-		margin-bottom: calc(var(--default-grid-baseline) * 3);
-		flex-wrap: wrap;
-	}
-
 	&__error {
 		display: flex;
 		flex-direction: column;
@@ -383,8 +380,92 @@ export default {
 		padding: calc(var(--default-grid-baseline) * 4);
 	}
 
+	/*
+	 * The pack list had markup and no rules at all: a `<button>` with three
+	 * spans in it, which the browser drew as one centred, bold, accent-coloured
+	 * line — name, description and count run together — and which read as a
+	 * page that had failed to load rather than as a list of packs.
+	 */
+	&__packs {
+		list-style: none;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+		gap: calc(var(--default-grid-baseline) * 2);
+	}
+
+	&__pack-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--default-grid-baseline);
+		width: 100%;
+		height: 100%;
+		/* a button in a card's clothing: the defaults it arrives with are for a
+		   word on a control, not for a paragraph in a tile */
+		text-align: start;
+		font-size: inherit;
+		font-weight: normal;
+		color: var(--color-main-text);
+		background-color: var(--color-background-hover);
+		border: none;
+		border-radius: var(--border-radius-large);
+		padding: calc(var(--default-grid-baseline) * 3);
+		cursor: pointer;
+		transition: background-color .15s ease;
+
+		&:hover,
+		&:focus-visible {
+			background-color: var(--color-background-dark);
+		}
+	}
+
+	&__pack-card-name {
+		font-weight: bold;
+		font-size: 1.05em;
+	}
+
+	&__pack-card-description {
+		color: var(--color-text-maxcontrast);
+		line-height: 1.4;
+	}
+
+	&__pack-card-size {
+		margin-top: auto;
+		padding-top: var(--default-grid-baseline);
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small, 0.85em);
+	}
+
+	/* and the pack itself, once one is open */
+	&__pack {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: calc(var(--default-grid-baseline) * 2);
+	}
+
+	&__pack-name {
+		margin: 0;
+	}
+
+	&__pack-description {
+		margin: 0;
+		max-width: 70ch;
+		color: var(--color-text-maxcontrast);
+		line-height: 1.5;
+	}
+
+	&__unresolved {
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small, 0.85em);
+
+		span {
+			display: block;
+		}
+	}
+
 	&__accounts {
 		list-style: none;
+		width: 100%;
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 		gap: var(--default-grid-baseline);
@@ -431,6 +512,14 @@ export default {
 
 	&__loading {
 		margin: 24px auto;
+	}
+}
+
+/* the one thing on this page that moves, and a reader may have asked for
+   nothing to */
+@media (prefers-reduced-motion: reduce) {
+	.discover__pack-card {
+		transition: none;
 	}
 }
 </style>

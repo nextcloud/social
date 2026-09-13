@@ -75,6 +75,7 @@
 				<NcButton
 					v-if="isOwnProfile"
 					variant="tertiary"
+					:disabled="openingProfile"
 					@click="openProfileModal">
 					<template #icon>
 						<TableEdit :size="20" />
@@ -318,6 +319,8 @@ export default {
 			accent: '',
 			relationshipLoading: false,
 			showProfileModal: false,
+			/** the editor reads the profile before it opens; this is that read */
+			openingProfile: false,
 			fieldRows: [],
 			savingProfile: false,
 			bioDraft: '',
@@ -453,15 +456,54 @@ export default {
 			}
 		},
 
-		openProfileModal() {
-			const fields = this.accountInfo.source?.fields || this.accountInfo.fields || []
+		/**
+		 * Opens the editor on what is actually stored.
+		 *
+		 * The bio has to be asked for, and this is why: `source` is an
+		 * account's own editable copy of its profile, and it lives on exactly
+		 * two routes -- `verify_credentials` and `update_credentials` -- because
+		 * it carries `follow_requests_count`, which is nobody's business but the
+		 * account's own. This page is drawn from `/global/account/info`, which
+		 * is answered to anybody and therefore has no `source` at all, so
+		 * `source.note` was `undefined` here and the editor opened with an empty
+		 * box over a bio that was still there. `note` is not a substitute: it is
+		 * the rendered HTML and would put markup in a plain-text field.
+		 *
+		 * Read before the dialog opens rather than after, so there is never a
+		 * moment where an empty box is on screen and typing into it would be
+		 * typing over something.
+		 */
+		async openProfileModal() {
+			if (this.openingProfile) {
+				return
+			}
+
+			this.openingProfile = true
+			let source = null
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/verify_credentials'))
+				source = data?.source ?? null
+			} catch (error) {
+				logger.error('Could not read the profile to edit', { error })
+				await this.showError(t('social', 'Could not load your profile for editing'))
+			} finally {
+				this.openingProfile = false
+			}
+
+			// `??`, not `||`: an account with no fields answers `[]`, which is
+			// truthy, and `||` would quietly fall back to the rendered copy on
+			// the page. The fallback is for a `source` that could not be read
+			// at all, and for nothing else.
+			const fields = source?.fields ?? this.accountInfo.fields ?? []
 			this.fieldRows = fields.map((field) => ({ name: field.name, value: field.value }))
 			if (this.fieldRows.length === 0) {
 				this.fieldRows.push({ name: '', value: '' })
 			}
-			// `source.note` is the plain text the bio is stored as; `note` is
-			// the rendered HTML and would put markup in the box
-			this.bioStored = normalizeBio(this.accountInfo.source?.note)
+
+			// An unreadable profile leaves both of these empty and equal, which
+			// is what `bioChanged` reads: a bio nobody could load is never one
+			// this editor sends back, so a failure here cannot erase it.
+			this.bioStored = normalizeBio(source?.note)
 			this.bioDraft = this.bioStored
 			this.showProfileModal = true
 		},
@@ -535,7 +577,10 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to upload the banner', { error })
-				await this.showError(t('social', 'Failed to upload banner'))
+				await this.showError(this.uploadFailure(
+					error,
+					t('social', 'Failed to upload banner'),
+				))
 			} finally {
 				this.loading = false
 				if (event && event.target) {
@@ -568,10 +613,32 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to set the banner from a URL', { error })
-				await this.showError(t('social', 'Failed to set banner from URL'))
+				await this.showError(this.uploadFailure(
+					error,
+					t('social', 'Failed to set banner from URL'),
+				))
 			} finally {
 				this.loadingUrl = false
 			}
+		},
+
+		/**
+		 * What to put on screen when a banner is refused.
+		 *
+		 * The server says why whenever the reason is the reader's to act on --
+		 * the picture is too big for this server, or is not one it can read --
+		 * and that is the whole of what they need. "Failed to upload banner"
+		 * is what is left when the failure was this side's, and says as much
+		 * as it honestly can: it is the fallback, not the answer.
+		 *
+		 * @param {object} error the axios failure
+		 * @param {string} fallback what to say when the server offered nothing
+		 * @return {string} the message to show
+		 */
+		uploadFailure(error, fallback) {
+			const message = error?.response?.data?.message
+
+			return (typeof message === 'string' && message !== '') ? message : fallback
 		},
 
 		// the two wrappers below are what the rest of this component calls; the

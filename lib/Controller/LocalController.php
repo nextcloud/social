@@ -57,6 +57,7 @@ use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
+use OCP\Util;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -112,14 +113,9 @@ class LocalController extends Controller {
 				throw new AccountDoesNotExistException('User not logged in');
 			}
 
-			$file = $_FILES['file'] ?? [];
-			if (empty($file) || $file['error'] !== UPLOAD_ERR_OK) {
-				throw new Exception('no banner file provided');
-			}
-
-			$tmpName = $file['tmp_name'];
-
-			$image = $this->bannerService->setFromTempFile($this->userId, $tmpName);
+			$image = $this->bannerService->setFromTempFile(
+				$this->userId, $this->uploadedBannerPath()
+			);
 
 			$this->logger->info('[LocalController] Banner uploaded', [
 				'userId' => $this->userId,
@@ -130,12 +126,29 @@ class LocalController extends Controller {
 				'url' => $image->getUrl(),
 				'id' => $image->getId()
 			]);
-		} catch (CacheContentDecodeException|CacheContentMimeTypeException|CacheContentSizeException $e) {
+		} catch (
+			CacheContentDecodeException
+			|CacheContentMimeTypeException
+			|CacheContentSizeException
+			|InvalidResourceException $e
+		) {
 			// the file is the problem, not the server: a picture that is not
 			// one, is of a type this app refuses, or is too big. A 500 here
 			// told the reader the server had broken and put a fault in the
-			// log for something they can fix by choosing another file
-			return $this->fail($e, [], Http::STATUS_BAD_REQUEST, false);
+			// log for something they can fix by choosing another file.
+			//
+			// `message` carries the reason, because `error` deliberately does
+			// not: `fail()` answers a fixed string so that a @PublicPage route
+			// cannot leak an internal one. These four are raised about the file
+			// the caller just sent and say nothing else, so the caller is the
+			// one person entitled to read them -- and without that, "too big"
+			// and "not an image" reached the page as the same blank failure.
+			return $this->fail(
+				$e,
+				['message' => $this->uploadFailureMessage($e)],
+				Http::STATUS_BAD_REQUEST,
+				false
+			);
 		} catch (Exception $e) {
 			$this->logger->error('[LocalController] uploadBanner failed', [
 				'exception' => $e->getMessage(),
@@ -143,6 +156,83 @@ class LocalController extends Controller {
 			]);
 			return $this->fail($e);
 		}
+	}
+
+	/**
+	 * The uploaded banner's temporary path, or an exception saying what the
+	 * reader can do about it.
+	 *
+	 * `$_FILES` is not a witness on its own. PHP throws the whole request body
+	 * away when it is bigger than `post_max_size` -- `$_FILES` and `$_POST`
+	 * both arrive empty -- so a file too big by a factor of five looks exactly
+	 * like no file at all. Both used to be `no banner file provided` and a
+	 * **500**: the reader was told the server had broken, about a photo from
+	 * their own phone, and the fix was theirs all along.
+	 *
+	 * The size actually allowed is the smallest of three numbers and is rarely
+	 * the one this app advertises, so it is read rather than assumed.
+	 *
+	 * @throws CacheContentSizeException the file is larger than this server takes
+	 * @throws InvalidResourceException there is no usable file in the request
+	 * @throws Exception the upload failed on this side
+	 */
+	private function uploadedBannerPath(): string {
+		$file = $_FILES['file'] ?? [];
+
+		if ($file === []) {
+			$sent = (int)$this->request->getHeader('Content-Length');
+			if ($sent > 0 && $sent > $this->iniBytes('post_max_size')) {
+				throw new CacheContentSizeException($this->tooBig());
+			}
+
+			throw new InvalidResourceException('No file was sent.');
+		}
+
+		return match ($file['error'] ?? UPLOAD_ERR_NO_FILE) {
+			UPLOAD_ERR_OK => $file['tmp_name'] ?? '',
+			UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE
+				=> throw new CacheContentSizeException($this->tooBig()),
+			UPLOAD_ERR_NO_FILE => throw new InvalidResourceException('No file was sent.'),
+			UPLOAD_ERR_PARTIAL => throw new InvalidResourceException(
+				'The upload did not finish. Try again.'
+			),
+			// no tmp dir, cannot write, an extension refused it: this side's
+			// problem, and the only one of these that is a 500
+			default => throw new Exception(
+				'the upload failed on the server, error ' . $file['error']
+			),
+		};
+	}
+
+	/** The largest banner this server will take, as the reader should read it. */
+	private function tooBig(): string {
+		$ceiling = min(
+			$this->iniBytes('upload_max_filesize'),
+			$this->iniBytes('post_max_size'),
+			$this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE) * 1024 * 1024
+		);
+
+		return 'That picture is larger than this server accepts (at most '
+			. Util::humanFileSize($ceiling) . ').';
+	}
+
+	/** A php.ini size, in bytes. `0` there means no limit, which min() must not win. */
+	private function iniBytes(string $key): int {
+		$size = Util::computerFileSize((string)ini_get($key));
+		$size = ($size === false) ? 0 : (int)$size;
+
+		return ($size > 0) ? $size : PHP_INT_MAX;
+	}
+
+	/** What to tell the caller about a file this app would not take. */
+	private function uploadFailureMessage(Exception $e): string {
+		$message = trim($e->getMessage());
+
+		// CacheContentMimeTypeException is raised bare in places, and an empty
+		// string on screen is worse than no message at all
+		return ($message === '')
+			? 'That file cannot be used as a banner.'
+			: $message;
 	}
 
 	/**

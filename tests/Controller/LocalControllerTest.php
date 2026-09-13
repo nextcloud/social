@@ -21,6 +21,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
@@ -202,6 +203,27 @@ class LocalControllerTest extends TestCase {
 		$this->assertArrayNotHasKey('exception', $data);
 		if ($message !== null) {
 			$this->assertArrayNotHasKey('message', $data);
+		}
+	}
+
+	/**
+	 * A 400 that says why.
+	 *
+	 * `assertFailure()` asserts that nothing reaches the caller but "request
+	 * failed", which is right for a route that failed on the server. These
+	 * four are raised about the file the caller just sent, so the caller is
+	 * the one person entitled to read them -- and without the reason, "too
+	 * big" and "not an image" arrive as the same blank failure.
+	 */
+	private function assertRefused(DataResponse $response, ?string $message = null): void {
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$data = $response->getData();
+		$this->assertSame(-1, $data['status']);
+		$this->assertSame('request failed', $data['error']);
+		$this->assertArrayNotHasKey('exception', $data);
+		$this->assertArrayHasKey('message', $data);
+		if ($message !== null) {
+			$this->assertSame($message, $data['message']);
 		}
 	}
 
@@ -868,14 +890,90 @@ class LocalControllerTest extends TestCase {
 	public function testUploadBannerRequiresAFile(): void {
 		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
 
-		$this->assertFailure($this->controller()->uploadBanner(), \Exception::class, 'no banner file provided');
+		$this->assertRefused($this->controller()->uploadBanner(), 'No file was sent.');
 	}
 
 	public function testUploadBannerRejectsFailedUploads(): void {
 		$_FILES['file'] = ['tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE];
 		$this->accountService->expects($this->never())->method('getActorFromUserId');
 
-		$this->assertFailure($this->controller()->uploadBanner(), \Exception::class, 'no banner file provided');
+		$this->assertRefused($this->controller()->uploadBanner(), 'No file was sent.');
+	}
+
+	/**
+	 * A photo off a phone is bigger than `upload_max_filesize` on a stock PHP,
+	 * and this used to be a 500 reading "request failed": the reader was told
+	 * the server had broken, about something only they could fix.
+	 */
+	#[DataProvider('provideOversizedUploads')]
+	public function testUploadBannerSaysWhenThePictureIsTooBig(int $error): void {
+		$_FILES['file'] = ['tmp_name' => '/tmp/whatever', 'error' => $error];
+		$this->accountService->expects($this->never())->method('getActorFromUserId');
+
+		$response = $this->controller()->uploadBanner();
+
+		$this->assertRefused($response);
+		$this->assertStringContainsString(
+			'larger than this server accepts', $response->getData()['message']
+		);
+	}
+
+	/** @return array<string, array{int}> */
+	public static function provideOversizedUploads(): array {
+		return [
+			'over upload_max_filesize' => [UPLOAD_ERR_INI_SIZE],
+			'over the form\'s own limit' => [UPLOAD_ERR_FORM_SIZE],
+		];
+	}
+
+	/**
+	 * PHP discards the whole body when it is over `post_max_size` -- `$_FILES`
+	 * and `$_POST` both arrive empty -- so a file too big by a factor of five
+	 * is indistinguishable from no file at all except by what was sent.
+	 */
+	public function testUploadBannerSaysWhenThePostWasDiscardedWhole(): void {
+		$this->request->method('getHeader')->willReturnCallback(
+			static fn (string $header): string
+				=> ($header === 'Content-Length') ? (string)(PHP_INT_MAX - 1) : ''
+		);
+		$this->accountService->expects($this->never())->method('getActorFromUserId');
+
+		$response = $this->controller()->uploadBanner();
+
+		$this->assertRefused($response);
+		$this->assertStringContainsString(
+			'larger than this server accepts', $response->getData()['message']
+		);
+	}
+
+	/**
+	 * No temporary directory is this side's problem and the reader can do
+	 * nothing about it, so it stays a 500 and says nothing.
+	 */
+	public function testUploadBannerKeepsTheServersOwnFailuresToItself(): void {
+		$_FILES['file'] = ['tmp_name' => '', 'error' => UPLOAD_ERR_NO_TMP_DIR];
+		$this->accountService->expects($this->never())->method('getActorFromUserId');
+
+		$response = $this->controller()->uploadBanner();
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertArrayNotHasKey('message', $response->getData());
+	}
+
+	public function testUploadBannerHandsTheTempFileToTheService(): void {
+		$_FILES['file'] = ['tmp_name' => '/tmp/php-upload-1', 'error' => UPLOAD_ERR_OK];
+		$image = new Image();
+		$image->setId('https://cloud.example/documents/header/1');
+		$image->setUrl('https://cloud.example/media/1.png');
+		$this->bannerService->expects($this->once())
+			->method('setFromTempFile')
+			->with('alice', '/tmp/php-upload-1')
+			->willReturn($image);
+
+		$response = $this->controller()->uploadBanner();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('https://cloud.example/media/1.png', $response->getData()['result']['url']);
 	}
 
 	public function testUploadBannerByUrlRequiresALoggedInUser(): void {
