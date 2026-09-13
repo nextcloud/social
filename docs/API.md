@@ -604,7 +604,28 @@ The Statistics page. A session route with CSRF rather than a client-API one, for
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| GET | `/api/v1/statistics` | user | — | `{"account", "posts", "engagement", "visibility", "by_month", "by_hour", "hashtags", "best", "window"}`, counted from this instance's rows at the moment it is asked for: nothing is stored and no cron precomputes it. `engagement` sums each post's `likes`, `boosts` and `replies` — the local count plus whatever the origin reported — so the figures are a floor rather than a total, which is true of every Fediverse statistic. A boost the account made is counted under `posts.boosts` and excluded from everything else, because its likes belong to whoever wrote it. The walk stops at 2000 posts and `window` says how many it actually looked at and whether it stopped early. Rate-limited to 30 an hour, because the answer is a walk rather than a lookup. |
+| GET | `/api/v1/statistics` | user | — | Everything the Statistics page shows, counted from this instance's rows at the moment it is asked for: nothing is stored and no cron precomputes it. See the shape below. Rate-limited to 30 an hour, because the answer is a walk rather than a lookup. |
+
+The answer:
+
+| Key | What it holds |
+|-----|---------------|
+| `account` | `acct`, `created_at`, `followers`, `following` |
+| `posts` | `total`, `originals`, `replies`, `boosts`, `with_media`, `sensitive` |
+| `engagement` | `likes`, `boosts`, `replies` and a `*_per_post` for each |
+| `rates` | `total` engagement and `per_post`; `applause`, `amplification` and `conversation` (likes, boosts and replies per post, under the names an agency reports them under); `per_follower`, engagement per post against the follower count as a percentage; `median` and `best`, because a mean is one viral post away from meaningless; `silent` and `silent_share`, the posts that got no answer at all |
+| `visibility` | how many posts went to each audience |
+| `by_month`, `engagement_by_month` | twelve months of posts, and of what they collected |
+| `by_hour` | twenty-four hours of posts |
+| `by_weekday` | seven days, each with `posts`, `engagement` and the `average` — the average is the useful one, since posting twice as often on a Monday collects twice as much on a Monday without Monday being better |
+| `best_hour` | `{hour, average, posts}`, or `hour: null` where no hour holds three posts yet: one lucky post is not a time of day that works |
+| `content` | one row per kind of post (`with_media`/`text_only`, `with_hashtag`/`no_hashtag`, `original`/`reply`, `visibility_*`), each with `posts`, `engagement` and `average`. A kind with no posts is absent rather than reported as zero |
+| `hashtags`, `hashtag_performance` | the tags used most, and separately the tags whose posts average best — the second only counts tags used twice or more |
+| `audience` | `by_month` followers gained, `instances` the hosts they are on, `local_share` the percentage on this server, `counted` and `capped` |
+| `best` | the three most-answered posts, each with an `excerpt`, its counts and its `score` |
+| `window` | `counted`, `capped`, `max`, `first_at`, `last_at`, `followers_counted` |
+
+Every engagement figure is a post's `details` — the local count plus whatever the origin reported — so all of them are a floor rather than a total, which is true of every Fediverse statistic. There are no impressions to divide by, so `per_follower` is against the follower count and says so on the page. A boost the account made is counted under `posts.boosts` and excluded from everything else, because its likes belong to whoever wrote it. The post walk stops at 2000 and the follower read at 5000, newest first, and `window` and `audience` each say whether they stopped early.
 
 ### Config and system
 

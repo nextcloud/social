@@ -185,6 +185,122 @@ class StatisticsServiceTest extends TestCase {
 		$this->assertSame(2, $stats['hashtags'][0]['count']);
 	}
 
+	/** The four rates an agency reports on, and the two that keep them honest. */
+	public function testItReportsTheRatesAndNotOnlyTheTotals(): void {
+		$this->answering([
+			$this->post(4, ['likes' => 20, 'boosts' => 8, 'replies' => 2]),
+			$this->post(3, ['likes' => 2]),
+			$this->post(2),
+			$this->post(1),
+		]);
+		$this->followsRequest->method('countFollowers')->willReturn(100);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertSame(32, $stats['rates']['total']);
+		$this->assertSame(8.0, $stats['rates']['per_post']);
+		$this->assertSame(5.5, $stats['rates']['applause']);
+		$this->assertSame(2.0, $stats['rates']['amplification']);
+		$this->assertSame(0.5, $stats['rates']['conversation']);
+		// 8 engagement per post against 100 followers
+		$this->assertSame(8.0, $stats['rates']['per_follower']);
+		// the mean is 8 and the middle post got 1: which is the point of both
+		$this->assertSame(1.0, $stats['rates']['median']);
+		$this->assertSame(30, $stats['rates']['best']);
+		$this->assertSame(2, $stats['rates']['silent']);
+		$this->assertSame(50.0, $stats['rates']['silent_share']);
+	}
+
+	/** A rate needs a denominator, and an account with no followers has none. */
+	public function testTheEngagementRateIsNotADivisionByNothing(): void {
+		$this->answering([$this->post(1, ['likes' => 5])]);
+		$this->followsRequest->method('countFollowers')->willReturn(0);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertSame(0.0, $stats['rates']['per_follower']);
+	}
+
+	public function testItSaysWhichKindOfPostDoesBetter(): void {
+		$this->answering([
+			$this->post(3, ['likes' => 10, 'media' => true]),
+			$this->post(2, ['likes' => 2, 'hashtags' => ['a11y']]),
+			$this->post(1, ['likes' => 0]),
+		]);
+
+		$stats = $this->service->forAccount($this->alice());
+		$byKey = array_column($stats['content'], null, 'key');
+
+		$this->assertSame(10.0, $byKey['with_media']['average']);
+		$this->assertSame(1.0, $byKey['text_only']['average']);
+		$this->assertSame(2.0, $byKey['with_hashtag']['average']);
+		// a kind with no posts is absent rather than reported as zero
+		$this->assertArrayNotHasKey('reply', $byKey);
+	}
+
+	/** One lucky post at four in the morning is not a time of day that works. */
+	public function testOneGoodPostDoesNotMakeAnHourTheBestOne(): void {
+		$this->answering([
+			$this->post(3, ['published' => '2026-08-03T04:00:00Z', 'likes' => 100]),
+			$this->post(2, ['published' => '2026-08-04T09:00:00Z', 'likes' => 5]),
+			$this->post(1, ['published' => '2026-08-05T09:00:00Z', 'likes' => 5]),
+		]);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertNull($stats['best_hour']['hour']);
+	}
+
+	/** Three in the same hour is enough to name it. */
+	public function testTheBestHourIsNamedOnceThereAreEnoughPostsInIt(): void {
+		$this->answering([
+			$this->post(3, ['published' => '2026-08-03T09:00:00Z', 'likes' => 5]),
+			$this->post(2, ['published' => '2026-08-04T09:00:00Z', 'likes' => 5]),
+			$this->post(1, ['published' => '2026-08-05T09:00:00Z', 'likes' => 5]),
+		]);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertSame(9, $stats['best_hour']['hour']);
+		$this->assertSame(5.0, $stats['best_hour']['average']);
+		$this->assertSame(3, $stats['best_hour']['posts']);
+	}
+
+	/** The tags worth using are not the same list as the tags used most. */
+	public function testHashtagPerformanceIgnoresATagUsedOnce(): void {
+		$this->answering([
+			$this->post(3, ['likes' => 100, 'hashtags' => ['lucky']]),
+			$this->post(2, ['likes' => 4, 'hashtags' => ['steady']]),
+			$this->post(1, ['likes' => 6, 'hashtags' => ['steady']]),
+		]);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertSame([['name' => 'steady', 'posts' => 2, 'average' => 5.0]], $stats['hashtag_performance']);
+		// it is still in the list of what the account writes about
+		$this->assertContains('lucky', array_column($stats['hashtags'], 'name'));
+	}
+
+	public function testTheAudienceIsWhereTheFollowersAre(): void {
+		$this->followsRequest->method('countFollowers')->willReturn(3);
+		$this->followsRequest->method('getFollowerOrigins')->willReturn([
+			['actor_id' => 'https://remote.example/users/bob', 'creation' => gmdate('Y-m-d H:i:s')],
+			['actor_id' => 'https://remote.example/users/carol', 'creation' => gmdate('Y-m-d H:i:s')],
+			['actor_id' => 'https://cloud.example/apps/social/@dave', 'creation' => gmdate('Y-m-d H:i:s')],
+		]);
+		$this->answering([]);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertSame(
+			[['host' => 'remote.example', 'count' => 2], ['host' => 'cloud.example', 'count' => 1]],
+			$stats['audience']['instances']
+		);
+		// alice is on cloud.example, so one of the three is a neighbour
+		$this->assertSame(33.3, $stats['audience']['local_share']);
+		$this->assertSame(3, $stats['audience']['by_month'][gmdate('Y-m')]);
+	}
+
 	/** The walk stops, and says that it did. */
 	public function testTheWalkIsBoundedAndTheAnswerSaysSo(): void {
 		// newest first, which is the order a timeline answers in and the order

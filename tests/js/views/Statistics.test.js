@@ -39,6 +39,45 @@ function answer(overrides = {}) {
 			replies_per_post: 0.1,
 		},
 		visibility: { public: 42, unlisted: 0, followers: 1, direct: 0 },
+		rates: {
+			total: 233,
+			per_post: 5.4,
+			applause: 4.3,
+			amplification: 1,
+			conversation: 0.1,
+			per_follower: 20.84,
+			median: 7,
+			best: 14,
+			silent: 16,
+			silent_share: 37.2,
+		},
+		by_weekday: [
+			{ day: 0, posts: 1, engagement: 0, average: 0 },
+			{ day: 1, posts: 7, engagement: 65, average: 9.3 },
+			{ day: 2, posts: 4, engagement: 0, average: 0 },
+			{ day: 3, posts: 4, engagement: 24, average: 6 },
+			{ day: 4, posts: 5, engagement: 37, average: 7.4 },
+			{ day: 5, posts: 6, engagement: 48, average: 8 },
+			{ day: 6, posts: 16, engagement: 59, average: 3.7 },
+		],
+		best_hour: { hour: 8, average: 9.3, posts: 3 },
+		content: [
+			{ key: 'text_only', posts: 39, engagement: 199, average: 5.1 },
+			{ key: 'with_media', posts: 4, engagement: 35, average: 8.8 },
+			{ key: 'original', posts: 34, engagement: 180, average: 5.3 },
+		],
+		hashtag_performance: [
+			{ name: 'nextcloud', posts: 6, average: 9.3 },
+			{ name: 'accessibility', posts: 4, average: 3 },
+		],
+		audience: {
+			by_month: { '2026-08': 4, '2026-09': 22 },
+			instances: [{ host: 'remote.example', count: 20 }, { host: 'cloud.example', count: 6 }],
+			local_share: 23.1,
+			counted: 26,
+			capped: false,
+		},
+		engagement_by_month: { '2026-08': 180, '2026-09': 53 },
 		by_month: { '2026-08': 39, '2026-09': 4 },
 		by_hour: Array.from({ length: 24 }, (unused, hour) => (hour === 11 ? 5 : 0)),
 		hashtags: [{ name: 'nextcloud', count: 6 }, { name: 'a11y', count: 1 }],
@@ -111,7 +150,7 @@ describe('Statistics', () => {
 		const wrapper = mountPage()
 		await flushPromises()
 
-		const months = wrapper.findAll('.stats__bars--months .stats__bar')
+		const months = wrapper.findAll('.stats__bars--posts .stats__bar')
 		expect(months).toHaveLength(3)
 		expect(months[1].attributes('style')).toContain('--height: 100%')
 		expect(months[2].attributes('style')).toContain('--height: 10%')
@@ -156,6 +195,76 @@ describe('Statistics', () => {
 		expect(text(capped)).toContain('most recent posts')
 	})
 
+	it('shows the rates an agency reports on, not only the totals', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const shown = text(wrapper)
+		expect(shown).toContain('5.4engagement per post')
+		expect(shown).toContain('median 7')
+		// one decimal on screen, whatever the server sent
+		expect(shown).toContain('20.8%engagement rate')
+		expect(shown).toContain('37.2%got no answer')
+		// the best post against the middle one, which is the number a mean hides
+		expect(shown).toContain('2× the median')
+	})
+
+	it('sorts what works by what it averages, best first', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const labels = wrapper.findAll('.stats__card')
+			.find((card) => card.text().includes('What works'))
+			.findAll('.stats__row dt')
+			.map((dt) => dt.text())
+
+		expect(labels[0]).toBe('With a picture or a video')
+		expect(labels).toContain('Text only')
+	})
+
+	it('names the hour that works, and says nothing when there is too little to go on', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+		const wrapper = mountPage()
+		await flushPromises()
+		expect(text(wrapper)).toContain('8:00 UTC')
+
+		axios.get.mockResolvedValue({ data: answer({ best_hour: { hour: null, average: 0, posts: 0 } }) })
+		const quiet = mountPage()
+		await flushPromises()
+		expect(text(quiet)).toContain('Not enough posts at any one hour')
+	})
+
+	it('names the weekdays in the reader\'s own calendar, Sunday first as the server counts them', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const days = wrapper.findAll('.stats__card')
+			.find((card) => card.text().includes('When your posts do best'))
+			.findAll('.stats__row dt')
+			.map((dt) => dt.text())
+
+		expect(days).toHaveLength(7)
+		expect(days[0]).toBe(new Date(Date.UTC(2024, 0, 7)).toLocaleDateString(undefined, { weekday: 'long' }))
+	})
+
+	it('says where the audience is and how much of it is on this server', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const shown = text(wrapper)
+		expect(shown).toContain('remote.example')
+		expect(shown).toContain('23.1% of your followers are on this server')
+		expect(wrapper.findAll('.stats__bars--followers .stats__bar')).toHaveLength(2)
+	})
+
 	it('leaves out the sections the answer has nothing for', async () => {
 		axios.get.mockResolvedValue({ data: answer({ best: [], hashtags: [] }) })
 
@@ -164,5 +273,13 @@ describe('Statistics', () => {
 
 		expect(wrapper.find('.stats__best').exists()).toBe(false)
 		expect(wrapper.find('.stats__tags').exists()).toBe(false)
+
+		axios.get.mockResolvedValue({ data: answer({ audience: undefined, content: [], by_weekday: [] }) })
+		const bare = mountPage()
+		await flushPromises()
+
+		expect(bare.text()).not.toContain('Who is listening')
+		expect(bare.text()).not.toContain('What works')
+		expect(bare.text()).not.toContain('When your posts do best')
 	})
 })

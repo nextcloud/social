@@ -70,9 +70,76 @@
 						<em>{{ t('social', '{n} per post', { n: decimal(stats.engagement.replies_per_post) }) }}</em>
 					</li>
 				</ul>
+				<ul v-if="stats.rates" class="stats__figures stats__figures--small">
+					<li>
+						<strong>{{ decimal(stats.rates.per_post) }}</strong>
+						<span>{{ t('social', 'engagement per post') }}</span>
+						<em>{{ t('social', 'median {n}', { n: decimal(stats.rates.median) }) }}</em>
+					</li>
+					<li>
+						<strong>{{ decimal(stats.rates.per_follower) }}%</strong>
+						<span>{{ t('social', 'engagement rate') }}</span>
+						<em>{{ t('social', 'against your followers') }}</em>
+					</li>
+					<li>
+						<strong>{{ number(stats.rates.best) }}</strong>
+						<span>{{ t('social', 'best post') }}</span>
+						<em>{{ t('social', '{n}× the median', { n: decimal(viralMultiple) }) }}</em>
+					</li>
+					<li>
+						<strong>{{ decimal(stats.rates.silent_share) }}%</strong>
+						<span>{{ t('social', 'got no answer') }}</span>
+						<em>{{ n('social', '%n post', '%n posts', stats.rates.silent) }}</em>
+					</li>
+				</ul>
 				<p class="stats__note">
-					{{ t('social', 'A floor rather than a total: a like on a server that never told this one about it cannot be counted anywhere.') }}
+					{{ t('social', 'A floor rather than a total: a like on a server that never told this one about it cannot be counted anywhere. There are no impressions to divide by either, so the rate is against your follower count.') }}
 				</p>
+			</section>
+
+			<!-- what works -->
+			<section v-if="content.length" class="stats__card">
+				<h3>
+					<IconTarget :size="20" />
+					{{ t('social', 'What works') }}
+				</h3>
+				<p class="stats__note">
+					{{ t('social', 'Average engagement per post, by what the post was.') }}
+				</p>
+				<dl class="stats__rows">
+					<div v-for="row in content" :key="row.key" class="stats__row">
+						<dt>{{ row.label }}</dt>
+						<dd>
+							<span class="stats__meter" :style="{ '--share': row.share }" />
+							<span class="stats__row-value">{{ decimal(row.average) }}</span>
+							<span class="stats__row-note">{{ n('social', '%n post', '%n posts', row.posts) }}</span>
+						</dd>
+					</div>
+				</dl>
+			</section>
+
+			<!-- when they do best -->
+			<section v-if="weekdays.length" class="stats__card">
+				<h3>
+					<IconClock :size="20" />
+					{{ t('social', 'When your posts do best') }}
+				</h3>
+				<p v-if="bestHour" class="stats__lead">
+					{{ bestHour }}
+				</p>
+				<p v-else class="stats__note">
+					{{ t('social', 'Not enough posts at any one hour to say yet — it takes three in the same hour before this is more than luck.') }}
+				</p>
+				<dl class="stats__rows">
+					<div v-for="row in weekdays" :key="row.day" class="stats__row">
+						<dt>{{ row.label }}</dt>
+						<dd>
+							<span class="stats__meter" :style="{ '--share': row.share }" />
+							<span class="stats__row-value">{{ decimal(row.average) }}</span>
+							<span class="stats__row-note">{{ n('social', '%n post', '%n posts', row.posts) }}</span>
+						</dd>
+					</div>
+				</dl>
 			</section>
 
 			<!-- the best of them -->
@@ -102,9 +169,16 @@
 					{{ t('social', 'When you post') }}
 				</h3>
 				<h4>{{ t('social', 'Over the last twelve months') }}</h4>
-				<ul class="stats__bars stats__bars--months">
+				<ul class="stats__bars stats__bars--months stats__bars--posts">
 					<li v-for="month in months" :key="month.key" :title="monthTitle(month)">
 						<span class="stats__bar" :style="{ '--height': month.height }" />
+						<span class="stats__bar-label">{{ month.label }}</span>
+					</li>
+				</ul>
+				<h4 v-if="engagementMonths.length">{{ t('social', 'Engagement over the same months') }}</h4>
+				<ul class="stats__bars stats__bars--months stats__bars--engagement">
+					<li v-for="month in engagementMonths" :key="month.key" :title="engagementTitle(month)">
+						<span class="stats__bar stats__bar--alt" :style="{ '--height': month.height }" />
 						<span class="stats__bar-label">{{ month.label }}</span>
 					</li>
 				</ul>
@@ -148,6 +222,52 @@
 						</router-link>
 					</li>
 				</ul>
+				<template v-if="hashtagPerformance.length">
+					<h4>{{ t('social', 'Which of them works') }}</h4>
+					<dl class="stats__rows">
+						<div v-for="tag in hashtagPerformance" :key="tag.name" class="stats__row">
+							<dt>#{{ tag.name }}</dt>
+							<dd>
+								<span class="stats__meter" :style="{ '--share': tag.share }" />
+								<span class="stats__row-value">{{ decimal(tag.average) }}</span>
+								<span class="stats__row-note">{{ n('social', '%n post', '%n posts', tag.posts) }}</span>
+							</dd>
+						</div>
+					</dl>
+					<p class="stats__note">
+						{{ t('social', 'Average engagement of a post carrying the tag. Tags used once are left out: one post that did well is a post that did well.') }}
+					</p>
+				</template>
+			</section>
+
+			<!-- who is listening -->
+			<section v-if="stats.audience" class="stats__card">
+				<h3>
+					<IconAccountGroup :size="20" />
+					{{ t('social', 'Who is listening') }}
+				</h3>
+				<h4>{{ t('social', 'Followers gained, by month') }}</h4>
+				<ul class="stats__bars stats__bars--months stats__bars--followers">
+					<li v-for="month in followerMonths" :key="month.key" :title="followerTitle(month)">
+						<span class="stats__bar stats__bar--alt" :style="{ '--height': month.height }" />
+						<span class="stats__bar-label">{{ month.label }}</span>
+					</li>
+				</ul>
+				<template v-if="instances.length">
+					<h4>{{ t('social', 'Where they are') }}</h4>
+					<dl class="stats__rows">
+						<div v-for="instance in instances" :key="instance.host" class="stats__row">
+							<dt>{{ instance.host }}</dt>
+							<dd>
+								<span class="stats__meter" :style="{ '--share': instance.share }" />
+								<span class="stats__row-value">{{ number(instance.count) }}</span>
+							</dd>
+						</div>
+					</dl>
+					<p class="stats__note">
+						{{ t('social', '{n}% of your followers are on this server.', { n: decimal(stats.audience.local_share) }) }}
+					</p>
+				</template>
 			</section>
 
 			<p class="stats__window">
@@ -163,6 +283,8 @@ import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconAccount from 'vue-material-design-icons/AccountCircle.vue'
+import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
+import IconClock from 'vue-material-design-icons/ClockOutline.vue'
 import IconCalendar from 'vue-material-design-icons/CalendarBlank.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPound from 'vue-material-design-icons/Pound.vue'
@@ -170,6 +292,7 @@ import IconRefresh from 'vue-material-design-icons/Refresh.vue'
 import IconReply from 'vue-material-design-icons/Reply.vue'
 import IconRepeat from 'vue-material-design-icons/Repeat.vue'
 import IconShape from 'vue-material-design-icons/ShapeOutline.vue'
+import IconTarget from 'vue-material-design-icons/Target.vue'
 import IconTrophy from 'vue-material-design-icons/Trophy.vue'
 import { n, t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
@@ -191,13 +314,16 @@ export default {
 
 	components: {
 		IconAccount,
+		IconAccountGroup,
 		IconCalendar,
+		IconClock,
 		IconHeart,
 		IconPound,
 		IconRefresh,
 		IconReply,
 		IconRepeat,
 		IconShape,
+		IconTarget,
 		IconTrophy,
 		NcButton,
 		NcLoadingIcon,
@@ -231,16 +357,109 @@ export default {
 
 		/** @return {Array<{key: string, label: string, count: number, height: string}>} */
 		months() {
-			const counts = this.stats?.by_month ?? {}
-			const tallest = Math.max(1, ...Object.values(counts))
+			return this.bars(this.stats?.by_month ?? {})
+		},
 
-			return Object.entries(counts).map(([key, count]) => ({
-				key,
-				count,
-				label: new Date(key + '-01T00:00:00Z').toLocaleDateString(undefined, { month: 'narrow' }),
-				full: new Date(key + '-01T00:00:00Z').toLocaleDateString(undefined, { year: 'numeric', month: 'long' }),
-				height: Math.round((count / tallest) * 100) + '%',
+		/**
+		 * How far above the middle post the best one was.
+		 *
+		 * The number an agency looks for after a mean and a median disagree:
+		 * one post carrying a month is a different account from one whose
+		 * posts all do about the same.
+		 *
+		 * @return {number}
+		 */
+		viralMultiple() {
+			const median = this.stats?.rates?.median ?? 0
+			const best = this.stats?.rates?.best ?? 0
+
+			return (median > 0) ? Math.round((best / median) * 10) / 10 : best
+		},
+
+		/** @return {Array<{key: string, label: string, count: number, height: string}>} */
+		engagementMonths() {
+			return this.bars(this.stats?.engagement_by_month ?? {})
+		},
+
+		/** @return {Array<{key: string, label: string, count: number, height: string}>} */
+		followerMonths() {
+			return this.bars(this.stats?.audience?.by_month ?? {})
+		},
+
+		/**
+		 * What each kind of post averages, best first, each meter against the
+		 * best of them rather than against an absolute — the question is which
+		 * kind does better, not how big the number is.
+		 *
+		 * @return {Array<{key: string, label: string, posts: number, average: number, share: string}>}
+		 */
+		content() {
+			const rows = this.stats?.content ?? []
+			const labels = {
+				with_media: t('social', 'With a picture or a video'),
+				text_only: t('social', 'Text only'),
+				with_hashtag: t('social', 'With a hashtag'),
+				no_hashtag: t('social', 'Without one'),
+				original: t('social', 'Posts of your own'),
+				reply: t('social', 'Replies'),
+				visibility_public: t('social', 'Public'),
+				visibility_unlisted: t('social', 'Unlisted'),
+				visibility_followers: t('social', 'Followers only'),
+				visibility_direct: t('social', 'Direct'),
+			}
+			const best = Math.max(1, ...rows.map((row) => row.average))
+
+			return rows
+				.filter((row) => labels[row.key] !== undefined)
+				.map((row) => ({ ...row, label: labels[row.key], share: Math.round((row.average / best) * 100) + '%' }))
+				.sort((a, b) => b.average - a.average)
+		},
+
+		/**
+		 * The seven days by what a post on each one averages.
+		 *
+		 * @return {Array<{day: number, label: string, posts: number, average: number, share: string}>}
+		 */
+		weekdays() {
+			const rows = this.stats?.by_weekday ?? []
+			const best = Math.max(1, ...rows.map((row) => row.average))
+
+			return rows.map((row) => ({
+				...row,
+				// 2024-01-07 was a Sunday, which is how PHP's `w` numbers them
+				label: new Date(Date.UTC(2024, 0, 7 + row.day)).toLocaleDateString(undefined, { weekday: 'long' }),
+				share: Math.round((row.average / best) * 100) + '%',
 			}))
+		},
+
+		/** @return {string} the hour that works, in words, or '' when there is not enough to say */
+		bestHour() {
+			const best = this.stats?.best_hour
+			if (!best || best.hour === null) {
+				return ''
+			}
+
+			return t('social', 'Your posts do best around {hour}:00 UTC — {n} engagement each, over {posts} posts.', {
+				hour: best.hour,
+				n: this.decimal(best.average),
+				posts: best.posts,
+			})
+		},
+
+		/** @return {Array<{name: string, posts: number, average: number, share: string}>} */
+		hashtagPerformance() {
+			const rows = this.stats?.hashtag_performance ?? []
+			const best = Math.max(1, ...rows.map((row) => row.average))
+
+			return rows.map((row) => ({ ...row, share: Math.round((row.average / best) * 100) + '%' }))
+		},
+
+		/** @return {Array<{host: string, count: number, share: string}>} */
+		instances() {
+			const rows = this.stats?.audience?.instances ?? []
+			const biggest = Math.max(1, ...rows.map((row) => row.count))
+
+			return rows.map((row) => ({ ...row, share: Math.round((row.count / biggest) * 100) + '%' }))
 		},
 
 		/** @return {Array<{key: number, label: string, count: number, height: string}>} */
@@ -333,6 +552,40 @@ export default {
 		 */
 		decimal(value) {
 			return Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })
+		},
+
+		/**
+		 * One month-by-month chart: the columns, each scaled to the tallest.
+		 *
+		 * @param {object} counts month key to number
+		 * @return {Array<{key: string, label: string, full: string, count: number, height: string}>}
+		 */
+		bars(counts) {
+			const tallest = Math.max(1, ...Object.values(counts))
+
+			return Object.entries(counts).map(([key, count]) => ({
+				key,
+				count,
+				label: new Date(key + '-01T00:00:00Z').toLocaleDateString(undefined, { month: 'narrow' }),
+				full: new Date(key + '-01T00:00:00Z').toLocaleDateString(undefined, { year: 'numeric', month: 'long' }),
+				height: Math.round((count / tallest) * 100) + '%',
+			}))
+		},
+
+		/**
+		 * @param {object} month one column
+		 * @return {string} what the column says
+		 */
+		engagementTitle(month) {
+			return n('social', '%n engagement in {month}', '%n engagement in {month}', month.count, { month: month.full })
+		},
+
+		/**
+		 * @param {object} month one column
+		 * @return {string} what the column says
+		 */
+		followerTitle(month) {
+			return n('social', '%n follower in {month}', '%n followers in {month}', month.count, { month: month.full })
 		},
 
 		/**
@@ -505,6 +758,10 @@ export default {
 	transition: height .3s cubic-bezier(.22, 1, .36, 1);
 }
 
+.stats__bar--alt {
+	background: var(--color-success, var(--color-primary-element));
+}
+
 .stats__bar-label {
 	overflow: hidden;
 	margin-top: 4px;
@@ -552,6 +809,26 @@ export default {
 .stats__row-value {
 	font-size: 13px;
 	font-variant-numeric: tabular-nums;
+}
+
+.stats__row-note {
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.stats__lead {
+	margin-bottom: 6px;
+}
+
+.stats__figures--small {
+	margin-top: 4px;
+	padding-top: 10px;
+	border-top: 1px solid var(--color-border);
+
+	strong {
+		font-size: 20px;
+	}
 }
 
 .stats__tags {

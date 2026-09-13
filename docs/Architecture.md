@@ -781,10 +781,23 @@ The engagement figures come from each post's `details`, which is a JSON blob:
 that is why the sum is a walk in PHP rather than a `SUM()`, because the three
 databases this app supports do not agree on how to reach inside one. A boost the
 account made is counted as something it did and then left out of everything
-else, because the likes on a boosted post belong to whoever wrote it. The two
-bar charts are CSS — a chart library would cost more than the page it draws —
-and every bar carries its own figure in a `title`, because a bar whose only
-value is its height says nothing to a reader who cannot see it.
+else, because the likes on a boosted post belong to whoever wrote it. The bar
+charts are CSS — a chart library would cost more than the page it draws — and
+every bar carries its own figure in a `title`, because a bar whose only value is
+its height says nothing to a reader who cannot see it.
+
+What the page reports beyond the totals is what somebody running an account
+professionally asks of it: engagement per post and per follower (the second is
+the industry's "engagement rate", against followers because this app has no
+impressions to divide by and says so rather than inventing a denominator), the
+median beside the mean because one viral post makes a mean meaningless, the
+share of posts that got no answer at all, which kind of post averages best
+(media, hashtags, originals against replies, each visibility), which weekday and
+hour do, which hashtags are worth using as opposed to merely used, and where the
+audience is — the hosts the followers are on, which is what a Fediverse account
+has instead of a geography. Two sample-size rules keep those from being noise:
+an hour is not named until three posts fall in it, and a hashtag's average is
+not reported until it has been used twice.
 
 **Account previews.** `AccountHoverCard.vue` is the card that opens when the
 pointer rests on an avatar or a mention, fetched once per handle and cached in
