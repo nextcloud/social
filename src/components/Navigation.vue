@@ -651,6 +651,34 @@ export default {
 	padding: calc(var(--default-grid-baseline) * 4);
 }
 
+/*
+ * The composer draws its own frame, and in a dialog that is one frame too many.
+ *
+ * In a timeline it is a card among cards: a border, a radius and the app's
+ * resting shadow are how it says it is the box that makes the posts below it,
+ * and `position: sticky` keeps it at the top while they scroll past. A dialog
+ * has already said all of that -- it is a panel over a dimmed page, with its
+ * own edge -- so the inner border reads as a box drawn inside a box, and
+ * sticking to the top of something that does not scroll does nothing at all.
+ *
+ * Undone here rather than in the composer: what changes is not the composer but
+ * where it is, and this is the only place that knows.
+ */
+.modal-composer :deep(.new-post) {
+	margin: 0;
+	padding: 0;
+	max-width: none;
+	position: static;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+/* the lift on focus goes with it: there is nothing left to lift */
+.modal-composer :deep(.new-post:focus-within) {
+	box-shadow: none;
+}
+
 .modal-errors {
 	padding: calc(var(--default-grid-baseline) * 4);
 
