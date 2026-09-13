@@ -772,6 +772,20 @@ out, so it survives a post that is never sent.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
 
+**Account previews.** `AccountHoverCard.vue` is the card that opens when the
+pointer rests on an avatar or a mention: display name, handle, bio, whether
+they follow you, and the two counts, fetched once per handle and cached in the
+account store. Two rules keep it consistent. Every avatar that *stands for
+somebody* goes through `ActorAvatar` (or `TimelineAvatar`, which adds the
+instance ring) rather than a bare `<img>`, so the small ones preview too — the
+face on a "X boosted" line, the one on a notification, the ones in Discover.
+And those avatars pass `disableMenu` to `NcAvatar`, because for a *local*
+account it otherwise hangs Nextcloud's own profile card off the same hover and
+opens it over the top of this one: the reader would get a different card
+depending on which instance the account was on. The avatars this app does not
+wrap in a card of its own — the account lists in the blocked and follow-request
+views, the reader's own face in the composer — keep Nextcloud's.
+
 `QuotedPost.vue` renders a status's `quote`. Only an `accepted` quote whose
 `quoted_status` came back becomes a card; `pending`, `rejected`, `revoked` and
 an accepted quote the reader may not see each get a line saying which, because

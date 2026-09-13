@@ -38,12 +38,15 @@
 			@focusout="onFocusOut">
 			<template v-if="account">
 				<div class="account-hover-card__head">
+					<!-- `disableMenu`, or the card sprouts a second card of
+					     Nextcloud's own when the pointer reaches this face -->
 					<NcAvatar
 						v-if="isLocal"
 						:size="48"
 						:user="account.username"
 						:displayName="account.display_name || account.username"
 						:hideStatus="true"
+						:disableMenu="true"
 						:disableTooltip="true" />
 					<NcAvatar
 						v-else
