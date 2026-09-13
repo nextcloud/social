@@ -21,6 +21,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IRequest;
 use Symfony\Component\Console\Input\InputInterface;
@@ -39,6 +40,9 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
 class Benchmark extends SocialCommand {
 	/** every actor, note and follow this command writes lives under this host */
 	public const HOST = 'benchmark.invalid';
+
+	/** How many seeded posts one round of `--clean` takes with it. */
+	private const CLEAN_PAGE = 1000;
 
 	public function __construct(
 		private StreamRequest $streamRequest,
@@ -257,25 +261,91 @@ class Benchmark extends SocialCommand {
 	}
 
 	/**
-	 * Everything seeded carries the host in its id, so one LIKE per table
-	 * takes it all back out. A full scan is the right trade here: this runs
-	 * by hand on a development instance, never on a request.
+	 * Takes back out everything `seed()` wrote.
+	 *
+	 * The seeded rows carry the host in their ids — but only in the columns
+	 * that hold an id. The rows that *point* at them do not: a recipient row
+	 * keys its post by `stream_id`, which is the md5 of the post's id, so
+	 * `LIKE '%benchmark.invalid%'` could never match one. That is how a
+	 * previous version of this left 60,000 recipient rows behind while
+	 * reporting that it had removed everything: twelve times as many rows as
+	 * the instance's own, with no post to belong to, on the table every
+	 * timeline reads.
+	 *
+	 * So the posts are found first and their dependants deleted by the key
+	 * they are actually keyed on, in pages — this can be a hundred thousand
+	 * rows and an `IN` list has a size limit on every database.
+	 *
+	 * A full scan is the right trade for the rest: this runs by hand on a
+	 * development instance, never on a request.
 	 */
 	private function clean(): int {
 		$like = '%' . $this->connection->escapeLikeParameter(self::HOST) . '%';
 		$removed = 0;
 
-		foreach ([
-			[CoreRequestBuilder::TABLE_STREAM, 'id'],
-			[CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id'],
-			[CoreRequestBuilder::TABLE_CACHE_ACTORS, 'id'],
-			[CoreRequestBuilder::TABLE_FOLLOWS, 'object_id'],
-		] as [$table, $column]) {
+		// what the seeded posts are keyed by, a page at a time
+		while (true) {
+			$prims = $this->seededStreamPrims($like);
+			if ($prims === []) {
+				break;
+			}
+
+			foreach ([
+				[CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id'],
+				[CoreRequestBuilder::TABLE_STREAM_TAGS, 'stream_id'],
+				[CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'stream_id_prim'],
+			] as [$table, $column]) {
+				$qb = $this->connection->getQueryBuilder();
+				$qb->delete($table)->where(
+					$qb->expr()->in($column, $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY))
+				);
+				$removed += $qb->executeStatement();
+			}
+
 			$qb = $this->connection->getQueryBuilder();
-			$qb->delete($table)->where($qb->expr()->like($column, $qb->createNamedParameter($like)));
+			$qb->delete(CoreRequestBuilder::TABLE_STREAM)->where(
+				$qb->expr()->in('id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY))
+			);
 			$removed += $qb->executeStatement();
 		}
 
+		// the actors, and the follows in either direction: a seeded follow has
+		// the viewer as its actor, so matching only the object would leave it
+		foreach ([
+			[CoreRequestBuilder::TABLE_CACHE_ACTORS, ['id']],
+			[CoreRequestBuilder::TABLE_FOLLOWS, ['id', 'object_id', 'follow_id']],
+		] as [$table, $columns]) {
+			foreach ($columns as $column) {
+				$qb = $this->connection->getQueryBuilder();
+				$qb->delete($table)->where($qb->expr()->like($column, $qb->createNamedParameter($like)));
+				$removed += $qb->executeStatement();
+			}
+		}
+
 		return $removed;
+	}
+
+	/**
+	 * @param string $like the seeded host, as a LIKE pattern
+	 * @return string[] the `id_prim` of one page of seeded posts
+	 */
+	private function seededStreamPrims(string $like): array {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select('id_prim')
+			->from(CoreRequestBuilder::TABLE_STREAM)
+			->where($qb->expr()->like('id', $qb->createNamedParameter($like)))
+			->setMaxResults(self::CLEAN_PAGE);
+
+		$cursor = $qb->executeQuery();
+		$prims = [];
+		while ($row = $cursor->fetch()) {
+			$prim = (string)($row['id_prim'] ?? '');
+			if ($prim !== '') {
+				$prims[] = $prim;
+			}
+		}
+		$cursor->closeCursor();
+
+		return $prims;
 	}
 }

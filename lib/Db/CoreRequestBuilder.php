@@ -17,6 +17,7 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\IExtendedQueryBuilder;
+use OCP\DB\Exception;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
@@ -533,6 +534,34 @@ class CoreRequestBuilder {
 	}
 
 	/**
+	 * How many blocked instances a read filter will carry.
+	 *
+	 * Each one becomes four `LIKE` patterns on the timeline query — two
+	 * schemes, the author and the boosted author — so this is the point past
+	 * which filtering in SQL stops being the cheaper answer.
+	 */
+	public const BLOCKED_DOMAINS_IN_A_QUERY = 100;
+
+	/**
+	 * The instances each viewer has blocked, read once per request.
+	 *
+	 * The domain-block filter compares these as constants rather than joining
+	 * the table on every row (see
+	 * `DomainBlocksRequestBuilder::filterDomainBlocked()`), so every filtered
+	 * query needs the list. A request reads several timelines — a page, its
+	 * thread, a notification poll — and the list cannot change between them
+	 * except through this process, which clears the memo when it does.
+	 *
+	 * @var array<string, string[]> viewer id_prim => domains
+	 */
+	private static array $blockedDomains = [];
+
+	/** Blocking or unblocking an instance makes the memo wrong; drop it. */
+	public static function forgetBlockedDomains(): void {
+		self::$blockedDomains = [];
+	}
+
+	/**
 	 * @return SocialQueryBuilder
 	 */
 	public function getQueryBuilder(): SocialQueryBuilder {
@@ -543,9 +572,55 @@ class CoreRequestBuilder {
 
 		if ($this->viewer !== null) {
 			$qb->setViewer($this->viewer);
+			$qb->setBlockedDomains($this->blockedDomainsOf($qb->prim($this->viewer->getId())));
 		}
 
 		return $qb;
+	}
+
+	/**
+	 * @param string $viewerPrim the viewer, as the block rows key them
+	 * @return string[] the domains that viewer has blocked
+	 */
+	private function blockedDomainsOf(string $viewerPrim): array {
+		if ($viewerPrim === '') {
+			return [];
+		}
+
+		if (array_key_exists($viewerPrim, self::$blockedDomains)) {
+			return self::$blockedDomains[$viewerPrim];
+		}
+
+		$domains = [];
+		try {
+			$qb = $this->dbConnection->getQueryBuilder();
+			$qb->select('domain')
+				->from(self::TABLE_DOMAIN_BLOCKS)
+				->where($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($viewerPrim)))
+				// a read filter, not the block list itself: a viewer with more
+				// blocks than this has a timeline query with more LIKEs than
+				// is worth running, and the full list is still what
+				// `/api/v1/domain_blocks` serves
+				->setMaxResults(self::BLOCKED_DOMAINS_IN_A_QUERY);
+
+			$cursor = $qb->executeQuery();
+			while ($row = $cursor->fetch()) {
+				$domain = (string)($row['domain'] ?? '');
+				if ($domain !== '') {
+					$domains[] = $domain;
+				}
+			}
+			$cursor->closeCursor();
+		} catch (Exception $e) {
+			// a read that cannot see the block table must not take the
+			// timeline with it; the filter then adds nothing, which is what it
+			// did for every account before this table existed
+			$this->miscService->log('could not read the blocked instances: ' . $e->getMessage(), 1);
+		}
+
+		self::$blockedDomains[$viewerPrim] = $domains;
+
+		return $domains;
 	}
 
 	/**

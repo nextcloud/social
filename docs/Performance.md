@@ -4,14 +4,64 @@ A survey of the query and scalability behaviour of this app: what costs what,
 what is bounded, and what is still known to be wrong. Every claim below was
 checked against the code rather than carried over from a previous survey.
 
-**Verified against:** app version 0.16.1, `master`, 2026-09-12 — re-checked
-after the federation, compatibility and dependency waves landed.
+**Verified against:** app version 0.19.12, `master`, 2026-09-13 — re-measured
+end to end on a seeded instance (22,642 posts, 65,014 recipient rows, 916
+follows, 435 cached actors) after the read-path wave below.
 
 This file is **not** enforced by `tests/DocumentationTest.php` — its claims are
 about behaviour rather than about routes or schema rows, and a test that tried
 to check them would either be brittle or would be the fix. It therefore goes
 stale silently. Re-verify before trusting a line of it, and update it in the
 same change as any work on a read path.
+
+## What a page costs
+
+Measured with `occ social:benchmark --time-only`, which times
+`StreamRequest::getTimeline()` itself — the query builders and the hydration,
+not just the SQL. Two datasets: a demo instance of 650 posts, and the same
+instance with `--actors=400 --notes=20000 --follows=300` seeded on top.
+
+| timeline | 22k posts, before | 22k posts, now | 650 posts, now |
+|---|---|---|---|
+| home (My Feed) | 114.7 ms | **49.6 ms** | 16.6 ms |
+| public (Local/Global) | 52.6 ms | **3.6 ms** | 4.6 ms |
+| notifications | 29.6 ms | **7.4 ms** | 7.0 ms |
+| direct | 1.3 ms | 1.3 ms | 1.2 ms |
+
+Three changes did that, and all three are about what a *page-selection* query
+asks for rather than about indexes:
+
+1. **The page queries stopped projecting columns nobody reads.**
+   `linkToCacheActors()` appends twenty select aliases — `source`, `details`,
+   `summary`, `public_key` among them — plus eleven for the cached document,
+   and the home timeline's `SELECT DISTINCT` had to deduplicate over all of
+   them. `joinCacheActors()` is the same join without the select list; the
+   home query went from 94.5 ms to 56.2 ms on nothing else.
+2. **`SELECT DISTINCT` is asked for only where a page can actually
+   duplicate.** `social_stream_dest` is unique on `(stream_id, actor_id,
+   type)`, so a query that fixes the actor *and* the type — public,
+   notifications, direct, the marked timelines — cannot match a post twice.
+   Those now select without it: the public page query went from **37.4 ms to
+   0.21 ms**, for the same twenty rows, with no duplicates among them. The
+   home timeline keeps it, because a post addressed to three accounts you
+   follow really does match three rows. `getNidsFromRequest()` deduplicates the
+   twenty integers in PHP as well, which covers the one case SQL uniqueness
+   does not: the left join on expired mutes can match twice for a viewer who
+   timed-muted both a booster and the account they boosted.
+3. **Notifications moved onto the two-query pattern** the home and public
+   timelines already used — choose a page of ids, then hydrate them. It was
+   carrying two full stream column sets, two cached-actor sets and two
+   cached-document sets through a `DISTINCT` to pick twenty rows, and every
+   client polls it on a timer.
+
+And one that is not about reads at all: **a viewer's domain blocks are no
+longer joined per row.** The filter was a `LEFT JOIN` whose `ON` clause held
+four `LIKE`s against `LOWER(attributed_to)` — an unindexed text column —
+evaluated for every candidate row of every timeline, for every account,
+including the overwhelming majority who have blocked nothing. The list is read
+once per request and compared as constants; an account that has blocked nothing
+now adds no clause at all. Measured at 56.2 ms → 41.5 ms on the home timeline
+of an instance with a single block row.
 
 ## What is still open
 
@@ -71,6 +121,15 @@ moving.
 
 ### Lookups that cannot use an index
 
+`DomainBlocksRequestBuilder::filterDomainBlocked()` is no longer one of them:
+the four `LIKE`s it built are now compared against constants read once per
+request, and skipped entirely for an account that has blocked nothing. They are
+still `LIKE`s on an unindexed column for an account that has blocked something,
+bounded at `CoreRequestBuilder::BLOCKED_DOMAINS_IN_A_QUERY`; storing the
+author's host in its own indexed column would make them equalities, and would
+serve the silenced-instance filter next door as well.
+
+
 The `*_prim` columns (md5 of the lower-cased id) exist so a lookup can be an
 indexed equality. The hot paths now use them, but `ActorsRequest`'s
 `preferred_username` lookups still compare `LOWER(column)` against
@@ -79,10 +138,15 @@ webfinger both land there.
 
 ### Schema shape
 
-- `social_follow`'s unique indexes `afoa` and `aoa` both **lead with the
-  `accepted` boolean**, so `(object_id_prim, actor_id_prim)` is not unique: one
-  accepted and one pending row for the same pair can coexist. This is the one
-  schema item on this list that is a correctness risk rather than a cost.
+- ~~`social_follow`'s unique indexes lead with the `accepted` boolean~~ —
+  fixed by `Version1000Date20260913000001`, which drops both, adds
+  `social_f_oa_u` unique on `(object_id_prim, actor_id_prim)` and
+  `social_f_foa` on the three id columns, and removes the duplicate rows that
+  the old shape allowed before adding them. That migration also drops
+  `social_stream_dest.ts (type, subtype)`: three values against three across
+  the second-largest table, never the best index for any query the app makes,
+  and pure write cost — 27.7 MB of index over 8 MB of data on a 65,000-row
+  table.
 - Several indexes from the 2022 migration are unnamed, so Doctrine names them
   per install and a later `hasIndex()`/`dropIndex()` cannot refer to them. Index
   names from that era are also not app-prefixed (`sa`, `ts`, `aoa`, …) and live
@@ -151,9 +215,42 @@ here so a reader who finds that report knows why the code no longer matches it.
 | `FollowService::getFollowers()` hydrated every follower for a route with no cursor | Bounded at `FOLLOWERS_PAGE`; the paging route is `/api/v1/accounts/{account}/followers` |
 | `StreamRequest::save()` wrote the post, then its recipients, then its tags, outside any transaction, and the recipient insert swallowed its failure | One transaction, and `StreamDestRequest::create()` raises. A post that cannot have recipients is not stored at all, so the delivery can be retried into a clean state. The duplicate recipient and hashtag rows an ordinary post produces are skipped by the database rather than caught, which a transaction on PostgreSQL does not survive |
 
+## The home timeline, and one thing that did not work
+
+Home is now the slowest page and the reason is structural: it asks for "the
+newest posts addressed to anyone I follow", where the selection lives in
+`social_stream_dest` and the order in `social_stream`. The database drives from
+the follow rows, walks each followed account's recipient rows, joins the post to
+every one of them and sorts the result — at 22,642 posts and 325 follows that
+join produced **16,111 rows to return 20**, with `Using temporary; Using
+filesort` over all of them.
+
+The obvious fix looked like copying the post's `nid` onto its recipient row, so
+that `(actor_id, type, nid)` could select *and* order a page from one index. On
+a stripped query that measured 25.9 ms → 2.95 ms. **It does not work on the real
+one**, and the plan says why: with the filters attached — the hidden-actor
+anti-joins, the mute expiry, the author join — MariaDB still drives from the
+follows and still sorts, so the sort key on the recipient row changes nothing it
+can use. The column, its index, the write and a backfill repair step were
+written, measured at **no improvement**, and removed again rather than shipped.
+Anyone reaching for that idea again should measure the *whole* query first.
+
+What is left, in order of how much it would cost to try:
+
+- **A semi-join.** `WHERE EXISTS (SELECT 1 FROM social_stream_dest sd JOIN
+  social_follow f …)` emits each post once, which removes the deduplication and
+  lets the database walk `social_stream` backwards by primary key and stop after
+  twenty — exactly what made the public timeline 178× faster. The trade is the
+  opposite one: it is fast when the people you follow post often and slow when
+  they do not, because then it walks a long way back for twenty rows. Worth
+  measuring on both shapes of instance before choosing.
+- **Fan-out on write.** One row per (viewer, post) in a table indexed
+  `(viewer, nid)` makes the home timeline a single index range. It is what the
+  large implementations do, and it costs a write per follower on every post.
+
 ## What to do next
 
-1. **Move the eighteen read paths onto `getStreamNidsSelectSql()`.** The one
+1. **Move the remaining read paths onto `getStreamNidsSelectSql()`.** The one
    item left that changes how the app scales. Every timeline that is not home or
    public still makes the database sort or hash `content`, `source`, `details`,
    `cache` and `to_array` to deduplicate a page of twenty rows. It is also the

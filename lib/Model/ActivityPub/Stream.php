@@ -814,7 +814,11 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * sends nothing else. Empty when it declares none.
 	 */
 	private static function languageOf(array $data): string {
-		$language = self::normalizeLanguage((string)($data['language'] ?? ''));
+		// a peer is free to send anything here, and some send `language` as an
+		// array; casting that to a string is a PHP warning and an empty
+		// language either way, so it is refused rather than cast
+		$declared = $data['language'] ?? '';
+		$language = self::normalizeLanguage(is_string($declared) ? $declared : '');
 		if ($language !== '') {
 			return $language;
 		}
