@@ -504,6 +504,66 @@ describe('Navigation entries are links', () => {
 
 	const link = (wrapper, name) => wrapper.findAll('a').find((anchor) => anchor.text().startsWith(name))
 
+	/**
+	 * The account menu's rows slide in when it opens, and the stylesheet drives
+	 * that off `aria-expanded` on the accordion's own button — the component
+	 * offers no `open` prop and no event, and its internal class names are
+	 * content-hashed. If a release of @nextcloud/vue ever stops rendering that
+	 * attribute, or moves the entries out from under `.navigation__more`, the
+	 * animation dies silently and nothing else would notice.
+	 */
+	describe('the hook the account menu animates from', () => {
+		// the real accordion, not the stub the other tests use: the point here
+		// is precisely what @nextcloud/vue renders
+		const mountWithRealMenu = async () => {
+			const realPinia = createPinia()
+			setActivePinia(realPinia)
+			useSettingsStore().setServerData({ public: false })
+			await appRouter.push('/timeline')
+			await appRouter.isReady()
+
+			return mount(Navigation, {
+				global: {
+					plugins: [realPinia, appRouter],
+					stubs: { ...realStubs, NcAppNavigationSettings: false },
+				},
+			})
+		}
+
+		it('puts an aria-expanded button inside the menu', async () => {
+			const menu = (await mountWithRealMenu()).find('.navigation__more')
+
+			expect(menu.exists()).toBe(true)
+			expect(menu.find('button[aria-expanded]').exists()).toBe(true)
+		})
+
+		/**
+		 * Why the delay is passed from the template rather than counted in CSS.
+		 * Every entry sits in a wrapper of its own, so each is its parent's
+		 * first child and `nth-child` would hand them all the same delay. If
+		 * that ever changes, this fails and the simpler approach becomes
+		 * available.
+		 */
+		it('gives every entry a wrapper of its own, so the DOM cannot be counted', async () => {
+			const entries = (await mountWithRealMenu())
+				.find('.navigation__more')
+				.findAll('.app-navigation-entry')
+
+			expect(entries.length).toBeGreaterThan(1)
+			const parents = new Set(entries.map((entry) => entry.element.parentElement))
+			expect(parents.size).toBe(entries.length)
+		})
+
+		it('numbers the entries from nothing, in the order they are drawn', async () => {
+			const menu = (await mountWithRealMenu()).find('.navigation__more')
+			const indices = menu.findAll('[style*="--entry-index"]')
+				.map((item) => item.attributes('style').match(/--entry-index:\s*(\d+)/)[1])
+
+			// 0, 1, 2 … with none skipped and none repeated
+			expect(indices).toEqual(indices.map((_, position) => String(position)))
+		})
+	})
+
 	it.each([
 		['My Feed', '/index.php/apps/social/timeline'],
 		['Notifications', '/index.php/apps/social/timeline/notifications'],
