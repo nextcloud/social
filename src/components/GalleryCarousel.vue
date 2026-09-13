@@ -30,6 +30,7 @@
 					<GalleryMedia
 						ref="frames"
 						:attachment="attachment"
+						:interactive="interactive"
 						:index="index"
 						:total="attachments.length"
 						:ratio="stageRatio"
@@ -90,6 +91,12 @@ export default {
 	},
 
 	props: {
+		/** Whether the media is the subject here; see `MediaAttachment` */
+		interactive: {
+			type: Boolean,
+			default: true,
+		},
+
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').MediaAttachment[]>} */
 		attachments: {
 			type: Array,

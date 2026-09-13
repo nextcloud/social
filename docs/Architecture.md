@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.18  
+**App version:** 0.19.19  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -798,6 +798,21 @@ audience is — the hosts the followers are on, which is what a Fediverse accoun
 has instead of a geography. Two sample-size rules keep those from being noise:
 an hour is not named until three posts fall in it, and a hashtag's average is
 not reported until it has been used twice.
+
+**A post is a link to itself.** Pressing anywhere on a post in a timeline opens
+the post with its replies — the card, its picture, its video. `TimelinePost`
+works out `postRoute`, which is `null` for exactly one post: the one whose page
+the reader is already on (`$route.params.id`). A reply on that page is another
+post and links to its own page like any other. `onPostClick` is what keeps the
+card from swallowing everything else: a link, a button, a control, a modified
+click asking for a tab, or a press that ended a text selection all keep their
+meaning. Below the card, `PostAttachment` takes the same route as a `to` prop —
+where it is set, a press on the media routes; where it is `null`, it opens the
+viewer — and `MediaAttachment` takes an `interactive` flag that decides whether
+a video gets `controls` at all. A player in a timeline would put a play button
+in the way of the post and swallow the press meant to open it; the poster is
+what the reader is choosing from. On the post's own page the media is the
+subject again: the picture opens full size, the video plays.
 
 **An avatar is a link.** `ActorAvatar` and `TimelineAvatar` wrap the face in a
 link to the account, so the most obvious thing on screen to click does the

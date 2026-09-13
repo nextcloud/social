@@ -10,24 +10,29 @@
 		class="attachment"
 		role="presentation"
 		@click="$emit('click')">
+		<!-- `controls` only where the media is the thing on screen. In a
+		     timeline a post is a link to itself, so a player here would put a
+		     play button in the way of it — and swallow the click that was
+		     meant to open the post. The poster still shows, which is what the
+		     reader is choosing from. -->
 		<video
 			v-if="attachment !== null && attachment.type === 'video'"
 			class="attachment__preview"
-			:src="attachment.url"
+			:src="interactive ? attachment.url : undefined"
 			:poster="poster"
 			:aria-label="attachment.description || ''"
-			controls
-			:preload="preload"
-			@click.stop
+			:controls="interactive"
+			:preload="interactive ? preload : 'none'"
+			@click="onMediaClick"
 			@loadedmetadata="previewLoaded = true" />
 		<audio
 			v-else-if="attachment !== null && attachment.type === 'audio'"
 			class="attachment__audio"
 			:src="attachment.url"
 			:aria-label="attachment.description || ''"
-			controls
+			:controls="interactive"
 			preload="metadata"
-			@click.stop
+			@click="onMediaClick"
 			@loadedmetadata="previewLoaded = true" />
 		<template v-else>
 			<canvas
@@ -76,6 +81,19 @@ export default {
 		attachment: {
 			type: Object,
 			default: null,
+		},
+
+		/**
+		 * Whether this is the copy the reader came to look at.
+		 *
+		 * On by default, because every caller but a timeline is showing the
+		 * media for its own sake: the viewer, the composer's previews, a
+		 * single post. Off in a timeline, where the whole post is a link to
+		 * itself and a player would intercept the click.
+		 */
+		interactive: {
+			type: Boolean,
+			default: true,
 		},
 	},
 
@@ -178,6 +196,22 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * A press on the player itself.
+		 *
+		 * Where the media is interactive the player handles it and nothing
+		 * above needs to know — a press on `play` is not a press on the post.
+		 * Where it is not, the press belongs to whatever wraps this, which in
+		 * a timeline is the link to the post.
+		 *
+		 * @param {Event} event the press
+		 */
+		onMediaClick(event) {
+			if (this.interactive) {
+				event.stopPropagation()
+			}
+		},
+
 		onPreviewError() {
 			this.previewFailed = true
 			this.previewLoaded = false

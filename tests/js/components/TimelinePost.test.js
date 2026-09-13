@@ -171,6 +171,78 @@ describe('TimelinePost', () => {
 			expect(wrapper.attributes('data-social-status')).toBe('101')
 		})
 
+		it('opens the post when the card is pressed', async () => {
+			// a post in a timeline is a link to itself; the picture and the
+			// video open from the post's own page rather than over the
+			// timeline
+			const { wrapper, $router } = mountPost()
+
+			await wrapper.find('.post-message').trigger('click')
+
+			expect($router.push).toHaveBeenCalledWith({
+				name: 'single-post',
+				params: { account: 'alice', id: '101', type: 'single-post' },
+			})
+		})
+
+		it('leaves the press alone when it was meant for a control inside the post', async () => {
+			// liking a post is not opening it. The timestamp is excluded from
+			// this on purpose: opening the post is exactly what it is for
+			const { wrapper, $router, dispatch } = mountPost()
+
+			await actionButton(wrapper, 'Like').trigger('click')
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalled()
+			expect($router.push).not.toHaveBeenCalled()
+		})
+
+		it('leaves a press alone that ended a selection', async () => {
+			// dragging across a post to copy a sentence ends in a click, and
+			// navigating away from what was just highlighted is the worst
+			// possible answer to it
+			const { wrapper, $router } = mountPost()
+			const selection = vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'a sentence' })
+
+			await wrapper.find('.post-message').trigger('click')
+
+			expect($router.push).not.toHaveBeenCalled()
+			selection.mockRestore()
+		})
+
+		it('leaves a modified press alone, since the card is not a link to open in a tab', async () => {
+			const { wrapper, $router } = mountPost()
+
+			await wrapper.find('.post-message').trigger('click', { metaKey: true })
+			await wrapper.find('.post-message').trigger('click', { ctrlKey: true })
+
+			expect($router.push).not.toHaveBeenCalled()
+		})
+
+		it('does not open the post the reader is already reading', async () => {
+			const { wrapper, $router } = mountPost({
+				route: { name: 'single-post', params: { account: 'alice', id: '101', type: 'single-post' } },
+			})
+
+			await wrapper.find('.post-message').trigger('click')
+
+			expect($router.push).not.toHaveBeenCalled()
+			expect(wrapper.classes()).not.toContain('post-content--openable')
+		})
+
+		it('opens a reply on the page of the post it answers, because a reply is a post too', async () => {
+			const { wrapper, $router } = mountPost({
+				route: { name: 'single-post', params: { account: 'bob', id: '999', type: 'single-post' } },
+			})
+
+			await wrapper.find('.post-message').trigger('click')
+
+			expect($router.push).toHaveBeenCalledWith({
+				name: 'single-post',
+				params: { account: 'alice', id: '101', type: 'single-post' },
+			})
+		})
+
 		it('renders the status content through MessageContent', () => {
 			const { wrapper } = mountPost()
 			expect(wrapper.find('.post-message strong').text()).toBe('world')
