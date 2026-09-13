@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.16  
+**App version:** 0.19.17  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -869,6 +869,15 @@ refetch instead of leaving the previous photos on screen.
 **Posts, Photos and Videos on a profile.** The same switcher, above the account's posts, asking the server a different question rather than filtering the page on screen — a page filtered in the client is a page that can come back empty while there are still videos to find. The tab rides in the query (`/@alice?media=video`) so a profile stays one route and every link to it still names the same one, and the word is the API's own.
 
 Behind it: `only_media` is Mastodon's own parameter on `/api/v1/accounts/{id}/statuses` and had never been passed on; `media_type` is a **Social extension** that narrows it to one kind, because Mastodon has nothing finer and two tabs need the difference. `ProbeOptions::setMediaType()` takes only the three kinds an attachment can be — `image`, `video`, `audio`, which are the first half of its MIME type and so the only values the column can hold — and reads anything else as no preference, since the value arrives from a query string. `media_type` implies `only_media`: a post with no attachments cannot be one carrying a video. The predicate is `SocialLimitsQueryBuilder::limitToMediaType()`, a `LIKE` on `"type":"video"` in the stored attachments — the column holds them as the client sees them, there is no column to compare and no JSON support to rely on across the three databases this app supports, and a description containing the same text is stored with its quotes escaped so it cannot collide. Unindexed, like the silenced-instance filter and for the same reason: it runs on a list something else has already narrowed to one account. Pinned posts are left out of a filtered tab, being about the account rather than about a kind of attachment.
+
+**The composer is on your own profile and nowhere else.** Every profile used to
+carry one, pre-filled with a mention of whoever it belonged to and set to a
+direct message — so a page for reading an account looked like a page for writing
+to them, and a stranger's profile asked "what would you like to share?". Your
+own profile is a page you post from, the way the home timeline is; somebody
+else's is a page you read. The sub-routes go with it: a list of followers is not
+a place to post from either. Direct messages are still written from the Direct
+messages timeline, which sets the visibility the same way.
 
 **The tab also decides how it is drawn**, and there is nothing beside it to say otherwise: Posts is what somebody wrote, so it is a list of posts; Photos and Videos are what they showed, so they are grids. There used to be a grid/list switch here, remembered across profiles, and it could disagree with the tab — `ProfileMediaGrid` kept only the posts carrying a picture, so Posts showed sixteen of them as a list and three as a grid, with nothing to say where the other thirteen had gone. One question, one answer. The empty state comes from `TimelineList` in both views for the same reason: the grid carried one of its own that said "No photos yet" whatever the tab was, so an account with no videos was told it had no photos.
 

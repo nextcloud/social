@@ -6,7 +6,9 @@
 	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 
-		<Composer v-if="accountInfo && currentAccount && $route.name === 'profile'" :initialMention="accountInfo.acct === currentAccount.acct ? null : accountInfo" defaultVisibility="direct" />
+		<!-- your own profile is a page you post from, the way the home
+		     timeline is. Somebody else's is a page you read -->
+		<Composer v-if="isOwnProfile" />
 
 		<router-view v-if="accountLoaded && accountInfo" name="details" />
 		<!-- the lookup is what says an account is missing: `accountLoaded` only
@@ -79,6 +81,27 @@ export default {
 		/** @return {import('../types/Mastodon.js').Account} */
 		currentAccount() {
 			return this.accountStore.currentAccount
+		},
+
+		/**
+		 * Whether this profile is the reader's own.
+		 *
+		 * Every profile used to carry a composer. On somebody else's it came
+		 * pre-filled with a mention of them and set to a direct message, which
+		 * made a page for reading an account look like a page for writing to
+		 * them — and put a box asking "what would you like to share?" on a
+		 * stranger's profile.
+		 *
+		 * The sub-routes are excluded with it: a list of followers is not a
+		 * place to post from either.
+		 *
+		 * @return {boolean}
+		 */
+		isOwnProfile() {
+			return Boolean(this.accountInfo)
+				&& Boolean(this.currentAccount)
+				&& this.accountInfo.acct === this.currentAccount.acct
+				&& this.$route.name === 'profile'
 		},
 	},
 
