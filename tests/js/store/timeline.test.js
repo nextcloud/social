@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { toRaw } from 'vue'
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../../../src/services/toast.js'
 
 import { useTimelineStore } from '../../../src/store/timeline.js'
 import logger from '../../../src/services/logger.js'
@@ -15,7 +15,7 @@ import logger from '../../../src/services/logger.js'
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }))
-vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
+vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
 	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
@@ -74,6 +74,17 @@ describe('timeline store state changes', () => {
 
 		expect(store.timeline).toEqual(['1', '2', '3'])
 		expect(toRaw(store.statuses['2'])).toBe(edited)
+	})
+
+	it('addToTimeline de-duplicates within one page as well as against the list', () => {
+		// a timeline that is being paged while posts arrive can send the same
+		// status twice in one answer; it used to be appended twice, and the
+		// duplicate key made Vue drop one of the two entries
+		const twice = makeStatus('2')
+
+		store.addToTimeline([makeStatus('1'), twice, twice, makeStatus('3')])
+
+		expect(store.timeline).toEqual(['1', '2', '3'])
 	})
 
 	it('addToTimeline with a status context puts ancestors and descendants in separate lists', () => {

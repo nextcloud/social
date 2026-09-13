@@ -4,7 +4,7 @@
  */
 
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../services/toast.js'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'
@@ -71,10 +71,38 @@ function indexStatus(state, status) {
  * @return {object[]} the statuses those ids name, newest first
  */
 function sortedByDate(state, ids) {
+	// Date.parse() in the comparator ran twice per comparison — about 2n·log n
+	// string parses every time the getter recomputed, which is every time a page
+	// arrived. Each date is parsed once here and the comparator only subtracts.
 	return ids
 		.map((statusId) => state.statuses[statusId])
 		.filter(Boolean)
-		.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+		.map((status) => ({ status, at: Date.parse(status.created_at) }))
+		.sort((a, b) => b.at - a.at)
+		.map((entry) => entry.status)
+}
+
+/**
+ * Appends the statuses a list does not already hold, in order.
+ *
+ * The membership test was `list.indexOf(id) === -1` per incoming status, which
+ * is a full walk of a reactive array for each one — quadratic in the length of
+ * a timeline that pages. It also ran before any of the pushes, so a page that
+ * carried the same status twice appended it twice; a Set that grows as the list
+ * does catches that as well.
+ *
+ * @param {string[]} list the id list to append to, in place
+ * @param {object[]} statuses what arrived
+ */
+function appendNew(list, statuses) {
+	const known = new Set(list)
+	for (const status of statuses) {
+		if (known.has(status.id)) {
+			continue
+		}
+		known.add(status.id)
+		list.push(status.id)
+	}
 }
 
 /**
@@ -196,19 +224,13 @@ export const useTimelineStore = defineStore('timeline', {
 		addToTimeline(data) {
 			if (Array.isArray(data)) {
 				data.forEach((status) => indexStatus(this, status))
-				data
-					.filter((status) => this.timeline.indexOf(status.id) === -1)
-					.forEach((status) => this.timeline.push(status.id))
+				appendNew(this.timeline, data)
 			} else {
 				data.descendants.forEach((status) => indexStatus(this, status))
 				data.ancestors.forEach((status) => indexStatus(this, status))
 
-				data.descendants
-					.filter((status) => this.timeline.indexOf(status.id) === -1)
-					.forEach((status) => this.timeline.push(status.id))
-				data.ancestors
-					.filter((status) => this.parentsTimeline.indexOf(status.id) === -1)
-					.forEach((status) => this.parentsTimeline.push(status.id))
+				appendNew(this.timeline, data.descendants)
+				appendNew(this.parentsTimeline, data.ancestors)
 			}
 		},
 		removeStatus(status) {
