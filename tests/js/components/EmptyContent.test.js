@@ -23,10 +23,21 @@ describe('EmptyContent', () => {
 	})
 
 	it('resolves the illustration relative to the app root', () => {
-		const img = mountEmpty({ description: 'x', image: 'img/undraw/posts.svg' }).find('img.empty-content__image')
+		const img = mountEmpty({ description: 'x', image: 'img/undraw/posts.svg' }).find('img.timeline-empty__image')
 		expect(img.attributes('src')).toBe('/apps/social/img/undraw/posts.svg')
 		expect(img.attributes('alt')).toBe('')
 		expect(img.element.closest('.empty-content__icon')).not.toBeNull()
+	})
+
+	it('is a line of text rather than a screenful when there is no illustration', () => {
+		// most of the height is room for the picture; "No replies yet" under
+		// every post with no replies held 60% of the window open and read as a
+		// page still loading
+		const bare = mountEmpty({ title: 'No replies yet' })
+		const illustrated = mountEmpty({ title: 'No posts', image: 'img/undraw/posts.svg' })
+
+		expect(bare.classes()).toContain('timeline-empty--bare')
+		expect(illustrated.classes()).not.toContain('timeline-empty--bare')
 	})
 
 	it('omits the icon area when the item has no image', () => {
@@ -39,5 +50,20 @@ describe('EmptyContent', () => {
 	it('omits the description paragraph when there is none', () => {
 		const wrapper = mountEmpty({ image: 'img/x.svg' })
 		expect(wrapper.find('.empty-content__description').exists()).toBe(false)
+	})
+
+	it('draws the small illustration a state asks for, without holding the page open for it', () => {
+		const wrapper = mountEmpty({ title: 'No replies yet', illustration: 'no-replies' })
+
+		expect(wrapper.findComponent({ name: 'NoReplies' }).exists()).toBe(true)
+		expect(wrapper.find('img').exists()).toBe(false)
+		// small enough to stay in the compact layout the bare states use
+		expect(wrapper.classes()).toContain('timeline-empty--bare')
+	})
+
+	it('draws nothing rather than an empty icon area for a name it does not know', () => {
+		const wrapper = mountEmpty({ title: 'No replies yet', illustration: 'not-a-drawing' })
+
+		expect(wrapper.find('.empty-content__icon').exists()).toBe(false)
 	})
 })

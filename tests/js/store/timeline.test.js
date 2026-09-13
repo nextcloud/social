@@ -421,6 +421,26 @@ describe('timeline store actions', () => {
 		expect(tl().timeline).toEqual(['1', '2'])
 	})
 
+	describe('fetchStatus', () => {
+		it('asks for one post by its id and indexes it', async () => {
+			axios.get.mockResolvedValue({ data: makeStatus('42') })
+
+			const status = await store.fetchStatus('42')
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42`)
+			expect(status.id).toBe('42')
+			expect(tl().statuses['42']).toBeDefined()
+		})
+
+		it('answers null for a post this server does not have', async () => {
+			// a deleted post and one that never arrived look the same from here
+			axios.get.mockRejectedValue(new Error('gone'))
+
+			expect(await store.fetchStatus('42')).toBeNull()
+			expect(tl().statuses['42']).toBeUndefined()
+		})
+	})
+
 	describe('createMedia', () => {
 		it('uploads the file as multipart form data and returns the media entity', async () => {
 			const file = new File(['png'], 'cat.png', { type: 'image/png' })

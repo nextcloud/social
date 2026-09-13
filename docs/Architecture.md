@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.22  
+**App version:** 0.19.29  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -805,6 +805,145 @@ uses `history.state.back` — which the router writes whenever it navigates insi
 the app — to tell a post opened from a timeline from one opened from a link
 somebody sent: the first goes back, the second goes to the home timeline, because
 a button inside the app should not be the thing that leaves it.
+
+**One card, and a line only when there is a conversation.** The post a page is
+about used to be drawn inside two boxes: `TimelinePost`'s own card, and around
+it a second card in `TimelineSinglePost` — white ground, padding, rounded
+corners, a shadow, and a border in the accent colour on top of that. What marks
+the post the page is about is that it is the one at the top with the thread
+hanging off it, so `.main-post` is spacing and stacking now and the card inside
+does the drawing. The 24px it is indented by is the 16 of margin plus the 8 of
+padding the lists above and below take, which is what puts every avatar in the
+conversation on one line — the line the spine runs down. And the spine itself
+is drawn only when `hasThread` holds, meaning there is a parent or a reply:
+beside a post with neither, it was a line from nothing to nothing.
+
+Under it, "No replies yet" is a small drawing over a line of muted text rather
+than a heading. `EmptyContent` takes an optional `illustration` name alongside
+the `image` the timelines use, resolved through a map of components that draw
+themselves in markup — `NoReplies` is two speech bubbles in `currentColor` over
+the page's own background, so it follows the theme with no filter to correct it
+on dark. It is a component and not another file in `img/undraw` because those
+eight illustrations are licensed for this app by permission covering those eight
+and nothing else (see `img/undraw/readme.md`); anything new has to be ours. A
+state with a small drawing keeps the compact layout — the 60vh of height is room
+for the full-size ones only.
+
+**A link to a post, opened cold.** The app writes its own links to a post as
+`/@acct/<nid>` — the numeric id its client API uses — while the address a post
+is published under ends in a different token, and `ActivityPubController::displayPost()`
+looked a post up by that address alone. So a link opened in a new tab, a reload,
+or a link somebody sent found nothing, provided no `item`, and the page said the
+post did not exist. It now falls back to `getStreamByNid()` for a numeric token,
+on the browser branch only: an ActivityPub request asks for a post by its
+address, and answering a second identifier there would invent a second canonical
+id for every post. The fallback goes through the same viewer filter every other
+read does, so it shows what the reader may see and nothing more.
+
+The same page also said `'public' => true` for everybody, so following a link to
+a post logged you out of the page you landed on — no navigation, no reply box.
+It is `$viewer === null` now, and the viewer is set on the stream service before
+the lookup, which is also what lets a post narrower than public resolve for the
+people it was addressed to.
+
+On the client, `TimelineSinglePost` asks for the post itself when nothing has
+loaded it — `timelineStore.fetchStatus()`, which is `GET /api/v1/statuses/{id}`.
+`/context` answers with what is *around* a post and never with the post, so a
+page reached from anywhere outside a timeline had nothing to draw. A tile on
+Discover is exactly that: those posts belong to the Discover view and never
+reach the timeline store.
+
+**The pictures on Discover** were not drawn at all, and had not been since the
+tab was added. `ProfileMediaGrid` builds each tile's route with the grid's
+`account` prop, which Discover leaves empty because the grid is everybody's —
+and `account` is a required route param, so `router-link` threw while resolving
+and took every tile with it. A tile links at the account that wrote the post it
+draws, falling back to the grid's own account where a post carries none.
+
+**The hashtags on Discover.** `TrendingHashtags` is a ranking rather than a
+list of names: a row carries its position, the tag, how often it was used in the
+window asked for, and a bar showing its share of the busiest tag on the list —
+which is the only comparison these numbers support, since `history` from this
+server is a single bucket for the chosen window rather than a series (the
+`accounts` field is always `0`, so "how many people" is not something the page
+may claim). The window itself is the useful part: `/api/v1/trends/tags` takes a
+`period` of `1h`, `12h`, `1d`, `3d` or `10d` and **orders by that window's own
+column**, so choosing one re-ranks rather than relabels, and an answer that
+arrives after the reader has moved to another window is dropped rather than
+drawn. The empty state says which of the two emptinesses it is: nothing tagged
+in this stretch of time, or — over ten days — an instance where hashtags are not
+used.
+
+Following is answered once for the page. `HashtagFollowButton` looks a tag up
+for itself when nobody has told it, which is right for the one button on a
+hashtag timeline and wrong for twenty on a ranking: it takes an optional
+`known` list and reads its state from that instead, so the page costs one
+`/api/v1/followed_tags` call rather than twenty lookups before anything can be
+drawn. `null` means nobody has said, which is not the same as "not followed" —
+hence a list rather than a boolean, since a `Boolean` prop cannot carry the
+third state.
+
+**What else a post's own page says.** Four things that belong to a post being
+read rather than to a post being scrolled past.
+
+`PostReactedBy` puts the faces behind the two counts under the post, through
+`GET /api/v1/statuses/{nid}/reblogged_by` and `/favourited_by` — both of which
+the server has answered since the moderation tier and neither of which the web
+client called until now. Nothing is requested when a count is zero, which is
+most posts, so the page costs the two requests only when there is something to
+answer with; a refusal draws nothing, since the counts are still on the post and
+this row is only the elaboration. A dozen faces at most, with the count saying
+how many there are in all, and each row reloads on its own when its own count
+changes — the reader's own boost lands in the row it just changed.
+
+`PostDetails` is the fine print: the full date, the audience in the words the
+composer uses, the language named rather than coded (`Intl.DisplayNames`, the
+code itself when nothing can name it), when it was last edited, and — for a post
+from another server — a link to where it actually lives. A local post gets no
+such link, its own address being the page the reader is on. Mastodon's
+`application` is not among these: the entity this app builds does not carry one,
+and inventing a value would be worse than the absence.
+
+The composer sits under the post, pointed at it, rather than at the top of the
+page waiting to be summoned by a reply button. `Composer` takes `inReplyTo` for
+this: it seeds `replyTo`, and it is a *default* rather than a fixed target — pressing reply on
+another post in the thread retargets the box as it always did, and sending or
+dismissing that reply comes back to the anchor rather than leaving the box
+pointed at nothing. The header naming who is being replied to is hidden while
+the target is the post directly above the box, where it would be the page
+repeating itself. There is no box at all on the public page, where there is no
+account to send from.
+
+The anchor is the one thing that does not open the box. Everywhere else a
+`replyTo` means a reply in progress, which is why it counts as expanded; a box
+that is under every post would then be eight controls and a text area under
+every post. So `expanded` ignores the anchored target, the box is a line of
+placeholder until somebody clicks into it, and it closes again once the reply
+has been sent. Pressing reply on the post it sits under sets `openedByHand`
+directly — the target does not change there, so opening is the whole of what
+that button can do.
+
+And when the thread is shorter than the post says it is, the page says so.
+`replies_count` is what the post's own instance reported plus what has arrived
+here, so the two differ honestly: a reply from a muted or blocked account is
+filtered out of the thread but still counted, and a remote thread is only ever
+as complete as what has reached this server. The note counts against the
+*direct* replies on screen, since that is what the number on the post counts,
+and it waits for `TimelineList` to emit `settled` — before that, every reply is
+one this page has not drawn, and saying so would be counting the loading.
+
+Saying it out loud found a counter that was wrong. Deleting a reply removed its
+row and left its parent's `replies` detail alone, so a post whose reply had been
+deleted claimed one that no page could ever show — invisible until something
+compared the number with the thread. Both deletes now recount:
+`NoteInterface::delete()` for a `Delete` that arrives from another server, and
+`StreamService::deleteLocalItem()` for your own post, which never passes through
+that interface at all. The arithmetic itself is `StreamRequest::recountReplies()`
+— `remote_replies` (what the post's own instance reported, which nothing here can
+see) plus `countRepliesTo()` — which is a recount rather than a bump, because the
+two things that move the number cannot both be expressed as one, and a recount
+repairs a count that has already drifted instead of tracking one. It runs after
+the row is gone, or it counts the reply it has just removed.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`

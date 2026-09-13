@@ -548,6 +548,32 @@ export const useTimelineStore = defineStore('timeline', {
 				logger.error('Failed to delete the status', { error })
 			}
 		},
+		/**
+		 * One status by its id, for a page that has to draw a post nothing has
+		 * loaded yet: a link somebody sent, a reload, or a tile on Discover,
+		 * whose posts are the view's own and never went through here.
+		 *
+		 * `/context` answers with the posts around one, never the post itself,
+		 * so without this the page had nothing to draw and said the post did
+		 * not exist.
+		 *
+		 * @param {string} id the status id
+		 * @return {Promise<object|null>} the status, or null if it is not there
+		 */
+		async fetchStatus(id) {
+			try {
+				const response = await axios.get(generateUrl(`apps/social/api/v1/statuses/${id}`))
+				this.addToStatuses(response.data)
+
+				return response.data
+			} catch (error) {
+				// a deleted post and one this server never had look the same
+				// from here, and the page says so either way
+				logger.debug('Could not load a single status', { error, id })
+
+				return null
+			}
+		},
 		async postLike({ status }) {
 			try {
 				this.likeStatus({ status })

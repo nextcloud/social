@@ -867,7 +867,7 @@ describe('TimelineList', () => {
 			})
 			await flushPromises()
 
-			expect(emptyTitle(wrapper)).toBe('No replies found')
+			expect(emptyTitle(wrapper)).toBe('No replies yet')
 
 			await intersect()
 			expect(dispatch).toHaveBeenCalledTimes(1)
@@ -878,7 +878,7 @@ describe('TimelineList', () => {
 
 			const replies = mountList({ route })
 			await flushPromises()
-			expect(emptyTitle(replies.wrapper)).toBe('No replies found')
+			expect(emptyTitle(replies.wrapper)).toBe('No replies yet')
 
 			const parents = mountList({ route, props: { showParents: true } })
 			await flushPromises()

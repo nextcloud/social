@@ -325,25 +325,16 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->assertSame('alice@local.example', $mentions[0]['acct']);
 	}
 
-	public function testReplyBumpsTheRepliesCounterOfItsParent(): void {
-		$parent = $this->note(self::PARENT, $this->alice->getId(), true);
-		$parent->setDetailInt('remote_replies', 1);
-		$this->streamRequest->method('getStreamById')->willReturnCallback(function (string $id) use ($parent): Stream {
-			if ($id === self::PARENT) {
-				return $parent;
-			}
-
-			throw new StreamNotFoundException();
-		});
-		$this->streamRequest->method('countRepliesTo')->with(self::PARENT)->willReturn(2);
+	public function testReplyRecountsTheRepliesOfItsParent(): void {
+		$this->nothingStored();
 		$note = $this->incomingNote();
 		$note->setInReplyTo(self::PARENT);
 
-		$this->streamRequest->expects($this->once())->method('updateDetails')->with($this->identicalTo($parent));
+		// the arithmetic — what the parent's own instance reported plus what is
+		// stored here — belongs to the recount, which a local delete uses too
+		$this->streamRequest->expects($this->once())->method('recountReplies')->with(self::PARENT);
 
 		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
-
-		$this->assertSame(3, $parent->getDetailInt('replies'));
 	}
 
 	public function testReplyToAnUnknownParentIsStillStored(): void {
@@ -352,7 +343,6 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$note->setInReplyTo(self::PARENT);
 
 		$this->streamRequest->expects($this->once())->method('save')->with($this->identicalTo($note));
-		$this->streamRequest->expects($this->never())->method('updateDetails');
 
 		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
 	}
@@ -504,6 +494,36 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 
 		$this->streamRequest->expects($this->once())->method('deleteById')->with(self::NOTE, Note::TYPE);
 		$this->linkPreviewService->expects($this->once())->method('deleteCard')->with(self::NOTE);
+
+		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
+	}
+
+	public function testDeletingAReplyRecountsItsParent(): void {
+		$note = $this->incomingNote();
+		$note->setInReplyTo(self::PARENT);
+		$this->streamRequest->method('getStreamById')->willReturnCallback(function () use ($note): Stream {
+			$stored = clone $note;
+			$stored->setActor($this->bob);
+
+			return $stored;
+		});
+
+		// a delete used to remove the reply and leave the count alone, so the
+		// post went on claiming a reply nothing on any page could show. The
+		// recount runs after the row has gone, which is what makes it right.
+		$this->streamRequest->expects($this->once())->method('deleteById')->with(self::NOTE, Note::TYPE);
+		$this->streamRequest->expects($this->once())->method('recountReplies')->with(self::PARENT);
+
+		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
+	}
+
+	public function testDeletingAPostThatAnsweredNothingRecountsNothing(): void {
+		$note = $this->incomingNote();
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($this->storedCopy());
+
+		// an empty parent id is what "this answered nothing" looks like, and
+		// the recount is the one place that decides what to do with it
+		$this->streamRequest->expects($this->once())->method('recountReplies')->with('');
 
 		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
 	}

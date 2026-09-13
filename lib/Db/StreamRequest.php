@@ -237,6 +237,33 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Counts the replies to a post again and stores the total on it.
+	 *
+	 * A recount rather than a bump, because the two things that change it —
+	 * a reply arriving and a reply being deleted — do not both know which way.
+	 * `remote_replies` is what the post's own instance reported and is carried
+	 * across untouched: nothing here can see the replies that live over there.
+	 *
+	 * @param string $inReplyTo the id of the post that was replied to
+	 */
+	public function recountReplies(string $inReplyTo): void {
+		if ($inReplyTo === '') {
+			return;
+		}
+
+		try {
+			$parent = $this->getStreamById($inReplyTo);
+		} catch (StreamNotFoundException $e) {
+			return;
+		}
+
+		$parent->setDetailInt(
+			'replies', $parent->getDetailInt('remote_replies') + $this->countRepliesTo($inReplyTo)
+		);
+		$this->updateDetails($parent);
+	}
+
 	public function updateCache(Stream $stream, Cache $cache): void {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('cache', $qb->createNamedParameter(json_encode($cache, JSON_UNESCAPED_SLASHES)));
