@@ -188,8 +188,8 @@ class LocalController extends Controller {
 			throw new InvalidResourceException('No file was sent.');
 		}
 
-		return match ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE)) {
-			UPLOAD_ERR_OK => (string)($file['tmp_name'] ?? ''),
+		return match ($file['error'] ?? UPLOAD_ERR_NO_FILE) {
+			UPLOAD_ERR_OK => $file['tmp_name'] ?? '',
 			UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE
 				=> throw new CacheContentSizeException($this->tooBig()),
 			UPLOAD_ERR_NO_FILE => throw new InvalidResourceException('No file was sent.'),
@@ -199,7 +199,7 @@ class LocalController extends Controller {
 			// no tmp dir, cannot write, an extension refused it: this side's
 			// problem, and the only one of these that is a 500
 			default => throw new Exception(
-				'the upload failed on the server, error ' . (int)$file['error']
+				'the upload failed on the server, error ' . $file['error']
 			),
 		};
 	}
