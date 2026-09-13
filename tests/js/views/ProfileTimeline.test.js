@@ -13,7 +13,7 @@ import { useTimelineStore } from '../../../src/store/timeline.js'
 
 const TimelineListStub = {
 	name: 'TimelineList',
-	props: ['type'],
+	props: ['type', 'display', 'account'],
 	template: '<ul class="timeline-list-stub" />',
 }
 const TimelineEntryStub = {
@@ -140,6 +140,38 @@ describe('ProfileTimeline', () => {
 			await nextTick()
 
 			expect(dispatch).toHaveBeenLastCalledWith('bob@remote.example', 'video')
+		})
+
+		/**
+		 * The tab is the whole question. There used to be a grid/list switch
+		 * beside it, and the grid kept only the posts carrying a picture — so
+		 * the same tab showed one set of posts as a list and a smaller one as
+		 * a grid, with nothing to say where the rest had gone.
+		 */
+		it('draws Posts as a list and the two media tabs as grids', async () => {
+			const route = reactive({ name: 'profile', params: { account: 'bob@remote.example' }, query: {} })
+			const wrapper = mountView(route)
+			const list = () => wrapper.findComponent(TimelineListStub)
+
+			expect(list().props('display')).toBe('timeline')
+
+			route.query = { media: 'image' }
+			await nextTick()
+			expect(list().props('display')).toBe('grid')
+
+			route.query = { media: 'video' }
+			await nextTick()
+			expect(list().props('display')).toBe('grid')
+
+			route.query = {}
+			await nextTick()
+			expect(list().props('display')).toBe('timeline')
+		})
+
+		it('offers nothing to switch the view with, because the tab decides it', () => {
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: {} })
+
+			expect(wrapper.find('.profile-views').exists()).toBe(false)
 		})
 
 		/**

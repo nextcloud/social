@@ -37,15 +37,6 @@
 			</li>
 		</ul>
 
-		<NcEmptyContent
-			v-else-if="!loading"
-			:name="t('social', 'No photos yet')"
-			:description="t('social', 'Posts with pictures appear here.')">
-			<template #icon>
-				<ImageMultipleOutline />
-			</template>
-		</NcEmptyContent>
-
 		<NcLoadingIcon v-if="loading" class="media-grid__loading" :size="32" />
 	</div>
 </template>
@@ -54,7 +45,6 @@
 import EyeOffOutline from 'vue-material-design-icons/EyeOffOutline.vue'
 import ImageMultipleOutline from 'vue-material-design-icons/ImageMultipleOutline.vue'
 import ImageOffOutline from 'vue-material-design-icons/ImageOffOutline.vue'
-import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import { t } from '@nextcloud/l10n'
@@ -80,7 +70,6 @@ export default {
 		EyeOffOutline,
 		ImageMultipleOutline,
 		ImageOffOutline,
-		NcEmptyContent,
 		NcLoadingIcon,
 		PlayCircleOutline,
 	},
