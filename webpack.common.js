@@ -33,6 +33,30 @@ webpackConfig.optimization.splitChunks = {
 	...(webpackConfig.optimization.splitChunks ?? {}),
 	cacheGroups: {
 		...(webpackConfig.optimization.splitChunks?.cacheGroups ?? {}),
+		// Vue, @nextcloud/vue, pinia and the rest of the framework were built
+		// into each of the five entry points separately, so somebody who opened
+		// the Dashboard and then the app downloaded all of it twice — 1,116 KB
+		// and then 1,460 KB, most of it the same bytes. `chunks: 'initial'`
+		// takes third-party code out of the entries and leaves it in one file
+		// they share, which the browser then has cached. Async chunks keep the
+		// splitting they already had, and the emoji group below still wins for
+		// the picker because it has the higher priority.
+		//
+		// An entry is no longer self-contained, so every `Util::addScript()`
+		// for this app loads `social-framework` first — see `templates/`,
+		// `AdminSettings`, `SocialWidget` and `ProfileSectionListener`.
+		framework: {
+			test: /[\\/]node_modules[\\/]/,
+			name: 'framework',
+			chunks: 'initial',
+			// only what more than one entry point needs: a library just one of
+			// them uses stays in it, so opening the app alone downloads no more
+			// than it did before
+			minChunks: 2,
+			priority: 20,
+			reuseExistingChunk: true,
+			enforce: true,
+		},
 		emoji: {
 			test: /[\\/]node_modules[\\/](?:emoji-mart|emoji-mart-vue-fast)[\\/]/,
 			name: 'emoji-picker',

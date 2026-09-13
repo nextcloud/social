@@ -22,6 +22,8 @@ class ProfileSectionListener implements IEventListener {
 		if (!($event instanceof BeforeTemplateRenderedEvent)) {
 			return;
 		}
+		// the framework this entry was built without; see webpack.common.js
+		\OCP\Util::addScript('social', 'social-framework');
 		\OCP\Util::addScript('social', 'social-profilePage');
 	}
 }

@@ -54,6 +54,8 @@ class AdminSettings implements IDelegatedSettings {
 		// its own bundle rather than a second panel in the hand-written one:
 		// the announcements section reads and writes its own routes, and
 		// nothing on the page above it is loaded any earlier for it
+		// the framework these entries were built without; see webpack.common.js
+		Util::addScript('social', 'social-framework');
 		Util::addScript('social', 'social-adminAnnouncements');
 		// and the account browser, which is the same page's other half: the
 		// reports table is what somebody complained about, this is everything

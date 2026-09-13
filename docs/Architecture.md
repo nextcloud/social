@@ -709,6 +709,12 @@ The user interface is a **Vue 3** front end using Vue Router, Pinia, `@nextcloud
 
 The OStatus bundle and `src/views/OStatus.vue` are therefore dead code today: `OStatusController::subscribe()` and `followRemote()` both render the `main` template, so remote-follow lands in the main SPA on its `/ostatus/follow` route.
 
+None of those entries is self-contained. Vue, `@nextcloud/vue` and pinia used to be compiled into each of them, so opening the Dashboard and then the app downloaded the framework twice — 276 KB and then 347 KB gzipped, most of it the same bytes. The `framework` cache group in `webpack.common.js` puts what more than one entry needs into `social-framework.js`, which they share; `minChunks: 2` leaves a library only one entry uses inside that entry, so the single-page reader pays a few KB rather than the union. Gzipped: the app alone goes 347 KB → 354 KB, the Dashboard alone 276 KB → 306 KB, the Dashboard and then the app 623 KB → 368 KB, and adding a profile page after that 949 KB → 429 KB.
+
+**Every `Util::addScript()` for this app therefore loads `social-framework` before the entry.** Getting that wrong fails silently rather than loudly: webpack's runtime queues the startup module waiting for a chunk that never arrives, so the script runs to completion, nothing is thrown, nothing reaches the console, and the page simply stays empty. `tests/js/bundles.test.js` boots the built bundles in a jsdom window to pin it — an entry served alone injects no stylesheets and does nothing, and served after the framework it starts — and checks each of the six `addScript()` sites for the order.
+
+`optimization.concatenateModules` stays `false`. Scope hoisting is worth about a kilobyte and makes the build irreproducible: two runs over identical source emit alternating Terser manglings, and CI compares the committed bundle against a fresh build.
+
 ### Store
 
 `src/store/` holds five Pinia stores — `timeline`, `account`, `settings`, `errors` and `notifications` — and `index.js` creates the Pinia every entry point installs. Components reach them through `mapStores`, or through a composable where the same few values are wanted together: `useServerData`, `useCurrentUser` and `useAccount` in `src/composables/` replaced the three mixins the app used to carry.
