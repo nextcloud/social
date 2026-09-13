@@ -213,7 +213,6 @@ import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
 import IconPound from 'vue-material-design-icons/Pound.vue'
 import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
-import IconSwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
@@ -261,7 +260,6 @@ export default {
 		IconPlus,
 		IconBookmark,
 		IconPound,
-		IconSwapHorizontal,
 		IconCancel,
 		IconCog,
 		IconAlertCircle,
@@ -441,12 +439,6 @@ export default {
 						icon: IconChartBox,
 						title: t('social', 'Statistics'),
 						to: { name: 'statistics' },
-					},
-					{
-						key: 'social-migration',
-						icon: IconSwapHorizontal,
-						title: t('social', 'Migration'),
-						to: { name: 'migration' },
 					},
 				],
 

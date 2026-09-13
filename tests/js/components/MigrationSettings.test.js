@@ -8,7 +8,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '../../../src/services/toast.js'
 
-import Migration from '../../../src/views/Migration.vue'
+import Migration from '../../../src/components/MigrationSettings.vue'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn() },

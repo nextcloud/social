@@ -8,9 +8,10 @@
 			{{ t('social', 'Settings') }}
 		</h2>
 
-		<!-- One section so far. The frame is a list of them rather than a page
-		     about shortcuts, because what goes here next is a second section
-		     and not a rewrite of this one. -->
+		<!-- A list of sections. Migration was the second of them; it used to be
+		     a page of its own with an entry in the account menu, and that menu
+		     is for places to read something rather than things you do to the
+		     account. -->
 		<section class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Keyboard shortcuts') }}
@@ -20,10 +21,21 @@
 			</p>
 			<ShortcutList />
 		</section>
+
+		<section class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Migration') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'Your account is yours. Take a copy of it whenever you like, move it to another server, or bring an account here from somewhere else.') }}
+			</p>
+			<MigrationSettings />
+		</section>
 	</div>
 </template>
 
 <script>
+import MigrationSettings from '../components/MigrationSettings.vue'
 import ShortcutList from '../components/ShortcutList.vue'
 import { t } from '@nextcloud/l10n'
 
@@ -41,6 +53,7 @@ export default {
 	name: 'Settings',
 
 	components: {
+		MigrationSettings,
 		ShortcutList,
 	},
 
@@ -53,11 +66,15 @@ export default {
 <style scoped lang="scss">
 .settings {
 	padding: calc(var(--default-grid-baseline) * 4);
-	max-width: 700px;
+	max-width: 760px;
 	margin-inline: auto;
 
 	&__heading {
 		margin-bottom: calc(var(--default-grid-baseline) * 4);
+	}
+
+	&__section + &__section {
+		margin-top: calc(var(--default-grid-baseline) * 4);
 	}
 
 	&__section {

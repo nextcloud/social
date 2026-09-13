@@ -5,6 +5,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import Settings from '../../../src/views/Settings.vue'
+import MigrationSettings from '../../../src/components/MigrationSettings.vue'
 import ShortcutList from '../../../src/components/ShortcutList.vue'
 import ShortcutHelp from '../../../src/components/ShortcutHelp.vue'
 import { SHORTCUTS } from '../../../src/services/shortcuts.js'
@@ -53,11 +54,25 @@ describe('Settings', () => {
 		expect(dialog.findAll('.shortcut-list__row')).toHaveLength(rows)
 	})
 
-	/** The frame is a list of sections: what arrives next is a second one. */
+	/** The frame is a list of sections, and Migration was the second. */
 	it('is a page of sections rather than a page about shortcuts', () => {
 		const wrapper = mount(Settings)
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
-		expect(wrapper.find('.settings__section-heading').text()).toBe('Keyboard shortcuts')
+		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
+			.toEqual(['Keyboard shortcuts', 'Migration'])
+	})
+
+	/**
+	 * Migration used to be a page of its own with an entry in the account
+	 * menu. That menu is for places to read something; this is a thing you do
+	 * to the account, which is what Settings is for.
+	 */
+	it('holds the migration tools', () => {
+		const wrapper = mount(Settings)
+
+		expect(wrapper.findComponent(MigrationSettings).exists()).toBe(true)
+		// the section supplies the heading, so the panel no longer repeats it
+		expect(wrapper.findComponent(MigrationSettings).find('h2').exists()).toBe(false)
 	})
 })
