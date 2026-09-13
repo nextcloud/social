@@ -703,6 +703,14 @@ export default {
 .navigation__compose.navigation__compose {
 	position: relative;
 	margin: 2px 4px 8px;
+	/* `wide` sets `width: 100%`, which is the container's full content width --
+	   and the margin above it has nowhere to go. The button was as wide as the
+	   whole list *and* shifted 4px right, so its right edge overhung the rows
+	   below it and ran into the edge of the sidebar; the left looked correct
+	   because there the margin pushed it inward. The width has to come off
+	   explicitly: `auto` is no use on a `<button>`, which shrink-wraps, and that
+	   is why NcButton reaches for `fit-content` and `100%` and never `auto`. */
+	width: calc(100% - 8px);
 	font-weight: 600;
 	/* The height the design was drawn at, and the reason the rest of it works.
 	   NcButton stands at `--default-clickable-area`, which this server sets to
