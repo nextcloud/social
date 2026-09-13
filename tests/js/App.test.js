@@ -12,6 +12,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import App from '../../src/App.vue'
 import ShortcutHelp from '../../src/components/ShortcutHelp.vue'
+import ShortcutList from '../../src/components/ShortcutList.vue'
 import eventBus from '../../src/services/eventBus.js'
 import { useAccountStore } from '../../src/store/account.js'
 import { useSettingsStore } from '../../src/store/settings.js'
@@ -114,9 +115,17 @@ describe('App', () => {
 			expect(wrapper.findComponent(ShortcutHelp).props('open')).toBe(false)
 		})
 
-		it('lists every shortcut with its keys and what it does', () => {
+		/**
+		 * Asserted through `ShortcutList`, which is where the list lives now:
+		 * the Settings page shows the same one, and a shortcut is a promise
+		 * about a keystroke that two places must not be able to disagree on.
+		 */
+		it('lists every shortcut with its keys and what it does', async () => {
 			const wrapper = mountApp()
-			const shortcuts = wrapper.findComponent(ShortcutHelp).vm.shortcuts
+			// the sheet renders nothing until it is open
+			eventBus.emit('shortcut:help')
+			await wrapper.vm.$nextTick()
+			const shortcuts = wrapper.findComponent(ShortcutList).vm.shortcuts
 
 			expect(shortcuts.length).toBeGreaterThan(5)
 			for (const shortcut of shortcuts) {
