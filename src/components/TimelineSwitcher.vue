@@ -55,9 +55,12 @@
  * full — a real `radiogroup`, arrow keys, a roving tabindex — rather than left
  * to a set of links dressed up as tabs.
  *
- * It routes and nothing else: every option carries the route it stands for, so
- * the page it sits on stays the one answer to what is being shown. The words
- * in those routes are the route's own — `timeline` for the local feed,
+ * It decides nothing itself. An option that carries a route pushes it, so the
+ * page it sits on stays the one answer to what is being shown; an option with
+ * no route is a choice the page holds itself, and the pick is handed back as
+ * `update:value` for that page to act on — Discover's four lists are one
+ * screen and not four, so they are state there rather than four routes. The
+ * words in the routes are the route's own — `timeline` for the local feed,
  * `federated` for the global one, `image` and `video` for the kinds of
  * attachment the API knows — rather than the labels beside them, because two
  * vocabularies would be one more place for the two to disagree.
@@ -65,10 +68,14 @@
 export default {
 	name: 'TimelineSwitcher',
 
+	emits: ['update:value'],
+
 	props: {
 		/**
 		 * What to choose between: `{ value, label, icon, to }` each, where
-		 * `to` is a route the option pushes when it is chosen.
+		 * `to` is the route the option pushes when it is chosen. Leave `to`
+		 * off and the option emits `update:value` instead, for a page whose
+		 * choice is its own state.
 		 */
 		options: {
 			type: Array,
@@ -127,6 +134,13 @@ export default {
 			const option = this.options[index]
 			if (option === undefined || option.value === this.value) {
 				// choosing the page you are already on is not a navigation
+				return
+			}
+
+			// an option with nowhere to go is one the page decides for itself
+			if (option.to === undefined) {
+				this.$emit('update:value', option.value)
+
 				return
 			}
 

@@ -132,6 +132,44 @@ describe('TimelineSwitcher', () => {
 		expect(push).not.toHaveBeenCalled()
 	})
 
+	// a page whose choice is its own state
+
+	/**
+	 * Discover's four lists are one screen and not four, so which of them is
+	 * on shows up as state there rather than as a route. An option with
+	 * nowhere to go says so by carrying no `to`, and the pick comes back for
+	 * the page to act on.
+	 */
+	const STATEFUL = [
+		{ value: 'accounts', label: 'People', icon: IconStub },
+		{ value: 'packs', label: 'Starter packs', icon: IconStub },
+	]
+
+	it('hands the pick back where an option has nowhere to go', async () => {
+		const { wrapper, push } = mountSwitcher('accounts', STATEFUL)
+
+		await options(wrapper)[1].trigger('click')
+
+		expect(wrapper.emitted('update:value')).toEqual([['packs']])
+		expect(push).not.toHaveBeenCalled()
+	})
+
+	it('says nothing when the one already on screen is chosen again', async () => {
+		const { wrapper } = mountSwitcher('packs', STATEFUL)
+
+		await options(wrapper)[1].trigger('click')
+
+		expect(wrapper.emitted('update:value')).toBeUndefined()
+	})
+
+	it('moves through them with the arrow keys as it does through routes', async () => {
+		const { wrapper } = mountSwitcher('accounts', STATEFUL)
+
+		await wrapper.find('.switcher').trigger('keydown', { key: 'ArrowRight' })
+
+		expect(wrapper.emitted('update:value')).toEqual([['packs']])
+	})
+
 	// the keyboard
 
 	/** A roving tabindex puts one stop on the control, not one per option. */

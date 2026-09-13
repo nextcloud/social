@@ -62,8 +62,17 @@ describe('Discover', () => {
 		it('puts People first, because that is the question somebody has here', () => {
 			const tabs = Discover.computed.tabs.call({})
 
-			expect(tabs[0].id).toBe('accounts')
-			expect(tabs[1].id).toBe('packs')
+			expect(tabs[0].value).toBe('accounts')
+			expect(tabs[1].value).toBe('packs')
+		})
+
+		it('lets the switcher hand the pick back rather than routing', () => {
+			// the control pushes a route where an option carries one, and
+			// which of these four lists is on screen is not a route
+			const tabs = Discover.computed.tabs.call({})
+
+			expect(tabs.every((tab) => tab.to === undefined)).toBe(true)
+			expect(tabs.every((tab) => tab.icon !== undefined)).toBe(true)
 		})
 
 		it('opens on People rather than on content', () => {
