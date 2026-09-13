@@ -45,6 +45,7 @@ use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IConfig;
 use OCP\IRequest;
+use OCP\ITempManager;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -652,6 +653,7 @@ class OutboundFederationWireTest extends TestCase {
 			$this->configService,
 			$this->createMock(ImageConversionService::class),
 			$this->createMock(VideoThumbnailService::class),
+			$this->createMock(ITempManager::class),
 		);
 
 		$service->retrieveContent('https://' . self::REMOTE . '/media/1.png?sig=abc');
