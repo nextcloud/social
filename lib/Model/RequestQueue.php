@@ -26,12 +26,16 @@ class RequestQueue implements JsonSerializable {
 
 	public const STATUS_STANDBY = 0;
 	public const STATUS_RUNNING = 1;
+	/** Given up on after `RequestQueueService::MAX_TRIES`; kept so the author can see it was. */
+	public const STATUS_ABANDONED = 8;
 	public const STATUS_SUCCESS = 9;
 
 	private int $id = 0;
 	private string $token = '';
 	private string $author = '';
 	private string $activity = '';
+	/** md5 of the id of the object the activity is about, or '' when it has none */
+	private string $objectIdPrim = '';
 	private ?InstancePath $instance = null;
 	private int $priority = 0;
 	private int $status = 0;
@@ -116,6 +120,16 @@ class RequestQueue implements JsonSerializable {
 	/**
 	 * @return string
 	 */
+	public function getObjectIdPrim(): string {
+		return $this->objectIdPrim;
+	}
+
+	public function setObjectIdPrim(string $objectIdPrim): self {
+		$this->objectIdPrim = $objectIdPrim;
+
+		return $this;
+	}
+
 	public function getActivity(): string {
 		return $this->activity;
 	}
@@ -250,6 +264,7 @@ class RequestQueue implements JsonSerializable {
 		$this->setInstance($instance);
 		$this->setPriority($this->getInt('priority', $data, 0));
 		$this->setActivity($this->get('activity', $data, ''));
+		$this->setObjectIdPrim($this->get('object_id_prim', $data, ''));
 		$this->setStatus($this->getInt('status', $data, 0));
 		$this->setTries($this->getInt('tries', $data, 0));
 
@@ -274,6 +289,7 @@ class RequestQueue implements JsonSerializable {
 			'id' => $this->getId(),
 			'token' => $this->getToken(),
 			'author' => $this->getAuthor(),
+			'object_id_prim' => $this->getObjectIdPrim(),
 			'instance' => $this->getInstance(),
 			'priority' => $this->getPriority(),
 			'status' => $this->getStatus(),

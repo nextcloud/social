@@ -82,6 +82,16 @@ class RequestQueueTest extends TestCase {
 		$this->assertSame((new \DateTime('2024-05-01 12:00:00'))->getTimestamp(), $queue->getLast());
 	}
 
+	public function testImportFromDatabaseReadsTheObjectPrim(): void {
+		$queue = new RequestQueue();
+
+		$queue->importFromDatabase(['id' => 1, 'last' => '', 'object_id_prim' => 'abc']);
+
+		$this->assertSame('abc', $queue->getObjectIdPrim());
+		// rows queued before the column existed carry none
+		$this->assertSame('', (new RequestQueue())->getObjectIdPrim());
+	}
+
 	public function testImportFromDatabaseWithoutLastRunSetsZero(): void {
 		$queue = new RequestQueue();
 
@@ -93,12 +103,14 @@ class RequestQueueTest extends TestCase {
 	public function testJsonSerializeIncludesTheInstance(): void {
 		$instance = new InstancePath('https://mastodon.social/inbox', InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW);
 		$queue = new RequestQueue('act', $instance, 'author');
-		$queue->setId(3)->setToken('tok')->setStatus(RequestQueue::STATUS_SUCCESS)->setTries(1)->setLast(1714564800);
+		$queue->setId(3)->setToken('tok')->setStatus(RequestQueue::STATUS_SUCCESS)->setTries(1)->setLast(1714564800)
+			->setObjectIdPrim(md5('https://cloud.example/@alice/1'));
 
 		$this->assertSame([
 			'id' => 3,
 			'token' => 'tok',
 			'author' => 'author',
+			'object_id_prim' => md5('https://cloud.example/@alice/1'),
 			'instance' => ['uri' => 'https://mastodon.social/inbox', 'type' => 1, 'priority' => 1],
 			'priority' => 1,
 			'status' => 9,

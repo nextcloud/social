@@ -59,6 +59,18 @@ class RequestQueueService {
 	public const MAX_TRIES = 16;
 
 	/**
+	 * How long a delivered or abandoned request is kept before it is purged.
+	 *
+	 * A finished row used to be deleted the moment it finished, which made the
+	 * queue a to-do list and nothing else: it could never say where a post had
+	 * got to, only where it had not got to yet. Seven days is long enough for an
+	 * author to wonder why a post never showed up somewhere and go and look, and
+	 * short enough that the table stays a queue rather than becoming an archive
+	 * of every delivery this instance ever made.
+	 */
+	public const RETENTION_SECONDS = 7 * 24 * 3600;
+
+	/**
 	 * How long a request waits after its n-th failure, in seconds; the table
 	 * on MAX_TRIES. `tries` is the count of failed attempts so far.
 	 */
@@ -109,8 +121,10 @@ class RequestQueueService {
 	public function generateRequestQueueFromSource(array $instancePaths, string $activity, string $author): string {
 		$token = '';
 		$requests = [];
+		$objectIdPrim = self::objectIdPrimOf($activity);
 		foreach ($this->uniqueInboxes($instancePaths) as $instancePath) {
 			$request = new RequestQueue($activity, $instancePath, $author);
+			$request->setObjectIdPrim($objectIdPrim);
 			if ($token === '') {
 				$token = $request->getToken();
 			} else {
@@ -222,9 +236,10 @@ class RequestQueueService {
 		$result = [];
 		foreach ($requests as $request) {
 			// A request that has exhausted its retries is abandoned rather than kept
-			// on standby forever against a host that is never coming back.
+			// on standby forever against a host that is never coming back -- marked,
+			// not deleted, so the author can see that server never got the post.
 			if ($request->getTries() >= self::MAX_TRIES) {
-				$this->deleteRequest($request);
+				$this->abandonRequest($request);
 				continue;
 			}
 
@@ -267,9 +282,10 @@ class RequestQueueService {
 	public function endRequest(RequestQueue $queue, bool $success) {
 		try {
 			if ($success === true) {
-				// A successfully delivered request has nothing left to record, so it is
-				// removed rather than kept forever as a STATUS_SUCCESS row.
-				$this->requestQueueRequest->delete($queue);
+				// kept, not deleted: it is the one record that this server got the
+				// post, and the author may ask. `purgeFinished()` takes it away once
+				// RETENTION_SECONDS have passed.
+				$this->requestQueueRequest->setAsSuccess($queue);
 			} else {
 				$this->requestQueueRequest->setAsFailure($queue);
 			}
@@ -283,6 +299,53 @@ class RequestQueueService {
 	 */
 	public function reapStaleRunning(): int {
 		return $this->requestQueueRequest->resetStaleRunning(time() - self::STALE_RUNNING_SECONDS);
+	}
+
+	/**
+	 * Gives up on one request: it stays as STATUS_ABANDONED until the retention
+	 * has passed, as a delivered one does.
+	 */
+	public function abandonRequest(RequestQueue $queue): void {
+		try {
+			$this->requestQueueRequest->setAsAbandoned($queue);
+		} catch (QueueStatusException $e) {
+			// somebody else got to it first; the row is no longer ours to judge
+		}
+	}
+
+	/**
+	 * Removes the delivered and abandoned rows older than the retention.
+	 *
+	 * @return int rows removed
+	 */
+	public function purgeFinished(): int {
+		return $this->requestQueueRequest->deleteFinished(time() - self::RETENTION_SECONDS);
+	}
+
+	/**
+	 * The md5 of the id of the object a serialised activity is about -- the
+	 * Note under a Create, Update or Delete, the object of an Announce -- or of
+	 * the activity's own id when it carries no object, or '' when it has neither.
+	 *
+	 * Read off the JSON rather than passed in, so that `ForwardService`, which
+	 * queues a third party's bytes verbatim, keys its rows the same way as
+	 * everything this instance wrote itself.
+	 */
+	public static function objectIdPrimOf(string $activity): string {
+		$decoded = json_decode($activity, true);
+		if (!is_array($decoded)) {
+			return '';
+		}
+
+		$object = $decoded['object'] ?? null;
+		$id = match (true) {
+			is_array($object) && is_string($object['id'] ?? null) => $object['id'],
+			is_string($object) => $object,
+			is_string($decoded['id'] ?? null) => $decoded['id'],
+			default => '',
+		};
+
+		return ($id === '') ? '' : md5($id);
 	}
 
 	/**

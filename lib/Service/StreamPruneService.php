@@ -189,7 +189,11 @@ class StreamPruneService {
 	public function pruneQueues(): array {
 		$pruned = ['requests' => 0, 'items' => 0];
 		try {
-			$pruned['requests'] = $this->requestQueueRequest->deleteExhausted();
+			// the outbound queue keeps its finished rows for a while so a post can
+			// say where it got to; pruning marks the exhausted ones and applies
+			// that same retention, nothing shorter
+			$this->requestQueueRequest->abandonExhausted();
+			$pruned['requests'] = $this->requestQueueRequest->deleteFinished(time() - RequestQueueService::RETENTION_SECONDS);
 			$pruned['items'] = $this->streamQueueRequest->deleteExhausted()
 				+ $this->streamQueueRequest->deleteCompleted();
 		} catch (\Exception $e) {

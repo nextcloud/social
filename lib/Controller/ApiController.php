@@ -62,6 +62,7 @@ use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DeliveryService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
@@ -191,6 +192,7 @@ class ApiController extends Controller {
 		private IAppManager $appManager,
 		private FediverseService $fediverseService,
 		private PlaceService $placeService,
+		private DeliveryService $deliveryService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -1768,6 +1770,43 @@ class ApiController extends Controller {
 					'text' => $this->asSourceText($item->getContent()),
 					'spoiler_text' => $item->getSpoilerText(),
 				], Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Where one of the viewer's own posts got to: `/api/v1/statuses/{nid}/delivery`.
+	 *
+	 * This app's own route, not Mastodon's. When a post does not appear on
+	 * another server the author has no way of knowing whether it was sent, is
+	 * still queued, was refused or was given up on; the queue knows, and this is
+	 * the author asking it. Answered only for the author, as `/source` is --
+	 * which servers a post reached is a fact about their own account and nobody
+	 * else's -- and a 404 for anybody else, the same 404 as a post that does not
+	 * exist.
+	 *
+	 * The answer is as good as the retention: a delivered request is kept for
+	 * `RequestQueueService::RETENTION_SECONDS` and then purged, so the reply says
+	 * how long, and an old post reports nothing rather than reporting wrongly.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/delivery')]
+	public function statusDelivery(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			$item = $this->streamService->getStreamByNid($nid);
+			if ($item->getAttributedTo() !== $actor->getId()) {
+				throw new StreamNotFoundException('Stream not found');
+			}
+
+			return new DataResponse(
+				['id' => (string)$item->getNid()] + $this->deliveryService->forObject($item->getId()),
+				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);

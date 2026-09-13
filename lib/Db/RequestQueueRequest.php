@@ -50,6 +50,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 			->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
 			->setValue('author_prim', $qb->createNamedParameter($qb->prim($queue->getAuthor())))
 			->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
+			->setValue('object_id_prim', $qb->createNamedParameter($queue->getObjectIdPrim()))
 			->setValue(
 				'instance', $qb->createNamedParameter(
 					json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
@@ -68,9 +69,10 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @throws Exception
 	 */
 	public function getStandby(int $maxTries = RequestQueueService::MAX_TRIES): array {
-		// what the drain has given up on goes first: the query below cannot
-		// return those rows any more, and nothing else walks this table
-		$this->deleteExhausted($maxTries);
+		// what the drain has given up on is marked first: the query below cannot
+		// return those rows any more, and the author is entitled to see that a
+		// server never got their post rather than watch the row vanish
+		$this->abandonExhausted($maxTries);
 
 		$qb = $this->getRequestQueueSelectSql();
 		$qb->limitToStatus(RequestQueue::STATUS_STANDBY);
@@ -131,6 +133,9 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 */
 	public function getFailing(int $minTries = 1, int $limit = 500): array {
 		$qb = $this->getRequestQueueSelectSql();
+		// still in play: a row kept as delivered or abandoned has tries too,
+		// and is not a delivery anybody is worried about
+		$qb->limitToStatus(RequestQueue::STATUS_STANDBY);
 		$qb->andWhere($qb->expr()->gte('tries', $qb->createNamedParameter($minTries, IQueryBuilder::PARAM_INT)));
 		$qb->orderBy('tries', 'desc');
 		$qb->setMaxResults($limit);
@@ -303,13 +308,86 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @return int rows removed
 	 * @throws Exception
 	 */
-	public function deleteExhausted(int $maxTries = RequestQueueService::MAX_TRIES): int {
-		$qb = $this->getRequestQueueDeleteSql();
+	/**
+	 * Gives up on one standby row: kept as abandoned until `deleteFinished()`.
+	 *
+	 * @throws QueueStatusException when the row was not on standby any more
+	 */
+	public function setAsAbandoned(RequestQueue &$queue): void {
+		$qb = $this->getRequestQueueUpdateSql();
+		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_ABANDONED));
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(RequestQueue::STATUS_STANDBY);
+
+		if ($qb->executeStatement() === 0) {
+			throw new QueueStatusException();
+		}
+
+		$queue->setStatus(RequestQueue::STATUS_ABANDONED);
+	}
+
+	/**
+	 * Marks what the drain has given up on, rather than deleting it.
+	 *
+	 * The row stays so that the post it belongs to can say a server never got
+	 * it; `deleteFinished()` takes it away with the delivered ones once the
+	 * retention has passed.
+	 *
+	 * @return int rows marked
+	 */
+	public function abandonExhausted(int $maxTries = RequestQueueService::MAX_TRIES): int {
+		$qb = $this->getRequestQueueUpdateSql();
+		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_ABANDONED));
+		$qb->limitToStatus(RequestQueue::STATUS_STANDBY);
 		$qb->andWhere(
 			$qb->expr()->gte('tries', $qb->createNamedParameter($maxTries, IQueryBuilder::PARAM_INT))
 		);
 
 		return $qb->executeStatement();
+	}
+
+	/**
+	 * Removes delivered and abandoned rows whose last attempt is older than
+	 * `$before`: what the author could have asked about has been kept long
+	 * enough, and a queue is not an archive.
+	 *
+	 * @return int rows removed
+	 */
+	public function deleteFinished(int $before): int {
+		$qb = $this->getRequestQueueDeleteSql();
+		$expr = $qb->expr();
+		$qb->andWhere($expr->in('status', $qb->createNamedParameter(
+			[RequestQueue::STATUS_SUCCESS, RequestQueue::STATUS_ABANDONED], IQueryBuilder::PARAM_INT_ARRAY
+		)));
+		$qb->andWhere($expr->lt('last', $qb->createNamedParameter(
+			new DateTime('@' . $before), IQueryBuilder::PARAM_DATE
+		)));
+
+		return $qb->executeStatement();
+	}
+
+	/**
+	 * Every queued delivery of one object, as the author is entitled to see it.
+	 *
+	 * @return list<RequestQueue>
+	 */
+	public function getByObject(string $objectIdPrim): array {
+		if ($objectIdPrim === '') {
+			return [];
+		}
+
+		$qb = $this->getRequestQueueSelectSql();
+		$qb->limitToDBField('object_id_prim', $objectIdPrim);
+		$qb->orderBy('rq.id', 'asc');
+
+		$requests = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$requests[] = $this->parseRequestQueueSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $requests;
 	}
 
 	public function deleteByAuthor(string $actorId): void {

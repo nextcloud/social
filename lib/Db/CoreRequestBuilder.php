@@ -411,6 +411,7 @@ class CoreRequestBuilder {
 			'token',
 			'author',
 			'activity',
+			'object_id_prim',
 			'instance',
 			'priority',
 			'status',

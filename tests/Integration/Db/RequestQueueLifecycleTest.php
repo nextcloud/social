@@ -13,17 +13,19 @@ use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
+use OCA\Social\Service\DeliveryService;
 use OCA\Social\Service\RequestQueueService;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
 /**
  * The federation delivery queue against the real social_req_queue table: a queued
- * activity goes standby → running → gone on success, failures count up and are
- * retried until the queue abandons them, and a worker that died mid-delivery has
- * its RUNNING rows reaped back to standby. This is the machinery whose earlier
- * regressions (rows kept forever, deliveries silently lost) only show on a real
- * database.
+ * activity goes standby → running → delivered on success and is kept that way
+ * for the retention so the author can ask where the post got to, failures count
+ * up and are retried until the queue abandons them (kept too, marked), and a
+ * worker that died mid-delivery has its RUNNING rows reaped back to standby.
+ * This is the machinery whose earlier regressions (rows kept forever, deliveries
+ * silently lost) only show on a real database.
  */
 class RequestQueueLifecycleTest extends TestCase {
 	private const AUTHOR = 'https://cloud.example.org/qtest/users/author';
@@ -31,6 +33,8 @@ class RequestQueueLifecycleTest extends TestCase {
 
 	private RequestQueueService $service;
 	private RequestQueueRequest $request;
+	/** the id of the Note the last enqueue() queued */
+	private string $lastObjectId = '';
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -51,6 +55,7 @@ class RequestQueueLifecycleTest extends TestCase {
 	private function enqueue(): string {
 		$note = new Note();
 		$note->setId(self::AUTHOR . '/notes/' . bin2hex(random_bytes(4)));
+		$this->lastObjectId = $note->getId();
 
 		return $this->service->generateRequestQueue(
 			[new InstancePath(self::INBOX, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW)],
@@ -59,18 +64,45 @@ class RequestQueueLifecycleTest extends TestCase {
 		);
 	}
 
-	public function testSuccessfulDeliveryLeavesNoRow(): void {
+	public function testSuccessfulDeliveryIsKeptAsDeliveredUntilTheRetentionPasses(): void {
 		$token = $this->enqueue();
 
 		$requests = $this->service->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 		$this->assertCount(1, $requests);
+		$this->assertSame(md5($this->lastObjectId), $requests[0]->getObjectIdPrim(), 'the row names the post it is about');
 
 		$queue = $requests[0];
 		$this->service->initRequest($queue);
 		$this->assertSame([], $this->service->getRequestFromToken($token, RequestQueue::STATUS_STANDBY), 'running, not standby');
 
 		$this->service->endRequest($queue, true);
-		$this->assertSame([], $this->service->getRequestFromToken($token), 'a delivered request is deleted, not kept as a status-9 row');
+		$kept = $this->service->getRequestFromToken($token);
+		$this->assertCount(1, $kept, 'a delivered request is kept: it is the record that this server got the post');
+		$this->assertSame(RequestQueue::STATUS_SUCCESS, $kept[0]->getStatus());
+
+		// not yet: the retention has not passed
+		$this->service->purgeFinished();
+		$this->assertCount(1, $this->service->getRequestFromToken($token));
+
+		// once it has, the queue is a queue again
+		$this->assertGreaterThan(0, $this->request->deleteFinished(time() + 60));
+		$this->assertSame([], $this->service->getRequestFromToken($token));
+	}
+
+	public function testTheAuthorCanAskWhereThePostGotTo(): void {
+		$token = $this->enqueue();
+		$queue = $this->service->getRequestFromToken($token, RequestQueue::STATUS_STANDBY)[0];
+		$this->service->initRequest($queue);
+		$this->service->endRequest($queue, true);
+
+		$summary = Server::get(DeliveryService::class)->forObject($this->lastObjectId);
+
+		$this->assertSame(1, $summary['delivered']);
+		$this->assertSame(1, $summary['total']);
+		$this->assertSame('remote.example', $summary['instances'][0]['host']);
+		$this->assertSame(DeliveryService::STATE_DELIVERED, $summary['instances'][0]['state']);
+		// a post that was never queued has nothing to say, rather than somebody else's rows
+		$this->assertSame(0, Server::get(DeliveryService::class)->forObject(self::AUTHOR . '/notes/never')['total']);
 	}
 
 	public function testAFailureGoesBackToStandbyWithOneMoreTry(): void {
@@ -99,8 +131,19 @@ class RequestQueueLifecycleTest extends TestCase {
 		$this->service->getRequestStandby();
 		$this->assertSame(
 			[],
-			$this->service->getRequestFromToken($token),
-			'after MAX_TRIES the request is abandoned (deleted), not retried forever'
+			$this->service->getRequestFromToken($token, RequestQueue::STATUS_STANDBY),
+			'after MAX_TRIES the request is abandoned, not retried forever'
+		);
+		$left = $this->service->getRequestFromToken($token);
+		$this->assertCount(1, $left, 'abandoned is a state the author can see, not a deletion');
+		$this->assertSame(RequestQueue::STATUS_ABANDONED, $left[0]->getStatus());
+		$this->assertSame(RequestQueueService::MAX_TRIES, $left[0]->getTries());
+
+		// and it is no longer anybody's failing delivery
+		$this->assertNotContains(
+			$left[0]->getId(),
+			array_map(fn (RequestQueue $r): int => $r->getId(), $this->request->getFailing()),
+			'given up on is not still failing'
 		);
 	}
 
