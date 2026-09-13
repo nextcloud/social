@@ -225,7 +225,7 @@ class LocalController extends Controller {
 		$type = $type ?? Stream::TYPE_PUBLIC;
 		$attachments = $attachments ?? [];
 
-		$this->logger->info('[LocalController] postCreate called', [
+		$this->logger->debug('[LocalController] postCreate called', [
 			'userId' => $this->userId,
 			'contentLength' => strlen($content),
 			'type' => $type,
@@ -294,7 +294,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer(false);
 			$stream = $this->streamService->getStreamById($id, true);
-			$this->logger->info('[LocalController] Post retrieved', [
+			$this->logger->debug('[LocalController] Post retrieved', [
 				'id' => $id,
 				'streamId' => $stream->getId()
 			]);
@@ -413,7 +413,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer(true);
 			$posts = $this->streamService->getStreamHome($since, $limit);
-			$this->logger->info('[LocalController] streamHome returned', [
+			$this->logger->debug('[LocalController] streamHome returned', [
 				'postsCount' => count($posts)
 			]);
 
@@ -502,7 +502,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer(true);
 			$posts = $this->streamService->getStreamLocalTimeline($since, $limit);
-			$this->logger->info('[LocalController] streamTimeline returned', [
+			$this->logger->debug('[LocalController] streamTimeline returned', [
 				'postsCount' => count($posts)
 			]);
 
@@ -770,7 +770,7 @@ class LocalController extends Controller {
 					// Nextcloud user, and confirm which usernames exist.
 					$this->accountService->getActorFromUserId($username, true);
 					$this->accountService->cacheLocalActorByUsername($username);
-					$this->logger->info('[LocalController] Local actor ensured', ['username' => $username]);
+					$this->logger->debug('[LocalController] Local actor ensured', ['username' => $username]);
 				} catch (Exception $e) {
 					$this->logger->warning('[LocalController] Failed to ensure local actor', [
 						'username' => $username,
@@ -798,7 +798,7 @@ class LocalController extends Controller {
 				}
 			}
 
-			$this->logger->info('[LocalController] Actor info retrieved', ['actorId' => $actor->getId()]);
+			$this->logger->debug('[LocalController] Actor info retrieved', ['actorId' => $actor->getId()]);
 			return new DataResponse($actor, Http::STATUS_OK);
 		} catch (Exception $e) {
 			$this->logger->error('[LocalController] globalAccountInfo failed', [

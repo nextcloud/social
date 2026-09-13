@@ -92,7 +92,7 @@ class NavigationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/discover', postfix: 'discover')]
 	#[FrontpageRoute(verb: 'GET', url: '/migration', postfix: 'migration')]
 	public function navigate(string $path = ''): TemplateResponse {
-		$this->logger->info('[NavigationController] navigate() called', [
+		$this->logger->debug('[NavigationController] navigate() called', [
 			'path' => $path,
 			'userId' => $this->userId,
 		]);
@@ -110,7 +110,7 @@ class NavigationController extends Controller {
 
 		try {
 			$serverData['cloudAddress'] = $this->configService->getCloudUrl();
-			$this->logger->info('[NavigationController] Cloud address configured', [
+			$this->logger->debug('[NavigationController] Cloud address configured', [
 				'cloudAddress' => $serverData['cloudAddress']
 			]);
 		} catch (SocialAppConfigException $e) {
@@ -314,7 +314,7 @@ class NavigationController extends Controller {
 		try {
 			$mime = '';
 			$file = $this->documentService->getFromCacheAsViewer($id, $this->viewer(), $mime);
-			$this->logger->info('[NavigationController] Document retrieved from cache', [
+			$this->logger->debug('[NavigationController] Document retrieved from cache', [
 				'id' => $id,
 				'mime' => $mime
 			]);
@@ -344,7 +344,7 @@ class NavigationController extends Controller {
 		try {
 			$mime = '';
 			$file = $this->documentService->getFromCache($id, $mime, true);
-			$this->logger->info('[NavigationController] Public document retrieved from cache', [
+			$this->logger->debug('[NavigationController] Public document retrieved from cache', [
 				'id' => $id,
 				'mime' => $mime
 			]);
