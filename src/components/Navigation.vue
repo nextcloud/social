@@ -159,7 +159,10 @@
 		<div class="modal-composer">
 			<!-- the box emptied and the modal stayed open, which reads as if
 			     nothing had been sent -->
-			<Composer startExpanded @posted="showComposer = false" />
+			<Composer
+				startExpanded
+				:initialPaths="composerPaths"
+				@posted="showComposer = false" />
 		</div>
 	</NcModal>
 
@@ -278,6 +281,8 @@ export default {
 			trending: [],
 			localSearch: '',
 			showComposer: false,
+			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
+			composerPaths: [],
 			showErrors: false,
 			stopListening: null,
 			pollTimer: null,
@@ -450,6 +455,13 @@ export default {
 	},
 
 	watch: {
+		showComposer(open) {
+			// the paths were for that one dialog; a later "New post" starts empty
+			if (!open) {
+				this.composerPaths = []
+			}
+		},
+
 		// the box has to follow the store, not just read it once: synced only
 		// in mounted() it kept showing a term the reader had already navigated
 		// away from
@@ -464,6 +476,7 @@ export default {
 	mounted() {
 		this.fetchTrending()
 		this.notificationsStore.fetchUnreadNotifications()
+		this.openComposerFromQuery()
 
 		// the badge is only honest if it keeps up: with notify_push the server
 		// says when something arrived, and without it a slow poll is enough
@@ -491,6 +504,27 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * "Share to Social" in the Files app lands here with `?attach=<path>`
+		 * once per file. Open the New post dialog with them, and take the
+		 * query off the address so a reload does not attach them twice.
+		 */
+		openComposerFromQuery() {
+			const raw = this.$route?.query?.attach
+			const paths = (Array.isArray(raw) ? raw : [raw])
+				.filter((path) => typeof path === 'string' && path !== '')
+			if (paths.length === 0) {
+				return
+			}
+
+			this.composerPaths = paths
+			this.showComposer = true
+
+			const query = { ...this.$route.query }
+			delete query.attach
+			this.$router?.replace?.({ ...this.$route, query })
+		},
+
 		t: translate,
 		n: translatePlural,
 		/**

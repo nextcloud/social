@@ -43,7 +43,7 @@ const stubs = {
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" :data-size="size" />' },
 	NcModal: { props: ['name'], emits: ['close'], template: '<div class="modal-stub" :data-name="name"><slot /></div>' },
-	Composer: { emits: ['posted'], template: '<div class="composer-stub" @click="$emit(\'posted\')" />' },
+	Composer: { props: ['initialPaths'], emits: ['posted'], template: '<div class="composer-stub" :data-paths="JSON.stringify(initialPaths)" @click="$emit(\'posted\')" />' },
 }
 
 let pinia
@@ -85,12 +85,56 @@ describe('Navigation', () => {
 		settingsStore.setServerData({ public: false, cloudAddress: 'https://cloud.example.org' })
 		router = {
 			push: vi.fn(),
+			replace: vi.fn(),
 			resolve: vi.fn((to) => ({ href: '/resolved/' + to.name + (to.params?.type ? '/' + to.params.type : '') })),
 		}
 	})
 
 	afterEach(() => {
 		vi.restoreAllMocks()
+	})
+
+	describe('arriving from "Share to Social" in the Files app', () => {
+		// the dialog opens from mounted(), which renders a tick later
+		const arriving = async (attach) => {
+			const wrapper = mountNavigation({}, { name: 'timeline', params: { type: 'home' }, path: '/timeline/home', query: { attach } })
+			await flushPromises()
+			return wrapper
+		}
+
+		it('opens the New post dialog with the files already handed to the composer', async () => {
+			const wrapper = await arriving(['/Photos/beach.jpg', '/Videos/talk.mp4'])
+
+			const dialog = wrapper.find('.modal-stub[data-name="New post"]')
+			expect(dialog.exists()).toBe(true)
+			expect(JSON.parse(dialog.find('.composer-stub').attributes('data-paths'))).toEqual(['/Photos/beach.jpg', '/Videos/talk.mp4'])
+		})
+
+		it('takes one file as readily as several', async () => {
+			const wrapper = await arriving('/Photos/beach.jpg')
+
+			expect(JSON.parse(wrapper.find('.composer-stub').attributes('data-paths'))).toEqual(['/Photos/beach.jpg'])
+		})
+
+		it('takes the files off the address, so a reload does not attach them twice', async () => {
+			await arriving(['/Photos/beach.jpg'])
+
+			expect(router.replace).toHaveBeenCalledWith(expect.objectContaining({ query: {} }))
+		})
+
+		it('starts the next New post empty', async () => {
+			const wrapper = await arriving(['/Photos/beach.jpg'])
+
+			await wrapper.find('.composer-stub').trigger('click')
+			expect(wrapper.find('.modal-stub[data-name="New post"]').exists()).toBe(false)
+			await wrapper.find('.navigation__compose').trigger('click')
+			expect(JSON.parse(wrapper.find('.composer-stub').attributes('data-paths'))).toEqual([])
+		})
+
+		it('opens nothing without files on the address', () => {
+			expect(mountNavigation().find('.modal-stub[data-name="New post"]').exists()).toBe(false)
+			expect(router.replace).not.toHaveBeenCalled()
+		})
 	})
 
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {

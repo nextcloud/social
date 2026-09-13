@@ -22,7 +22,16 @@ webpackConfig.entry = {
 	profilePage: path.join(__dirname, 'src', 'profile.js'),
 	dashboard: path.join(__dirname, 'src', 'dashboard.js'),
 	oauth: path.join(__dirname, 'src', 'oauth.js'),
+	filesAction: path.join(__dirname, 'src', 'filesAction.js'),
 }
+
+// The one entry that stays self-contained. It registers "Share to Social" in
+// the Files app and is loaded on every Files page, most of which will never
+// post anything: a few KB of @nextcloud/files and l10n it can carry itself,
+// the megabyte of framework it must not ask for. Excluded from the shared
+// chunk below, so `FilesScriptsListener` loads it alone — on purpose, and
+// `tests/js/bundles.test.js` pins that it works alone.
+const SELF_CONTAINED = ['filesAction']
 
 // Vue's build-time flags. Without them the bundle carries the devtools
 // bridge into production — `@vue/devtools-api` pulls in `@vue/devtools-kit`,
@@ -64,7 +73,7 @@ webpackConfig.optimization.splitChunks = {
 		framework: {
 			test: /[\\/]node_modules[\\/]/,
 			name: 'framework',
-			chunks: 'initial',
+			chunks: (chunk) => chunk.canBeInitial() && !SELF_CONTAINED.includes(chunk.name),
 			// only what more than one entry point needs: a library just one of
 			// them uses stays in it, so opening the app alone downloads no more
 			// than it did before

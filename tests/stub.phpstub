@@ -21,6 +21,11 @@ declare(strict_types=1);
  *
  */
 
+namespace OCA\Files\Event {
+	class LoadAdditionalScriptsEvent extends \OCP\EventDispatcher\Event {
+	}
+}
+
 namespace OCA\Files_Trashbin\Trash {
 	use OCP\Files\Node;
 	use OCP\Files\Storage\IStorage;
