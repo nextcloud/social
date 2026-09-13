@@ -64,6 +64,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 	/** How many fresh nids to try before giving up on an insert. */
 	private const NID_ATTEMPTS = 4;
+
 	/** How many posts one pass of deleteByAuthor() removes. */
 	public const DELETE_BATCH = 500;
 
@@ -765,7 +766,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	protected function homeTimelineNids(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql();
-		$this->homeTimelineFilters($page, $options);
+		$this->homeTimelineFilters($page, $options, false);
 
 		return $this->getNidsFromRequest($page);
 	}
@@ -910,13 +911,23 @@ class StreamRequest extends StreamRequestBuilder {
 	 * timeline. Applied to the query that picks the page; the query that reads
 	 * the rows afterwards needs none of it, because the page already said which.
 	 */
-	private function homeTimelineFilters(SocialQueryBuilder $qb, ProbeOptions $options): void {
+	/**
+	 * @param SocialQueryBuilder $qb the query being built
+	 * @param ProbeOptions $options what was asked for
+	 * @param bool $select whether the joined author's columns are wanted; the
+	 *                     page-selection query projects nids and does not want
+	 *                     several kilobytes of actor per row inside its
+	 *                     `SELECT DISTINCT`
+	 */
+	private function homeTimelineFilters(
+		SocialQueryBuilder $qb, ProbeOptions $options, bool $select = true,
+	): void {
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
 		$this->filterMedia($qb, $options);
 		$qb->limitToViewer('sd', 'f', false);
 		// a filter, not a join: it constrains on the follow's type
-		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
+		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f', $select);
 		$qb->filterDuplicate();
 	}
 
@@ -1012,7 +1023,8 @@ class StreamRequest extends StreamRequestBuilder {
 			throw new InvalidArgumentException('unknown mark: ' . $mark);
 		}
 
-		$page = $this->getStreamNidsSelectSql();
+		// the action join is `(stream_id_prim, actor_id_prim)`, which is unique
+		$page = $this->getStreamNidsSelectSql(false);
 		$viewer = $page->createNamedParameter($page->prim($page->getViewer()->getId()));
 		$page->limitToStatusTypes();
 		$page->paginate($options);
@@ -1091,24 +1103,64 @@ class StreamRequest extends StreamRequestBuilder {
 			return [];
 		}
 
-		$qb = $this->getStreamSelectSql($options->getFormat());
-		$actor = $qb->getViewer();
+		// two queries, as the home and public timelines do it and for the same
+		// reason. Asked as one, the database carries two full stream column
+		// sets, two cached-actor sets and two cached-document sets — several
+		// kilobytes a row, `source` and `details` among them — through the
+		// `SELECT DISTINCT` the recipient join forces, to choose twenty rows.
+		// Every client polls this on a timer, so it is the read where that
+		// costs the most.
+		// the recipient join fixes the viewer and the type, so it is one row
+		$page = $this->getStreamNidsSelectSql(false);
+		$actor = $page->getViewer();
 
+		$this->notificationFilters($page, $options, $wanted, $actor->getId(), false);
+
+		$nids = $this->getNidsFromRequest($page);
+		if ($nids === []) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->andWhere(
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+		);
+		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
+		$qb->leftJoinObjectStatus();
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * What makes a row one of this viewer's notifications.
+	 *
+	 * Shared by the page-selection query and nothing else — but kept apart
+	 * from the hydration so that the two cannot drift into disagreeing about
+	 * which notifications exist.
+	 *
+	 * @param string[] $wanted the notification subtypes asked for
+	 * @param bool $select whether the joined author's columns are wanted
+	 */
+	private function notificationFilters(
+		SocialQueryBuilder $qb,
+		ProbeOptions $options,
+		array $wanted,
+		string $actorId,
+		bool $select = true,
+	): void {
 		$qb->limitToType(SocialAppNotification::TYPE);
 		$qb->limitToSubTypes($wanted);
 		$qb->limitToSubTypes(Stream::subTypesOfNotificationTypes($options->getExcludeTypes()), true);
 		$qb->paginate($options);
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
-		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-		$qb->leftJoinStreamAction();
-		$qb->leftJoinObjectStatus();
+		$qb->limitToDest($actorId, 'notif', '', 'sd');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim', true, $select);
 
 		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
-		$this->filterMutedConversations($qb, $actor->getId());
-
-		return $this->getStreamsFromRequest($qb);
+		$this->filterMutedConversations($qb, $actorId);
 	}
 
 	/**
@@ -1379,7 +1431,9 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	private function getTimelinePublic(ProbeOptions $options): array {
-		$page = $this->getStreamNidsSelectSql();
+		// the recipient join fixes the actor (the public collection) and the
+		// type, which the unique index makes at most one row
+		$page = $this->getStreamNidsSelectSql(false);
 		$page->paginate($options);
 		$this->filterMedia($page, $options);
 

@@ -878,6 +878,38 @@ class StreamTest extends TestCase {
 		$this->assertSame('fr', $stream->getLanguage());
 	}
 
+	/**
+	 * A peer sends what it likes. `language` as an array used to be cast to a
+	 * string, which is a PHP warning — and under `failOnWarning` a failed
+	 * import of an otherwise perfectly good post.
+	 */
+	public function testALanguageThatIsNotAStringIsNoLanguage(): void {
+		$stream = new Stream();
+
+		$stream->import([
+			'id' => 'https://weird.example/objects/1',
+			'type' => 'Note',
+			'language' => ['de', 'fr'],
+			'content' => 'x',
+		]);
+
+		$this->assertSame('', $stream->getLanguage());
+	}
+
+	/** …and the contentMap still answers when the top-level value is rubbish. */
+	public function testTheContentMapIsStillReadWhenTheLanguageIsNotAString(): void {
+		$stream = new Stream();
+
+		$stream->import([
+			'id' => 'https://weird.example/objects/2',
+			'type' => 'Note',
+			'language' => ['de'],
+			'contentMap' => ['pt-BR' => '<p>olá</p>'],
+		]);
+
+		$this->assertSame('pt-BR', $stream->getLanguage());
+	}
+
 	public function testImportLeavesTheLanguageEmptyWhenTheRemoteSaidNothing(): void {
 		$stream = new Stream();
 

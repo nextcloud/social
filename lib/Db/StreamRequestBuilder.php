@@ -90,10 +90,32 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * Deduplicating one integer instead is cheap, so the page is chosen here
 	 * and the rows are fetched afterwards by id.
 	 */
-	protected function getStreamNidsSelectSql(): SocialQueryBuilder {
+	/**
+	 * @param bool $distinct whether the joins this page uses can return a post
+	 *                       more than once.
+	 *
+	 * The recipient join is `social_stream_dest`, whose unique index is
+	 * `(stream_id, actor_id, type)`: a query that fixes **both** the actor and
+	 * the type — the public timeline, notifications, direct messages, the
+	 * marked timelines — can match at most one row per post and cannot
+	 * duplicate. The home timeline can: a post addressed to three accounts the
+	 * viewer follows matches three rows, which is precisely what the
+	 * deduplication is for.
+	 *
+	 * It is not free. `SELECT DISTINCT` makes the database materialise every
+	 * matching row before it can take a page: measured on the public timeline
+	 * of an instance with 22,000 posts, 37.4 ms with it and 0.21 ms without —
+	 * for the same twenty rows, with no duplicates among them. So it is asked
+	 * for where it is needed rather than always.
+	 */
+	protected function getStreamNidsSelectSql(bool $distinct = true): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->selectDistinct('s.nid')
-			->from(self::TABLE_STREAM, 's');
+		if ($distinct) {
+			$qb->selectDistinct('s.nid');
+		} else {
+			$qb->select('s.nid');
+		}
+		$qb->from(self::TABLE_STREAM, 's');
 		$qb->setDefaultSelectAlias('s');
 
 		return $qb;
@@ -112,7 +134,14 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 		$cursor->closeCursor();
 
-		return $nids;
+		// Deduplicated here as well as in SQL, and cheaply — this is twenty
+		// integers. A page that asked for no `DISTINCT` because its recipient
+		// join cannot duplicate can still be handed a repeat by one of the
+		// left joins the hidden-actor filter adds: a viewer with an expired
+		// timed mute on both the booster and the boosted author matches the
+		// expiry table twice. That is rare enough to be worth a page one row
+		// short and not worth making every other read materialise itself.
+		return array_values(array_unique($nids));
 	}
 
 	/**
@@ -146,11 +175,13 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param SocialQueryBuilder $qb
 	 * @param string $alias
 	 * @param string $aliasFollow
+	 * @param bool $select whether the actor's columns are wanted in the result;
+	 *                     false for a query that is only choosing a page
 	 */
 	protected function timelineHomeLinkCacheActor(
-		SocialQueryBuilder $qb, string $alias = 'ca', string $aliasFollow = 'f',
+		SocialQueryBuilder $qb, string $alias = 'ca', string $aliasFollow = 'f', bool $select = true,
 	) {
-		$qb->linkToCacheActors($alias, 's.attributed_to_prim');
+		$qb->linkToCacheActors($alias, 's.attributed_to_prim', true, $select);
 
 		$expr = $qb->expr();
 

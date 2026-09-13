@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -144,6 +145,9 @@ class DomainBlockService {
 		}
 
 		unset($this->cached[$viewer->getId()]);
+		// the read filter carries the list as constants rather than
+		// joining it, so the memo behind it has to go as well
+		CoreRequestBuilder::forgetBlockedDomains();
 		$this->domainBlocksRequest->save($viewer->getId(), $domain);
 
 		return $domain;
@@ -156,6 +160,9 @@ class DomainBlockService {
 		$domain = self::normalise($domain);
 
 		unset($this->cached[$viewer->getId()]);
+		// the read filter carries the list as constants rather than
+		// joining it, so the memo behind it has to go as well
+		CoreRequestBuilder::forgetBlockedDomains();
 		$this->domainBlocksRequest->delete($viewer->getId(), $domain);
 
 		return $domain;

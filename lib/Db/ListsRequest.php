@@ -352,8 +352,10 @@ class ListsRequest extends ListsRequestBuilder {
 			$page->limitToMedia();
 		}
 		$page->limitToViewer('sd', 'f', false);
-		// a filter, not a join: it constrains on the follow's type
-		$this->timelineHomeLinkCacheActor($page, 'ca', 'f');
+		// a filter, not a join: it constrains on the follow's type. The actor's
+		// columns are left out, as on every page-selection query — this one
+		// projects nids.
+		$this->timelineHomeLinkCacheActor($page, 'ca', 'f', false);
 		$page->filterDuplicate();
 
 		return $this->getNidsFromRequest($page);
