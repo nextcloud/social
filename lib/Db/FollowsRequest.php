@@ -229,6 +229,48 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
+	 * Where an account's followers are, and when each of them arrived.
+	 *
+	 * Two columns rather than a hydrated `Follow` with its cached actor and
+	 * that actor's details: the statistics page wants a host and a date per
+	 * follower, and building the other two hundred bytes of each one only to
+	 * throw them away is the whole cost of the query.
+	 *
+	 * The host is parsed out of `actor_id` in PHP rather than in SQL because
+	 * the three databases this app supports have three different ways of
+	 * cutting a string up, and none of them knows what a URL is.
+	 *
+	 * @param int $limit a ceiling on the rows read; newest first, so the cap
+	 *                   drops the oldest followers rather than a random slice
+	 *
+	 * @return array<array{actor_id: string, creation: string}>
+	 */
+	public function getFollowerOrigins(string $actorId, int $limit): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('actor_id', 'creation')
+			->from(CoreRequestBuilder::TABLE_FOLLOWS);
+		$qb->andWhere(
+			$qb->expr()->eq('object_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
+		);
+		$qb->andWhere($qb->expr()->eq('type', $qb->createNamedParameter(Follow::TYPE)));
+		$qb->andWhere($qb->expr()->eq('accepted', $qb->createNamedParameter('1')));
+		$qb->orderBy('creation', 'desc');
+		$qb->setMaxResults($limit);
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$rows[] = [
+				'actor_id' => (string)($data['actor_id'] ?? ''),
+				'creation' => (string)($data['creation'] ?? ''),
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/**
 	 * @param string $actorId
 	 *
 	 * @return int

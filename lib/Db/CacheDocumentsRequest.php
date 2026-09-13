@@ -103,6 +103,23 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/**
+	 * Writes a poster frame back: the copy it was stored under, and the `meta`
+	 * blob the duration and the dimensions ride in.
+	 *
+	 * Its own statement rather than `update()`, which rewrites `creation` --
+	 * making a still for a two-year-old video would date the video to today --
+	 * and which does not touch `meta` at all.
+	 */
+	public function updatePoster(Document $document): void {
+		$qb = $this->getCacheDocumentsUpdateSql();
+		$qb->limitToIdString($document->getId());
+		$qb->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
+		$qb->set('meta', $qb->createNamedParameter(json_encode($document->getMeta())));
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * Writes the focal point back, which means rewriting the whole `meta` blob
 	 * it rides in -- there is no column of its own to set.
 	 */
@@ -335,6 +352,50 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 		}
+
+		$documents = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
+	/**
+	 * Videos stored here that have no poster frame.
+	 *
+	 * `resized_copy` is where a video's poster lives (see
+	 * `CacheDocumentService::saveMediaFromTemp()`), so an empty one on a video
+	 * with a `local_copy` means the file is here and the still was never made:
+	 * an upload from before posters existed, or one made while the server had
+	 * no ffmpeg. Both are fixable after the fact, which is what
+	 * `occ social:media:posters` does.
+	 *
+	 * Keyset by `nid` rather than an offset: the rows being read are the rows
+	 * being updated, so a paging query would walk past the ones it just fixed.
+	 *
+	 * @param int $limit how many to return
+	 * @param int $after only documents past this nid
+	 *
+	 * @return Document[]
+	 */
+	public function getVideosWithoutPoster(int $limit, int $after = 0): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$alias = $qb->getDefaultSelectAlias();
+		$expr = $qb->expr();
+
+		$qb->andWhere($expr->like($alias . '.media_type', $qb->createNamedParameter('video/%')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter('')));
+		// a streamed document has no bytes here to take a frame from: its
+		// `local_copy` is the marker `stream`, not a uuid, and its poster is
+		// the origin's own thumbnail or nothing
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter(Document::COPY_STREAMED)));
+		$qb->limitToDBFieldEmpty('resized_copy');
+		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)));
+		$qb->orderBy($alias . '.nid', 'asc');
+		$qb->setMaxResults($limit);
 
 		$documents = [];
 		$cursor = $qb->executeQuery();

@@ -21,6 +21,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\Client\AttachmentMeta;
+use OCA\Social\Model\Client\AttachmentMetaDim;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -32,6 +33,7 @@ use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
+use OCP\ITempManager;
 use Throwable;
 
 class CacheDocumentService {
@@ -58,7 +60,85 @@ class CacheDocumentService {
 		private ConfigService $configService,
 		private ImageConversionService $imageConversionService,
 		private VideoThumbnailService $videoThumbnailService,
+		private ITempManager $tempManager,
 	) {
+	}
+
+	/**
+	 * Makes the poster a video should already have.
+	 *
+	 * Same frame, same JPEG, same `resized_copy` as an upload gets on its way
+	 * in -- see `saveMediaFromTemp()`, which this exists to apply after the
+	 * fact to the videos that were stored before there was any such thing, or
+	 * on a server that had no ffmpeg at the time. `occ social:media:posters`
+	 * is what calls it.
+	 *
+	 * ffmpeg wants a path and the stored copy is an `ISimpleFile`, so the
+	 * bytes go to a temporary file a chunk at a time: a video is the one thing
+	 * in this app that must never be read into a string.
+	 *
+	 * The document is written back only when a frame came out, so a video
+	 * ffmpeg cannot read is left exactly as it was and can be tried again.
+	 *
+	 * @return bool whether a poster was made
+	 */
+	public function generatePoster(Document $document): bool {
+		if ($document->getLocalCopy() === '' || $document->getResizedCopy() !== '' || $document->isStreamed()) {
+			return false;
+		}
+
+		$tmpPath = $this->tempManager->getTemporaryFile('.video');
+		if ($tmpPath === false) {
+			return false;
+		}
+
+		try {
+			$source = $this->getFromUuid($document->getLocalCopy())->read();
+			if ($source === false) {
+				return false;
+			}
+
+			$target = fopen($tmpPath, 'w');
+			if ($target === false) {
+				fclose($source);
+
+				return false;
+			}
+
+			stream_copy_to_stream($source, $target);
+			fclose($source);
+			fclose($target);
+		} catch (Exception $e) {
+			// the row names a file that is not there any more: nothing to make
+			// a still out of, and nothing this can do about it
+			return false;
+		}
+
+		$poster = $this->videoThumbnailService->poster($tmpPath);
+		@unlink($tmpPath);
+		if ($poster === null) {
+			return false;
+		}
+
+		$document->setResizedCopy($this->generateFileFromContent($poster['content']));
+
+		$meta = $document->getMeta() ?? new AttachmentMeta();
+		if ($poster['duration'] > 0) {
+			$meta->setDuration((float)$poster['duration']);
+		}
+		if ($poster['width'] > 0 && $poster['height'] > 0) {
+			// persisted here rather than left to `convertToMediaAttachment()`:
+			// the copy sizes it reads live only as long as the object does,
+			// and a backfilled poster has to survive the command that made it
+			$dimensions = new AttachmentMetaDim([$poster['width'], $poster['height']]);
+			$meta->setOriginal($dimensions);
+			$meta->setSmall($dimensions);
+			$document->setResizedCopySize($poster['width'], $poster['height']);
+			$document->setLocalCopySize($poster['width'], $poster['height']);
+		}
+		$document->setMeta($meta);
+
+		return true;
 	}
 
 	/**

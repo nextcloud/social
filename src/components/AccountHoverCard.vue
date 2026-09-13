@@ -38,12 +38,15 @@
 			@focusout="onFocusOut">
 			<template v-if="account">
 				<div class="account-hover-card__head">
+					<!-- `disableMenu`, or the card sprouts a second card of
+					     Nextcloud's own when the pointer reaches this face -->
 					<NcAvatar
 						v-if="isLocal"
 						:size="48"
 						:user="account.username"
 						:displayName="account.display_name || account.username"
 						:hideStatus="true"
+						:disableMenu="true"
 						:disableTooltip="true" />
 					<NcAvatar
 						v-else
@@ -56,15 +59,39 @@
 							<AccountDisplayName :text="account.display_name || account.username || handle" :emojis="account.emojis" />
 						</span>
 						<span class="account-hover-card__handle">@{{ account.acct || handle }}</span>
+						<span v-if="joined" class="account-hover-card__joined">{{ joined }}</span>
 					</span>
 				</div>
-				<span v-if="followsYou" class="account-hover-card__badge">
-					{{ t('social', 'Follows you') }}
-				</span>
+				<ul v-if="badges.length" class="account-hover-card__badges">
+					<li v-for="badge in badges" :key="badge" class="account-hover-card__badge">
+						{{ badge }}
+					</li>
+				</ul>
 				<!-- Sanitized: the bio is remote HTML, see sanitizeHtml.js -->
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<p v-if="note" class="account-hover-card__bio" v-html="note" />
+				<dl v-if="fields.length" class="account-hover-card__fields">
+					<div v-for="(field, index) in fields" :key="index" class="account-hover-card__field">
+						<dt :title="field.name">
+							{{ field.name }}
+						</dt>
+						<dd :title="field.text">
+							<a
+								v-if="field.href"
+								:href="field.href"
+								target="_blank"
+								rel="nofollow noopener noreferrer">{{ field.text }}</a>
+							<template v-else>
+								{{ field.text }}
+							</template>
+						</dd>
+					</div>
+				</dl>
 				<ul v-if="hasCounts" class="account-hover-card__counts">
+					<li v-if="statusesCount !== null">
+						<strong>{{ statusesCount }}</strong>
+						{{ n('social', 'post', 'posts', statusesCount) }}
+					</li>
 					<li>
 						<strong>{{ followersCount }}</strong>
 						{{ n('social', 'follower', 'followers', followersCount) }}
@@ -91,6 +118,7 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { emojifyPlain } from './MessageContent.js'
+import { profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
@@ -137,6 +165,12 @@ export const OPEN_DELAY = 350
  * between the mention and the card without the card disappearing under it.
  */
 export const CLOSE_DELAY = 200
+
+/**
+ * How many profile metadata rows the card shows. Mastodon's own ceiling, and
+ * the point past which a preview stops being one.
+ */
+const MAX_FIELDS = 4
 
 /**
  * Fetches in flight or already answered, by handle.
@@ -251,6 +285,72 @@ export default {
 		/** @return {string} the bio, reduced to markup that is safe to inject */
 		note() {
 			return sanitizeHtml(this.account?.note ?? '')
+		},
+
+		/**
+		 * The profile's own metadata rows — a website, a pronoun, whatever the
+		 * account chose to put there. Four of them, which is Mastodon's own
+		 * ceiling, so a profile that carries more cannot turn the card into a
+		 * page.
+		 *
+		 * @return {Array<{name: string, text: string, href: string}>}
+		 */
+		fields() {
+			return profileFields(this.account?.fields, MAX_FIELDS)
+		},
+
+		/**
+		 * What is true of the account rather than about it: that it follows
+		 * the reader, that it is automated, that following it is a request
+		 * rather than an act. Each is a thing somebody deciding whether to
+		 * follow would want to know before they open the profile.
+		 *
+		 * @return {string[]}
+		 */
+		badges() {
+			const badges = []
+			if (this.followsYou) {
+				badges.push(translate('social', 'Follows you'))
+			}
+			if (this.account?.locked === true) {
+				badges.push(translate('social', 'Approves followers'))
+			}
+			if (this.account?.bot === true) {
+				badges.push(translate('social', 'Automated'))
+			}
+
+			return badges
+		},
+
+		/**
+		 * When the account joined, to the month: the day is noise at this size
+		 * and the year alone reads as an estimate.
+		 *
+		 * @return {string} empty when the entity carried no date
+		 */
+		joined() {
+			const created = this.account?.created_at
+			if (typeof created !== 'string' || created === '') {
+				return ''
+			}
+
+			const date = new Date(created)
+			if (Number.isNaN(date.getTime())) {
+				return ''
+			}
+
+			return translate('social', 'Joined {date}', {
+				date: date.toLocaleDateString(undefined, { year: 'numeric', month: 'long' }),
+			})
+		},
+
+		/**
+		 * @return {number|null} how much the account has posted, or null when
+		 * the entity did not say — a card built from what a status carried has
+		 * the counts, one built from a bare mention may not
+		 */
+		statusesCount() {
+			return this.account?.statuses_count ?? null
 		},
 
 		/**
@@ -563,14 +663,72 @@ export default {
 		text-overflow: ellipsis;
 	}
 
-	&__badge {
-		display: inline-block;
+	&__joined {
+		color: var(--color-text-maxcontrast, var(--color-text-lighter));
+		font-size: 12px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	&__badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
 		margin-top: 8px;
+	}
+
+	&__badge {
 		padding: 1px 8px;
 		border-radius: var(--border-radius-pill, 100px);
 		background: var(--color-background-dark);
 		color: var(--color-text-lighter);
 		font-size: 12px;
+	}
+
+	&__fields {
+		margin: 8px 0 0;
+		/* the server pads every `dl`, `dt` and `dd` for the settings pages, and
+		   at this size that padding is three times the text it surrounds */
+		padding: 8px 0 0;
+		border-top: 1px solid var(--color-border);
+	}
+
+	&__field {
+		display: flex;
+		gap: 8px;
+		font-size: 12px;
+		line-height: 1.45;
+
+		/* one line each: a field is a label, and a profile that wrote an essay
+		   into one must not push the counts off the card */
+		dt,
+		dd {
+			margin: 0;
+			padding: 1px 0;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		dt {
+			flex: 0 0 34%;
+			font-weight: 600;
+			color: var(--color-text-lighter);
+		}
+
+		dd {
+			flex: 1;
+			min-width: 0;
+
+			a {
+				color: var(--color-primary-element);
+
+				&:hover {
+					text-decoration: underline;
+				}
+			}
+		}
 	}
 
 	&__bio {

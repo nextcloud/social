@@ -80,8 +80,8 @@ class NavigationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
-	// The client-side router owns `/follow_requests`, `/blocked`, `/discover`
-	// and `/migration`; the server
+	// The client-side router owns `/follow_requests`, `/blocked`, `/discover`,
+	// `/migration` and `/statistics`; the server
 	// has to answer them too, or reloading or bookmarking one of those pages is
 	// a 404. `postfix` keeps the route names apart: a route is keyed by
 	// controller, method and postfix, so several routes on one method without
@@ -91,6 +91,7 @@ class NavigationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/blocked', postfix: 'blocked')]
 	#[FrontpageRoute(verb: 'GET', url: '/discover', postfix: 'discover')]
 	#[FrontpageRoute(verb: 'GET', url: '/migration', postfix: 'migration')]
+	#[FrontpageRoute(verb: 'GET', url: '/statistics', postfix: 'statistics')]
 	public function navigate(string $path = ''): TemplateResponse {
 		$this->logger->debug('[NavigationController] navigate() called', [
 			'path' => $path,

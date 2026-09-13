@@ -73,6 +73,13 @@ export default {
 				size: this.size,
 				hideStatus: true,
 				disableTooltip: true,
+				// NcAvatar hangs Nextcloud's own profile card off a local
+				// account's avatar, on hover, and it opened over the top of
+				// this one: two cards about the same person, the larger of
+				// them the one that knows nothing about following. Only local
+				// avatars were affected, so which card a reader got depended
+				// on which instance the account was on
+				disableMenu: true,
 				...(this.isLocal
 					? { user: this.actor.username, displayName: this.actor.acct }
 					: { url: this.avatarUrl }),

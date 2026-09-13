@@ -10,7 +10,7 @@
 		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">
-				<img :src="notification.account.avatar" alt="">
+				<ActorAvatar :actor="notification.account" :size="24" />
 				<Heart v-if="notification.type === 'favourite'" :size="16" />
 				<Repeat v-if="notification.type === 'reblog'" :size="16" />
 				<AccountPlusOutline v-if="notification.type === 'follow'" :size="16" />
@@ -47,7 +47,7 @@
 			<div class="boost">
 				<Repeat :size="16" />
 				<router-link :to="{ name: 'profile', params: { account: item.account.acct } }">
-					<img :src="item.account.avatar" alt="">
+					<ActorAvatar :actor="item.account" :size="16" />
 					<span :title="item.account.acct" class="post-author">
 						{{ item.account.display_name }}&ensp;
 					</span>
@@ -81,6 +81,7 @@ import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
 import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
 import { translate } from '@nextcloud/l10n'
 import TimelinePost from './TimelinePost.vue'
+import ActorAvatar from './ActorAvatar.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
 import { notificationSummary } from '../services/notifications.js'
@@ -92,6 +93,7 @@ export default {
 	name: 'TimelineEntry',
 	components: {
 		TimelinePost,
+		ActorAvatar,
 		TimelineAvatar,
 		UserEntry,
 		Bell,
@@ -304,13 +306,6 @@ export default {
 		font-size: 13px;
 		position: relative;
 
-		img {
-			width: 24px;
-			height: 24px;
-			border-radius: 50%;
-			object-fit: cover;
-		}
-
 		.material-design-icon {
 			position: absolute;
 			top: 12px;
@@ -359,13 +354,6 @@ export default {
 	// it fades rather than vanishes when the entry above opens its actions
 	// over it; see the rule in `.timeline-entry`
 	transition: opacity .16s ease;
-
-	img {
-		width: 16px;
-		height: 16px;
-		border-radius: 50%;
-		object-fit: cover;
-	}
 
 	a {
 		font-weight: 600;

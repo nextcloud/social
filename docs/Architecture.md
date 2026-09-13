@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.13  
+**App version:** 0.19.14  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -237,7 +237,7 @@ The business logic lives in `lib/Service/`.
 
 - **DocumentService** — Owns the cached document lifecycle: caching a remote document by id, serving originals and resized copies out of app storage, and caching the local actor's avatar and header. Serving applies a viewer bound: a cached attachment is handed to a logged-in user only if it hangs off a post they may read or is their own upload, and the unauthenticated `/media/{uuid}` route only for a row marked public
 - **CacheDocumentService** — Writes uploads, remote downloads and temp files into app storage, filters MIME types against an allow-list, and reads content back out. An image and a video take deliberately different paths: an image is read into a string, because the metadata stripping, the HEIC conversion and the resize all work on one, while a video is streamed to storage a chunk at a time and never held whole — `fread()` of a two-gigabyte upload is two gigabytes of memory, and PHP's limit was the only thing that ever stopped it. That split is also why there are two size ceilings (`max_size`, `max_video_size`) and why the second is applied again against the *sniffed* type: the request-time check can only go on what the client declared. An upload is created non-public; it takes the visibility of the post it is attached to when that post is created (`ApiController::scopeMediaToVisibility()`, public for public and unlisted, non-public otherwise), because which post an upload belongs to is only known then
-- **VideoThumbnailService** — One frame out of a video, so a timeline of them is not a wall of black rectangles each of which has to be downloaded before it shows anything. ffmpeg where the server has it, skipped silently where it does not (an app that refused uploads without ffmpeg would be worse than one that shows no poster), and **not transcoding**: it decodes one frame and asks ffprobe how long the video runs. The poster becomes the video's `resized_copy` — which is what that column means, the small image standing in for the file — and from there the player's `poster`, which is what lets a page of videos be scrolled without fetching one
+- **VideoThumbnailService** — One frame out of a video, so a timeline of them is not a wall of black rectangles each of which has to be downloaded before it shows anything. ffmpeg where the server has it, skipped silently where it does not (an app that refused uploads without ffmpeg would be worse than one that shows no poster), and **not transcoding**: it decodes one frame and asks ffprobe how long the video runs. The poster becomes the video's `resized_copy` — which is what that column means, the small image standing in for the file — and from there the player's `poster`, which is what lets a page of videos be scrolled without fetching one. The frame is taken from the bytes as they are written and they are only written once, so a video stored before posters existed (or while the server had no ffmpeg) would never get one: `occ social:media:posters` is the backfill, and it has to do two things rather than one, because a post keeps its own copy of its attachments. Making the poster changes the *document*; rewriting the copies the posts carry is what a reader sees
 - **BlurService** — Generates a blurhash string from a GD image
 - **AnnouncementService** — The instance-wide notices an admin posts. Two reads that are not the same: a client gets the announcements that apply *now*, each carrying whether that account has dismissed it, and the administration page gets all of them including one that has not started and one that has run out. The window is a predicate of the query, so an announcement starts and stops being served on time on an instance with no working cron — the same rule a timed mute and an expiring filter follow. Dismissal is per account and never hides the announcement: Mastodon keeps serving it and flips `read`. There is no edit route, because changing a notice under the accounts that have already dismissed it is worse than posting a new one
 - **DomainBlockService** — Per-account blocks of a whole instance, stored as a domain and applied to the host of an account's actor id. Not `FediverseService`, which is the admin's instance-wide access list. Nothing is federated; the timelines enforce it from inside `filterHiddenActors()`, so a domain block reaches everything a per-account block reaches
@@ -771,6 +771,55 @@ description is saved on leaving the field rather than only when the post goes
 out, so it survives a post that is never sent.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
+
+**The Statistics page.** `src/views/Statistics.vue` behind the account menu, and
+`StatisticsService` behind that. Everything is counted from this instance's own
+rows when the page is opened — nothing stored, nothing precomputed by a cron —
+which is what keeps it from showing a total a deletion has already made false,
+and the walk is bounded at `MAX_POSTS` with the answer saying how far it got.
+The engagement figures come from each post's `details`, which is a JSON blob:
+that is why the sum is a walk in PHP rather than a `SUM()`, because the three
+databases this app supports do not agree on how to reach inside one. A boost the
+account made is counted as something it did and then left out of everything
+else, because the likes on a boosted post belong to whoever wrote it. The bar
+charts are CSS — a chart library would cost more than the page it draws — and
+every bar carries its own figure in a `title`, because a bar whose only value is
+its height says nothing to a reader who cannot see it.
+
+What the page reports beyond the totals is what somebody running an account
+professionally asks of it: engagement per post and per follower (the second is
+the industry's "engagement rate", against followers because this app has no
+impressions to divide by and says so rather than inventing a denominator), the
+median beside the mean because one viral post makes a mean meaningless, the
+share of posts that got no answer at all, which kind of post averages best
+(media, hashtags, originals against replies, each visibility), which weekday and
+hour do, which hashtags are worth using as opposed to merely used, and where the
+audience is — the hosts the followers are on, which is what a Fediverse account
+has instead of a geography. Two sample-size rules keep those from being noise:
+an hour is not named until three posts fall in it, and a hashtag's average is
+not reported until it has been used twice.
+
+**Account previews.** `AccountHoverCard.vue` is the card that opens when the
+pointer rests on an avatar or a mention, fetched once per handle and cached in
+the account store. It answers "who is this?" without opening the profile, so it
+carries what the profile header does: display name and handle, when the account
+joined, the bio, up to four of its metadata fields (`src/utils/profileFields.js`
+parses those out of the HTML Mastodon sends them as, and the profile page uses
+the same function so the two cannot disagree about what a link is), and the
+three counts. Badges say what is true *of* the account rather than about it —
+that it follows you, that it approves its followers, that it is automated — each
+of which is something somebody deciding whether to follow wants before they
+click. Everything is conditional: a card built from what a status carried knows
+less than one built from a lookup, and a gap is better than an invented value. Two rules keep it consistent. Every avatar that *stands for
+somebody* goes through `ActorAvatar` (or `TimelineAvatar`, which adds the
+instance ring) rather than a bare `<img>`, so the small ones preview too — the
+face on a "X boosted" line, the one on a notification, the ones in Discover.
+And those avatars pass `disableMenu` to `NcAvatar`, because for a *local*
+account it otherwise hangs Nextcloud's own profile card off the same hover and
+opens it over the top of this one: the reader would get a different card
+depending on which instance the account was on. The avatars this app does not
+wrap in a card of its own — the account lists in the blocked and follow-request
+views, the reader's own face in the composer — keep Nextcloud's.
 
 `QuotedPost.vue` renders a status's `quote`. Only an `accepted` quote whose
 `quoted_status` came back becomes a card; `pending`, `rejected`, `revoked` and

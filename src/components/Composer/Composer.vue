@@ -211,14 +211,19 @@
 					</template>
 				</NcButton>
 
+				<!-- The picker carries the whole emoji set — 130 KB over the wire
+				     — and it was a static import, so every reader downloaded it
+				     to have a composer. Until the button is pressed there is a
+				     plain button in its place that looks the same. -->
 				<div class="new-post-form__emoji-picker">
 					<NcEmojiPicker
-						ref="emojiPicker"
+						v-if="emojiPickerLoaded"
 						:search="search"
 						:closeOnSelect="false"
 						container="#content-vue"
 						@select="insert">
 						<NcButton
+							ref="emojiButton"
 							:title="t('social', 'Add emoji')"
 							variant="tertiary"
 							:aria-haspopup="true"
@@ -228,6 +233,22 @@
 							</template>
 						</NcButton>
 					</NcEmojiPicker>
+					<NcButton
+						v-else
+						:title="t('social', 'Add emoji')"
+						variant="tertiary"
+						:aria-haspopup="true"
+						:aria-label="t('social', 'Add emoji')"
+						@click="loadEmojiPicker">
+						<template #icon>
+							<NcLoadingIcon v-if="emojiPickerLoading" :size="22" />
+							<EmoticonOutline
+								v-else
+								:size="22"
+								decorative
+								title="" />
+						</template>
+					</NcButton>
 				</div>
 
 				<span v-if="undescribed > 0" class="composer-alt-warning" role="status">
@@ -264,11 +285,12 @@ import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcEmojiPicker from '@nextcloud/vue/components/NcEmojiPicker'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
+import { defineAsyncComponent } from 'vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
-import { getFilePickerBuilder, showError } from '@nextcloud/dialogs'
+import { showError } from '../../services/toast.js'
 import he from 'he'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
@@ -319,12 +341,29 @@ const FILTER_DEBOUNCE = 600
 /** how long the card says no for, in step with the refusal in TimelinePost */
 const REFUSAL_DURATION = 400
 
+/**
+ * The emoji picker's module, fetched at most once.
+ *
+ * It carries the whole emoji set — most of a megabyte of source — so it is its
+ * own chunk and arrives when somebody asks for an emoji rather than with every
+ * composer.
+ *
+ * @return {Promise<object>} the module
+ */
+let emojiPicker = null
+const emojiPickerModule = () => (emojiPicker ??= import('@nextcloud/vue/components/NcEmojiPicker'))
+
 export default {
 	name: 'Composer',
 	components: {
 		NcAvatar,
-		NcEmojiPicker,
+		NcEmojiPicker: defineAsyncComponent({
+			loader: emojiPickerModule,
+			onError: (error) => logger.error('Could not load the emoji picker', { error }),
+		}),
+
 		NcButton,
+		NcLoadingIcon,
 		ActorAvatar,
 		Paperclip,
 		EmoticonOutline,
@@ -374,6 +413,10 @@ export default {
 
 	data() {
 		return {
+			/** whether the emoji picker has been asked for, and so downloaded */
+			emojiPickerLoaded: false,
+			/** whether that download is in flight, so a second press is ignored */
+			emojiPickerLoading: false,
 			statusContent: '',
 			/** what would actually be sent — the string the counter measures */
 			statusText: '',
@@ -708,6 +751,36 @@ export default {
 		},
 
 		/**
+		 * Fetches the emoji picker and opens it, which is what the button the
+		 * reader actually pressed would have done if it had been there.
+		 *
+		 * The import is awaited rather than left to `defineAsyncComponent`, so
+		 * the picker is mounted by the time the click is passed on to it; doing
+		 * it the other way round put the click into a component that did not
+		 * exist yet and the reader had to press twice.
+		 */
+		async loadEmojiPicker() {
+			if (this.emojiPickerLoading) {
+				return
+			}
+
+			// the button stays where it is until the picker is really there:
+			// swapping it out first left an empty space for as long as the
+			// chunk took, which on a busy connection is seconds
+			this.emojiPickerLoading = true
+			await emojiPickerModule().catch(() => {})
+			this.emojiPickerLoading = false
+			this.emojiPickerLoaded = true
+			// and the click the reader already made is passed on to the picker,
+			// which is now mounted, rather than being spent on fetching it. A
+			// frame after the tick: the popover binds its trigger on mount and
+			// a click in the same tick lands before the listener does
+			await this.$nextTick()
+			await new Promise((resolve) => window.requestAnimationFrame(resolve))
+			this.$refs.emojiButton?.$el?.click()
+		},
+
+		/**
 		 * @param {Event} event a click or a focus somewhere in the document
 		 */
 		collapseIfIdle(event) {
@@ -1025,6 +1098,10 @@ export default {
 			let picked
 			this.picking = true
 			try {
+				// imported here rather than at the top: the picker is most of
+				// `@nextcloud/dialogs`, and it is wanted only by somebody who
+				// has just clicked "attach from Files"
+				const { getFilePickerBuilder } = await import('@nextcloud/dialogs')
 				picked = await getFilePickerBuilder(translate('social', 'Pick pictures to attach'))
 					.setMultiSelect(true)
 					.setMimeTypeFilter(PICKABLE_MEDIA_TYPES)

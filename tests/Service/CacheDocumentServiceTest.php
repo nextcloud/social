@@ -26,6 +26,7 @@ use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
+use OCP\ITempManager;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\WithoutErrorHandler;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -39,7 +40,19 @@ class CacheDocumentServiceTest extends TestCase {
 	private BlurService|MockObject $blurService;
 	private ImageConversionService|MockObject $imageConversionService;
 	private VideoThumbnailService|MockObject $videoThumbnailService;
+	private ITempManager|MockObject $tempManager;
+	/** @var string[] */
+	private array $tempFiles = [];
 	private CacheDocumentService $service;
+
+	#[\Override]
+	protected function tearDown(): void {
+		foreach ($this->tempFiles as $path) {
+			@unlink($path);
+		}
+		$this->tempFiles = [];
+		parent::tearDown();
+	}
 
 	protected function setUp(): void {
 		$this->appData = $this->createMock(IAppData::class);
@@ -54,6 +67,17 @@ class CacheDocumentServiceTest extends TestCase {
 		// no ffmpeg by default: a poster is what a server that has it adds, and
 		// every path here has to work on one that does not
 		$this->videoThumbnailService = $this->createMock(VideoThumbnailService::class);
+		// a real file, because the code under test writes the stored video to
+		// it and hands the path to ffmpeg
+		$this->tempManager = $this->createMock(ITempManager::class);
+		$this->tempManager->method('getTemporaryFile')->willReturnCallback(
+			function (string $suffix = ''): string {
+				$path = tempnam(sys_get_temp_dir(), 'social-test-') . $suffix;
+				$this->tempFiles[] = $path;
+
+				return $path;
+			}
+		);
 		$this->service = new CacheDocumentService(
 			$this->appData,
 			$this->curlService,
@@ -61,6 +85,7 @@ class CacheDocumentServiceTest extends TestCase {
 			$this->createMock(ConfigService::class),
 			$this->imageConversionService,
 			$this->videoThumbnailService,
+			$this->tempManager,
 		);
 	}
 
@@ -98,6 +123,40 @@ class CacheDocumentServiceTest extends TestCase {
 	 * Wire appData so every new file lands in $written (path => [name => bytes]).
 	 * Folders are reported missing first, so the service has to create them.
 	 */
+	/**
+	 * One video already in storage, and a place for whatever is written next.
+	 *
+	 * @param string $content the stored video's bytes
+	 * @param array<string, array<string, string>> $written filled with what is written
+	 */
+	private function storedVideo(string $content, array &$written): void {
+		$this->appData->method('getFolder')->willReturnCallback(function (string $path) use ($content, &$written) {
+			$folder = $this->createMock(ISimpleFolder::class);
+			$folder->method('getFile')->willReturnCallback(function () use ($content) {
+				$file = $this->createMock(ISimpleFile::class);
+				$file->method('read')->willReturnCallback(static function () use ($content) {
+					$stream = fopen('php://temp', 'r+');
+					fwrite($stream, $content);
+					rewind($stream);
+
+					return $stream;
+				});
+
+				return $file;
+			});
+			$folder->method('newFile')->willReturnCallback(function (string $name) use ($path, &$written) {
+				$file = $this->createMock(ISimpleFile::class);
+				$file->method('putContent')->willReturnCallback(function (string $body) use ($path, $name, &$written) {
+					$written[$path][$name] = $body;
+				});
+
+				return $file;
+			});
+
+			return $folder;
+		});
+	}
+
 	private function captureWrites(array &$written): void {
 		$this->appData->method('getFolder')->willThrowException(new NotFoundException());
 		$this->appData->method('newFolder')->willReturnCallback(function (string $path) use (&$written) {
@@ -371,6 +430,59 @@ class CacheDocumentServiceTest extends TestCase {
 		} finally {
 			unlink($tmp);
 		}
+	}
+
+	/**
+	 * The backfill: a video stored before posters existed gets one now.
+	 *
+	 * `occ social:media:posters` is the caller. The bytes go to a temporary
+	 * file because ffmpeg wants a path, and the video itself is untouched —
+	 * what changes is the resized copy, which is where a poster lives.
+	 */
+	public function testAStoredVideoCanBeGivenThePosterItNeverGot(): void {
+		$written = [];
+		$this->storedVideo($this->mp4Bytes(), $written);
+		$this->videoThumbnailService->method('poster')->willReturn(
+			['content' => 'jpeg-bytes', 'width' => 640, 'height' => 360, 'duration' => 4]
+		);
+		$document = new Document();
+		$document->setLocalCopy('stored-video-uuid');
+
+		$this->assertTrue($this->service->generatePoster($document));
+
+		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getResizedCopy());
+		$this->assertSame('jpeg-bytes', array_merge(...array_values($written))[$document->getResizedCopy()]);
+		// written into `meta` rather than left on the object: the command that
+		// made the poster is the last thing to hold this document
+		$this->assertSame(4.0, $document->getMeta()?->getDuration());
+		$this->assertSame(640, $document->getMeta()?->getOriginal()?->getWidth());
+		$this->assertSame(360, $document->getMeta()?->getSmall()?->getHeight());
+		// the video is not rewritten, only read
+		$this->assertSame('stored-video-uuid', $document->getLocalCopy());
+	}
+
+	/** A video ffmpeg cannot read is left exactly as it was, to be tried again. */
+	public function testAVideoThatYieldsNoFrameIsLeftAlone(): void {
+		$written = [];
+		$this->storedVideo($this->mp4Bytes(), $written);
+		$this->videoThumbnailService->method('poster')->willReturn(null);
+		$document = new Document();
+		$document->setLocalCopy('stored-video-uuid');
+
+		$this->assertFalse($this->service->generatePoster($document));
+
+		$this->assertSame('', $document->getResizedCopy());
+		$this->assertSame([], $written);
+	}
+
+	/** Nothing to read, nothing to do — and nothing thrown at the command. */
+	public function testAPosterIsNotMadeTwiceAndNotMadeFromNothing(): void {
+		$document = new Document();
+		$document->setLocalCopy('stored-video-uuid');
+		$document->setResizedCopy('already-there');
+		$this->assertFalse($this->service->generatePoster($document));
+
+		$this->assertFalse($this->service->generatePoster(new Document()));
 	}
 
 	/** No ffmpeg is not a reason to refuse the upload. */

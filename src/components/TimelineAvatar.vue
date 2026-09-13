@@ -21,12 +21,16 @@
 			:fallback="item.account"
 			variant="block"
 			placement="bottom-start">
+			<!-- `disableMenu`: NcAvatar hangs Nextcloud's own profile card off a
+			     local account's avatar on hover, and it opened over this one.
+			     See ActorAvatar, which says the rest. -->
 			<NcAvatar
 				v-if="isLocal"
 				class="messages__avatar__icon"
 				:hideStatus="true"
 				:user="item.account.username"
 				:displayName="item.account.display_name"
+				:disableMenu="true"
 				:disableTooltip="true" />
 			<NcAvatar
 				v-else

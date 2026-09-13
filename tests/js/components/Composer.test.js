@@ -5,7 +5,8 @@
 
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getFilePickerBuilder, showError } from '@nextcloud/dialogs'
+import { getFilePickerBuilder } from '@nextcloud/dialogs'
+import { showError } from '../../../src/services/toast.js'
 import Composer from '../../../src/components/Composer/Composer.vue'
 import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vue'
 import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusButton.vue'
@@ -25,6 +26,8 @@ vi.mock('@nextcloud/auth', async (importOriginal) => ({
 // composer does with it is the builder it configures and the paths it gets back
 vi.mock('@nextcloud/dialogs', () => ({
 	getFilePickerBuilder: vi.fn(),
+}))
+vi.mock('../../../src/services/toast.js', () => ({
 	showError: vi.fn(),
 }))
 
@@ -129,7 +132,27 @@ const submitButton = (wrapper) => wrapper.findComponent(SubmitStatusButton).find
 const canPost = (wrapper) => submitButton(wrapper).attributes('disabled') === undefined
 const currentVisibility = (wrapper) => wrapper.findComponent(VisibilitySelect).props('visibility')
 const selectVisibility = (wrapper, visibility) => wrapper.findComponent(VisibilitySelect).vm.$emit('update:visibility', visibility)
-const pickEmoji = (wrapper, emoji) => wrapper.findComponent({ name: 'NcEmojiPicker' }).vm.$emit('select', emoji)
+/**
+ * Presses the emoji button, which is what fetches the picker, and picks one.
+ *
+ * @param {object} wrapper the mounted composer
+ * @param {string|object} emoji what the picker emits
+ */
+async function pickEmoji(wrapper, emoji) {
+	await openEmojiPicker(wrapper)
+	return wrapper.findComponent({ name: 'NcEmojiPicker' }).vm.$emit('select', emoji)
+}
+
+/**
+ * @param {object} wrapper the mounted composer
+ * @return {Promise<void>} resolved once the picker is on screen
+ */
+async function openEmojiPicker(wrapper) {
+	await wrapper.find('button[aria-label="Add emoji"]').trigger('click')
+	// the picker is fetched before it is mounted, which is more than one tick
+	await vi.waitUntil(() => wrapper.findComponent({ name: 'NcEmojiPicker' }).exists())
+	await flushPromises()
+}
 
 async function attachFile(wrapper, file) {
 	const fileInput = wrapper.find('input[type="file"]')
@@ -1022,6 +1045,19 @@ describe('Composer', () => {
 	})
 
 	describe('emoji', () => {
+		it('does not fetch the picker until the button is pressed', async () => {
+			// the emoji set is 130 KB over the wire; a composer nobody has typed
+			// an emoji into should not have paid for it
+			const { wrapper } = mountComposer()
+
+			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).exists()).toBe(false)
+			expect(wrapper.find('button[aria-label="Add emoji"]').exists()).toBe(true)
+
+			await openEmojiPicker(wrapper)
+
+			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).exists()).toBe(true)
+		})
+
 		it('inserts a picked emoji into an empty message', async () => {
 			const { wrapper } = mountComposer()
 			await pickEmoji(wrapper, '😀')

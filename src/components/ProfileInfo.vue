@@ -245,8 +245,10 @@ import { translate, translatePlural } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import FollowButton from './FollowButton.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
+import { profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import logger from '../services/logger.js'
+import { showError, showSuccess } from '../services/toast.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useAccount } from '../composables/useAccount.js'
@@ -339,16 +341,7 @@ export default {
 		 * @return {Array} [{name, text, href}]
 		 */
 		profileFields() {
-			return (this.accountInfo.fields || []).map((field) => {
-				const doc = new DOMParser().parseFromString(field.value || '', 'text/html')
-				const text = doc.body.textContent.trim()
-				const anchor = doc.body.querySelector('a[href]')
-				let href = anchor ? anchor.getAttribute('href') : text
-				if (!/^https?:\/\//.test(href)) {
-					href = ''
-				}
-				return { name: field.name, text, href }
-			})
+			return profileFields(this.accountInfo.fields)
 		},
 
 		/** @return {string} the bio to show, reduced to markup that is safe to inject */
@@ -575,14 +568,14 @@ export default {
 			}
 		},
 
+		// the two wrappers below are what the rest of this component calls; the
+		// service they forward to fetches the toast library on first use
 		async showSuccess(message) {
-			const { showSuccess } = await import('@nextcloud/dialogs')
-			showSuccess(message)
+			await showSuccess(message)
 		},
 
 		async showError(message) {
-			const { showError } = await import('@nextcloud/dialogs')
-			showError(message)
+			await showError(message)
 		},
 
 		applyBanner(url) {

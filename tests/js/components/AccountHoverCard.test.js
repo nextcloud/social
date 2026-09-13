@@ -13,7 +13,7 @@ import { useSettingsStore } from '../../../src/store/settings.js'
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }))
-vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
+vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
 	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
@@ -29,6 +29,14 @@ const bob = {
 	note: '<p>Gardener, <a href="https://remote.example/tags/moss">#moss</a> enthusiast</p>',
 	followers_count: 128,
 	following_count: 7,
+	statuses_count: 1204,
+	created_at: '2019-03-17T09:00:00.000Z',
+	locked: false,
+	bot: false,
+	fields: [
+		{ name: 'Website', value: '<a href="https://mossy.example" rel="me">mossy.example</a>' },
+		{ name: 'Pronouns', value: 'they/them' },
+	],
 	emojis: [],
 }
 
@@ -206,6 +214,72 @@ describe('AccountHoverCard', () => {
 			expect(card().querySelector('.account-hover-card__counts').textContent).toContain('128')
 			expect(card().querySelector('.account-hover-card__counts').textContent).toContain('followers')
 			expect(card().querySelector('.account-hover-card__counts').textContent).toContain('7')
+		})
+
+		it('shows what the profile says about itself, not only the two counts', async () => {
+			// the card is the answer to "who is this?" — a bio and two numbers
+			// left the reader opening the profile to find out anything else
+			axios.get.mockResolvedValue({ data: bob })
+			const wrapper = mountCard()
+
+			await hoverUntilOpen(wrapper)
+
+			const counts = card().querySelector('.account-hover-card__counts').textContent
+			expect(counts).toContain('1204')
+			expect(counts).toContain('posts')
+			expect(card().querySelector('.account-hover-card__joined').textContent).toContain('2019')
+
+			const rows = [...card().querySelectorAll('.account-hover-card__field')]
+			expect(rows.map((row) => row.querySelector('dt').textContent.trim())).toEqual(['Website', 'Pronouns'])
+			expect(rows[0].querySelector('a').getAttribute('href')).toBe('https://mossy.example')
+			expect(rows[0].querySelector('a').textContent).toBe('mossy.example')
+			// a row that is not a link is text, not an anchor to nowhere
+			expect(rows[1].querySelector('a')).toBeNull()
+			expect(rows[1].querySelector('dd').textContent.trim()).toBe('they/them')
+		})
+
+		it('never follows a field into a scheme a profile should not name', async () => {
+			axios.get.mockResolvedValue({ data: { ...bob, fields: [{ name: 'Site', value: '<a href="javascript:alert(1)">click</a>' }] } })
+			const wrapper = mountCard()
+
+			await hoverUntilOpen(wrapper)
+
+			const row = card().querySelector('.account-hover-card__field')
+			expect(row.querySelector('a')).toBeNull()
+			expect(row.querySelector('dd').textContent.trim()).toBe('click')
+		})
+
+		it('shows at most four fields, so a profile cannot turn the card into a page', async () => {
+			const fields = Array.from({ length: 9 }, (unused, index) => ({ name: 'F' + index, value: String(index) }))
+			axios.get.mockResolvedValue({ data: { ...bob, fields } })
+			const wrapper = mountCard()
+
+			await hoverUntilOpen(wrapper)
+
+			expect(card().querySelectorAll('.account-hover-card__field')).toHaveLength(4)
+		})
+
+		it('says what kind of account it is before somebody follows it', async () => {
+			axios.get.mockResolvedValue({ data: { ...bob, locked: true, bot: true } })
+			const wrapper = mountCard()
+
+			await hoverUntilOpen(wrapper)
+
+			const badges = [...card().querySelectorAll('.account-hover-card__badge')].map((b) => b.textContent.trim())
+			expect(badges).toEqual(['Approves followers', 'Automated'])
+		})
+
+		it('leaves out what the account did not say', async () => {
+			// a fallback built from a mention carries none of this, and an
+			// invented "Joined January 1970" is worse than a gap
+			axios.get.mockReturnValue(new Promise(() => {}))
+			const wrapper = mountCard({ fallback: { acct: bob.acct, username: 'bob', display_name: 'Bob' } })
+
+			await hoverUntilOpen(wrapper)
+
+			expect(card().querySelector('.account-hover-card__joined')).toBeNull()
+			expect(card().querySelector('.account-hover-card__fields')).toBeNull()
+			expect(card().querySelector('.account-hover-card__badges')).toBeNull()
 		})
 
 		it('shows what the caller already knows while the request is in flight', async () => {

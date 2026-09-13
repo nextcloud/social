@@ -64,7 +64,7 @@
 </template>
 
 <script>
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../services/toast.js'
 import { listen } from '@nextcloud/notify_push'
 
 import { translate, translatePlural } from '@nextcloud/l10n'

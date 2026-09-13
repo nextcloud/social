@@ -12,7 +12,7 @@ import { createPinia } from 'pinia'
 // so assert on what the component hands to it instead.
 const NcAvatarStub = {
 	name: 'NcAvatar',
-	props: ['url', 'user', 'displayName', 'size', 'disableTooltip', 'hideStatus'],
+	props: ['url', 'user', 'displayName', 'size', 'disableTooltip', 'hideStatus', 'disableMenu'],
 	template: '<span class="nc-avatar-stub" />',
 }
 
@@ -45,6 +45,15 @@ describe('ActorAvatar', () => {
 		const avatar = mountAvatar({ actor: local }).findComponent(NcAvatarStub)
 		expect(avatar.props('disableTooltip')).toBe(true)
 		expect(avatar.props('hideStatus')).toBe(true)
+	})
+
+	it('leaves the account preview to this app, for a local actor as much as a remote one', () => {
+		// NcAvatar hangs Nextcloud's own profile card off a local account's
+		// avatar on hover, and it opened on top of the one this component
+		// wraps every avatar in — so which card a reader got depended on
+		// which instance the account was on
+		expect(mountAvatar({ actor: local }).findComponent(NcAvatarStub).props('disableMenu')).toBe(true)
+		expect(mountAvatar({ actor: remote }).findComponent(NcAvatarStub).props('disableMenu')).toBe(true)
 	})
 
 	it('defaults to 32px and forwards a custom size', () => {

@@ -469,6 +469,36 @@ Rotation is the only step that is opt-in, and it is the only way to rotate a key
 pair: nothing else calls `AccountService::blindKeyRotation()`, and the cron never
 does.
 
+### `social:media:posters`
+
+Make the poster frames of videos that have none, so a client shows a still
+instead of a black rectangle before anybody presses play.
+
+```
+php occ social:media:posters [--dry-run] [--limit LIMIT]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--dry-run` | none | Print the videos that have no poster and change nothing |
+| `--limit` | required | Stop after this many videos. `0`, the default, means all of them |
+
+A video uploaded here is given a still on its way in. Videos stored before that
+existed, or while the server had no ffmpeg, have none and would never get one:
+the frame is taken from the bytes as they are written and they are only written
+once. This reads them back and takes it now — the same frame, the same JPEG and
+the same `resized_copy` an upload gets, with the duration and the dimensions
+written into the document's `meta` alongside it. **The video itself is not
+touched**: nothing is transcoded, re-encoded or re-written.
+
+Exits 1 without doing anything if ffmpeg is not on the server. A video ffmpeg
+cannot read is counted, reported and left alone, so the run finishes and the
+video can be tried again after whatever was wrong with it is fixed.
+
+It is a command rather than a background job on purpose: it is a one-off after
+an upgrade, it spends a subprocess and a temporary copy of each video, and an
+instance with a large media library should choose when that happens.
+
 ---
 
 ## Federation

@@ -6,6 +6,8 @@
 import { mount, RouterLinkStub } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import TimelineEntry from '../../../src/components/TimelineEntry.vue'
+import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
+import ActorAvatar from '../../../src/components/ActorAvatar.vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
@@ -139,10 +141,22 @@ describe('TimelineEntry', () => {
 			expect(wrapper.classes()).not.toContain('with-header')
 			const header = wrapper.find('.boost')
 			expect(header.find('.repeat-icon').exists()).toBe(true)
-			expect(header.find('img').attributes('src')).toBe(bob.avatar)
+			expect(header.findComponent(ActorAvatar).props('actor')).toEqual(bob)
 			expect(header.find('.post-author').text()).toBe('Bob')
 			expect(header.text()).toMatch(/Bob\s+boosted$/)
 			expect(header.findComponent(RouterLinkStub).props('to')).toEqual({ name: 'profile', params: { account: 'bob@remote.example' } })
+		})
+
+		it('previews the booster when their avatar is hovered', () => {
+			// the small avatars were plain <img>: the reader could hover the
+			// author of a post and see who they are, and hovering whoever
+			// boosted it gave them nothing
+			const { wrapper } = mountEntry(boost)
+
+			const card = wrapper.find('.boost').findComponent(AccountHoverCard)
+
+			expect(card.exists()).toBe(true)
+			expect(card.props('handle')).toBe('bob@remote.example')
 		})
 
 		it('renders the boosted post from the store so later actions are reflected', () => {
@@ -169,10 +183,19 @@ describe('TimelineEntry', () => {
 			expect(wrapper.classes()).toContain('notification')
 			expect(wrapper.classes()).toContain('with-header')
 			const header = wrapper.find('.notification__header')
-			expect(header.find('img').attributes('src')).toBe(bob.avatar)
+			expect(header.findComponent(ActorAvatar).props('actor')).toEqual(bob)
 			expect(header.findAll('.material-design-icon')).toHaveLength(1)
 			expect(header.find('.material-design-icon').classes()).toContain(iconClass)
 			expect(header.find('.notification__summary').text()).toBe(summary)
+		})
+
+		it('previews the account a notification is about when their avatar is hovered', () => {
+			const { wrapper } = mountEntry(notification('favourite'), { type: 'notifications' })
+
+			const card = wrapper.find('.notification__header').findComponent(AccountHoverCard)
+
+			expect(card.exists()).toBe(true)
+			expect(card.props('handle')).toBe('bob@remote.example')
 		})
 
 		it('renders the post concerned without an avatar and links to it', () => {
@@ -224,7 +247,7 @@ describe('TimelineEntry', () => {
 			const { wrapper } = mountEntry(notification('something.new'), { type: 'notifications' })
 
 			const header = wrapper.find('.notification__header')
-			expect(header.find('img').attributes('src')).toBe(bob.avatar)
+			expect(header.findComponent(ActorAvatar).props('actor')).toEqual(bob)
 			expect(header.find('.material-design-icon').exists()).toBe(false)
 			expect(header.find('.notification__summary').text()).toBe('')
 			expect(wrapper.findComponent(TimelinePostStub).props('item')).toEqual(post)

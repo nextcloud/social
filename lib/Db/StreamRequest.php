@@ -246,6 +246,55 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * The posts that carry a stored attachment copy, a page at a time.
+	 *
+	 * A post keeps its own copy of its attachments (`save()` writes
+	 * `asLocal()` into the `attachments` column), so anything that changes a
+	 * *document* after the fact -- a poster frame made for a video that was
+	 * stored before posters existed -- never reaches the post that shows it.
+	 * `occ social:media:posters` walks these and rewrites the copies.
+	 *
+	 * Only the id and the blob are read: rebuilding a whole `Stream` with its
+	 * joins, for every post with a picture on the instance, would be a great
+	 * deal of work to reach one column.
+	 *
+	 * @return array<array{nid: int, id: string, attachments: string}>
+	 */
+	public function getStoredAttachmentCopies(int $limit, int $after = 0): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->select('nid', 'id', 'attachments')
+			->from(self::TABLE_STREAM)
+			->andWhere($expr->neq('attachments', $qb->createNamedParameter('')))
+			->andWhere($expr->neq('attachments', $qb->createNamedParameter('[]')))
+			->andWhere($expr->gt('nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)))
+			->orderBy('nid', 'asc')
+			->setMaxResults($limit);
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$rows[] = [
+				'nid' => (int)$data['nid'],
+				'id' => (string)$data['id'],
+				'attachments' => (string)$data['attachments'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/** Replaces one post's stored attachment copies with the JSON given. */
+	public function setStoredAttachmentCopies(string $id, string $attachments): void {
+		$qb = $this->getStreamUpdateSql();
+		$qb->set('attachments', $qb->createNamedParameter($attachments));
+		$qb->limitToIdPrim($qb->prim($id));
+
+		$qb->executeStatement();
+	}
+
 	public function updateAttachments(Document $document): void {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToIdPrim($qb->prim($document->getParentId()));
