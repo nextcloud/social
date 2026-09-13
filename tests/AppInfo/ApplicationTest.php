@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\AppInfo;
 
+use OCA\Files\Event\LoadAdditionalScriptsEvent;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Dashboard\SocialBookmarksWidget;
 use OCA\Social\Dashboard\SocialDirectWidget;
@@ -19,6 +20,7 @@ use OCA\Social\Dashboard\SocialReportsWidget;
 use OCA\Social\Dashboard\SocialTimelineWidget;
 use OCA\Social\Dashboard\SocialTrendingWidget;
 use OCA\Social\Dashboard\SocialWidget;
+use OCA\Social\Listeners\FilesScriptsListener;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
@@ -59,7 +61,7 @@ class ApplicationTest extends TestCase {
 		$context->expects($this->once())->method('registerUserMigrator')->with(SocialMigrator::class);
 
 		$listeners = [];
-		$context->expects($this->exactly(3))->method('registerEventListener')
+		$context->expects($this->exactly(4))->method('registerEventListener')
 			->willReturnCallback(function (string $event, string $listener) use (&$listeners): void {
 				$listeners[$event] = $listener;
 			});
@@ -76,6 +78,8 @@ class ApplicationTest extends TestCase {
 			UserUpdatedEvent::class => UserAccountListener::class,
 			// without this one a deleted user keeps a live Fediverse account
 			UserDeletedEvent::class => UserDeletedListener::class,
+			// without this one Files has no "Share to Social"
+			LoadAdditionalScriptsEvent::class => FilesScriptsListener::class,
 		], $listeners);
 		$this->assertSame([
 			SocialWidget::class,

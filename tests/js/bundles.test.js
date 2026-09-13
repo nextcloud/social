@@ -153,6 +153,47 @@ describe('the shared framework chunk', () => {
 })
 
 /**
+ * The Files action is the exception, on purpose: it is loaded on every Files
+ * page and registers one menu entry, so it carries its few KB of
+ * @nextcloud/files itself and never asks for the framework.
+ */
+describe('the Files action entry', () => {
+	it('registers the action when served alone', async () => {
+		const content = bundle('social-filesAction.js')
+		expect(content, 'social-filesAction.js is missing; run the build').not.toBeNull()
+
+		const { JSDOM } = await import('jsdom')
+		const w = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
+			runScripts: 'outside-only',
+			url: 'http://localhost/index.php/apps/files/',
+		}).window
+		w.OC = { requestToken: 'x', config: {}, getCurrentUser: () => ({ uid: 'alice' }) }
+		w.OCA = {}
+		w.OCP = {}
+		w.eval(content)
+
+		// @nextcloud/files keeps the registry on the window, which is how the
+		// Files app, built separately, sees what other apps registered
+		const registered = w._nc_files_scope?.v4_0?.fileActions ?? new Map()
+		expect([...registered.keys()]).toContain('social-share')
+	})
+
+	it('stays small, because every Files page pays for it', () => {
+		if (!existsSync(join(JS, 'social-filesAction.js'))) {
+			return
+		}
+		expect(statSync(join(JS, 'social-filesAction.js')).size).toBeLessThan(120 * 1024)
+	})
+
+	it('is loaded without the framework', () => {
+		const source = readFileSync(resolve(process.cwd(), 'lib/Listeners/FilesScriptsListener.php'), 'utf8')
+
+		expect(source.indexOf("'social-filesAction'")).toBeGreaterThan(-1)
+		expect(source.indexOf("'social-framework'")).toBe(-1)
+	})
+})
+
+/**
  * Every page that loads one of those entries has to load the framework first.
  * These are PHP files, but the contract they carry is this bundle's, so it is
  * pinned next to it rather than somewhere the build is not in view.

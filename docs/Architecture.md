@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.29  
+**App version:** 0.19.31  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -697,7 +697,7 @@ The user interface is a **Vue 3** front end using Vue Router, Pinia, `@nextcloud
 
 ### Entry bundles
 
-`webpack.common.js` defines five entries; the Nextcloud webpack preset prefixes the output with the app id, so they land in `js/` as:
+`webpack.common.js` defines these entries; the Nextcloud webpack preset prefixes the output with the app id, so they land in `js/` as:
 
 | Bundle | Source | Loaded by |
 |--------|--------|-----------|
@@ -706,12 +706,13 @@ The user interface is a **Vue 3** front end using Vue Router, Pinia, `@nextcloud
 | `social-oauth.js` | `src/oauth.js` | `templates/oauth2.php` |
 | `social-profilePage.js` | `src/profile.js` | `ProfileSectionListener` |
 | `social-ostatus.js` | `src/ostatus.js` | nothing — no `addScript()` call references it |
+| `social-filesAction.js` | `src/filesAction.js` | `FilesScriptsListener`, on the Files app's `LoadAdditionalScriptsEvent` — **alone**, see below |
 
 The OStatus bundle and `src/views/OStatus.vue` are therefore dead code today: `OStatusController::subscribe()` and `followRemote()` both render the `main` template, so remote-follow lands in the main SPA on its `/ostatus/follow` route.
 
 None of those entries is self-contained. Vue, `@nextcloud/vue` and pinia used to be compiled into each of them, so opening the Dashboard and then the app downloaded the framework twice — 276 KB and then 347 KB gzipped, most of it the same bytes. The `framework` cache group in `webpack.common.js` puts what more than one entry needs into `social-framework.js`, which they share; `minChunks: 2` leaves a library only one entry uses inside that entry, so the single-page reader pays a few KB rather than the union. Gzipped: the app alone goes 347 KB → 354 KB, the Dashboard alone 276 KB → 306 KB, the Dashboard and then the app 623 KB → 368 KB, and adding a profile page after that 949 KB → 429 KB.
 
-**Every `Util::addScript()` for this app therefore loads `social-framework` before the entry.** Getting that wrong fails silently rather than loudly: webpack's runtime queues the startup module waiting for a chunk that never arrives, so the script runs to completion, nothing is thrown, nothing reaches the console, and the page simply stays empty. `tests/js/bundles.test.js` boots the built bundles in a jsdom window to pin it — an entry served alone injects no stylesheets and does nothing, and served after the framework it starts — and checks each of the six `addScript()` sites for the order.
+**Every `Util::addScript()` for this app therefore loads `social-framework` before the entry** — with one deliberate exception: `social-filesAction.js` registers "Share to Social" in the Files app and is loaded on every Files page, most of which will never post anything, so it is excluded from the `framework` cache group (`SELF_CONTAINED` in `webpack.common.js`), carries its few KB of `@nextcloud/files` and l10n itself, and is loaded by `FilesScriptsListener` with `addInitScript()` and nothing before it. It hands the picked paths to the app as `?attach=` query parameters; `Navigation.vue` opens the New post dialog with them and takes them off the address, and the composer attaches them through the same `attachPaths()` its own picker uses. The `overrides` entry for `@nextcloud/vue` in `package.json` exists for this dependency: `@nextcloud/vue` 9.12 optionally peers on a `@nextcloud/files` pre-release, and without the override `npm ci` refuses the 4.0.0 the server itself ships. Getting that wrong fails silently rather than loudly: webpack's runtime queues the startup module waiting for a chunk that never arrives, so the script runs to completion, nothing is thrown, nothing reaches the console, and the page simply stays empty. `tests/js/bundles.test.js` boots the built bundles in a jsdom window to pin it — an entry served alone injects no stylesheets and does nothing, and served after the framework it starts — and checks each of the six `addScript()` sites for the order.
 
 `optimization.concatenateModules` stays `false`. Scope hoisting is worth about a kilobyte and makes the build irreproducible: two runs over identical source emit alternating Terser manglings, and CI compares the committed bundle against a fresh build.
 
@@ -1137,6 +1138,7 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Notifications | `Notifier` | `Application::register()` | Prepares Social notifications for the NC notification system |
 | User migration | `UserMigration\SocialMigrator` | `Application::register()` | Puts the user's Social data in a Nextcloud account export, and reads it back on import. See "Account export and import" below |
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
+| Files | `FilesScriptsListener` | `Application::register()` (on `OCA\Files\Event\LoadAdditionalScriptsEvent`) | Adds the self-contained `social-filesAction` init script, which registers "Share to Social" on pictures and videos |
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
 | Contacts Menu | `ContactsMenuProvider` | `appinfo/info.xml` | "Follow %s on Social" entry linking to the actor page |

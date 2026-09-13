@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
+use OCA\Files\Event\LoadAdditionalScriptsEvent;
 use OCA\Social\Dashboard\SocialBookmarksWidget;
 use OCA\Social\Dashboard\SocialDirectWidget;
 use OCA\Social\Dashboard\SocialFederationHealthWidget;
@@ -18,6 +19,7 @@ use OCA\Social\Dashboard\SocialReportsWidget;
 use OCA\Social\Dashboard\SocialTimelineWidget;
 use OCA\Social\Dashboard\SocialTrendingWidget;
 use OCA\Social\Dashboard\SocialWidget;
+use OCA\Social\Listeners\FilesScriptsListener;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
@@ -56,6 +58,9 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
 		$context->registerEventListener(UserUpdatedEvent::class, UserAccountListener::class);
 		$context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);
+		// the class is the Files app's, not OCP's; the name is a string here and
+		// the listener is only ever built when Files dispatches the event
+		$context->registerEventListener(LoadAdditionalScriptsEvent::class, FilesScriptsListener::class);
 		$context->registerDashboardWidget(SocialWidget::class);
 		$context->registerDashboardWidget(SocialTimelineWidget::class);
 		$context->registerDashboardWidget(SocialMentionsWidget::class);

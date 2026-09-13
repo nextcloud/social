@@ -684,6 +684,24 @@ describe('Composer', () => {
 	describe('attaching from Files', () => {
 		const beach = '/Photos/beach.jpg'
 
+		it('attaches the files "Share to Social" handed it, open and without a click', async () => {
+			const { wrapper, store } = mountComposer({ initialPaths: [beach, '', '/', '/Videos/talk.mp4'] })
+			await flushPromises()
+
+			// the same road the picker takes, so the server sees the path and
+			// nothing is uploaded twice
+			expect(pickedPaths(store)).toEqual([beach, '/Videos/talk.mp4'])
+			expect(wrapper.find('.new-post').classes()).not.toContain('new-post--collapsed')
+			expect(wrapper.findComponent(PreviewGridItem).exists()).toBe(true)
+		})
+
+		it('attaches nothing when it was handed nothing', async () => {
+			const { store } = mountComposer()
+			await flushPromises()
+
+			expect(store.createMediaFromFile).not.toHaveBeenCalled()
+		})
+
 		it('offers the pictures and videos the reader already has, several at a time', async () => {
 			const { wrapper, store } = mountComposer()
 			const builder = filePicker(Promise.resolve([beach]))

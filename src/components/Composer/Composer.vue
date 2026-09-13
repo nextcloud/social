@@ -421,6 +421,19 @@ export default {
 			type: Object,
 			default: null,
 		},
+
+		/**
+		 * Files to attach as soon as the composer is up: what "Share to
+		 * Social" in the Files app hands over. Paths in the reader's own
+		 * folder, the same the picker produces; attached through the same
+		 * code, so the ceiling, the progress and a refusal look the same.
+		 *
+		 * @type {import('vue').PropType<string[]>}
+		 */
+		initialPaths: {
+			type: Array,
+			default: () => [],
+		},
 	},
 
 	emits: ['posted'],
@@ -778,6 +791,14 @@ export default {
 
 		if (this.initialMention !== null) {
 			this.prefillMessageWithMention(this.initialMention)
+		}
+
+		// somebody arrived here from Files with pictures in hand: open, and
+		// start attaching them before they have to do anything
+		const paths = this.initialPaths.filter((path) => typeof path === 'string' && path !== '' && path !== '/')
+		if (paths.length > 0) {
+			this.expand()
+			this.attachPaths(paths)
 		}
 
 		// a click anywhere else closes it again, which focusout cannot do on its
