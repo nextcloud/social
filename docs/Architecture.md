@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.28  
+**App version:** 0.19.29  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -828,6 +828,37 @@ eight illustrations are licensed for this app by permission covering those eight
 and nothing else (see `img/undraw/readme.md`); anything new has to be ours. A
 state with a small drawing keeps the compact layout — the 60vh of height is room
 for the full-size ones only.
+
+**A link to a post, opened cold.** The app writes its own links to a post as
+`/@acct/<nid>` — the numeric id its client API uses — while the address a post
+is published under ends in a different token, and `ActivityPubController::displayPost()`
+looked a post up by that address alone. So a link opened in a new tab, a reload,
+or a link somebody sent found nothing, provided no `item`, and the page said the
+post did not exist. It now falls back to `getStreamByNid()` for a numeric token,
+on the browser branch only: an ActivityPub request asks for a post by its
+address, and answering a second identifier there would invent a second canonical
+id for every post. The fallback goes through the same viewer filter every other
+read does, so it shows what the reader may see and nothing more.
+
+The same page also said `'public' => true` for everybody, so following a link to
+a post logged you out of the page you landed on — no navigation, no reply box.
+It is `$viewer === null` now, and the viewer is set on the stream service before
+the lookup, which is also what lets a post narrower than public resolve for the
+people it was addressed to.
+
+On the client, `TimelineSinglePost` asks for the post itself when nothing has
+loaded it — `timelineStore.fetchStatus()`, which is `GET /api/v1/statuses/{id}`.
+`/context` answers with what is *around* a post and never with the post, so a
+page reached from anywhere outside a timeline had nothing to draw. A tile on
+Discover is exactly that: those posts belong to the Discover view and never
+reach the timeline store.
+
+**The pictures on Discover** were not drawn at all, and had not been since the
+tab was added. `ProfileMediaGrid` builds each tile's route with the grid's
+`account` prop, which Discover leaves empty because the grid is everybody's —
+and `account` is a required route param, so `router-link` threw while resolving
+and took every tile with it. A tile links at the account that wrote the post it
+draws, falling back to the grid's own account where a post carries none.
 
 **The hashtags on Discover.** `TrendingHashtags` is a ranking rather than a
 list of names: a row carries its position, the tag, how often it was used in the

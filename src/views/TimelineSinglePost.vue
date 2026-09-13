@@ -279,6 +279,14 @@ export default {
 			})
 			this.timelineStore.addToStatuses(singlePost)
 
+			// nothing had loaded this post: a link somebody sent, a reload, or a
+			// tile on Discover, whose posts belong to that view and never went
+			// through the store. `/context` answers with what is around a post
+			// and never with the post, so the page used to say it did not exist.
+			if (singlePost === undefined || singlePost === null) {
+				await this.timelineStore.fetchStatus(this.$route.params.id)
+			}
+
 			// the account is loaded for the post's author card; nothing here
 			// reads the answer, which is why it is not kept
 			const fetchMethod = this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo'

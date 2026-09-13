@@ -938,8 +938,9 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(self::SOCIAL_URL . '@alice/missing', $response->getData()['stream']);
 	}
 
-	public function testDisplayPostRendersPublicPageWithTheItemForBrowsers(): void {
+	public function testDisplayPostRendersThePageWithTheItemForBrowsers(): void {
 		$this->acceptHeader('text/html');
+		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
 		$stream = $this->createMock(Stream::class);
 		$this->streamService->method('getStreamById')->with(self::SOCIAL_URL . '@alice/abc123', true)->willReturn($stream);
 
@@ -957,8 +958,83 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame($stream, $states['social']['item']);
 	}
 
+	/**
+	 * The page said `public` for everybody, so following a link to a post
+	 * logged you out of the page you landed on: no navigation, no reply box,
+	 * nothing but the post.
+	 */
+	public function testDisplayPostGivesALoggedInReaderTheAppRatherThanThePublicPage(): void {
+		$this->acceptHeader('text/html');
+		$viewer = $this->createMock(Person::class);
+		$this->accountService->method('getCurrentViewer')->willReturn($viewer);
+		$this->streamService->expects($this->once())->method('setViewer')->with($viewer);
+		$this->streamService->method('getStreamById')->willReturn($this->createMock(Stream::class));
+
+		$states = [];
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $data) use (&$states): void {
+				$states[$key] = $data;
+			});
+
+		$this->controller->displayPost('alice', 'abc123');
+
+		$this->assertFalse($states['serverData']['public']);
+	}
+
+	/**
+	 * The app writes its own links to a post with the numeric id its client API
+	 * uses, which is not the token in the post's address. Opening one in a new
+	 * tab, reloading it, or following one somebody sent found nothing.
+	 */
+	public function testDisplayPostFallsBackToTheNumericIdTheAppLinksWith(): void {
+		$this->acceptHeader('text/html');
+		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
+		$stream = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streamService->expects($this->once())->method('getStreamByNid')
+			->with(1789250751711653456)->willReturn($stream);
+
+		$states = [];
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $data) use (&$states): void {
+				$states[$key] = $data;
+			});
+
+		$this->controller->displayPost('alice', '1789250751711653456');
+
+		$this->assertSame($stream, $states['item']);
+	}
+
+	public function testDisplayPostDoesNotLookForANumericIdForATokenThatIsNotOne(): void {
+		$this->acceptHeader('text/html');
+		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$this->streamService->expects($this->never())->method('getStreamByNid');
+
+		$this->controller->displayPost('alice', 'abc123');
+	}
+
+	public function testDisplayPostSaysNothingIsThereWhenNeitherIdResolves(): void {
+		$this->acceptHeader('text/html');
+		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException());
+
+		$keys = [];
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key) use (&$keys): void {
+				$keys[] = $key;
+			});
+
+		$this->controller->displayPost('alice', '404404404');
+
+		$this->assertSame(['serverData'], $keys);
+	}
+
 	public function testDisplayPostRendersPublicPageWithoutItemWhenStreamIsUnknown(): void {
 		$this->acceptHeader('text/html');
+		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
 		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
 
 		$keys = [];

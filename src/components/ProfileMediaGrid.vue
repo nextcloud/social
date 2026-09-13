@@ -81,9 +81,14 @@ export default {
 			default: () => [],
 		},
 
+		/**
+		 * Whose grid this is, where it is one account's. Empty on Discover,
+		 * which is everybody's: a tile there links at the account that wrote
+		 * the post it draws.
+		 */
 		account: {
 			type: String,
-			required: true,
+			default: '',
 		},
 
 		loading: {
@@ -130,7 +135,11 @@ export default {
 				style: { objectPosition: this.focalPosition(first) },
 				route: {
 					name: 'single-post',
-					params: { account: this.account, id: post.id },
+					// the post's own author first: `account` is a required
+					// route param, and an empty one made `router-link` throw
+					// while resolving — which took every tile on Discover with
+					// it, so the Pictures tab drew nothing at all
+					params: { account: post.account?.acct || this.account, id: post.id },
 				},
 			}
 		},

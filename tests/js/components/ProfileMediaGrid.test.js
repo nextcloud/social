@@ -108,6 +108,18 @@ describe('ProfileMediaGrid', () => {
 			})
 		})
 
+		it('links a tile at the account that wrote the post, where the grid has none', () => {
+			// Discover is everybody's grid: `account` is a required route param,
+			// and an empty one threw while resolving and took every tile with it
+			const tile = grid({ account: '' }).toTile(post([{ type: 'image' }], { account: { acct: 'bob@remote.example' } }))
+
+			expect(tile.route.params.account).toBe('bob@remote.example')
+		})
+
+		it('still uses the grid\'s own account when a post carries none', () => {
+			expect(grid().toTile(post([{ type: 'image' }])).route.params.account).toBe('alice')
+		})
+
 		it('prefers the alt text as the label', () => {
 			expect(grid().toTile(post([{ description: 'a cat asleep' }])).label).toBe('a cat asleep')
 		})

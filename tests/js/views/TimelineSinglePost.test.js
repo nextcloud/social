@@ -199,6 +199,53 @@ describe('TimelineSinglePost', () => {
 		expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
 	})
 
+	describe('a post nothing has loaded', () => {
+		/**
+		 * A link somebody sent, a reload, or a tile on Discover — whose posts
+		 * belong to that view and never reach the store. `/context` answers
+		 * with what is around a post and never with the post, so the page had
+		 * nothing to draw and said the post did not exist.
+		 */
+		it('asks the server for it rather than saying it is gone', async () => {
+			setState('item', undefined)
+			window._nc_initial_state?.clear()
+			document.getElementById('initial-state-social-item')?.remove()
+			const fetchStatus = vi.spyOn(store, 'fetchStatus').mockImplementation(async (id) => {
+				store.addToStatuses({ ...status, id })
+
+				return status
+			})
+
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(fetchStatus).toHaveBeenCalledWith('123')
+			expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(true)
+		})
+
+		it('asks for nothing when the post is already known', async () => {
+			store.addToStatuses(status)
+			const fetchStatus = vi.spyOn(store, 'fetchStatus')
+
+			mountView()
+			await flushPromises()
+
+			expect(fetchStatus).not.toHaveBeenCalled()
+		})
+
+		it('still says a post is gone when the server does not have it either', async () => {
+			setState('item', undefined)
+			window._nc_initial_state?.clear()
+			document.getElementById('initial-state-social-item')?.remove()
+			vi.spyOn(store, 'fetchStatus').mockResolvedValue(null)
+
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(wrapper.find('.empty-name').text()).toBe('This post is not available')
+		})
+	})
+
 	describe('the reply box', () => {
 		/**
 		 * It used to be a composer at the top of the page, hidden until a
