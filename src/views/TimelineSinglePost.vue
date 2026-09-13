@@ -4,6 +4,18 @@
 -->
 <template>
 	<div ref="socialWrapper" class="social__wrapper">
+		<!-- a post opened from a timeline is a place the reader went into, and
+		     the way out of it was the browser's own button or the sidebar -->
+		<NcButton
+			class="thread__back"
+			variant="tertiary"
+			:aria-label="t('social', 'Back')"
+			@click="goBack">
+			<template #icon>
+				<ArrowLeft :size="20" />
+			</template>
+			{{ t('social', 'Back') }}
+		</NcButton>
 		<Composer v-show="composerDisplayStatus" />
 		<!-- the three lists are one conversation; the spine says so -->
 		<div class="thread">
@@ -37,7 +49,9 @@
 <script>
 import { defineAsyncComponent } from 'vue'
 import { translate } from '@nextcloud/l10n'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import CommentRemoveOutline from 'vue-material-design-icons/CommentRemoveOutline.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
@@ -54,8 +68,10 @@ const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "compose
 export default {
 	name: 'TimelineSinglePost',
 	components: {
+		ArrowLeft,
 		Composer,
 		CommentRemoveOutline,
+		NcButton,
 		NcEmptyContent,
 		TimelineEntry,
 		TimelineList,
@@ -133,6 +149,27 @@ export default {
 
 	methods: {
 		t: translate,
+
+		/**
+		 * Back to wherever the reader came from, and to the home timeline when
+		 * that is nowhere.
+		 *
+		 * `history.state.back` is what the router writes when it navigates
+		 * inside the app, so it is also how to tell a post opened from a
+		 * timeline from one opened from a link somebody sent: going back from
+		 * the second would leave the app entirely, which is not what a button
+		 * inside it should do.
+		 */
+		goBack() {
+			if (window.history.state?.back) {
+				this.$router.back()
+
+				return
+			}
+
+			this.$router.push({ name: 'timeline', params: { type: 'home' } })
+		},
+
 		/**
 		 * Opens the conversation the route names. Called again when the route
 		 * changes to another post, because the router-view is no longer keyed
@@ -182,6 +219,10 @@ export default {
 <style scoped lang="scss">
 .social__wrapper {
 	padding-bottom: 25%;
+}
+
+.thread__back {
+	margin-bottom: 8px;
 }
 
 /*

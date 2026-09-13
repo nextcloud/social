@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.19  
+**App version:** 0.19.20  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -798,6 +798,13 @@ audience is — the hosts the followers are on, which is what a Fediverse accoun
 has instead of a geography. Two sample-size rules keep those from being noise:
 an hour is not named until three posts fall in it, and a hashtag's average is
 not reported until it has been used twice.
+
+**And the way back out.** A post opened from a timeline is somewhere the reader
+went *into*, so `TimelineSinglePost` carries a Back button above the thread. It
+uses `history.state.back` — which the router writes whenever it navigates inside
+the app — to tell a post opened from a timeline from one opened from a link
+somebody sent: the first goes back, the second goes to the home timeline, because
+a button inside the app should not be the thing that leaves it.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`
