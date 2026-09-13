@@ -22,6 +22,10 @@ export default {
 	},
 }
 
+// One parser for the app rather than one per post per render: DOMParser holds
+// no state between parseFromString() calls.
+const parser = new DOMParser()
+
 /**
  *
  * @param hFn
@@ -38,7 +42,6 @@ export function formatMessage(hFn, routerLink, item) {
 		mentions: item.mentions ?? [],
 		emojis: item.emojis ?? [],
 	}
-	const parser = new DOMParser()
 	const dom = parser.parseFromString(`<div id="rootwrapper">${item.content ?? ''}</div>`, 'text/html')
 	const element = dom.getElementById('rootwrapper')
 	const cleaned = cleanCopy(hFn, routerLink, element, context)
