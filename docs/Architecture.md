@@ -772,6 +772,20 @@ out, so it survives a post that is never sent.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
 
+**The Statistics page.** `src/views/Statistics.vue` behind the account menu, and
+`StatisticsService` behind that. Everything is counted from this instance's own
+rows when the page is opened — nothing stored, nothing precomputed by a cron —
+which is what keeps it from showing a total a deletion has already made false,
+and the walk is bounded at `MAX_POSTS` with the answer saying how far it got.
+The engagement figures come from each post's `details`, which is a JSON blob:
+that is why the sum is a walk in PHP rather than a `SUM()`, because the three
+databases this app supports do not agree on how to reach inside one. A boost the
+account made is counted as something it did and then left out of everything
+else, because the likes on a boosted post belong to whoever wrote it. The two
+bar charts are CSS — a chart library would cost more than the page it draws —
+and every bar carries its own figure in a `title`, because a bar whose only
+value is its height says nothing to a reader who cannot see it.
+
 **Account previews.** `AccountHoverCard.vue` is the card that opens when the
 pointer rests on an avatar or a mention, fetched once per handle and cached in
 the account store. It answers "who is this?" without opening the profile, so it

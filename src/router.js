@@ -15,6 +15,7 @@ const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/Fo
 const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
 const Discover = () => import('./views/Discover.vue')
 const Migration = () => import(/* webpackChunkName: "profile" */'./views/Migration.vue')
+const Statistics = () => import(/* webpackChunkName: "profile" */'./views/Statistics.vue')
 const Search = () => import('./components/Search.vue')
 
 /**
@@ -138,6 +139,13 @@ const router = createRouter({
 				default: Migration,
 			},
 			name: 'migration',
+		},
+		{
+			path: '/statistics',
+			components: {
+				default: Statistics,
+			},
+			name: 'statistics',
 		},
 		{
 			path: '/search/:term?',

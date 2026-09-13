@@ -598,6 +598,14 @@ The Migration page's three buttons: take a copy of the account's Social data, pu
 | POST | `/api/v1/migration/import` | user | `file` (multipart, `$_FILES['file']`, ≤ 100 MB) | Reads such an archive back into the signed-in account: the profile, the follows, the blocks, the mutes, the bookmarks and the favourites. **Additive** — nothing is deleted, and the posts in `outbox.json` are reported rather than re-published. An archive with no `social/actor.json` is a **400** that says so. Returns `{"imported": true, "log": [...]}`, the migrator's own account of what it did. Rate-limited to 6 an hour. |
 | POST | `/api/v1/migration/follows` | user | `file` (multipart, `$_FILES['file']`) | A `following_accounts.csv` from Mastodon, Pixelfed, GoToSocial or Akkoma — or from the archive above — re-followed one handle at a time through the ordinary follow path. A follow is a relationship two servers have to agree on, so it cannot be carried in a file and is requested again from here. Returns `{"followed", "skipped", "failed"}`, where `failed` maps a handle to the reason. Rate-limited to 4 an hour. |
 
+### Statistics
+
+The Statistics page. A session route with CSRF rather than a client-API one, for the same reason the migration routes are: it is for the person in front of the browser, and an account's whole history of engagement is not something a third-party token should be handed. There is no account parameter — it only ever answers about the caller.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/statistics` | user | — | `{"account", "posts", "engagement", "visibility", "by_month", "by_hour", "hashtags", "best", "window"}`, counted from this instance's rows at the moment it is asked for: nothing is stored and no cron precomputes it. `engagement` sums each post's `likes`, `boosts` and `replies` — the local count plus whatever the origin reported — so the figures are a floor rather than a total, which is true of every Fediverse statistic. A boost the account made is counted under `posts.boosts` and excluded from everything else, because its likes belong to whoever wrote it. The walk stops at 2000 posts and `window` says how many it actually looked at and whether it stopped early. Rate-limited to 30 an hour, because the answer is a walk rather than a lookup. |
+
 ### Config and system
 
 | Method | Route | Auth | Parameters | Description |
@@ -710,6 +718,7 @@ These serve HTML or files for the app's own UI; they are not client API endpoint
 | GET | `/blocked` | user, no-csrf | — | Same page, for the blocked-and-muted-accounts view (**Settings → Blocked and muted accounts** in the app's sidebar). |
 | GET | `/discover` | user, no-csrf | — | Same page, for the Discover view — who to follow (suggestions and starter packs), and what is being looked at (pictures and hashtags). The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
 | GET | `/migration` | user, no-csrf | — | Same page, for the Migration view — export, import, and bringing your follows over from another network. The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
+| GET | `/statistics` | user, no-csrf | — | Same page, for the Statistics view — what the account has posted and what came back. The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
 | GET | `/document/get` | user, no-csrf | `id` (required) | Streams a cached document with its stored mime type. Errors: error envelope, HTTP 500. |
 | GET | `/document/public` | public, no-csrf | `id` (required) | Same for documents marked public. |
 | GET | `/document/get/resized` | user, no-csrf | `id` (required) | Streams the resized/preview variant. |
