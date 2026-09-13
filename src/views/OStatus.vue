@@ -11,7 +11,11 @@
 				{{ t('social', 'Please confirm that you want to follow this account:') }}
 			</p>
 
-			<NcAvatar :url="avatarUrl" :disableTooltip="true" :size="128" />
+			<NcAvatar
+				:url="avatarUrl"
+				:disableMenu="true"
+				:disableTooltip="true"
+				:size="128" />
 			<h2>{{ displayName }}</h2>
 			<form v-if="!isFollowing" @submit.prevent="follow">
 				<input type="submit" class="primary" :value="t('social', 'Follow')">
@@ -30,7 +34,11 @@
 		<!-- Some unauthenticated user wants to follow a local account -->
 		<div v-if="serverData.local">
 			<p>{{ t('social', 'You are going to follow:') }}</p>
-			<NcAvatar :user="serverData.local" :disableTooltip="true" :size="128" />
+			<NcAvatar
+				:user="serverData.local"
+				:disableMenu="true"
+				:disableTooltip="true"
+				:size="128" />
 			<h2>{{ displayName }}</h2>
 			<form @submit.prevent="followRemote">
 				<input

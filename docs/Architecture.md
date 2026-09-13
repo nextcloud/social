@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.14  
+**App version:** 0.19.15  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -814,12 +814,18 @@ less than one built from a lookup, and a gap is better than an invented value. T
 somebody* goes through `ActorAvatar` (or `TimelineAvatar`, which adds the
 instance ring) rather than a bare `<img>`, so the small ones preview too — the
 face on a "X boosted" line, the one on a notification, the ones in Discover.
-And those avatars pass `disableMenu` to `NcAvatar`, because for a *local*
-account it otherwise hangs Nextcloud's own profile card off the same hover and
-opens it over the top of this one: the reader would get a different card
-depending on which instance the account was on. The avatars this app does not
-wrap in a card of its own — the account lists in the blocked and follow-request
-views, the reader's own face in the composer — keep Nextcloud's.
+And **every** `NcAvatar` in the app passes `disableMenu`, without exception,
+because for a *local* account it otherwise hangs Nextcloud's own profile card
+off the same hover and opens it over the top of this one: the reader would get
+a different card depending on which instance the account was on. There is one
+account preview in this app and it is this app's. The avatars that are not a
+reference to somebody else — the reader's own face in the composer, the profile
+header of the profile you are already reading, the two on the remote-follow
+page — simply have no card rather than Nextcloud's.
+
+That rule is the kind a new avatar added next year cannot be expected to
+remember, so `tests/js/hoverCard.test.js` reads the templates and fails with the
+file and line of any `<NcAvatar>` that is missing it.
 
 `QuotedPost.vue` renders a status's `quote`. Only an `accepted` quote whose
 `quoted_status` came back becomes a card; `pending`, `rejected`, `revoked` and

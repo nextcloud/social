@@ -27,14 +27,20 @@
 			style="display:none"
 			@change="uploadBanner">
 		<div class="user-profile__content">
+			<!-- `disableMenu`, like every other avatar in this app: the
+			     account preview a reader gets is this app's own, and
+			     Nextcloud's would open over the top of the profile they are
+			     already reading -->
 			<NcAvatar
 				v-if="isLocal"
 				:user="localUid"
+				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
 			<NcAvatar
 				v-else
 				:url="accountInfo.avatar"
+				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
 			<h2>{{ displayName }}</h2>

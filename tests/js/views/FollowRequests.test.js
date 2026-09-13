@@ -28,7 +28,7 @@ async function mountView(requests = [bob, carol]) {
 	const wrapper = mount(FollowRequests, {
 		global: {
 			stubs: {
-				NcAvatar: true,
+				ActorAvatar: true,
 				NcEmptyContent: { template: '<div class="empty-content"><slot /></div>' },
 				RouterLink: RouterLinkStub,
 			},

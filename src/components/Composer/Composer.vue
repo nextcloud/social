@@ -33,9 +33,13 @@
 			class="hidden-visually"
 			@change="handleFileChange($event)">
 		<div class="new-post-author">
+			<!-- the reader's own face, and `disableMenu` because a card about
+			     yourself, over the box you are typing in, is nobody's idea of
+			     a preview -->
 			<NcAvatar
 				:user="currentUser.uid"
 				:displayName="currentUser.displayName"
+				:disableMenu="true"
 				:disableTooltip="true"
 				:size="32" />
 			<div class="post-author">

@@ -27,7 +27,7 @@
 			<transition-group name="collapse" tag="div" class="blocked-account-list">
 				<div v-for="account in blocked" :key="`block-${account.id}`" class="blocked-account">
 					<div class="blocked-account__user">
-						<NcAvatar :url="account.avatar" :disableTooltip="true" />
+						<ActorAvatar :actor="account" />
 						<router-link :to="{ name: 'profile', params: { account: account.acct } }">
 							<span class="blocked-account__name">{{ account.display_name || account.username }}</span>
 							<span class="blocked-account__acct">{{ account.acct }}</span>
@@ -61,7 +61,7 @@
 			<transition-group name="collapse" tag="div" class="blocked-account-list">
 				<div v-for="account in muted" :key="`mute-${account.id}`" class="blocked-account">
 					<div class="blocked-account__user">
-						<NcAvatar :url="account.avatar" :disableTooltip="true" />
+						<ActorAvatar :actor="account" />
 						<router-link :to="{ name: 'profile', params: { account: account.acct } }">
 							<span class="blocked-account__name">{{ account.display_name || account.username }}</span>
 							<span class="blocked-account__acct">{{ account.acct }}</span>
@@ -90,7 +90,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
-import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import ActorAvatar from '../components/ActorAvatar.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import Cancel from 'vue-material-design-icons/Cancel.vue'
@@ -103,7 +103,7 @@ import { useAccountStore } from '../store/account.js'
 export default {
 	name: 'BlockedAccounts',
 	components: {
-		NcAvatar,
+		ActorAvatar,
 		NcButton,
 		NcEmptyContent,
 		Cancel,

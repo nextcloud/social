@@ -53,6 +53,7 @@
 						:size="48"
 						:url="account.avatar"
 						:hideStatus="true"
+						:disableMenu="true"
 						:disableTooltip="true" />
 					<span class="account-hover-card__names">
 						<span class="account-hover-card__name">

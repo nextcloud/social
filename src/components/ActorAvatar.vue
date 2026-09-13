@@ -3,6 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
+	<!-- `avatarProps` carries `disableMenu`: the account preview in this app is
+	     this app's own, everywhere, and never Nextcloud's -->
 	<AccountHoverCard
 		v-if="showHoverCard"
 		:handle="actor.acct"
