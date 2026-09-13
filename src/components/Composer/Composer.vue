@@ -48,7 +48,7 @@
 				</span>
 			</div>
 		</div>
-		<div v-if="replyTo" class="reply-to">
+		<div v-if="replyTo && !anchoredReply" class="reply-to">
 			<p class="reply-info">
 				<span>{{ t('social', 'In reply to') }}</span>
 				<ActorAvatar :actor="replyTo.account" :size="16" :link="false" />
@@ -405,6 +405,22 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+
+		/**
+		 * The post this composer replies to by default — what a composer
+		 * anchored under a post on its own page is for.
+		 *
+		 * It is a default and not a fixed target: pressing reply on another
+		 * post in the same thread retargets this composer like any other, and
+		 * sending or closing that reply comes back here rather than leaving
+		 * the box pointed at a post further down the page.
+		 *
+		 * @type {import('vue').PropType<object|null>}
+		 */
+		inReplyTo: {
+			type: Object,
+			default: null,
+		},
 	},
 
 	emits: ['posted'],
@@ -427,7 +443,9 @@ export default {
 			// what a click into the box opens up; the composer is also expanded
 			// by anything it already holds — see expanded()
 			openedByHand: this.startExpanded,
-			visibility: this.defaultVisibility || rememberedVisibility() || 'followers',
+			// a reply goes where the post it answers went, which is also what
+			// the reply flow does when a composer is retargeted by hand
+			visibility: this.defaultVisibility || this.inReplyTo?.visibility || rememberedVisibility() || 'followers',
 			loading: false,
 			/** whether an attachment is on its way to the server */
 			uploading: false,
@@ -453,7 +471,7 @@ export default {
 			pollMultiple: false,
 			pollExpiresIn: 86400,
 			search: '',
-			replyTo: null,
+			replyTo: this.inReplyTo,
 			/** the post this one quotes, as the timeline handed it over */
 			quoteOf: null,
 			tributeOptions: {
@@ -570,9 +588,26 @@ export default {
 		 * @return {string}
 		 */
 		prompt() {
-			return this.hasAttachments
-				? translate('social', 'Write a caption…')
+			if (this.hasAttachments) {
+				return translate('social', 'Write a caption…')
+			}
+
+			return this.replyTo !== null
+				? translate('social', 'Write a reply…')
 				: translate('social', 'What would you like to share?')
+		},
+
+		/**
+		 * Whether the post being replied to is the one this composer is
+		 * anchored under. The header saying who is being replied to, with the
+		 * post quoted inside it, is then a copy of what is directly above the
+		 * box — and the button for closing it would leave a reply box replying
+		 * to nothing.
+		 *
+		 * @return {boolean}
+		 */
+		anchoredReply() {
+			return this.inReplyTo !== null && this.replyTo?.id === this.inReplyTo.id
 		},
 
 		/** Attachments that can carry a description and have not been given one. */
@@ -684,6 +719,15 @@ export default {
 	},
 
 	watch: {
+		/**
+		 * Another post's page, in the same component: the router reuses this
+		 * view, so without this the box would still be replying to the post
+		 * the reader has navigated away from.
+		 */
+		inReplyTo(post) {
+			this.replyTo = post
+		},
+
 		// the warning is part of the draft, and it has its own field
 		spoilerText: 'rememberDraft',
 		showWarning: 'rememberDraft',
@@ -1403,7 +1447,7 @@ export default {
 				return
 			}
 
-			this.replyTo = null
+			this.replyTo = this.inReplyTo
 			this.quoteOf = null
 			this.$refs.composerInput.innerText = ''
 			Object.keys(this.attachments).forEach((key) => this.releasePreview(key))
@@ -1438,8 +1482,12 @@ export default {
 		},
 
 		closeReply() {
-			this.replyTo = null
-			this.timelineStore.setComposerDisplayStatus(false)
+			this.replyTo = this.inReplyTo
+			// an anchored composer is part of the page rather than something
+			// opened over it: there is nothing to close it back to
+			if (this.inReplyTo === null) {
+				this.timelineStore.setComposerDisplayStatus(false)
+			}
 		},
 
 		removeQuote() {

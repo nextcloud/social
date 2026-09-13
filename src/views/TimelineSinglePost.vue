@@ -16,7 +16,6 @@
 			</template>
 			{{ t('social', 'Back') }}
 		</NcButton>
-		<Composer v-show="composerDisplayStatus" />
 		<!-- the three lists are one conversation; the spine says so -->
 		<div class="thread" :class="{ 'thread--connected': hasThread }">
 			<TimelineList
@@ -32,6 +31,13 @@
 				:item="singlePost"
 				type="single-post"
 				element="div" />
+			<!-- what a post's own page can say that a card in a list should
+			     not: the fine print, who reacted, and the box for answering -->
+			<div v-if="singlePost" class="main-post__under">
+				<PostDetails :status="singlePost" />
+				<PostReactedBy :status="singlePost" />
+				<Composer v-if="canReply" :inReplyTo="singlePost" />
+			</div>
 			<!-- a deleted post is not an empty page: say so -->
 			<NcEmptyContent
 				v-else
@@ -41,18 +47,29 @@
 					<CommentRemoveOutline :size="20" />
 				</template>
 			</NcEmptyContent>
-			<TimelineList v-if="timeline" class="descendants thread__descendants" :type="$route.params.type" />
+			<TimelineList
+				v-if="timeline"
+				class="descendants thread__descendants"
+				:type="$route.params.type"
+				@settled="repliesSettled = true" />
+			<!-- a thread this instance holds only part of should say so rather
+			     than present what it has as the whole of it -->
+			<p v-if="hiddenReplies > 0" class="thread__hidden">
+				{{ hiddenRepliesText }}
+			</p>
 		</div>
 	</div>
 </template>
 
 <script>
 import { defineAsyncComponent } from 'vue'
-import { translate } from '@nextcloud/l10n'
+import { translate, translatePlural } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import CommentRemoveOutline from 'vue-material-design-icons/CommentRemoveOutline.vue'
+import PostDetails from '../components/PostDetails.vue'
+import PostReactedBy from '../components/PostReactedBy.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
 import { loadState } from '@nextcloud/initial-state'
@@ -73,6 +90,8 @@ export default {
 		CommentRemoveOutline,
 		NcButton,
 		NcEmptyContent,
+		PostDetails,
+		PostReactedBy,
 		TimelineEntry,
 		TimelineList,
 	},
@@ -81,6 +100,17 @@ export default {
 		const { serverData } = useServerData()
 
 		return { serverData }
+	},
+
+	data() {
+		return {
+			/**
+			 * Whether the replies have been asked for and answered. Until they
+			 * have, every reply is a reply this page has not drawn, and saying
+			 * so while they are on their way would be counting the loading.
+			 */
+			repliesSettled: false,
+		}
 	},
 
 	computed: {
@@ -124,6 +154,51 @@ export default {
 		 */
 		hasThread() {
 			return this.parentsTimeline.length > 0 || this.timeline.length > 0
+		},
+
+		/**
+		 * Whether there is somebody here to write a reply. A post read without
+		 * logging in is read from a page with no account behind it, and a box
+		 * that cannot send is worse than no box.
+		 *
+		 * @return {boolean}
+		 */
+		canReply() {
+			return !this.serverData.public
+		},
+
+		/**
+		 * How many replies this instance knows of but is not showing.
+		 *
+		 * `replies_count` is what the post's own instance said plus what has
+		 * arrived here, so the two differ honestly: a reply from an account the
+		 * reader blocked or muted is filtered out of the thread but still
+		 * counted, and a remote thread is only ever as complete as what has
+		 * reached this server. Counted against the *direct* replies, since that
+		 * is what the number on the post counts — a reply to a reply is in the
+		 * thread below without being in it.
+		 *
+		 * @return {number}
+		 */
+		hiddenReplies() {
+			if (!this.repliesSettled || !this.singlePost) {
+				return 0
+			}
+
+			const known = this.singlePost.replies_count ?? 0
+			const shown = this.timeline.filter((status) => status.in_reply_to_id === this.singlePost.id).length
+
+			return Math.max(0, known - shown)
+		},
+
+		/** @return {string} */
+		hiddenRepliesText() {
+			return translatePlural(
+				'social',
+				'%n reply is not shown here. It may be from an account you blocked or muted, or from a server this one has not heard from.',
+				'%n replies are not shown here. They may be from accounts you blocked or muted, or from servers this one has not heard from.',
+				this.hiddenReplies,
+			)
 		},
 	},
 
@@ -293,6 +368,22 @@ export default {
 	   takes the 24 that puts its avatar on the same line as theirs — which is
 	   the line the spine runs down */
 	margin-inline-start: 24px;
+}
+
+/* the fine print, the faces and the reply box belong to the post above them,
+   so they sit on its line rather than on the thread's */
+.main-post__under {
+	margin-inline-start: 24px;
+	/* level with the card, which starts where the avatar column ends */
+	padding-inline-start: 64px;
+	margin-bottom: 16px;
+}
+
+.thread__hidden {
+	margin: 8px 0 0 24px;
+	padding-inline-start: 64px;
+	color: var(--color-text-maxcontrast);
+	font-size: 13px;
 }
 
 #app-content {

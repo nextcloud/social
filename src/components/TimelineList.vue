@@ -140,6 +140,13 @@ export default {
 		},
 	},
 
+	/**
+	 * `settled` fires whenever a fetch finishes, successfully or not — what a
+	 * view needs to know before it can say anything about what the list does
+	 * *not* hold. It is not "loaded": a failure settles the list too.
+	 */
+	emits: ['settled'],
+
 	setup() {
 		const { serverData } = useServerData()
 		const { currentUser } = useCurrentUser()
@@ -486,6 +493,7 @@ export default {
 				// the newer request owns `loading` now
 				if (generation === this.generation) {
 					this.loading = false
+					this.$emit('settled')
 				}
 			}
 		},

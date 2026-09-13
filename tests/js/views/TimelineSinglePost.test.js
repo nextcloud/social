@@ -18,7 +18,11 @@ vi.hoisted(() => {
 	document.head.dataset.userDisplayname = 'Alice'
 })
 
-const ComposerStub = { name: 'Composer', template: '<div class="composer-stub" />' }
+const ComposerStub = {
+	name: 'Composer',
+	props: { inReplyTo: { type: Object, default: null } },
+	template: '<div class="composer-stub" />',
+}
 const TimelineListStub = {
 	name: 'TimelineList',
 	props: { type: String, showParents: Boolean, reverseOrder: Boolean },
@@ -195,13 +199,80 @@ describe('TimelineSinglePost', () => {
 		expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
 	})
 
-	it('only shows the composer when a reply was requested', async () => {
-		const wrapper = mountView()
-		const composer = () => wrapper.find('.composer-stub').element.style.display
-		expect(composer()).toBe('none')
-		store.setComposerDisplayStatus(true)
-		await nextTick()
-		expect(composer()).toBe('')
+	describe('the reply box', () => {
+		/**
+		 * It used to be a composer at the top of the page, hidden until a
+		 * reply button asked for it — so the page a reader opens to read a
+		 * conversation had nowhere to say anything, and the way to find out
+		 * was to press reply and watch the page jump.
+		 */
+		it('is under the post, pointed at it, without being asked for', () => {
+			const wrapper = mountView()
+			const composer = wrapper.findComponent(ComposerStub)
+
+			expect(composer.exists()).toBe(true)
+			expect(composer.props('inReplyTo').id).toBe('123')
+			expect(composer.element.closest('.main-post__under')).not.toBeNull()
+		})
+
+		it('is not offered to a reader who is not logged in', () => {
+			makeStore({ public: true })
+			const wrapper = mountView()
+
+			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
+		})
+	})
+
+	describe('the replies this page does not have', () => {
+		const note = (wrapper) => wrapper.find('.thread__hidden')
+
+		it('says nothing until the replies have been asked for and answered', async () => {
+			store.addToStatuses({ ...status, replies_count: 3 })
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(note(wrapper).exists()).toBe(false)
+		})
+
+		it('counts what the post says against what the thread shows', async () => {
+			store.addToStatuses({ ...status, replies_count: 3 })
+			const wrapper = mountView()
+			await flushPromises()
+			wrapper.findAllComponents(TimelineListStub).at(-1).vm.$emit('settled')
+			store.addToTimeline({ ancestors: [], descendants: [{ ...parent, id: '200', in_reply_to_id: '123' }] })
+			await nextTick()
+
+			expect(note(wrapper).text()).toContain('2 replies are not shown here')
+		})
+
+		it('says nothing when the thread holds every reply the post claims', async () => {
+			store.addToStatuses({ ...status, replies_count: 1 })
+			const wrapper = mountView()
+			await flushPromises()
+			wrapper.findAllComponents(TimelineListStub).at(-1).vm.$emit('settled')
+			store.addToTimeline({ ancestors: [], descendants: [{ ...parent, id: '200', in_reply_to_id: '123' }] })
+			await nextTick()
+
+			expect(note(wrapper).exists()).toBe(false)
+		})
+
+		it('does not count a reply to a reply against the post\'s own total', async () => {
+			store.addToStatuses({ ...status, replies_count: 1 })
+			const wrapper = mountView()
+			await flushPromises()
+			wrapper.findAllComponents(TimelineListStub).at(-1).vm.$emit('settled')
+			// one direct reply and one reply to that reply: the post's count is 1
+			store.addToTimeline({
+				ancestors: [],
+				descendants: [
+					{ ...parent, id: '200', in_reply_to_id: '123' },
+					{ ...parent, id: '201', in_reply_to_id: '200' },
+				],
+			})
+			await nextTick()
+
+			expect(note(wrapper).exists()).toBe(false)
+		})
 	})
 
 	it('survives the ancestors arriving, whenever they arrive', async () => {

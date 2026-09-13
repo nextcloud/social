@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.25  
+**App version:** 0.19.26  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -828,6 +828,47 @@ eight illustrations are licensed for this app by permission covering those eight
 and nothing else (see `img/undraw/readme.md`); anything new has to be ours. A
 state with a small drawing keeps the compact layout — the 60vh of height is room
 for the full-size ones only.
+
+**What else a post's own page says.** Four things that belong to a post being
+read rather than to a post being scrolled past.
+
+`PostReactedBy` puts the faces behind the two counts under the post, through
+`GET /api/v1/statuses/{nid}/reblogged_by` and `/favourited_by` — both of which
+the server has answered since the moderation tier and neither of which the web
+client called until now. Nothing is requested when a count is zero, which is
+most posts, so the page costs the two requests only when there is something to
+answer with; a refusal draws nothing, since the counts are still on the post and
+this row is only the elaboration. A dozen faces at most, with the count saying
+how many there are in all, and each row reloads on its own when its own count
+changes — the reader's own boost lands in the row it just changed.
+
+`PostDetails` is the fine print: the full date, the audience in the words the
+composer uses, the language named rather than coded (`Intl.DisplayNames`, the
+code itself when nothing can name it), when it was last edited, and — for a post
+from another server — a link to where it actually lives. A local post gets no
+such link, its own address being the page the reader is on. Mastodon's
+`application` is not among these: the entity this app builds does not carry one,
+and inventing a value would be worse than the absence.
+
+The composer sits under the post, pointed at it, rather than at the top of the
+page waiting to be summoned by a reply button. `Composer` takes `inReplyTo` for
+this: it seeds `replyTo`, which is what already makes the box open rather than
+collapsed, and it is a *default* rather than a fixed target — pressing reply on
+another post in the thread retargets the box as it always did, and sending or
+dismissing that reply comes back to the anchor rather than leaving the box
+pointed at nothing. The header naming who is being replied to is hidden while
+the target is the post directly above the box, where it would be the page
+repeating itself. There is no box at all on the public page, where there is no
+account to send from.
+
+And when the thread is shorter than the post says it is, the page says so.
+`replies_count` is what the post's own instance reported plus what has arrived
+here, so the two differ honestly: a reply from a muted or blocked account is
+filtered out of the thread but still counted, and a remote thread is only ever
+as complete as what has reached this server. The note counts against the
+*direct* replies on screen, since that is what the number on the post counts,
+and it waits for `TimelineList` to emit `settled` — before that, every reply is
+one this page has not drawn, and saying so would be counting the loading.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`

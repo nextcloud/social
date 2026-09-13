@@ -219,7 +219,7 @@ async function dispatch(wrapper, target, event) {
 	return event
 }
 
-const postedStatus = (store) => store.post.mock.calls[0]?.[0]
+const postedStatus = (store, call = 0) => store.post.mock.calls[call]?.[0]
 
 async function addWarning(wrapper, text) {
 	await wrapper.find('button[aria-label="Add content warning"]').trigger('click')
@@ -1485,6 +1485,77 @@ describe('Composer', () => {
 
 			expect(wrapper.find('.reply-to').exists()).toBe(false)
 			expect(store.setComposerDisplayStatus).toHaveBeenCalledWith(false)
+		})
+	})
+
+	describe('anchored under the post it replies to', () => {
+		it('starts pointed at that post, open, and without quoting it back', async () => {
+			const { wrapper } = mountComposer({ inReplyTo: replyTo(bob) })
+			await flushPromises()
+
+			// the post is directly above the box: repeating it inside the box,
+			// with a button for closing a reply that has nowhere else to go,
+			// is the page saying the same thing twice
+			expect(wrapper.find('.reply-to').exists()).toBe(false)
+			expect(wrapper.classes()).not.toContain('new-post--collapsed')
+			expect(wrapper.find('.message').attributes('placeholder')).toBe('Write a reply…')
+		})
+
+		it('sends what is typed as a reply to that post, in its audience', async () => {
+			const { wrapper, store } = mountComposer({ inReplyTo: replyTo(bob) })
+			await setContent(wrapper, 'answering')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus(store)).toMatchObject({ in_reply_to_id: '42', visibility: 'unlisted', status: 'answering' })
+		})
+
+		it('is still pointed at the post after sending one', async () => {
+			const { wrapper, store } = mountComposer({ inReplyTo: replyTo(bob) })
+			await setContent(wrapper, 'answering')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+			await setContent(wrapper, 'and again')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			// a box that emptied itself of its target would send the second
+			// reply to nobody, as a post of its own
+			expect(postedStatus(store, 1)).toMatchObject({ in_reply_to_id: '42', status: 'and again' })
+		})
+
+		it('can be retargeted at another post in the thread, and says so', async () => {
+			const { wrapper } = mountComposer({ inReplyTo: replyTo(bob) })
+			eventBus.emit('composer-reply', replyTo(carol, { id: '99', visibility: 'public' }))
+			await flushPromises()
+
+			expect(wrapper.find('.reply-to').find('strong').text()).toBe('carol')
+			expect(currentVisibility(wrapper)).toBe('public')
+		})
+
+		it('comes back to the post it is anchored under when that is dismissed', async () => {
+			const { wrapper, store } = mountComposer({ inReplyTo: replyTo(bob) })
+			eventBus.emit('composer-reply', replyTo(carol, { id: '99' }))
+			await flushPromises()
+
+			await wrapper.find('.reply-to button[aria-label="Close reply"]').trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.reply-to').exists()).toBe(false)
+			// closing a reply hides a composer that was opened to write it;
+			// this one is part of the page and has nothing to close back to
+			expect(store.setComposerDisplayStatus).not.toHaveBeenCalled()
+		})
+
+		it("follows the reader to another post's page", async () => {
+			const { wrapper, store } = mountComposer({ inReplyTo: replyTo(bob) })
+
+			await wrapper.setProps({ inReplyTo: replyTo(carol, { id: '99' }) })
+			await setContent(wrapper, 'answering')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus(store)).toMatchObject({ in_reply_to_id: '99' })
 		})
 	})
 
