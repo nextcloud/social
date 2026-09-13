@@ -381,7 +381,10 @@ export default {
 					{
 						key: 'social-notifications',
 						icon: IconBell,
-						title: t('social', 'Notifications'),
+						// "Activities" rather than "Notifications": what this page
+						// holds is everything that happened -- a mention, a like, a
+						// boost, a follow -- and only some of it was ever notified.
+						title: t('social', 'Activities'),
 						to: { name: 'timeline', params: { type: 'notifications' } },
 						counter: this.unreadNotifications,
 					},

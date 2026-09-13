@@ -118,7 +118,9 @@ export default {
 				case 'videos':
 					return t('social', 'Videos')
 				case 'notifications':
-					return t('social', 'Notifications')
+					// the sidebar calls it Activities; the route keeps the name
+					// the API gives it
+					return t('social', 'Activities')
 				case 'direct':
 					return t('social', 'Direct messages')
 				case 'timeline':
