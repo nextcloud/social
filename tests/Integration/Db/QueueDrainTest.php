@@ -126,11 +126,19 @@ class QueueDrainTest extends TestCase {
 		$this->assertSame(['alive.example'], $this->drained());
 	}
 
-	public function testAnExhaustedRequestIsDroppedRatherThanKept(): void {
+	public function testAnExhaustedRequestIsAbandonedRatherThanRetried(): void {
 		$this->request('gone.example', RequestQueueService::MAX_TRIES, 100000);
 
 		$this->assertSame([], $this->drained());
-		$this->assertSame(0, $this->countRows(CoreRequestBuilder::TABLE_REQUEST_QUEUE));
+		// marked, not deleted: the row stays as STATUS_ABANDONED for the
+		// retention so the author can see that server never got the post,
+		// and the drain never hands it out again
+		$this->assertSame(1, $this->countRows(CoreRequestBuilder::TABLE_REQUEST_QUEUE));
+		$this->assertSame([], $this->drained());
+		// the row's last attempt was 100000 s ago -- a day and a bit, well
+		// inside the seven-day retention
+		$this->assertSame(0, $this->requestQueue->deleteFinished(time() - RequestQueueService::RETENTION_SECONDS), 'still within the retention');
+		$this->assertSame(1, $this->requestQueue->deleteFinished(time() + 60), 'purged once it has passed');
 	}
 
 	public function testTheMostUrgentRequestIsDrainedFirst(): void {

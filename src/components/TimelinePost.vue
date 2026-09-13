@@ -251,6 +251,16 @@
 						@click="showDeleteDialog = true">
 						{{ t('social', 'Delete') }}
 					</NcActionButton>
+					<!-- where the post got to: the queue knows, and this asks it
+					     for the author, who is the only one it is answered for -->
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+						@click="openDelivery">
+						<template #icon>
+							<SendCheck :size="20" />
+						</template>
+						{{ t('social', 'Delivery status') }}
+					</NcActionButton>
 					<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
 					<NcActionLink
 						v-if="!origin.local && item.url"
@@ -301,6 +311,37 @@
 				:placeholder="t('social', 'Why are you reporting this post? (optional)')"
 				rows="3" />
 		</NcDialog>
+		<NcDialog
+			v-model:open="showDeliveryDialog"
+			:name="t('social', 'Delivery status')"
+			:buttons="deliveryButtons"
+			class="delivery-dialog">
+			<p v-if="deliveryLoading" class="delivery-hint">
+				{{ t('social', 'Asking the delivery queue …') }}
+			</p>
+			<p v-else-if="deliveryError" class="delivery-hint delivery-hint--error">
+				{{ deliveryError }}
+			</p>
+			<template v-else-if="delivery">
+				<p class="delivery-hint">
+					{{ deliverySummary }}
+				</p>
+				<ul v-if="delivery.instances.length" class="delivery-list">
+					<li
+						v-for="entry in delivery.instances"
+						:key="entry.host + entry.state + entry.last"
+						class="delivery-list__row"
+						:class="'delivery-list__row--' + entry.state">
+						<span class="delivery-list__dot" aria-hidden="true" />
+						<span class="delivery-list__host">{{ entry.host }}</span>
+						<span class="delivery-list__state">{{ deliveryStateLabel(entry) }}</span>
+					</li>
+				</ul>
+				<p v-else class="delivery-hint delivery-hint--muted">
+					{{ t('social', 'Nothing is on record for this post. Deliveries are kept for {days} days; a post older than that, or one that never left this server, has nothing to show.', { days: retentionDays }) }}
+				</p>
+			</template>
+		</NcDialog>
 		<!-- deleting is irreversible and federates: it is not something to
 		     do on the first click of a menu item sitting under "Edit" -->
 		<NcDialog
@@ -335,6 +376,7 @@ import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
+import SendCheck from 'vue-material-design-icons/SendCheck.vue'
 import FormatQuoteClose from 'vue-material-design-icons/FormatQuoteClose.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -372,6 +414,7 @@ export default {
 		NcActionButton,
 		NcActionLink,
 		NcDialog,
+		SendCheck,
 		EyeOff,
 		OpenInNew,
 		Flag,
@@ -431,6 +474,11 @@ export default {
 			editSpoiler: '',
 			showReportDialog: false,
 			showDeleteDialog: false,
+			showDeliveryDialog: false,
+			/** the answer of /statuses/{nid}/delivery, or null before it came */
+			delivery: null,
+			deliveryLoading: false,
+			deliveryError: '',
 			reportComment: '',
 			localPoll: this.item?.poll ?? null,
 			/** re-read from the shared clock, so "5 minutes ago" stays true */
@@ -608,6 +656,50 @@ export default {
 					callback: () => this.sendReport(),
 				},
 			]
+		},
+
+		deliveryButtons() {
+			return [
+				{
+					label: t('social', 'Close'),
+					callback: () => {
+						this.showDeliveryDialog = false
+					},
+				},
+			]
+		},
+
+		/** @return {number} how many days the queue keeps a finished delivery */
+		retentionDays() {
+			return Math.round((this.delivery?.retention ?? 7 * 86400) / 86400)
+		},
+
+		/**
+		 * @return {string} the counts as one sentence — the author reads this
+		 * line and, most of the time, needs nothing under it
+		 */
+		deliverySummary() {
+			const d = this.delivery
+			if (!d || d.total === 0) {
+				return ''
+			}
+			const parts = []
+			if (d.delivered) {
+				parts.push(n('social', 'delivered to %n server', 'delivered to %n servers', d.delivered))
+			}
+			if (d.sending) {
+				parts.push(n('social', 'being sent to %n server', 'being sent to %n servers', d.sending))
+			}
+			if (d.waiting) {
+				parts.push(n('social', 'waiting for %n server', 'waiting for %n servers', d.waiting))
+			}
+			if (d.failing) {
+				parts.push(n('social', 'failing against %n server', 'failing against %n servers', d.failing))
+			}
+			if (d.abandoned) {
+				parts.push(n('social', 'given up on %n server', 'given up on %n servers', d.abandoned))
+			}
+			return t('social', 'Of {total}: {parts}.', { total: n('social', '%n delivery', '%n deliveries', d.total), parts: parts.join(', ') })
 		},
 
 		deleteButtons() {
@@ -904,6 +996,46 @@ export default {
 		remove() {
 			this.showDeleteDialog = false
 			this.timelineStore.postDelete(this.item)
+		},
+
+		/**
+		 * Opens the delivery dialog and asks the server. Asked fresh every
+		 * time: a delivery that was failing a minute ago may have gone through.
+		 */
+		async openDelivery() {
+			this.showDeliveryDialog = true
+			this.deliveryLoading = true
+			this.deliveryError = ''
+			try {
+				const { data } = await axios.get(generateUrl('/apps/social/api/v1/statuses/{nid}/delivery', { nid: this.item.id }))
+				this.delivery = data
+			} catch {
+				this.delivery = null
+				this.deliveryError = t('social', 'Could not read the delivery status of this post.')
+			} finally {
+				this.deliveryLoading = false
+			}
+		},
+
+		/**
+		 * @param {{state: string, tries: number, last: number}} entry one server's row
+		 * @return {string} its state, with the detail the state calls for
+		 */
+		deliveryStateLabel(entry) {
+			switch (entry.state) {
+				case 'delivered':
+					return t('social', 'Delivered')
+				case 'sending':
+					return t('social', 'Sending')
+				case 'waiting':
+					return t('social', 'Waiting')
+				case 'failing':
+					return n('social', 'Failing (%n attempt)', 'Failing (%n attempts)', entry.tries)
+				case 'abandoned':
+					return n('social', 'Given up after %n attempt', 'Given up after %n attempts', entry.tries)
+				default:
+					return entry.state
+			}
 		},
 
 		/**
@@ -1505,6 +1637,83 @@ function nodeToPlainText(node) {
 	padding: 0 12px 12px;
 	color: var(--color-text-lighter);
 	line-height: 1.5;
+}
+
+.delivery-hint {
+	padding: 0 12px 12px;
+	color: var(--color-main-text);
+	line-height: 1.5;
+
+	&--muted {
+		color: var(--color-text-lighter);
+	}
+
+	&--error {
+		color: var(--color-error-text);
+	}
+}
+
+/*
+ * One row per server, the state carried by a dot as well as the word so the
+ * list reads at a glance: green got there, amber is still trying, red was
+ * given up on.
+ */
+.delivery-list {
+	margin: 0 12px 12px;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+
+	&__row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-height: 28px;
+		font-size: 14px;
+	}
+
+	&__dot {
+		flex: none;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: var(--color-text-maxcontrast);
+	}
+
+	&__host {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+	}
+
+	&__state {
+		flex: none;
+		color: var(--color-text-lighter);
+		font-size: 13px;
+	}
+
+	&__row--delivered &__dot {
+		background: var(--color-success);
+	}
+
+	&__row--sending &__dot,
+	&__row--waiting &__dot {
+		background: var(--color-warning);
+	}
+
+	&__row--failing &__dot {
+		background: var(--color-warning);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning) 30%, transparent);
+	}
+
+	&__row--abandoned &__dot {
+		background: var(--color-error);
+	}
 }
 
 /*

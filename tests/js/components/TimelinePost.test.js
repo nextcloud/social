@@ -11,6 +11,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
+import axios from '@nextcloud/axios'
+
+vi.mock('@nextcloud/axios', () => ({
+	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+}))
 
 const alice = {
 	id: '1',
@@ -1010,6 +1015,70 @@ describe('TimelinePost', () => {
 
 			expect(store.postDelete).not.toHaveBeenCalledWith(item)
 			expect(wrapper.findAll('.nc-dialog').some((el) => el.text().includes('Delete this post?'))).toBe(false)
+		})
+
+		it('offers the author, and only the author, the delivery status of a local post', () => {
+			expect(menuItem(mountPost().wrapper, 'Delivery status')).toBeDefined()
+			// which servers a post reached is a fact about the author's account
+			expect(menuItem(mountPost({ item: makeItem({ account: bob }) }).wrapper, 'Delivery status')).toBeUndefined()
+			// a post that arrived from elsewhere was never in this queue
+			expect(menuItem(mountPost({ item: makeItem({ local: false }) }).wrapper, 'Delivery status')).toBeUndefined()
+		})
+
+		it('asks the server where the post got to and lists it per server, worst first', async () => {
+			axios.get.mockResolvedValueOnce({
+				data: {
+					delivered: 1,
+					sending: 0,
+					waiting: 0,
+					failing: 1,
+					abandoned: 1,
+					total: 3,
+					retention: 604800,
+					instances: [
+						{ host: 'gone.example', state: 'abandoned', tries: 16, last: 1 },
+						{ host: 'slow.example', state: 'failing', tries: 3, last: 2 },
+						{ host: 'fine.example', state: 'delivered', tries: 0, last: 3 },
+					],
+				},
+			})
+			const { wrapper, item } = mountPost()
+
+			await menuItem(wrapper, 'Delivery status').trigger('click')
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenCalledWith(`/index.php/apps/social/api/v1/statuses/${item.id}/delivery`)
+			const dialog = wrapper.findAll('.nc-dialog').find((el) => el.text().includes('Delivery status'))
+			expect(dialog.find('.delivery-hint').text()).toBe('Of 3 deliveries: delivered to 1 server, failing against 1 server, given up on 1 server.')
+			const rows = dialog.findAll('.delivery-list__row')
+			expect(rows.map((row) => row.find('.delivery-list__host').text())).toEqual(['gone.example', 'slow.example', 'fine.example'])
+			expect(rows.map((row) => row.find('.delivery-list__state').text())).toEqual(['Given up after 16 attempts', 'Failing (3 attempts)', 'Delivered'])
+			expect(rows[0].classes()).toContain('delivery-list__row--abandoned')
+		})
+
+		it('says so when nothing is on record for the post', async () => {
+			axios.get.mockResolvedValueOnce({
+				data: { delivered: 0, sending: 0, waiting: 0, failing: 0, abandoned: 0, total: 0, retention: 604800, instances: [] },
+			})
+			const { wrapper } = mountPost()
+
+			await menuItem(wrapper, 'Delivery status').trigger('click')
+			await flushPromises()
+
+			const dialog = wrapper.findAll('.nc-dialog').find((el) => el.text().includes('Delivery status'))
+			expect(dialog.text()).toContain('Deliveries are kept for 7 days')
+			expect(dialog.find('.delivery-list').exists()).toBe(false)
+		})
+
+		it('reports a failed lookup instead of an empty dialog', async () => {
+			axios.get.mockRejectedValueOnce(new Error('500'))
+			const { wrapper } = mountPost()
+
+			await menuItem(wrapper, 'Delivery status').trigger('click')
+			await flushPromises()
+
+			const dialog = wrapper.findAll('.nc-dialog').find((el) => el.text().includes('Delivery status'))
+			expect(dialog.find('.delivery-hint--error').text()).toBe('Could not read the delivery status of this post.')
 		})
 
 		it('opens an inline editor prefilled with the plain text of the post', async () => {

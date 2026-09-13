@@ -44,6 +44,7 @@ use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DeliveryService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
@@ -136,6 +137,7 @@ class ApiControllerTest extends TestCase {
 	private ScheduledStatusService|MockObject $scheduledStatusService;
 	private EmojiService|MockObject $emojiService;
 	private PlaceService|MockObject $placeService;
+	private DeliveryService|MockObject $deliveryService;
 	private IAppManager|MockObject $appManager;
 	private FediverseService|MockObject $fediverseService;
 
@@ -240,6 +242,7 @@ class ApiControllerTest extends TestCase {
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
 		$this->emojiService = $this->createMock(EmojiService::class);
 		$this->placeService = $this->createMock(PlaceService::class);
+		$this->deliveryService = $this->createMock(DeliveryService::class);
 		$this->appManager = $this->createMock(IAppManager::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->fediverseService->method('getAccessType')->willReturnCallback(fn (): string => $this->accessType);
@@ -330,7 +333,8 @@ class ApiControllerTest extends TestCase {
 			$this->emojiService,
 			$this->appManager,
 			$this->fediverseService,
-			$this->placeService
+			$this->placeService,
+			$this->deliveryService
 		);
 	}
 
@@ -2684,6 +2688,38 @@ class ApiControllerTest extends TestCase {
 		$this->streamService->method('getStreamByNid')->willReturn($item);
 
 		$this->assertNotFound($this->controller()->statusSource(7), 'Stream not found');
+	}
+
+	// GET /statuses/{id}/delivery
+
+	public function testStatusDeliveryTellsTheAuthorWhereTheirPostGotTo(): void {
+		$this->loggedInAs();
+		$item = $this->ownStatus(7);
+		$item->method('getId')->willReturn('https://cloud.example/apps/social/@alice/7');
+		$summary = [
+			'delivered' => 2, 'sending' => 0, 'waiting' => 0, 'failing' => 1, 'abandoned' => 0, 'total' => 3,
+			'retention' => 604800,
+			'instances' => [['host' => 'slow.example', 'state' => 'failing', 'tries' => 4, 'last' => 1700000000]],
+		];
+		$this->deliveryService->method('forObject')
+			->with('https://cloud.example/apps/social/@alice/7')->willReturn($summary);
+
+		$response = $this->controller()->statusDelivery(7);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['id' => '7'] + $summary, $response->getData());
+	}
+
+	public function testStatusDeliveryOfSomebodyElsesPostIsA404(): void {
+		$this->loggedInAs();
+		$item = $this->createMock(Stream::class);
+		$item->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@bob');
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		// which servers a post reached is a fact about the author's account and
+		// nobody else's; the queue is not even asked
+		$this->deliveryService->expects($this->never())->method('forObject');
+
+		$this->assertNotFound($this->controller()->statusDelivery(7), 'Stream not found');
 	}
 
 	// Idempotency-Key

@@ -65,6 +65,9 @@ class Queue extends TimedJob {
 	private function manageRequestQueue(int $deadline) {
 		// Re-queue anything a dead worker left stranded mid-delivery before draining.
 		$this->requestQueueService->reapStaleRunning();
+		// the delivered and abandoned rows past their retention; a cheap DELETE
+		// with a WHERE, so it runs every pass rather than on a schedule of its own
+		$this->requestQueueService->purgeFinished();
 
 		$requests = $this->requestQueueService->getRequestStandby();
 		$this->activityService->manageInit();

@@ -49,8 +49,8 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'rq.id', 'rq.token', 'rq.author', 'rq.activity', 'rq.instance', 'rq.priority',
-			'rq.status', 'rq.tries', 'rq.last'
+			'rq.id', 'rq.token', 'rq.author', 'rq.activity', 'rq.object_id_prim', 'rq.instance',
+			'rq.priority', 'rq.status', 'rq.tries', 'rq.last'
 		)
 			->from(self::TABLE_REQUEST_QUEUE, 'rq');
 

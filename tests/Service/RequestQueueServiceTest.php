@@ -261,14 +261,57 @@ class RequestQueueServiceTest extends TestCase {
 		$this->service->initRequest($this->queued(InstancePath::PRIORITY_LOW));
 	}
 
-	public function testEndRequestOnSuccessRemovesTheRequest(): void {
+	public function testEndRequestOnSuccessKeepsTheRequestAsDelivered(): void {
 		$queue = $this->queued(InstancePath::PRIORITY_LOW);
-		// A delivered request is deleted rather than left as a permanent STATUS_SUCCESS
-		// row that would grow social_req_queue without bound.
-		$this->requestQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
+		// kept, not deleted: it is the one record that this server got the post,
+		// and the author may ask. purgeFinished() takes it away after the retention.
+		$this->requestQueueRequest->expects($this->once())->method('setAsSuccess')->with($this->identicalTo($queue));
+		$this->requestQueueRequest->expects($this->never())->method('delete');
 		$this->requestQueueRequest->expects($this->never())->method('setAsFailure');
 
 		$this->service->endRequest($queue, true);
+	}
+
+	public function testPurgeFinishedAppliesTheRetention(): void {
+		$this->requestQueueRequest->expects($this->once())
+			->method('deleteFinished')
+			->with($this->callback(fn (int $before): bool
+				=> abs($before - (time() - RequestQueueService::RETENTION_SECONDS)) < 5))
+			->willReturn(3);
+
+		$this->assertSame(3, $this->service->purgeFinished());
+	}
+
+	/**
+	 * The rows of one post are found by the object inside the activity, so the
+	 * prim is read off the JSON: the Note under a Create, the object of an
+	 * Announce, the activity's own id when it has no object.
+	 */
+	public function testQueuedRequestsCarryThePrimOfTheObjectTheyAreAbout(): void {
+		$stored = $this->captureQueued();
+		$activity = json_encode([
+			'id' => 'https://cloud.example.com/apps/social/@alice/1/activity',
+			'type' => 'Create',
+			'object' => ['id' => 'https://cloud.example.com/apps/social/@alice/1', 'type' => 'Note'],
+		]);
+
+		$this->service->generateRequestQueueFromSource(
+			[new InstancePath('https://remote.example/inbox', InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW)],
+			$activity,
+			self::AUTHOR
+		);
+
+		$this->assertSame(md5('https://cloud.example.com/apps/social/@alice/1'), $stored->requests[0]->getObjectIdPrim());
+	}
+
+	public function testObjectIdPrimOfReadsEveryShapeAnActivityComesIn(): void {
+		$this->assertSame(md5('https://a/note'), RequestQueueService::objectIdPrimOf('{"type":"Create","object":{"id":"https://a/note"}}'));
+		// an Announce names its object by id
+		$this->assertSame(md5('https://a/note'), RequestQueueService::objectIdPrimOf('{"type":"Announce","object":"https://a/note"}'));
+		// a bare Note, queued as itself
+		$this->assertSame(md5('https://a/note'), RequestQueueService::objectIdPrimOf('{"id":"https://a/note","type":"Note"}'));
+		$this->assertSame('', RequestQueueService::objectIdPrimOf('{"type":"Follow"}'));
+		$this->assertSame('', RequestQueueService::objectIdPrimOf('not json'));
 	}
 
 	public function testEndRequestOnFailure(): void {
@@ -295,12 +338,14 @@ class RequestQueueServiceTest extends TestCase {
 
 	public function testGetRequestStandbyAbandonsRequestsPastTheRetryCap(): void {
 		$now = time();
-		// A request that has burned through MAX_TRIES is deleted and never handed back,
-		// so a dead host cannot keep it on standby forever.
+		// A request that has burned through MAX_TRIES is marked abandoned and never
+		// handed back, so a dead host cannot keep it on standby forever -- marked,
+		// not deleted, so the author can still see that server never got the post.
 		$exhausted = $this->queued(InstancePath::PRIORITY_LOW)->setTries(RequestQueueService::MAX_TRIES)->setLast($now - 100000);
 		$ready = $this->queued(InstancePath::PRIORITY_LOW)->setTries(2)->setLast($now - 60); // delay 31s, elapsed
 		$this->requestQueueRequest->method('getStandby')->willReturn([$exhausted, $ready]);
-		$this->requestQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($exhausted));
+		$this->requestQueueRequest->expects($this->once())->method('setAsAbandoned')->with($this->identicalTo($exhausted));
+		$this->requestQueueRequest->expects($this->never())->method('delete');
 
 		$total = 0;
 		$result = $this->service->getRequestStandby($total);
