@@ -35,6 +35,7 @@
 			<NcAvatar
 				v-else
 				:url="item.account.avatar"
+				:disableMenu="true"
 				:disableTooltip="true" />
 		</AccountHoverCard>
 	</div>

@@ -6,12 +6,7 @@
 	<div v-if="item" class="user-entry">
 		<div class="entry-content">
 			<div class="user-avatar">
-				<NcAvatar
-					v-if="isLocal"
-					:size="32"
-					:user="item.username"
-					:disableTooltip="true" />
-				<NcAvatar v-else :url="item.avatar" />
+				<ActorAvatar :actor="item" :size="32" />
 			</div>
 			<div class="user-details">
 				<router-link v-if="!serverData.public" :to="{ name: 'profile', params: { account: item.acct }}">
@@ -44,7 +39,7 @@
 </template>
 
 <script>
-import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import ActorAvatar from './ActorAvatar.vue'
 import DisplayName from './DisplayName.js'
 import FollowButton from './FollowButton.vue'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
@@ -58,7 +53,7 @@ export default {
 	components: {
 		DisplayName,
 		FollowButton,
-		NcAvatar,
+		ActorAvatar,
 	},
 
 	props: {
@@ -111,12 +106,6 @@ export default {
 			return this.accountStore.getRelationshipWith(this.item?.id)
 		},
 
-		/**
-		 * @return {boolean}
-		 */
-		isLocal() {
-			return !this.item.acct.includes('@')
-		},
 	},
 
 	mounted() {

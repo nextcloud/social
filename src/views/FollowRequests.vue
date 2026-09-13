@@ -23,7 +23,7 @@
 		<transition-group name="collapse" tag="div" class="follow-request-list">
 			<div v-for="account in requests" :key="account.id" class="follow-request">
 				<div class="follow-request__user">
-					<NcAvatar :url="account.avatar" :disableTooltip="true" />
+					<ActorAvatar :actor="account" />
 					<router-link :to="{ name: 'profile', params: { account: account.acct } }">
 						<span class="follow-request__name">{{ account.display_name || account.username }}</span>
 						<span class="follow-request__acct">{{ account.acct }}</span>
@@ -62,7 +62,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
-import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import ActorAvatar from '../components/ActorAvatar.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import AccountClock from 'vue-material-design-icons/AccountClock.vue'
@@ -73,7 +73,7 @@ import logger from '../services/logger.js'
 export default {
 	name: 'FollowRequests',
 	components: {
-		NcAvatar,
+		ActorAvatar,
 		NcButton,
 		NcEmptyContent,
 		AccountClock,

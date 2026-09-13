@@ -51,7 +51,7 @@ async function mountView({ blocked = [bob], muted = [carol], dispatch } = {}) {
 		global: {
 			plugins: [pinia],
 			stubs: {
-				NcAvatar: true,
+				ActorAvatar: true,
 				NcEmptyContent: { props: ['name'], template: '<div class="empty-content">{{ name }}</div>' },
 				RouterLink: RouterLinkStub,
 			},
@@ -151,7 +151,7 @@ describe('BlockedAccounts', () => {
 			global: {
 				plugins: [pinia],
 				stubs: {
-					NcAvatar: true,
+					ActorAvatar: true,
 					NcEmptyContent: { props: ['name'], template: '<div class="empty-content">{{ name }}</div>' },
 					RouterLink: RouterLinkStub,
 				},
