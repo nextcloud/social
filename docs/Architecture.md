@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.27  
+**App version:** 0.19.28  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -828,6 +828,29 @@ eight illustrations are licensed for this app by permission covering those eight
 and nothing else (see `img/undraw/readme.md`); anything new has to be ours. A
 state with a small drawing keeps the compact layout — the 60vh of height is room
 for the full-size ones only.
+
+**The hashtags on Discover.** `TrendingHashtags` is a ranking rather than a
+list of names: a row carries its position, the tag, how often it was used in the
+window asked for, and a bar showing its share of the busiest tag on the list —
+which is the only comparison these numbers support, since `history` from this
+server is a single bucket for the chosen window rather than a series (the
+`accounts` field is always `0`, so "how many people" is not something the page
+may claim). The window itself is the useful part: `/api/v1/trends/tags` takes a
+`period` of `1h`, `12h`, `1d`, `3d` or `10d` and **orders by that window's own
+column**, so choosing one re-ranks rather than relabels, and an answer that
+arrives after the reader has moved to another window is dropped rather than
+drawn. The empty state says which of the two emptinesses it is: nothing tagged
+in this stretch of time, or — over ten days — an instance where hashtags are not
+used.
+
+Following is answered once for the page. `HashtagFollowButton` looks a tag up
+for itself when nobody has told it, which is right for the one button on a
+hashtag timeline and wrong for twenty on a ranking: it takes an optional
+`known` list and reads its state from that instead, so the page costs one
+`/api/v1/followed_tags` call rather than twenty lookups before anything can be
+drawn. `null` means nobody has said, which is not the same as "not followed" —
+hence a list rather than a boolean, since a `Boolean` prop cannot carry the
+third state.
 
 **What else a post's own page says.** Four things that belong to a post being
 read rather than to a post being scrolled past.

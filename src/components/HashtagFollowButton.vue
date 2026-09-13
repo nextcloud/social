@@ -46,6 +46,21 @@ export default {
 			type: String,
 			required: true,
 		},
+
+		/**
+		 * The hashtags the reader follows, when whoever drew this button
+		 * already knows — a list of them is one request for the page instead of
+		 * one lookup per button, and twenty buttons asking separately is twenty
+		 * requests before any of them can be drawn.
+		 *
+		 * `null` means nobody has said, and the button asks for itself.
+		 *
+		 * @type {import('vue').PropType<string[]|null>}
+		 */
+		known: {
+			type: Array,
+			default: null,
+		},
 	},
 
 	emits: ['changed'],
@@ -102,12 +117,32 @@ export default {
 			handler() {
 				this.loaded = false
 				this.following = false
-				this.load()
+				this.apply()
 			},
 		},
+
+		// not immediate: the tag watcher above already draws the first state,
+		// and two immediate watchers meant two lookups per button
+		known: 'apply',
 	},
 
 	methods: {
+		/**
+		 * Takes the state from the list it was given, and asks the server when
+		 * it was given none. Both watchers come through here, so a button that
+		 * moves to another hashtag is answered the same way it was first drawn.
+		 */
+		apply() {
+			if (this.known === null) {
+				this.load()
+
+				return
+			}
+
+			this.following = this.known.includes(this.tag)
+			this.loaded = true
+		},
+
 		/** What the server says about this tag, for this viewer. */
 		async load() {
 			if (!this.canRequest) {

@@ -46,26 +46,9 @@
 			</NcEmptyContent>
 		</template>
 
-		<template v-else-if="active === 'tags'">
-			<ul v-if="tags.length" class="discover__tags">
-				<li v-for="tag in tags" :key="tag.name">
-					<router-link class="discover__tag" :to="{ name: 'tags', params: { tag: tag.name } }">
-						<span class="discover__tag-name">#{{ tag.name }}</span>
-						<span v-if="tagUses(tag)" class="discover__tag-count">
-							{{ n('social', '%n post', '%n posts', tagUses(tag)) }}
-						</span>
-					</router-link>
-				</li>
-			</ul>
-			<NcEmptyContent
-				v-else-if="!loading"
-				:name="t('social', 'No trending hashtags')"
-				:description="t('social', 'Hashtags people are using will appear here.')">
-				<template #icon>
-					<Pound />
-				</template>
-			</NcEmptyContent>
-		</template>
+		<!-- the hashtags tab loads, ranks and follows on its own: which stretch
+		     of time it means is a question only this list has -->
+		<TrendingHashtags v-else-if="active === 'tags'" />
 
 		<template v-else-if="active === 'packs'">
 			<!-- one pack open: its accounts, with a follow-all -->
@@ -185,8 +168,8 @@ import Compass from 'vue-material-design-icons/Compass.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import Pound from 'vue-material-design-icons/Pound.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
+import TrendingHashtags from '../components/TrendingHashtags.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '../services/toast.js'
@@ -223,8 +206,8 @@ export default {
 		NcButton,
 		NcEmptyContent,
 		NcLoadingIcon,
-		Pound,
 		ProfileMediaGrid,
+		TrendingHashtags,
 		Refresh,
 	},
 
@@ -234,7 +217,6 @@ export default {
 			loading: false,
 			error: null,
 			posts: [],
-			tags: [],
 			accounts: [],
 			packs: [],
 			/** which pack is open, and the accounts it resolved to */
@@ -276,7 +258,8 @@ export default {
 		 * @param {boolean} force ask again even if it has been asked once
 		 */
 		async load(tab, force = false) {
-			if (!force && this.loaded.includes(tab)) {
+			// the hashtags tab asks for itself, per window
+			if (tab === 'tags' || (!force && this.loaded.includes(tab))) {
 				return
 			}
 
@@ -285,8 +268,6 @@ export default {
 			try {
 				if (tab === 'posts') {
 					this.posts = await this.get('api/v2/discover/posts')
-				} else if (tab === 'tags') {
-					this.tags = await this.get('api/v1/trends/tags')
 				} else if (tab === 'packs') {
 					this.packs = await this.get('api/v1/starter_packs')
 				} else {
@@ -373,20 +354,6 @@ export default {
 			return Array.isArray(data) ? data : []
 		},
 
-		/**
-		 * Mastodon's tag entity counts uses per day in `history`; this server
-		 * answers the same shape.
-		 *
-		 * @param {object} tag a trending tag
-		 * @return {number} how many posts used it in the window
-		 */
-		tagUses(tag) {
-			if (!Array.isArray(tag.history)) {
-				return 0
-			}
-
-			return tag.history.reduce((total, day) => total + Number(day.uses ?? 0), 0)
-		},
 	},
 }
 </script>
@@ -414,31 +381,6 @@ export default {
 		align-items: center;
 		gap: calc(var(--default-grid-baseline) * 2);
 		padding: calc(var(--default-grid-baseline) * 4);
-	}
-
-	&__tags {
-		list-style: none;
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--default-grid-baseline);
-	}
-
-	&__tag {
-		display: flex;
-		flex-direction: column;
-		padding: calc(var(--default-grid-baseline) * 2);
-		border-radius: var(--border-radius-large);
-		background-color: var(--color-background-hover);
-
-		&:hover,
-		&:focus-visible {
-			background-color: var(--color-background-dark);
-		}
-	}
-
-	&__tag-count {
-		font-size: var(--font-size-small, 0.85em);
-		color: var(--color-text-maxcontrast);
 	}
 
 	&__accounts {
