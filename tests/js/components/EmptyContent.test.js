@@ -23,10 +23,21 @@ describe('EmptyContent', () => {
 	})
 
 	it('resolves the illustration relative to the app root', () => {
-		const img = mountEmpty({ description: 'x', image: 'img/undraw/posts.svg' }).find('img.empty-content__image')
+		const img = mountEmpty({ description: 'x', image: 'img/undraw/posts.svg' }).find('img.timeline-empty__image')
 		expect(img.attributes('src')).toBe('/apps/social/img/undraw/posts.svg')
 		expect(img.attributes('alt')).toBe('')
 		expect(img.element.closest('.empty-content__icon')).not.toBeNull()
+	})
+
+	it('is a line of text rather than a screenful when there is no illustration', () => {
+		// most of the height is room for the picture; "No replies found" under
+		// every post with no replies held 60% of the window open and read as a
+		// page still loading
+		const bare = mountEmpty({ title: 'No replies found' })
+		const illustrated = mountEmpty({ title: 'No posts', image: 'img/undraw/posts.svg' })
+
+		expect(bare.classes()).toContain('timeline-empty--bare')
+		expect(illustrated.classes()).not.toContain('timeline-empty--bare')
 	})
 
 	it('omits the icon area when the item has no image', () => {

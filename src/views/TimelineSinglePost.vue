@@ -262,11 +262,13 @@ export default {
 	}
 }
 
+/* The post being read is raised off the thread rather than outlined on it. It
+   carried a border in the accent colour as well, around a card that has a
+   border of its own, so a post on its own page was drawn inside two boxes. */
 .main-post {
 	position: relative;
 	z-index: 1;
 	background: var(--color-main-background);
-	border: 1px solid var(--color-primary-element);
 	border-radius: 8px;
 	padding: 20px;
 	box-sizing: content-box;
