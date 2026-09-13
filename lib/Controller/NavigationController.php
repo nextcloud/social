@@ -92,6 +92,7 @@ class NavigationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/discover', postfix: 'discover')]
 	#[FrontpageRoute(verb: 'GET', url: '/migration', postfix: 'migration')]
 	#[FrontpageRoute(verb: 'GET', url: '/statistics', postfix: 'statistics')]
+	#[FrontpageRoute(verb: 'GET', url: '/settings', postfix: 'settings')]
 	public function navigate(string $path = ''): TemplateResponse {
 		$this->logger->debug('[NavigationController] navigate() called', [
 			'path' => $path,

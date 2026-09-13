@@ -740,6 +740,7 @@ These serve HTML or files for the app's own UI; they are not client API endpoint
 | GET | `/discover` | user, no-csrf | — | Same page, for the Discover view — who to follow (suggestions and starter packs), and what is being looked at (pictures and hashtags). The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
 | GET | `/migration` | user, no-csrf | — | Same page, for the Migration view — export, import, and bringing your follows over from another network. The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
 | GET | `/statistics` | user, no-csrf | — | Same page, for the Statistics view — what the account has posted and what came back. The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
+| GET | `/settings` | user, no-csrf | — | Same page, for the Settings view — what this app holds about how the reader uses it, which for now is the keyboard shortcuts. The client-side router owns the path; this route exists so that reloading or bookmarking it is not a 404. |
 | GET | `/document/get` | user, no-csrf | `id` (required) | Streams a cached document with its stored mime type. Errors: error envelope, HTTP 500. |
 | GET | `/document/public` | public, no-csrf | `id` (required) | Same for documents marked public. |
 | GET | `/document/get/resized` | user, no-csrf | `id` (required) | Streams the resized/preview variant. |

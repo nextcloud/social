@@ -126,6 +126,18 @@
 							<IconCancel :size="20" />
 						</template>
 					</NcAppNavigationItem>
+					<!-- last, and on its own: everything above this menu is a
+					     place to read something, and this is the one place to
+					     change something -->
+					<NcAppNavigationItem
+						:name="t('social', 'Settings')"
+						:href="hrefFor({ name: 'settings' })"
+						:active="isActive({ to: { name: 'settings' } })"
+						@click="navigate({ name: 'settings' }, $event)">
+						<template #icon>
+							<IconCog :size="20" />
+						</template>
+					</NcAppNavigationItem>
 				</NcAppNavigationSettings>
 			</div>
 		</template>
@@ -198,6 +210,7 @@ import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
+import IconCog from 'vue-material-design-icons/Cog.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
 import { mapStores } from 'pinia'
@@ -241,6 +254,7 @@ export default {
 		IconPound,
 		IconSwapHorizontal,
 		IconCancel,
+		IconCog,
 		IconAlertCircle,
 	},
 
@@ -408,6 +422,12 @@ export default {
 						to: { name: 'timeline', params: { type: 'favourites' } },
 					},
 					{
+						key: 'social-bookmarks',
+						icon: IconBookmark,
+						title: t('social', 'Bookmarks'),
+						to: { name: 'timeline', params: { type: 'bookmarks' } },
+					},
+					{
 						key: 'social-statistics',
 						icon: IconChartBox,
 						title: t('social', 'Statistics'),
@@ -418,12 +438,6 @@ export default {
 						icon: IconSwapHorizontal,
 						title: t('social', 'Migration'),
 						to: { name: 'migration' },
-					},
-					{
-						key: 'social-bookmarks',
-						icon: IconBookmark,
-						title: t('social', 'Bookmarks'),
-						to: { name: 'timeline', params: { type: 'bookmarks' } },
 					},
 				],
 
