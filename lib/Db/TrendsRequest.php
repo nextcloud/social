@@ -43,7 +43,13 @@ class TrendsRequest extends TrendsRequestBuilder {
 	 *
 	 * @return int[]
 	 */
-	public function trendingStatusNids(int $since, int $limit, int $offset, bool $onlyMedia = false): array {
+	public function trendingStatusNids(
+		int $since,
+		int $limit,
+		int $offset,
+		bool $onlyMedia = false,
+		string $mediaType = '',
+	): array {
 		$qb = $this->getTrendingStatusNidsSelectSql();
 		$expr = $qb->expr();
 
@@ -65,6 +71,16 @@ class TrendsRequest extends TrendsRequestBuilder {
 		// trending status and a poor thing to put in a grid of squares
 		if ($onlyMedia) {
 			$qb->limitToMedia();
+		}
+
+		// ...and narrowed again where the screen is about one kind of media.
+		// `video` has a predicate of its own because a video need not be an
+		// attachment at all: PeerTube publishes a `Video` object, which arrives
+		// carrying `Video` in `subtype` and no file this instance can see.
+		if ($mediaType === 'video') {
+			$qb->limitToVideo();
+		} elseif ($mediaType !== '') {
+			$qb->limitToMediaType($mediaType);
 		}
 
 		$qb->selectAlias($qb->createFunction('COUNT(a.id_prim)'), 'interactions');

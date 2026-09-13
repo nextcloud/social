@@ -27,16 +27,16 @@
 			</NcButton>
 		</div>
 
-		<template v-else-if="active === 'posts'">
+		<template v-else-if="active === 'posts' || active === 'videos'">
 			<ProfileMediaGrid
-				v-if="posts.length || loading"
-				:posts="posts"
+				v-if="media.length || loading"
+				:posts="media"
 				account=""
 				:loading="loading" />
 			<NcEmptyContent
 				v-else
 				:name="t('social', 'Nothing to discover yet')"
-				:description="t('social', 'Pictures people are looking at will appear here.')">
+				:description="emptyMediaDescription">
 				<template #icon>
 					<Compass />
 				</template>
@@ -152,7 +152,10 @@
 			</NcEmptyContent>
 		</template>
 
-		<NcLoadingIcon v-if="loading && active !== 'posts'" class="discover__loading" :size="32" />
+		<NcLoadingIcon
+			v-if="loading && active !== 'posts' && active !== 'videos'"
+			class="discover__loading"
+			:size="32" />
 	</div>
 </template>
 
@@ -166,6 +169,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
+import PlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import TimelineSwitcher from '../components/TimelineSwitcher.vue'
@@ -218,6 +222,7 @@ export default {
 			loading: false,
 			error: null,
 			posts: [],
+			videos: [],
 			accounts: [],
 			packs: [],
 			/** which pack is open, and the accounts it resolved to */
@@ -230,6 +235,24 @@ export default {
 	},
 
 	computed: {
+		/**
+		 * Pictures and Videos are one grid asked two questions, so the template
+		 * reads whichever list the tab on screen stands for rather than naming
+		 * one of them.
+		 *
+		 * @return {object[]} the posts to draw
+		 */
+		media() {
+			return (this.active === 'videos') ? this.videos : this.posts
+		},
+
+		/** @return {string} what an empty grid should say it is empty of */
+		emptyMediaDescription() {
+			return (this.active === 'videos')
+				? t('social', 'Videos people are watching will appear here.')
+				: t('social', 'Pictures people are looking at will appear here.')
+		},
+
 		tabs() {
 			// no `to` on any of them: the switcher pushes a route where an
 			// option has one and hands the pick back where it does not, and
@@ -238,6 +261,7 @@ export default {
 				{ value: 'accounts', label: t('social', 'People'), icon: AccountMultipleOutline },
 				{ value: 'packs', label: t('social', 'Starter packs'), icon: AccountMultiplePlusOutline },
 				{ value: 'posts', label: t('social', 'Pictures'), icon: ImageMultiple },
+				{ value: 'videos', label: t('social', 'Videos'), icon: PlayBoxMultiple },
 				{ value: 'tags', label: t('social', 'Hashtags'), icon: Pound },
 			]
 		},
@@ -271,7 +295,13 @@ export default {
 			this.error = null
 			try {
 				if (tab === 'posts') {
-					this.posts = await this.get('api/v2/discover/posts')
+					// `media` is this app's own parameter: without it the route
+					// answers with every post that has an attachment, which is
+					// Pixelfed's meaning of it and would put the same video in
+					// both grids
+					this.posts = await this.get('api/v2/discover/posts?media=image')
+				} else if (tab === 'videos') {
+					this.videos = await this.get('api/v2/discover/posts?media=video')
 				} else if (tab === 'packs') {
 					this.packs = await this.get('api/v1/starter_packs')
 				} else {

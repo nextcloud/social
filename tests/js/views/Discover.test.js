@@ -66,6 +66,13 @@ describe('Discover', () => {
 			expect(tabs[1].value).toBe('packs')
 		})
 
+		it('offers Videos beside Pictures', () => {
+			const tabs = Discover.computed.tabs.call({})
+
+			expect(tabs.map((tab) => tab.value))
+				.toEqual(['accounts', 'packs', 'posts', 'videos', 'tags'])
+		})
+
 		it('lets the switcher hand the pick back rather than routing', () => {
 			// the control pushes a route where an option carries one, and
 			// which of these four lists is on screen is not a route
@@ -77,6 +84,37 @@ describe('Discover', () => {
 
 		it('opens on People rather than on content', () => {
 			expect(Discover.data().active).toBe('accounts')
+		})
+
+		/**
+		 * Without `media` the route answers with every post that has an
+		 * attachment, which is Pixelfed's meaning of it and would put the same
+		 * video in both grids.
+		 */
+		it('asks for one kind of media per grid', async () => {
+			get.mockResolvedValue({ data: [] })
+			const self = view()
+
+			await self.load.call(self, 'posts')
+			await self.load.call(self, 'videos')
+
+			expect(get).toHaveBeenNthCalledWith(1, '/apps/social/api/v2/discover/posts?media=image')
+			expect(get).toHaveBeenNthCalledWith(2, '/apps/social/api/v2/discover/posts?media=video')
+		})
+
+		it('keeps the two grids apart', () => {
+			const posts = [{ id: '1' }]
+			const videos = [{ id: '2' }, { id: '3' }]
+
+			expect(Discover.computed.media.call({ active: 'posts', posts, videos })).toBe(posts)
+			expect(Discover.computed.media.call({ active: 'videos', posts, videos })).toBe(videos)
+		})
+
+		it('says which kind the empty grid is empty of', () => {
+			expect(Discover.computed.emptyMediaDescription.call({ active: 'videos' }))
+				.toContain('Videos')
+			expect(Discover.computed.emptyMediaDescription.call({ active: 'posts' }))
+				.toContain('Pictures')
 		})
 
 		it('asks the starter pack index for the packs tab', async () => {

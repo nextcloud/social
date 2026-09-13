@@ -224,7 +224,7 @@ export default {
 	// lands exactly on one of them — "My Feed" is a wider word than "Local"
 	flex: 1 1 0;
 	display: flex;
-	gap: 6px;
+	gap: 8px;
 	align-items: center;
 	justify-content: center;
 	min-width: 0;
@@ -232,7 +232,12 @@ export default {
 	   was 36 — a 48px control, taller than a Nextcloud button and the loudest
 	   thing above a timeline it only labels */
 	min-height: 30px;
-	padding: 0 16px;
+	/* Three options of one or two words each had room to spare at 16. Discover
+	   puts five here, two of them two words long, and at 16 the labels ran
+	   together: what separates one option from the next is this padding
+	   doubled, and nothing else -- there is no rule between them and the pill
+	   sits under only one. */
+	padding: 0 22px;
 	border: none;
 	border-radius: var(--border-radius-pill, 100px);
 	color: var(--color-text-maxcontrast);
@@ -310,6 +315,31 @@ export default {
 
 	.switcher__label {
 		display: none;
+	}
+}
+
+/*
+ * Five of these do not fit a phone.
+ *
+ * The track is `fit-content` up to the width of its column, and an option is
+ * `nowrap` with no room to shrink into, so past that point the labels would run
+ * over one another rather than the control admitting it has run out of room.
+ * Below this width the labels give way to the icons they sit beside — and stay
+ * in the accessibility tree, because the label is the option's name and a
+ * radiogroup of five unnamed buttons is not a control anybody can use.
+ */
+@media (max-width: 500px) {
+	.switcher .switcher__option {
+		padding: 0 14px;
+	}
+
+	.switcher__label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 }
 
