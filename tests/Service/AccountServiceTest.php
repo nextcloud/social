@@ -135,14 +135,42 @@ class AccountServiceTest extends TestCase {
 		return $alice;
 	}
 
-	/** Point the display-name account property at a value with the given scope. */
+	/** @var array<string, string> what the fediverse field held, per test */
+	private array $fediverseField = ['value' => '', 'scope' => IAccountManager::SCOPE_LOCAL];
+	/** @var string[] every value written to the fediverse field */
+	private array $fediverseWrites = [];
+	private int $accountUpdates = 0;
+
+	/**
+	 * Point the display-name account property at a value with the given
+	 * scope, and give the profile a fediverse field the service can read and
+	 * write -- it asks for both now.
+	 */
 	private function withDisplayName(string $name, string $scope): void {
-		$property = $this->createMock(IAccountProperty::class);
-		$property->method('getScope')->willReturn($scope);
-		$property->method('getValue')->willReturn($name);
+		$displayName = $this->createMock(IAccountProperty::class);
+		$displayName->method('getScope')->willReturn($scope);
+		$displayName->method('getValue')->willReturn($name);
+
+		$fediverse = $this->createMock(IAccountProperty::class);
+		$fediverse->method('getScope')->willReturnCallback(fn (): string => $this->fediverseField['scope']);
+		$fediverse->method('getValue')->willReturnCallback(fn (): string => $this->fediverseField['value']);
+		$fediverse->method('setValue')->willReturnCallback(function (string $value) use ($fediverse): IAccountProperty {
+			$this->fediverseWrites[] = $value;
+			$this->fediverseField['value'] = $value;
+
+			return $fediverse;
+		});
+
 		$account = $this->createMock(IAccount::class);
-		$account->method('getProperty')->with(IAccountManager::PROPERTY_DISPLAYNAME)->willReturn($property);
+		$account->method('getProperty')->willReturnCallback(
+			static fn (string $property): IAccountProperty
+				=> $property === IAccountManager::PROPERTY_FEDIVERSE ? $fediverse : $displayName
+		);
 		$this->accountManager->method('getAccount')->willReturn($account);
+		$this->accountManager->method('updateAccount')
+			->willReturnCallback(function (): void {
+				$this->accountUpdates++;
+			});
 	}
 
 	public function testGetActorAndGetFromIdDelegate(): void {
@@ -543,6 +571,67 @@ class AccountServiceTest extends TestCase {
 		$this->service->cacheLocalActorByUsername('alice');
 
 		$this->assertSame($expectPublished ? 'Alice Wonder' : 'alice', $alice->getName());
+	}
+
+	// the fediverse field of the Nextcloud profile
+
+	/** An account this app created is an answer the person did not have to type. */
+	public function testWritesTheHandleIntoAnEmptyFediverseField(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+		$this->documentService->method('cacheLocalAvatarByUsername')
+			->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')
+			->willThrowException(new StreamNotFoundException());
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame(['alice@cloud.example'], $this->fediverseWrites);
+		$this->assertSame(1, $this->accountUpdates);
+	}
+
+	/** A value already there is theirs -- a Mastodon account, most likely. */
+	public function testLeavesAFediverseFieldSomebodyFilledAlone(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->fediverseField = ['value' => 'alice@mastodon.social', 'scope' => IAccountManager::SCOPE_LOCAL];
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+		$this->documentService->method('cacheLocalAvatarByUsername')
+			->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')
+			->willThrowException(new StreamNotFoundException());
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame([], $this->fediverseWrites);
+		$this->assertSame(0, $this->accountUpdates);
+	}
+
+	/**
+	 * The second pass -- the write fires UserUpdatedEvent, whose listener runs
+	 * this again -- finds the field filled and writes nothing.
+	 */
+	public function testTheSecondPassAfterWritingIsSilent(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+		$this->documentService->method('cacheLocalAvatarByUsername')
+			->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')
+			->willThrowException(new StreamNotFoundException());
+
+		$this->service->cacheLocalActorByUsername('alice');
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame(['alice@cloud.example'], $this->fediverseWrites);
+		$this->assertSame(1, $this->accountUpdates);
 	}
 
 	/**

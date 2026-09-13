@@ -139,6 +139,12 @@
 							<span class="discover__account-name">{{ account.display_name || account.username }}</span>
 							<span class="discover__account-handle">@{{ account.acct }}</span>
 						</span>
+						<!-- named in the fediverse field of a profile on this
+						     Nextcloud: the one thing about this account no other
+						     server could know -->
+						<span v-if="isColleague(account)" class="discover__colleague">
+							{{ t('social', 'On your Nextcloud') }}
+						</span>
 					</router-link>
 				</li>
 			</ul>
@@ -305,9 +311,13 @@ export default {
 				} else if (tab === 'packs') {
 					this.packs = await this.get('api/v1/starter_packs')
 				} else {
+					// the account, with where the suggestion came from kept on
+					// it: a colleague is worth saying so
 					this.accounts = await this.get('api/v2/suggestions')
 						.then((suggestions) => suggestions
-							.map((suggestion) => suggestion.account ?? suggestion)
+							.map((suggestion) => suggestion.account
+								? { ...suggestion.account, sources: suggestion.sources ?? [] }
+								: suggestion)
 							.filter((account) => account && account.acct))
 				}
 
@@ -353,6 +363,17 @@ export default {
 		closePack() {
 			this.openPack = null
 			this.error = null
+		},
+
+		/**
+		 * Whether a suggestion came from a profile on this Nextcloud. Mastodon
+		 * calls that source `featured`; see Suggestion::SOURCE_COLLEAGUES.
+		 *
+		 * @param {object} account the suggested account, with its `sources`
+		 * @return {boolean}
+		 */
+		isColleague(account) {
+			return Array.isArray(account.sources) && account.sources.includes('featured')
 		},
 
 		/**
@@ -538,6 +559,16 @@ export default {
 	&__account-handle {
 		color: var(--color-text-maxcontrast);
 		font-size: var(--font-size-small, 0.85em);
+	}
+
+	&__colleague {
+		margin-inline-start: auto;
+		flex: none;
+		padding: 2px 8px;
+		border-radius: 999px;
+		font-size: 12px;
+		color: var(--color-primary-element-light-text);
+		background: var(--color-primary-element-light);
 	}
 
 	&__loading {

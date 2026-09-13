@@ -117,6 +117,18 @@ describe('Discover', () => {
 				.toContain('Pictures')
 		})
 
+		it('keeps where a suggestion came from, so a colleague can be said to be one', async () => {
+			get.mockResolvedValue({ data: [
+				{ sources: ['featured'], account: { id: '1', acct: 'bob@cloud.example' } },
+				{ sources: ['friends_of_friends'], account: { id: '2', acct: 'carol@remote.example' } },
+			] })
+			const self = view()
+
+			await self.load.call(self, 'accounts')
+
+			expect(self.accounts.map((a) => Discover.methods.isColleague(a))).toEqual([true, false])
+		})
+
 		it('asks the starter pack index for the packs tab', async () => {
 			get.mockResolvedValue({ data: [{ id: 'a', name: 'A', size: 2 }] })
 			const self = view()

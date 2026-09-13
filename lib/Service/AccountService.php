@@ -607,6 +607,8 @@ class AccountService {
 				return;
 			}
 
+			$this->publishHandleOnProfile($actor);
+
 			try {
 				$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 				$actor->setIconId($iconId);
@@ -727,6 +729,45 @@ class AccountService {
 
 		if ($displayName !== '') {
 			$actor->setName($displayName);
+		}
+	}
+
+	/**
+	 * Writes the actor's handle into the `fediverse` field of the Nextcloud
+	 * profile, where the profile has nothing there yet.
+	 *
+	 * The field is Nextcloud's own place for "where I am on the Fediverse", and
+	 * an account created by this app is an answer to that question the person
+	 * did not have to type. It is filled in only when empty: a value already
+	 * there is theirs -- a Mastodon account they have had for years, most likely
+	 * -- and this app is not the one to overwrite it. The field's visibility is
+	 * left exactly as it was, for the same reason.
+	 *
+	 * Writing the account fires `UserUpdatedEvent`, whose listener calls back
+	 * into the cache refresh this runs from. That second pass finds the field
+	 * filled and writes nothing, so the loop is one bounce long and then stops.
+	 */
+	private function publishHandleOnProfile(Person $actor): void {
+		$user = $this->userManager->get($actor->getUserId());
+		if ($user === null) {
+			return;
+		}
+
+		try {
+			$account = $this->accountManager->getAccount($user);
+			$property = $account->getProperty(IAccountManager::PROPERTY_FEDIVERSE);
+			if (trim($property->getValue()) !== '') {
+				return;
+			}
+
+			$property->setValue($actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress());
+			$this->accountManager->updateAccount($account);
+		} catch (Exception $e) {
+			// a profile that cannot be written is a profile that stays as it
+			// was; the actor is fine either way
+			$this->logger->debug('could not publish the handle on the Nextcloud profile', [
+				'userId' => $actor->getUserId(), 'exception' => $e->getMessage(),
+			]);
 		}
 	}
 

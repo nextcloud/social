@@ -9,18 +9,23 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use Exception;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\DiscoveryRequest;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Suggestion;
 
 /**
  * Accounts to follow: `GET /api/v2/suggestions`.
  *
- * Derived from two things the app already has and from nothing else. The first
- * is the follow graph: the accounts followed by the accounts the viewer
- * follows, ordered by how many of them do. The second, for a viewer whose
- * graph has nothing to say — a new account follows nobody, so it has no
- * friends of friends — is the local accounts that opted in to the directory,
+ * Derived from three things the app already has and from nothing else. The
+ * first is the follow graph: the accounts followed by the accounts the viewer
+ * follows, ordered by how many of them do. The second is this Nextcloud's own
+ * profiles: the handles the people here wrote in their `fediverse` field, which
+ * is the one signal about who to follow that a graph the viewer is not yet part
+ * of cannot give -- see `ColleagueService`. The third, for a viewer left with
+ * empty slots after both, is the local accounts that opted in to the directory,
  * most recently active first.
  *
  * There is no scoring model and deliberately no attempt at one. Both halves
@@ -42,6 +47,8 @@ class SuggestionService {
 	public function __construct(
 		private DiscoveryRequest $discoveryRequest,
 		private DirectoryService $directoryService,
+		private ColleagueService $colleagueService,
+		private ActorsRequest $actorsRequest,
 	) {
 	}
 
@@ -56,18 +63,28 @@ class SuggestionService {
 			$this->discoveryRequest->friendsOfFriendsPrims($viewerId, $limit * 2), $excluded, $limit
 		);
 
-		// the graph first, then whoever is around: an account one step away is
-		// a better answer than an account that merely posted recently, so the
-		// fallback only fills the slots the graph left empty
+		// the graph first, then the people who share this Nextcloud, then
+		// whoever is around: each is a better answer than the next, so each
+		// only fills the slots the one before it left empty
 		$excluded += array_fill_keys($friends, true);
+		$colleagues = $this->keep(
+			$this->colleaguePrims($viewerId), $excluded, $limit - count($friends)
+		);
+
+		$excluded += array_fill_keys($colleagues, true);
 		$active = $this->keep(
 			$this->discoveryRequest->activeLocalPrims($limit * 2),
 			$excluded,
-			$limit - count($friends)
+			$limit - count($friends) - count($colleagues)
 		);
 
 		$suggestions = [];
-		foreach ([Suggestion::SOURCE_FRIENDS => $friends, Suggestion::SOURCE_ACTIVE => $active] as $source => $prims) {
+		$sources = [
+			Suggestion::SOURCE_FRIENDS => $friends,
+			Suggestion::SOURCE_COLLEAGUES => $colleagues,
+			Suggestion::SOURCE_ACTIVE => $active,
+		];
+		foreach ($sources as $source => $prims) {
 			$prims = $this->directoryService->withoutModerated($prims);
 			foreach ($this->discoveryRequest->actorsByPrims($prims) as $actor) {
 				$suggestions[] = new Suggestion($actor, $source);
@@ -75,6 +92,29 @@ class SuggestionService {
 		}
 
 		return $suggestions;
+	}
+
+	/**
+	 * The accounts named on this Nextcloud's profiles, as prims, in the order
+	 * the profiles were read.
+	 *
+	 * The viewer's own profile is left out by their user id, which the actor
+	 * carries; a viewer with no local actor row -- a bearer token for an account
+	 * that was deleted, say -- simply has no colleagues to leave out.
+	 *
+	 * @return string[]
+	 */
+	private function colleaguePrims(string $viewerId): array {
+		try {
+			$exceptUserId = $this->actorsRequest->getFromId($viewerId)->getUserId();
+		} catch (Exception $e) {
+			$exceptUserId = '';
+		}
+
+		return array_map(
+			static fn (Person $account): string => md5($account->getId()),
+			$this->colleagueService->accounts($exceptUserId)
+		);
 	}
 
 	/**
