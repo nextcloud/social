@@ -400,6 +400,11 @@ class StreamService {
 		$this->addressBoostersAndRepliers($item);
 		$this->activityService->deleteActivity($item);
 		$this->streamRequest->deleteById($item->getId(), $type);
+		// the post it answered counts one reply fewer now. Deleting your own
+		// reply comes through here rather than through `NoteInterface`, so
+		// without this the parent went on claiming a reply that no page could
+		// show — and the recount has to happen after the row has gone.
+		$this->streamRequest->recountReplies($item->getInReplyTo());
 	}
 
 	/**

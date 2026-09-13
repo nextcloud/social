@@ -299,19 +299,10 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 	}
 
 	public function updateDetails(Note $stream): void {
-		if ($stream->getInReplyTo() === '') {
-			return;
-		}
-
-		try {
-			$orig = $this->streamRequest->getStreamById($stream->getInReplyTo());
-			$remoteReplies = $orig->getDetailInt('remote_replies');
-			$localReplies = $this->streamRequest->countRepliesTo($stream->getInReplyTo());
-			$orig->setDetailInt('replies', $remoteReplies + $localReplies);
-
-			$this->streamRequest->updateDetails($orig);
-		} catch (StreamNotFoundException $e) {
-		}
+		// the recount lives on the request because the other thing that changes
+		// a reply count — a local post being deleted, which never reaches this
+		// interface — has to do exactly the same arithmetic
+		$this->streamRequest->recountReplies($stream->getInReplyTo());
 	}
 
 	/**

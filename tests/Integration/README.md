@@ -26,6 +26,9 @@ to stop.
   legacy rows.
 - `Db/StreamActionsFlagsTest` — the per-viewer flags are written field-wise and
   idempotently.
+- `Db/ReplyCountTest` — the reply counter on a post: a recount counts what is
+  stored, counts one fewer after a delete, and carries the replies that live on
+  the post's own server across untouched.
 - `Db/RequestQueueLifecycleTest` — standby → running → deleted on success,
   failures counted and retried, abandoned after MAX_TRIES, stale RUNNING rows
   reaped back to standby.

@@ -878,12 +878,18 @@ as complete as what has reached this server. The note counts against the
 and it waits for `TimelineList` to emit `settled` — before that, every reply is
 one this page has not drawn, and saying so would be counting the loading.
 
-Saying it out loud found a counter that was wrong. `NoteInterface::delete()`
-removed a reply's row and left its parent's `replies` detail alone, so a post
-whose reply had been deleted claimed one that no page could ever show — invisible
-until something compared the number with the thread. The delete recounts now
-through `updateDetails()`, which reads `countRepliesTo()` rather than
-decrementing, so it repairs a drifted count rather than tracking one.
+Saying it out loud found a counter that was wrong. Deleting a reply removed its
+row and left its parent's `replies` detail alone, so a post whose reply had been
+deleted claimed one that no page could ever show — invisible until something
+compared the number with the thread. Both deletes now recount:
+`NoteInterface::delete()` for a `Delete` that arrives from another server, and
+`StreamService::deleteLocalItem()` for your own post, which never passes through
+that interface at all. The arithmetic itself is `StreamRequest::recountReplies()`
+— `remote_replies` (what the post's own instance reported, which nothing here can
+see) plus `countRepliesTo()` — which is a recount rather than a bump, because the
+two things that move the number cannot both be expressed as one, and a recount
+repairs a count that has already drifted instead of tracking one. It runs after
+the row is gone, or it counts the reply it has just removed.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`

@@ -1372,6 +1372,39 @@ class StreamServiceTest extends TestCase {
 		$this->assertCount(1, $note->getTags('Emoji'));
 	}
 
+	// deleteLocalItem()
+
+	public function testDeletingYourOwnReplyRecountsThePostItAnswered(): void {
+		$note = $this->note('https://social.example/notes/reply', self::ACTOR_ID, 'https://social.example/notes/parent');
+		$note->setLocal(true);
+
+		$this->streamRequest->expects($this->once())->method('deleteById');
+		// after the row has gone, or the reply it just removed is counted again
+		$this->streamRequest->expects($this->once())->method('recountReplies')
+			->with('https://social.example/notes/parent');
+
+		$this->service->deleteLocalItem($note);
+	}
+
+	public function testDeletingAPostOfYourOwnThatAnsweredNothingRecountsNothing(): void {
+		$note = $this->note('https://social.example/notes/post');
+		$note->setLocal(true);
+
+		// the recount is the one place that decides what an empty parent means
+		$this->streamRequest->expects($this->once())->method('recountReplies')->with('');
+
+		$this->service->deleteLocalItem($note);
+	}
+
+	public function testARemotePostIsNotDeletedFromHereAndNothingIsRecounted(): void {
+		$note = $this->note('https://remote.example/notes/post', 'https://remote.example/users/bob', 'https://remote.example/notes/parent');
+
+		$this->streamRequest->expects($this->never())->method('deleteById');
+		$this->streamRequest->expects($this->never())->method('recountReplies');
+
+		$this->service->deleteLocalItem($note);
+	}
+
 	/**
 	 * A content warning is written by the same person in the same composer,
 	 * and was the one place a shortcode showed through unrendered.
