@@ -21,23 +21,28 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
  * are sent, because clients in the wild read one or the other and a client
  * that reads the old one would otherwise render every suggestion unlabelled.
  *
- * Only two of Mastodon's source values are ever used here, and each is a
- * description of a real query rather than a category this app aspires to:
+ * Three of Mastodon's source values are used here, and each is a description
+ * of a real query rather than a category this app aspires to:
  * `friends_of_friends` for an account followed by accounts the viewer follows,
- * and `most_interactions` for one that is simply posting here. There is no
- * `featured` source because nothing on this instance promotes accounts by
- * hand.
+ * `most_interactions` for one that is simply posting here, and `featured` for
+ * an account named in the `fediverse` field of a Nextcloud profile on this
+ * instance -- the closest of Mastodon's words to "the people you already share
+ * a server with, saying where they are". Nobody promotes it by hand; the
+ * profile does.
  */
 class Suggestion implements JsonSerializable {
 	/** Followed by somebody the viewer follows. */
 	public const SOURCE_FRIENDS = 'friends_of_friends';
 	/** Active on this instance and open to being found. */
 	public const SOURCE_ACTIVE = 'most_interactions';
+	/** Named in the `fediverse` field of a Nextcloud profile on this instance. */
+	public const SOURCE_COLLEAGUES = 'featured';
 
 	/** @var array<string, string> the deprecated `source` each `sources` maps to */
 	private const LEGACY_SOURCE = [
 		self::SOURCE_FRIENDS => 'past_interactions',
 		self::SOURCE_ACTIVE => 'global',
+		self::SOURCE_COLLEAGUES => 'staff',
 	];
 
 	public function __construct(

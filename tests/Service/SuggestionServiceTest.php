@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\DiscoveryRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\ColleagueService;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Suggestion;
 use OCA\Social\Service\DirectoryService;
@@ -47,6 +49,10 @@ class SuggestionServiceTest extends TestCase {
 	private array $related = [];
 	/** @var string[] actor ids a moderator has decided about */
 	private array $moderated = [];
+	/** @var string[] actor ids named in the fediverse field of local profiles */
+	private array $colleagues = [];
+	/** @var string the user id the colleague lookup was told to leave out */
+	private string $colleaguesExcept = '';
 	/** @var string[][] the prim lists the graph walk and the fallback were asked for */
 	private array $asked = [];
 
@@ -83,7 +89,28 @@ class SuggestionServiceTest extends TestCase {
 				));
 			});
 
-		$this->service = new SuggestionService($this->discoveryRequest, $directoryService);
+		$colleagueService = $this->createMock(ColleagueService::class);
+		$colleagueService->method('accounts')
+			->willReturnCallback(function (string $exceptUserId): array {
+				$this->colleaguesExcept = $exceptUserId;
+
+				return array_map(static function (string $id): Person {
+					$person = new Person();
+					$person->setId($id);
+
+					return $person;
+				}, $this->colleagues);
+			});
+
+		$viewer = new Person();
+		$viewer->setId(self::VIEWER);
+		$viewer->setUserId('alice');
+		$actorsRequest = $this->createMock(ActorsRequest::class);
+		$actorsRequest->method('getFromId')->willReturn($viewer);
+
+		$this->service = new SuggestionService(
+			$this->discoveryRequest, $directoryService, $colleagueService, $actorsRequest
+		);
 	}
 
 	/** @return string[] the actor ids suggested, in order */
@@ -135,8 +162,11 @@ class SuggestionServiceTest extends TestCase {
 		$directoryService = $this->createMock(DirectoryService::class);
 		$directoryService->method('withoutModerated')->willReturnArgument(0);
 
-		(new SuggestionService($this->discoveryRequest, $directoryService))
-			->suggestions(self::VIEWER, SuggestionService::LIMIT);
+		$colleagues = $this->createMock(ColleagueService::class);
+		$colleagues->method('accounts')->willReturn([]);
+		(new SuggestionService(
+			$this->discoveryRequest, $directoryService, $colleagues, $this->createMock(ActorsRequest::class)
+		))->suggestions(self::VIEWER, SuggestionService::LIMIT);
 
 		$this->assertSame(
 			[ActorRelation::TYPE_BLOCK, ActorRelation::TYPE_MUTE, ActorRelation::TYPE_BLOCKED_BY],
@@ -211,5 +241,77 @@ class SuggestionServiceTest extends TestCase {
 		$this->assertCount(
 			SuggestionService::MAX_LIMIT, $this->service->suggestions(self::VIEWER, 500)
 		);
+	}
+
+	// the people who share this Nextcloud
+
+	/**
+	 * Between the graph and the fallback: a colleague is a better answer than
+	 * somebody who merely posted recently, and a worse one than somebody the
+	 * viewer's own follows vouch for.
+	 */
+	public function testColleaguesComeAfterTheGraphAndBeforeTheFallback(): void {
+		$this->friends = ['friend'];
+		$this->colleagues = ['colleague'];
+		$this->active = ['stranger'];
+
+		$this->assertSame(
+			[$this->id('friend'), $this->id('colleague'), $this->id('stranger')],
+			$this->suggested()
+		);
+	}
+
+	public function testAColleagueIsLabelledAsOne(): void {
+		$this->colleagues = ['colleague'];
+
+		$sources = array_map(
+			static fn (Suggestion $s): string => $s->getSource(),
+			$this->service->suggestions(self::VIEWER, 10)
+		);
+
+		$this->assertSame([Suggestion::SOURCE_COLLEAGUES], $sources);
+	}
+
+	/** The same exclusions as everybody else: followed, blocked, muted, self. */
+	public function testAColleagueTheViewerAlreadyFollowsIsNotSuggested(): void {
+		$this->colleagues = ['followed', 'new'];
+		$this->follows = ['followed'];
+
+		$this->assertSame([$this->id('new')], $this->suggested());
+	}
+
+	public function testAColleagueTheViewerBlockedIsNotSuggested(): void {
+		$this->colleagues = ['blocked', 'new'];
+		$this->related = ['blocked'];
+
+		$this->assertSame([$this->id('new')], $this->suggested());
+	}
+
+	/** Somebody the graph already offered is not offered a second time. */
+	public function testAColleagueAlreadyInTheGraphIsListedOnce(): void {
+		$this->friends = ['both'];
+		$this->colleagues = ['both'];
+
+		$suggestions = $this->service->suggestions(self::VIEWER, 10);
+
+		$this->assertCount(1, $suggestions);
+		$this->assertSame(Suggestion::SOURCE_FRIENDS, $suggestions[0]->getSource());
+	}
+
+	public function testColleaguesFillOnlyTheSlotsTheGraphLeft(): void {
+		$this->friends = ['f1', 'f2'];
+		$this->colleagues = ['c1', 'c2', 'c3'];
+
+		$this->assertSame(
+			[$this->id('f1'), $this->id('f2'), $this->id('c1')],
+			$this->suggested(3)
+		);
+	}
+
+	/** The viewer's own profile names them; that is not a suggestion. */
+	public function testTheViewersOwnProfileIsLeftOutByTheirUserId(): void {
+		$this->service->suggestions(self::VIEWER, 10);
+
+		$this->assertSame('alice', $this->colleaguesExcept);
 	}
 }
