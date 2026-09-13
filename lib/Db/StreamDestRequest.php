@@ -99,21 +99,56 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		$this->generateStreamHome($stream);
 	}
 
-	private function generateStreamHome(Stream $stream): bool {
-		$recipients
-			= [
-				'to' => array_merge($stream->getToAll(), [$stream->getAttributedTo()]),
-				'cc' => array_merge($stream->getCcArray(), $stream->getBccArray())
-			];
-
-		foreach (array_keys($recipients) as $subtype) {
-			foreach ($recipients[$subtype] as $actorId) {
-				if ($actorId === '') {
+	/**
+	 * Each recipient of a post, named once, in the order the post named them.
+	 *
+	 * A post routinely names the same account more than once: `getToAll()`
+	 * returns `to` alongside `toArray`, and an account addressed in both `to`
+	 * and `cc` appears in each. The unique index `sat` is on
+	 * (stream_id, actor_id, type) *without* the subtype, so all of those are
+	 * one row, and asking the database to store them one at a time meant most
+	 * of the inserts existed only to be refused.
+	 *
+	 * `insertIgnoreConflict()` makes a refused row harmless but not free:
+	 * InnoDB allocates the auto-increment value before it notices the
+	 * conflict, so every duplicate burned an id and dirtied the index it was
+	 * about to be rejected by. On the devel instance that had carried
+	 * `oc_social_stream_dest` to 882,837 ids for 4,976 live rows — 177 issued
+	 * per row kept, and an index of 20 MB over 1 MB of data.
+	 *
+	 * The first subtype to name an account wins, which is the row the database
+	 * kept when the duplicates were sent: `to` is offered before `cc`, and an
+	 * account addressed in both is a `to` recipient.
+	 *
+	 * @param array<string, string[]> $recipients subtype => the accounts it names
+	 *
+	 * @return array<string, string> account => the subtype that first named it
+	 */
+	private static function uniqueRecipients(array $recipients): array {
+		$seen = [];
+		foreach ($recipients as $subtype => $actorIds) {
+			foreach ($actorIds as $actorId) {
+				if ($actorId === '' || array_key_exists($actorId, $seen)) {
 					continue;
 				}
 
-				$this->create($stream->getId(), $actorId, 'recipient', $subtype);
+				$seen[$actorId] = $subtype;
 			}
+		}
+
+		return $seen;
+	}
+
+	private function generateStreamHome(Stream $stream): bool {
+		$recipients = self::uniqueRecipients(
+			[
+				'to' => array_merge($stream->getToAll(), [$stream->getAttributedTo()]),
+				'cc' => array_merge($stream->getCcArray(), $stream->getBccArray())
+			]
+		);
+
+		foreach ($recipients as $actorId => $subtype) {
+			$this->create($stream->getId(), $actorId, 'recipient', $subtype);
 		}
 
 		return true;
@@ -136,12 +171,8 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 			}
 		}
 
-		foreach ($all as $actorId) {
-			if ($actorId === '') {
-				continue;
-			}
-
-			$this->create($stream->getId(), $actorId, 'dm');
+		foreach (self::uniqueRecipients(['dm' => $all]) as $actorId => $subtype) {
+			$this->create($stream->getId(), $actorId, $subtype);
 		}
 
 		return true;
@@ -152,12 +183,8 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 			return false;
 		}
 
-		foreach ($stream->getToAll() as $actorId) {
-			if ($actorId === '') {
-				continue;
-			}
-
-			$this->create($stream->getId(), $actorId, 'notif');
+		foreach (self::uniqueRecipients(['notif' => $stream->getToAll()]) as $actorId => $type) {
+			$this->create($stream->getId(), $actorId, $type);
 		}
 
 		return true;
