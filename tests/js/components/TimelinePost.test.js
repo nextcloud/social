@@ -166,9 +166,31 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost()
 
 			expect(wrapper.find('.post-author').text()).toBe('Alice')
-			expect(wrapper.find('.post-author-id').text()).toBe('@alice')
 			expect(wrapper.findComponent(RouterLinkStub).props('to')).toEqual({ name: 'profile', params: { account: 'alice' } })
 			expect(wrapper.attributes('data-social-status')).toBe('101')
+		})
+
+		/**
+		 * The handle repeats under the pointer as the wrapper's own `title`,
+		 * and again in the hover card. Once in the byline as well was three
+		 * times.
+		 */
+		it('leaves the handle out of a byline that has a name', () => {
+			const { wrapper } = mountPost()
+
+			expect(wrapper.find('.post-author-wrapper').attributes('title')).toBe('alice')
+			expect(wrapper.find('.post-author-id').exists()).toBe(false)
+		})
+
+		it.each([
+			['no display name at all', ''],
+			['a display name of one space', ' '],
+		])('falls back to the handle for an account with %s', (_, displayName) => {
+			const { wrapper } = mountPost({
+				item: makeItem({ account: { ...alice, display_name: displayName } }),
+			})
+
+			expect(wrapper.find('.post-author-id').text()).toBe('@alice')
 		})
 
 		it('opens the post when the card is pressed', async () => {

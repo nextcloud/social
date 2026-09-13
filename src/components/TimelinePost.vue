@@ -19,7 +19,13 @@
 					<span class="post-author">
 						<DisplayName :text="item.account.display_name" :emojis="item.account.emojis" />
 					</span>
-					<span class="post-author-id">
+					<!-- The handle is what the byline falls back to, not what it
+					     carries: it repeats under the pointer as the wrapper's
+					     own `title`, and again in the card that opens when the
+					     avatar or the name is hovered. An account with no
+					     display name has nothing else to be called, so there it
+					     is the byline. -->
+					<span v-if="!hasDisplayName" class="post-author-id">
 						@{{ item.account.username }}
 					</span>
 					<span
@@ -434,6 +440,19 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useTimelineStore),
+
+		/**
+		 * Whether the byline has a name of its own to show.
+		 *
+		 * Trimmed rather than tested for truth: a display name of one space is
+		 * a name a remote server will happily federate, and it would draw a
+		 * byline that is blank rather than one that falls back.
+		 *
+		 * @return {boolean}
+		 */
+		hasDisplayName() {
+			return (this.item.account?.display_name ?? '').trim() !== ''
+		},
 
 		/**
 		 * Where this post lives, or `null` when the reader is already there.
