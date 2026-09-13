@@ -1,12 +1,14 @@
 # Performance and scalability
 
-A survey of the query and scalability behaviour of this app: what costs what,
-what is bounded, and what is still known to be wrong. Every claim below was
-checked against the code rather than carried over from a previous survey.
+A survey of the query and scalability behaviour of this app, and of what the
+browser has to download before any of it is on screen: what costs what, what is
+bounded, and what is still known to be wrong. Every claim below was checked
+against the code rather than carried over from a previous survey.
 
-**Verified against:** app version 0.19.12, `master`, 2026-09-13 — re-measured
-end to end on a seeded instance (22,642 posts, 65,014 recipient rows, 916
-follows, 435 cached actors) after the read-path wave below.
+**Verified against:** app version 0.19.14, `master`, 2026-09-13 — the queries
+re-measured end to end on a seeded instance (22,642 posts, 65,014 recipient
+rows, 916 follows, 435 cached actors) after the read-path wave below, and the
+bundle sizes measured from `npm run build` on this version.
 
 This file is **not** enforced by `tests/DocumentationTest.php` — its claims are
 about behaviour rather than about routes or schema rows, and a test that tried
@@ -185,6 +187,79 @@ webfinger both land there.
   sub-builders have their own parameter namespaces, so a
   `createNamedParameter()` added inside one later would silently vanish from the
   outer query.
+
+## The frontend bundle
+
+Every byte here is downloaded before the first post is on screen, so this is
+the part of the app's speed that a fast database cannot help with. Sizes are
+gzipped, which is what the wire actually carries.
+
+Since 0.19.13 the third-party code that more than one entry needs lives in one
+shared `social-framework` chunk rather than being built into each entry, so the
+honest figure for a page is that chunk **plus** the entry — which is what this
+table gives.
+
+| Page | 0.19.13 | 0.19.14 |
+|------|--------:|--------:|
+| the app (`framework` + `social`) | 357.5 KB | 265.1 KB |
+| a public profile (`framework` + `profilePage`) | 356.5 KB | 269.2 KB |
+| the remote-follow page (`framework` + `ostatus`) | 313.2 KB | 223.5 KB |
+| the dashboard widget (`framework` + `dashboard`) | 309.7 KB | 220.0 KB |
+| the consent screen (`framework` + `oauth`) | 305.2 KB | 215.4 KB |
+
+Almost all of it is the shared chunk, which went from 294.8 KB to 204.8 KB —
+a saving every page gets once, and every page after the first gets for free.
+Three changes account for it:
+
+- **Toasts are fetched when one is shown** (`src/services/toast.js`).
+  `@nextcloud/dialogs` re-exports the file picker, the conflict picker and the
+  dialog builder from the same module as `showError`, so importing the toast
+  cannot be tree-shaken down to the toast: it put 259 KB of source into the
+  shared chunk so that a page could eventually say "Could not load the
+  timeline". Nothing waits for a toast, so the wrapper returns a promise
+  callers are free to ignore and the library arrives in a chunk of its own the
+  first time one is needed. The one caller that needs more than a toast — the
+  composer's file picker — imports the library where it opens the picker.
+- **The emoji picker is fetched when somebody asks for one.** It was already
+  its own chunk — 130 KB gzipped, nearly all of it the emoji set — but the
+  composer imported it statically, so the browser fetched it alongside the
+  composer on the home timeline whether or not anybody wanted an emoji. It is a
+  `defineAsyncComponent` now, and the button that opens it stays on screen with
+  a spinner until the chunk is there, so one press still opens the picker.
+- **Vue's production flags** (`__VUE_PROD_DEVTOOLS__` and friends, set in
+  `webpack.common.js`). Without them the devtools bridge is compiled in:
+  `@vue/devtools-api` pulls `@vue/devtools-kit`, which nothing in a released
+  app can reach. Measured on its own by building with and without: **31.0 KB**
+  of the shared chunk and 2.1 KB of the main entry.
+
+Neither `@nextcloud/dialogs` nor the emoji set appears in `social-framework.js`
+or `social-social.js` any more, which is the check worth repeating after any
+work here: read the source maps rather than the sizes.
+
+Scope hoisting was tried and left off, where it has been since 0.9.3: it is
+worth about 1 KB, and with it on two consecutive builds of the same source
+produce two different bundles, because Terser mangles the merged scopes
+differently each time. CI checks that the committed `js/` matches `src/`, so a
+build that is not reproducible is worse than a kilobyte.
+
+The `buffer` polyfill went with them: nothing had required it since the
+dependency that did was dropped, and the fallback resolved a package into the
+build for no caller.
+
+### What is left, and why it is still there
+
+- **`@nextcloud/vue` is a third of the main entry** — 924 KB of the 2.7 MB of
+  source webpack puts into it — and half of that is one file: `_l10n.mjs`
+  ships the library's own translations for forty languages and picks one at
+  runtime. Components are already imported one by one
+  (`@nextcloud/vue/components/NcButton`, never the package root), so this is
+  not ours to tree-shake — it needs a change upstream.
+- **The date picker** is its own chunk, fetched when a poll's end date is set.
+  So are the routes: every view behind the router is an `import()`.
+- **DOMPurify** (130 KB of source, 5% of the entry) is there for profile bios
+  only — post bodies go through `MessageContent.js`, which builds vnodes rather
+  than markup. It could be deferred the way toasts were, but a bio that renders
+  a frame late is the worse trade.
 
 ## What was fixed, and what fixed it
 
