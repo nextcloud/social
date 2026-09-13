@@ -669,99 +669,181 @@ export default {
 	}
 }
 
-/* The call to action: the app's one shadow under it, a lift when you reach
-   for it, and a light that crosses it once on the way in. */
-.navigation__compose {
+/* The call to action.
+ *
+ * Concentric: a pill that becomes briefly larger than itself. Two rings open
+ * outward from its own outline while the disc grows inside it, so everything on
+ * screen expands from the same two centres at once. Nothing fills, nothing
+ * sweeps, no colour changes hands — the button is the primary colour at rest and
+ * the primary colour when reached for, and the only thing that happens is size.
+ *
+ * The shape is why it works. At 44px tall a full pill is a 22px radius, so its
+ * end caps are arcs of a 22px circle; the plus already sits in a 28px disc, a
+ * 14px circle, with 8px of air around it. Rounded all the way, the two are the
+ * same family of curve and a ring drawn around the outside is concentric with
+ * the badge inside. At the 8px corner this button used to have, the same ring
+ * cut across the disc instead of agreeing with it.
+ *
+ * Rings rather than a blurred shadow: `0 0 0 <spread>` is a hard outline offset
+ * from the border box, which is the only kind of shadow that stays the button's
+ * own shape at any distance from it.
+ */
+
+/* The class is written twice because it has to win, not because it is two
+ * things. `.button-vue[data-v-…]` sets `border-radius`, `font-weight` and
+ * `transition` at exactly the specificity a single scoped class has, which
+ * leaves the winner to source order — and the order of this component's styles
+ * against the library's is not something this file gets to decide. Everything
+ * that would otherwise be a silent tie lives in here. */
+.navigation__compose.navigation__compose {
 	position: relative;
-	overflow: hidden;
 	margin: 2px 4px 8px;
-	box-shadow: var(--social-elevation-resting);
 	font-weight: 600;
-	transition: transform .25s cubic-bezier(.22, 1.2, .48, 1), box-shadow .25s ease;
+	/* The height the design was drawn at, and the reason the rest of it works.
+	   NcButton stands at `--default-clickable-area`, which this server sets to
+	   34px — and the plus already sits in a 28px disc, so at 34 the badge has
+	   three pixels of air and reads as jammed between the two edges rather than
+	   held inside them. At 44 it has eight, the pill's end caps become arcs of a
+	   22px circle against the disc's 14, and a ring drawn around the outside is
+	   concentric with the badge inside instead of merely near it.
 
-	&:hover {
-		transform: translateY(-2px);
-		box-shadow: var(--social-elevation-raised);
-	}
-
-	&:active {
-		transform: translateY(0) scale(.98);
-		box-shadow: var(--social-elevation-resting);
-	}
+	   It does make this taller than every other control in the sidebar. That is
+	   the one thing in there that is not a place to go, so it is the one thing
+	   that may be. */
+	min-height: 44px;
+	/* a true pill: half of the 44 above */
+	border-radius: 999px;
+	/* NcButton draws a 1px border weighted to 2px along the bottom. On a solid
+	   primary fill it is invisible either way, but rings drawn around an uneven
+	   outline are not concentric with anything. */
+	border: 0;
+	/* NcButton pads to `--button-radius` + a baseline, which is 12px and was
+	   drawn as 8: at 12 the disc sits too far inside its own end cap for the two
+	   curves to read as the same shape. */
+	padding-inline: 8px;
+	/* The rings hang outside the button, so nothing may clip them. NcButton
+	   sets `overflow: hidden` on itself, which does not affect a shadow on the
+	   button but does cut one off a child -- and the rings are a child now, for
+	   the reason below. */
+	overflow: visible;
+	transition: transform .32s cubic-bezier(.22, 1.2, .48, 1);
 }
 
-/* the plus sits in a disc of its own, which kicks when you reach for it — the
-   same kick the timeline switcher's icons give. It grows rather than turns: a
-   plus is the same plus at every right angle, so a rotation of one is movement
-   nobody can see. */
+/*
+ * The rings, on a layer of their own.
+ *
+ * They were two `box-shadow`s on the button, grown from zero spread. That reads
+ * correctly and paints terribly: `box-shadow` is not a compositor property, so
+ * every frame of the growth was a repaint on the main thread -- the same thread
+ * that, while the app is still starting, is parsing chunks and mounting a
+ * timeline that renders every post it has with a plain `v-for`. The rings lost
+ * that race, which is why the button looked dead until the page settled.
+ *
+ * Here the shadow is painted once, at full size, and never animated. What
+ * animates is `opacity` and `transform` on the layer holding it, and those two
+ * are handled by the compositor: once the hover has been noticed the growth
+ * runs off the main thread and keeps its frame rate no matter what Vue is doing
+ * on the other side of the page.
+ *
+ * What this cannot fix is a main thread blocked solid. Noticing `:hover` at all
+ * is a style recalculation, and a recalculation waits its turn like everything
+ * else; through one long task the button still cannot respond. It responds
+ * through all the short ones, which is most of a page load.
+ */
+.navigation__compose::after {
+	content: '';
+	position: absolute;
+	z-index: -1;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow:
+		0 0 0 3px color-mix(in srgb, var(--color-primary-element) 34%, transparent),
+		0 0 0 9px color-mix(in srgb, var(--color-primary-element) 14%, transparent);
+	opacity: 0;
+	transform: scale(.94);
+	transition:
+		opacity .28s ease,
+		transform .32s cubic-bezier(.22, 1.2, .48, 1);
+	pointer-events: none;
+	/* promoted up front: a layer created at the moment of the hover would be
+	   created by the main thread, which is the thread being waited on */
+	will-change: opacity, transform;
+}
+
+/* Reached for, by pointer or by keyboard. The focus ring is the server's and
+   arrives `!important`, so on focus the rings give way to it — which is the
+   right way round: the ring that says "the keyboard is here" is the one that
+   has to be unmissable. */
+.navigation__compose.navigation__compose:is(:hover, :focus-visible) {
+	transform: translateY(-1px);
+}
+
+.navigation__compose:is(:hover, :focus-visible)::after {
+	opacity: 1;
+	transform: scale(1);
+}
+
+.navigation__compose.navigation__compose:active {
+	transform: translateY(0) scale(.985);
+}
+
+.navigation__compose:active::after {
+	transform: scale(.97);
+}
+
+/* the plus sits in a disc of its own, which grows with the rings rather than
+   kicking once and settling back: the whole gesture is one expansion, and a pop
+   that returns to where it started would be the one thing on screen not doing
+   it. It grows rather than turns, as it always did — a plus is the same plus at
+   every right angle, so a rotation of one is movement nobody can see. */
 /* the glyph rather than the icon box it sits in, which is nearly as tall as
    the button and would make a disc the size of the whole end of it */
 .navigation__compose :deep(.plus-icon) {
 	width: 28px;
 	height: 28px;
 	border-radius: 50%;
-	// a wash of the label's own colour, so the disc belongs to the button
-	// whatever the instance's primary colour is
+	/* a wash of the label's own colour, so the disc belongs to the button
+	   whatever the instance's primary colour is */
 	background: color-mix(in srgb, var(--color-primary-element-text) 22%, transparent);
-	transition: background-color .2s ease;
+	transition:
+		background-color .2s ease,
+		transform .32s cubic-bezier(.22, 1.2, .48, 1);
 }
 
 /* the wrapper has no gap of its own, and the label sits against the disc */
 .navigation__compose :deep(.button-vue__text) {
-	margin-inline-start: 4px;
+	margin-inline-start: 6px;
 }
 
-.navigation__compose:hover :deep(.plus-icon) {
+.navigation__compose:is(:hover, :focus-visible) :deep(.plus-icon) {
+	transform: scale(1.12);
 	background: color-mix(in srgb, var(--color-primary-element-text) 32%, transparent);
-	animation: compose-pop .45s cubic-bezier(.34, 1.56, .64, 1);
-}
-
-/* the light, as a layer of the button rather than an element in it */
-.navigation__compose::after {
-	content: '';
-	position: absolute;
-	z-index: 0;
-	inset-block: 0;
-	inset-inline-start: -60%;
-	width: 50%;
-	background: linear-gradient(
-		100deg,
-		transparent,
-		color-mix(in srgb, var(--color-primary-element-text) 26%, transparent),
-		transparent
-	);
-	transform: skewX(-18deg);
-	pointer-events: none;
-}
-
-.navigation__compose:hover::after {
-	animation: compose-sheen .7s ease-out;
-}
-
-@keyframes compose-pop {
-	0% { transform: scale(1); }
-	55% { transform: scale(1.25); }
-	100% { transform: scale(1); }
-}
-
-@keyframes compose-sheen {
-	0% { inset-inline-start: -60%; }
-	100% { inset-inline-start: 130%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.navigation__compose {
+	.navigation__compose.navigation__compose,
+	.navigation__compose::after,
+	.navigation__compose :deep(.plus-icon) {
 		transition: none;
 	}
 
-	.navigation__compose:hover,
-	.navigation__compose:active {
+	/* the rings still open, they just open at once */
+	.navigation__compose:is(:hover, :focus-visible)::after {
 		transform: none;
 	}
 
-	.navigation__compose:hover :deep(.plus-icon),
-	.navigation__compose:hover::after {
-		animation: none;
+	.navigation__compose.navigation__compose:is(:hover, :focus-visible),
+	.navigation__compose.navigation__compose:active {
+		transform: none;
 	}
+
+	.navigation__compose:is(:hover, :focus-visible) :deep(.plus-icon) {
+		transform: none;
+	}
+
+	/* the rings still open, they just open at once: a reader who asked for no
+	   movement still has to be able to tell a hovered button from a resting
+	   one, and with nothing else changing the rings are all there is to tell
+	   them with */
 }
 </style>
