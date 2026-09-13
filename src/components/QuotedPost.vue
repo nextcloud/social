@@ -8,7 +8,11 @@
 			<router-link
 				class="quoted-post__author-link"
 				:to="{ name: 'profile', params: { account: quotedAccount.acct } }">
-				<ActorAvatar :actor="quotedAccount" :size="20" :hoverCard="false" />
+				<ActorAvatar
+					:actor="quotedAccount"
+					:size="20"
+					:hoverCard="false"
+					:link="false" />
 				<span class="quoted-post__author">
 					<DisplayName :text="quotedAccount.display_name" :emojis="quotedAccount.emojis" />
 				</span>

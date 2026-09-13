@@ -62,15 +62,27 @@ function makeStore(serverData = {}) {
 	return pinia
 }
 
-function mountEntry(item, props = {}) {
+/**
+ * @param {object} item the account
+ * @param {object} props anything else to pass
+ * @param {boolean} routed whether the app's router is installed — it is not on
+ *                         the public profile section, which runs an app of its
+ *                         own, and the avatar's link follows that
+ * @return {object} the mounted entry
+ */
+function mountEntry(item, props = {}, routed = true) {
 	return mount(UserEntry, {
 		props: { item, ...props },
 		global: {
 			plugins: [pinia],
 			stubs: { NcAvatar: NcAvatarStub, FollowButton: FollowButtonStub, RouterLink: RouterLinkStub },
+			mocks: routed ? { $router: {} } : {},
 		},
 	})
 }
+
+/** The link on the name, as opposed to the one the avatar is now wrapped in. */
+const nameLink = (wrapper) => wrapper.find('.user-details a')
 
 describe('UserEntry', () => {
 	beforeEach(() => {
@@ -87,6 +99,16 @@ describe('UserEntry', () => {
 		expect(wrapper.find('.user-description').text()).toBe('carol')
 		expect(wrapper.findComponent(RouterLinkStub).props('to')).toEqual({ name: 'profile', params: { account: 'carol' } })
 		expect(wrapper.find('a[target="_blank"]').exists()).toBe(false)
+	})
+
+	it('links the avatar at the profile as well as the name', () => {
+		// the face is the most obvious thing on the row to click
+		const links = mountEntry(local).findAllComponents(RouterLinkStub)
+
+		expect(links.length).toBeGreaterThanOrEqual(2)
+		for (const link of links) {
+			expect(link.props('to')).toEqual({ name: 'profile', params: { account: 'carol' } })
+		}
 	})
 
 	it('uses the server avatar for a local account', () => {
@@ -154,12 +176,21 @@ describe('UserEntry', () => {
 		})
 
 		it('links straight to the remote profile in a new tab instead of the app route', () => {
-			const wrapper = mountEntry(remote)
-			const link = wrapper.find('a[target="_blank"]')
+			const wrapper = mountEntry(remote, {}, false)
+			const link = nameLink(wrapper)
 			expect(wrapper.findComponent(RouterLinkStub).exists()).toBe(false)
+			expect(link.attributes('target')).toBe('_blank')
 			expect(link.attributes('href')).toBe('https://remote.example/users/bob')
 			expect(link.attributes('rel')).toBe('noreferrer')
 			expect(link.find('.post-author').text()).toBe('Bob')
+		})
+
+		it('sends the avatar to the same place, since there is no router to route with', () => {
+			const wrapper = mountEntry(remote, {}, false)
+			const avatarLink = wrapper.find('.user-avatar a')
+
+			expect(avatarLink.attributes('href')).toBe('https://remote.example/users/bob')
+			expect(avatarLink.attributes('rel')).toContain('noopener')
 		})
 
 		it('does not ask the server for a relationship', () => {

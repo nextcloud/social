@@ -104,7 +104,8 @@
 							<ActorAvatar
 								class="discover__avatar"
 								:actor="account"
-								:size="40" />
+								:size="40"
+								:link="false" />
 							<span class="discover__account-names">
 								<span class="discover__account-name">{{ account.display_name || account.username }}</span>
 								<span class="discover__account-handle">@{{ account.acct }}</span>
@@ -152,7 +153,8 @@
 						<ActorAvatar
 							class="discover__avatar"
 							:actor="account"
-							:size="40" />
+							:size="40"
+							:link="false" />
 						<span class="discover__account-names">
 							<span class="discover__account-name">{{ account.display_name || account.username }}</span>
 							<span class="discover__account-handle">@{{ account.acct }}</span>

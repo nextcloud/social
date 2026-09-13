@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.15  
+**App version:** 0.19.16  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -798,6 +798,20 @@ audience is — the hosts the followers are on, which is what a Fediverse accoun
 has instead of a geography. Two sample-size rules keep those from being noise:
 an hour is not named until three posts fall in it, and a hashtag's average is
 not reported until it has been used twice.
+
+**An avatar is a link.** `ActorAvatar` and `TimelineAvatar` wrap the face in a
+link to the account, so the most obvious thing on screen to click does the
+obvious thing wherever either is used. Three cases, because a link has to go
+somewhere that exists: the router where there is one; the account's own address
+where there is not, which is the profile section this app adds to a Nextcloud
+user page — a custom element running an app of its own, where a `router-link`
+resolves to nothing and takes the avatar with it; and nothing at all for an
+actor with neither a handle nor an address. Each link is named ("Open the
+profile of @alice"), because its only content is an avatar with empty alt text.
+`link: false` turns it off where the avatar already sits inside a link — two
+nested anchors is invalid and the browser resolves it by dropping content — and
+on the composer's reply and quote lines, where following one would abandon a
+draft.
 
 **Account previews.** `AccountHoverCard.vue` is the card that opens when the
 pointer rests on an avatar or a mention, fetched once per handle and cached in

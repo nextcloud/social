@@ -51,7 +51,7 @@
 		<div v-if="replyTo" class="reply-to">
 			<p class="reply-info">
 				<span>{{ t('social', 'In reply to') }}</span>
-				<ActorAvatar :actor="replyTo.account" :size="16" />
+				<ActorAvatar :actor="replyTo.account" :size="16" :link="false" />
 				<strong>{{ replyTo.account.acct }}</strong>
 				<NcButton
 					variant="tertiary"
@@ -68,7 +68,7 @@
 		<div v-if="quoteOf" class="quote-of">
 			<p class="quote-info">
 				<span>{{ t('social', 'Quoting') }}</span>
-				<ActorAvatar :actor="quoteOf.account" :size="16" />
+				<ActorAvatar :actor="quoteOf.account" :size="16" :link="false" />
 				<strong>{{ quoteOf.account.acct }}</strong>
 				<NcButton
 					variant="tertiary"
