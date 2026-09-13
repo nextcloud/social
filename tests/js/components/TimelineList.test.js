@@ -5,7 +5,7 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../../../src/services/toast.js'
 import TimelineList from '../../../src/components/TimelineList.vue'
 import eventBus from '../../../src/services/eventBus.js'
 import { listen } from '@nextcloud/notify_push'
@@ -16,7 +16,7 @@ import { useNotificationsStore } from '../../../src/store/notifications.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
-vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
+vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('@nextcloud/notify_push', () => ({ listen: vi.fn(() => false) }))
 
 // @nextcloud/auth reads the user from <head>, which the harness does not set

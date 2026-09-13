@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
-import { showError, showSuccess } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '../../../src/services/toast.js'
 import ProfileInfo from '../../../src/components/ProfileInfo.vue'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
@@ -17,7 +17,7 @@ vi.hoisted(() => {
 	document.head.dataset.userDisplayname = 'Alice'
 })
 
-vi.mock('@nextcloud/dialogs', async (importOriginal) => ({
+vi.mock('../../../src/services/toast.js', async (importOriginal) => ({
 	...await importOriginal(),
 	showError: vi.fn(),
 	showSuccess: vi.fn(),

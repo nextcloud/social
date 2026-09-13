@@ -6,14 +6,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../../../src/services/toast.js'
 
 import Poll from '../../../src/components/Poll.vue'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { post: vi.fn() },
 }))
-vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
+vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
 	default: { error: vi.fn() },
 }))

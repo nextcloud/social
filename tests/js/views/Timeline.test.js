@@ -20,7 +20,7 @@ import { useTimelineStore } from '../../../src/store/timeline.js'
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }))
-vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
+vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'

@@ -40,7 +40,7 @@
 
 <script>
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError } from '../services/toast.js'
 import { translate } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import Pound from 'vue-material-design-icons/Pound.vue'
