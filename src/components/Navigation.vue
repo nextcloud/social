@@ -48,7 +48,7 @@
 
 			<!-- `href` rather than `to`: with `to`, the component ORs its own
 			     router-derived state into `active`, and vue-router counts
-			     /timeline as active while /timeline/direct is open — so Home
+			     /timeline as active while /timeline/direct is open — so My Feed
 			     stayed lit next to whichever timeline was actually chosen.
 			     navigate() keeps the click in the SPA while leaving a modified
 			     click (new tab, new window) to the browser. -->
@@ -327,7 +327,12 @@ export default {
 					{
 						key: 'social-home',
 						icon: IconHome,
-						title: t('social', 'Home'),
+						// the switcher over the timelines has called this one "My Feed"
+						// since it was written: next to Local and Global what
+						// distinguishes it is whose posts it holds, not where it sits.
+						// The sidebar was the last place still calling it Home, for the
+						// same destination.
+						title: t('social', 'My Feed'),
 						to: { name: 'timeline' },
 						// Local and Global are scopes of this page rather than
 						// pages of their own now that the switcher sets them,
@@ -581,7 +586,7 @@ export default {
 			// An optional param the URL leaves out still arrives as '', so the
 			// two sides are compared value by value across both key sets:
 			// counting keys makes /timeline, whose params are {type: ''}, look
-			// different from the Home entry, which carries no params at all.
+			// different from the My Feed entry, which carries no params at all.
 			const wanted = to.params ?? {}
 			const actual = route.params ?? {}
 			for (const key of new Set([...Object.keys(wanted), ...Object.keys(actual)])) {

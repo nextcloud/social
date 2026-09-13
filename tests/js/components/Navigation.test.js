@@ -95,7 +95,7 @@ describe('Navigation', () => {
 
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {
 		expect(itemNames(mountNavigation())).toEqual([
-			'Home',
+			'My Feed',
 			'Photos',
 			'Videos',
 			'Notifications',
@@ -131,7 +131,7 @@ describe('Navigation', () => {
 
 		const topLevel = itemNames(wrapper).filter((name) => !moreNames(wrapper).includes(name))
 		expect(topLevel).toEqual([
-			'Home',
+			'My Feed',
 			'Photos',
 			'Videos',
 			'Notifications',
@@ -187,7 +187,7 @@ describe('Navigation', () => {
 	})
 
 	it.each([
-		['Home', { name: 'timeline' }],
+		['My Feed', { name: 'timeline' }],
 		['Notifications', { name: 'timeline', params: { type: 'notifications' } }],
 		['Direct messages', { name: 'timeline', params: { type: 'direct' } }],
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
@@ -279,12 +279,12 @@ describe('Navigation', () => {
 	// `params: {}` hid that difference — which is how Home came to be the one
 	// page that never highlighted itself.
 	it.each([
-		['/timeline', 'Home'],
-		['/timeline/', 'Home'],
+		['/timeline', 'My Feed'],
+		['/timeline/', 'My Feed'],
 		['/timeline/notifications', 'Notifications'],
 		['/timeline/direct', 'Direct messages'],
-		['/timeline/timeline', 'Home'],
-		['/timeline/federated', 'Home'],
+		['/timeline/timeline', 'My Feed'],
+		['/timeline/federated', 'My Feed'],
 		['/timeline/photos', 'Photos'],
 		['/timeline/videos', 'Videos'],
 		['/timeline/favourites', 'Liked posts'],
@@ -415,7 +415,7 @@ describe('Navigation', () => {
 
 		it('adds an errors entry with the error count', () => {
 			const wrapper = mountNavigation()
-			expect(itemNames(wrapper).slice(0, 2)).toEqual(['Errors', 'Home'])
+			expect(itemNames(wrapper).slice(0, 2)).toEqual(['Errors', 'My Feed'])
 			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('2')
 		})
 
@@ -502,7 +502,7 @@ describe('Navigation entries are links', () => {
 	const link = (wrapper, name) => wrapper.findAll('a').find((anchor) => anchor.text().startsWith(name))
 
 	it.each([
-		['Home', '/index.php/apps/social/timeline'],
+		['My Feed', '/index.php/apps/social/timeline'],
 		['Notifications', '/index.php/apps/social/timeline/notifications'],
 		['Direct messages', '/index.php/apps/social/timeline/direct'],
 		['Follow requests', '/index.php/apps/social/follow_requests'],
@@ -521,10 +521,10 @@ describe('Navigation entries are links', () => {
 		// timeline the reader had actually chosen.
 		const entry = (wrapper, name) => wrapper.findAll('li').find((li) => li.text().startsWith(name))
 		const lit = (wrapper, names) => names.filter((name) => entry(wrapper, name)?.find('.app-navigation-entry').classes().includes('active'))
-		const names = ['Home', 'Photos', 'Videos', 'Notifications', 'Direct messages', 'Liked posts', 'Bookmarks']
+		const names = ['My Feed', 'Photos', 'Videos', 'Notifications', 'Direct messages', 'Liked posts', 'Bookmarks']
 
 		expect(lit(await mountReal('/timeline/direct'), names)).toEqual(['Direct messages'])
-		expect(lit(await mountReal('/timeline'), names)).toEqual(['Home'])
+		expect(lit(await mountReal('/timeline'), names)).toEqual(['My Feed'])
 		expect(lit(await mountReal('/timeline/favourites'), names)).toEqual(['Liked posts'])
 	})
 
