@@ -37,13 +37,10 @@ const TimelineListStub = {
 	props: ['type', 'showParents', 'reverseOrder'],
 	template: '<ul class="timeline-list-stub" />',
 }
-
-const nextcloud = {
-	id: 'https://mastodon.xyz/users/nextcloud',
-	url: 'https://mastodon.xyz/users/nextcloud',
-	acct: 'nextcloud@mastodon.xyz',
-	username: 'nextcloud',
-	display_name: 'Nextcloud',
+const FirstRunStub = {
+	name: 'FirstRun',
+	emits: ['done'],
+	template: '<section class="first-run-stub" />',
 }
 
 let pinia
@@ -70,7 +67,7 @@ function mountTimeline(route = {}) {
 		global: {
 			plugins: [pinia],
 			mocks: { $route: { name: 'timeline', params: {}, query: {}, ...route } },
-			stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
+			stubs: { Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
 		},
 	})
 }
@@ -181,10 +178,9 @@ describe('Timeline', () => {
 		expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
 	})
 
-	it('does not show the welcome box or look up the Nextcloud account after the first run', () => {
+	it('shows no introduction after the first run', () => {
 		const wrapper = mountTimeline()
-		expect(wrapper.find('.social__welcome').exists()).toBe(false)
-		expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
+		expect(wrapper.findComponent(FirstRunStub).exists()).toBe(false)
 	})
 
 	describe('on the first run', () => {
@@ -192,44 +188,19 @@ describe('Timeline', () => {
 			makeStore({ firstrun: true })
 		})
 
-		it('welcomes the user with their social id and looks up the official account', () => {
+		it('opens with the introduction in place of the old beta banner', () => {
 			const wrapper = mountTimeline()
-			expect(wrapper.find('.social__welcome').exists()).toBe(true)
-			expect(wrapper.find('.social-id').text()).toBe('@alice@cloud.example.org')
-			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('nextcloud@mastodon.xyz')
-		})
-
-		it('can be closed', async () => {
-			const wrapper = mountTimeline()
-			await wrapper.find('.social__welcome .close').trigger('click')
+			expect(wrapper.findComponent(FirstRunStub).exists()).toBe(true)
 			expect(wrapper.find('.social__welcome').exists()).toBe(false)
 		})
 
-		it('suggests following the Nextcloud account and dispatches the follow', async () => {
+		it('takes the introduction away for good once it says it is done', async () => {
 			const wrapper = mountTimeline()
-			const follow = wrapper.find('.follow-nextcloud input[type="button"]')
-			expect(follow.element.value).toBe('Follow Nextcloud on mastodon.xyz')
-			await follow.trigger('click')
-			expect(accountStore.followAccount).toHaveBeenCalledWith({ accountToFollow: 'nextcloud@mastodon.xyz' })
-		})
-
-		it('hides the suggestion while the account is unknown and once it is followed', async () => {
-			const wrapper = mountTimeline()
-			// v-show toggles display: none
-			const hidden = () => wrapper.find('.follow-nextcloud').element.style.display === 'none'
-			// unknown yet: treated as followed so nothing flashes
-			expect(hidden()).toBe(true)
-
-			accountStore.addAccount({ actorId: nextcloud.url, data: nextcloud })
-			accountStore.addRelationship({ actorId: nextcloud.id, data: { id: nextcloud.id, following: false } })
-			await nextTick()
-			expect(hidden()).toBe(false)
-
-			accountStore.markAccountFollowed(nextcloud.acct)
-			await nextTick()
-			expect(hidden()).toBe(true)
+			await wrapper.findComponent(FirstRunStub).vm.$emit('done')
+			expect(wrapper.findComponent(FirstRunStub).exists()).toBe(false)
 		})
 	})
+
 	// the composer emits `post-published` for every post that goes out; which
 	// of them is worth a celebration is decided here
 	describe('the first post somebody publishes here', () => {

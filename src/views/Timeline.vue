@@ -4,32 +4,8 @@
 -->
 <template>
 	<div class="social__wrapper">
-		<transition name="slide-fade">
-			<div v-if="showInfo" class="social__welcome">
-				<a class="close icon-close" href="#" @click="hideInfo()">
-					<span class="hidden-visually">
-						{{ t('social', 'Close') }}
-					</span>
-				</a>
-				<h2>{{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
-				<p>{{ t('social', 'This application is currently in beta stage.') }}</p>
-				<br>
-				<p>
-					{{ t('social', 'We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:') }}
-					<span class="social-id">
-						{{ socialId }}
-					</span>
-				</p>
-				<div v-show="!isFollowingNextcloudAccount" class="follow-nextcloud">
-					<p>{{ t('social', 'Since you are new to Social, start by following the official Nextcloud account so you don\'t miss any news') }}</p>
-					<input
-						:value="t('social', 'Follow Nextcloud on mastodon.xyz')"
-						type="button"
-						class="primary"
-						@click="followNextcloud">
-				</div>
-			</div>
-		</transition>
+		<!-- the first thing a new account sees; gone for good once closed -->
+		<FirstRun v-if="showInfo" @done="hideInfo" />
 
 		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :defaultVisibility="type === 'direct' ? 'direct' : undefined" />
 
@@ -71,6 +47,7 @@ import IconHome from 'vue-material-design-icons/Home.vue'
 import TimelineList from './../components/TimelineList.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
+import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
@@ -80,7 +57,6 @@ import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
 import { useTimelineStore } from '../store/timeline.js'
-import { useCurrentUser } from '../composables/useCurrentUser.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -89,22 +65,16 @@ export default {
 	components: {
 		Composer,
 		FirstPostCelebration,
+		FirstRun,
 		HashtagFollowButton,
 		HashtagFollowedList,
 		TimelineList,
 		TimelineSwitcher,
 	},
 
-	setup() {
-		const { socialId } = useCurrentUser()
-
-		return { socialId }
-	},
-
 	data() {
 		return {
 			infoHidden: false,
-			nextcloudAccount: 'nextcloud@mastodon.xyz',
 			/** the title of the list being read, once the server has said */
 			listTitle: '',
 		}
@@ -277,14 +247,6 @@ export default {
 			return this.timelineStore.isCelebratingFirstPost
 		},
 
-		isFollowingNextcloudAccount() {
-			// not loaded yet: assume it is followed rather than offer a button
-			// that would ask about an account nothing is known about
-			if (this.accountStore.getAccount(this.nextcloudAccount) === undefined) {
-				return true
-			}
-			return this.accountStore.isFollowingUser(this.nextcloudAccount)
-		},
 	},
 
 	watch: {
@@ -300,9 +262,6 @@ export default {
 	beforeMount() {
 		this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
 		this.fetchListTitle()
-		if (this.showInfo) {
-			this.accountStore.fetchAccountInfo(this.nextcloudAccount)
-		}
 	},
 
 	mounted() {
@@ -358,10 +317,6 @@ export default {
 		endCelebration() {
 			this.timelineStore.endFirstPostCelebration()
 		},
-
-		followNextcloud() {
-			this.accountStore.followAccount({ accountToFollow: this.nextcloudAccount })
-		},
 	},
 }
 </script>
@@ -397,87 +352,8 @@ export default {
 	letter-spacing: -.01em;
 }
 
-.social__welcome {
-	background: var(--color-main-background);
-	border: 1px solid var(--color-border);
-	border-radius: 8px;
-	margin: calc(var(--default-grid-baseline) * 4);
-	padding: calc(var(--default-grid-baseline) * 4);
-	position: relative;
-
-	h2 {
-		font-size: 20px;
-		font-weight: 700;
-		margin: 0 0 12px 0;
-	}
-
-	h3 {
-		margin-top: 0;
-		font-size: 16px;
-		font-weight: 600;
-	}
-
-	p {
-		color: var(--color-text-lighter);
-		line-height: 1.7;
-		margin: 8px 0;
-	}
-
-	.icon-close {
-		position: absolute;
-		top: 12px;
-		inset-inline-end: 12px;
-		padding: 12px;
-		border-radius: 8px;
-		color: var(--color-text-lighter);
-
-		&:hover,
-		&:focus {
-			background: var(--color-background-hover);
-		}
-	}
-
-	.social-id {
-		font-weight: 700;
-		color: var(--color-primary-element);
-	}
-
-	.follow-nextcloud {
-		margin-top: 16px;
-		padding-top: 16px;
-		border-top: 1px solid var(--color-border);
-
-		input[type=button] {
-			float: inline-end;
-		}
-	}
-}
-
 #app-content {
 	position: relative;
-}
-
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-	position: relative;
-	overflow: hidden;
-	transition: max-height .3s ease-out, opacity .3s ease-out;
-	max-height: 200px;
-}
-
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-	max-height: 0;
-	opacity: 0;
-	padding-top: 0;
-	padding-bottom: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.slide-fade-enter-active,
-	.slide-fade-leave-active {
-		transition: none;
-	}
 }
 
 </style>
