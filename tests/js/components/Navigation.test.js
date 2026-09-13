@@ -98,7 +98,7 @@ describe('Navigation', () => {
 			'My Feed',
 			'Photos',
 			'Videos',
-			'Notifications',
+			'Activities',
 			'Direct messages',
 			'Discover',
 			'My profile',
@@ -134,7 +134,7 @@ describe('Navigation', () => {
 			'My Feed',
 			'Photos',
 			'Videos',
-			'Notifications',
+			'Activities',
 			'Direct messages',
 			'Discover',
 		])
@@ -188,7 +188,7 @@ describe('Navigation', () => {
 
 	it.each([
 		['My Feed', { name: 'timeline' }],
-		['Notifications', { name: 'timeline', params: { type: 'notifications' } }],
+		['Activities', { name: 'timeline', params: { type: 'notifications' } }],
 		['Direct messages', { name: 'timeline', params: { type: 'direct' } }],
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
 		['Statistics', { name: 'statistics' }],
@@ -270,8 +270,8 @@ describe('Navigation', () => {
 	it('shows how many notifications are waiting, through the counter slot', () => {
 		// `:counter="…"` was silently ignored in @nextcloud/vue 9, so the
 		// badge never appeared at all
-		expect(item(mountNavigation(), 'Notifications').find('.nc-counter').exists()).toBe(false)
-		expect(item(mountNavigation({ unread: 5 }), 'Notifications').find('.nc-counter').attributes('data-count')).toBe('5')
+		expect(item(mountNavigation(), 'Activities').find('.nc-counter').exists()).toBe(false)
+		expect(item(mountNavigation({ unread: 5 }), 'Activities').find('.nc-counter').attributes('data-count')).toBe('5')
 	})
 
 	// Routes come from the real router rather than being written out here: an
@@ -281,7 +281,7 @@ describe('Navigation', () => {
 	it.each([
 		['/timeline', 'My Feed'],
 		['/timeline/', 'My Feed'],
-		['/timeline/notifications', 'Notifications'],
+		['/timeline/notifications', 'Activities'],
 		['/timeline/direct', 'Direct messages'],
 		['/timeline/timeline', 'My Feed'],
 		['/timeline/federated', 'My Feed'],
@@ -563,7 +563,7 @@ describe('Navigation entries are links', () => {
 
 	it.each([
 		['My Feed', '/index.php/apps/social/timeline'],
-		['Notifications', '/index.php/apps/social/timeline/notifications'],
+		['Activities', '/index.php/apps/social/timeline/notifications'],
 		['Direct messages', '/index.php/apps/social/timeline/direct'],
 		['Follow requests', '/index.php/apps/social/follow_requests'],
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
@@ -581,7 +581,7 @@ describe('Navigation entries are links', () => {
 		// timeline the reader had actually chosen.
 		const entry = (wrapper, name) => wrapper.findAll('li').find((li) => li.text().startsWith(name))
 		const lit = (wrapper, names) => names.filter((name) => entry(wrapper, name)?.find('.app-navigation-entry').classes().includes('active'))
-		const names = ['My Feed', 'Photos', 'Videos', 'Notifications', 'Direct messages', 'Liked posts', 'Bookmarks']
+		const names = ['My Feed', 'Photos', 'Videos', 'Activities', 'Direct messages', 'Liked posts', 'Bookmarks']
 
 		expect(lit(await mountReal('/timeline/direct'), names)).toEqual(['Direct messages'])
 		expect(lit(await mountReal('/timeline'), names)).toEqual(['My Feed'])

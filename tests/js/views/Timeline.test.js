@@ -111,7 +111,7 @@ describe('Timeline', () => {
 	it.each([
 		[{ name: 'timeline', params: {} }, 'Home timeline', false],
 		[{ name: 'timeline', params: { type: 'direct' } }, 'Direct messages', false],
-		[{ name: 'timeline', params: { type: 'notifications' } }, 'Notifications', true],
+		[{ name: 'timeline', params: { type: 'notifications' } }, 'Activities', true],
 		[{ name: 'timeline', params: { type: 'timeline' } }, 'Local timeline', false],
 		[{ name: 'timeline', params: { type: 'federated' } }, 'Global timeline', false],
 		[{ name: 'timeline', params: { type: 'favourites' } }, 'Liked posts', false],
@@ -146,7 +146,7 @@ describe('Timeline', () => {
 	it('hides the composer on the notifications timeline and titles it', () => {
 		const wrapper = mountTimeline({ params: { type: 'notifications' } })
 		expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
-		expect(wrapper.find('h1').text()).toBe('Notifications')
+		expect(wrapper.find('h1').text()).toBe('Activities')
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe('notifications')
 	})
 
