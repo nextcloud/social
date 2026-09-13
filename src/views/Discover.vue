@@ -101,11 +101,10 @@
 						<router-link
 							class="discover__account-link"
 							:to="{ name: 'profile', params: { account: account.acct } }">
-							<img
+							<ActorAvatar
 								class="discover__avatar"
-								:src="account.avatar"
-								alt=""
-								loading="lazy">
+								:actor="account"
+								:size="40" />
 							<span class="discover__account-names">
 								<span class="discover__account-name">{{ account.display_name || account.username }}</span>
 								<span class="discover__account-handle">@{{ account.acct }}</span>
@@ -150,11 +149,10 @@
 					<router-link
 						class="discover__account-link"
 						:to="{ name: 'profile', params: { account: account.acct } }">
-						<img
+						<ActorAvatar
 							class="discover__avatar"
-							:src="account.avatar"
-							alt=""
-							loading="lazy">
+							:actor="account"
+							:size="40" />
 						<span class="discover__account-names">
 							<span class="discover__account-name">{{ account.display_name || account.username }}</span>
 							<span class="discover__account-handle">@{{ account.acct }}</span>
@@ -178,6 +176,7 @@
 
 <script>
 import AccountMultipleOutline from 'vue-material-design-icons/AccountMultipleOutline.vue'
+import ActorAvatar from '../components/ActorAvatar.vue'
 import AccountMultiplePlusOutline from 'vue-material-design-icons/AccountMultiplePlusOutline.vue'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import Compass from 'vue-material-design-icons/Compass.vue'
@@ -215,6 +214,7 @@ export default {
 
 	components: {
 		AccountMultipleOutline,
+		ActorAvatar,
 		AccountMultiplePlusOutline,
 		ArrowLeft,
 		Compass,
@@ -460,10 +460,6 @@ export default {
 	}
 
 	&__avatar {
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
-		object-fit: cover;
 		flex: 0 0 auto;
 	}
 

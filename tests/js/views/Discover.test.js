@@ -15,6 +15,13 @@ vi.mock('@nextcloud/router', () => ({ generateUrl: (path) => `/${path}` }))
 vi.mock('@nextcloud/l10n', () => ({
 	t: (app, text) => text,
 	n: (app, one, many, count) => String(count),
+	// the view now renders ActorAvatar, and @nextcloud/vue reads the text
+	// direction out of this module while its own module body runs
+	isRTL: () => false,
+	getLanguage: () => 'en',
+	getCanonicalLocale: () => 'en',
+	translate: (app, text) => text,
+	translatePlural: (app, one, many, count) => String(count),
 }))
 
 /**
