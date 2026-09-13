@@ -685,7 +685,10 @@ export default {
 		expanded() {
 			return this.openedByHand
 				|| this.loading
-				|| this.replyTo !== null
+				// the post it is anchored under is not a reply in progress: a
+				// box under every post would otherwise be open on every post,
+				// which is the one thing a box that is always there must not be
+				|| (this.replyTo !== null && !this.anchoredReply)
 				|| this.quoteOf !== null
 				|| this.showPoll
 				|| this.showWarning
@@ -750,6 +753,10 @@ export default {
 			this.replyTo = data
 			this.prefillMessageWithMention(data.account)
 			this.visibility = data.visibility
+			// somebody pressed reply, which is a request to write one — including
+			// on the post this box is anchored under, where the target does not
+			// change and the box opening is the whole of the answer
+			this.openedByHand = true
 		}
 		eventBus.on('composer-reply', this.onComposerReply)
 
@@ -1449,6 +1456,11 @@ export default {
 
 			this.replyTo = this.inReplyTo
 			this.quoteOf = null
+			if (this.inReplyTo !== null) {
+				// back to a line under the post, as it was before the reader
+				// clicked into it
+				this.openedByHand = this.startExpanded
+			}
 			this.$refs.composerInput.innerText = ''
 			Object.keys(this.attachments).forEach((key) => this.releasePreview(key))
 			this.attachments = {}
@@ -1484,10 +1496,15 @@ export default {
 		closeReply() {
 			this.replyTo = this.inReplyTo
 			// an anchored composer is part of the page rather than something
-			// opened over it: there is nothing to close it back to
+			// opened over it: there is nothing to close it back to, so it
+			// closes itself instead
 			if (this.inReplyTo === null) {
 				this.timelineStore.setComposerDisplayStatus(false)
+
+				return
 			}
+
+			this.openedByHand = this.startExpanded
 		},
 
 		removeQuote() {

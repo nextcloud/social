@@ -291,6 +291,11 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		/** @var Note $item */
 		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
 		$this->linkPreviewService->deleteCard($item->getId());
+		// the post it answered counts one reply fewer now. `updateDetails()`
+		// recounts rather than decrements, so it has to run after the row has
+		// gone — and a delete that never called it left the parent claiming a
+		// reply nothing could show, for good.
+		$this->updateDetails($item);
 	}
 
 	public function updateDetails(Note $stream): void {

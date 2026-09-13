@@ -1489,7 +1489,7 @@ describe('Composer', () => {
 	})
 
 	describe('anchored under the post it replies to', () => {
-		it('starts pointed at that post, open, and without quoting it back', async () => {
+		it('starts pointed at that post, closed, and without quoting it back', async () => {
 			const { wrapper } = mountComposer({ inReplyTo: replyTo(bob) })
 			await flushPromises()
 
@@ -1497,8 +1497,39 @@ describe('Composer', () => {
 			// with a button for closing a reply that has nowhere else to go,
 			// is the page saying the same thing twice
 			expect(wrapper.find('.reply-to').exists()).toBe(false)
-			expect(wrapper.classes()).not.toContain('new-post--collapsed')
+			// and a box under every post, open, would be eight controls and a
+			// text area under every post
+			expect(wrapper.classes()).toContain('new-post--collapsed')
 			expect(wrapper.find('.message').attributes('placeholder')).toBe('Write a reply…')
+		})
+
+		it('opens on a click into it', async () => {
+			const { wrapper } = mountComposer({ inReplyTo: replyTo(bob) })
+
+			await wrapper.trigger('focusin')
+
+			expect(wrapper.classes()).not.toContain('new-post--collapsed')
+		})
+
+		it('opens when reply is pressed on the post it sits under', async () => {
+			const { wrapper } = mountComposer({ inReplyTo: replyTo(bob) })
+
+			// the target does not change, so the box opening is the whole of
+			// what the button can do — without this the press did nothing
+			eventBus.emit('composer-reply', replyTo(bob))
+			await flushPromises()
+
+			expect(wrapper.classes()).not.toContain('new-post--collapsed')
+			expect(wrapper.find('.reply-to').exists()).toBe(false)
+		})
+
+		it('closes again once the reply has been sent', async () => {
+			const { wrapper } = mountComposer({ inReplyTo: replyTo(bob) })
+			await setContent(wrapper, 'answering')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(wrapper.classes()).toContain('new-post--collapsed')
 		})
 
 		it('sends what is typed as a reply to that post, in its audience', async () => {
@@ -1542,6 +1573,9 @@ describe('Composer', () => {
 			await flushPromises()
 
 			expect(wrapper.find('.reply-to').exists()).toBe(false)
+			// still open, because the mention prefilled for carol is still in
+			// the box: what the reader has not sent is not thrown away
+			expect(typed(wrapper)).toContain('@carol')
 			// closing a reply hides a composer that was opened to write it;
 			// this one is part of the page and has nothing to close back to
 			expect(store.setComposerDisplayStatus).not.toHaveBeenCalled()

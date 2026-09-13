@@ -508,6 +508,43 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
 	}
 
+	public function testDeletingAReplyLeavesItsParentCountingOneFewer(): void {
+		$parent = $this->note(self::PARENT, $this->alice->getId(), true);
+		$parent->setDetailInt('remote_replies', 1);
+		$parent->setDetailInt('replies', 3);
+		$note = $this->incomingNote();
+		$note->setInReplyTo(self::PARENT);
+		$this->streamRequest->method('getStreamById')->willReturnCallback(function (string $id) use ($parent, $note): Stream {
+			if ($id === self::PARENT) {
+				return $parent;
+			}
+
+			$stored = clone $note;
+			$stored->setActor($this->bob);
+
+			return $stored;
+		});
+		// the row is gone by the time the parent is recounted
+		$this->streamRequest->method('countRepliesTo')->with(self::PARENT)->willReturn(1);
+
+		$this->streamRequest->expects($this->once())->method('updateDetails')->with($this->identicalTo($parent));
+
+		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
+
+		// a delete used to remove the reply and leave the count alone, so the
+		// post claimed a reply nothing on any page could show
+		$this->assertSame(2, $parent->getDetailInt('replies'));
+	}
+
+	public function testDeletingAPostThatAnsweredNothingTouchesNoCounter(): void {
+		$note = $this->incomingNote();
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($this->storedCopy());
+
+		$this->streamRequest->expects($this->never())->method('updateDetails');
+
+		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
+	}
+
 	public function testAStoredNoteThatLinksSomewhereIsHandedToTheQueue(): void {
 		$note = $this->incomingNote();
 		$note->setContent('<p>see <a href="https://example.org/a">this</a></p>');

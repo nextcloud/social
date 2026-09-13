@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.26  
+**App version:** 0.19.27  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -852,14 +852,22 @@ and inventing a value would be worse than the absence.
 
 The composer sits under the post, pointed at it, rather than at the top of the
 page waiting to be summoned by a reply button. `Composer` takes `inReplyTo` for
-this: it seeds `replyTo`, which is what already makes the box open rather than
-collapsed, and it is a *default* rather than a fixed target — pressing reply on
+this: it seeds `replyTo`, and it is a *default* rather than a fixed target — pressing reply on
 another post in the thread retargets the box as it always did, and sending or
 dismissing that reply comes back to the anchor rather than leaving the box
 pointed at nothing. The header naming who is being replied to is hidden while
 the target is the post directly above the box, where it would be the page
 repeating itself. There is no box at all on the public page, where there is no
 account to send from.
+
+The anchor is the one thing that does not open the box. Everywhere else a
+`replyTo` means a reply in progress, which is why it counts as expanded; a box
+that is under every post would then be eight controls and a text area under
+every post. So `expanded` ignores the anchored target, the box is a line of
+placeholder until somebody clicks into it, and it closes again once the reply
+has been sent. Pressing reply on the post it sits under sets `openedByHand`
+directly — the target does not change there, so opening is the whole of what
+that button can do.
 
 And when the thread is shorter than the post says it is, the page says so.
 `replies_count` is what the post's own instance reported plus what has arrived
@@ -869,6 +877,13 @@ as complete as what has reached this server. The note counts against the
 *direct* replies on screen, since that is what the number on the post counts,
 and it waits for `TimelineList` to emit `settled` — before that, every reply is
 one this page has not drawn, and saying so would be counting the loading.
+
+Saying it out loud found a counter that was wrong. `NoteInterface::delete()`
+removed a reply's row and left its parent's `replies` detail alone, so a post
+whose reply had been deleted claimed one that no page could ever show — invisible
+until something compared the number with the thread. The delete recounts now
+through `updateDetails()`, which reads `countRepliesTo()` rather than
+decrementing, so it repairs a drifted count rather than tracking one.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`
