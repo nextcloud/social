@@ -103,9 +103,16 @@
 					class="navigation__more"
 					:style="{ '--social-face': `url(${avatarUrl})` }"
 					:name="profileName">
+					<!-- `--entry-index` is what staggers the opening: the rows
+					     each wait a little longer than the one above. It is
+					     passed from here because the DOM cannot be counted --
+					     every entry sits in a wrapper of its own, so each one is
+					     its parent's first child and `nth-child` would give them
+					     all the same delay. -->
 					<NcAppNavigationItem
-						v-for="item in menu.more"
+						v-for="(item, index) in menu.more"
 						:key="item.key"
+						:style="{ '--entry-index': index }"
 						:name="item.title"
 						:href="hrefFor(item.to)"
 						:active="isActive(item)"
@@ -118,6 +125,7 @@
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem
+						:style="{ '--entry-index': menu.more.length }"
 						:name="t('social', 'Blocked and muted accounts')"
 						:href="hrefFor({ name: 'blocked-accounts' })"
 						:active="isActive({ to: { name: 'blocked-accounts' } })"
@@ -130,6 +138,7 @@
 					     place to read something, and this is the one place to
 					     change something -->
 					<NcAppNavigationItem
+						:style="{ '--entry-index': menu.more.length + 1 }"
 						:name="t('social', 'Settings')"
 						:href="hrefFor({ name: 'settings' })"
 						:active="isActive({ to: { name: 'settings' } })"
@@ -647,8 +656,65 @@ export default {
 	color: var(--color-text-lighter);
 }
 
-.modal-composer {
-	padding: calc(var(--default-grid-baseline) * 4);
+/*
+ * The account menu opens as a drawer: the rows come in from the leading edge,
+ * one behind the next.
+ *
+ * `NcAppNavigationSettings` animates its own `max-height`, so the panel grew
+ * and the rows inside it were simply there when it finished -- the container
+ * moved and its contents did not. These slide in behind it, 34ms apart, in the
+ * direction the sidebar itself runs.
+ *
+ * Driven off `aria-expanded`, which is the accordion's own state and the only
+ * hook it offers: there is no `open` prop and no event, and the component's
+ * internal class names are content-hashed, so anything keyed on those would
+ * break on the next release of the library.
+ *
+ * The delay comes from `--entry-index`, set in the template. The DOM cannot be
+ * counted here: `NcAppNavigationItem` puts every entry in a wrapper of its own,
+ * so each one is its parent's first child and `nth-child` hands them all the
+ * same delay. There is a test that they are laid out that way, so that this
+ * comment stops being true loudly rather than quietly.
+ *
+ * All of it sits inside `@supports selector(:has(*))` on purpose. Without
+ * `:has()` the browser drops the rule that brings the rows *back*, and a bare
+ * `opacity: 0` would leave the menu permanently empty -- so where it is not
+ * supported, nothing animates and the menu behaves exactly as it does today.
+ */
+@supports selector(:has(*)) {
+	.navigation__more :deep(.app-navigation-entry) {
+		opacity: 0;
+		/* the leading edge, whichever side that is */
+		transform: translateX(calc(var(--social-menu-slide, 1) * -14px));
+		transition:
+			opacity .24s ease,
+			transform .34s cubic-bezier(.3, 1.25, .5, 1);
+	}
+
+	[dir="rtl"] .navigation__more {
+		--social-menu-slide: -1;
+	}
+
+	.navigation__more:has(button[aria-expanded="true"]) :deep(.app-navigation-entry) {
+		opacity: 1;
+		transform: none;
+		transition-delay: calc(var(--entry-index, 0) * 34ms);
+	}
+
+	/* A reader who asked for no movement still gets the menu, all at once and
+	   without the stagger: a row that fades in a fifth of a second after the
+	   one above it is the movement they turned off, even though nothing
+	   travels. */
+	@media (prefers-reduced-motion: reduce) {
+		.navigation__more :deep(.app-navigation-entry) {
+			transition: none;
+			transform: none;
+		}
+
+		.navigation__more:has(button[aria-expanded="true"]) :deep(.app-navigation-entry) {
+			transition-delay: 0ms;
+		}
+	}
 }
 
 /*
