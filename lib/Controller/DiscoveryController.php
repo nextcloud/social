@@ -225,6 +225,14 @@ class DiscoveryController extends Controller {
 	 * put in one -- not a different ranking, so a post cannot trend here and not
 	 * there.
 	 *
+	 * `media` narrows it again to one kind, which is this app's own parameter
+	 * and not Pixelfed's: its clients send none and get what they always got,
+	 * every post with an attachment. The page this app draws asks for `image`
+	 * and `video` separately, because a grid of squares and a grid of players
+	 * are two screens. Anything else is ignored rather than refused -- an
+	 * unknown kind is a client asking for something this instance does not
+	 * sort by, not an error worth a 4xx on a shop window.
+	 *
 	 * Public statuses only, as the trends are: this is a shop window, and the
 	 * one rule a discovery surface must not break is showing somebody something
 	 * they would not have been shown anywhere else.
@@ -236,11 +244,13 @@ class DiscoveryController extends Controller {
 		int $limit = TrendService::LIMIT,
 		int $offset = 0,
 		string $period = HashtagService::PERIOD_DEFAULT,
+		string $media = '',
 	): DataResponse {
 		try {
 			$this->initViewer(['read'], false);
 
-			$statuses = $this->trendService->trendingStatuses($period, $limit, $offset, true);
+			$media = in_array($media, ['image', 'video', 'audio'], true) ? $media : '';
+			$statuses = $this->trendService->trendingStatuses($period, $limit, $offset, true, $media);
 			$this->linkPreviewService->attachCards($statuses);
 			$this->placeService->attachPlaces($statuses);
 

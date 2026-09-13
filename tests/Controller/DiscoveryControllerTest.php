@@ -36,6 +36,7 @@ use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use RuntimeException;
@@ -142,8 +143,20 @@ class DiscoveryControllerTest extends TestCase {
 
 		$this->trendService = $this->createMock(TrendService::class);
 		$this->trendService->method('trendingStatuses')
-			->willReturnCallback(function (string $period, int $limit, int $offset): array {
-				$this->trendAsked = ['period' => $period, 'limit' => $limit, 'offset' => $offset];
+			->willReturnCallback(function (
+				string $period,
+				int $limit,
+				int $offset,
+				bool $onlyMedia = false,
+				string $mediaType = '',
+			): array {
+				$this->trendAsked = [
+					'period' => $period,
+					'limit' => $limit,
+					'offset' => $offset,
+					'onlyMedia' => $onlyMedia,
+					'mediaType' => $mediaType,
+				];
 
 				return $this->trendingStatuses;
 			});
@@ -321,8 +334,42 @@ class DiscoveryControllerTest extends TestCase {
 		$this->controller()->trendStatuses(15, 5, '12h');
 
 		$this->assertSame(
-			['period' => '12h', 'limit' => 15, 'offset' => 5], $this->trendAsked
+			['period' => '12h', 'limit' => 15, 'offset' => 5, 'onlyMedia' => false, 'mediaType' => ''],
+			$this->trendAsked
 		);
+	}
+
+	/**
+	 * `media` is this app's own parameter, so a Pixelfed client sending none
+	 * has to keep getting what it always got: every post with an attachment.
+	 */
+	public function testTheDiscoverGridIsEveryAttachmentUnlessAKindIsNamed(): void {
+		$this->controller()->discoverPosts();
+
+		$this->assertTrue($this->trendAsked['onlyMedia']);
+		$this->assertSame('', $this->trendAsked['mediaType']);
+	}
+
+	#[DataProvider('provideDiscoverMediaKinds')]
+	public function testTheDiscoverGridNarrowsToOneKind(string $sent, string $asked): void {
+		$this->controller()->discoverPosts(media: $sent);
+
+		$this->assertTrue($this->trendAsked['onlyMedia']);
+		$this->assertSame($asked, $this->trendAsked['mediaType']);
+	}
+
+	/** @return array<string, array{string, string}> */
+	public static function provideDiscoverMediaKinds(): array {
+		return [
+			'pictures' => ['image', 'image'],
+			'videos' => ['video', 'video'],
+			'audio' => ['audio', 'audio'],
+			// a kind this instance does not sort by is ignored rather than
+			// refused: an unknown one is a client asking for something that
+			// does not exist, not an error worth a 4xx on a shop window
+			'an unknown kind falls back to every attachment' => ['hologram', ''],
+			'nothing is every attachment' => ['', ''],
+		];
 	}
 
 	/** One query for the whole page, as the timelines do it. */
