@@ -20,9 +20,29 @@
  * The signatures are `@nextcloud/dialogs`' own, forwarded unchanged.
  */
 
-/** @return {Promise<object>} the dialogs module, loaded once */
+/**
+ * The stylesheet travels with the library, in the same chunk.
+ *
+ * `@nextcloud/dialogs` 7 builds a toast out of CSS-module class names --
+ * `_toastContainer_1biev_1`, `_toast_v43ag_11` -- and ships the rules for them
+ * in a stylesheet of its own. The server's `core/css/toast.css` styles
+ * `.toastify.toast`, which is the markup an older major produced, and matches
+ * none of them; no other stylesheet this app loads defines them either. Without
+ * this import a toast is a block with no position, no background and no
+ * shadow, which the page then lays out where any unstyled block goes: the top
+ * left corner.
+ *
+ * Imported here rather than at the top of the module so it lands in the `toast`
+ * chunk with the code that needs it, instead of in the entry this file was
+ * split out of to keep small.
+ *
+ * @return {Promise<object>} the dialogs module, loaded once
+ */
 function dialogs() {
-	return import(/* webpackChunkName: "toast" */ '@nextcloud/dialogs')
+	return Promise.all([
+		import(/* webpackChunkName: "toast" */ '@nextcloud/dialogs'),
+		import(/* webpackChunkName: "toast" */ '@nextcloud/dialogs/style.css'),
+	]).then(([module]) => module)
 }
 
 /**
