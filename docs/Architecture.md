@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.12  
+**App version:** 0.19.13  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -420,6 +420,8 @@ The third part of the page is about arriving from somewhere else, and it is deli
 
 The three routes are **session routes with CSRF**, not client-API ones: an archive of everything an account ever wrote is not something a third-party token should be able to ask for. The export answers with a `DataDisplayResponse` whose `Content-Disposition` is set after construction — `DataDownloadResponse` builds that header through Symfony's `HeaderUtils`, a class the server has and this app does not depend on, so the download would work on a server and be untestable here.
 
+**Writing a post's recipients once.** A post names the same account more than once as a matter of course: `Item::getToAll()` returns `to` alongside `toArray`, the author is appended to the `to` side, and an account addressed in both `to` and `cc` appears in each. The unique index `sat` is on `(stream_id, actor_id, type)` *without* the subtype, so every one of those is the same row. They used to be sent to the database one at a time and refused there. `insertIgnoreConflict()` keeps a refusal from failing the transaction the save runs in, but InnoDB allocates the auto-increment value before it notices the conflict, so each duplicate burned an id and dirtied the index that was about to reject it — on a development instance `social_stream_dest` had reached 882,837 ids for 4,976 live rows, with a 20 MB index over 1 MB of data. `StreamDestRequest::uniqueRecipients()` now names each account once before any of them is written, and the first subtype to name an account wins, which is the row the database kept when the duplicates were still being sent.
+
 **Reading a timeline in two queries.** A page is chosen as a list of `nid`s and the rows are fetched afterwards by id — `getStreamNidsSelectSql()` then `streamsByNids()`. The reason is the recipient join: a post can match `social_stream_dest` more than once, so the page query needs `SELECT DISTINCT`, and a `DISTINCT` over the full stream column set makes the database sort or hash several kilobytes a row to deduplicate integers. Two rules keep that honest. First, a page query **joins** the cached actor without selecting it (`joinCacheActors()`), because it only needs the author to constrain on, never to read. Second, `DISTINCT` is asked for only where a page can actually duplicate: `social_stream_dest` is unique on `(stream_id, actor_id, type)`, so a query that fixes the actor and the type — public, notifications, direct messages, the marked timelines — cannot match a post twice and selects without it. The home timeline does duplicate, by design, and keeps it. `getNidsFromRequest()` also deduplicates the twenty integers in PHP, which covers the one case the unique index does not: the left join on expired mutes can match twice for a viewer who timed-muted both a booster and the account they boosted.
 
 **A domain block is not a join.** The viewer's blocked instances are read once per request (`CoreRequestBuilder::blockedDomainsOf()`, memoised and dropped when `DomainBlockService` writes one) and compared as constants in the `WHERE`. It used to be a `LEFT JOIN` against the block table whose `ON` clause held four `LIKE`s against `LOWER(attributed_to)`, evaluated for every candidate row of every timeline read — including for the overwhelming majority of accounts, who have blocked nothing and now add no clause at all. The patterns are still `domainPatterns()`, so what a block matches is unchanged: the exact host, both schemes, closed by the `/` that ends it. A subdomain is a separate block, which is what `DomainBlockTimelineTest` pins — the silenced-instance filter next door reads subdomains, and the two are easy to confuse.
@@ -707,11 +709,19 @@ The user interface is a **Vue 3** front end using Vue Router, Pinia, `@nextcloud
 
 The OStatus bundle and `src/views/OStatus.vue` are therefore dead code today: `OStatusController::subscribe()` and `followRemote()` both render the `main` template, so remote-follow lands in the main SPA on its `/ostatus/follow` route.
 
+None of those entries is self-contained. Vue, `@nextcloud/vue` and pinia used to be compiled into each of them, so opening the Dashboard and then the app downloaded the framework twice — 276 KB and then 347 KB gzipped, most of it the same bytes. The `framework` cache group in `webpack.common.js` puts what more than one entry needs into `social-framework.js`, which they share; `minChunks: 2` leaves a library only one entry uses inside that entry, so the single-page reader pays a few KB rather than the union. Gzipped: the app alone goes 347 KB → 354 KB, the Dashboard alone 276 KB → 306 KB, the Dashboard and then the app 623 KB → 368 KB, and adding a profile page after that 949 KB → 429 KB.
+
+**Every `Util::addScript()` for this app therefore loads `social-framework` before the entry.** Getting that wrong fails silently rather than loudly: webpack's runtime queues the startup module waiting for a chunk that never arrives, so the script runs to completion, nothing is thrown, nothing reaches the console, and the page simply stays empty. `tests/js/bundles.test.js` boots the built bundles in a jsdom window to pin it — an entry served alone injects no stylesheets and does nothing, and served after the framework it starts — and checks each of the six `addScript()` sites for the order.
+
+`optimization.concatenateModules` stays `false`. Scope hoisting is worth about a kilobyte and makes the build irreproducible: two runs over identical source emit alternating Terser manglings, and CI compares the committed bundle against a fresh build.
+
 ### Store
 
 `src/store/` holds five Pinia stores — `timeline`, `account`, `settings`, `errors` and `notifications` — and `index.js` creates the Pinia every entry point installs. Components reach them through `mapStores`, or through a composable where the same few values are wanted together: `useServerData`, `useCurrentUser` and `useAccount` in `src/composables/` replaced the three mixins the app used to carry.
 
 Server-side state is not a store: it is passed through Nextcloud's initial state as `serverData` and read by `useServerData`.
+
+The reader's own account travels the same way. `NavigationController::provideViewerAccount()` puts the cached actor — the one `GET /api/v1/global/account/info` answers with, in the same export format — into the initial state as `currentAccount`, and `App.vue` seeds the account store from it. The app used to ask for it in `beforeMount()`, which cost every load a second authenticated round trip before anything could render, for something the page request was already holding. A page rendered before the account exists provides nothing, and the app asks the old way.
 
 The Mastodon and ActivityPub entities the app exchanges are described as JSDoc
 typedefs in `src/types/`, and `npm run typecheck` holds the stores, services and

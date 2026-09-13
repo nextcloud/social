@@ -1553,7 +1553,7 @@ class ApiController extends Controller {
 		bool $only_media = false,
 		bool $only_video = false,
 	): DataResponse {
-		$this->logger->info('[ApiController] timelines called', [
+		$this->logger->debug('[ApiController] timelines called', [
 			'timeline' => $timeline,
 			'local' => $local,
 			'limit' => $limit,
@@ -1603,7 +1603,7 @@ class ApiController extends Controller {
 				->setOnlyVideo($only_video);
 
 			$posts = $this->streamService->getTimeline($options);
-			$this->logger->info('[ApiController] Timeline retrieved', [
+			$this->logger->debug('[ApiController] Timeline retrieved', [
 				'timeline' => $timeline,
 				'postsCount' => count($posts)
 			]);
@@ -3070,7 +3070,7 @@ class ApiController extends Controller {
 			$this->followService->setViewer($this->viewer);
 			$this->cacheActorService->setViewer($this->viewer);
 
-			$this->logger->info('[ApiController] Viewer initialized successfully', [
+			$this->logger->debug('[ApiController] Viewer initialized successfully', [
 				'viewerId' => $this->viewer->getId()
 			]);
 

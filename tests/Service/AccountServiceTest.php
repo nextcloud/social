@@ -17,6 +17,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -31,6 +32,7 @@ use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\SignatureService;
@@ -60,6 +62,7 @@ class AccountServiceTest extends TestCase {
 	private SignatureService|MockObject $signatureService;
 	private ConfigService|MockObject $configService;
 	private AccessBlockService|MockObject $accessBlockService;
+	private CacheActorService|MockObject $cacheActorService;
 
 	/** @var string[] the addresses this instance gives no fediverse account to */
 	private array $blockedEmails = [];
@@ -83,6 +86,7 @@ class AccountServiceTest extends TestCase {
 		// "Creation of dynamic property" for each of them, which PHPUnit would treat as
 		// unexpected output. Silence that single known deprecation around construction.
 		$this->errorReporting = error_reporting(E_ALL & ~E_DEPRECATED);
+		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->accessBlockService = $this->createMock(AccessBlockService::class);
 		$this->accessBlockService->method('isBlockedEmail')->willReturnCallback(
 			fn (string $email): bool => in_array($email, $this->blockedEmails, true)
@@ -101,6 +105,7 @@ class AccountServiceTest extends TestCase {
 			$this->signatureService,
 			$this->configService,
 			$this->accessBlockService,
+			$this->cacheActorService,
 			new NullLogger(),
 		);
 		error_reporting($this->errorReporting);
@@ -194,6 +199,46 @@ class AccountServiceTest extends TestCase {
 		$this->expectException(ActorDoesNotExistException::class);
 		$this->expectExceptionMessage('Actor not found for user: alice');
 		$this->service->getActorFromUserId('alice');
+	}
+
+	/**
+	 * `social_cache_actor` is what a reader wants — the follower, following and
+	 * post counts live only there — and a missing row means the account has not
+	 * been looked at yet, not that it does not exist. These three moved here
+	 * from `LocalController` when the page started needing the same lookup.
+	 */
+	public function testGetCachedLocalActorReturnsTheCachedCopy(): void {
+		$cached = $this->createMock(Person::class);
+		$this->cacheActorService->expects($this->once())
+			->method('getFromLocalAccount')->with('alice')->willReturn($cached);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->assertSame($cached, $this->service->getCachedLocalActor('alice'));
+	}
+
+	public function testGetCachedLocalActorRebuildsTheCacheOnAMiss(): void {
+		$cached = $this->createMock(Person::class);
+		$this->cacheActorService->expects($this->exactly(2))
+			->method('getFromLocalAccount')
+			->with('alice')
+			->will($this->onConsecutiveCalls(
+				$this->throwException(new CacheActorDoesNotExistException()), $cached
+			));
+		// the rebuild is cacheLocalActorByUsername(), which reads the actor row
+		$this->actorsRequest->method('getFromUsername')
+			->willThrowException(new ActorDoesNotExistException());
+
+		$this->assertSame($cached, $this->service->getCachedLocalActor('alice'));
+	}
+
+	public function testGetCachedLocalActorGivesUpWhenTheRebuildProducesNothing(): void {
+		$this->cacheActorService->method('getFromLocalAccount')
+			->willThrowException(new CacheActorDoesNotExistException());
+		$this->actorsRequest->method('getFromUsername')
+			->willThrowException(new ActorDoesNotExistException());
+
+		$this->expectException(CacheActorDoesNotExistException::class);
+		$this->service->getCachedLocalActor('ghost');
 	}
 
 	public function testGetActorFromUserIdCreatesTheActorOnDemand(): void {

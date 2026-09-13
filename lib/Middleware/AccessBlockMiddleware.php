@@ -32,9 +32,16 @@ use Psr\Log\LoggerInterface;
  * than queue for days — the same reasoning as the refused inbox delivery in
  * `docs/Architecture.md`.
  *
- * The check costs one query per request on an instance that has any blocks,
- * and nothing at all on one that has none: the list is loaded once and then
- * lives for the length of the request.
+ * The check costs one query per request, whether or not anything is blocked:
+ * an empty list is still a list that has to be read. It is read once and then
+ * lives for the length of the request, so the cost does not grow with the
+ * number of blocks or the number of times the list is consulted.
+ *
+ * Skipping the read on an instance with no blocks would want a flag saying so,
+ * and a flag that drifted out of step with the table would stop enforcing an
+ * access list without saying anything — which is the wrong way round for a
+ * security control to fail, for one query out of the fifteen or so a request
+ * already makes.
  */
 class AccessBlockMiddleware extends Middleware {
 	public function __construct(

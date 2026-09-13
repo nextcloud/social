@@ -17,6 +17,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
@@ -88,6 +89,7 @@ class AccountService {
 		private SignatureService $signatureService,
 		private ConfigService $configService,
 		private AccessBlockService $accessBlockService,
+		private CacheActorService $cacheActorService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -161,6 +163,40 @@ class AccountService {
 		}
 
 		return $actor;
+	}
+
+	/**
+	 * The cached copy of a local account, rebuilt when it has gone missing.
+	 *
+	 * `social_actor` holds what this instance decides about an account and
+	 * `social_cache_actor` holds what everybody reads — including the follower,
+	 * following and post counts, which live only in the cached copy. A reader
+	 * therefore wants this one, and a cache row that is absent (an account that
+	 * has never been looked at, or one whose row was purged) is a thing to
+	 * rebuild rather than an error to report: the account exists either way.
+	 *
+	 * @throws CacheActorDoesNotExistException the rebuild did not produce one
+	 */
+	public function getCachedLocalActor(string $username): Person {
+		try {
+			return $this->cacheActorService->getFromLocalAccount($username);
+		} catch (CacheActorDoesNotExistException $e) {
+			$this->logger->debug('[AccountService] rebuilding the local actor cache', [
+				'username' => $username,
+				'exception' => $e->getMessage(),
+			]);
+
+			try {
+				$this->cacheLocalActorByUsername($username);
+			} catch (Exception $cacheError) {
+				$this->logger->debug('[AccountService] local actor cache rebuild failed', [
+					'username' => $username,
+					'exception' => $cacheError->getMessage(),
+				]);
+			}
+
+			return $this->cacheActorService->getFromLocalAccount($username);
+		}
 	}
 
 	/**

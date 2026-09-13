@@ -50,6 +50,8 @@ class SocialWidget implements IWidget {
 
 	#[\Override]
 	public function load(): void {
+		// the framework this entry was built without; see webpack.common.js
+		\OCP\Util::addScript(Application::APP_ID, 'social-framework');
 		\OCP\Util::addScript(Application::APP_ID, 'social-dashboard');
 		\OCP\Util::addStyle(Application::APP_ID, 'dashboard');
 	}

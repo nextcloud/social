@@ -550,7 +550,7 @@ class LocalControllerTest extends TestCase {
 
 	public function testAccountInfoReturnsTheCompleteLocalActor(): void {
 		$actor = $this->createMock(Person::class);
-		$this->cacheActorService->method('getFromLocalAccount')->with('bob')->willReturn($actor);
+		$this->accountService->method('getCachedLocalActor')->with('bob')->willReturn($actor);
 		$actor->expects($this->once())->method('setCompleteDetails')->with(true);
 		$actor->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
 
@@ -560,18 +560,8 @@ class LocalControllerTest extends TestCase {
 		$this->assertSame($actor, $response->getData());
 	}
 
-	public function testAccountInfoRebuildsTheCacheOnAMiss(): void {
-		$actor = $this->createMock(Person::class);
-		$this->cacheActorService->method('getFromLocalAccount')->with('bob')
-			->will($this->onConsecutiveCalls($this->throwException(new CacheActorDoesNotExistException()), $actor));
-		$this->accountService->expects($this->once())->method('cacheLocalActorByUsername')->with('bob');
-
-		$this->assertSame($actor, $this->controller(null)->accountInfo('bob')->getData());
-	}
-
 	public function testAccountInfoOfUnknownUserFails(): void {
-		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new CacheActorDoesNotExistException());
-		$this->accountService->method('cacheLocalActorByUsername')->willThrowException(new AccountDoesNotExistException());
+		$this->accountService->method('getCachedLocalActor')->willThrowException(new CacheActorDoesNotExistException());
 
 		$this->assertFailure($this->controller(null)->accountInfo('ghost'), CacheActorDoesNotExistException::class);
 	}
@@ -589,7 +579,7 @@ class LocalControllerTest extends TestCase {
 				return $this->createMock(Person::class);
 			});
 		$this->accountService->expects($this->once())->method('cacheLocalActorByUsername')->with('bob');
-		$this->cacheActorService->method('getFromLocalAccount')->with('bob')->willReturn($actor);
+		$this->accountService->method('getCachedLocalActor')->with('bob')->willReturn($actor);
 		$this->cacheActorService->expects($this->never())->method('getFromAccount');
 		$this->cacheActorService->expects($this->never())->method('addRemoteActorDetailCount');
 		$actor->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
@@ -607,7 +597,7 @@ class LocalControllerTest extends TestCase {
 		$actor = $this->createMock(Person::class);
 		$actor->method('isLocal')->willReturn(true);
 		$this->accountService->expects($this->never())->method('getActorFromUserId');
-		$this->cacheActorService->method('getFromLocalAccount')->with('bob')->willReturn($actor);
+		$this->accountService->method('getCachedLocalActor')->with('bob')->willReturn($actor);
 
 		$response = $this->controller(null)->globalAccountInfo('@bob');
 
@@ -620,7 +610,7 @@ class LocalControllerTest extends TestCase {
 		$this->configService->method('getSocialAddress')->willReturn('social.example');
 		$actor = $this->createMock(Person::class);
 		$actor->method('isLocal')->willReturn(true);
-		$this->cacheActorService->method('getFromLocalAccount')->with('bob')->willReturn($actor);
+		$this->accountService->method('getCachedLocalActor')->with('bob')->willReturn($actor);
 		$this->cacheActorService->expects($this->never())->method('getFromAccount');
 
 		$this->assertSame($actor, $this->controller(null)->globalAccountInfo('bob@social.example')->getData());

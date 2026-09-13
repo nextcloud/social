@@ -128,7 +128,18 @@ export default {
 		this.settingsStore.setServerData(loadState('social', 'serverData'))
 
 		if (!this.serverData.public) {
-			this.accountStore.fetchCurrentAccountInfo(this.cloudId)
+			// The page was rendered for this reader and carries their account
+			// with it, so there is nothing to go and ask for. Asking was a
+			// second authenticated round trip that everything else waited on.
+			// A page rendered before the account existed sends nothing, and
+			// then the old question is still the right one.
+			const seeded = loadState('social', 'currentAccount', null)
+			if (seeded?.url) {
+				this.accountStore.setCurrentAccount(this.cloudId)
+				this.accountStore.addAccount({ actorId: seeded.url, data: seeded })
+			} else {
+				this.accountStore.fetchCurrentAccountInfo(this.cloudId)
+			}
 		}
 
 		if (OCA.Push && OCA.Push.isEnabled()) {

@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\NoUserException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
@@ -91,7 +92,7 @@ class NavigationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/discover', postfix: 'discover')]
 	#[FrontpageRoute(verb: 'GET', url: '/migration', postfix: 'migration')]
 	public function navigate(string $path = ''): TemplateResponse {
-		$this->logger->info('[NavigationController] navigate() called', [
+		$this->logger->debug('[NavigationController] navigate() called', [
 			'path' => $path,
 			'userId' => $this->userId,
 		]);
@@ -109,7 +110,7 @@ class NavigationController extends Controller {
 
 		try {
 			$serverData['cloudAddress'] = $this->configService->getCloudUrl();
-			$this->logger->info('[NavigationController] Cloud address configured', [
+			$this->logger->debug('[NavigationController] Cloud address configured', [
 				'cloudAddress' => $serverData['cloudAddress']
 			]);
 		} catch (SocialAppConfigException $e) {
@@ -187,11 +188,44 @@ class NavigationController extends Controller {
 			$this->logger->debug('[NavigationController] Admin checks completed', ['checks' => $checks]);
 		}
 
-		$this->logger->info('[NavigationController] Providing initial state and rendering template', [
+		$this->logger->debug('[NavigationController] Providing initial state and rendering template', [
 			'serverData' => $serverData
 		]);
 		$this->initialState->provideInitialState('serverData', $serverData);
+		$this->provideViewerAccount();
+
 		return new TemplateResponse(Application::APP_ID, 'main');
+	}
+
+	/**
+	 * The reader's own account, handed to the page instead of waited for.
+	 *
+	 * The app used to ask for it from `beforeMount()`, so every load spent a
+	 * second authenticated round trip — `GET /api/v1/global/account/info` — on
+	 * something this request is already holding, and nothing could render until
+	 * it came back. The reply is the same cached actor this reads, in the same
+	 * export format, so the store is seeded with what it would have received.
+	 *
+	 * A failure here is not one worth showing anybody: the page falls back to
+	 * asking, which is what it did before.
+	 */
+	private function provideViewerAccount(): void {
+		if ($this->userId === null) {
+			return;
+		}
+
+		try {
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$viewer = $this->accountService->getCachedLocalActor($actor->getPreferredUsername());
+			$viewer->setExportFormat(ACore::FORMAT_LOCAL);
+
+			$this->initialState->provideInitialState('currentAccount', $viewer);
+		} catch (Exception $e) {
+			$this->logger->debug('[NavigationController] no account to hand the page', [
+				'userId' => $this->userId,
+				'exception' => $e->getMessage(),
+			]);
+		}
 	}
 
 	private function setupCloudAddress(): string {
@@ -280,7 +314,7 @@ class NavigationController extends Controller {
 		try {
 			$mime = '';
 			$file = $this->documentService->getFromCacheAsViewer($id, $this->viewer(), $mime);
-			$this->logger->info('[NavigationController] Document retrieved from cache', [
+			$this->logger->debug('[NavigationController] Document retrieved from cache', [
 				'id' => $id,
 				'mime' => $mime
 			]);
@@ -310,7 +344,7 @@ class NavigationController extends Controller {
 		try {
 			$mime = '';
 			$file = $this->documentService->getFromCache($id, $mime, true);
-			$this->logger->info('[NavigationController] Public document retrieved from cache', [
+			$this->logger->debug('[NavigationController] Public document retrieved from cache', [
 				'id' => $id,
 				'mime' => $mime
 			]);
