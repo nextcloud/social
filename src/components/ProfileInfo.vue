@@ -245,6 +245,7 @@ import { translate, translatePlural } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import FollowButton from './FollowButton.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
+import { profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
@@ -340,16 +341,7 @@ export default {
 		 * @return {Array} [{name, text, href}]
 		 */
 		profileFields() {
-			return (this.accountInfo.fields || []).map((field) => {
-				const doc = new DOMParser().parseFromString(field.value || '', 'text/html')
-				const text = doc.body.textContent.trim()
-				const anchor = doc.body.querySelector('a[href]')
-				let href = anchor ? anchor.getAttribute('href') : text
-				if (!/^https?:\/\//.test(href)) {
-					href = ''
-				}
-				return { name: field.name, text, href }
-			})
+			return profileFields(this.accountInfo.fields)
 		},
 
 		/** @return {string} the bio to show, reduced to markup that is safe to inject */

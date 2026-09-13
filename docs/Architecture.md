@@ -773,9 +773,17 @@ out, so it survives a post that is never sent.
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
 
 **Account previews.** `AccountHoverCard.vue` is the card that opens when the
-pointer rests on an avatar or a mention: display name, handle, bio, whether
-they follow you, and the two counts, fetched once per handle and cached in the
-account store. Two rules keep it consistent. Every avatar that *stands for
+pointer rests on an avatar or a mention, fetched once per handle and cached in
+the account store. It answers "who is this?" without opening the profile, so it
+carries what the profile header does: display name and handle, when the account
+joined, the bio, up to four of its metadata fields (`src/utils/profileFields.js`
+parses those out of the HTML Mastodon sends them as, and the profile page uses
+the same function so the two cannot disagree about what a link is), and the
+three counts. Badges say what is true *of* the account rather than about it —
+that it follows you, that it approves its followers, that it is automated — each
+of which is something somebody deciding whether to follow wants before they
+click. Everything is conditional: a card built from what a status carried knows
+less than one built from a lookup, and a gap is better than an invented value. Two rules keep it consistent. Every avatar that *stands for
 somebody* goes through `ActorAvatar` (or `TimelineAvatar`, which adds the
 instance ring) rather than a bare `<img>`, so the small ones preview too — the
 face on a "X boosted" line, the one on a notification, the ones in Discover.
