@@ -625,6 +625,10 @@ export default {
 	position: relative;
 
 	&__banner {
+		/* the card centres its children, and this one has no content of its
+		   own — only a background — so without a width of its own it collapses
+		   to nothing and the banner is loaded, applied and never seen */
+		width: 100%;
 		min-height: 120px;
 		max-height: 200px;
 		/* the banner drifts a little slower than the page it is on */

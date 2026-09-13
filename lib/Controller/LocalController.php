@@ -14,6 +14,9 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheContentDecodeException;
+use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -127,6 +130,12 @@ class LocalController extends Controller {
 				'url' => $image->getUrl(),
 				'id' => $image->getId()
 			]);
+		} catch (CacheContentDecodeException|CacheContentMimeTypeException|CacheContentSizeException $e) {
+			// the file is the problem, not the server: a picture that is not
+			// one, is of a type this app refuses, or is too big. A 500 here
+			// told the reader the server had broken and put a fault in the
+			// log for something they can fix by choosing another file
+			return $this->fail($e, [], Http::STATUS_BAD_REQUEST, false);
 		} catch (Exception $e) {
 			$this->logger->error('[LocalController] uploadBanner failed', [
 				'exception' => $e->getMessage(),
@@ -200,6 +209,10 @@ class LocalController extends Controller {
 				'url' => $image->getUrl(),
 				'id' => $image->getId(),
 			]);
+		} catch (CacheContentDecodeException|CacheContentMimeTypeException|CacheContentSizeException $e) {
+			// what is at the other end of the address is the problem, not the
+			// server — see the same catch on the upload above
+			return $this->fail($e, [], Http::STATUS_BAD_REQUEST, false);
 		} catch (Exception $e) {
 			$this->logger->error('[LocalController] uploadBannerByUrl failed', [
 				'exception' => $e->getMessage(),
