@@ -90,9 +90,39 @@ class MediaAttachmentTest extends TestCase {
 		$this->assertArrayHasKey('description', $local);
 		$this->assertNull($local['description']);
 		$this->assertSame(
-			['id', 'type', 'url', 'preview_url', 'remote_url', 'meta', 'description', 'blurhash'],
+			['id', 'type', 'media_type', 'url', 'preview_url', 'remote_url', 'meta', 'description', 'blurhash'],
 			array_keys($local)
 		);
+	}
+
+	/**
+	 * The stored row is what a post is served from for ever after, and the
+	 * Document it is served as has to state its mime: Pixelfed refuses an
+	 * attachment without one. Mastodon's entity has no such key, so it is
+	 * this app's own, and a row from before it was written gets a guess.
+	 */
+	public function testTheMimeSurvivesTheStoredRow(): void {
+		$media = (new MediaAttachment())->import($this->mastodonAttachment());
+		$media->setMediaType('image/png');
+
+		$stored = $media->asLocal();
+		$this->assertSame('image/png', $stored['media_type']);
+
+		$again = (new MediaAttachment())->import($stored);
+		$this->assertSame('image/png', $again->getMediaType());
+		$this->assertSame('image/png', $again->asDocument()['mediaType']);
+	}
+
+	public function testARowWithoutTheMimeGetsAGuessRatherThanNothing(): void {
+		// a Mastodon entity, or a row written before media_type was stored
+		$media = (new MediaAttachment())->import($this->mastodonAttachment());
+		$this->assertSame('image/jpeg', $media->getMediaType(), 'from the .jpg');
+
+		$this->assertSame('video/quicktime', MediaAttachment::guessMediaType('video', 'https://x.example/a/b.MOV?x=1'));
+		$this->assertSame('image/jpeg', MediaAttachment::guessMediaType('image', 'https://x.example/media/uuid'));
+		$this->assertSame('video/mp4', MediaAttachment::guessMediaType('gifv', 'https://x.example/media/uuid'));
+		$this->assertSame('audio/mpeg', MediaAttachment::guessMediaType('audio', ''));
+		$this->assertSame('', MediaAttachment::guessMediaType('unknown', ''));
 	}
 
 	public function testTheMetaIsAnObjectOnTheWire(): void {
@@ -124,7 +154,8 @@ class MediaAttachmentTest extends TestCase {
 
 		$this->assertSame([
 			'type' => 'Document',
-			'mediaType' => '',
+			// Mastodon's entity carries no mime; the .jpg says what it is
+			'mediaType' => 'image/jpeg',
 			'url' => 'https://files.mastodon.social/media/cat.jpg',
 			// the wire carries the alt text as `name`
 			'name' => 'A cat',

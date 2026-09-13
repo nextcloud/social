@@ -168,6 +168,35 @@ class StreamTest extends TestCase {
 		$this->assertStringEndsWith('.png', $attachments[1]->getUrl());
 	}
 
+	/**
+	 * A post read back from the database has its attachments hydrated in the
+	 * local format. Served to a peer, they went out as Mastodon's client
+	 * entity under the ActivityPub key -- no `mediaType`, no Document -- so
+	 * every re-served post lost its pictures on Pixelfed.
+	 */
+	public function testAHydratedPostServesItsAttachmentsAsDocuments(): void {
+		$stream = new Stream();
+		$stream->setId('https://cloud.example/apps/social/@alice/1');
+		$attachment = (new MediaAttachment())->import([
+			'id' => '7', 'type' => 'image', 'media_type' => 'image/png',
+			'url' => 'https://cloud.example/apps/social/media/abc', 'preview_url' => null, 'remote_url' => null,
+			'meta' => ['original' => ['width' => 640, 'height' => 480]], 'description' => 'a cat', 'blurhash' => 'LEHV6n',
+		]);
+		$stream->setAttachments([$attachment]);
+		$this->assertSame(ACore::FORMAT_LOCAL, $attachment->getExportFormat(), 'hydrated in the local format, as importFromDatabase() leaves it');
+
+		$stream->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
+		$served = $stream->jsonSerialize()['attachment'];
+
+		$this->assertSame('Document', $served[0]['type']);
+		$this->assertSame('image/png', $served[0]['mediaType']);
+		$this->assertSame('a cat', $served[0]['name']);
+		$this->assertArrayNotHasKey('preview_url', $served[0], 'not the client entity');
+
+		$stream->setExportFormat(ACore::FORMAT_LOCAL);
+		$this->assertArrayNotHasKey('attachment', $stream->jsonSerialize());
+	}
+
 	public function testAnAbsurdAttachmentListIsCappedRatherThanImported(): void {
 		// a signed Create is authenticated, not trusted: each entry is a row
 		// written and a file queued inside the inbox request
@@ -499,7 +528,8 @@ class StreamTest extends TestCase {
 		$stream = new Note();
 		$stream->setAttachments([$media]);
 
-		$this->assertSame([$media], $stream->jsonSerialize()['attachment']);
+		// as Documents, whatever format the attachment objects are in
+		$this->assertSame([$media->asDocument()], $stream->jsonSerialize()['attachment']);
 	}
 
 	/**
