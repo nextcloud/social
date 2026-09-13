@@ -125,6 +125,27 @@ describe('Timeline', () => {
 		expect(title.classes('hidden-visually')).toBe(!visible)
 	})
 
+	it('loads a list timeline by its id and heads it with the title the server gives', async () => {
+		axios.get.mockResolvedValueOnce({ data: { id: '4', title: 'Design', nextcloud_group: 'design' } })
+		const wrapper = mountTimeline({ name: 'list', params: { id: '4' } })
+		await flushPromises()
+
+		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type: 'list', params: { id: '4' } })
+		expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/lists/4')
+		expect(wrapper.find('h1').text()).toBe('Design')
+		// a list is a page of its own, so it says which one you are reading
+		expect(wrapper.find('h1').classes('hidden-visually')).toBe(false)
+		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe('list')
+	})
+
+	it('heads a list it could not read as a list, rather than nothing', async () => {
+		axios.get.mockRejectedValueOnce(new Error('404'))
+		const wrapper = mountTimeline({ name: 'list', params: { id: '9' } })
+		await flushPromises()
+
+		expect(wrapper.find('h1').text()).toBe('List')
+	})
+
 	it('loads a hashtag timeline with the tag as parameter and shows the tag as heading', () => {
 		const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
 		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type: 'tags', params: { tag: 'nextcloud' } })

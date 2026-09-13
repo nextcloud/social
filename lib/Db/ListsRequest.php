@@ -55,6 +55,7 @@ class ListsRequest extends ListsRequestBuilder {
 			->setValue('title', $qb->createNamedParameter($list->getTitle()))
 			->setValue('replies_policy', $qb->createNamedParameter($list->getRepliesPolicy()))
 			->setValue('exclusive', $qb->createNamedParameter($list->isExclusive() ? 1 : 0))
+			->setValue('group_id', $qb->createNamedParameter($list->getGroupId()))
 			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
 
 		$qb->executeStatement();
@@ -148,6 +149,89 @@ class ListsRequest extends ListsRequestBuilder {
 	}
 
 	/** The owner is part of the statement, so a foreign list is never touched. */
+	/**
+	 * Every list that follows a Nextcloud group, whoever owns it.
+	 *
+	 * @return list<MastodonList>
+	 */
+	public function getByGroup(string $groupId): array {
+		if ($groupId === '') {
+			return [];
+		}
+
+		$qb = $this->getListsSelectSql();
+		$qb->andWhere($qb->expr()->eq('l.group_id', $qb->createNamedParameter($groupId)));
+		$qb->orderBy('l.id', 'asc');
+
+		$lists = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$lists[] = $this->parseListsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $lists;
+	}
+
+	/**
+	 * The groups that have lists following them.
+	 *
+	 * @return list<string>
+	 */
+	public function getGroupIds(): array {
+		$qb = $this->getQueryBuilder();
+		$qb->selectDistinct('group_id')
+			->from(self::TABLE_LISTS)
+			->where($qb->expr()->neq('group_id', $qb->createNamedParameter('')));
+
+		$ids = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$ids[] = (string)$data['group_id'];
+		}
+		$cursor->closeCursor();
+
+		return $ids;
+	}
+
+	/** @return int how many lists were retitled */
+	public function updateTitleByGroup(string $groupId, string $title): int {
+		if ($groupId === '') {
+			return 0;
+		}
+
+		$qb = $this->getListsUpdateSql();
+		$qb->set('title', $qb->createNamedParameter($title))
+			->where($qb->expr()->eq('group_id', $qb->createNamedParameter($groupId)));
+
+		return $qb->executeStatement();
+	}
+
+	public function deleteByGroup(string $groupId): void {
+		foreach ($this->getByGroup($groupId) as $list) {
+			$this->delete($list);
+		}
+	}
+
+	/**
+	 * Every member of a list, as actor ids: what a reconcile diffs against.
+	 *
+	 * @return list<string>
+	 */
+	public function getMemberIds(MastodonList $list): array {
+		$qb = $this->getListMembersSelectSql();
+		$qb->andWhere($qb->expr()->eq('lm.list_id', $qb->createNamedParameter($list->getId(), IQueryBuilder::PARAM_INT)));
+
+		$ids = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$ids[] = $this->get('actor_id', $data);
+		}
+		$cursor->closeCursor();
+
+		return $ids;
+	}
+
 	public function update(MastodonList $list): void {
 		$qb = $this->getListsUpdateSql();
 		$qb->set('title', $qb->createNamedParameter($list->getTitle()))

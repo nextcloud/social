@@ -53,6 +53,8 @@ class MastodonList implements JsonSerializable {
 	private string $title = '';
 	private string $repliesPolicy = self::DEFAULT_REPLIES_POLICY;
 	private bool $exclusive = false;
+	/** the Nextcloud group this list follows, or '' for one made by hand */
+	private string $groupId = '';
 	private int $creation = 0;
 
 	public function setId(int $id): self {
@@ -118,6 +120,16 @@ class MastodonList implements JsonSerializable {
 		return $this->exclusive;
 	}
 
+	public function setGroupId(string $groupId): self {
+		$this->groupId = $groupId;
+
+		return $this;
+	}
+
+	public function getGroupId(): string {
+		return $this->groupId;
+	}
+
 	public function setCreation(int $creation): self {
 		$this->creation = $creation;
 
@@ -137,15 +149,18 @@ class MastodonList implements JsonSerializable {
 			->setTitle($this->get('title', $data))
 			->setRepliesPolicy($this->get('replies_policy', $data))
 			->setExclusive($this->getBool('exclusive', $data))
+			->setGroupId($this->get('group_id', $data))
 			->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
 
 		return $this;
 	}
 
 	/**
-	 * Exactly Mastodon's four keys and nothing else: a client reads
+	 * Mastodon's four keys, and one of this app's own: a client reads
 	 * `replies_policy` and `exclusive` off this to draw the list's settings,
-	 * and the owner is not among them.
+	 * and the owner is not among them. `nextcloud_group` is the group a list
+	 * follows, or null -- what tells this app's own client to draw the group
+	 * icon and not offer to edit the members; a Mastodon client ignores it.
 	 */
 	#[\Override]
 	public function jsonSerialize(): array {
@@ -154,6 +169,7 @@ class MastodonList implements JsonSerializable {
 			'title' => $this->getTitle(),
 			'replies_policy' => $this->getRepliesPolicy(),
 			'exclusive' => $this->isExclusive(),
+			'nextcloud_group' => ($this->groupId === '') ? null : $this->groupId,
 		];
 	}
 }

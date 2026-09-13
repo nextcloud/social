@@ -701,6 +701,9 @@ export const useTimelineStore = defineStore('timeline', {
 				case 'tags':
 					url = generateUrl(`apps/social/api/v1/timelines/tag/${this.params.tag}`)
 					break
+				case 'list':
+					url = generateUrl(`apps/social/api/v1/timelines/list/${this.params.id}`)
+					break
 				case 'single-post':
 					url = generateUrl(`apps/social/api/v1/statuses/${this.params.id}/context`)
 					break

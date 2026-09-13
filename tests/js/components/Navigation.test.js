@@ -137,6 +137,54 @@ describe('Navigation', () => {
 		})
 	})
 
+	describe('lists', () => {
+		const list = (id, title, group = null) => ({ id: String(id), title, replies_policy: 'list', exclusive: false, nextcloud_group: group })
+		// trending is asked first, then the lists
+		const withLists = (lists) => axios.get.mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({ data: lists })
+		const listItems = (wrapper) => wrapper.findAll('.nav-item.navigation__list')
+
+		it('shows the reader their lists, the ones their groups give them first', async () => {
+			withLists([list(1, 'Friends'), list(2, 'Design', 'design'), list(3, 'Berlin office', 'berlin')])
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/lists')
+			expect(listItems(wrapper).map((entry) => entry.attributes('data-name'))).toEqual(['Design', 'Berlin office', 'Friends'])
+			// a group list wears the group icon; a hand-made one does not
+			expect(listItems(wrapper)[0].find('.material-design-icon').classes()).toContain('account-group-icon')
+			expect(listItems(wrapper)[2].find('.material-design-icon').classes()).toContain('format-list-bulleted-icon')
+		})
+
+		it('points a list at its timeline', async () => {
+			withLists([list(4, 'Design', 'design')])
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			const to = { name: 'list', params: { id: '4' } }
+			await item(wrapper, 'Design').trigger('click')
+
+			expect(router.push).toHaveBeenCalledWith(to)
+			expect(item(wrapper, 'Design').attributes('data-href')).toBe(router.resolve(to).href)
+		})
+
+		it('lights the list being read', async () => {
+			withLists([list(4, 'Design', 'design'), list(5, 'Friends')])
+			const wrapper = mountNavigation({}, { name: 'list', params: { id: '4' } })
+			await flushPromises()
+
+			expect(activeNames(wrapper)).toEqual(['Design'])
+		})
+
+		it('leaves the section out for a reader with no lists', async () => {
+			withLists([])
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(listItems(wrapper)).toHaveLength(0)
+			expect(wrapper.text()).not.toContain('Lists')
+		})
+	})
+
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {
 		expect(itemNames(mountNavigation())).toEqual([
 			'My Feed',

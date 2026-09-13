@@ -21,6 +21,7 @@ use OCA\Social\Dashboard\SocialTimelineWidget;
 use OCA\Social\Dashboard\SocialTrendingWidget;
 use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\FilesScriptsListener;
+use OCA\Social\Listeners\GroupListListener;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
@@ -33,6 +34,10 @@ use OCP\Accounts\UserUpdatedEvent;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\Group\Events\GroupChangedEvent;
+use OCP\Group\Events\GroupDeletedEvent;
+use OCP\Group\Events\UserAddedEvent;
+use OCP\Group\Events\UserRemovedEvent;
 use OCP\Profile\BeforeTemplateRenderedEvent;
 use OCP\User\Events\UserDeletedEvent;
 use PHPUnit\Framework\TestCase;
@@ -61,7 +66,7 @@ class ApplicationTest extends TestCase {
 		$context->expects($this->once())->method('registerUserMigrator')->with(SocialMigrator::class);
 
 		$listeners = [];
-		$context->expects($this->exactly(4))->method('registerEventListener')
+		$context->expects($this->exactly(8))->method('registerEventListener')
 			->willReturnCallback(function (string $event, string $listener) use (&$listeners): void {
 				$listeners[$event] = $listener;
 			});
@@ -80,6 +85,11 @@ class ApplicationTest extends TestCase {
 			UserDeletedEvent::class => UserDeletedListener::class,
 			// without this one Files has no "Share to Social"
 			LoadAdditionalScriptsEvent::class => FilesScriptsListener::class,
+			// the group lists follow the groups
+			UserAddedEvent::class => GroupListListener::class,
+			UserRemovedEvent::class => GroupListListener::class,
+			GroupDeletedEvent::class => GroupListListener::class,
+			GroupChangedEvent::class => GroupListListener::class,
 		], $listeners);
 		$this->assertSame([
 			SocialWidget::class,

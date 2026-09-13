@@ -23,6 +23,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
 use OCP\AppFramework\Http;
@@ -55,6 +56,7 @@ class ListControllerTest extends TestCase {
 	private FollowService|MockObject $followService;
 	private LinkPreviewService|MockObject $linkPreviewService;
 	private ListsRequest|MockObject $listsRequest;
+	private GroupListService|MockObject $groupListService;
 	private IUserSession|MockObject $userSession;
 
 	/** @var array<string, string> the request headers the controller will see */
@@ -134,6 +136,7 @@ class ListControllerTest extends TestCase {
 			});
 
 		$this->mockListsRequest();
+		$this->groupListService = $this->createMock(GroupListService::class);
 
 		// Response::getHeaders() asks the container for the request
 		\OC::$server->register(IRequest::class, $this->request);
@@ -258,8 +261,14 @@ class ListControllerTest extends TestCase {
 			$this->followService,
 			$this->linkPreviewService,
 			$this->listsRequest,
-			$this->createMock(PlaceService::class)
+			$this->createMock(PlaceService::class),
+			$this->groupListService
 		);
+	}
+
+	/** A list that follows a Nextcloud group, owned by whoever is named. */
+	private function givenGroupList(int $id, string $owner, string $gid = 'design', string $title = 'Design'): MastodonList {
+		return $this->given($id, $owner, $title)->setGroupId($gid);
 	}
 
 	/** A list that is already there, owned by whoever is named. */
@@ -286,7 +295,7 @@ class ListControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame(
-			['id' => '1', 'title' => 'Friends', 'replies_policy' => 'list', 'exclusive' => false],
+			['id' => '1', 'title' => 'Friends', 'replies_policy' => 'list', 'exclusive' => false, 'nextcloud_group' => null],
 			$response->getData()->jsonSerialize()
 		);
 		$this->assertSame([['create', 1, 'Friends']], $this->writes);
@@ -318,6 +327,59 @@ class ListControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
 		$this->assertStringContainsString('replies_policy', $response->getData()['error']);
 		$this->assertSame([], $this->writes);
+	}
+
+	// the lists a Nextcloud group gives its members
+
+	public function testAskingForTheListsIsWhatMakesTheGroupListsTheViewerIsMissing(): void {
+		$this->groupListService->expects($this->once())->method('ensureForViewer')
+			->with($this->callback(fn (Person $viewer): bool => $viewer->getId() === self::VIEWER));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->index()->getStatus());
+	}
+
+	public function testTheSidebarSurvivesTheGroupListsFailing(): void {
+		$this->given(1, self::VIEWER, 'Friends');
+		$this->groupListService->method('ensureForViewer')->willThrowException(new \RuntimeException('groups backend down'));
+
+		$response = $this->controller()->index();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertCount(1, $response->getData());
+	}
+
+	public function testAGroupListIsHandedBackWithTheGroupItFollows(): void {
+		$this->givenGroupList(4, self::VIEWER);
+
+		$this->assertSame('design', $this->controller()->get(4)->getData()->jsonSerialize()['nextcloud_group']);
+	}
+
+	public function testAGroupListKeepsTheGroupsNameButTakesTheOtherSettings(): void {
+		$this->givenGroupList(4, self::VIEWER);
+
+		$response = $this->controller()->update(4, 'My design people', 'none', true);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('Design', $response->getData()->getTitle(), 'called what the group is called');
+		$this->assertSame('none', $response->getData()->getRepliesPolicy());
+		$this->assertTrue($response->getData()->isExclusive());
+	}
+
+	public function testAGroupListCannotBeDeletedOrHaveItsMembersEdited(): void {
+		$this->givenGroupList(4, self::VIEWER);
+		$controller = $this->controller();
+
+		foreach ([
+			$controller->delete(4),
+			$controller->addAccounts(4, ['3']),
+			$controller->removeAccounts(4, ['3']),
+		] as $response) {
+			// a 422 with the reason, not a 404: the list is there and is theirs
+			$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+			$this->assertStringContainsString('Nextcloud group "Design"', $response->getData()['error']);
+		}
+		$this->assertSame([], $this->writes, 'nothing is written');
+		$this->assertArrayHasKey(4, $this->lists);
 	}
 
 	public function testTheIndexIsEveryListTheViewerOwnsAndNobodyElses(): void {

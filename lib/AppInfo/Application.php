@@ -20,6 +20,7 @@ use OCA\Social\Dashboard\SocialTimelineWidget;
 use OCA\Social\Dashboard\SocialTrendingWidget;
 use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\FilesScriptsListener;
+use OCA\Social\Listeners\GroupListListener;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
@@ -33,6 +34,10 @@ use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\Group\Events\GroupChangedEvent;
+use OCP\Group\Events\GroupDeletedEvent;
+use OCP\Group\Events\UserAddedEvent;
+use OCP\Group\Events\UserRemovedEvent;
 use OCP\Profile\BeforeTemplateRenderedEvent;
 use OCP\User\Events\UserDeletedEvent;
 
@@ -61,6 +66,11 @@ class Application extends App implements IBootstrap {
 		// the class is the Files app's, not OCP's; the name is a string here and
 		// the listener is only ever built when Files dispatches the event
 		$context->registerEventListener(LoadAdditionalScriptsEvent::class, FilesScriptsListener::class);
+		// the group lists follow the groups the moment they change
+		$context->registerEventListener(UserAddedEvent::class, GroupListListener::class);
+		$context->registerEventListener(UserRemovedEvent::class, GroupListListener::class);
+		$context->registerEventListener(GroupDeletedEvent::class, GroupListListener::class);
+		$context->registerEventListener(GroupChangedEvent::class, GroupListListener::class);
 		$context->registerDashboardWidget(SocialWidget::class);
 		$context->registerDashboardWidget(SocialTimelineWidget::class);
 		$context->registerDashboardWidget(SocialMentionsWidget::class);

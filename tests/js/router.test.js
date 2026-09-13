@@ -54,6 +54,15 @@ describe('router', () => {
 		expect(router.resolve({ name: 'tags', params: { tag: 'nextcloud' } }).fullPath).toBe('/timeline/tags/nextcloud')
 	})
 
+	it('routes a list timeline to the "list" child of the timeline route', () => {
+		const route = router.resolve('/timeline/list/4')
+
+		expect(route.name).toBe('list')
+		expect(route.params.id).toBe('4')
+		expect(route.matched.map((record) => record.name)).toEqual(['timeline', 'list'])
+		expect(router.resolve({ name: 'list', params: { id: 4 } }).fullPath).toBe('/timeline/list/4')
+	})
+
 	it('routes /@account to the profile with the profile timeline in the details view', () => {
 		const route = router.resolve('/@alice')
 

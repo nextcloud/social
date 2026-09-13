@@ -14,6 +14,7 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\StreamPruneService;
@@ -43,6 +44,7 @@ class Cache extends TimedJob {
 		CacheActorsRequest $cacheActorsRequest,
 		private PollService $pollService,
 		LoggerInterface $logger,
+		private ?GroupListService $groupListService = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60);
@@ -95,6 +97,12 @@ class Cache extends TimedJob {
 
 		$this->step('syncRemoteTimelines', function (): void {
 			$this->syncRemoteTimelines();
+		});
+
+		$this->step('reconcileGroupLists', function (): void {
+			// the catch-all behind the listener: an account made after its
+			// group's lists were, a change the listener did not see
+			$this->groupListService?->reconcile();
 		});
 	}
 

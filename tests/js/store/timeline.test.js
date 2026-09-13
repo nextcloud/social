@@ -847,6 +847,7 @@ describe('timeline store actions', () => {
 			['timeline', {}, `${API}/timelines/public`, { limit: 15, local: true }],
 			['federated', {}, `${API}/timelines/public`, { limit: 15 }],
 			['tags', { tag: 'nextcloud' }, `${API}/timelines/tag/nextcloud`, { limit: 15 }],
+			['list', { id: '4' }, `${API}/timelines/list/4`, { limit: 15 }],
 			// the same three feeds as above, with the text-only posts left out
 			['photos', {}, `${API}/timelines/home`, { limit: 15, only_media: true }],
 			['photos', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_media: true, local: true }],

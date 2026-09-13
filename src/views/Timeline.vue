@@ -73,6 +73,8 @@ import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
+import axios from '@nextcloud/axios'
+import { generateUrl } from '@nextcloud/router'
 import eventBus from './../services/eventBus.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
@@ -103,6 +105,8 @@ export default {
 		return {
 			infoHidden: false,
 			nextcloudAccount: 'nextcloud@mastodon.xyz',
+			/** the title of the list being read, once the server has said */
+			listTitle: '',
 		}
 	},
 
@@ -113,6 +117,10 @@ export default {
 			switch (this.type) {
 				case 'tags':
 					return '#' + this.$route.params.tag
+				case 'list':
+					// the sidebar knows the title; the page asks for it itself
+					// so that a link opened cold has a heading too
+					return this.listTitle || t('social', 'List')
 				case 'photos':
 					return t('social', 'Photos')
 				case 'videos':
@@ -224,7 +232,7 @@ export default {
 			// Photos and Videos are views of their own rather than a filter of
 			// a list you were already on, so they say which one you are
 			// looking at
-			return this.type === 'tags' || this.type === 'notifications' || this.isScopedPage
+			return this.type === 'tags' || this.type === 'list' || this.type === 'notifications' || this.isScopedPage
 		},
 
 		/** @return {string} what identifies this timeline, params included */
@@ -235,6 +243,8 @@ export default {
 		params() {
 			if (this.$route.name === 'tags') {
 				return { tag: this.$route.params.tag }
+			} else if (this.$route.name === 'list') {
+				return { id: this.$route.params.id }
 			} else if (this.$route.name === 'single-post') {
 				return this.$route.params
 			} else if (this.isScopedPage) {
@@ -248,6 +258,9 @@ export default {
 		type() {
 			if (this.$route.name === 'tags') {
 				return 'tags'
+			}
+			if (this.$route.name === 'list') {
+				return 'list'
 			}
 			if (this.$route.params.type) {
 				return this.$route.params.type
@@ -280,11 +293,13 @@ export default {
 		// keep serving the previous timeline
 		timelineKey() {
 			this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
+			this.fetchListTitle()
 		},
 	},
 
 	beforeMount() {
 		this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
+		this.fetchListTitle()
 		if (this.showInfo) {
 			this.accountStore.fetchAccountInfo(this.nextcloudAccount)
 		}
@@ -304,6 +319,24 @@ export default {
 	},
 
 	methods: {
+		/** Asks for the list's title; nothing to ask when this is not a list. */
+		async fetchListTitle() {
+			if (this.type !== 'list') {
+				this.listTitle = ''
+				return
+			}
+			const id = this.$route.params.id
+			try {
+				const { data } = await axios.get(generateUrl(`apps/social/api/v1/lists/${id}`))
+				// the reader may have moved on while the server was answering
+				if (this.type === 'list' && this.$route.params.id === id) {
+					this.listTitle = data?.title ?? ''
+				}
+			} catch {
+				this.listTitle = ''
+			}
+		},
+
 		hideInfo() {
 			this.infoHidden = true
 		},

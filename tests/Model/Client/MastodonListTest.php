@@ -20,7 +20,7 @@ use PHPUnit\Framework\TestCase;
  * settings from `replies_policy` and `exclusive`.
  */
 class MastodonListTest extends TestCase {
-	public function testTheEntityIsMastodonsFourKeysAndNothingElse(): void {
+	public function testTheEntityIsMastodonsFourKeysAndTheGroupItFollows(): void {
 		$list = (new MastodonList())
 			->setId(12249)
 			->setOwnerId('https://cloud.example/users/alice')
@@ -34,9 +34,20 @@ class MastodonListTest extends TestCase {
 				'title' => 'Friends',
 				'replies_policy' => 'followed',
 				'exclusive' => true,
+				// null for a list made by hand; a Mastodon client ignores it
+				'nextcloud_group' => null,
 			],
 			$list->jsonSerialize()
 		);
+	}
+
+	public function testAGroupListSaysWhichGroupItFollows(): void {
+		$list = (new MastodonList())->setId(3)->setTitle('Design')->setGroupId('design');
+
+		$this->assertSame('design', $list->jsonSerialize()['nextcloud_group']);
+		$this->assertSame('design', (new MastodonList())->importFromDatabase(['id' => 3, 'group_id' => 'design', 'creation' => ''])->getGroupId());
+		// rows from before the column existed
+		$this->assertSame('', (new MastodonList())->importFromDatabase(['id' => 3, 'creation' => ''])->getGroupId());
 	}
 
 	public function testTheIdIsAStringAsEveryIdAClientIsHandedIs(): void {
