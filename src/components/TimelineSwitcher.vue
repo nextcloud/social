@@ -68,8 +68,6 @@
 export default {
 	name: 'TimelineSwitcher',
 
-	emits: ['update:value'],
-
 	props: {
 		/**
 		 * What to choose between: `{ value, label, icon, to }` each, where
@@ -94,6 +92,8 @@ export default {
 			required: true,
 		},
 	},
+
+	emits: ['update:value'],
 
 	computed: {
 		/** @return {number} which option is on screen, 0 when none is */

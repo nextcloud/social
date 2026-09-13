@@ -532,9 +532,7 @@ describe('ProfileInfo', () => {
 
 			await openEditor(wrapper)
 
-			expect(axios.get).toHaveBeenCalledWith(
-				'/index.php/apps/social/api/v1/accounts/verify_credentials',
-			)
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/verify_credentials')
 			expect(bioBox(wrapper).element.value).toBe('Stored')
 		})
 

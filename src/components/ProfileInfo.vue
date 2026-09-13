@@ -481,9 +481,7 @@ export default {
 			this.openingProfile = true
 			let source = null
 			try {
-				const { data } = await axios.get(
-					generateUrl('apps/social/api/v1/accounts/verify_credentials'),
-				)
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/verify_credentials'))
 				source = data?.source ?? null
 			} catch (error) {
 				logger.error('Could not read the profile to edit', { error })
@@ -580,7 +578,8 @@ export default {
 			} catch (error) {
 				logger.error('Failed to upload the banner', { error })
 				await this.showError(this.uploadFailure(
-					error, t('social', 'Failed to upload banner'),
+					error,
+					t('social', 'Failed to upload banner'),
 				))
 			} finally {
 				this.loading = false
@@ -615,7 +614,8 @@ export default {
 			} catch (error) {
 				logger.error('Failed to set the banner from a URL', { error })
 				await this.showError(this.uploadFailure(
-					error, t('social', 'Failed to set banner from URL'),
+					error,
+					t('social', 'Failed to set banner from URL'),
 				))
 			} finally {
 				this.loadingUrl = false
