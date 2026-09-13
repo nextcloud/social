@@ -4,6 +4,7 @@
  */
 
 const path = require('path')
+const webpack = require('webpack')
 const webpackConfig = require('@nextcloud/webpack-vue-config')
 const CopyPlugin = require('copy-webpack-plugin')
 
@@ -23,6 +24,21 @@ webpackConfig.entry = {
 	oauth: path.join(__dirname, 'src', 'oauth.js'),
 }
 
+// Vue's build-time flags. Without them the bundle carries the devtools
+// bridge into production — `@vue/devtools-api` pulls in `@vue/devtools-kit`,
+// 170 KB of source that nothing in a released app can use — and Vue keeps the
+// hydration-mismatch reporting it only needs while developing.
+webpackConfig.plugins.push(new webpack.DefinePlugin({
+	__VUE_OPTIONS_API__: 'true',
+	__VUE_PROD_DEVTOOLS__: 'false',
+	__VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false',
+}))
+
+// Scope hoisting stays off, as it has been since 0.9.3. It is worth 1.1 KB of
+// the main entry, and with it on two consecutive builds of the same source
+// produce two different bundles — Terser mangles the merged scopes differently
+// — which would make CI's check that the committed js/ matches src/ fail about
+// half the time.
 webpackConfig.optimization.concatenateModules = false
 
 // The emoji picker is most of a megabyte, and it was landing in the same
@@ -81,10 +97,6 @@ webpackConfig.module.rules.unshift({
 	},
 })
 webpackConfig.resolve.extensions = ['.*', '.ts', '.js', '.vue', '.json']
-webpackConfig.resolve.fallback = {
-	...webpackConfig.resolve.fallback,
-	buffer: require.resolve('buffer/'),
-}
 
 // Preserve .htaccess and the hand-written admin-settings script when cleaning
 // the output directory
