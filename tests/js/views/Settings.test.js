@@ -49,9 +49,8 @@ describe('Settings', () => {
 
 		expect(page.findComponent(ShortcutList).exists()).toBe(true)
 		expect(dialog.findComponent(ShortcutList).exists()).toBe(true)
-		expect(dialog.findAll('.shortcut-list__row')).toHaveLength(
-			page.findAll('.shortcut-list__row').length,
-		)
+		const rows = page.findAll('.shortcut-list__row').length
+		expect(dialog.findAll('.shortcut-list__row')).toHaveLength(rows)
 	})
 
 	/** The frame is a list of sections: what arrives next is a second one. */
