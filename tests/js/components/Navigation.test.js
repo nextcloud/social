@@ -106,7 +106,6 @@ describe('Navigation', () => {
 			'Liked posts',
 			'Bookmarks',
 			'Statistics',
-			'Migration',
 			'Blocked and muted accounts',
 			'Settings',
 		])
@@ -126,7 +125,6 @@ describe('Navigation', () => {
 			'Liked posts',
 			'Bookmarks',
 			'Statistics',
-			'Migration',
 			'Blocked and muted accounts',
 			'Settings',
 		])
@@ -197,7 +195,6 @@ describe('Navigation', () => {
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
 		['My profile', { name: 'profile', params: { account: 'alice' } }],
-		['Migration', { name: 'migration' }],
 		['Settings', { name: 'settings' }],
 	])('points the %s entry at its route', async (name, to) => {
 		// an href so it is a real link, and a click that stays in the app: with

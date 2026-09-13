@@ -4,17 +4,13 @@
 -->
 <template>
 	<div class="migration">
-		<h2>{{ t('social', 'Migration') }}</h2>
-		<p class="migration__hint">
-			{{ t('social', 'Your account is yours. Take a copy of it whenever you like, move it to another server, or bring an account here from somewhere else.') }}
-		</p>
 
 		<!-- out -->
 		<section class="migration__card">
-			<h3>
+			<h4>
 				<IconDownload :size="20" />
 				{{ t('social', 'Export your data') }}
-			</h3>
+			</h4>
 			<p>
 				{{ t('social', 'A zip file holding your profile, the people you follow, your followers, the accounts you block and mute, your bookmarks and likes, and every post you have written.') }}
 			</p>
@@ -35,10 +31,10 @@
 
 		<!-- in -->
 		<section class="migration__card">
-			<h3>
+			<h4>
 				<IconUpload :size="20" />
 				{{ t('social', 'Import an archive') }}
-			</h3>
+			</h4>
 			<p>
 				{{ t('social', 'Reads an archive from the Export button — or from a Nextcloud account export — back into this account. Nothing is deleted: your profile, follows, blocks, mutes, bookmarks and likes are restored alongside what is already here.') }}
 			</p>
@@ -68,15 +64,15 @@
 
 		<!-- from elsewhere -->
 		<section class="migration__card">
-			<h3>
+			<h4>
 				<IconAccountArrowRight :size="20" />
 				{{ t('social', 'Coming from another network') }}
-			</h3>
+			</h4>
 			<p>
 				{{ t('social', 'The fediverse is one network with many doors. Mastodon, Pixelfed, GoToSocial, Akkoma, Misskey and this app all speak ActivityPub, so an account here can follow and be followed by any of them — and what you bring with you is mostly the list of people you had found.') }}
 			</p>
 
-			<h4>{{ t('social', 'Bring your follows with you') }}</h4>
+			<h5>{{ t('social', 'Bring your follows with you') }}</h5>
 			<p>
 				{{ t('social', 'Every one of those servers exports the people you follow as a following_accounts.csv. Upload that file and each account is followed again from here. A follow is an agreement between two servers, so it has to be asked for again — it cannot be copied out of a file.') }}
 			</p>
@@ -97,7 +93,7 @@
 				{{ followsResult }}
 			</p>
 
-			<h4>{{ t('social', 'Where to find that file') }}</h4>
+			<h5>{{ t('social', 'Where to find that file') }}</h5>
 			<ul class="migration__list">
 				<li>
 					<strong>{{ t('social', 'Mastodon') }}</strong>
@@ -117,7 +113,7 @@
 				</li>
 			</ul>
 
-			<h4>{{ t('social', 'Moving your whole account') }}</h4>
+			<h5>{{ t('social', 'Moving your whole account') }}</h5>
 			<p>
 				{{ t('social', 'Telling your old server to redirect your followers here is a one-way move that federates to every server that knows you, so it is an administrator action rather than a button: ask for occ social:account:alias to name this account on the old one, then occ social:account:move to carry the followers over.') }}
 			</p>
@@ -139,24 +135,16 @@ import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
 /**
- * Taking the account out of the app, and bringing one in.
+ * Taking your account out, and bringing one in: a section of Settings.
  *
- * The page exists because the alternative was `occ` and an app the admin has
- * to install: a person should be able to take a copy of what they wrote
- * without asking anybody. The export and the import drive the same
- * `SocialMigrator` Nextcloud's whole-account export uses, so an archive from
- * here and one from `occ user:export` are the same files under the same names,
- * and either can be read back.
- *
- * The third section is the honest part of moving between networks: what
- * actually travels is the list of people you follow, because a follow is a
- * relationship two servers agree on rather than a row in a file. Everything
- * else about "migrating from X" is either a CSV in the same shape or, for the
- * networks that do not federate, nothing at all — and saying so is more use
- * than pretending otherwise.
+ * It was a page of its own with an entry in the account menu. That menu is for
+ * places to read something, and this is a thing you do to the account -- which
+ * is what Settings is for. The heading and the sentence under it belong to the
+ * section now, so they live in `Settings.vue` beside the other sections'
+ * headings rather than being repeated here.
  */
 export default {
-	name: 'Migration',
+	name: 'MigrationSettings',
 
 	components: {
 		IconAccountArrowRight,
@@ -318,7 +306,8 @@ export default {
 	background: var(--color-main-background);
 	box-shadow: var(--social-elevation-resting);
 
-	h3 {
+	/* the card's own heading, one level below the section's */
+	h4 {
 		display: flex;
 		gap: 8px;
 		align-items: center;
@@ -327,8 +316,9 @@ export default {
 		font-weight: bold;
 	}
 
-	h4 {
+	h5 {
 		margin: 20px 0 6px;
+		font-size: inherit;
 		font-weight: bold;
 	}
 

@@ -14,7 +14,6 @@ const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
 const Discover = () => import('./views/Discover.vue')
-const Migration = () => import(/* webpackChunkName: "profile" */'./views/Migration.vue')
 const Settings = () => import(/* webpackChunkName: "profile" */'./views/Settings.vue')
 const Statistics = () => import(/* webpackChunkName: "profile" */'./views/Statistics.vue')
 const Search = () => import('./components/Search.vue')
@@ -142,11 +141,11 @@ const router = createRouter({
 			name: 'settings',
 		},
 		{
+			// Migration is a section of Settings now. The path stays so that a
+			// bookmark, or a link somebody was sent, lands where the thing they
+			// wanted actually is rather than on a 404.
 			path: '/migration',
-			components: {
-				default: Migration,
-			},
-			name: 'migration',
+			redirect: { name: 'settings' },
 		},
 		{
 			path: '/statistics',
