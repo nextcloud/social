@@ -861,26 +861,16 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * The cached copy of a local account, rebuilt when it has gone missing.
+	 *
+	 * The page this app renders needs the same thing, so the lookup lives in
+	 * `AccountService` where both can reach it.
+	 *
+	 * @throws CacheActorDoesNotExistException
+	 */
 	private function getLocalAccountWithCacheFallback(string $username): Person {
-		try {
-			return $this->cacheActorService->getFromLocalAccount($username);
-		} catch (CacheActorDoesNotExistException $e) {
-			$this->logger->debug('[LocalController] Rebuilding local actor cache', [
-				'username' => $username,
-				'error' => $e->getMessage(),
-			]);
-
-			try {
-				$this->accountService->cacheLocalActorByUsername($username);
-			} catch (Exception $cacheError) {
-				$this->logger->debug('[LocalController] Local actor cache rebuild failed', [
-					'username' => $username,
-					'error' => $cacheError->getMessage(),
-				]);
-			}
-
-			return $this->cacheActorService->getFromLocalAccount($username);
-		}
+		return $this->accountService->getCachedLocalActor($username);
 	}
 
 	#[NoCSRFRequired]

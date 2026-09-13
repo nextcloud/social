@@ -715,6 +715,8 @@ The OStatus bundle and `src/views/OStatus.vue` are therefore dead code today: `O
 
 Server-side state is not a store: it is passed through Nextcloud's initial state as `serverData` and read by `useServerData`.
 
+The reader's own account travels the same way. `NavigationController::provideViewerAccount()` puts the cached actor — the one `GET /api/v1/global/account/info` answers with, in the same export format — into the initial state as `currentAccount`, and `App.vue` seeds the account store from it. The app used to ask for it in `beforeMount()`, which cost every load a second authenticated round trip before anything could render, for something the page request was already holding. A page rendered before the account exists provides nothing, and the app asks the old way.
+
 The Mastodon and ActivityPub entities the app exchanges are described as JSDoc
 typedefs in `src/types/`, and `npm run typecheck` holds the stores, services and
 utilities to them (`jsconfig.json`). Single-file components are outside that
