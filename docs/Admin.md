@@ -157,6 +157,11 @@ when each was last tried.
 - **Server** — the instance-wide settings below, which had no interface at all
   before and could only be set with `occ config:app:set`.
 
+Each section is one settings card, like everywhere else in the administration
+settings, and the three things that cannot be taken back — suspending an
+account, taking a post down, removing an announcement — ask in a dialog that
+says what they will cost before they do it.
+
 The page can be **delegated**: hand the Social section to a group under
 *Administration privileges* and that group can moderate without administering
 the server. The Server section is the exception — it is not rendered for a

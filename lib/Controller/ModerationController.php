@@ -241,28 +241,7 @@ class ModerationController extends Controller {
 
 		return new DataResponse([
 			'reports' => array_map(
-				static function (Report $report) use ($decisions): array {
-					$target = $report->getTargetAccount();
-					$targetId = $target !== null ? $target->getId() : $report->getAccountId();
-					$handle = '';
-					if ($target !== null) {
-						$handle = $target->getAccount() !== '' ? $target->getAccount() : $target->getPreferredUsername();
-					}
-
-					return [
-						'id' => $report->getId(),
-						'account_id' => $targetId,
-						'account' => $handle,
-						'reporter' => $report->getActorId(),
-						'local' => $report->isLocal(),
-						'category' => $report->getCategory(),
-						'comment' => $report->getComment(),
-						'status_ids' => $report->getStatusIds(),
-						'creation' => $report->getCreation(),
-						'resolved' => $report->isResolved(),
-						'level' => $decisions[$targetId] ?? '',
-					];
-				},
+				static fn (Report $report): array => $report->moderationRow($decisions),
 				$result['reports']
 			),
 			'total' => $result['total'],

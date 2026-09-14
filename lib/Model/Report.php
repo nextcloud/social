@@ -165,6 +165,42 @@ class Report implements JsonSerializable {
 	}
 
 	/**
+	 * This report as the administration page's moderation table reads it.
+	 *
+	 * Not the Mastodon entity above: the table shows who was reported and
+	 * what already stands against them, which the API's Report does not
+	 * carry. It appends the pages `ModerationController::reports()` answers
+	 * to the rows `AdminSettings` rendered the page with and cannot tell them
+	 * apart, so both go through here and neither can drift from the other.
+	 *
+	 * @param array<string, string> $decisions the standing decision per account, keyed by actor id
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function moderationRow(array $decisions): array {
+		$target = $this->getTargetAccount();
+		$targetId = $target !== null ? $target->getId() : $this->getAccountId();
+		$handle = '';
+		if ($target !== null) {
+			$handle = $target->getAccount() !== '' ? $target->getAccount() : $target->getPreferredUsername();
+		}
+
+		return [
+			'id' => $this->getId(),
+			'account_id' => $targetId,
+			'account' => $handle,
+			'reporter' => $this->getActorId(),
+			'local' => $this->isLocal(),
+			'category' => $this->getCategory(),
+			'comment' => $this->getComment(),
+			'status_ids' => $this->getStatusIds(),
+			'creation' => $this->getCreation(),
+			'resolved' => $this->isResolved(),
+			'level' => $decisions[$targetId] ?? '',
+		];
+	}
+
+	/**
 	 * The Mastodon Report entity.
 	 */
 	#[\Override]

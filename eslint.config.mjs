@@ -33,14 +33,6 @@ const notAdopted = {
 export default [
 	...recommendedJavascript,
 	{
-		// The shared config ignores js/ wholesale, because for most apps it is
-		// webpack output. One file in there is not: social-adminSettings.js is
-		// hand-written, ships to administrators, and is exactly the code that
-		// should be linted. Unignoring a file inside an ignored directory takes
-		// all three patterns.
-		ignores: ['js/**', '!js/', '!js/social-adminSettings.js'],
-	},
-	{
 		languageOptions: {
 			globals: {
 				appName: 'readonly',
@@ -91,27 +83,6 @@ export default [
 		languageOptions: {
 			sourceType: 'module',
 			globals: { process: 'readonly', __dirname: 'readonly' },
-		},
-	},
-	{
-		// js/social-adminSettings.js is hand-written and deliberately outside
-		// the webpack build (templates/settings/admin.php loads it as-is), so
-		// it is a classic script with the browser and Nextcloud globals rather
-		// than a module. It ships to administrators; it should be linted.
-		files: ['js/social-adminSettings.js'],
-		languageOptions: {
-			sourceType: 'script',
-			globals: {
-				OC: 'readonly',
-				OCA: 'readonly',
-				document: 'readonly',
-				window: 'readonly',
-				fetch: 'readonly',
-				console: 'readonly',
-				alert: 'readonly',
-				confirm: 'readonly',
-				setTimeout: 'readonly',
-			},
 		},
 	},
 	{
