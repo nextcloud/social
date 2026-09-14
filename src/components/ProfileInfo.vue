@@ -167,7 +167,11 @@
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div v-if="note" class="user-profile__note" v-html="note" />
 			<dl v-if="profileFields.length" class="user-profile__fields">
-				<div v-for="(field, index) in profileFields" :key="index" class="user-profile__field">
+				<div
+					v-for="(field, index) in profileFields"
+					:key="index"
+					class="user-profile__field"
+					:class="{ 'user-profile__field--verified': field.verified }">
 					<dt>{{ field.name }}</dt>
 					<dd>
 						<a
@@ -178,6 +182,7 @@
 						<template v-else>
 							{{ field.text }}
 						</template>
+						<VerifiedCheck v-if="field.verified" :verifiedAt="field.verifiedAt" />
 					</dd>
 				</div>
 			</dl>
@@ -298,6 +303,7 @@ import { generateUrl } from '@nextcloud/router'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import FollowButton from './FollowButton.vue'
+import VerifiedCheck from './VerifiedCheck.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
 import { formatCount } from '../utils/number.js'
 import { profileFields } from '../utils/profileFields.js'
@@ -348,6 +354,7 @@ export default {
 		NcModal,
 		ImagePlus,
 		TableEdit,
+		VerifiedCheck,
 		VolumeHigh,
 		VolumeOff,
 	},

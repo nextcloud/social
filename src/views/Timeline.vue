@@ -18,7 +18,10 @@
 			:value="scope"
 			:label="t('social', 'Which posts to show')" />
 
-		<div class="timeline-heading-row">
+		<div
+			class="timeline-heading-row"
+			:class="{ 'timeline-heading-row--tag': type === 'tags' }"
+			:style="tagStyle">
 			<!-- the page had no heading at all outside tags and notifications, so
 			     there was nothing to land on and nothing to say where you were -->
 			<h1 class="timeline-heading" :class="{ 'hidden-visually': !headingIsVisible }">
@@ -66,6 +69,7 @@ import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
+import { tagStyle } from '../utils/tagColour.js'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -105,6 +109,17 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
+		/**
+		 * The tag's own colour, so `#design` reads as `#design` wherever it is
+		 * met. Only a tag page has one; everywhere else the heading keeps the
+		 * theme's colour and the properties are simply absent.
+		 *
+		 * @return {object|null} custom properties, or null off a tag page
+		 */
+		tagStyle() {
+			return this.type === 'tags' ? tagStyle(this.$route.params.tag) : null
+		},
+
 		/** What this timeline is, in the words the sidebar uses for it. */
 		heading() {
 			switch (this.type) {
@@ -405,6 +420,42 @@ export default {
 	margin: calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 2);
 	color: var(--color-text-lighter);
 	letter-spacing: -.01em;
+}
+
+/*
+ * A tag page wears its tag's colour: the heading takes it, and a rule of it
+ * runs under the row so the page is recognisable before the word is read.
+ *
+ * The hue comes from the tag's name (see utils/tagColour.js), so it is the
+ * same on every device without anything being stored. Both themes get their
+ * own lightness, because one hue cannot be legible on both.
+ */
+.timeline-heading-row--tag {
+	border-block-end: 2px solid var(--tag-colour, var(--color-border));
+	margin-block-end: calc(var(--default-grid-baseline) * 2);
+
+	.timeline-heading {
+		color: var(--tag-colour, var(--color-text-lighter));
+	}
+}
+
+/* the same hue, at the lightness that comes forward on a dark surface */
+@media (prefers-color-scheme: dark) {
+	.timeline-heading-row--tag {
+		border-block-end-color: var(--tag-colour-dark, var(--color-border));
+
+		.timeline-heading {
+			color: var(--tag-colour-dark, var(--color-text-lighter));
+		}
+	}
+}
+
+[data-themes*='dark'] .timeline-heading-row--tag {
+	border-block-end-color: var(--tag-colour-dark, var(--color-border));
+
+	.timeline-heading {
+		color: var(--tag-colour-dark, var(--color-text-lighter));
+	}
 }
 
 /*

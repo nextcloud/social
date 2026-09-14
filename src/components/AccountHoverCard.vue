@@ -85,6 +85,7 @@
 							<template v-else>
 								{{ field.text }}
 							</template>
+							<VerifiedCheck v-if="field.verified" :verifiedAt="field.verifiedAt" />
 						</dd>
 					</div>
 				</dl>
@@ -119,6 +120,7 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { emojifyPlain } from './MessageContent.js'
+import VerifiedCheck from './VerifiedCheck.vue'
 import { profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import { mapStores } from 'pinia'
@@ -201,6 +203,7 @@ export default {
 		AccountDisplayName,
 		NcAvatar,
 		NcPopover,
+		VerifiedCheck,
 	},
 
 	props: {

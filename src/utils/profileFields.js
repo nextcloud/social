@@ -17,9 +17,15 @@
  * of this parsing in either of them is a second set of rules for what a link
  * is.
  *
- * @param {Array<{name: string, value: string}>|undefined} fields as the account entity carries them
+ * `verified_at` comes back on a row whose link the owner proved is theirs, by
+ * putting a `rel="me"` link back to their profile on the far end. It is a date
+ * string, and only its presence matters here: a verified row is marked, an
+ * unverified one is an ordinary link. A row that is not a link cannot be
+ * verified, whatever the server says, so the flag is held to `href`.
+ *
+ * @param {Array<{name: string, value: string, verified_at?: string|null}>|undefined} fields as the account entity carries them
  * @param {number} [limit] how many to keep; Mastodon's own ceiling is four
- * @return {Array<{name: string, text: string, href: string}>} href is '' when the row is not a link
+ * @return {Array<{name: string, text: string, href: string, verified: boolean, verifiedAt: string}>} href is '' when the row is not a link
  */
 export function profileFields(fields, limit = Infinity) {
 	const parser = new DOMParser()
@@ -32,10 +38,14 @@ export function profileFields(fields, limit = Infinity) {
 			const anchor = doc.body.querySelector('a[href]')
 			const href = anchor ? anchor.getAttribute('href') : text
 
+			const safeHref = /^https?:\/\//.test(href) ? href : ''
+
 			return {
 				name: field.name,
 				text,
-				href: /^https?:\/\//.test(href) ? href : '',
+				href: safeHref,
+				verified: safeHref !== '' && Boolean(field.verified_at),
+				verifiedAt: typeof field.verified_at === 'string' ? field.verified_at : '',
 			}
 		})
 }
