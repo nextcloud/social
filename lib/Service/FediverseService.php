@@ -27,6 +27,7 @@ class FediverseService {
 		private MiscService $miscService,
 		private CacheActorsRequest $cacheActorsRequest,
 		private IJobList $jobList,
+		private AuditService $auditService,
 	) {
 	}
 
@@ -290,6 +291,11 @@ class FediverseService {
 		array_push($list, $address);
 
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_LIST, json_encode($list));
+		// here rather than at each caller: the settings page, the Mastodon
+		// admin API and `occ social:fediverse` all end up on this line, and an
+		// audit entry that depended on which of them was used would be worse
+		// than none
+		$this->auditService->accessListChanged($address, true, $this->isBlockList());
 		$this->purgeBlocked($address);
 	}
 
@@ -318,7 +324,7 @@ class FediverseService {
 	 * is left.
 	 */
 	private function purgeBlocked(string $address): void {
-		if ($this->getAccessType() !== $this->configService->accessTypeList['BLACKLIST']) {
+		if (!$this->isBlockList()) {
 			return;
 		}
 
@@ -331,7 +337,20 @@ class FediverseService {
 	}
 
 	public function removeAddress(string $address) {
-		$list = array_values(array_udiff($this->getListedAddresses(), [$address], 'strcasecmp'));
+		$listed = $this->getListedAddresses();
+		$list = array_values(array_udiff($listed, [$address], 'strcasecmp'));
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_LIST, json_encode($list));
+
+		if (count($list) !== count($listed)) {
+			$this->auditService->accessListChanged($address, false, $this->isBlockList());
+		}
+	}
+
+	/**
+	 * Whether the one access list names the instances this server refuses, as
+	 * opposed to the only ones it talks to.
+	 */
+	private function isBlockList(): bool {
+		return $this->getAccessType() === $this->configService->accessTypeList['BLACKLIST'];
 	}
 }

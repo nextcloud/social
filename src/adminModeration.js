@@ -333,7 +333,10 @@ export async function takeDown(event) {
  * @return {boolean} whether the panel was there
  */
 export function mount() {
-	const reports = document.querySelector('.social-reports')
+	// the whole section rather than the table: the open reports and the
+	// resolved ones are two tables now, and a listener on the first of them
+	// left every Take down button under the resolved fold doing nothing
+	const reports = document.getElementById('social-moderation')
 	if (reports !== null) {
 		reports.addEventListener('click', takeDown)
 	}

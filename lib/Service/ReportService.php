@@ -148,8 +148,45 @@ class ReportService {
 	 * @return Report[] target accounts resolved where possible
 	 */
 	public function getReports(bool $includeResolved = false): array {
-		$reports = $this->reportsRequest->getAll($includeResolved);
+		return $this->withTargets($this->reportsRequest->getAll($includeResolved));
+	}
 
+	/**
+	 * One page of the open reports, or of the resolved ones, newest first,
+	 * with how many there are in all so the panel can say what it is not
+	 * showing.
+	 *
+	 * @param int $page 1-based
+	 *
+	 * @return array{reports: Report[], total: int, page: int, perPage: int}
+	 */
+	public function page(bool $resolved, int $page = 1): array {
+		$page = max(1, $page);
+		$reports = $this->reportsRequest->getPage(
+			$resolved, ReportsRequest::PAGE, ($page - 1) * ReportsRequest::PAGE
+		);
+
+		return [
+			'reports' => $this->withTargets($reports),
+			'total' => $this->reportsRequest->count($resolved),
+			'page' => $page,
+			'perPage' => ReportsRequest::PAGE,
+		];
+	}
+
+	/** How many reports have been resolved. */
+	public function countResolved(): int {
+		return $this->reportsRequest->count(true);
+	}
+
+	/**
+	 * The reported accounts looked up once for the whole list, not once a row.
+	 *
+	 * @param Report[] $reports
+	 *
+	 * @return Report[] the same reports, target accounts resolved where possible
+	 */
+	private function withTargets(array $reports): array {
 		$accounts = $this->cacheActorService->getCachedFromIds(
 			array_map(static fn (Report $report): string => $report->getAccountId(), $reports)
 		);

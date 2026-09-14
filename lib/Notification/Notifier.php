@@ -12,6 +12,7 @@ namespace OCA\Social\Notification;
 use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Model\Moderation;
+use OCA\Social\Model\Strike;
 use OCP\Contacts\IManager;
 use OCP\Federation\ICloudIdManager;
 use OCP\IL10N;
@@ -161,6 +162,15 @@ class Notifier implements INotifier {
 					),
 					Moderation::SUSPEND => $l10n->t(
 						'Your account has been suspended by a moderator of this server'
+					),
+					Strike::TAKEDOWN => $l10n->t(
+						'A post of yours has been taken down by a moderator of this server'
+					),
+					// the one entry in the history that is good news, and the
+					// one the account most needs told: until it is, somebody
+					// let off has no way of knowing they were
+					Strike::LIFT => $l10n->t(
+						'What stood against your account has been lifted by a moderator of this server'
 					),
 					default => $l10n->t('You have received a warning from a moderator of this server'),
 				});

@@ -1,0 +1,340 @@
+# Administering Nextcloud Social
+
+What an administrator has to set up, what they can change, and what tells them
+something is wrong. For the routes behind the settings page see
+[API.md](API.md), for the commands [OCC-Commands.md](OCC-Commands.md), and for
+how the pieces fit together [Architecture.md](Architecture.md).
+
+---
+
+## Before it federates
+
+Social is a fediverse server that happens to live inside Nextcloud, so the
+things it needs are the things any fediverse server needs: a stable public
+address, a `.well-known` answer, and a cron that runs.
+
+**A stable address.** Social copies `overwrite.cli.url` into its own
+`cloud_url` the first time somebody opens the app, and builds every account id,
+post id and WebFinger answer from that copy. It never reads the system value
+again. Set `overwrite.cli.url` — and get it right — before anyone opens Social;
+changing the server's address afterwards is the single most expensive mistake
+available here, because the old address is inside every id already federated.
+See [*the address Social is set up for*](#the-address-social-is-set-up-for).
+
+**`.well-known` redirects.** Another server looking for `@alice@example.com`
+asks `https://example.com/.well-known/webfinger`. Nextcloud serves that from
+`/index.php/.well-known/webfinger`, and the redirect from the domain root is
+something the web server has to do; Nextcloud's
+[documented redirects](https://docs.nextcloud.com/server/latest/go.php?to=admin-setup-well-known-URL)
+are exactly the ones needed. Without them nobody outside can find an account
+here, however well everything inside works.
+
+**Pretty URLs are not required**, but an instance reachable only at
+`https://example.com/index.php/apps/social/...` federates under ids with
+`index.php` in them, which some peers handle poorly. If `.htaccess`-based URL
+rewriting is available, turn it on before the first account is created rather
+than after.
+
+**Behind a reverse proxy**, set `trusted_proxies` and `overwritehost`,
+`overwriteprotocol` and `overwrite.cli.url` as the Nextcloud documentation
+describes. Social signs its outbound requests over the `Host` and `Date`
+headers and verifies the signatures on what arrives, so a proxy that rewrites
+the host without Nextcloud knowing produces signature failures on both sides
+that look like nothing else.
+
+**Cron.** Background jobs must be set to *Cron* (system cron), not *AJAX* and
+not *Webcron*. Everything this instance sends leaves through `Cron\Queue`,
+which runs every 12 minutes; with AJAX jobs, delivery happens only when
+somebody happens to load a page, and on a quiet instance that can be hours.
+See [*the delivery job has not run*](#the-delivery-job-has-not-run).
+
+**Outbound HTTP.** The server must be able to reach the rest of the fediverse
+over HTTPS. Requests to local and private addresses are refused unless
+Nextcloud's `allow_local_remote_servers` is on, which is a development setting
+and not one to carry into production.
+
+---
+
+## The setup checks
+
+Social registers four checks in **Administration → Overview**, beside
+Nextcloud's own. They are the four things that break federation without
+anything else saying so, and each links back to this page.
+
+`occ social:check:install` runs the same four classes (`lib/SetupChecks/`),
+prints each with its severity and exits `1` if any of them reports an error, so
+a deployment script can run it. `--offline` leaves out the WebFinger probe, the
+only one that goes out on the network.
+
+### WebFinger does not answer
+
+Nothing answers `/.well-known/webfinger` for an account of this instance, so no
+other server can find anybody here — searches for a local account fail
+everywhere else, and follows from outside never arrive.
+
+Two quite different causes, and the check cannot tell them apart from outside:
+
+1. The redirects are missing. Add the
+   [documented ones](https://docs.nextcloud.com/server/latest/go.php?to=admin-setup-well-known-URL)
+   and reload the web server.
+2. Social is set up for a different address than the one the request arrives
+   on, so it answers for a host nobody asks about. The next check is about
+   that.
+
+The probe is tried at the address Social is configured for, then at the host
+the request came in on, then at the server's base URL, and a success is
+remembered for an hour. If the instance uses a certificate the server itself
+does not trust — a private CA during setup — set `social.checkssl` to `false`
+in `config.php` to stop the probe verifying it. That switch is for the probe
+only, not for federation.
+
+### The address Social is set up for
+
+Social builds every id from its stored `cloud_url` and the server now reports
+something else. Accounts here cannot be found under the address the server
+advertises, and every new post carries an id that resolves nowhere.
+
+To see the two values:
+
+```bash
+occ config:app:get social cloud_url
+occ config:system:get overwrite.cli.url
+```
+
+Social reports the mismatch and will not correct it, because the stored address
+is inside every id already written. Either point `overwrite.cli.url` back at
+the address Social knows, or accept the rename and run `occ social:reset
+--uri=<new address>`, **which deletes everything Social holds** — every post,
+follow and cached account, local and remote alike.
+
+### The delivery job has not run
+
+`Cron\Queue` is what sends. It is meant to run every 12 minutes; the check
+warns once an hour has passed without it, and errors if the job is not
+registered at all (disabling and re-enabling the app registers it again).
+
+Nothing posted here leaves the server while it is not running, and nobody is
+told: the author sees their post in their own timeline and nowhere else. Check
+that background jobs are set to Cron, that the system cron is actually running
+`cron.php`, and that no other job is monopolising the runs.
+
+### Deliveries are stuck
+
+Two things in the outbound queue do not move on their own: a delivery the drain
+has given up on after every retry (16 attempts over a widening delay, the last
+gap fourteen hours), and one it should have come back for a day ago and has
+not. The first usually means an instance that is gone or refusing us; the
+second means the drain is not draining.
+
+```bash
+occ social:queue:status                  # the same summary the settings page shows
+occ social:queue:retry --min-tries 16    # give the abandoned ones the full run again
+occ social:queue:retry --flush --min-tries 16   # or drop them, for a peer that is gone
+```
+
+The **Federation health** section of the Social settings names the instances
+the failures are stacked against, with the highest attempt count so far and
+when each was last tried.
+
+---
+
+## The administration page
+
+**Administration → Social.** Seven sections:
+
+- **Reports** — what people here and peers elsewhere have complained about.
+  The open ones are the table; the resolved ones are folded away below them and
+  read a page at a time when the fold is opened. Fifty to a page, server-side,
+  with a *Show more* under each.
+- **Accounts** — every account this instance knows, whether or not anybody has
+  complained. Search by username, by handle or by instance, filter by origin
+  and by what stands against them, and act on any of them.
+- **Retention** — how long remote statuses nobody here cares about are kept.
+- **Federation health** — what the outbound queue is doing.
+- **Fediverse access** — the block list or the allow list, the same one `occ
+  social:fediverse` manages.
+- **Announcements** — a notice every account here is shown once.
+- **Server** — the instance-wide settings below, which had no interface at all
+  before and could only be set with `occ config:app:set`.
+
+The page can be **delegated**: hand the Social section to a group under
+*Administration privileges* and that group can moderate without administering
+the server. The Server section is the exception — it is not rendered for a
+delegate and its endpoint refuses them, because what it holds is a decision
+about the server rather than about a report.
+
+---
+
+## Moderating
+
+Reports arrive from two directions: a local user reporting somebody through a
+client, and a peer instance sending `POST /api/v1/reports` about one of its
+own users' complaints. Both land in the same table, and the administrators (and
+the delegated group) are notified.
+
+There are four things a moderator can do, in order of weight:
+
+| Action | What it costs | Reversible |
+|--------|---------------|------------|
+| **Warn** | Nothing. The account is told there is a problem and everything else stays as it is. | n/a |
+| **Silence** | The account leaves the public and global timelines. Whoever deliberately follows it still sees it. | yes, completely |
+| **Take down** | One post is deleted. A local post is deleted everywhere it reached; a remote one only here. | no |
+| **Suspend** | Everything the account posted here is deleted, its cached actor is dropped, its follows in both directions go, and everything it sends afterwards is refused. A **local** account's suspension is federated as a `Delete`. | the refusal stops; nothing deleted comes back |
+
+*Resolve* marks the complaint handled and changes nothing about the account, so
+a report can be closed with any of the four applied, or with none.
+
+**What is recorded.** `social_moderation` holds what stands *now* — one row an
+account, replaced by the next decision and gone when it is lifted.
+`social_strikes` is the history: a warning, a silence, a suspension, a takedown
+and a lift each write a row naming the moderator, and nothing removes one
+except the account itself going. The strike count in the account browser counts
+what stands against the account, so a lift is in the history and not in the
+count.
+
+**The audit log.** Suspending, silencing, lifting, taking a post down and
+blocking or unblocking an instance each emit
+`OCP\Log\Audit\CriticalActionPerformedEvent`, so with core's `admin_audit` app
+enabled they land in the audit log beside "user X was added to group Y", naming
+the moderator who acted. Without that app nothing listens and nothing is
+written.
+
+**Instances, not accounts.** *Fediverse access* is the instance-wide list.
+In block-list mode (the default, `access_type=all_but`) everything on it is
+refused, including every subdomain, and blocking a domain queues a purge of
+everything it ever sent. In allow-list mode (`none_but`) the list is the only
+instances this server will talk to at all. An instance that is a nuisance
+rather than a menace can be *silenced* instead with `occ social:fediverse
+silence`: its accounts leave the public timelines and stay readable for the
+people who follow them.
+
+---
+
+## Configuration
+
+Everything below is app configuration under `social`, read and written with:
+
+```bash
+occ config:app:get social <key>
+occ config:app:set social <key> --value=<value>
+```
+
+Nothing here is reachable through core's app-config API: the settings page
+writes through its own validated endpoints, and a delegate can write only what
+the moderation routes accept.
+
+### Set by the app, not by you
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `cloud_url` | *(empty)* | The base address every id is built from, copied from `overwrite.cli.url` the first time the app is opened. Changing it by hand does not rewrite the ids already issued. |
+| `social_url` | *(empty)* | The app's own base URL (`…/apps/social/`), used for profile links, WebFinger and NodeInfo. Derived at the same moment as `cloud_url`. |
+| `social_address` | *(empty)* | The hostname accounts are federated under, when it is not the host of `cloud_url`. Only set this if the fediverse address genuinely differs from the Nextcloud host, and only before the first account exists. |
+| `service` | `1` | Unused; a leftover of the original installer. |
+| `installed_version` | | Written by the upgrade machinery. |
+| `polls_swept` | `0` | How far the closed-poll sweep has got, as a timestamp. |
+
+### The Server card
+
+These eight are what the **Server** section of the settings page writes. Each
+can still be set with `occ`; the page validates the ranges given here.
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `contact_email` | *(empty)* | Who to write to about this instance. Mastodon's `instance.email`: every client reads it on its first request and shows it on the server's about page. Empty until somebody fills it in, which until now most instances never did, because nothing said it existed. |
+| `extended_description` | *(empty)* | The long form of what this instance is, for `/api/v1/instance/extended_description`. Up to 10000 characters. |
+| `max_size` | `10` | The largest picture or file an upload may be, in MB. 1–10240. |
+| `max_video_size` | `2048` | The largest video, in MB. 1–102400. A peer will refuse a great deal less than the ceiling. |
+| `inbox_throttle` | `300` | Incoming inbox requests allowed per origin host per minute. `0` accepts everything, which is what an instance behind its own rate limiter wants. |
+| `secure_mode` | `0` | Refuse ActivityPub fetches that are not signed. Mastodon's secure mode. Turning it on makes this instance invisible to every peer that does not sign what it asks for, and to every anonymous reader; it is a decision about who to federate with, not a hardening step to apply by default. |
+| `publish_blocks` | `0` | Publish the deny list on `/api/v1/instance/domain_blocks`, the way Mastodon does, so somebody choosing a server can see who it will not talk to. Whether *this* server wants that read by anybody is a disclosure decision. |
+| `allow_self_signed` | `0` | Accept peers whose certificates do not check out. **Development only**: on a server anybody else uses, this hands every federated request to whoever can answer for the address. |
+
+### Moderation and federation
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `access_type` | `all_but` | `all_but` — federate with everyone except the listed instances (block list). `none_but` — federate only with the listed ones (allow list). |
+| `access_list` | `[]` | The instances on that list, as a JSON array of hostnames. An entry covers every subdomain of itself. Managed from the settings page and by `occ social:fediverse`. |
+| `silenced_list` | `[]` | Instances whose accounts are kept out of the public and global timelines but stay readable for whoever follows them. The middle tier a block does not have. |
+| `retention_days` | `0` | Remote statuses older than this that no local user interacted with, follows the author of, or replied below are deleted, with their cached attachments. `0` disables it. Local content is never touched. |
+| `federate_blocks` | `1` | Whether a user's own blocks are federated to the blocked account's instance. `0` keeps them local. |
+| `publish_video_objects` | `1` | Whether a post that is a video is federated as an ActivityPub `Video` rather than a `Note` with an attachment. |
+| `rules` | *(empty)* | The instance rules shown by `/api/v1/instance/rules`, one per line. |
+
+### System configuration
+
+Two `config.php` values, neither documented anywhere else:
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `social.checkssl` | `true` | Whether the WebFinger setup check verifies the certificate it is offered. Set it to `false` on an instance using a certificate the server itself does not trust. It affects the probe only — federation still verifies. |
+| `social.tests` | *(unset)* | Enables `GET /apps/social/test/{account}/`, a WebFinger self-test. Leave it unset outside development. |
+
+And one of Nextcloud's own that matters here: `allow_local_remote_servers`,
+which must be on for an instance to federate with anything on a private
+address. That is a development arrangement.
+
+---
+
+## Commands by task
+
+The full reference is [OCC-Commands.md](OCC-Commands.md); these are the ones an
+administrator reaches for.
+
+**Is it working?**
+
+```bash
+occ social:check:install            # the four setup checks, plus repairs
+occ social:check:install --offline  # the same without the network probe
+occ social:queue:status             # what the outbound queue is doing
+occ social:details <id>             # who can see one post and where it lands
+```
+
+**Delivery is behind**
+
+```bash
+occ social:queue:process            # drain it now instead of waiting for cron
+occ social:queue:retry              # give failing deliveries the full run of retries again
+```
+
+**Moderation**
+
+```bash
+occ social:fediverse list                  # the access list; bare, it prints the mode
+occ social:fediverse add <instance>        # block it (or allow it, in allow-list mode)
+occ social:fediverse remove <instance>
+occ social:fediverse silence <instance>    # out of the public timelines, still followable
+```
+
+**Housekeeping**
+
+```bash
+occ social:stream:prune             # apply retention and purge finished queue rows
+occ social:cache:refresh            # re-fetch cached remote accounts
+occ social:domain:purge <instance>  # remove what a now-blocked instance sent
+```
+
+**Starting over**
+
+```bash
+occ social:reset                    # empties every Social table; asks twice
+occ social:reset --uninstall        # and drops the tables, jobs and app config
+```
+
+---
+
+## What to watch
+
+- **Administration → Overview.** The four checks above are there precisely so
+  that an administrator who never opens Social still hears about it.
+- **The delivery queue.** A rising count of failing deliveries against one host
+  is that instance's problem; a rising count against all of them is this one's.
+- **`social.log` / the Nextcloud log.** Signature verification failures on
+  inbound requests, and `could not federate` warnings on outbound ones.
+- **Disk.** Cached remote attachments are the largest thing this app stores.
+  `retention_days` is what bounds them; on an instance that federates widely,
+  leaving it at `0` means keeping every picture anybody here ever scrolled
+  past.
+- **The audit log**, if `admin_audit` is enabled: every moderation decision,
+  with the moderator who took it.

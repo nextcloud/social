@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\Cron\DomainPurge;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Service\AuditService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\MiscService;
@@ -25,6 +26,7 @@ class FediverseServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private IJobList|MockObject $jobList;
+	private AuditService|MockObject $auditService;
 	private FediverseService $service;
 	/** What the app values hold, for the tests that write one and read it back. */
 	private array $stored = [];
@@ -33,9 +35,10 @@ class FediverseServiceTest extends TestCase {
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->jobList = $this->createMock(IJobList::class);
+		$this->auditService = $this->createMock(AuditService::class);
 		$this->service = new FediverseService(
 			$this->configService, $this->createMock(MiscService::class), $this->cacheActorsRequest,
-			$this->jobList
+			$this->jobList, $this->auditService
 		);
 	}
 
@@ -247,6 +250,49 @@ class FediverseServiceTest extends TestCase {
 			->with(ConfigService::SOCIAL_ACCESS_LIST, '["a.example"]');
 
 		$this->service->removeAddress('b.example');
+	}
+
+	/**
+	 * Here and not at the three callers: the settings page, the Mastodon admin
+	 * API and `occ social:fediverse` all end up on this line, and an audit
+	 * entry that depended on which of them was used would be worse than none.
+	 */
+	public function testBlockingAnInstanceIsWrittenToTheAuditLog(): void {
+		$this->withAccess('all_but', []);
+		$this->auditService->expects($this->once())
+			->method('accessListChanged')->with('noisy.test', true, true);
+
+		$this->service->addAddress('noisy.test');
+	}
+
+	public function testAnAllowListSaysSoRatherThanClaimingABlock(): void {
+		$this->withAccess('none_but', []);
+		$this->auditService->expects($this->once())
+			->method('accessListChanged')->with('friend.test', true, false);
+
+		$this->service->addAddress('friend.test');
+	}
+
+	public function testAddingWhatIsAlreadyThereChangesNothingAndSaysNothing(): void {
+		$this->withAccess('all_but', ['noisy.test']);
+		$this->auditService->expects($this->never())->method('accessListChanged');
+
+		$this->service->addAddress('noisy.test');
+	}
+
+	public function testLiftingABlockIsWrittenToTheAuditLog(): void {
+		$this->withAccess('all_but', ['a.example', 'noisy.test']);
+		$this->auditService->expects($this->once())
+			->method('accessListChanged')->with('noisy.test', false, true);
+
+		$this->service->removeAddress('noisy.test');
+	}
+
+	public function testRemovingSomethingThatWasNeverListedIsNotAnEntry(): void {
+		$this->withAccess('all_but', ['a.example']);
+		$this->auditService->expects($this->never())->method('accessListChanged');
+
+		$this->service->removeAddress('never.listed');
 	}
 
 	public function testKnownAddressesIsEmpty(): void {

@@ -377,7 +377,7 @@ With a token, each matching row is printed as one line of JSON.
 
 Without one, the command prints how many deliveries are waiting and how many are
 being sent, how many have already failed at least once and how many are close to
-being abandoned (a delivery is dropped after 15 attempts), followed by the worst
+being abandoned (a delivery is dropped after 16 attempts), followed by the worst
 instances — how many deliveries are stacked up for each, the highest attempt
 count so far and when it was last tried. The same figures appear in the
 Federation health section of the administration settings.
@@ -699,20 +699,26 @@ for cron.
 Check the integrity of the installation, or regenerate the stream index.
 
 ```
-php occ social:check:install [--index] [-f|--force]
+php occ social:check:install [--index] [--offline] [-f|--force]
 ```
 
 | Option | Value | Description |
 |--------|-------|-------------|
 | `--index` | none | Regenerate the stream index instead of running the checks |
+| `--offline` | none | Leave out the WebFinger probe, the one check that goes out on the network |
 | `-f`, `--force` | none | Skip the confirmation of `--index` (required with `--no-interaction`) |
 
 Without `--index`:
 
 - runs `CheckService::checkInstallationStatus()`,
 - prints how many invalid followers and invalid notes were removed,
-- reports whether the address Social builds ids from still matches the one the server reports, printing both and what it would cost to change either when they disagree (the `.well-known` probe is not run here: it needs a request and a session cache the console does not have — the app shows that one on its first screen),
+- runs the four checks that Administration → Overview shows (`lib/SetupChecks/`) and prints each with its severity: whether `.well-known/webfinger` answers for an account of this instance, whether the address Social builds ids from still matches the one the server reports, whether the delivery job has run lately, and whether anything in the outbound queue is stuck. A check that fails links to [Admin.md](Admin.md),
+- prints a verdict line — `all N checks passed`, or `M of N checks reported an error` — and **exits 1** when any check reported an error, so the command can stand in a deployment script
 - prints the current app configuration as pretty JSON.
+
+The command exits `1` when any of those four reports an error, so a deployment
+script can run it. `--offline` leaves out the WebFinger probe for a machine with
+no route out; the other three read only the database and the configuration.
 
 With `--index` the checks are skipped entirely. The command warns that the operation
 takes a while, asks `Do you confirm this operation? (y/N)`, and on confirmation
@@ -776,7 +782,7 @@ The app files themselves are not removed, and the app is not disabled.
 | Code | Meaning |
 |------|---------|
 | 0 | Success, and also a confirmation prompt answered with "no" |
-| 1 | A refusal to act non-interactively without `--force` (`social:reset`, `social:check:install --index`, `social:benchmark`, `social:queue:retry`), a failed flush or uninstall in `social:reset`, streams `social:check:install --index` could not parse, `social:account:following` handled failure, or an uncaught exception in any command |
+| 1 | A refusal to act non-interactively without `--force` (`social:reset`, `social:check:install --index`, `social:benchmark`, `social:queue:retry`), a failed flush or uninstall in `social:reset`, streams `social:check:install --index` could not parse, a setup check that `social:check:install` reports as an error, `social:account:following` handled failure, or an uncaught exception in any command |
 
 ---
 

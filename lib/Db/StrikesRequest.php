@@ -69,6 +69,11 @@ class StrikesRequest extends CoreRequestBuilder {
 	 * a forty-account page into forty-one queries, and the column is only a
 	 * number.
 	 *
+	 * Only what stands against the account is counted. The table also records
+	 * the lifting of a decision, which is history rather than a mark against
+	 * anybody — counted, it would make an account that was let off look worse
+	 * than one that never was.
+	 *
 	 * @param string[] $actorIds
 	 *
 	 * @return array<string, int> actor id => how many, missing when none
@@ -86,6 +91,9 @@ class StrikesRequest extends CoreRequestBuilder {
 			->from(self::TABLE_STRIKES)
 			->where($qb->expr()->in(
 				'actor_id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
+			))
+			->andWhere($qb->expr()->in(
+				'action', $qb->createNamedParameter(Strike::COUNTED, IQueryBuilder::PARAM_STR_ARRAY)
 			))
 			->groupBy('actor_id');
 

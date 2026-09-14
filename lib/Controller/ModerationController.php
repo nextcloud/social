@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\Client\AdminAccount;
+use OCA\Social\Model\Report;
 use OCA\Social\Model\Strike;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
@@ -70,7 +71,7 @@ class ModerationController extends Controller {
 		}
 
 		if ($level === '') {
-			$this->moderationService->lift($actorId);
+			$this->moderationService->lift($actorId, $comment);
 
 			return new DataResponse(['actor_id' => $actorId, 'level' => '']);
 		}
@@ -213,6 +214,61 @@ class ModerationController extends Controller {
 		$this->moderationService->removeStream($streamId);
 
 		return new DataResponse(['stream_id' => $streamId]);
+	}
+
+	/**
+	 * One page of the open reports, or of the resolved ones, for the table on
+	 * the settings page.
+	 *
+	 * The page renders the first fifty open reports itself; this is what the
+	 * "Show more" button and the collapsed resolved section read. Each row
+	 * carries what the table draws, including what stands against the
+	 * reported account right now, so a resolved report from last month says
+	 * whether the account it named is still suspended.
+	 *
+	 * @param bool $resolved the resolved ones instead of the open ones
+	 * @param int $page 1-based
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/reports')]
+	public function reports(bool $resolved = false, int $page = 1): DataResponse {
+		$result = $this->reportService->page($resolved, $page);
+
+		$decisions = [];
+		foreach ($this->moderationService->decisions() as $decision) {
+			$decisions[$decision->getActorId()] = $decision->getLevel();
+		}
+
+		return new DataResponse([
+			'reports' => array_map(
+				static function (Report $report) use ($decisions): array {
+					$target = $report->getTargetAccount();
+					$targetId = $target !== null ? $target->getId() : $report->getAccountId();
+					$handle = '';
+					if ($target !== null) {
+						$handle = $target->getAccount() !== '' ? $target->getAccount() : $target->getPreferredUsername();
+					}
+
+					return [
+						'id' => $report->getId(),
+						'account_id' => $targetId,
+						'account' => $handle,
+						'reporter' => $report->getActorId(),
+						'local' => $report->isLocal(),
+						'category' => $report->getCategory(),
+						'comment' => $report->getComment(),
+						'status_ids' => $report->getStatusIds(),
+						'creation' => $report->getCreation(),
+						'resolved' => $report->isResolved(),
+						'level' => $decisions[$targetId] ?? '',
+					];
+				},
+				$result['reports']
+			),
+			'total' => $result['total'],
+			'page' => $result['page'],
+			'perPage' => $result['perPage'],
+		]);
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]

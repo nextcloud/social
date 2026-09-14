@@ -143,7 +143,7 @@ class InstanceService {
 			->setDescription(
 				$this->appConfig->getValueString('theming', 'slogan', 'a safe home for your data')
 			)
-			->setEmail($this->appConfig->getValueString(Application::APP_ID, 'contact_email', ''))
+			->setEmail($this->appConfig->getValueString(Application::APP_ID, ConfigService::CONTACT_EMAIL, ''))
 			->setImage($this->thumbnail())
 			->setLanguages([$this->defaultLanguage()])
 			// Accounts are Nextcloud users; the client API cannot create one,
