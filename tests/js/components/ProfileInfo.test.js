@@ -135,6 +135,7 @@ function mountProfile(uid) {
 				// request and has its own tests; left real it would answer
 				// after these tests have finished
 				ProfileHighlights: { name: 'ProfileHighlights', props: ['accountId'], template: '<div class="profile-highlights-stub" />' },
+				FeaturedTags: { name: 'FeaturedTags', props: ['accountId'], template: '<nav class="featured-tags-stub" />' },
 			},
 		},
 	})

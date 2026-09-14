@@ -51,7 +51,7 @@
 		<WeeklyRecap v-if="isHome" />
 		<OnThisDay v-if="isHome" />
 
-		<TimelineList :type="type" :listTitle="listTitle" />
+		<TimelineList :type="type" :listTitle="listTitle" :display="display" />
 
 		<!-- the first post somebody ever publishes here, marked once -->
 		<FirstPostCelebration v-if="celebratingFirstPost" @done="endCelebration" />
@@ -182,6 +182,25 @@ export default {
 		 */
 		isScopedPage() {
 			return this.type === 'photos' || this.type === 'videos'
+		},
+
+		/**
+		 * How the posts are drawn here.
+		 *
+		 * The same rule the profile follows, and for the same reason it gives:
+		 * Posts is what somebody wrote, which is a list; Photos and Videos are
+		 * what they showed, which is a grid. Those two pages were a list here
+		 * and a grid on a profile, so the same picture was a row in one place
+		 * and a tile in the other.
+		 *
+		 * Not a toggle. One question, one answer — a control to make Photos
+		 * look like a list would be asking the reader to settle something the
+		 * page has already answered by being Photos.
+		 *
+		 * @return {string} 'grid' or 'list'
+		 */
+		display() {
+			return this.isScopedPage ? 'grid' : 'list'
 		},
 
 		/**

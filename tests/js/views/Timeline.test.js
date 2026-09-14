@@ -36,7 +36,7 @@ const OnThisDayStub = { name: 'OnThisDay', template: '<div class="on-this-day-st
 const WeeklyRecapStub = { name: 'WeeklyRecap', template: '<div class="weekly-recap-stub" />' }
 const TimelineListStub = {
 	name: 'TimelineList',
-	props: ['type', 'showParents', 'reverseOrder'],
+	props: ['type', 'showParents', 'reverseOrder', 'display'],
 	template: '<ul class="timeline-list-stub" />',
 }
 const FirstRunStub = {
@@ -591,5 +591,22 @@ describe('Timeline', () => {
 		const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
 
 		expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(false)
+	})
+	describe('how the posts are drawn', () => {
+		// the same rule the profile follows: Posts is what somebody wrote, which
+		// is a list; Photos and Videos are what they showed, which is a grid.
+		// These two pages were a list here and a grid on a profile, so the same
+		// picture was a row in one place and a tile in the other.
+		it.each(['photos', 'videos'])('draws %s as a grid', (type) => {
+			const wrapper = mountTimeline({ params: { type } })
+
+			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('grid')
+		})
+
+		it.each(['', 'timeline', 'federated', 'notifications'])('draws %s as a list', (type) => {
+			const wrapper = mountTimeline({ params: { type } })
+
+			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('list')
+		})
 	})
 })

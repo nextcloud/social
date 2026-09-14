@@ -166,6 +166,10 @@
 			<!-- Sanitized: a bio is HTML, remote ones from anywhere, see sanitizeHtml.js -->
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div v-if="note" class="user-profile__note" v-html="note" />
+			<!-- the hashtags this account pins to itself: a claim it makes
+			     about what it is about, so it sits with the bio rather than
+			     among the numbers -->
+			<FeaturedTags :accountId="highlightsAccountId" />
 			<!-- what this account is like, over and above how much of it there
 			     is; renders nothing for a remote account, whose history this
 			     instance only ever holds a part of -->
@@ -307,6 +311,7 @@ import { generateUrl } from '@nextcloud/router'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import FollowButton from './FollowButton.vue'
+import FeaturedTags from './FeaturedTags.vue'
 import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedCheck from './VerifiedCheck.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
@@ -356,6 +361,7 @@ export default {
 		NcActions,
 		NcAvatar,
 		NcButton,
+		FeaturedTags,
 		NcModal,
 		ProfileHighlights,
 		ImagePlus,
