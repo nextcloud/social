@@ -71,6 +71,48 @@ class AvatarService {
 			throw new InvalidActionException('no avatar found in the request');
 		}
 
+		$this->store($userId, $tmpPath);
+	}
+
+	/**
+	 * The picture an export archive carried, put back — but never over one the
+	 * account already has.
+	 *
+	 * An imported archive is read alongside whatever is already here, and the
+	 * avatar of a Nextcloud account is the account's rather than this app's:
+	 * core's own migrator carries it, and the order the migrators run in is not
+	 * this app's to decide. So a picture that is already there wins, and the
+	 * archived one is only used where the account has none of its own — the
+	 * generated initials -- which is the case where it would otherwise be lost.
+	 *
+	 * @return bool whether the avatar was written
+	 */
+	public function restoreFromArchive(string $userId, string $tmpPath): bool {
+		$user = $this->userManager->get($userId);
+		if ($user === null || !$user->canChangeAvatar()) {
+			return false;
+		}
+
+		try {
+			if ($this->avatarManager->getAvatar($userId)->isCustomAvatar()) {
+				return false;
+			}
+		} catch (\Throwable $e) {
+			return false;
+		}
+
+		$this->store($userId, $tmpPath);
+
+		return true;
+	}
+
+	/**
+	 * The checks and the write both ways in: the bytes decide what this is, not
+	 * the name they arrived under.
+	 *
+	 * @throws InvalidActionException
+	 */
+	private function store(string $userId, string $tmpPath): void {
 		$size = filesize($tmpPath);
 		if ($size === false || $size === 0) {
 			throw new InvalidActionException('the uploaded avatar is empty');

@@ -12,7 +12,7 @@
 				{{ t('social', 'Export your data') }}
 			</h4>
 			<p>
-				{{ t('social', 'A zip file holding your profile, the people you follow, your followers, the accounts you block and mute, your bookmarks and likes, and every post you have written.') }}
+				{{ t('social', 'A zip file holding your profile, the people you follow, your followers, the accounts you block and mute, your bookmarks and likes, and every post you have written — with the pictures and videos on those posts, and your profile banner, as files inside the archive rather than as links back to this server.') }}
 			</p>
 			<p class="migration__note">
 				{{ t('social', 'Your private key is deliberately not in it. An archive is an ordinary file that can be copied anywhere, and a key that could sign as you cannot be taken back once it has been seen.') }}
@@ -39,7 +39,7 @@
 				{{ t('social', 'Reads an archive from the Export button — or from a Nextcloud account export — back into this account. Nothing is deleted: your profile, follows, blocks, mutes, bookmarks and likes are restored alongside what is already here.') }}
 			</p>
 			<p class="migration__note">
-				{{ t('social', 'Posts in the archive are listed rather than published again, so importing cannot flood the timelines of people who follow you.') }}
+				{{ t('social', 'Posts in the archive are listed rather than published again, so importing cannot flood the timelines of people who follow you. Their pictures are put back on the posts this server still has, and your banner is restored.') }}
 			</p>
 			<input
 				ref="archive"

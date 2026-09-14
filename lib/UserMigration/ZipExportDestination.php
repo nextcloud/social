@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\UserMigration;
 
 use OCP\Files\Folder;
+use OCP\ITempManager;
 use OCP\UserMigration\IExportDestination;
 use OCP\UserMigration\UserMigrationException;
 use ZipArchive;
@@ -34,6 +35,7 @@ class ZipExportDestination implements IExportDestination {
 
 	public function __construct(
 		private ZipArchive $zip,
+		private ITempManager $tempManager,
 	) {
 	}
 
@@ -47,18 +49,42 @@ class ZipExportDestination implements IExportDestination {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * Read into memory rather than streamed into the zip: `ZipArchive` can
+	 * Through a temporary file rather than through a string. `ZipArchive` will
 	 * take a stream, but only one that stays open until `close()`, and the one
-	 * this is handed is a temporary file the caller closes straight after.
+	 * this is handed is the caller's and is closed as soon as this returns — so
+	 * the bytes are copied, a chunk at a time, to a file the zip reads at
+	 * `close()` instead. What arrives here is an attachment as often as it is an
+	 * outbox, and an attachment is a video: `stream_get_contents()` of one is
+	 * two gigabytes of memory, which is what the streaming half of this
+	 * interface exists to avoid.
+	 *
+	 * The temporary file has to outlive this call, so it is left to
+	 * `ITempManager` to clean up at the end of the request, which is after the
+	 * archive has been closed and handed over.
 	 */
 	#[\Override]
 	public function addFileAsStream(string $path, $stream): void {
-		$contents = stream_get_contents($stream);
-		if ($contents === false) {
-			throw new UserMigrationException('could not read the contents for ' . $path);
+		$tmpPath = $this->tempManager->getTemporaryFile();
+		if ($tmpPath === false) {
+			throw new UserMigrationException('could not make a temporary file for ' . $path);
 		}
 
-		$this->addFileContents($path, $contents);
+		$target = fopen($tmpPath, 'w');
+		if (!is_resource($target)) {
+			throw new UserMigrationException('could not open a temporary file for ' . $path);
+		}
+
+		try {
+			if (stream_copy_to_stream($stream, $target) === false) {
+				throw new UserMigrationException('could not read the contents for ' . $path);
+			}
+		} finally {
+			fclose($target);
+		}
+
+		if ($this->zip->addFile($tmpPath, $path) === false) {
+			throw new UserMigrationException('could not write ' . $path . ' to the archive');
+		}
 	}
 
 	#[\Override]

@@ -18,14 +18,20 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\AvatarService;
+use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\CacheDocumentService;
+use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MigrationService;
 use OCA\Social\Service\StreamActionService;
 use OCP\IL10N;
 use OCP\ITempManager;
+use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\UserMigration\IExportDestination;
 use OCP\UserMigration\IImportSource;
@@ -41,9 +47,11 @@ use Throwable;
  *
  * What travels is what the account *is* and what it *chose*: the actor's
  * profile and flags, who it follows and who follows it, what it blocks and
- * mutes, what it wrote, and what it kept (bookmarks and favourites). The lists
- * of accounts are written in the shape Mastodon exports them, so the archive is
- * useful outside Nextcloud too — `following_accounts.csv` is the file
+ * mutes, what it wrote — with the pictures and videos on it, and the banner
+ * over it — and what it kept (bookmarks and favourites). The lists of accounts
+ * are written in the shape Mastodon exports them, and the files under
+ * `media_attachments/` in the layout Mastodon's own archive uses, so the archive
+ * is useful outside Nextcloud too — `following_accounts.csv` is the file
  * `MigrationService::parseFollowsCsv()` reads and the one Mastodon's "Import
  * follows" accepts.
  *
@@ -64,7 +72,9 @@ use Throwable;
  *   which actor this was.
  * - **other people's posts.** The local copies of remote statuses are a cache
  *   of somebody else's content; it is re-fetched wherever it is needed and is
- *   not the user's to carry. Only what the user wrote is in `outbox.json`.
+ *   not the user's to carry. Only what the user wrote is in `outbox.json`, and
+ *   only the files of those posts are copied — and only where this instance
+ *   stored them, which a streamed video (`Document::COPY_STREAMED`) never was.
  * - **moderation decisions taken against the account** (`social_moderation`),
  *   reports, the outbound request queue, OAuth clients, tokens and secrets. A
  *   suspension outlives even the deletion of an actor on purpose (see
@@ -106,6 +116,41 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	private const PATH_BOOKMARKS = self::PATH_ROOT . 'bookmarks.csv';
 	private const PATH_LIKES = self::PATH_ROOT . 'likes.csv';
 	private const PATH_OUTBOX = self::PATH_ROOT . 'outbox.json';
+	/**
+	 * Where the files sit, relative to the app's folder in the archive, in the
+	 * layout Mastodon's own export uses: `media_attachments/files/<id>/original.<ext>`
+	 * for an attachment, `media_attachments/avatar.<ext>` and `header.<ext>` for
+	 * the profile. Written relative because that is what a `url` in `outbox.json`
+	 * is rewritten to, and a relative path is the one thing that still means
+	 * something once the archive has left this server.
+	 */
+	private const PATH_MEDIA = 'media_attachments/';
+	private const PATH_MEDIA_FILES = self::PATH_MEDIA . 'files/';
+
+	/**
+	 * The file extension each stored type gets in the archive. Canonical rather
+	 * than whatever the upload was called: the name inside the archive only has
+	 * to say what the file is.
+	 */
+	private const EXTENSIONS = [
+		'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp',
+		'image/avif' => 'avif', 'image/heic' => 'heic', 'image/heif' => 'heif',
+		'video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/quicktime' => 'mov',
+		'audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audio/ogg' => 'ogg', 'audio/opus' => 'opus',
+		'audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/flac' => 'flac', 'audio/aac' => 'aac',
+	];
+
+	/**
+	 * What one stored file of each kind is taken to weigh, in KiB, for the size
+	 * estimate. The table stores no size, so this is counted rather than
+	 * measured; see `mediaSize()`.
+	 */
+	private const SIZE_IMAGE = 512;
+	private const SIZE_AUDIO = 5120;
+	private const SIZE_VIDEO = 40960;
+
+	/** The tail of a media link this instance serves: the stored copy's uuid. */
+	private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
 
 	/** The header Mastodon writes over `muted_accounts.csv`. */
 	private const MUTES_HEADER = 'Account address,Hide notifications';
@@ -115,11 +160,16 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		private AccountService $accountService,
 		private MigrationService $migrationService,
 		private CacheActorService $cacheActorService,
+		private CacheDocumentService $cacheDocumentService,
+		private DocumentService $documentService,
+		private BannerService $bannerService,
+		private AvatarService $avatarService,
 		private FollowsRequest $followsRequest,
 		private ActorRelationRequest $actorRelationRequest,
 		private StreamRequest $streamRequest,
 		private StreamActionService $streamActionService,
 		private ITempManager $tempManager,
+		private IURLGenerator $urlGenerator,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -146,16 +196,20 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	#[\Override]
 	public function getDescription(): string {
 		return $this->l10n->t(
-			'Your Fediverse profile, the accounts you follow, block and mute, your own posts,'
-			. ' your bookmarks and your favourites. Your private key stays behind.'
+			'Your Fediverse profile, the accounts you follow, block and mute, your own posts'
+			. ' with the pictures and videos in them, your bookmarks and your favourites.'
+			. ' Your private key stays behind.'
 		);
 	}
 
 	/**
 	 * {@inheritDoc}
 	 *
-	 * Counted rather than measured: three cheap counts, and a post costs about
-	 * a kilobyte of JSON.
+	 * Counted rather than measured: four cheap counts, and a post costs about a
+	 * kilobyte of JSON. The media is the part that decides the answer — an
+	 * account with one video outweighs everything else in the archive put
+	 * together — so leaving it out, as this did while the files were not
+	 * exported, understated a real export by orders of magnitude.
 	 */
 	#[\Override]
 	public function getEstimatedExportSize(IUser $user): int|float {
@@ -168,10 +222,46 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		$size = 4; // the actor document
 		$size += $this->streamRequest->countNotesFromActorId($actor->getId());
 		// a handle is a line of some 40 bytes in a csv
-		$size += ($this->followsRequest->countFollowing($actor->getId())
-			+ $this->followsRequest->countFollowers($actor->getId())) / 25;
+		$size += intdiv(
+			$this->followsRequest->countFollowing($actor->getId())
+			+ $this->followsRequest->countFollowers($actor->getId()), 25
+		);
+		$size += $this->mediaSize($actor);
 
 		return (int)ceil($size);
+	}
+
+	/**
+	 * What the account's own files are worth in the estimate, in KiB.
+	 *
+	 * `social_cache_documents` has no size column, so this is a count per kind
+	 * rather than a measurement: a stored picture has been through the resize
+	 * and is a few hundred kilobytes, a sound file a few megabytes, a video
+	 * anything up to the instance's ceiling. One grouped count whose answer is
+	 * the right order of magnitude is worth more here than an exact figure that
+	 * would cost a stat of every file the export is about to copy anyway.
+	 */
+	private function mediaSize(Person $actor): int {
+		try {
+			$counts = $this->documentService->countStoredCopies($actor->getPreferredUsername());
+		} catch (Throwable $e) {
+			$this->logger->debug('cannot count the media of an account for the export estimate', [
+				'actor' => $actor->getId(), 'exception' => $e,
+			]);
+
+			return 0;
+		}
+
+		$size = 0;
+		foreach ($counts as $mediaType => $count) {
+			$size += $count * match (explode('/', $mediaType)[0]) {
+				'video' => self::SIZE_VIDEO,
+				'audio' => self::SIZE_AUDIO,
+				default => self::SIZE_IMAGE,
+			};
+		}
+
+		return $size;
 	}
 
 	/**
@@ -198,6 +288,12 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * The actor, without its private key. Exported as JSON rather than as the
 	 * actor document itself: this file is what the import reads back, and an
 	 * actor document is full of URLs of the server it is leaving.
+	 *
+	 * The pictures of the profile travel as files next to it, where this app
+	 * has files of them: the banner always, the avatar only when it is one of
+	 * this app's own — the picture of a local account is the Nextcloud
+	 * account's, which core's own migrator carries and which this would only
+	 * duplicate.
 	 */
 	private function exportActor(
 		Person $actor,
@@ -206,8 +302,22 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	): void {
 		$output->writeln('Exporting the Social actor in ' . self::PATH_ACTOR . '…');
 
+		$avatarFile = $this->exportProfileImage($actor->getAvatar(), 'avatar', $exportDestination);
+		// `getHeader()` falls back to the avatar when there is no banner, which
+		// would put the same file in the archive twice under two names
+		$headerFile = ($actor->getHeader() === $actor->getAvatar())
+			? '' : $this->exportProfileImage($actor->getHeader(), 'header', $exportDestination);
+		foreach (['avatar' => $avatarFile, 'banner' => $headerFile] as $what => $path) {
+			if ($path !== '') {
+				$output->writeln('Exported the ' . $what . ' to ' . self::PATH_ROOT . $path . '…');
+			}
+		}
+
 		try {
-			$exportDestination->addFileContents(self::PATH_ACTOR, json_encode([
+			$exportDestination->addFileContents(self::PATH_ACTOR, json_encode(array_filter([
+				'avatarFile' => $avatarFile,
+				'headerFile' => $headerFile,
+			]) + [
 				'id' => $actor->getId(),
 				'account' => $actor->getAccount(),
 				'preferredUsername' => $actor->getPreferredUsername(),
@@ -388,6 +498,12 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * have to fit in memory to be exportable. `totalItems` is written last,
 	 * once counting is done — JSON does not care about key order and it saves
 	 * a second pass over the rows.
+	 *
+	 * The files the posts point at go into the archive as the posts are walked,
+	 * and each attachment's `url` is rewritten to where its file was put. The
+	 * address it had here is kept beside it as `originalUrl`: a reader that
+	 * cannot use the copy — or an import that finds the file missing — still
+	 * knows where the picture was served from.
 	 */
 	private function exportOutbox(
 		Person $actor,
@@ -408,10 +524,12 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				. ',"type":"OrderedCollection","orderedItems":[');
 
 			$count = 0;
+			$files = 0;
 			foreach ($this->posts($actor, ProbeOptions::ACCOUNT) as $post) {
 				$item = $post->jsonSerialize();
 				// the collection carries the context once
 				unset($item['@context']);
+				$files += $this->exportAttachments($item, $post->getAttachments(), $exportDestination);
 				fwrite($file, ($count > 0 ? ',' : '') . json_encode($item, JSON_THROW_ON_ERROR));
 				$count++;
 			}
@@ -419,7 +537,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			fwrite($file, '],"totalItems":' . $count . '}');
 			rewind($file);
 			$exportDestination->addFileAsStream(self::PATH_OUTBOX, $file);
-			$output->writeln('Exported ' . $count . ' post(s)…');
+			$output->writeln('Exported ' . $count . ' post(s) and ' . $files . ' file(s) of theirs…');
 		} catch (Throwable $e) {
 			throw new SocialMigratorException('Could not export the Social posts', 0, $e);
 		} finally {
@@ -468,6 +586,169 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 
 			$maxId = $nid;
 		}
+	}
+
+	/**
+	 * One post's attachments, copied into the archive, and the post rewritten
+	 * to point at them.
+	 *
+	 * Only what this instance has bytes of: a streamed video is somebody else's
+	 * file that was deliberately never copied here (`Document::COPY_STREAMED`),
+	 * and an attachment whose stored copy has been swept away has nothing to
+	 * put in the archive. Both keep the URL they had, which is all there ever
+	 * was of them.
+	 *
+	 * The serialised attachments and `getAttachments()` are the same list in
+	 * the same order — one is `array_map()`ed from the other — so the id of the
+	 * n-th attachment names the n-th file.
+	 *
+	 * @param array<string, mixed> $item the post as it will be written
+	 * @param array<MediaAttachment|array<string, mixed>> $attachments
+	 *
+	 * @return int how many files were written
+	 */
+	private function exportAttachments(
+		array &$item,
+		array $attachments,
+		IExportDestination $exportDestination,
+	): int {
+		if (!isset($item['attachment']) || !is_array($item['attachment'])) {
+			return 0;
+		}
+
+		$item['attachment'] = array_values($item['attachment']);
+		$attachments = array_values($attachments);
+		$written = 0;
+
+		foreach ($item['attachment'] as $index => $wire) {
+			if (!is_array($wire)) {
+				continue;
+			}
+
+			$url = (string)($wire['url'] ?? '');
+			$uuid = self::storedCopyOf($url);
+			if ($uuid === '') {
+				continue;
+			}
+
+			// the attachment id, which is a row number, names the folder — and
+			// only ever a row number: what goes into a path in an archive is
+			// checked rather than trusted, whatever wrote the row
+			$media = $attachments[$index] ?? null;
+			$id = ($media instanceof MediaAttachment) ? $media->getId() : '';
+			$folder = (preg_match('/^[0-9]+$/', $id) === 1) ? $id : $uuid;
+			$path = self::PATH_MEDIA_FILES . $folder . '/original.'
+				. self::extensionOf((string)($wire['mediaType'] ?? ''), $url);
+
+			if (!$this->copyStoredCopy($uuid, $path, $exportDestination)) {
+				continue;
+			}
+
+			$item['attachment'][$index]['url'] = $path;
+			$item['attachment'][$index]['originalUrl'] = $url;
+			$written++;
+		}
+
+		return $written;
+	}
+
+	/**
+	 * The banner or the avatar, where this app has a file of it.
+	 *
+	 * @return string the path in the archive, relative to the app's folder, or ''
+	 */
+	private function exportProfileImage(
+		string $url,
+		string $what,
+		IExportDestination $exportDestination,
+	): string {
+		$uuid = self::storedCopyOf($url);
+		if ($uuid === '') {
+			return '';
+		}
+
+		$path = self::PATH_MEDIA . $what . '.' . self::extensionOf('', $url);
+
+		return $this->copyStoredCopy($uuid, $path, $exportDestination) ? $path : '';
+	}
+
+	/**
+	 * The bytes of one stored copy into the archive, without the file ever
+	 * being held: a video is gigabytes, and an export of one must cost no more
+	 * memory than an export of a sentence.
+	 *
+	 * A file the row names and storage no longer has is not an error — the
+	 * sweep that removed it was somebody's retention setting — so the export
+	 * carries on and the attachment keeps its URL. A destination that cannot be
+	 * written to is a different matter and is left to the caller: an archive
+	 * quietly missing half its pictures is worse than an export that failed.
+	 *
+	 * @return bool whether the file was written
+	 */
+	private function copyStoredCopy(
+		string $uuid,
+		string $path,
+		IExportDestination $exportDestination,
+	): bool {
+		try {
+			$stream = $this->cacheDocumentService->getFromUuid($uuid)->read();
+		} catch (Throwable $e) {
+			$this->logger->notice('a media file of the export is not in storage any more', [
+				'uuid' => $uuid, 'exception' => $e,
+			]);
+
+			return false;
+		}
+
+		if (!is_resource($stream)) {
+			return false;
+		}
+
+		try {
+			$exportDestination->addFileAsStream(self::PATH_ROOT . $path, $stream);
+		} finally {
+			fclose($stream);
+		}
+
+		return true;
+	}
+
+	/**
+	 * The uuid of the copy this instance stored for a media URL, or '' when the
+	 * URL names no copy of ours — a streamed row, a picture on another server,
+	 * the Nextcloud account avatar.
+	 */
+	private static function storedCopyOf(string $url): string {
+		if ($url === '') {
+			return '';
+		}
+
+		$path = (string)parse_url($url, PHP_URL_PATH);
+		$name = pathinfo($path, PATHINFO_FILENAME);
+
+		return (preg_match(self::UUID, $name) === 1) ? $name : '';
+	}
+
+	/**
+	 * What to call the file in the archive: the extension the media type
+	 * implies, else the one the URL carried, else none anybody will guess from.
+	 *
+	 * A profile picture is known only by its URL — the actor carries the link,
+	 * not the row — so where there is no type the URL is read for one, through
+	 * the same guess the client entity makes.
+	 */
+	private static function extensionOf(string $mediaType, string $url): string {
+		if ($mediaType === '') {
+			$mediaType = MediaAttachment::guessMediaType('', $url);
+		}
+
+		if (isset(self::EXTENSIONS[$mediaType])) {
+			return self::EXTENSIONS[$mediaType];
+		}
+
+		$extension = strtolower(pathinfo((string)parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION));
+
+		return (preg_match('/^[a-z0-9]{1,5}$/', $extension) === 1) ? $extension : 'bin';
 	}
 
 	/** The handle of an actor this server has cached, or '' when it has not. */
@@ -558,7 +839,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		$this->importFollows($userId, $importSource, $output);
 		$this->importRelations($actor, $importSource, $output);
 		$this->importMarks($actor, $importSource, $output);
-		$this->reportOutbox($importSource, $output);
+		$this->importOutbox($actor, $importSource, $output);
 	}
 
 	/**
@@ -619,6 +900,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			]);
 			$output->writeln('<error>Could not restore the Social profile: ' . $e->getMessage() . '</error>');
 		}
+
+		$this->importProfileImages($userId, $data, $importSource, $output);
 
 		$oldId = trim((string)($data['id'] ?? ''));
 		if ($oldId === '') {
@@ -823,7 +1106,89 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		}
 	}
 
-	private function reportOutbox(IImportSource $importSource, OutputInterface $output): void {
+	/**
+	 * The banner, and the avatar where the account has none of its own.
+	 *
+	 * The banner is this app's picture and is restored through the path that
+	 * owns it — which stores the bytes, points the cached actor at them and
+	 * tells the followers of this account, who on a freshly imported account
+	 * are nobody. The avatar is the Nextcloud account's rather than this app's,
+	 * so `AvatarService` decides: a picture that is already there is left
+	 * alone, and only an account still showing its generated initials gets the
+	 * one out of the archive.
+	 *
+	 * @param array<string, mixed> $data the actor file
+	 */
+	private function importProfileImages(
+		string $userId,
+		array $data,
+		IImportSource $importSource,
+		OutputInterface $output,
+	): void {
+		$header = trim((string)($data['headerFile'] ?? ''));
+		if ($header !== '') {
+			$path = $this->fileFromArchive($importSource, self::PATH_ROOT . $header);
+			if ($path === null) {
+				$output->writeln('No ' . self::PATH_ROOT . $header . ' in the archive, keeping the banner as it is…');
+			} else {
+				try {
+					$this->bannerService->setFromTempFile($userId, $path);
+					$output->writeln('Restored the profile banner from ' . self::PATH_ROOT . $header . '…');
+				} catch (Throwable $e) {
+					$this->logger->warning('could not restore a profile banner', [
+						'userId' => $userId, 'exception' => $e,
+					]);
+					$output->writeln('<error>Could not restore the banner: ' . $e->getMessage() . '</error>');
+				}
+			}
+		}
+
+		$avatar = trim((string)($data['avatarFile'] ?? ''));
+		if ($avatar === '') {
+			return;
+		}
+
+		$path = $this->fileFromArchive($importSource, self::PATH_ROOT . $avatar);
+		if ($path === null) {
+			$output->writeln('No ' . self::PATH_ROOT . $avatar . ' in the archive, keeping the picture as it is…');
+
+			return;
+		}
+
+		try {
+			$output->writeln(
+				$this->avatarService->restoreFromArchive($userId, $path)
+					? 'Restored the profile picture from ' . self::PATH_ROOT . $avatar . '…'
+					: 'This account already has a picture of its own; the one in the archive was left…'
+			);
+		} catch (Throwable $e) {
+			$this->logger->warning('could not restore a profile picture', [
+				'userId' => $userId, 'exception' => $e,
+			]);
+			$output->writeln('<error>Could not restore the profile picture: ' . $e->getMessage() . '</error>');
+		}
+	}
+
+	/**
+	 * The posts are not restored — their ids belong to the server they were
+	 * written on, and writing statuses back is a piece of work of its own (see
+	 * `docs/Mastodon-Compatibility.md`) — but their **files** are, onto the
+	 * posts this server does have.
+	 *
+	 * That is the case an archive is read in after the pictures were lost and
+	 * the rows were not: a purge of the storage, a database restored from a
+	 * backup the files did not survive. Where the post is here and its picture
+	 * still is too, nothing happens; where the post is not here at all, the
+	 * file stays in the archive rather than becoming a row nothing can show.
+	 *
+	 * The outbox is read whole, which it can be: it is the text of the posts,
+	 * and the files it names were never in it.
+	 */
+	private function importOutbox(
+		Person $actor,
+		IImportSource $importSource,
+		OutputInterface $output,
+	): void {
 		if (!$this->pathExists($importSource, self::PATH_OUTBOX)) {
 			return;
 		}
@@ -833,6 +1198,245 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			. ' belong to the server they were written on. They are in the archive as your copy of'
 			. ' what you wrote…'
 		);
+
+		$contents = $this->optionalFile($importSource, self::PATH_OUTBOX, $output);
+		if ($contents === null) {
+			return;
+		}
+
+		try {
+			/** @var array<string, mixed> $outbox */
+			$outbox = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+		} catch (Throwable $e) {
+			$output->writeln('<error>' . self::PATH_OUTBOX . ' is not readable JSON, skipping it…</error>');
+
+			return;
+		}
+
+		$items = $outbox['orderedItems'] ?? [];
+		if (!is_array($items)) {
+			return;
+		}
+
+		$tally = ['restored' => 0, 'here' => 0, 'missingFile' => 0, 'missingPost' => 0, 'failed' => 0];
+		foreach ($items as $item) {
+			if (!is_array($item)) {
+				continue;
+			}
+
+			$archived = $this->archivedAttachments($item);
+			if ($archived === []) {
+				continue;
+			}
+
+			try {
+				$post = $this->streamRequest->getStreamById((string)($item['id'] ?? ''));
+			} catch (Throwable $e) {
+				$tally['missingPost'] += count($archived);
+				continue;
+			}
+
+			$this->restorePostMedia($actor, $post, $archived, $importSource, $tally);
+		}
+
+		if (array_sum($tally) === 0) {
+			return;
+		}
+
+		$output->writeln(
+			'Restored ' . $tally['restored'] . ' file(s) onto the posts this server has; '
+			. $tally['here'] . ' were already here, ' . $tally['missingFile']
+			. ' were not in the archive, ' . $tally['missingPost']
+			. ' belong to posts this server does not have and ' . $tally['failed']
+			. ' could not be stored…'
+		);
+	}
+
+	/**
+	 * The attachments of one archived post that name a file in the archive,
+	 * by their position in the post.
+	 *
+	 * A `url` that is not one of ours is an attachment this export could not
+	 * copy — it kept the address it had — and there is nothing here to read.
+	 *
+	 * @param array<string, mixed> $item
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function archivedAttachments(array $item): array {
+		$attachments = $item['attachment'] ?? [];
+		if (!is_array($attachments)) {
+			return [];
+		}
+
+		$archived = [];
+		foreach (array_values($attachments) as $index => $attachment) {
+			if (!is_array($attachment)) {
+				continue;
+			}
+
+			$url = (string)($attachment['url'] ?? '');
+			// a path of ours, and only a path: a `..` or a leading slash is
+			// somebody's idea of reaching out of the archive
+			if (!str_starts_with($url, self::PATH_MEDIA) || str_contains($url, '..')) {
+				continue;
+			}
+
+			$archived[$index] = $attachment;
+		}
+
+		return $archived;
+	}
+
+	/**
+	 * The files of one post, put back through the path an upload takes.
+	 *
+	 * `DocumentService::storeLocalAttachment()` is what the composer's own
+	 * upload uses, so the type is sniffed from the bytes, anything this app
+	 * does not store is refused and the metadata comes off — an archive is a
+	 * file a user hands the server, and it gets no shorter a route in than a
+	 * picture picked in the browser. Nothing is transcoded on the way: the file
+	 * in the archive is the one that was stored here, already converted and
+	 * resized when it was first uploaded, and putting it through a second
+	 * generation of JPEG would lose quality for nothing.
+	 *
+	 * The post's own copy of its attachments (the `attachments` column, which
+	 * is what a timeline renders from) is rewritten once, at the end, rather
+	 * than per file.
+	 *
+	 * @param array<int, array<string, mixed>> $archived
+	 * @param array<string, int> $tally
+	 */
+	private function restorePostMedia(
+		Person $actor,
+		Stream $post,
+		array $archived,
+		IImportSource $importSource,
+		array &$tally,
+	): void {
+		$copies = [];
+		foreach (array_values($post->getAttachments()) as $attachment) {
+			$copies[] = ($attachment instanceof MediaAttachment) ? $attachment->asLocal() : (array)$attachment;
+		}
+
+		$public = in_array($post->getVisibility(), [Stream::TYPE_PUBLIC, Stream::TYPE_UNLISTED], true);
+		$changed = false;
+
+		foreach ($archived as $index => $attachment) {
+			if ($this->hasStoredCopy($copies[$index] ?? [])) {
+				$tally['here']++;
+				continue;
+			}
+
+			$path = $this->fileFromArchive($importSource, self::PATH_ROOT . (string)$attachment['url']);
+			if ($path === null) {
+				// nothing is invented in its place: the attachment keeps the
+				// address the file had where it was written, which is what
+				// `originalUrl` is in the archive for
+				$tally['missingFile']++;
+				continue;
+			}
+
+			try {
+				$document = $this->documentService->storeLocalAttachment(
+					$actor,
+					$path,
+					$post->getId(),
+					(string)($attachment['name'] ?? ''),
+					$public
+				);
+			} catch (Throwable $e) {
+				$this->logger->warning('could not restore an attachment of a post', [
+					'post' => $post->getId(), 'path' => $attachment['url'], 'exception' => $e,
+				]);
+				$tally['failed']++;
+				continue;
+			} finally {
+				@unlink($path);
+			}
+
+			$copies[$index] = $document->convertToMediaAttachment($this->urlGenerator)->asLocal();
+			$changed = true;
+			$tally['restored']++;
+		}
+
+		if (!$changed) {
+			return;
+		}
+
+		ksort($copies);
+		$this->streamRequest->setStoredAttachmentCopies(
+			$post->getId(),
+			(string)json_encode(array_values($copies), JSON_UNESCAPED_SLASHES)
+		);
+	}
+
+	/**
+	 * Whether an attachment of a post still has the file it names. A row whose
+	 * copy was swept away is exactly what an archive is being read for.
+	 *
+	 * @param array<string, mixed> $copy one entry of a post's stored attachments
+	 */
+	private function hasStoredCopy(array $copy): bool {
+		$uuid = self::storedCopyOf((string)($copy['url'] ?? ''));
+		if ($uuid === '') {
+			// not a copy of ours to begin with — a streamed row — and not
+			// something an import should replace
+			return ($copy !== []);
+		}
+
+		try {
+			$this->cacheDocumentService->getFromUuid($uuid);
+		} catch (Throwable $e) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * One file of the archive in a temporary file of its own, copied a chunk at
+	 * a time.
+	 *
+	 * Everything that stores media here takes a path rather than a string, on
+	 * purpose — a video is never held whole — so the import has to hand it one.
+	 *
+	 * @return string|null the path, or null when the archive has no such file
+	 */
+	private function fileFromArchive(IImportSource $importSource, string $path): ?string {
+		if (!$this->pathExists($importSource, $path)) {
+			return null;
+		}
+
+		$tmpPath = $this->tempManager->getTemporaryFile();
+		if ($tmpPath === false) {
+			return null;
+		}
+
+		try {
+			$source = $importSource->getFileAsStream($path);
+			$target = fopen($tmpPath, 'w');
+			if (!is_resource($target)) {
+				fclose($source);
+
+				return null;
+			}
+
+			try {
+				stream_copy_to_stream($source, $target);
+			} finally {
+				fclose($source);
+				fclose($target);
+			}
+		} catch (Throwable $e) {
+			$this->logger->warning('cannot read a media file of the archive', [
+				'path' => $path, 'exception' => $e,
+			]);
+
+			return null;
+		}
+
+		return $tmpPath;
 	}
 
 	/**

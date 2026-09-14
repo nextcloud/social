@@ -549,4 +549,59 @@ class DocumentService {
 
 		return $image->getId();
 	}
+
+	/**
+	 * Stores a file that is already on this server as one of an account's own
+	 * attachments, on the post it belongs to.
+	 *
+	 * The bytes go through `saveFromTempToCache()`, which is the path a file
+	 * picked in the composer takes: the type is sniffed from the content,
+	 * anything this app does not store is refused, the camera's metadata comes
+	 * off and a format no browser can draw becomes one it can. So a picture put
+	 * back from an export archive is stored exactly as one posted today, and an
+	 * archive -- a file a user hands the server -- cannot carry in something the
+	 * upload route would have turned away.
+	 *
+	 * @param string $parentId the post this hangs off, or '' for an upload that
+	 *                         has not been posted yet
+	 * @param bool $public whether the unauthenticated media route may serve it,
+	 *                     which follows the visibility of that post
+	 *
+	 * @throws CacheContentMimeTypeException the file is not a type this app stores
+	 * @throws CacheContentDecodeException the bytes are not the image they claim
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 */
+	public function storeLocalAttachment(
+		Person $actor,
+		string $tmpPath,
+		string $parentId = '',
+		string $description = '',
+		bool $public = false,
+	): Document {
+		$document = new Document();
+		$document->setLocal(true);
+		$document->setAccount($actor->getPreferredUsername());
+		$document->setUrlCloud($this->configService->getCloudUrl());
+		$document->generateUniqueId('/documents/local');
+		$document->setParentId($parentId);
+		$document->setPublic($public);
+		$document->setDescription($description);
+
+		$this->cacheService->saveFromTempToCache($document, $tmpPath);
+		$this->cacheDocumentsRequest->save($document);
+
+		return $document;
+	}
+
+	/**
+	 * How many files of its own an account has stored here, by media type.
+	 *
+	 * @return array<string, int> media type => how many
+	 */
+	public function countStoredCopies(string $account): array {
+		return $this->cacheDocumentsRequest->countLocalCopiesByType($account);
+	}
 }

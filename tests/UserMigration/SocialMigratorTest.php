@@ -16,20 +16,30 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\AvatarService;
+use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\CacheDocumentService;
+use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MigrationService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Tests\Helper\MigrationArchive;
 use OCA\Social\Tests\Helper\RecordingOutput;
 use OCA\Social\UserMigration\SocialMigrator;
+use OCP\Files\NotFoundException;
+use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IL10N;
 use OCP\ITempManager;
+use OCP\IURLGenerator;
 use OCP\IUser;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -39,10 +49,17 @@ class SocialMigratorTest extends TestCase {
 	private const ALICE = 'https://cloud.example/apps/social/@alice';
 	private const CAROL = 'https://remote.example/users/carol';
 	private const DAVE = 'https://other.example/users/dave';
+	private const UUID = '8f14e45f-ceea-467a-9c58-0cfa2b3e0f43';
+	private const MEDIA = 'https://cloud.example/index.php/apps/social/api/v1/media/'
+		. self::UUID . '.jpeg';
 
 	private AccountService|MockObject $accountService;
 	private MigrationService|MockObject $migrationService;
 	private CacheActorService|MockObject $cacheActorService;
+	private CacheDocumentService|MockObject $cacheDocumentService;
+	private DocumentService|MockObject $documentService;
+	private BannerService|MockObject $bannerService;
+	private AvatarService|MockObject $avatarService;
 	private FollowsRequest|MockObject $followsRequest;
 	private ActorRelationRequest|MockObject $actorRelationRequest;
 	private StreamRequest|MockObject $streamRequest;
@@ -60,6 +77,10 @@ class SocialMigratorTest extends TestCase {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->migrationService = $this->createMock(MigrationService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
+		$this->documentService = $this->createMock(DocumentService::class);
+		$this->bannerService = $this->createMock(BannerService::class);
+		$this->avatarService = $this->createMock(AvatarService::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
 		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
@@ -73,16 +94,29 @@ class SocialMigratorTest extends TestCase {
 			return $path;
 		});
 
+		// a media URL is rebuilt from its uuid when a stored attachment is read
+		// back (`MediaAttachment::asLocal()`), and that reaches for the
+		// container rather than taking a dependency
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')
+			->willReturnCallback(static fn (string $route, array $args): string => self::MEDIA);
+		\OC::$server->register(IURLGenerator::class, $urlGenerator);
+
 		$this->migrator = new SocialMigrator(
 			$l10n,
 			$this->accountService,
 			$this->migrationService,
 			$this->cacheActorService,
+			$this->cacheDocumentService,
+			$this->documentService,
+			$this->bannerService,
+			$this->avatarService,
 			$this->followsRequest,
 			$this->actorRelationRequest,
 			$this->streamRequest,
 			$this->streamActionService,
 			$tempManager,
+			$urlGenerator,
 			new NullLogger(),
 		);
 		$this->output = new RecordingOutput();
@@ -95,6 +129,46 @@ class SocialMigratorTest extends TestCase {
 			}
 		}
 		$this->tempFiles = [];
+		\OC::$server->reset();
+	}
+
+	/** A note with one picture of the account's own on it. */
+	private function noteWithAPicture(string $id = 'https://cloud.example/1', int $nid = 1): Note {
+		$note = $this->note($id, $nid, 'look at this');
+		$attachment = new MediaAttachment();
+		$attachment->setId('12')
+			->setType('image')
+			->setMediaType('image/jpeg')
+			->setUrl(self::MEDIA)
+			->setDescription('a cat');
+		$note->setAttachments([$attachment]);
+
+		return $note;
+	}
+
+	/** The stored copy of a file, as storage hands it over: a stream. */
+	private function storedFile(string $content): ISimpleFile|MockObject {
+		$file = $this->createMock(ISimpleFile::class);
+		$file->method('read')->willReturnCallback(static function () use ($content) {
+			$stream = fopen('php://temp', 'r+');
+			fwrite($stream, $content);
+			rewind($stream);
+
+			return $stream;
+		});
+
+		return $file;
+	}
+
+	/** The account, with one post that has one picture on it. */
+	private function anAccountWithOnePicture(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->followsRequest->method('getFollowingByActorId')->willReturn([]);
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
+		$this->actorRelationRequest->method('getByActor')->willReturn([]);
+		$this->streamRequest->method('getTimeline')
+			->willReturnCallback(fn (ProbeOptions $options): array => ($options->getProbe() === ProbeOptions::ACCOUNT
+				&& $options->getMaxId() === 0) ? [$this->noteWithAPicture()] : []);
 	}
 
 	private function user(string $uid = 'alice'): IUser|MockObject {
@@ -468,6 +542,96 @@ class SocialMigratorTest extends TestCase {
 		$this->assertSame("https://remote.example/notes/8\n", $archive->contents('social/likes.csv'));
 	}
 
+	/**
+	 * A post's pictures are the post. An archive that carried the sentence and
+	 * left the photograph behind was not a copy of what the user wrote, and
+	 * every URL in it pointed back at the server they were leaving.
+	 */
+	public function testAPostsPicturesAreCopiedIntoTheArchive(): void {
+		$this->anAccountWithOnePicture();
+		$this->cacheDocumentService->method('getFromUuid')
+			->with(self::UUID)
+			->willReturn($this->storedFile('PICTURE'));
+
+		$archive = $this->export();
+
+		$this->assertSame(
+			'PICTURE',
+			$archive->contents('social/media_attachments/files/12/original.jpg'),
+			"the file itself, under Mastodon's own layout"
+		);
+
+		$outbox = json_decode($archive->contents('social/outbox.json'), true, 512, JSON_THROW_ON_ERROR);
+		$attachment = $outbox['orderedItems'][0]['attachment'][0];
+		$this->assertSame('media_attachments/files/12/original.jpg', $attachment['url']);
+		$this->assertSame(
+			self::MEDIA,
+			$attachment['originalUrl'],
+			'the address it had here is kept, so nothing the archive knew is lost'
+		);
+	}
+
+	public function testAnAttachmentWhoseFileIsGoneKeepsTheUrlItHad(): void {
+		$this->anAccountWithOnePicture();
+		$this->cacheDocumentService->method('getFromUuid')
+			->willThrowException(new NotFoundException('swept away'));
+
+		$archive = $this->export();
+
+		$this->assertSame([], array_filter(
+			$archive->paths(),
+			static fn (string $path): bool => str_contains($path, 'media_attachments')
+		));
+
+		$outbox = json_decode($archive->contents('social/outbox.json'), true, 512, JSON_THROW_ON_ERROR);
+		$attachment = $outbox['orderedItems'][0]['attachment'][0];
+		$this->assertSame(self::MEDIA, $attachment['url'], 'a file that is not here cannot be pointed at');
+		$this->assertArrayNotHasKey('originalUrl', $attachment);
+	}
+
+	/**
+	 * The banner is this app's own picture. The avatar of a local account is
+	 * the Nextcloud account's — core's migrator carries that one — so it is
+	 * not copied a second time.
+	 */
+	public function testTheProfileBannerTravelsAndTheNextcloudAvatarDoesNot(): void {
+		$alice = $this->alice();
+		$alice->setHeader(self::MEDIA);
+		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$this->followsRequest->method('getFollowingByActorId')->willReturn([]);
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
+		$this->actorRelationRequest->method('getByActor')->willReturn([]);
+		$this->streamRequest->method('getTimeline')->willReturn([]);
+		$this->cacheDocumentService->method('getFromUuid')->willReturn($this->storedFile('BANNER'));
+
+		$archive = $this->export();
+
+		$this->assertSame('BANNER', $archive->contents('social/media_attachments/header.jpg'));
+		$actor = json_decode($archive->contents('social/actor.json'), true, 512, JSON_THROW_ON_ERROR);
+		$this->assertSame('media_attachments/header.jpg', $actor['headerFile']);
+		$this->assertArrayNotHasKey(
+			'avatarFile',
+			$actor,
+			'the picture of a local account belongs to the Nextcloud account, not to this app'
+		);
+	}
+
+	public function testTheEstimatedSizeCountsTheMediaAsWellAsTheText(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->streamRequest->method('countNotesFromActorId')->willReturn(10);
+		$this->followsRequest->method('countFollowing')->willReturn(0);
+		$this->followsRequest->method('countFollowers')->willReturn(0);
+		$this->documentService->method('countStoredCopies')
+			->with('alice')
+			->willReturn(['image/jpeg' => 4, 'video/mp4' => 1]);
+
+		$this->assertGreaterThan(
+			40 * 1024,
+			$this->migrator->getEstimatedExportSize($this->user()),
+			'one video outweighs everything else in the archive put together'
+		);
+	}
+
 	public function testTheEstimatedSizeGrowsWithWhatThereIsToExport(): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->streamRequest->method('countNotesFromActorId')->willReturn(1000);
@@ -512,6 +676,27 @@ class SocialMigratorTest extends TestCase {
 			'indexable' => false,
 			'publicKey' => '-----BEGIN PUBLIC KEY-----AAAA-----END PUBLIC KEY-----',
 		], $overrides));
+	}
+
+	/** An `outbox.json` with one post whose one picture is in the archive. */
+	private function outboxFile(string $path): string {
+		return (string)json_encode([
+			'@context' => 'https://www.w3.org/ns/activitystreams',
+			'id' => self::ALICE . '/outbox',
+			'type' => 'OrderedCollection',
+			'totalItems' => 1,
+			'orderedItems' => [[
+				'id' => 'https://cloud.example/1',
+				'type' => 'Note',
+				'attachment' => [[
+					'type' => 'Document',
+					'mediaType' => 'image/jpeg',
+					'url' => $path,
+					'originalUrl' => self::MEDIA,
+					'name' => 'a cat',
+				]],
+			]],
+		]);
 	}
 
 	private function importing(MigrationArchive $archive): void {
@@ -760,6 +945,133 @@ class SocialMigratorTest extends TestCase {
 		// would point its own followers away from it
 		$this->accountService->expects($this->never())->method('setMovedTo');
 		$this->accountService->expects($this->never())->method('deleteActor');
+
+		$this->importing($archive);
+	}
+
+	/**
+	 * An archive that holds the file and a post this server still has: the
+	 * picture goes back where it was, through the path an upload takes.
+	 */
+	public function testAnAttachmentIsRestoredFromTheArchiveOntoAPostThisServerHas(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/outbox.json', $this->outboxFile('media_attachments/files/12/original.jpg'));
+			$a->put('social/media_attachments/files/12/original.jpg', 'PICTURE');
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$post = $this->noteWithAPicture();
+		$this->streamRequest->method('getStreamById')->willReturn($post);
+		// the row is here and the file is not, which is what an archive is
+		// being read back for
+		$this->cacheDocumentService->method('getFromUuid')
+			->willThrowException(new NotFoundException('swept away'));
+
+		$stored = '';
+		$this->documentService->expects($this->once())
+			->method('storeLocalAttachment')
+			->willReturnCallback(function (
+				$actor, string $tmpPath, string $parentId, string $description, bool $public,
+			) use (&$stored, $post): Document {
+				$stored = (string)file_get_contents($tmpPath);
+				$this->assertSame($post->getId(), $parentId, 'onto the post it belongs to');
+				$this->assertSame('a cat', $description, 'and with the alt text it was written with');
+
+				$document = new Document();
+				$document->setId('https://cloud.example/documents/local/restored');
+				$document->setMediaType('image/jpeg');
+				$document->setLocalCopy(self::UUID);
+
+				return $document;
+			});
+		$this->streamRequest->expects($this->once())->method('setStoredAttachmentCopies');
+
+		$this->importing($archive);
+
+		$this->assertSame('PICTURE', $stored, 'the bytes out of the archive, not a re-fetch');
+		$this->assertStringContainsString('Restored 1 file(s)', $this->output->text());
+	}
+
+	/**
+	 * An archive whose outbox names a file it does not hold — one assembled by
+	 * hand, or written where the file had already been swept away. Nothing is
+	 * invented in its place: the attachment keeps the address it had.
+	 */
+	public function testAnAttachmentWhoseFileIsNotInTheArchiveFallsBackToItsUrl(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/outbox.json', $this->outboxFile('media_attachments/files/12/original.jpg'));
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->streamRequest->method('getStreamById')->willReturn($this->noteWithAPicture());
+		$this->cacheDocumentService->method('getFromUuid')
+			->willThrowException(new NotFoundException('swept away'));
+		$this->documentService->expects($this->never())->method('storeLocalAttachment');
+		$this->streamRequest->expects($this->never())->method('setStoredAttachmentCopies');
+
+		$this->importing($archive);
+
+		$this->assertStringContainsString('1 were not in the archive', $this->output->text());
+	}
+
+	public function testAPostThisServerDoesNotHaveLeavesItsFilesInTheArchive(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/outbox.json', $this->outboxFile('media_attachments/files/12/original.jpg'));
+			$a->put('social/media_attachments/files/12/original.jpg', 'PICTURE');
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->streamRequest->method('getStreamById')
+			->willThrowException(new StreamNotFoundException('not here'));
+		$this->documentService->expects($this->never())->method('storeLocalAttachment');
+
+		$this->importing($archive);
+
+		$this->assertStringContainsString(
+			'1 belong to posts this server does not have',
+			$this->output->text()
+		);
+	}
+
+	/**
+	 * The banner goes back through the path that owns it, so the actor cache
+	 * and the followers are told exactly as they are when it is set by hand.
+	 * The avatar is the Nextcloud account's, and `AvatarService` is what
+	 * decides whether the archived one may be written.
+	 */
+	public function testTheBannerAndTheAvatarAreRestoredThroughTheirOwnPaths(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/actor.json', $this->actorFile([
+				'headerFile' => 'media_attachments/header.jpg',
+				'avatarFile' => 'media_attachments/avatar.jpg',
+			]));
+			$a->put('social/media_attachments/header.jpg', 'BANNER');
+			$a->put('social/media_attachments/avatar.jpg', 'PICTURE');
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+
+		$banner = '';
+		$this->bannerService->expects($this->once())
+			->method('setFromTempFile')
+			->willReturnCallback(function (string $userId, string $tmpPath) use (&$banner) {
+				$banner = (string)file_get_contents($tmpPath);
+
+				return new Image();
+			});
+		$this->avatarService->expects($this->once())
+			->method('restoreFromArchive')
+			->willReturn(false);
+
+		$this->importing($archive);
+
+		$this->assertSame('BANNER', $banner);
+		$this->assertStringContainsString('already has a picture of its own', $this->output->text());
+	}
+
+	public function testAnArchiveWithoutProfilePicturesRestoresNone(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/actor.json', $this->actorFile());
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->bannerService->expects($this->never())->method('setFromTempFile');
+		$this->avatarService->expects($this->never())->method('restoreFromArchive');
 
 		$this->importing($archive);
 	}

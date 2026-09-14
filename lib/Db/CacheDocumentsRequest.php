@@ -330,6 +330,41 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/**
+	 * How many stored copies an account has of its own files, by media type.
+	 *
+	 * One grouped count rather than a walk: the caller is an export size
+	 * estimate, which runs before anything is read and must not cost a query per
+	 * file. `account` is only ever set on what this instance stored for a local
+	 * user -- an upload from the composer and a profile banner -- so this counts
+	 * the user's own media and nothing federated.
+	 *
+	 * @return array<string, int> media type => how many rows
+	 */
+	public function countLocalCopiesByType(string $account): array {
+		if ($account === '') {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->select('media_type')
+			->selectAlias($qb->createFunction('COUNT(*)'), 'count')
+			->from(self::TABLE_CACHE_DOCUMENTS)
+			->where($expr->eq('account', $qb->createNamedParameter($account)))
+			->andWhere($expr->neq('local_copy', $qb->createNamedParameter('')))
+			->groupBy('media_type');
+
+		$counts = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$counts[(string)$data['media_type']] = (int)$data['count'];
+		}
+		$cursor->closeCursor();
+
+		return $counts;
+	}
+
+	/**
 	 * @return Document[]
 	 * @throws Exception
 	 */
