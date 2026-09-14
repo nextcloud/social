@@ -20,12 +20,14 @@ const ROW_HEIGHT = 44
  * New post button, the six entries above, the Explore row itself, the spacers
  * and the account footer.
  *
- * Measured rather than derived, because the parts are not all rows and a
- * formula over them would be a second copy of the template that has to be
- * kept in step with it. A number that is a little too large costs one entry;
- * one that is too small costs a scrollbar, which is what this exists to avoid.
+ * Measured against the running app rather than derived, because the parts are
+ * not all rows and a formula over them would be a second copy of the template
+ * that has to be kept in step with it. A number that is a little too large
+ * costs one entry; one that is too small puts the last entry under the account
+ * footer, which is what this exists to avoid — the first value tried was 430
+ * and did exactly that at 720px.
  */
-const RESERVED_HEIGHT = 430
+const RESERVED_HEIGHT = 544
 
 /** Never more than this, however tall the screen. */
 export const MAX_ENTRIES = 12
