@@ -1,0 +1,136 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The browser tests: a throwaway Nextcloud with this app installed, driven by
+# Playwright the way a person would drive it. The unit and integration suites
+# cannot see a page that stays empty; this can. See tests/e2e/.
+
+name: Browser tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    name: Playwright against Nextcloud stable35
+
+    steps:
+      - name: Set app env
+        run: echo "APP_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Checkout server
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: true
+          repository: nextcloud/server
+          ref: stable35
+
+      - name: Checkout app
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          path: apps/${{ env.APP_NAME }}
+
+      - name: Set up php
+        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231 # v2.31.1
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          coverage: none
+          ini-file: development
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up the app's PHP dependencies
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer i --no-dev
+
+      - name: Set up Nextcloud
+        env:
+          OC_PASS: Browser-Test-2026!
+        run: |
+          mkdir data
+          ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud --admin-user admin --admin-pass admin
+          ./occ app:enable --force ${{ env.APP_NAME }}
+          # a second account and a group, so the group list has somebody in it
+          ./occ user:add --password-from-env --display-name "Bob" bob
+          ./occ group:add design
+          ./occ group:adduser design admin
+          ./occ group:adduser design bob
+          ./occ config:system:set trusted_domains 1 --value localhost:8080
+          ./occ config:system:set overwrite.cli.url --value http://localhost:8080
+          # the app's own idea of where it lives; the setup page writes these on
+          # a real instance, and everything from actor creation to a timeline
+          # read throws without them (tests/Integration/bootstrap.php does the same)
+          ./occ config:app:set social cloud_url --value http://localhost:8080
+          ./occ config:app:set social social_url --value http://localhost:8080/index.php/apps/social/
+          # the instance has to be allowed to talk to itself: with the built-in
+          # server it is `localhost`, which the HTTP client refuses by default
+          ./occ config:system:set allow_local_remote_servers --value true --type boolean
+
+      - name: Run Nextcloud
+        # several workers, not the default one: rendering the app makes the
+        # server fetch its own avatar route over HTTP, and a single-worker
+        # built-in server deadlocks on that until the ten-second timeout, so
+        # every page came out as a 500
+        run: PHP_CLI_SERVER_WORKERS=8 php -S localhost:8080 &
+
+      - name: Read package.json node and npm engines version
+        uses: skjnldsv/read-package-engines-version-actions@06d6baf7d8f41934ab630e97d9e6c0bc9c9ac5e4 # v3
+        id: versions
+        with:
+          path: apps/${{ env.APP_NAME }}
+          fallbackNode: '^20'
+          fallbackNpm: '^10'
+
+      - name: Set up node ${{ steps.versions.outputs.nodeVersion }}
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with:
+          node-version: ${{ steps.versions.outputs.nodeVersion }}
+
+      - name: Set up npm ${{ steps.versions.outputs.npmVersion }}
+        run: npm i -g 'npm@${{ steps.versions.outputs.npmVersion }}'
+
+      - name: Install the test runner
+        working-directory: apps/${{ env.APP_NAME }}
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        working-directory: apps/${{ env.APP_NAME }}
+        env:
+          E2E_BASE_URL: http://localhost:8080
+          # not the admin: for an admin the app first runs its setup check, and
+          # the WebFinger probe cannot pass behind PHP's built-in server (no
+          # .well-known rewrite), so the admin would see the setup page and no
+          # sidebar. A plain account gets the app.
+          E2E_USER: bob
+          E2E_PASSWORD: Browser-Test-2026!
+          E2E_GROUP: design
+        run: npm run test:e2e
+
+      - name: Keep the report when something failed
+        if: failure()
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: playwright-report
+          # relative to the config file, tests/e2e/playwright.config.mjs
+          path: |
+            apps/${{ env.APP_NAME }}/tests/e2e/playwright-report
+            apps/${{ env.APP_NAME }}/tests/e2e/test-results
+          retention-days: 7
+
+      - name: Print the server log
+        if: failure()
+        run: cat data/nextcloud.log
