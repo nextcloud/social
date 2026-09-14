@@ -153,6 +153,15 @@
 							{{ t('social', 'Nobody by that name.') }}
 						</p>
 					</div>
+					<!-- A group list has no box to type in, because its members
+					     are whoever is in the Nextcloud group: anything added
+					     here would be taken away again the next time the group
+					     changed. Saying so is the point — without it the panel
+					     is a list of people with no way to add one and no
+					     reason given. -->
+					<p v-else class="lists-settings__hint">
+						{{ t('social', 'Who is in this list follows the “{group}” group in Nextcloud. Add or remove people there and this list follows.', { group: list.nextcloud_group }) }}
+					</p>
 				</div>
 			</li>
 		</ul>

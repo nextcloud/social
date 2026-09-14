@@ -239,6 +239,33 @@ describe('ListsSettings', () => {
 		expect(wrapper.find('.lists-settings__member button').exists()).toBe(false)
 	})
 
+	/**
+	 * Without this the panel is a list of people with no way to add one and no
+	 * reason given, which reads as a broken autocomplete rather than as a list
+	 * the group owns.
+	 */
+	it('says where the members of a group list come from, since they cannot be edited here', async () => {
+		const wrapper = await mountLists([list('2', 'Design', { nextcloud_group: 'design' })])
+		const row = rowFor(wrapper, 'Design')
+
+		axios.get.mockResolvedValue({ data: [bob] })
+		await row.findAll('button').find((b) => b.text() === 'Members').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.text()).toContain('“design” group in Nextcloud')
+	})
+
+	it('offers the box to type in on a list the reader made themselves', async () => {
+		const wrapper = await mountLists([list('1', 'Book club')])
+		axios.get.mockResolvedValue({ data: [] })
+
+		await rowFor(wrapper, 'Book club').findAll('button').find((b) => b.text() === 'Members').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.find('.lists-settings__add').exists()).toBe(true)
+		expect(wrapper.text()).not.toContain('group in Nextcloud')
+	})
+
 	it('tells the sidebar whenever the lists have changed', async () => {
 		const heard = vi.fn()
 		eventBus.on(LISTS_CHANGED, heard)
