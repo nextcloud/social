@@ -17,13 +17,16 @@ None of these are OCS routes: `#[ApiRoute]` would put them under `/ocsapp`, whic
 
 `GET /api/v1/accounts/{id}` is the one route still declared in `appinfo/routes.php`. Its `{id}` accepts slashes, so it also matches `/api/v1/accounts/{account}/lists` and `/api/v1/accounts/{account}/featured_tags`, and it has to be offered to the matcher after them; those two belong to other controllers, and attribute routes are contributed one controller at a time in filesystem order. The array file is loaded after every attribute route of the app, which is the guarantee that route needs.
 
-### Deprecated: the superseded half of the Custom Local API
+### Removed: the superseded half of the Custom Local API
 
-The Custom Local API predates the Mastodon-compatible one, and the frontend has
-moved off most of it. Eighteen of `LocalController`'s thirty-one routes now have
-no caller anywhere in `src/`:
+The Custom Local API predates the Mastodon-compatible one, and the frontend
+moved off most of it. Nineteen of `LocalController`'s thirty-one routes had no
+caller anywhere in `src/` and were documented here as deprecated for a release;
+**as of 0.19.39 they are gone**, and with them the `getStream*()` /
+`getTimeline*_dep()` query layer that only they used. A caller of one of these
+gets a 404 and should move to the Mastodon route beside it:
 
-| Deprecated | Use instead |
+| Removed | Use instead |
 |---|---|
 | `GET /api/v1/stream/home` | `GET /api/v1/timelines/home` |
 | `GET /api/v1/stream/timeline` | `GET /api/v1/timelines/public?local=true` |
@@ -32,6 +35,7 @@ no caller anywhere in `src/`:
 | `GET /api/v1/stream/direct` | `GET /api/v1/conversations` |
 | `GET /api/v1/stream/liked` | `GET /api/v1/favourites` |
 | `GET /api/v1/stream/notifications` | `GET /api/v1/notifications` |
+| `GET /api/v1/account/{username}/stream` | `GET /api/v1/accounts/{account}/statuses` |
 | `GET /local/v1/post`, `GET /local/v1/post/replies` | `GET /api/v1/statuses/{nid}`, `…/context` |
 | `POST`/`DELETE /api/v1/post/like` | `POST /api/v1/statuses/{nid}/favourite`, `…/unfavourite` |
 | `GET /api/v1/current/info` | `GET /api/v1/accounts/verify_credentials` |
@@ -41,15 +45,10 @@ no caller anywhere in `src/`:
 | `PUT /api/v1/account/summary` | `PATCH /api/v1/accounts/update_credentials` |
 | `GET /local/v1/search` | `GET /api/v2/search` |
 
-They still work and are still listed in the tables below. They are documented as
-deprecated rather than removed because they are a published surface; nothing in
-this app calls them, so the replacement column is what a caller should move to.
-
-The thirteen that the frontend still uses -- the banner uploads, the
+The twelve that the frontend still uses -- the banner uploads, the
 `global/account` and `global/tags` searches, the profile field and avatar
-endpoints, `POST`/`DELETE /api/v1/post`, `/api/v1/current/follow` and
-`/api/v1/account/{username}/stream` -- have no Mastodon equivalent yet and are
-not deprecated.
+endpoints, `POST`/`DELETE /api/v1/post` and `/api/v1/current/follow` -- have no
+Mastodon equivalent yet and stay.
 
 
 ---
@@ -126,7 +125,7 @@ A `Relationship` carries `id` as a **string**, like every other id on the wire: 
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| GET | `/api/v1/search` | public, no-csrf (viewer required) | `q` (required), `type`, `limit` (20, capped at 40), `resolve` | Mastodon's v1 search; identical to `/api/v2/search`, which it delegates to. This path used to be the app's own web-UI search, which answered a client with a Nextcloud envelope and a `content` key — a 200 a client could make nothing of. That search moved to `/local/v1/search`. |
+| GET | `/api/v1/search` | public, no-csrf (viewer required) | `q` (required), `type`, `limit` (20, capped at 40), `resolve` | Mastodon's v1 search; identical to `/api/v2/search`, which it delegates to. This path used to be the app's own web-UI search, which answered a client with a Nextcloud envelope and a `content` key — a 200 a client could make nothing of. That search moved to `GET /local/v1/search`. |
 | GET | `/api/v2/search` | public, no-csrf (viewer required) | `q` (required), `type` (`accounts`/`statuses`/`hashtags`, empty = all), `limit` (20, capped at 40), `resolve` | Mastodon's search entity: `accounts` (URI + name search over cached actors), `statuses` (the viewer-bounded full-text search), `hashtags` (Tag entities with an empty `history`). `resolve` asks the server to go and get something it has never seen, which is how a reader who pasted a link to a remote post can reply to it or boost it here at all. It only ever fires for a `q` that is an `http(s)` address and only when the local search found nothing; the document fetched has to claim the very address it was fetched from (a document is evidence about itself and nothing else) and has to be a `Note` or a `Question`, or it is refused and the answer is empty. The author is cached before the post is stored, so it renders as theirs. An account named by its actor URL is resolved whether or not `resolve` is set — that predates this parameter. The route requires a viewer, so no anonymous caller can use it to make this instance fetch for them, and it is rate-limited both per user and per anonymous caller. Pagination offsets are accepted but ignored. Rate-limited per user and per anonymous caller. |
 
 ### Statuses
@@ -507,7 +506,6 @@ Every key of a `MediaAttachment` is always present, `null` when there is nothing
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| GET | `/local/v1/search` | user, no-csrf | `search` (required) | `{"result": {"accounts": [...], "hashtags": [...], "content": [...]}, "status": 1}` — the app's own web-UI search. It used to sit on `/api/v1/search`, where a Mastodon client got a 200 in a shape it could make nothing of; that path is now Mastodon's v1 search. The app's frontend does not call this route: `Search.vue` uses `/api/v2/search`. |
 | GET | `/api/v1/global/accounts/search` | user | `search` (required) | `{"result": {"accounts": [...], "exact": <actor or null>}, "status": 1}`. A leading `@` is stripped; an empty query returns empty lists. |
 | GET | `/api/v1/global/tags/search` | user | `search` (required) | `{"result": {"tags": [...], "exact": <tag or null>}, "status": 1}`. A leading `#` is stripped. |
 
@@ -534,31 +532,12 @@ Link: <https://cloud.example/index.php/apps/social/api/v1/timelines/home?limit=2
 
 These endpoints exist to serve the app's own Vue frontend. They are session-authenticated only, mostly wrap their payload in the `{"result": …, "status": 1}` envelope, and are not part of any Mastodon client contract.
 
-### Streams
-
-All eight take `since` (int, 0) and `limit` (int, 5) and return `{"result": [statuses], "status": 1}`.
-
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| GET | `/api/v1/stream/home` | user, no-csrf | Posts from accounts the viewer follows. |
-| GET | `/api/v1/stream/notifications` | user, no-csrf | Notification stream. |
-| GET | `/api/v1/stream/timeline` | user, no-csrf | Local timeline. |
-| GET | `/api/v1/stream/federated` | user | Global/federated timeline. |
-| GET | `/api/v1/stream/direct` | user, no-csrf | Direct messages. |
-| GET | `/api/v1/stream/liked` | user | Posts the viewer liked. |
-| GET | `/api/v1/stream/tag/{hashtag}/` | user | Local posts for `{hashtag}`. |
-| GET | `/api/v1/account/{username}/stream` | user, public | Posts of `{username}` (remote timeline synced first, at most 20 entries of the outbox page the remote server returns). `{username}` accepts slashes (`requirements: .+`). It also names the server that is fetched, and the route is public, so it is rate-limited: 30 per minute anonymously, 300 per minute per user. |
-
 ### Posts
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| GET | `/local/v1/post` | user, public, no-csrf | `id` (required, ActivityPub id) | One post, returned **unwrapped** (`directSuccess()`). |
-| GET | `/local/v1/post/replies` | user, no-csrf | `id` (required), `since` (0), `limit` (5) | Replies to a post, wrapped in `result`. |
 | POST | `/api/v1/post` | user | `content` (`''`), `to` (array), `type` (default `public`), `replyTo` (`''`), `attachments` (mixed, default `[]`), `hashtags` (array), `poll` (object, optional), `spoilerText` (`''`, the content warning) | Creates a post. Returns `{"result": {"post": <object>, "token": "<request token>"}, "status": 1}`. |
 | DELETE | `/api/v1/post` | user | `id` (required) | Deletes an own post; `{"result": [], "status": 1}`. Rejects posts not attributed to the caller. |
-| POST | `/api/v1/post/like` | user | `postId` (required) | Likes a post; `{"result": {"like": <activity>, "token": "…"}, "status": 1}`. |
-| DELETE | `/api/v1/post/like` | user | `postId` (required) | Removes the like; same shape. |
 
 Boosting from a client goes through `POST /api/v1/statuses/{nid}/{act}` with `reblog`.
 
@@ -566,11 +545,7 @@ Boosting from a client goes through `POST /api/v1/statuses/{nid}/{act}` with `re
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| GET | `/api/v1/current/info` | user | — | `{"result": {"account": <Person>}, "status": 1}`; refreshes the local actor cache first. |
-| GET | `/api/v1/current/followers` | user | — | `{"result": [actors], "status": 1}`. At most 500 of them: the route takes no cursor, so there is nothing to page with, and an account with more followers than that would otherwise load every one of them into a single request. Superseded by `/api/v1/accounts/{account}/followers`, which pages. |
-| GET | `/api/v1/current/following` | user | — | `{"result": [actors], "status": 1}`. |
 | PUT | `/api/v1/account/fields` | user | `fields` (list of `{name, value}`) | Replaces the profile metadata fields (at most four name/value pairs; entries with an empty half are dropped, names capped at 255 and values at 500 characters). Federated as `PropertyValue` attachments on the actor. `{"result": {"account": <Person>}, "status": 1}`. |
-| PUT | `/api/v1/account/summary` | user | `summary` (string, default `''`) | Replaces the bio. It is stored as **plain text, exactly as it was typed**, and cut to 500 characters (Mastodon's limit), counted in characters rather than bytes. Nothing is stripped on the way in: every path that renders it escapes it, so a stripping pass had nothing to protect and a great deal to break — `strip_tags()` reads a bare `<` as the start of a tag and eats the rest of the line, which turned `Maths: a<b and b>c` into `Maths: ac`. The actor document carries it as HTML in `summary`, the account entity as HTML in `note` and as the stored plain text in `source.note`, and an `Update{Person}` goes out to the followers. `{"result": {"account": <Person>}, "status": 1}`. |
 | PUT | `/api/v1/current/follow` | user | `account` (required) | Follows an account; `{"result": [], "status": 1}`. |
 | DELETE | `/api/v1/current/follow` | user | `account` (required) | Unfollows an account; `{"result": [], "status": 1}`. |
 
@@ -580,9 +555,7 @@ Boosting from a client goes through `POST /api/v1/statuses/{nid}/{act}` with `re
 |--------|-------|------|------------|-------------|
 | GET | `/api/v1/account/{username}/info` | user, public | — | Local account with complete details, returned **unwrapped** as a `Person`; rebuilds the actor cache if it is missing. |
 | GET | `/api/v1/global/account/info` | user, public | `account` (required, e.g. `user` or `user@domain`) | Local or remote account, returned **unwrapped**. A leading `@` is stripped; remote accounts get follower/following/post counts fetched. A local actor is created on demand only when the logged-in viewer asks about their **own** account — the route is public, so creating for anyone would let anonymous visitors force a Fediverse identity onto any Nextcloud user. Rate-limited: 10 per five minutes anonymously, 120 per minute per user, because a handle this instance has never seen costs a host-meta, a WebFinger and four signed actor fetches against a host the caller names. |
-| GET | `/api/v1/global/actor/info` | user, public | `id` (required, ActivityPub actor id) | `{"result": {"actor": <Person>}, "status": 1}`. |
 | GET | `/api/v1/global/actor/avatar` | user, public, no-csrf | `id` (required) | Streams the cached avatar with a 24 h cache header; 404 (envelope shape) when the actor has no icon. |
-| GET | `/api/v1/global/actor/header` | user, public, no-csrf | `id` (required) | HTTP **redirect** to the actor's header URL, 24 h cache; 404 when unset. |
 
 The followers and following lists of an arbitrary account are reachable through the Mastodon-compatible `/api/v1/accounts/{account}/followers` and `/api/v1/accounts/{account}/following`.
 

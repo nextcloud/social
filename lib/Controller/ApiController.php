@@ -2199,7 +2199,7 @@ class ApiController extends Controller {
 	 * Nextcloud envelope, `content` where a client looks for `statuses`, `search=`
 	 * where a client sends `q=`, and no bearer token accepted — so a client got
 	 * a 200 it could make no sense of, which is worse than a 404. The web UI's
-	 * own search now lives at `/local/v1/search`, beside its siblings.
+	 * own search goes through `/api/v2/search` like any client's.
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]

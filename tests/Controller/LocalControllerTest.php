@@ -17,7 +17,6 @@ use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -37,7 +36,6 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LikeService;
-use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
@@ -47,7 +45,6 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
-use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IRequest;
@@ -163,15 +160,9 @@ class LocalControllerTest extends TestCase {
 			$this->followService,
 			$this->postService,
 			$this->streamService,
-			$this->searchService,
-			$this->boostService,
-			$this->likeService,
 			$this->documentService,
-			$this->createMock(MiscService::class),
 			$this->configService,
 			new NullLogger(),
-			$this->actorService,
-			$this->activityService,
 			$this->cacheDocumentService,
 			$this->bannerService
 		);
@@ -325,40 +316,7 @@ class LocalControllerTest extends TestCase {
 		$this->assertFailure($this->controller()->postCreate('x'), \RuntimeException::class, 'cannot post');
 	}
 
-	// postGet() / postReplies() / postDelete()
-
-	public function testPostGetReturnsTheStreamDirectly(): void {
-		$this->actorForUser();
-		$stream = $this->createMock(Stream::class);
-		$this->streamService->method('getStreamById')->with('https://x/n/1', true)->willReturn($stream);
-
-		$response = $this->controller()->postGet('https://x/n/1');
-
-		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame($stream, $response->getData());
-	}
-
-	public function testPostGetWorksAnonymously(): void {
-		$stream = $this->createMock(Stream::class);
-		$this->streamService->method('getStreamById')->willReturn($stream);
-		$this->accountService->expects($this->never())->method('getActorFromUserId');
-
-		$this->assertSame($stream, $this->controller(null)->postGet('https://x/n/1')->getData());
-	}
-
-	public function testPostGetOfUnknownStreamFails(): void {
-		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
-
-		$this->assertFailure($this->controller(null)->postGet('https://x/n/404'), StreamNotFoundException::class);
-	}
-
-	public function testPostRepliesPassPagination(): void {
-		$this->actorForUser();
-		$this->streamService->expects($this->once())->method('getRepliesByParentId')
-			->with('https://x/n/1', 100, 20, true)->willReturn(['r']);
-
-		$this->assertSuccess($this->controller()->postReplies('https://x/n/1', 100, 20), ['r']);
-	}
+	// postDelete()
 
 	public function testPostDeleteRemovesTheUsersOwnNote(): void {
 		$this->actorForUser();
@@ -384,44 +342,6 @@ class LocalControllerTest extends TestCase {
 		$this->streamService->expects($this->never())->method('getStreamById');
 
 		$this->assertNotLoggedIn($this->controller(null)->postDelete('https://x/n/1'));
-	}
-
-	// like / boost
-
-	/** @return iterable<string, array{string, string, string, string}> */
-	public static function reactions(): iterable {
-		yield 'like' => ['postLike', 'likeService', 'create', 'like'];
-		yield 'unlike' => ['postUnlike', 'likeService', 'delete', 'like'];
-	}
-
-	#[DataProvider('reactions')]
-	public function testReactionsAreCreatedForTheViewer(string $action, string $service, string $method, string $key): void {
-		$viewer = $this->actorForUser();
-		$activity = $this->createMock(ACore::class);
-		$this->$service->expects($this->once())->method($method)
-			->willReturnCallback(function (Person $actor, string $postId, string &$token) use ($viewer, $activity): ACore {
-				$this->assertSame($viewer, $actor);
-				$this->assertSame('https://x/n/1', $postId);
-				$token = 'tok';
-
-				return $activity;
-			});
-
-		$this->assertSuccess($this->controller()->$action('https://x/n/1'), [$key => $activity, 'token' => 'tok']);
-	}
-
-	#[DataProvider('reactions')]
-	public function testReactionsRequireALoggedInUser(string $action, string $service, string $method): void {
-		$this->$service->expects($this->never())->method($method);
-
-		$this->assertFailure($this->controller(null)->$action('https://x/n/1'), AccountDoesNotExistException::class, 'userId not defined');
-	}
-
-	public function testReactionFailuresAreReported(): void {
-		$this->actorForUser();
-		$this->likeService->method('create')->willThrowException(new StreamNotFoundException('no such post'));
-
-		$this->assertFailure($this->controller()->postLike('https://x/n/404'), StreamNotFoundException::class, 'no such post');
 	}
 
 	// follow / unfollow
@@ -465,110 +385,7 @@ class LocalControllerTest extends TestCase {
 
 	// stream*()
 
-	/** @return iterable<string, array{string, array, string, array}> */
-	public static function streams(): iterable {
-		yield 'home' => ['streamHome', [10, 25], 'getStreamHome', [10, 25]];
-		yield 'notifications' => ['streamNotifications', [3, 7], 'getStreamNotifications', [3, 7]];
-		yield 'direct' => ['streamDirect', [1, 2], 'getStreamDirect', [1, 2]];
-		yield 'local timeline' => ['streamTimeline', [5, 15], 'getStreamLocalTimeline', [5, 15]];
-		yield 'tag' => ['streamTag', ['nextcloud', 4, 8], 'getStreamLocalTag', ['nextcloud', 4, 8]];
-		yield 'federated' => ['streamFederated', [9, 9], 'getStreamGlobalTimeline', [9, 9]];
-		yield 'liked' => ['streamLiked', [0, 5], 'getStreamLiked', [0, 5]];
-	}
-
-	#[DataProvider('streams')]
-	public function testStreamEndpointsPassSinceAndLimitToTheService(string $action, array $args, string $method, array $expected): void {
-		$viewer = $this->actorForUser();
-		$this->streamService->expects($this->once())->method('setViewer')->with($viewer);
-		$posts = [$this->createMock(Stream::class)];
-		$this->streamService->expects($this->once())->method($method)->with(...$expected)->willReturn($posts);
-
-		$this->assertSuccess($this->controller()->$action(...$args), $posts);
-	}
-
-	#[DataProvider('streams')]
-	public function testStreamEndpointsRequireALoggedInUser(string $action, array $args, string $method): void {
-		$this->streamService->expects($this->never())->method($method);
-
-		$this->assertFailure($this->controller(null)->$action(...$args), AccountDoesNotExistException::class, 'userId not defined');
-	}
-
-	public function testStreamEndpointsFailWhenTheViewerCannotBeResolved(): void {
-		$this->accountService->method('getActorFromUserId')->willThrowException(new AccountDoesNotExistException('no actor'));
-
-		$response = $this->controller()->streamHome();
-
-		$this->assertFailure($response, AccountDoesNotExistException::class);
-	}
-
-	public function testStreamAccountSyncsTheRemoteTimelineFirst(): void {
-		$account = $this->createMock(Person::class);
-		$account->method('getId')->willReturn('https://remote.example/users/bob');
-		$this->cacheActorService->method('getFromAccount')->with('bob@remote.example')->willReturn($account);
-		$this->streamService->expects($this->once())->method('syncRemoteTimeline')->with($account);
-		$this->streamService->expects($this->once())->method('getStreamAccount')
-			->with('https://remote.example/users/bob', 2, 6)->willReturn(['p']);
-
-		$this->assertSuccess($this->controller(null)->streamAccount('bob@remote.example', 2, 6), ['p']);
-	}
-
 	// current* / account* / global*
-
-	public function testCurrentInfoRefreshesAndReturnsTheCachedActor(): void {
-		$this->actorForUser();
-		$cached = $this->createMock(Person::class);
-		$this->accountService->expects($this->once())->method('cacheLocalActorByUsername')->with('alice');
-		$this->cacheActorService->method('getFromLocalAccount')->with('alice')->willReturn($cached);
-
-		$this->assertSuccess($this->controller()->currentInfo(), ['account' => $cached]);
-	}
-
-	public function testCurrentInfoRequiresALoggedInUser(): void {
-		$this->assertNotLoggedIn($this->controller(null)->currentInfo());
-	}
-
-	public function testAccountSummaryStoresTheBioAndReturnsTheRefreshedAccount(): void {
-		$this->actorForUser();
-		$cached = $this->createMock(Person::class);
-		$this->accountService->expects($this->once())->method('setSummary')
-			->with('alice', 'I keep bees.');
-		$this->cacheActorService->method('getFromLocalAccount')->with('alice')->willReturn($cached);
-
-		$this->assertSuccess(
-			$this->controller()->accountSummary('I keep bees.'),
-			['account' => $cached]
-		);
-	}
-
-	public function testAccountSummaryRequiresALoggedInUser(): void {
-		$this->accountService->expects($this->never())->method('setSummary');
-
-		$this->assertNotLoggedIn($this->controller(null)->accountSummary('I keep bees.'));
-	}
-
-	public function testAccountSummaryReportsServiceFailures(): void {
-		$this->actorForUser();
-		$this->accountService->method('setSummary')
-			->willThrowException(new InvalidResourceException('nope'));
-
-		$this->assertFailure(
-			$this->controller()->accountSummary('I keep bees.'), InvalidResourceException::class
-		);
-	}
-
-	public function testCurrentFollowersAndFollowingListTheUsersRelations(): void {
-		$actor = $this->actorForUser();
-		$this->followService->method('getFollowers')->with($actor)->willReturn(['f1']);
-		$this->followService->method('getFollowing')->with($actor)->willReturn(['f2']);
-
-		$this->assertSuccess($this->controller()->currentFollowers(), ['f1']);
-		$this->assertSuccess($this->controller()->currentFollowing(), ['f2']);
-	}
-
-	public function testCurrentFollowersRequireALoggedInUser(): void {
-		$this->assertNotLoggedIn($this->controller(null)->currentFollowers());
-		$this->assertNotLoggedIn($this->controller(null)->currentFollowing());
-	}
 
 	public function testAccountInfoReturnsTheCompleteLocalActor(): void {
 		$actor = $this->createMock(Person::class);
@@ -667,29 +484,16 @@ class LocalControllerTest extends TestCase {
 		$this->assertFailure($this->controller(null)->globalAccountInfo('ghost@remote.example'), CacheActorDoesNotExistException::class);
 	}
 
-	public function testGlobalActorInfoLooksUpAnActorThisInstanceKnows(): void {
-		$actor = $this->createMock(Person::class);
-		$this->localActors['https://remote.example/users/bob'] = $actor;
-		$this->cacheActorService->expects($this->never())->method('getFromId');
-
-		$this->assertSuccess($this->controller(null)->globalActorInfo('https://remote.example/users/bob'), ['actor' => $actor]);
-	}
-
-	public function testGlobalActorInfoOfUnknownIdFails(): void {
-		$this->cacheActorService->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
-
-		$this->assertFailure($this->controller('alice')->globalActorInfo('https://x'), CacheActorDoesNotExistException::class);
-	}
+	// knownActor(), through the one public route left on it: the avatar
 
 	public function testAnAnonymousCallerCannotMakeTheInstanceResolveAnUnknownActor(): void {
 		// resolving an id fetches whatever url it names and downloads the
 		// actor's icon: not something anybody may trigger without a session
 		$this->cacheActorService->expects($this->never())->method('getFromId');
 
-		$this->assertFailure(
-			$this->controller(null)->globalActorInfo('https://evil.test/a/1'),
-			CacheActorDoesNotExistException::class, 'unknown actor'
-		);
+		$response = $this->controller(null)->globalActorAvatar('https://evil.test/a/1');
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 	}
 
 	public function testALoggedInCallerStillResolvesAnUnknownActor(): void {
@@ -697,20 +501,19 @@ class LocalControllerTest extends TestCase {
 		$this->cacheActorService->expects($this->once())->method('getFromId')
 			->with('https://remote.example/users/new')->willReturn($actor);
 
-		$this->assertSuccess(
-			$this->controller('alice')->globalActorInfo('https://remote.example/users/new'),
-			['actor' => $actor]
-		);
+		// resolved -- and then a 404 for the avatar it does not have, which is
+		// the route's answer and not a refusal to look
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller('alice')->globalActorAvatar('https://remote.example/users/new')->getStatus());
 	}
 
 	public function testTheKeyFragmentIsNotPartOfTheActorId(): void {
-		$actor = $this->createMock(Person::class);
-		$this->localActors['https://remote.example/users/bob'] = $actor;
+		// a keyId names the actor plus `#main-key`; the actor is found by the
+		// id alone, from the cache, without asking the network for the fragment
+		$this->localActors['https://remote.example/users/bob'] = $this->createMock(Person::class);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
 
-		$this->assertSuccess(
-			$this->controller(null)->globalActorInfo('https://remote.example/users/bob#main-key'),
-			['actor' => $actor]
-		);
+		$this->controller('alice')->globalActorAvatar('https://remote.example/users/bob#main-key');
+		$this->addToAssertionCount(1);
 	}
 
 	// avatar / header
@@ -764,66 +567,6 @@ class LocalControllerTest extends TestCase {
 		);
 	}
 
-	public function testGlobalActorHeaderRedirectsToTheHeaderImage(): void {
-		\OC::$server->register(ITimeFactory::class, $this->createMock(ITimeFactory::class));
-		$actor = $this->createMock(Person::class);
-		$actor->method('getHeader')->willReturn('https://remote.example/header.jpg');
-		$this->localActors['https://x'] = $actor;
-
-		$response = $this->controller(null)->globalActorHeader('https://x');
-
-		$this->assertInstanceOf(RedirectResponse::class, $response);
-		$this->assertSame('https://remote.example/header.jpg', $response->getRedirectURL());
-		$this->assertStringContainsString('max-age=86400', $response->getHeaders()['Cache-Control']);
-	}
-
-	public function testGlobalActorHeaderPrefersTheCopyThisInstanceHolds(): void {
-		\OC::$server->register(ITimeFactory::class, $this->createMock(ITimeFactory::class));
-		$actor = $this->createMock(Person::class);
-		$actor->method('getHeader')->willReturn('https://remote.example/header.jpg');
-		$this->localActors['https://x'] = $actor;
-		$file = $this->createMock(ISimpleFile::class);
-		$file->method('getName')->willReturn('header');
-		$this->cachedRemoteFiles['https://remote.example/header.jpg'] = $file;
-
-		$response = $this->controller(null)->globalActorHeader('https://x');
-
-		$this->assertInstanceOf(FileDisplayResponse::class, $response);
-		$this->assertSame('image/jpeg', $response->getHeaders()['Content-Type']);
-	}
-
-	#[DataProvider('provideUnusableHeaderAddresses')]
-	public function testGlobalActorHeaderRefusesAnAddressThatIsNotWebContent(string $header): void {
-		// the value is remote JSON, and this route answers from the origin the
-		// user trusts: it must not become a redirect to anywhere at all
-		$actor = $this->createMock(Person::class);
-		$actor->method('getHeader')->willReturn($header);
-		$this->localActors['https://x'] = $actor;
-
-		$this->assertFailure(
-			$this->controller(null)->globalActorHeader('https://x'),
-			InvalidResourceException::class, 'unsupported header address', Http::STATUS_NOT_FOUND
-		);
-	}
-
-	public static function provideUnusableHeaderAddresses(): iterable {
-		yield 'javascript' => ['javascript:alert(1)'];
-		yield 'data' => ['data:text/html;base64,PHNjcmlwdD4='];
-		yield 'file' => ['file:///etc/passwd'];
-		yield 'scheme-relative' => ['//evil.test/header.jpg'];
-	}
-
-	public function testGlobalActorHeaderIs404WithoutHeader(): void {
-		$actor = $this->createMock(Person::class);
-		$actor->method('getHeader')->willReturn('');
-		$this->localActors['https://x'] = $actor;
-
-		$this->assertFailure(
-			$this->controller(null)->globalActorHeader('https://x'),
-			InvalidResourceException::class, 'no header for this Actor', Http::STATUS_NOT_FOUND
-		);
-	}
-
 	// search
 
 	public function testGlobalAccountsSearchWithEmptyTermIsEmpty(): void {
@@ -865,17 +608,6 @@ class LocalControllerTest extends TestCase {
 		$this->assertSuccess(
 			$this->controller(null)->globalTagsSearch('#nextcloud'),
 			['tags' => ['t1'], 'exact' => ['hashtag' => 'nextcloud']]
-		);
-	}
-
-	public function testSearchTrimsTheTermAndQueriesAllKinds(): void {
-		$this->searchService->method('searchAccounts')->with('term')->willReturn(['a']);
-		$this->searchService->method('searchHashtags')->with('term')->willReturn(['h']);
-		$this->searchService->method('searchStreamContent')->with('term')->willReturn(['c']);
-
-		$this->assertSuccess(
-			$this->controller(null)->search('  term '),
-			['accounts' => ['a'], 'hashtags' => ['h'], 'content' => ['c']]
 		);
 	}
 
@@ -1035,14 +767,15 @@ class LocalControllerTest extends TestCase {
 	}
 
 	public function testPublicRoutesThatReachOutToRemoteServersAreRateLimited(): void {
-		// Both are #[PublicPage] and both fetch from whatever host the handle names:
-		// globalAccountInfo signs half a dozen outbound requests per call and
-		// streamAccount pulls and ingests a remote outbox. An anonymous throttle is
-		// all that stands between one HTTP request and that work being repeated at
-		// will, the way OStatusController::getLink is already throttled.
+		// #[PublicPage], and it fetches from whatever host the handle names:
+		// globalAccountInfo signs half a dozen outbound requests per call. An
+		// anonymous throttle is all that stands between one HTTP request and
+		// that work being repeated at will, the way OStatusController::getLink
+		// is already throttled. (streamAccount, which pulled a remote outbox,
+		// was retired with the rest of the superseded Custom Local API.)
 		$reflection = new \ReflectionClass(LocalController::class);
 
-		foreach (['streamAccount', 'globalAccountInfo'] as $route) {
+		foreach (['globalAccountInfo'] as $route) {
 			$attributes = array_map(
 				fn (\ReflectionAttribute $attribute): string => $attribute->getName(),
 				$reflection->getMethod($route)->getAttributes()
