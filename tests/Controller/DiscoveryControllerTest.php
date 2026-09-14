@@ -28,6 +28,7 @@ use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\ProfileHighlightsService;
 use OCA\Social\Service\StarterPackService;
 use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
@@ -70,6 +71,7 @@ class DiscoveryControllerTest extends TestCase {
 	private FeaturedTagService|MockObject $featuredTagService;
 	private LinkPreviewService|MockObject $linkPreviewService;
 	private StarterPackService|MockObject $starterPackService;
+	private ProfileHighlightsService|MockObject $profileHighlightsService;
 	private IUserSession|MockObject $userSession;
 
 	/** @var array<string, string> the request headers the controller will see */
@@ -203,6 +205,8 @@ class DiscoveryControllerTest extends TestCase {
 		$this->featuredTagService->method('suggestions')
 			->willReturn([['name' => 'cycling']]);
 
+		$this->profileHighlightsService = $this->createMock(ProfileHighlightsService::class);
+
 		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 		$this->linkPreviewService->method('attachCards')
 			->willReturnCallback(function (): void {
@@ -231,7 +235,8 @@ class DiscoveryControllerTest extends TestCase {
 			$this->featuredTagService,
 			$this->linkPreviewService,
 			$this->createMock(PlaceService::class),
-			$this->starterPackService
+			$this->starterPackService,
+			$this->profileHighlightsService
 		);
 	}
 

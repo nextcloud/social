@@ -1493,6 +1493,122 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * When each of an author's public posts was published, since a point in
+	 * time.
+	 *
+	 * Only the timestamps: what the profile's little activity chart needs is
+	 * how many posts fell in each week, and hydrating the posts to count them
+	 * would read every column of every note to throw all of it away. Public
+	 * posts only — a chart drawn from what the viewer happens to be allowed to
+	 * see would be a different chart per viewer, and a chart that counted
+	 * posts the viewer cannot see would leak that they exist.
+	 *
+	 * Boosts are left out by `limitToStatusTypes()`: a boost is something the
+	 * account did, not something it wrote.
+	 *
+	 * @param string $actorId the author
+	 * @param int $since unix time to start at
+	 * @param int $limit a ceiling, so a prolific account cannot make this
+	 *                   query grow without bound
+	 * @return list<int> publication times, newest first
+	 */
+	public function publishedTimesByAuthor(string $actorId, int $since, int $limit = 2000): array {
+		if ($actorId === '' || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+
+		$date = new DateTime();
+		$date->setTimestamp($since);
+
+		$qb->select('s.published_time')
+			->from(self::TABLE_STREAM, 's')
+			->where($expr->gte(
+				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
+			))
+			->orderBy('s.published_time', 'desc')
+			->setMaxResults($limit);
+
+		$qb->setDefaultSelectAlias('s');
+		$qb->limitToAttributedTo($actorId, true);
+		$qb->limitToStatusTypes();
+
+		// the recipients are where "public" is recorded, the same join the
+		// author's public timeline uses
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+
+		$times = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$time = (int)strtotime((string)$data['published_time']);
+			if ($time > 0) {
+				$times[] = $time;
+			}
+		}
+		$cursor->closeCursor();
+
+		return $times;
+	}
+
+	/**
+	 * The hashtags an author uses most, over their public posts since a point
+	 * in time.
+	 *
+	 * Grouped in SQL rather than walked in PHP: unlike the per-post details
+	 * blob, a hashtag is a row of its own in `social_stream_tag`, so the three
+	 * databases can all count them the same way.
+	 *
+	 * @param string $actorId the author
+	 * @param int $since unix time to start at
+	 * @param int $limit how many to name
+	 * @return list<array{name: string, count: int}> most used first
+	 */
+	public function topHashtagsByAuthor(string $actorId, int $since, int $limit = 3): array {
+		if ($actorId === '' || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+
+		$date = new DateTime();
+		$date->setTimestamp($since);
+
+		$qb->select('st.hashtag')
+			->selectAlias($qb->func()->count('*'), 'total')
+			->from(self::TABLE_STREAM_TAGS, 'st')
+			->innerJoin('st', self::TABLE_STREAM, 's', $expr->eq('s.id_prim', 'st.stream_id'))
+			->where($expr->eq('s.attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($expr->gte(
+				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
+			))
+			->groupBy('st.hashtag')
+			->orderBy('total', 'desc')
+			->addOrderBy('st.hashtag', 'asc')
+			->setMaxResults($limit);
+
+		$qb->setDefaultSelectAlias('s');
+		$qb->limitToStatusTypes();
+
+		$tags = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$name = (string)$data['hashtag'];
+			if ($name === '') {
+				continue;
+			}
+			$tags[] = ['name' => $name, 'count' => (int)$data['total']];
+		}
+		$cursor->closeCursor();
+
+		return $tags;
+	}
+
+	/**
 	 * How often each hashtag was used since a point in time.
 	 *
 	 * This is what the trends cron needs, and all it needs. It used to hydrate

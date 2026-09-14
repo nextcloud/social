@@ -28,11 +28,13 @@ use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\ProfileHighlightsService;
 use OCA\Social\Service\StarterPackService;
 use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -85,6 +87,7 @@ class DiscoveryController extends Controller {
 		private LinkPreviewService $linkPreviewService,
 		private PlaceService $placeService,
 		private StarterPackService $starterPackService,
+		private ProfileHighlightsService $profileHighlightsService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -474,6 +477,35 @@ class DiscoveryController extends Controller {
 
 			return new DataResponse(
 				$this->featuredTagService->featured($actor->getId()), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The shape of somebody's posting history, for the top of their profile.
+	 *
+	 * Public for the same reason the featured tags above are: it is drawn on a
+	 * profile page, which is public, and it is built from the account's public
+	 * posts alone. A viewer is neither required nor used, so it cannot differ
+	 * per viewer — a chart that did would say which posts the viewer is
+	 * allowed to see.
+	 *
+	 * Rate limited by the anonymous limiter the other public reads use: it is
+	 * two queries rather than a lookup.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 3600)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/{account}/highlights', requirements: ['account' => '.+'])]
+	public function accountHighlights(string $account): DataResponse {
+		try {
+			$this->initViewer(['read'], false);
+			$actor = $this->resolveAccount($account);
+
+			return new DataResponse(
+				$this->profileHighlightsService->forActor($actor), Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);
