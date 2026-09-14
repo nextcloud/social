@@ -57,11 +57,12 @@ function status(id) {
 
 const TimelineEntryStub = {
 	name: 'TimelineEntry',
-	props: ['item', 'type'],
+	props: ['item', 'type', 'depth'],
 	// carries the real component's class and tabindex, because the list finds
 	// entries by that class and sends focus to them
-	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" />',
+	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-depth="depth" />',
 }
+const entryDepths = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => [entry.attributes('data-id'), Number(entry.attributes('data-depth'))])
 
 const entryIds = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => entry.attributes('data-id'))
 
@@ -130,6 +131,46 @@ describe('TimelineList', () => {
 	afterEach(() => {
 		vi.useRealTimers()
 		vi.unstubAllGlobals()
+	})
+
+	describe('the replies under a post', () => {
+		// the post being read is 1; replies carry the id of what they answer
+		const reply = (id, inReplyTo, day) => ({ ...status(id), created_at: `2026-09-${day}T10:00:00Z`, in_reply_to_id: inReplyTo })
+		const thread = (timeline) => mountList({
+			timeline,
+			identity: '["single-post","",{"id":"1","singlePost":"1"}]',
+			route: { name: 'single-post', params: { type: 'single-post', id: '1' } },
+			props: { type: 'single-post' },
+		})
+
+		it('reads as a conversation: each reply followed by the replies to it, oldest first', async () => {
+			// stored newest first, as every timeline is; a reply to a reply
+			// used to land above the post it answered
+			const { wrapper } = thread([
+				reply('40', '20', '14'),
+				reply('30', '1', '13'),
+				reply('21', '20', '12'),
+				reply('20', '1', '11'),
+			])
+			await flushPromises()
+
+			expect(entryDepths(wrapper)).toEqual([['20', 0], ['21', 1], ['40', 1], ['30', 0]])
+		})
+
+		it('keeps a reply whose parent is not on the page, at the top level with its own replies under it', async () => {
+			// the parent was deleted, or is a branch this instance never got
+			const { wrapper } = thread([reply('50', '99', '12'), reply('51', '50', '13'), reply('20', '1', '11')])
+			await flushPromises()
+
+			expect(entryDepths(wrapper)).toEqual([['20', 0], ['50', 0], ['51', 1]])
+		})
+
+		it('indents nothing in an ordinary timeline', async () => {
+			const { wrapper } = mountList({ timeline: [{ ...status('20'), in_reply_to_id: '1' }, status('10')] })
+			await flushPromises()
+
+			expect(entryDepths(wrapper)).toEqual([['20', 0], ['10', 0]])
+		})
 	})
 
 	describe('entries', () => {

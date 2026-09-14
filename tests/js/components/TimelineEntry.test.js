@@ -86,6 +86,18 @@ const UserEntryStub = {
 	template: '<div class="user-entry-stub" />',
 }
 
+describe('a reply in a thread', () => {
+	it('steps in by its depth, capped where the column would run out', () => {
+		expect(mountEntry(storedPost).wrapper.classes()).not.toContain('timeline-entry--reply')
+
+		const nested = mountEntry(storedPost, { depth: 2 }).wrapper
+		expect(nested.classes()).toContain('timeline-entry--reply')
+		expect(nested.attributes('style')).toContain('--thread-depth: 2')
+
+		expect(mountEntry(storedPost, { depth: 9 }).wrapper.attributes('style')).toContain('--thread-depth: 4')
+	})
+})
+
 function mountEntry(item, props = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
