@@ -58,7 +58,11 @@
 		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :displayFollowButton="false" :item="item.account" />
 		<template v-else>
 			<div v-if="entryContent" class="wrapper">
-				<TimelineAvatar v-if="!isNotification" class="entry__avatar" :item="entryContent" />
+				<TimelineAvatar
+					v-if="!isNotification"
+					class="entry__avatar"
+					:item="entryContent"
+					:size="avatarSize" />
 				<TimelinePost
 					class="entry__content"
 					:item="entryContent"
@@ -86,8 +90,12 @@ import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
 import { notificationSummary } from '../services/notifications.js'
 import { onTick } from '../services/clock.js'
+import { isPhone, onPhoneChange } from '../services/phone.js'
 import { mapStores } from 'pinia'
 import { useTimelineStore } from '../store/timeline.js'
+
+/** the face's size inside the card, on a phone */
+const PHONE_AVATAR = 36
 
 export default {
 	name: 'TimelineEntry',
@@ -127,12 +135,24 @@ export default {
 
 	data() {
 		return {
+			/**
+			 * On a phone the avatar column beside the card would take a
+			 * quarter of the width, so the face moves inside the card and
+			 * shrinks; see the `@media` block below.
+			 */
+			isPhone: isPhone(),
+
 			/** re-read from the shared clock, so the wording stays true */
 			now: Date.now(),
 		}
 	},
 
 	computed: {
+		/** the face's size: smaller on a phone, where it sits inside the card */
+		avatarSize() {
+			return this.isPhone ? PHONE_AVATAR : null
+		},
+
 		...mapStores(useTimelineStore),
 		/**
 		 * @return {import('../types/Mastodon.js').Status}
@@ -192,12 +212,16 @@ export default {
 	},
 
 	mounted() {
+		this.stopPhoneWatch = onPhoneChange((phone) => {
+			this.isPhone = phone
+		})
 		this.stopTicking = onTick((now) => {
 			this.now = now
 		})
 	},
 
 	unmounted() {
+		this.stopPhoneWatch?.()
 		this.stopTicking?.()
 	},
 
@@ -301,7 +325,9 @@ export default {
 		flex-grow: 1;
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		// the badge sits over the face's corner and reaches past it, so the
+		// words start clear of the badge rather than under it
+		gap: 12px;
 		color: var(--color-text-lighter);
 		font-size: 13px;
 		position: relative;
@@ -369,6 +395,34 @@ export default {
 @media (prefers-reduced-motion: reduce) {
 	.boost {
 		transition: none;
+	}
+}
+
+/*
+ * A phone. The avatar column beside the card took 64 of a phone's 390 pixels
+ * and gave every post a quarter less room than the screen has, so the face
+ * moves inside the card, smaller (`PHONE_AVATAR`), over the corner the header
+ * leaves for it. Same number as `PHONE_WIDTH` in services/phone.js.
+ */
+@media (max-width: 600px) {
+	.wrapper {
+		position: relative;
+		gap: 0;
+
+		.entry__avatar {
+			position: absolute;
+			top: 12px;
+			inset-inline-start: 12px;
+			z-index: 2;
+			margin-top: 0;
+		}
+
+		:deep(.post-header) {
+			// the face is 36 wide and sits 12 in; the card's own padding is 16
+			padding-inline-start: 36px;
+			min-height: 36px;
+			align-items: center;
+		}
 	}
 }
 </style>

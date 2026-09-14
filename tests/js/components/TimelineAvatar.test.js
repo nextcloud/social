@@ -16,9 +16,9 @@ const NcAvatarStub = {
 	template: '<span class="nc-avatar-stub" />',
 }
 
-function mountAvatar(item) {
+function mountAvatar(item, props = {}) {
 	return mount(TimelineAvatar, {
-		props: { item },
+		props: { item, ...props },
 		global: { plugins: [createPinia()], stubs: { NcAvatar: NcAvatarStub } },
 	})
 }
@@ -70,5 +70,21 @@ describe('TimelineAvatar', () => {
 		const wrapper = mountAvatar({ id: '4' })
 		expect(wrapper.find('.post-avatar').exists()).toBe(false)
 		expect(wrapper.findComponent(NcAvatarStub).exists()).toBe(false)
+	})
+
+	it('is the default size unless told otherwise', () => {
+		const wrapper = mountAvatar(localStatus)
+
+		expect(wrapper.findComponent(NcAvatarStub).props('size')).toBeUndefined()
+		expect(wrapper.find('.post-avatar').classes()).not.toContain('post-avatar--compact')
+	})
+
+	it('takes the size the entry asks for on a phone, and drops its padding to fit it', () => {
+		const wrapper = mountAvatar(remoteStatus, { size: 36 })
+		const box = wrapper.find('.post-avatar')
+
+		expect(wrapper.findComponent(NcAvatarStub).props('size')).toBe(36)
+		expect(box.classes()).toContain('post-avatar--compact')
+		expect(box.attributes('style')).toContain('--avatar-size: 36px')
 	})
 })

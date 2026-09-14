@@ -6,8 +6,8 @@
 	<div
 		v-if="item.account"
 		class="post-avatar"
-		:class="{ 'post-avatar--remote': !origin.local }"
-		:style="{ '--instance-colour': origin.colour }"
+		:class="{ 'post-avatar--remote': !origin.local, 'post-avatar--compact': size !== null }"
+		:style="{ '--instance-colour': origin.colour, '--avatar-size': size === null ? undefined : size + 'px' }"
 		:title="origin.local ? undefined : origin.instance">
 		<!-- the ring says which instance in colour, which is nothing at all to
 		     a reader who cannot see it or cannot tell two hues apart. The post
@@ -36,11 +36,13 @@
 					:hideStatus="true"
 					:user="item.account.username"
 					:displayName="item.account.display_name"
+					:size="size ?? undefined"
 					:disableMenu="true"
 					:disableTooltip="true" />
 				<NcAvatar
 					v-else
 					:url="item.account.avatar"
+					:size="size ?? undefined"
 					:disableMenu="true"
 					:disableTooltip="true" />
 			</component>
@@ -66,6 +68,15 @@ export default {
 		item: {
 			type: Object,
 			default: () => {},
+		},
+
+		/**
+		 * The face's size in pixels, or null for the default. On a phone the
+		 * entry asks for a smaller one and puts it inside the card.
+		 */
+		size: {
+			type: Number,
+			default: null,
 		},
 	},
 
@@ -139,6 +150,13 @@ export default {
 
 	/* a ring in the colour of the server the author is on, so a timeline
 	   visibly spans instances instead of hiding it after the @ */
+	/* sized by the caller: no padding, the box is the face */
+	&--compact {
+		padding: 0;
+		height: var(--avatar-size);
+		width: var(--avatar-size);
+	}
+
 	&--remote :deep(.avatardiv) {
 		box-shadow: 0 0 0 2px var(--color-main-background), 0 0 0 4px var(--instance-colour);
 	}

@@ -825,6 +825,14 @@ export default {
 	box-shadow: none;
 }
 
+/* on a phone the modal is the screen, so the composer's edges are the
+   screen's edges and the box and the Post button were drawn against them */
+@media (max-width: 600px) {
+	.modal-composer {
+		padding: 0 12px 12px;
+	}
+}
+
 /* the lift on focus goes with it: there is nothing left to lift */
 .modal-composer :deep(.new-post:focus-within) {
 	box-shadow: none;
