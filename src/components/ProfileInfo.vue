@@ -249,27 +249,68 @@
 						</span>
 					</div>
 					<p>{{ t('social', 'Up to four name/value pairs, shown on your profile and shared with other servers.') }}</p>
-					<div v-for="(row, index) in fieldRows" :key="index" class="user-profile__fields-row">
-						<input
-							v-model="row.name"
-							type="text"
-							maxlength="255"
-							:aria-label="t('social', 'Label of field {number}', { number: index + 1 })"
-							:placeholder="t('social', 'Label')">
-						<input
-							v-model="row.value"
-							type="text"
-							maxlength="500"
-							:aria-label="t('social', 'Content of field {number}', { number: index + 1 })"
-							:placeholder="t('social', 'Content')">
-						<NcButton
-							variant="tertiary"
-							:aria-label="t('social', 'Remove field')"
-							@click="fieldRows.splice(index, 1)">
-							<template #icon>
-								<Close :size="18" />
+					<div v-for="(row, index) in fieldRows" :key="index" class="user-profile__fields-entry">
+						<div class="user-profile__fields-row">
+							<input
+								v-model="row.name"
+								type="text"
+								maxlength="255"
+								:aria-label="t('social', 'Label of field {number}', { number: index + 1 })"
+								:placeholder="t('social', 'Label')">
+							<input
+								v-model="row.value"
+								type="text"
+								maxlength="500"
+								:aria-label="t('social', 'Content of field {number}', { number: index + 1 })"
+								:placeholder="t('social', 'Content')">
+							<NcButton
+								variant="tertiary"
+								:aria-label="t('social', 'Remove field')"
+								@click="fieldRows.splice(index, 1)">
+								<template #icon>
+									<Close :size="18" />
+								</template>
+							</NcButton>
+						</div>
+						<!-- what the server has decided about this row, or why it can
+							     decide nothing. `role="status"` because the line changes
+							     under the reader as they type -->
+						<p class="user-profile__fields-status" role="status">
+							<template v-if="fieldVerifiedAt(row) !== ''">
+								<VerifiedCheck :verifiedAt="fieldVerifiedAt(row)" />
+								{{ fieldVerifiedLabel(row) }}
 							</template>
-						</NcButton>
+							<template v-else-if="fieldLinkOf(row) !== ''">
+								{{ t('social', 'Not verified. Put the line below on that page, and this server marks the field the next time it looks.') }}
+							</template>
+							<template v-else-if="fieldLooksLikeAddress(row)">
+								{{ t('social', 'Only an address written in full, starting with http:// or https://, can be verified.') }}
+							</template>
+						</p>
+					</div>
+					<!-- the instructions arrive with the first link and not before:
+						     most fields are pronouns or a job and have nothing to verify.
+						     Plain markup rather than NcNoteCard, like the rest of this
+						     dialog, so the profile bundle gains nothing for it -->
+					<div v-if="fieldsHaveLink" class="user-profile__fields-verify">
+						<p class="user-profile__fields-verify-heading">
+							{{ t('social', 'How a link gets its tick') }}
+						</p>
+						<p>{{ t('social', 'Add this to the page you linked to, anywhere in its HTML:') }}</p>
+						<div class="user-profile__fields-snippet">
+							<code>{{ profileLinkSnippet }}</code>
+							<NcButton variant="tertiary" @click="copyProfileLinkSnippet">
+								<template #icon>
+									<Check v-if="snippetCopied" :size="18" />
+									<ContentCopy v-else :size="18" />
+								</template>
+								{{ snippetCopied ? t('social', 'Copied') : t('social', 'Copy') }}
+							</NcButton>
+						</div>
+						<!-- both paragraphs are built in the script: a literal `<` in an
+							     interpolation is a tag to the template compiler -->
+						<p>{{ verificationRule }}</p>
+						<p>{{ verificationSchedule }}</p>
 					</div>
 					<div class="user-profile__fields-modal-actions">
 						<NcButton
@@ -298,7 +339,9 @@
 
 <script>
 import Cancel from 'vue-material-design-icons/Cancel.vue'
+import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
 import TableEdit from 'vue-material-design-icons/TableEdit.vue'
@@ -318,7 +361,7 @@ import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedCheck from './VerifiedCheck.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
 import { formatCount } from '../utils/number.js'
-import { profileFields } from '../utils/profileFields.js'
+import { fieldLink, profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
@@ -339,6 +382,9 @@ const MuteDialog = defineAsyncComponent(() => import(/* webpackChunkName: "accou
 /** Mirrors `AccountService::SUMMARY_MAX_LENGTH`, which truncates beyond it. */
 const BIO_MAX_LENGTH = 500
 
+/** How long the copy button says it copied. */
+const SNIPPET_COPIED_MS = 2000
+
 /**
  * A bio as `AccountService::plainSummary()` stores it, so that what is counted
  * and what is sent are what ends up on the profile.
@@ -354,7 +400,9 @@ export default {
 	name: 'ProfileInfo',
 	components: {
 		Cancel,
+		Check,
 		Close,
+		ContentCopy,
 		FollowButton,
 		IconFormatListBulleted,
 		ListMembershipDialog,
@@ -402,6 +450,17 @@ export default {
 			/** the editor reads the profile before it opens; this is that read */
 			openingProfile: false,
 			fieldRows: [],
+			/**
+			 * When each verified field value was last seen linking back, keyed
+			 * by the value itself, which is how the server keys it: a value
+			 * that is edited has no verdict until it has been looked at again,
+			 * and one typed back as it was keeps the one it had.
+			 *
+			 * @type {Record<string, string>}
+			 */
+			fieldVerified: {},
+			snippetCopied: false,
+			snippetCopyTimer: null,
 			savingProfile: false,
 			bioDraft: '',
 			/** the bio as it was when the editor opened, to tell a change from a no-op */
@@ -479,6 +538,44 @@ export default {
 		 */
 		profileFields() {
 			return profileFields(this.accountInfo.fields)
+		},
+
+		/** @return {boolean} whether any row names a web page to verify */
+		fieldsHaveLink() {
+			return this.fieldRows.some((row) => fieldLink(row.value) !== '')
+		},
+
+		/**
+		 * The line to put on the far end. Any text will do inside it: the
+		 * server reads `rel` and `href` and nothing else.
+		 *
+		 * @return {string}
+		 */
+		profileLinkSnippet() {
+			return `<a rel="me" href="${this.accountInfo.url ?? ''}">${this.displayName}</a>`
+		},
+
+		/**
+		 * What counts as a link back, in the words of the code that decides
+		 * (`ProfileLinkVerifier::linksBack()`): any `a` or `link` tag with `me`
+		 * among its `rel` words, whose `href` is this account's own address,
+		 * compared with the fragment dropped and a trailing slash ignored.
+		 *
+		 * @return {string}
+		 */
+		verificationRule() {
+			return translate('social', 'A <link rel="me"> in the page\'s <head> does the same, and rel="me noopener" counts as well: the server looks for "me" among the rel words of any anchor or link on the page. The address has to be your own profile address, the one in the line above; a trailing slash or a #fragment makes no difference.')
+		},
+
+		/**
+		 * When the check runs and what it will not do. The interval and the
+		 * ceiling on how much of a page is read are
+		 * `ProfileLinkVerifier::RECHECK_SECONDS` and `MAX_SCAN`.
+		 *
+		 * @return {string}
+		 */
+		verificationSchedule() {
+			return translate('social', 'This server fetches the page itself, in the background, at most once a day per account, over http or https only, and reads the first part of it. A page it cannot reach is left unverified and asked again later, and a page that stops linking back loses its tick.')
 		},
 
 		/** @return {string} the bio to show, reduced to markup that is safe to inject */
@@ -570,6 +667,10 @@ export default {
 
 	// The immediate watcher above runs before the banner element exists and bails,
 	// so paint any existing header once the ref is available on first render.
+	beforeUnmount() {
+		window.clearTimeout(this.snippetCopyTimer)
+	},
+
 	mounted() {
 		this.applyBanner(this.bannerStyle)
 	},
@@ -640,6 +741,57 @@ export default {
 		},
 
 		/**
+		 * @param {{value: string}} row a draft row
+		 * @return {string} the web address it names, or ''
+		 */
+		fieldLinkOf(row) {
+			return fieldLink(row.value)
+		},
+
+		/**
+		 * @param {{value: string}} row a draft row
+		 * @return {string} when its link was last proved, or ''
+		 */
+		fieldVerifiedAt(row) {
+			return this.fieldVerified[row.value.trim()] ?? ''
+		},
+
+		/**
+		 * @param {{value: string}} row a draft row
+		 * @return {string} when its link was proved, in words
+		 */
+		fieldVerifiedLabel(row) {
+			return translate('social', 'Verified on {date}', { date: fullDateTime(this.fieldVerifiedAt(row)) })
+		},
+
+		/**
+		 * Whether a value that is not a link reads like somebody meant one.
+		 * `example.org` in a Website field is the usual way to end up with a
+		 * row that can never be verified, and saying nothing about it leaves
+		 * the account waiting for a tick that is not coming.
+		 *
+		 * @param {{value: string}} row a draft row
+		 * @return {boolean}
+		 */
+		fieldLooksLikeAddress(row) {
+			return /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(row.value.trim())
+		},
+
+		async copyProfileLinkSnippet() {
+			try {
+				await navigator.clipboard.writeText(this.profileLinkSnippet)
+				this.snippetCopied = true
+				window.clearTimeout(this.snippetCopyTimer)
+				this.snippetCopyTimer = window.setTimeout(() => {
+					this.snippetCopied = false
+				}, SNIPPET_COPIED_MS)
+			} catch (error) {
+				logger.debug('Could not copy the profile link snippet', { error })
+				await this.showError(translate('social', 'Could not copy — select the line and copy it yourself'))
+			}
+		},
+
+		/**
 		 * Opens the editor on what is actually stored.
 		 *
 		 * The bio has to be asked for, and this is why: `source` is an
@@ -663,9 +815,14 @@ export default {
 
 			this.openingProfile = true
 			let source = null
+			// the verdicts are on the entity's own `fields`, never on
+			// `source.fields`, which is the editable copy and carries no
+			// `verified_at`
+			let verdicts = null
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/verify_credentials'))
 				source = data?.source ?? null
+				verdicts = data?.fields ?? null
 			} catch (error) {
 				logger.error('Could not read the profile to edit', { error })
 				await this.showError(t('social', 'Could not load your profile for editing'))
@@ -682,6 +839,11 @@ export default {
 			if (this.fieldRows.length === 0) {
 				this.fieldRows.push({ name: '', value: '' })
 			}
+
+			const proved = (verdicts ?? this.accountInfo.fields ?? [])
+				.filter((field) => typeof field.verified_at === 'string' && field.verified_at !== '')
+				.map((field) => [field.value, field.verified_at])
+			this.fieldVerified = Object.fromEntries(proved)
 
 			// An unreadable profile leaves both of these empty and equal, which
 			// is what `bioChanged` reads: a bio nobody could load is never one
@@ -1051,6 +1213,59 @@ export default {
 
 		p {
 			color: var(--color-text-lighter);
+		}
+	}
+
+	&__fields-entry {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	&__fields-status {
+		font-size: 13px;
+
+		// a row with nothing to say about it must not leave a gap between the
+		// rows above and below it
+		&:empty {
+			display: none;
+		}
+	}
+
+	&__fields-verify {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large, 12px);
+		background: var(--color-background-hover);
+		font-size: 13px;
+
+		p {
+			margin: 0;
+		}
+	}
+
+	&__fields-verify-heading {
+		font-weight: 600;
+		color: var(--color-main-text);
+	}
+
+	&__fields-snippet {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+
+		code {
+			// a long profile address wraps rather than widening the dialog
+			flex: 1 1 auto;
+			min-width: 0;
+			overflow-wrap: anywhere;
+			padding: 4px 6px;
+			border-radius: var(--border-radius);
+			background: var(--color-background-dark);
+			font-family: monospace;
 		}
 	}
 

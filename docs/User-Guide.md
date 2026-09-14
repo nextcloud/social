@@ -199,9 +199,31 @@ Administrators post and remove announcements in **Administration → Social**.
 
 - **Profile.** **My profile** (behind your portrait at the bottom of the
   sidebar) → **Edit profile**: a banner (upload one or give the address of
-  one), a bio, and up to four name/value fields shown under it. A field whose
-  value is a web page gets a verified tick once that page links back to your
-  profile with `rel="me"`. All of it is shared with other servers.
+  one), a bio, and up to four name/value fields shown under it — your website,
+  your pronouns, where you work. All of it is shared with other servers. A
+  fifth field is dropped by the server without saying so, so the editor stops
+  at four, and a row with only one half filled in is dropped the same way;
+  emptying the table and saving removes it from your profile everywhere.
+- **Verified links.** A field whose value is a full web address — written out,
+  starting with `http://` or `https://` — can carry a **verified tick**, and
+  the editor shows where each of yours stands: verified and when it was
+  proved, not verified yet, or, for a bare `example.org`, that nothing written
+  that way can be verified at all.
+
+  To earn one, put a link back to your profile on that page:
+  `<a rel="me" href="https://your-server/@you">…</a>` anywhere in its HTML, or
+  `<link rel="me" href="…">` in its `<head>`. `me` only has to be one of the
+  `rel` words, and a trailing slash or a `#fragment` on the address makes no
+  difference. The editor shows the exact line to paste, with a copy button, as
+  soon as a value looks like an address.
+
+  This server fetches the page itself, in the background, at most once a day
+  per account and only over http or https, and marks the field when it finds
+  the link back. A page it cannot reach is left unverified and asked again
+  later; a page that stops linking back loses the tick. Editing a field's value
+  drops that field's tick straight away — the tick belongs to the address, not
+  to the row — and it returns once the page at the new address has been
+  checked. Your other fields keep theirs.
 - **Featured hashtags.** **Settings → Featured hashtags** decides which tags sit under
   your bio — up to ten, and anybody reading your profile can click one to see what you
   posted under it. It opens with the hashtags you post with most and have not featured

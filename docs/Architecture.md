@@ -794,6 +794,31 @@ editing chrome on a page whose job is to show somebody. Applying a banner from a
 URL leaves the dialog open, because the bio and the fields may still be being
 edited.
 
+Each field row in that dialog carries its verdict, because the one thing that
+makes a field worth filling in is invisible otherwise: a value naming a web page
+is verified by `ProfileLinkVerifier` fetching the page and looking for a link
+back with `rel="me"`, and nobody finds that out by accident. The row says
+verified and when, or not verified, or — for a bare `example.org` — that nothing
+written that way can ever be verified; and as soon as any row is an address the
+dialog shows the exact anchor to paste on the far end, with a copy button, and
+what the check will and will not do. The verdicts come from the entity's own
+`fields` on `verify_credentials`, never from `source.fields`, which is the
+editable copy and carries no `verified_at`, and they are keyed by the value they
+were made about, which is why editing a value drops its tick there and then.
+`fieldLink()` in `src/utils/profileFields.js` is the client's copy of the
+plain-text half of `ProfileLinkVerifier::linkOf()`, so the dialog offers a tick
+for exactly the values the server would try to verify.
+
+The verdicts themselves live on the **cached** actor's details, which is what
+made them fragile: a local actor is rebuilt from the `actors` row, which has no
+details column, so `ActorService::cacheLocalActor()` writing `details` whole
+erased `fields_verified` on every write to a profile — a new bio, one flag, one
+edited field — and the ticks came back only when the next `Cron\Cache` pass
+re-fetched every linked page. It now carries the verdicts across, and only those:
+`fields_checked` is still dropped, which is what makes that next pass look at an
+edited value at once rather than waiting out `RECHECK_SECONDS`, and a verdict
+whose value is no longer among the fields is dropped with it.
+
 `Composer.vue` grows a second attach control beside the paperclip: the
 `@nextcloud/dialogs` file picker, so a picture already in the user's Nextcloud
 goes straight to `POST /api/v1/media/from-file` instead of being downloaded and

@@ -145,9 +145,13 @@ own unified search. No external search engine to run.
 ![A profile](img/readme/profile.jpg)
 
 - **Posts, Photos and Videos** as three tabs, each one a question asked of the server.
-- **A banner, a bio and four metadata fields**, federated the way Mastodon does it.
+- **A banner, a bio and four metadata fields**, federated the way Mastodon does it and
+  edited in **Edit profile** on your own profile.
 - **Verified links.** A profile field naming a web page gets the tick when that page
-  links back with `rel="me"`.
+  links back with `rel="me"` — from an `<a>` anywhere on it or a `<link>` in its head.
+  The editor says which of your fields are verified and when each was last proved, and
+  hands you the line to paste on the far end. The page is fetched in the background,
+  once a day per account.
 - **Featured hashtags.** Up to ten tags pinned under the bio, saying what the account is
   about in its own words; a visitor clicks one and reads what was posted under it, with
   the count taken from the posts rather than stored. You set your own in **Settings →
@@ -336,8 +340,8 @@ These are absent from the code today, not merely rough edges:
   client does get live timelines when
   [notify_push](https://github.com/nextcloud/notify_push) is installed — that is a
   Nextcloud channel, not a Mastodon one.)
-- **No web editor for keyword filters or profile metadata fields.**
-  Each is set through the API or a Mastodon client; this app has no page for them.
+- **No web editor for keyword filters.** They are set through the API or a Mastodon
+  client; this app has no page for them.
 
 ## 📦 Quickstart (install & develop)
 

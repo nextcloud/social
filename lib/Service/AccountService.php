@@ -617,6 +617,10 @@ class AccountService {
 
 			$this->loadLocalActorHeader($actor);
 
+			// the details this rebuilds are only the counts: the actors row
+			// carries none, and the write is wholesale. What was already on the
+			// cached copy and has to survive it — the verified-link verdicts —
+			// is carried over by ActorService::cacheLocalActor().
 			$this->addLocalActorDetailCount($actor);
 			$this->actorService->cacheLocalActor($actor);
 		} catch (ActorDoesNotExistException $e) {
