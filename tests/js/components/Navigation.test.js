@@ -46,7 +46,7 @@ const stubs = {
 	NcActionButton: { emits: ['click'], template: '<button class="nav-caption__action" @click="$emit(\'click\')"><slot /></button>' },
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" :data-size="size" />' },
-	NcModal: { props: ['name'], emits: ['close'], template: '<div class="modal-stub" :data-name="name"><slot /></div>' },
+	NcModal: { props: { name: String, closeOnClickOutside: Boolean }, emits: ['close'], template: '<div class="modal-stub" :data-name="name" :data-closes-on-outside-click="closeOnClickOutside ? \'yes\' : \'no\'"><slot /></div>' },
 	Composer: { props: ['initialPaths'], emits: ['posted'], template: '<div class="composer-stub" :data-paths="JSON.stringify(initialPaths)" @click="$emit(\'posted\')" />' },
 }
 
@@ -177,6 +177,16 @@ describe('Navigation', () => {
 			expect(wrapper.find('.modal-stub[data-name="New post"]').exists()).toBe(false)
 			await wrapper.find('.navigation__compose').trigger('click')
 			expect(JSON.parse(wrapper.find('.composer-stub').attributes('data-paths'))).toEqual([])
+		})
+
+		it('closes when the reader clicks the page behind it', async () => {
+			// the prop is a boolean with no default, so leaving it off meant
+			// only the X closed the dialog. Nothing is lost by closing: the
+			// draft is saved as it is typed and restored on the next open.
+			const wrapper = await arriving(['/Photos/beach.jpg'])
+
+			expect(wrapper.find('.modal-stub[data-name="New post"]').attributes('data-closes-on-outside-click'))
+				.toBe('yes')
 		})
 
 		it('opens nothing without files on the address', () => {

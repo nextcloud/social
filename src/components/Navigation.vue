@@ -184,8 +184,13 @@
 		</template>
 	</NcAppNavigation>
 
+	<!-- `closeOnClickOutside` is a boolean prop with no default, so the dialog
+	     ignored a click on the dimmed page around it and only the X closed it.
+	     Nothing is lost by closing: the draft is saved on every keystroke and
+	     restored the next time the composer opens. -->
 	<NcModal
 		v-if="showComposer"
+		closeOnClickOutside
 		:name="t('social', 'New post')"
 		@close="showComposer = false">
 		<div class="modal-composer">
