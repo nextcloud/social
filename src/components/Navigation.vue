@@ -90,12 +90,43 @@
 
 			<NcAppNavigationSpacer v-if="trending.length > 0" />
 
-			<!-- the reader's lists: the ones their Nextcloud groups give them
-			     first, since nobody made those and they are what a colleague
-			     looks for, then the ones they made themselves -->
-			<NcAppNavigationCaption v-if="lists.length > 0" :name="t('social', 'Lists')">
-				<!-- the lists are made and filled in Settings; the caption is
-				     where a reader looks for the way there -->
+			<!-- One entry for everything the reader keeps an eye on: the
+			     hashtags they follow and their lists, in one collapsible row
+			     rather than two captions that each grow without limit.
+
+			     No icon of its own, so the chevron is the only thing before
+			     the word and the children line up under it. The count is what
+			     is inside, all of it — when the rail has room for fewer than
+			     there are, the count is how the reader knows the rest exist. -->
+			<NcAppNavigationItem
+				v-if="exploreTotal > 0"
+				class="navigation__explore"
+				:name="t('social', 'Explore')"
+				:allowCollapse="true"
+				:open="exploreOpen"
+				@update:open="onExploreToggle">
+				<template #counter>
+					<NcCounterBubble :count="exploreTotal" />
+				</template>
+
+				<NcAppNavigationItem
+					v-for="entry in exploreEntries"
+					:key="entry.kind === 'tag' ? `tag-${entry.tag.name}` : `list-${entry.list.id}`"
+					:class="entry.kind === 'tag' ? 'navigation__trend' : 'navigation__list'"
+					:name="entry.kind === 'tag' ? `#${entry.tag.name}` : entry.list.title"
+					:title="titleFor(entry)"
+					:href="hrefFor(routeFor(entry))"
+					:active="isExploreActive(entry)"
+					@click="navigate(routeFor(entry), $event)">
+					<template #icon>
+						<IconPound v-if="entry.kind === 'tag'" :size="20" />
+						<IconAccountGroup v-else-if="entry.list.nextcloud_group" :size="20" />
+						<IconFormatListBulleted v-else :size="20" />
+					</template>
+				</NcAppNavigationItem>
+
+				<!-- the lists are made and filled in Settings; this is where a
+				     reader looks for the way there -->
 				<template #actions>
 					<NcActionButton closeAfterClick @click="navigate({ name: 'settings', hash: '#lists' })">
 						<template #icon>
@@ -104,23 +135,9 @@
 						{{ t('social', 'Manage lists') }}
 					</NcActionButton>
 				</template>
-			</NcAppNavigationCaption>
-			<NcAppNavigationItem
-				v-for="list in lists"
-				:key="`list-${list.id}`"
-				class="navigation__list"
-				:name="list.title"
-				:title="list.nextcloud_group ? t('social', 'Everyone in the Nextcloud group {group} who has a Social account', { group: list.title }) : undefined"
-				:href="hrefFor({ name: 'list', params: { id: list.id } })"
-				:active="isListActive(list)"
-				@click="navigate({ name: 'list', params: { id: list.id } }, $event)">
-				<template #icon>
-					<IconAccountGroup v-if="list.nextcloud_group" :size="20" />
-					<IconFormatListBulleted v-else :size="20" />
-				</template>
 			</NcAppNavigationItem>
 
-			<NcAppNavigationSpacer v-if="lists.length > 0" />
+			<NcAppNavigationSpacer v-if="exploreTotal > 0" />
 		</template>
 		<template #footer>
 			<div class="navigation__footer">
@@ -257,6 +274,7 @@ import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
+import { chooseEntries, entriesThatFit } from '../utils/explore.js'
 import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -283,6 +301,15 @@ const UNREAD_POLL_MS = 60 * 1000
 
 /** how long to let the typing settle before searching */
 const SEARCH_DEBOUNCE_MS = 300
+
+/**
+ * Where the Explore entry remembers whether it was left open.
+ *
+ * `localStorage` rather than a user setting: it is a per-browser convenience
+ * worth nothing to anybody else, and a reader whose browser cannot store it
+ * simply gets it open, which is the better default.
+ */
+const EXPLORE_OPEN_KEY = 'social.navigation.exploreOpen'
 
 export default {
 	name: 'Navigation',
@@ -327,6 +354,12 @@ export default {
 			trending: [],
 			/** the reader's lists, the group-bound ones first */
 			lists: [],
+			/** the hashtags the reader follows, as the server orders them */
+			followedTags: [],
+			/** whether the Explore entry is open; remembered per reader */
+			exploreOpen: true,
+			/** the window's height, watched so the entry can shrink with it */
+			viewportHeight: 0,
 			localSearch: '',
 			showComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
@@ -340,6 +373,35 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useErrorsStore, useInstanceStore, useNotificationsStore, useTimelineStore),
+
+		/**
+		 * Everything inside Explore, however much of it the rail can show.
+		 *
+		 * @return {number} how many hashtags and lists there are in all
+		 */
+		exploreTotal() {
+			return this.followedTags.length + this.lists.length
+		},
+
+		/**
+		 * How many entries there is room for, which shrinks with the window.
+		 *
+		 * @return {number}
+		 */
+		exploreCap() {
+			return entriesThatFit(this.viewportHeight)
+		},
+
+		/**
+		 * What Explore actually draws: hashtags first, then lists, shared out
+		 * between the two when there is not room for all of them.
+		 *
+		 * @return {Array<object>}
+		 */
+		exploreEntries() {
+			return chooseEntries(this.followedTags, this.lists, this.exploreCap)
+		},
+
 		hasErrors() {
 			return this.errorsStore.hasErrors
 		},
@@ -528,6 +590,7 @@ export default {
 		afterFirstTimeline(() => {
 			this.fetchTrending()
 			this.fetchLists()
+			this.fetchFollowedTags()
 			this.notificationsStore.fetchUnreadNotifications()
 		})
 		// this one defers itself: the composer asks for it too, and it must
@@ -536,6 +599,16 @@ export default {
 		// the settings page changes them; this sidebar holds its own copy
 		this.onListsChanged = () => this.fetchLists()
 		eventBus.on(LISTS_CHANGED, this.onListsChanged)
+
+		// how many entries Explore shows depends on how tall the window is
+		this.measureViewport()
+		window.addEventListener('resize', this.measureViewport)
+
+		try {
+			this.exploreOpen = window.localStorage.getItem(EXPLORE_OPEN_KEY) !== '0'
+		} catch {
+			// no stored preference to read; open is the better default
+		}
 		this.openComposerFromQuery()
 
 		// the badge is only honest if it keeps up: with notify_push the server
@@ -553,6 +626,7 @@ export default {
 
 	beforeUnmount() {
 		eventBus.off(LISTS_CHANGED, this.onListsChanged)
+		window.removeEventListener('resize', this.measureViewport)
 		if (typeof this.stopListening === 'function') {
 			this.stopListening()
 		}
@@ -609,6 +683,77 @@ export default {
 		 * lists they are missing, so this is asked once per page and the
 		 * answer drawn as it comes.
 		 */
+		/**
+		 * The hashtags the reader follows.
+		 *
+		 * These had no place in the sidebar at all: somebody could follow a
+		 * tag and then only meet it again by going to its page. A failure
+		 * leaves them out rather than bothering anyone about it, the way the
+		 * trending read does.
+		 */
+		async fetchFollowedTags() {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/followed_tags'))
+				this.followedTags = Array.isArray(data) ? data : []
+			} catch {
+				this.followedTags = []
+			}
+		},
+
+		/**
+		 * @param {object} entry one Explore entry
+		 * @return {object} where pressing it goes
+		 */
+		routeFor(entry) {
+			return entry.kind === 'tag'
+				? { name: 'tags', params: { tag: entry.tag.name } }
+				: { name: 'list', params: { id: entry.list.id } }
+		},
+
+		/**
+		 * @param {object} entry one Explore entry
+		 * @return {string|undefined} what hovering it explains, where that is
+		 *                            not obvious from the name
+		 */
+		titleFor(entry) {
+			if (entry.kind === 'list' && entry.list.nextcloud_group) {
+				return translate(
+					'social',
+					'Everyone in the Nextcloud group {group} who has a Social account',
+					{ group: entry.list.title },
+				)
+			}
+
+			return undefined
+		},
+
+		/**
+		 * @param {object} entry one Explore entry
+		 * @return {boolean} whether its timeline is the one being shown
+		 */
+		isExploreActive(entry) {
+			return entry.kind === 'tag' ? this.isTagActive(entry.tag) : this.isListActive(entry.list)
+		},
+
+		/**
+		 * @param {boolean} open what the reader just did to the entry
+		 */
+		onExploreToggle(open) {
+			this.exploreOpen = open
+
+			try {
+				window.localStorage.setItem(EXPLORE_OPEN_KEY, open ? '1' : '0')
+			} catch {
+				// a private window or blocked site data; the entry still works,
+				// it just opens again next time
+			}
+		},
+
+		/** Keeps the entry count in step with the window. */
+		measureViewport() {
+			this.viewportHeight = window.innerHeight
+		},
+
 		async fetchLists() {
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/lists'))

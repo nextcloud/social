@@ -1,0 +1,124 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+import { describe, expect, it } from 'vitest'
+import { MAX_ENTRIES, MIN_ENTRIES, chooseEntries, entriesThatFit, shareOut } from '../../../src/utils/explore.js'
+
+const tags = (n) => Array.from({ length: n }, (_, i) => ({ name: `tag${i}` }))
+const lists = (n) => Array.from({ length: n }, (_, i) => ({ id: String(i), title: `list${i}` }))
+
+describe('entriesThatFit', () => {
+	it('never shows more than the ceiling, however tall the screen', () => {
+		expect(entriesThatFit(2000)).toBe(MAX_ENTRIES)
+		expect(entriesThatFit(1080)).toBe(MAX_ENTRIES)
+	})
+
+	it('shows fewer as the window gets shorter', () => {
+		const tall = entriesThatFit(1000)
+		const middling = entriesThatFit(800)
+		const short = entriesThatFit(650)
+
+		expect(tall).toBeGreaterThanOrEqual(middling)
+		expect(middling).toBeGreaterThan(short)
+	})
+
+	// below this the entry stops being a way to reach anything
+	it('never goes below the floor, however short the screen', () => {
+		expect(entriesThatFit(500)).toBe(MIN_ENTRIES)
+		expect(entriesThatFit(200)).toBe(MIN_ENTRIES)
+		expect(entriesThatFit(1)).toBe(MIN_ENTRIES)
+	})
+
+	it('falls back to the ceiling when the height makes no sense', () => {
+		expect(entriesThatFit(0)).toBe(MAX_ENTRIES)
+		expect(entriesThatFit(-10)).toBe(MAX_ENTRIES)
+		expect(entriesThatFit(undefined)).toBe(MAX_ENTRIES)
+		expect(entriesThatFit(Number.NaN)).toBe(MAX_ENTRIES)
+	})
+})
+
+describe('shareOut', () => {
+	it('shows everything when it all fits', () => {
+		expect(shareOut(3, 2, 12)).toEqual({ tags: 3, lists: 2 })
+		expect(shareOut(6, 6, 12)).toEqual({ tags: 6, lists: 6 })
+	})
+
+	it('fills the room exactly when it does not', () => {
+		const share = shareOut(20, 20, 7)
+
+		expect(share.tags + share.lists).toBe(7)
+	})
+
+	/**
+	 * A truncation that drops a whole kind reads as the kind having gone
+	 * missing rather than as there being too little room.
+	 */
+	it('keeps a place for each kind when both have entries', () => {
+		const share = shareOut(30, 1, 6)
+
+		expect(share.lists).toBeGreaterThanOrEqual(1)
+		expect(share.tags).toBeGreaterThanOrEqual(1)
+		expect(share.tags + share.lists).toBe(6)
+	})
+
+	it('keeps the one tag when the lists are many', () => {
+		const share = shareOut(1, 30, 6)
+
+		expect(share.tags).toBe(1)
+		expect(share.lists).toBe(5)
+	})
+
+	it('divides the room in proportion to what there is', () => {
+		const share = shareOut(9, 3, 8)
+
+		// two thirds tags, one third lists, and every place used
+		expect(share.tags + share.lists).toBe(8)
+		expect(share.tags).toBeGreaterThan(share.lists)
+	})
+
+	it('gives one kind everything when the other has none', () => {
+		expect(shareOut(20, 0, 5)).toEqual({ tags: 5, lists: 0 })
+		expect(shareOut(0, 20, 5)).toEqual({ tags: 0, lists: 5 })
+	})
+
+	it('never asks for more of a kind than there is', () => {
+		const share = shareOut(2, 40, 12)
+
+		expect(share.tags).toBeLessThanOrEqual(2)
+		expect(share.tags + share.lists).toBe(12)
+	})
+
+	it('copes with no room and with nothing to show', () => {
+		expect(shareOut(5, 5, 0)).toEqual({ tags: 0, lists: 0 })
+		expect(shareOut(0, 0, 12)).toEqual({ tags: 0, lists: 0 })
+	})
+
+	it('uses its one place on a tag when there is only one', () => {
+		expect(shareOut(5, 5, 1)).toEqual({ tags: 1, lists: 0 })
+	})
+})
+
+describe('chooseEntries', () => {
+	it('puts the hashtags first, then the lists', () => {
+		const entries = chooseEntries(tags(2), lists(2), 12)
+
+		expect(entries.map((e) => e.kind)).toEqual(['tag', 'tag', 'list', 'list'])
+	})
+
+	it('carries the thing itself, so the sidebar can draw it', () => {
+		const [first] = chooseEntries(tags(1), [], 12)
+
+		expect(first.tag.name).toBe('tag0')
+	})
+
+	it('never returns more than the room allows', () => {
+		expect(chooseEntries(tags(30), lists(30), 12)).toHaveLength(12)
+		expect(chooseEntries(tags(30), lists(30), 4)).toHaveLength(4)
+	})
+
+	it('answers for nothing rather than throwing', () => {
+		expect(chooseEntries(undefined, undefined, 12)).toEqual([])
+		expect(chooseEntries([], [], 12)).toEqual([])
+	})
+})

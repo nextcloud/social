@@ -35,9 +35,9 @@ const stubs = {
 		props: ['name', 'active', 'href', 'target', 'to'],
 		emits: ['click'],
 		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && JSON.stringify(to)" @click="$emit(\'click\', $event)">'
-			+ '<slot name="icon" /><span class="nav-item__name">{{ name }}</span>'
+			+ '<span class="nav-item__icon"><slot name="icon" /></span><span class="nav-item__name">{{ name }}</span>'
 			+ '<span class="nav-item__counter"><slot name="counter" /></span>'
-			+ '<slot name="extra" /><slot /></li>',
+			+ '<slot name="extra" /><span class="nav-item__actions"><slot name="actions" /></span><slot /></li>',
 	},
 	NcCounterBubble: { props: ['count', 'type'], template: '<span class="nc-counter" :data-count="count">{{ count }}</span>' },
 	NcAppNavigationSpacer: { template: '<hr>' },
@@ -195,26 +195,135 @@ describe('Navigation', () => {
 		})
 	})
 
-	describe('lists', () => {
+	describe('explore', () => {
 		const list = (id, title, group = null) => ({ id: String(id), title, replies_policy: 'list', exclusive: false, nextcloud_group: group })
-		// trending is asked first, then the lists
-		const withLists = (lists) => axios.get.mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({ data: lists })
-		const listItems = (wrapper) => wrapper.findAll('.nav-item.navigation__list')
+		const tag = (name) => ({ name, url: `https://cloud.example.org/tags/${name}`, following: true })
 
-		it('shows the reader their lists, the ones their groups give them first', async () => {
-			withLists([list(1, 'Friends'), list(2, 'Design', 'design'), list(3, 'Berlin office', 'berlin')])
+		/** Keyed on the URL rather than on call order: three reads fire here. */
+		const withExplore = ({ tags = [], lists = [] } = {}) => {
+			axios.get.mockImplementation((url) => Promise.resolve({
+				data: url.endsWith('/followed_tags') ? tags : (url.endsWith('/lists') ? lists : []),
+			}))
+		}
+
+		const listItems = (wrapper) => wrapper.findAll('.nav-item.navigation__list')
+		const tagItems = (wrapper) => wrapper.findAll('.nav-item.navigation__trend')
+		const explore = (wrapper) => wrapper.findAll('.nav-item.navigation__explore')[0]
+
+		// jsdom is 768 tall, which has room for seven; these tests are about
+		// what is shown rather than about how much fits, so they get a screen
+		// with room for all twelve
+		const TALL = 1200
+		const originalHeight = window.innerHeight
+
+		beforeEach(() => {
+			window.innerHeight = TALL
+		})
+
+		afterEach(() => {
+			window.innerHeight = originalHeight
+		})
+
+		it('gathers the hashtags and the lists into one entry', async () => {
+			withExplore({ tags: [tag('a11y')], lists: [list(1, 'Friends')] })
 			const wrapper = mountNavigation()
 			await flushPromises()
 
 			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/lists')
-			expect(listItems(wrapper).map((entry) => entry.attributes('data-name'))).toEqual(['Design', 'Berlin office', 'Friends'])
-			// a group list wears the group icon; a hand-made one does not
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/followed_tags')
+			expect(explore(wrapper).attributes('data-name')).toBe('Explore')
+			expect(tagItems(wrapper).map((e) => e.attributes('data-name'))).toEqual(['#a11y'])
+			expect(listItems(wrapper).map((e) => e.attributes('data-name'))).toEqual(['Friends'])
+		})
+
+		// the chevron is the only thing before the word
+		it('carries no icon of its own', async () => {
+			withExplore({ lists: [list(1, 'Friends')] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			// its own icon slot, not the children's: they keep theirs
+			expect(explore(wrapper).find('.nav-item__icon').element.children).toHaveLength(0)
+			expect(listItems(wrapper)[0].find('.material-design-icon').exists()).toBe(true)
+		})
+
+		it('says how much is inside', async () => {
+			withExplore({ tags: [tag('a11y'), tag('nextcloud')], lists: [list(1, 'Friends')] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(explore(wrapper).find('.nc-counter').attributes('data-count')).toBe('3')
+		})
+
+		/**
+		 * The count is of everything, not of what is drawn: when the rail has
+		 * room for fewer than there are, it is how the reader knows the rest
+		 * are there.
+		 */
+		it('counts what it cannot show', async () => {
+			withExplore({ tags: Array.from({ length: 20 }, (_, i) => tag(`t${i}`)), lists: [list(1, 'Friends')] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(explore(wrapper).find('.nc-counter').attributes('data-count')).toBe('21')
+			expect(tagItems(wrapper).length + listItems(wrapper).length).toBe(12)
+		})
+
+		it('shows no more than twelve, however many there are', async () => {
+			withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(tagItems(wrapper)).toHaveLength(12)
+		})
+
+		it('shows fewer when the window is short', async () => {
+			withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+			window.innerHeight = 640
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			const shortened = tagItems(wrapper).length
+
+			expect(shortened).toBeLessThan(12)
+			expect(shortened).toBeGreaterThan(0)
+		})
+
+		it('shows more again when the window grows', async () => {
+			withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+			window.innerHeight = 640
+			const wrapper = mountNavigation()
+			await flushPromises()
+			const shortened = tagItems(wrapper).length
+
+			window.innerHeight = 1200
+			window.dispatchEvent(new Event('resize'))
+			await nextTick()
+
+			expect(tagItems(wrapper).length).toBeGreaterThan(shortened)
+		})
+
+		it('keeps a place for each kind when it has to choose', async () => {
+			withExplore({ tags: Array.from({ length: 30 }, (_, i) => tag(`t${i}`)), lists: [list(1, 'Friends')] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(listItems(wrapper)).toHaveLength(1)
+			expect(tagItems(wrapper).length).toBeGreaterThan(0)
+		})
+
+		it('puts the lists their groups give them first', async () => {
+			withExplore({ lists: [list(1, 'Friends'), list(2, 'Design', 'design'), list(3, 'Berlin office', 'berlin')] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(listItems(wrapper).map((e) => e.attributes('data-name'))).toEqual(['Design', 'Berlin office', 'Friends'])
 			expect(listItems(wrapper)[0].find('.material-design-icon').classes()).toContain('account-group-icon')
 			expect(listItems(wrapper)[2].find('.material-design-icon').classes()).toContain('format-list-bulleted-icon')
 		})
 
 		it('points a list at its timeline', async () => {
-			withLists([list(4, 'Design', 'design')])
+			withExplore({ lists: [list(4, 'Design', 'design')] })
 			const wrapper = mountNavigation()
 			await flushPromises()
 
@@ -225,8 +334,18 @@ describe('Navigation', () => {
 			expect(item(wrapper, 'Design').attributes('data-href')).toBe(router.resolve(to).href)
 		})
 
+		it('points a hashtag at its timeline', async () => {
+			withExplore({ tags: [tag('a11y')] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			await item(wrapper, '#a11y').trigger('click')
+
+			expect(router.push).toHaveBeenCalledWith({ name: 'tags', params: { tag: 'a11y' } })
+		})
+
 		it('lights the list being read', async () => {
-			withLists([list(4, 'Design', 'design'), list(5, 'Friends')])
+			withExplore({ lists: [list(4, 'Design', 'design'), list(5, 'Friends')] })
 			const wrapper = mountNavigation({}, { name: 'list', params: { id: '4' } })
 			await flushPromises()
 
@@ -234,7 +353,7 @@ describe('Navigation', () => {
 		})
 
 		it('offers the way to where lists are made', async () => {
-			withLists([list(4, 'Design', 'design')])
+			withExplore({ lists: [list(4, 'Design', 'design')] })
 			const wrapper = mountNavigation()
 			await flushPromises()
 
@@ -247,27 +366,24 @@ describe('Navigation', () => {
 
 		/** The settings page owns them; this sidebar holds a copy of its own. */
 		it('reads them again when something says they changed', async () => {
-			withLists([list(4, 'Design', 'design')])
+			withExplore({ lists: [list(4, 'Design', 'design')] })
 			const wrapper = mountNavigation()
 			await flushPromises()
 
-			axios.get.mockImplementation((url) => Promise.resolve({
-				data: url.endsWith('/lists') ? [list(4, 'Design', 'design'), list(5, 'Book club')] : [],
-			}))
+			withExplore({ lists: [list(4, 'Design', 'design'), list(5, 'Book club')] })
 			eventBus.emit(LISTS_CHANGED)
 			await flushPromises()
 
-			expect(listItems(wrapper).map((entry) => entry.attributes('data-name')))
-				.toEqual(['Design', 'Book club'])
+			expect(listItems(wrapper).map((e) => e.attributes('data-name'))).toEqual(['Design', 'Book club'])
 		})
 
-		it('leaves the section out for a reader with no lists', async () => {
-			withLists([])
+		it('leaves the entry out for a reader with neither', async () => {
+			withExplore({})
 			const wrapper = mountNavigation()
 			await flushPromises()
 
-			expect(listItems(wrapper)).toHaveLength(0)
-			expect(wrapper.text()).not.toContain('Lists')
+			expect(wrapper.findAll('.nav-item.navigation__explore')).toHaveLength(0)
+			expect(wrapper.text()).not.toContain('Explore')
 		})
 	})
 
