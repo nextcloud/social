@@ -239,9 +239,13 @@ export default {
 			markerAsked: false,
 			emptyContent: {
 				default: {
-					image: 'img/undraw/posts.svg',
-					title: t('social', 'No posts found'),
-					description: t('social', 'Posts from people you follow will show up here'),
+					illustration: 'quiet-timeline',
+					title: t('social', 'Your timeline is quiet'),
+					description: t('social', 'Posts from the people you follow will show up here. Find a few to get started.'),
+					action: {
+						label: t('social', 'Find people to follow'),
+						to: { name: 'discover' },
+					},
 				},
 
 				direct: {
@@ -266,11 +270,16 @@ export default {
 					image: 'img/undraw/global.svg',
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here'),
+					action: {
+						label: t('social', 'Discover accounts'),
+						to: { name: 'discover' },
+					},
 				},
 
 				favourites: {
 					image: 'img/undraw/likes.svg',
 					title: t('social', 'No liked posts found'),
+					description: t('social', 'Posts you like are kept here, for you alone to see'),
 				},
 
 				profile: {
@@ -302,9 +311,13 @@ export default {
 				},
 
 				list: {
-					image: 'img/undraw/posts.svg',
+					illustration: 'nobody-yet',
 					title: t('social', 'Nothing in this list yet'),
-					description: t('social', 'Posts from the people in this list will show up here'),
+					description: t('social', 'Posts from the people in this list will show up here. A list with nobody in it stays empty.'),
+					action: {
+						label: t('social', 'Find people to add'),
+						to: { name: 'discover' },
+					},
 				},
 
 				'single-post': {

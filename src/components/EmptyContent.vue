@@ -13,6 +13,16 @@
 					alt="">
 				<component :is="illustration" v-else class="timeline-empty__illustration" />
 			</template>
+			<!-- An empty page that only says it is empty leaves the reader to
+			     work out what to do about it. Where there is an obvious next
+			     step it is offered here; where there is not — a tag with no
+			     posts, a search that found nothing — there is no button, and
+			     one invented for the sake of having one would be worse. -->
+			<template v-if="item.action" #action>
+				<NcButton variant="primary" :to="item.action.to">
+					{{ item.action.label }}
+				</NcButton>
+			</template>
 		</NcEmptyContent>
 	</div>
 </template>
@@ -20,8 +30,11 @@
 <script>
 
 import { linkTo } from '@nextcloud/router'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NobodyYet from './illustrations/NobodyYet.vue'
 import NoReplies from './illustrations/NoReplies.vue'
+import QuietTimeline from './illustrations/QuietTimeline.vue'
 
 /**
  * The drawings that are markup rather than a file in img/undraw, by the name an
@@ -29,13 +42,18 @@ import NoReplies from './illustrations/NoReplies.vue'
  */
 const ILLUSTRATIONS = {
 	'no-replies': NoReplies,
+	'quiet-timeline': QuietTimeline,
+	'nobody-yet': NobodyYet,
 }
 
 export default {
 	name: 'EmptyContent',
 	components: {
+		NcButton,
 		NcEmptyContent,
+		NobodyYet,
 		NoReplies,
+		QuietTimeline,
 	},
 
 	props: {

@@ -1052,10 +1052,22 @@ describe('TimelineList', () => {
 			const { wrapper } = mountList()
 			await flushPromises()
 			expect(wrapper.findComponent(EmptyContent).props('item')).toEqual({
-				image: 'img/undraw/posts.svg',
-				title: 'No posts found',
-				description: 'Posts from people you follow will show up here',
+				illustration: 'quiet-timeline',
+				title: 'Your timeline is quiet',
+				description: 'Posts from the people you follow will show up here. Find a few to get started.',
+				action: {
+					label: 'Find people to follow',
+					to: { name: 'discover' },
+				},
 			})
+		})
+
+		// an empty home timeline has exactly one answer, and leaving the reader
+		// to find Discover on their own is what this state used to do
+		it('offers somewhere to go from an empty home timeline', async () => {
+			const { wrapper } = mountList()
+			await flushPromises()
+			expect(wrapper.findComponent(EmptyContent).props('item').action.to).toEqual({ name: 'discover' })
 		})
 
 		it.each([
