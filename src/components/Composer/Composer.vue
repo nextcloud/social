@@ -326,11 +326,32 @@ const MAX_LENGTH = 500
 const ACCEPTED_MEDIA_TYPES = ['image/', 'video/', 'audio/']
 
 /**
+ * The files a post may carry besides media, as CacheDocumentService::
+ * DOCUMENT_MIME_TYPES has them: what people on a Nextcloud actually have to
+ * share. The extensions are for a browser that reports no type for a file.
+ */
+const ACCEPTED_DOCUMENT_TYPES = [
+	'application/pdf',
+	'text/plain',
+	'text/markdown',
+	'text/csv',
+	'application/zip',
+	'application/epub+zip',
+	'application/vnd.oasis.opendocument.text',
+	'application/vnd.oasis.opendocument.spreadsheet',
+	'application/vnd.oasis.opendocument.presentation',
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+	'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+]
+const ACCEPTED_DOCUMENT_EXTENSIONS = ['.pdf', '.txt', '.md', '.csv', '.zip', '.epub', '.odt', '.ods', '.odp', '.docx', '.xlsx', '.pptx']
+
+/**
  * What the file picker offers. Narrower than what the composer takes from a
  * drop or an upload: Files is where the pictures are, and an audio file picked
  * out of a folder tree is not what this button is for.
  */
-const PICKABLE_MEDIA_TYPES = ['image/*', 'video/*']
+const PICKABLE_MEDIA_TYPES = ['image/*', 'video/*', ...ACCEPTED_DOCUMENT_TYPES]
 
 /** what a post may carry, as Stream::MAX_ATTACHMENTS holds it server-side */
 const MAX_ATTACHMENTS = 10
@@ -581,7 +602,7 @@ export default {
 		...mapStores(useTimelineStore),
 		/** @return {string} the `accept` of the file dialog, from one list */
 		acceptedTypes() {
-			return ACCEPTED_MEDIA_TYPES.map((type) => `${type}*`).join(',')
+			return [...ACCEPTED_MEDIA_TYPES.map((type) => `${type}*`), ...ACCEPTED_DOCUMENT_TYPES, ...ACCEPTED_DOCUMENT_EXTENSIONS].join(',')
 		},
 
 		/** @return {boolean} whether the composer holds a picture */
@@ -739,6 +760,8 @@ export default {
 		 * Another post's page, in the same component: the router reuses this
 		 * view, so without this the box would still be replying to the post
 		 * the reader has navigated away from.
+		 *
+		 * @param post
 		 */
 		inReplyTo(post) {
 			this.replyTo = post
@@ -1014,7 +1037,10 @@ export default {
 		 * @return {boolean} whether the file dialog would have offered it
 		 */
 		acceptsFile(file) {
-			return ACCEPTED_MEDIA_TYPES.some((type) => (file.type || '').startsWith(type))
+			const type = file.type || ''
+			return ACCEPTED_MEDIA_TYPES.some((prefix) => type.startsWith(prefix))
+				|| ACCEPTED_DOCUMENT_TYPES.includes(type)
+				|| ACCEPTED_DOCUMENT_EXTENSIONS.some((extension) => (file.name || '').toLowerCase().endsWith(extension))
 		},
 
 		/** @param {DragEvent} event a drag arriving over the card */
@@ -1178,7 +1204,7 @@ export default {
 				// `@nextcloud/dialogs`, and it is wanted only by somebody who
 				// has just clicked "attach from Files"
 				const { getFilePickerBuilder } = await import('@nextcloud/dialogs')
-				picked = await getFilePickerBuilder(translate('social', 'Pick pictures to attach'))
+				picked = await getFilePickerBuilder(translate('social', 'Pick files to attach'))
 					.setMultiSelect(true)
 					.setMimeTypeFilter(PICKABLE_MEDIA_TYPES)
 					.allowDirectories(false)

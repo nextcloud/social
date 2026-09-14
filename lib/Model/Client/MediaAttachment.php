@@ -242,6 +242,13 @@ class MediaAttachment implements JsonSerializable {
 			'mp4' => 'video/mp4', 'm4v' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime',
 			'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'ogg' => 'audio/ogg', 'oga' => 'audio/ogg',
 			'opus' => 'audio/opus', 'wav' => 'audio/wav', 'flac' => 'audio/flac', 'aac' => 'audio/aac',
+			'pdf' => 'application/pdf', 'txt' => 'text/plain', 'md' => 'text/markdown', 'csv' => 'text/csv',
+			'zip' => 'application/zip', 'epub' => 'application/epub+zip',
+			'odt' => 'application/vnd.oasis.opendocument.text', 'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+			'odp' => 'application/vnd.oasis.opendocument.presentation',
+			'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+			'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+			'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 		];
 		if (isset($byExtension[$extension])) {
 			return $byExtension[$extension];

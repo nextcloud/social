@@ -208,6 +208,14 @@ class CacheDocumentServiceTest extends TestCase {
 			'opus' => ['audio/opus'],
 			'wav' => ['audio/wav'],
 			'flac' => ['audio/flac'],
+			// files: what people on a Nextcloud actually have to share
+			'pdf' => ['application/pdf'],
+			'plain text' => ['text/plain'],
+			'markdown' => ['text/markdown'],
+			'csv' => ['text/csv'],
+			'zip' => ['application/zip'],
+			'odt' => ['application/vnd.oasis.opendocument.text'],
+			'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
 		];
 	}
 
@@ -224,8 +232,17 @@ class CacheDocumentServiceTest extends TestCase {
 			'html' => ['text/html'],
 			'php' => ['application/x-httpd-php'],
 			'mkv' => ['video/x-matroska'],
+			// a file a browser would run is not a file a post may carry
+			'exe' => ['application/x-msdownload'],
+			'javascript' => ['text/javascript'],
 			'empty' => [''],
 		];
+	}
+
+	public function testADocumentMimeIsKnownAsOne(): void {
+		$this->assertTrue(CacheDocumentService::isDocumentMime('application/pdf'));
+		$this->assertFalse(CacheDocumentService::isDocumentMime('image/png'));
+		$this->assertFalse(CacheDocumentService::isDocumentMime('text/html'));
 	}
 
 	#[DataProvider('rejectedMimeProvider')]
@@ -523,9 +540,10 @@ class CacheDocumentServiceTest extends TestCase {
 		$this->service->filterSize('video/mp4', 3000 * 1048576);
 	}
 
-	public function testSaveFromTempToCacheRejectsNonImages(): void {
+	public function testSaveFromTempToCacheRejectsWhatABrowserWouldRun(): void {
 		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
-		file_put_contents($tmp, 'plain text');
+		// plain text is a file a post may carry now; a web page is not
+		file_put_contents($tmp, "<!DOCTYPE html>\n<html><head><title>x</title></head><body><script>alert(1)</script></body></html>");
 		try {
 			$this->appData->expects($this->never())->method($this->anything());
 

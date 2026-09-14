@@ -452,11 +452,39 @@ class CacheDocumentService {
 			'audio/aac',
 		];
 
-		if (in_array($mime, $allowedMimeType)) {
+		if (in_array($mime, $allowedMimeType, true) || in_array($mime, self::DOCUMENT_MIME_TYPES, true)) {
 			return;
 		}
 
 		throw new CacheContentMimeTypeException();
+	}
+
+	/**
+	 * The files a post may carry that are not media: what people on a
+	 * Nextcloud actually have to share. Stored as they are, served as
+	 * downloads, shown as a file card; on the wire an ActivityPub `Document`
+	 * with its mime, which Mastodon renders as an `unknown` attachment (a
+	 * link) and other Nextclouds render as a file. Nothing a browser would
+	 * execute: no HTML, no SVG, no scripts.
+	 */
+	public const DOCUMENT_MIME_TYPES = [
+		'application/pdf',
+		'text/plain',
+		'text/markdown',
+		'text/csv',
+		'application/zip',
+		'application/epub+zip',
+		'application/vnd.oasis.opendocument.text',
+		'application/vnd.oasis.opendocument.spreadsheet',
+		'application/vnd.oasis.opendocument.presentation',
+		'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+	];
+
+	/** Whether a mime is one of the file kinds above rather than a picture, a video or a sound. */
+	public static function isDocumentMime(string $mime): bool {
+		return in_array($mime, self::DOCUMENT_MIME_TYPES, true);
 	}
 
 	/**

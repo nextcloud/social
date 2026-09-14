@@ -84,6 +84,31 @@ describe('MediaAttachment', () => {
 		expect(video.attributes('preload')).toBe('metadata')
 	})
 
+	it('shows a file as a named download card rather than a broken picture', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { id: '9', type: 'unknown', url: 'https://cloud.example.org/media/abc.pdf', preview_url: null, description: 'minutes.pdf' }, interactive: true },
+		})
+
+		const card = wrapper.find('a.attachment__file')
+		expect(card.exists()).toBe(true)
+		expect(card.attributes('href')).toBe('https://cloud.example.org/media/abc.pdf')
+		expect(card.attributes('download')).toBeDefined()
+		expect(card.find('.attachment__file-name').text()).toBe('minutes.pdf')
+		expect(card.find('.attachment__file-kind').text()).toBe('PDF')
+		// nothing to load, so nothing spins and no placeholder says it failed
+		expect(wrapper.find('.attachment__failed').exists()).toBe(false)
+		expect(wrapper.findComponent({ name: 'NcLoadingIcon' }).exists()).toBe(false)
+	})
+
+	it('names an undescribed file after the last part of its address', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { id: '9', type: 'unknown', url: 'https://cloud.example.org/media/Q3%20report.docx?x=1', preview_url: null, description: null } },
+		})
+
+		expect(wrapper.find('.attachment__file-name').text()).toBe('Q3 report.docx')
+		expect(wrapper.find('.attachment__file-kind').text()).toBe('DOCX')
+	})
+
 	it('renders the small preview image', () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment } })
 		expect(wrapper.find('img.attachment__preview').attributes('src')).toBe(attachment.preview_url)
