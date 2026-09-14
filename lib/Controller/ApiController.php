@@ -78,6 +78,7 @@ use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\ReactionService;
+use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
@@ -197,6 +198,7 @@ class ApiController extends Controller {
 		private PlaceService $placeService,
 		private DeliveryService $deliveryService,
 		private ReactionService $reactionService,
+		private ReactionSummaryService $reactionSummaryService,
 		private GifService $gifService,
 		private NotificationService $notificationService,
 	) {
@@ -1995,7 +1997,7 @@ class ApiController extends Controller {
 			// read back rather than patched in memory, so the count the client
 			// redraws is the one the next reader will be served
 			$item = $this->streamService->getStreamByNid($nid);
-			$item->setReactions($this->reactionService->summaryOf($item->getId(), $actor->getId()));
+			$item->setReactions($this->reactionSummaryService->summaryOf($item->getId(), $actor->getId()));
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($item, Http::STATUS_OK);
@@ -2022,7 +2024,7 @@ class ApiController extends Controller {
 			$post = $this->streamService->getStreamByNid($nid);
 
 			return new DataResponse(
-				$this->reactionService->summaryOf($post->getId(), $this->viewer?->getId() ?? ''),
+				$this->reactionSummaryService->summaryOf($post->getId(), $this->viewer?->getId() ?? ''),
 				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {

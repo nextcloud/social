@@ -68,7 +68,7 @@ class StreamService {
 		private EmojiService $emojiService,
 		private LoggerInterface $logger,
 		private PlaceService $placeService,
-		private ReactionService $reactionService,
+		private ReactionSummaryService $reactionSummaryService,
 	) {
 	}
 
@@ -534,7 +534,7 @@ class StreamService {
 			// reads -- none of them is part of the wire object
 			$this->linkPreviewService->attachCards($posts);
 			$this->placeService->attachPlaces($posts);
-			$this->reactionService->attachReactions($posts, $this->viewer?->getId() ?? '');
+			$this->reactionSummaryService->attachReactions($posts, $this->viewer?->getId() ?? '');
 		}
 
 		return $posts;

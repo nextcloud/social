@@ -32,7 +32,7 @@ use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PlaceService;
-use OCA\Social\Service\ReactionService;
+use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamQueueService;
@@ -94,7 +94,7 @@ class BoostServiceTest extends TestCase {
 			$this->createMock(EmojiService::class),
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
-			$this->createMock(ReactionService::class)
+			$this->createMock(ReactionSummaryService::class)
 		);
 
 		$this->service = new BoostService(

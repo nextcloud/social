@@ -31,7 +31,7 @@ use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PostService;
-use OCA\Social\Service\ReactionService;
+use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamService;
 use OCP\IURLGenerator;
@@ -82,7 +82,7 @@ class PostServiceQuoteTest extends TestCase {
 			$this->createMock(EmojiService::class),
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
-			$this->createMock(ReactionService::class)
+			$this->createMock(ReactionSummaryService::class)
 		);
 
 		$l10nFactory = $this->createMock(IFactory::class);
