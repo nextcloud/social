@@ -71,9 +71,16 @@ test.describe('Social, in a browser', () => {
 		test.skip(!group, 'set E2E_GROUP to the display name of a group this account is in')
 
 		await openApp(page)
-		// the caption over the section, then the list itself
-		await expect(page.locator('.app-navigation-caption').filter({ hasText: 'Lists' }).first()).toBeVisible()
+		// the lists live inside Explore now, beside the hashtags the account
+		// follows, so the entry has to be there and open before the list is
+		const explore = page.locator('.navigation__explore').first()
+		await expect(explore).toBeVisible()
+
 		const list = page.locator('.navigation__list').filter({ hasText: group }).first()
+		if (!await list.isVisible()) {
+			// it is open by default, but a previous run may have folded it
+			await explore.getByRole('button').first().click()
+		}
 		await expect(list).toBeVisible()
 
 		await list.click()
