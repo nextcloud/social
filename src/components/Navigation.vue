@@ -833,9 +833,20 @@ export default {
 			const children = item.querySelector('.app-navigation-entry__children')
 			const childrenHeight = children ? children.offsetHeight : 0
 			const rowHeight = children?.firstElementChild?.offsetHeight || 0
-			// everything in the rail except the children: the button, the
-			// entries, the spacers, the Explore row itself
-			const fixed = list.scrollHeight - childrenHeight
+
+			// Everything in the rail except the Explore children: the button,
+			// the entries, the spacers, the Explore row itself. Summed from
+			// the rows rather than taken from `scrollHeight`, which is only
+			// the content height while the content overflows — - the rest of
+			// the time it is the container's height, so `scrollHeight` less
+			// the children grew with the window and left `free` pinned at
+			// whatever the children already occupied. The entry then never
+			// grew back once it had shrunk.
+			let fixed = 0
+			for (const row of list.children) {
+				fixed += row.offsetHeight
+			}
+			fixed -= childrenHeight
 
 			this.measuredCap = capacityFrom({
 				free: list.clientHeight - fixed,

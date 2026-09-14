@@ -386,18 +386,44 @@ describe('Navigation', () => {
 		 * browser would report them.
 		 */
 		describe('measuring the rail', () => {
-			const layOut = (wrapper, { railHeight, fixedHeight, rowHeight }) => {
+			/**
+			 * Lays the rail out the way a browser reports it.
+			 *
+			 * The rows carry the fixed height between them and the Explore
+			 * item carries its children, because that is how the measurement
+			 * reads it. `scrollHeight` is set the way a browser sets it —
+			 * the content height, or the container's when nothing overflows —
+			 * so that a measurement which leant on it would be caught here.
+			 */
+			const layOut = (wrapper, { railHeight, fixedHeight, rowHeight, shownRows = 1 }) => {
 				const item = wrapper.findAll('.nav-item.navigation__explore')[0].element
 				const list = item.parentElement
+
+				item.querySelector('.app-navigation-entry__children')?.remove()
 				const children = document.createElement('ul')
 				children.className = 'app-navigation-entry__children'
-				const row = document.createElement('li')
-				Object.defineProperty(row, 'offsetHeight', { value: rowHeight, configurable: true })
-				children.appendChild(row)
-				Object.defineProperty(children, 'offsetHeight', { value: 0, configurable: true })
+				for (let i = 0; i < shownRows; i++) {
+					const row = document.createElement('li')
+					Object.defineProperty(row, 'offsetHeight', { value: rowHeight, configurable: true })
+					children.appendChild(row)
+				}
+				const childrenHeight = shownRows * rowHeight
+				Object.defineProperty(children, 'offsetHeight', { value: childrenHeight, configurable: true })
 				item.appendChild(children)
+
+				// the fixed content sits on the Explore row, plus its children
+				Object.defineProperty(item, 'offsetHeight', { value: fixedHeight + childrenHeight, configurable: true })
+				for (const sibling of list.children) {
+					if (sibling !== item) {
+						Object.defineProperty(sibling, 'offsetHeight', { value: 0, configurable: true })
+					}
+				}
+
 				Object.defineProperty(list, 'clientHeight', { value: railHeight, configurable: true })
-				Object.defineProperty(list, 'scrollHeight', { value: fixedHeight, configurable: true })
+				Object.defineProperty(list, 'scrollHeight', {
+					value: Math.max(railHeight, fixedHeight + childrenHeight),
+					configurable: true,
+				})
 			}
 
 			it('shows more when the rail has more room', async () => {
@@ -425,6 +451,30 @@ describe('Navigation', () => {
 			 * it was read back, and the entry would flicker between two
 			 * lengths for ever.
 			 */
+			/**
+			 * It shrank correctly and then never grew back: `scrollHeight` is
+			 * the content height only while the content overflows, and is the
+			 * container's height otherwise — so "the rail less the children"
+			 * grew with the window and left the free space pinned at whatever
+			 * the children already took.
+			 */
+			it('grows again after it has shrunk', async () => {
+				withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+				const wrapper = mountNavigation()
+				await flushPromises()
+
+				layOut(wrapper, { railHeight: 420, fixedHeight: 400, rowHeight: 38, shownRows: 3 })
+				wrapper.vm.measureRail()
+				await nextTick()
+				const shrunk = tagItems(wrapper).length
+
+				layOut(wrapper, { railHeight: 900, fixedHeight: 400, rowHeight: 38, shownRows: shrunk })
+				wrapper.vm.measureRail()
+				await nextTick()
+
+				expect(tagItems(wrapper).length).toBeGreaterThan(shrunk)
+			})
+
 			it('settles rather than feeding on itself', async () => {
 				withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
 				const wrapper = mountNavigation()
