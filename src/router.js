@@ -6,6 +6,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { generateUrl } from '@nextcloud/router'
 
+import eventBus from './services/eventBus.js'
+
 const Timeline = () => import('./views/Timeline.vue')
 const TimelineSinglePost = () => import('./views/TimelineSinglePost.vue')
 const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile.vue')
@@ -36,14 +38,46 @@ function getBase() {
 	return generateUrl('/apps/social').replace(/\/+$/, '')
 }
 
+/**
+ * How long a restored scroll offset waits for the page to be drawn before it is
+ * applied anyway. Long enough for a list to come back from the store and for a
+ * page of posts to arrive over a slow connection; short enough that a view that
+ * never says anything still scrolls rather than staying where it was.
+ */
+const RENDER_TIMEOUT = 2000
+
+/**
+ * Resolves once the timeline has said it is on the page, or after
+ * `RENDER_TIMEOUT`, whichever is first.
+ *
+ * @return {Promise<void>}
+ */
+function whenRendered() {
+	return new Promise((resolve) => {
+		const done = () => {
+			clearTimeout(timer)
+			eventBus.off('timeline:rendered', done)
+			resolve()
+		}
+
+		const timer = setTimeout(done, RENDER_TIMEOUT)
+		eventBus.on('timeline:rendered', done)
+	})
+}
+
 const router = createRouter({
 	history: createWebHistory(getBase()),
 	linkActiveClass: 'active',
 	/**
-	 * Where to be after a navigation. Without this every route change landed
-	 * at whatever offset the previous page happened to be at, and pressing
-	 * Back out of a post left the reader at the top of the timeline with no
-	 * way of finding their place again.
+	 * Where to be after a navigation: back where Back came from, at what the
+	 * address points to, and otherwise at the top.
+	 *
+	 * The offset Back remembers is waited for rather than returned outright.
+	 * Vue Router scrolls as soon as the route has changed, and at that moment
+	 * the timeline is one screen tall — the view has mounted but its posts have
+	 * not been drawn yet — so the browser clamped a four-page offset to the
+	 * bottom of what was there and the reader landed nowhere near where they
+	 * had been.
 	 *
 	 * @param {object} to the route being entered
 	 * @param {object} from the route being left
@@ -52,7 +86,7 @@ const router = createRouter({
 	 */
 	scrollBehavior(to, from, savedPosition) {
 		if (savedPosition) {
-			return savedPosition
+			return whenRendered().then(() => savedPosition)
 		}
 
 		if (to.hash) {

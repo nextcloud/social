@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.62  
+**App version:** 0.19.63  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -836,6 +836,37 @@ the app — to tell a post opened from a timeline from one opened from a link
 somebody sent: the first goes back, the second goes to the home timeline, because
 a button inside the app should not be the thing that leaves it.
 
+**Which is only a way back if the timeline is still there.** The store holds one
+list at a time, and `changeTimelineType()` used to clear it on every call — which
+includes the call `Timeline.vue` makes in `beforeMount()` when the view is
+mounted again on the way back out of a post. A reader four pages into a timeline
+came back to fifteen posts. `switchTimeline()` compares the list being asked for
+with the one being held (`getTimelineIdentity`: type, account and params, the
+same value that tells a page in flight it is no longer wanted) and clears only
+when they genuinely differ, and it keeps **one** list aside — `remembered`, the
+one just left — so that coming straight back to it finds it whole. One and not a
+cache of all of them: each entry holds a full status index, and keeping every
+timeline ever opened is the leak `resetTimeline()` was written to stop. A
+restored list also sets `restored`, which is how `TimelineList` knows not to ask
+for another page on top of the ones it already has.
+
+Putting the reader back where they were then needs the page to exist first. Vue
+Router applies the offset Back remembers as soon as the route has changed, and at
+that moment the timeline is one screen tall, so the browser clamped a four-page
+offset to the bottom of what was there. `scrollBehavior` returns a promise
+instead: `TimelineList` emits `timeline:rendered` on the event bus once its
+entries are on the page, and the router waits for that, or for two seconds,
+whichever comes first — a view that never says anything still scrolls.
+
+The "N new posts" pill that polling puts up is sticky, and so is the box the
+reader writes in: same stacking context, and the composer both taller and above.
+The pill only appears once the reader is a screen or so down, which is exactly
+when the composer is stuck to the top — so it was painted behind it every time.
+`TimelineList` measures the composer, which is a sibling above it rather than a
+parent, and sets the pill's `top` below it; measured and not assumed, because a
+content warning, a row of attachments or a poll all make the composer taller.
+The watching lasts only as long as the pill is on screen.
+
 **One card, and a line only when there is a conversation.** The post a page is
 about used to be drawn inside two boxes: `TimelinePost`'s own card, and around
 it a second card in `TimelineSinglePost` — white ground, padding, rounded
@@ -859,22 +890,45 @@ and nothing else (see `img/undraw/readme.md`); anything new has to be ours. A
 state with a small drawing keeps the compact layout — the 60vh of height is room
 for the full-size ones only.
 
-**A link to a post, opened cold.** The app writes its own links to a post as
-`/@acct/<nid>` — the numeric id its client API uses — while the address a post
-is published under ends in a different token, and `ActivityPubController::displayPost()`
-looked a post up by that address alone. So a link opened in a new tab, a reload,
-or a link somebody sent found nothing, provided no `item`, and the page said the
-post did not exist. It now falls back to `getStreamByNid()` for a numeric token,
-on the browser branch only: an ActivityPub request asks for a post by its
-address, and answering a second identifier there would invent a second canonical
-id for every post. The fallback goes through the same viewer filter every other
-read does, so it shows what the reader may see and nothing more.
+**A link to a post, opened cold.** `/@{username}` and `/@{username}/{token}` are
+ActivityPub addresses first, so `ActivityPubController` owns them; a request
+whose `Accept` header asks for HTML is handed to `SocialPubController`, which is
+the browser half of those two routes and nothing else — it has no routes of its
+own. Who is asking decides what they get. A reader with a session gets the app,
+the very page `NavigationController::navigate()` serves at `/`, because the
+client-side router has a view for each of these paths. This used to serve the
+public page to everybody, so a link to a post or a profile landed a logged-in
+reader on a page with a blue header, a "Get your own free account" banner and a
+Follow button that started the remote-follow flow for an account they could have
+followed with one click. An ActivityPub request is untouched by any of it.
 
-The same page also said `'public' => true` for everybody, so following a link to
-a post logged you out of the page you landed on — no navigation, no reply box.
-It is `$viewer === null` now, and the viewer is set on the stream service before
-the lookup, which is also what lets a post narrower than public resolve for the
-people it was addressed to.
+The app writes its own links to a post as `/@acct/<nid>` — the numeric id its
+client API uses — while the address a post is published under ends in a
+different token, and the post used to be looked up by that address alone. So a
+link opened in a new tab, a reload, or a link somebody sent found nothing,
+provided no `item`, and the page said the post did not exist.
+`SocialPubController::resolvePost()` falls back to `getStreamByNid()` for a
+numeric token, on the browser branch only: an ActivityPub request asks for a
+post by its address, and answering a second identifier there would invent a
+second canonical id for every post. The fallback goes through the same viewer
+filter every other read does, so it shows what the reader may see and nothing
+more. The other end of that is in `TimelineSinglePost`: the post the server
+rendered into the page carries its *client* id, and the view goes on that rather
+than on what is in the address, so `/context` and the store are asked in the one
+identifier they speak. The initial-state post is only used when the address
+names it — by that id, or by the last segment of its `uri` — since the page is
+rendered once and the reader goes on reading, and a second post used to be
+answered with the first.
+
+An address that names nothing is a **404** rather than a 500. Looking an account
+up used to try to *fetch* it, and a bare username is not an account anybody can
+resolve, so the exception saying so came out as a server error; the lookup is of
+what this instance already has now (`getFromAccount($username, false)`) — an
+anonymous page request is no reason to webfinger whatever is in the address. A
+visitor gets `templates/notfound.php`, a small guest page shaped like the
+server's own; a reader with a session gets the app with a 404 status, and its
+views say "User not found" and "This post is not available" once they have
+asked.
 
 On the client, `TimelineSinglePost` asks for the post itself when nothing has
 loaded it — `timelineStore.fetchStatus()`, which is `GET /api/v1/statuses/{id}`.

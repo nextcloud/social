@@ -14,6 +14,7 @@
 			<button
 				v-if="arrived > 0"
 				class="new-posts-pill"
+				:style="pillStyle"
 				:aria-label="n('social', 'Show %n new post', 'Show %n new posts', arrived)"
 				@click="showArrived">
 				<ArrowUp :size="18" />
@@ -165,6 +166,10 @@ export default {
 			hiddenSince: 0,
 			/** posts that arrived while the reader was further down the page */
 			arrived: 0,
+			/** how tall the sticky composer above this list is, 0 when there is none */
+			composerHeight: 0,
+			/** watches that composer, only while the pill is on screen */
+			composerObserver: null,
 			/** index of the post the keyboard is on, -1 when none */
 			focused: -1,
 			loading: false,
@@ -407,6 +412,22 @@ export default {
 		depths() {
 			return this.isThread ? this.thread.depth : {}
 		},
+
+		/**
+		 * Where the "N new posts" pill sits.
+		 *
+		 * It is sticky, and so is the box the reader writes in, which is taller
+		 * and paints above it in the same stacking context. The pill only shows
+		 * once the reader has scrolled a screen or so — which is exactly when
+		 * the composer is stuck to the top — so it was painted behind it every
+		 * single time. The composer's height is measured rather than assumed,
+		 * because it grows: a content warning, a row of attachments, a poll.
+		 *
+		 * @return {object} the inline offset, or nothing when there is no composer
+		 */
+		pillStyle() {
+			return this.composerHeight === 0 ? {} : { top: `${this.composerHeight + 8}px` }
+		},
 	},
 
 	watch: {
@@ -419,6 +440,16 @@ export default {
 		timelineIdentity() {
 			if (!this.showParents) {
 				this.resetAndLoad()
+			}
+		},
+
+		// the pill is only on screen for as long as there is something to say,
+		// so the composer is only watched for that long either
+		arrived(count) {
+			if (count > 0) {
+				this.watchComposer()
+			} else {
+				this.unwatchComposer()
 			}
 		},
 
@@ -457,7 +488,7 @@ export default {
 		eventBus.on('shortcut:next', this.focusNext)
 		eventBus.on('shortcut:previous', this.focusPrevious)
 
-		this.infiniteHandler()
+		this.loadFirstPage()
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
 		const hasPush = listen('social_timeline', () => this.fetchNewStatuses())
@@ -474,12 +505,75 @@ export default {
 		eventBus.off('shortcut:next', this.focusNext)
 		eventBus.off('shortcut:previous', this.focusPrevious)
 		clearInterval(this.intervalId)
+		this.unwatchComposer()
 		if (this.observer) {
 			this.observer.disconnect()
 		}
 	},
 
 	methods: {
+		/**
+		 * Asks for the first page, unless this list is already loaded.
+		 *
+		 * A timeline that came back with the reader — Back out of a post, most
+		 * of all — is held by the store with every page they had read. Asking
+		 * again here would have appended the page *after* those, which is both
+		 * a request nobody needed and a list that changes height underneath the
+		 * scroll offset being restored.
+		 */
+		async loadFirstPage() {
+			if (!this.timelineStore.restored || this.timeline.length === 0) {
+				await this.infiniteHandler()
+			}
+
+			// the router holds a restored scroll offset until this says the
+			// list is on the page: before it is, the document is one screen
+			// tall and the browser clamps the offset to the bottom of it
+			await this.$nextTick()
+			eventBus.emit('timeline:rendered')
+		},
+
+		/**
+		 * Keeps `composerHeight` in step with the box the reader writes in.
+		 *
+		 * The composer is a sibling of this list rather than a child, so it is
+		 * found by walking back from here: a page without one — a profile's
+		 * grid, a thread — simply finds nothing and the pill keeps its own
+		 * offset.
+		 */
+		watchComposer() {
+			this.unwatchComposer()
+
+			let sibling = this.$el?.previousElementSibling ?? null
+			while (sibling !== null && !sibling.classList?.contains('new-post')) {
+				sibling = sibling.previousElementSibling
+			}
+			if (sibling === null) {
+				this.composerHeight = 0
+				return
+			}
+
+			const measure = () => {
+				this.composerHeight = sibling.offsetHeight
+			}
+			measure()
+
+			if (typeof ResizeObserver === 'undefined') {
+				return
+			}
+			this.composerObserver = new ResizeObserver(measure)
+			this.composerObserver.observe(sibling)
+		},
+
+		/** Stops watching it, and forgets what it measured. */
+		unwatchComposer() {
+			if (this.composerObserver !== null) {
+				this.composerObserver.disconnect()
+				this.composerObserver = null
+			}
+			this.composerHeight = 0
+		},
+
 		setupIntersectionObserver() {
 			this.observer = new IntersectionObserver((entries) => {
 				if (entries[0].isIntersecting && !this.loading && !this.allLoaded) {
@@ -505,7 +599,7 @@ export default {
 			this.arrived = 0
 			this.focused = -1
 			this.pollFailureReported = false
-			this.infiniteHandler()
+			this.loadFirstPage()
 		},
 
 		/** What the retry button does. */
@@ -747,8 +841,13 @@ export default {
 
 .new-posts-pill {
 	position: sticky;
+	// the fallback for a page with no composer above the list; where there is
+	// one, the component sets `top` to just below it
 	top: 8px;
-	z-index: 10;
+	// above the composer rather than below it: the offset keeps the two apart,
+	// and if the composer grows between two measurements the pill is still the
+	// one you can see
+	z-index: 101;
 	display: flex;
 	align-items: center;
 	gap: 6px;

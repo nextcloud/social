@@ -81,11 +81,13 @@ class NavigationController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	// The client-side router owns `/follow_requests`, `/blocked`, `/discover`,
-	// `/migration` and `/statistics`; the server
-	// has to answer them too, or reloading or bookmarking one of those pages is
-	// a 404. `postfix` keeps the route names apart: a route is keyed by
-	// controller, method and postfix, so several routes on one method without
-	// it would leave only the last.
+	// `/migration`, `/statistics`, `/settings` and `/search`; the server has to
+	// answer them too, or reloading or bookmarking one of those pages is a 404.
+	// `postfix` keeps the route names apart: a route is keyed by controller,
+	// method and postfix, so several routes on one method without it would
+	// leave only the last. The profile and post pages, `/@{username}` and
+	// `/@{username}/{token}`, are ActivityPub urls first and are answered by
+	// `ActivityPubController`, which hands a browser to `SocialPubController`.
 	#[FrontpageRoute(verb: 'GET', url: '/')]
 	#[FrontpageRoute(verb: 'GET', url: '/follow_requests', postfix: 'followrequests')]
 	#[FrontpageRoute(verb: 'GET', url: '/blocked', postfix: 'blocked')]
@@ -93,6 +95,8 @@ class NavigationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/migration', postfix: 'migration')]
 	#[FrontpageRoute(verb: 'GET', url: '/statistics', postfix: 'statistics')]
 	#[FrontpageRoute(verb: 'GET', url: '/settings', postfix: 'settings')]
+	#[FrontpageRoute(verb: 'GET', url: '/search', postfix: 'search')]
+	#[FrontpageRoute(verb: 'GET', url: '/search/{term}', postfix: 'searchterm')]
 	public function navigate(string $path = ''): TemplateResponse {
 		$this->logger->debug('[NavigationController] navigate() called', [
 			'path' => $path,

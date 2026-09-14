@@ -62,7 +62,6 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
-use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 use Psr\Log\LoggerInterface;
@@ -836,16 +835,11 @@ class ActivityPubController extends Controller {
 	}
 
 	/**
-	 * should return data about a post. do nothing.
+	 * A post: as ActivityPub for a client that asks for it, as a page for a
+	 * browser.
 	 *
-	 *
-	 * @param string $username
-	 * @param string $token
-	 *
-	 * @return Response
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
-	 * @throws StreamNotFoundException
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -894,63 +888,9 @@ class ActivityPubController extends Controller {
 			return $this->activityPubSuccess($stream);
 		}
 
-		// whoever is reading, so a post narrower than public resolves for the
-		// people it was addressed to rather than only for the whole internet
-		$viewer = null;
-		try {
-			$viewer = $this->accountService->getCurrentViewer();
-			$this->streamService->setViewer($viewer);
-		} catch (AccountDoesNotExistException $e) {
-		}
-
-		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
-		try {
-			$post = $this->streamService->getStreamById($postId, true);
-		} catch (StreamNotFoundException $e) {
-			// the app's own links to a post carry the numeric id its client API
-			// uses, which is not the token in the post's address: opening one in
-			// a new tab, reloading it, or following one somebody sent found
-			// nothing here and the page said the post did not exist
-			$post = $this->postByNid($token);
-		}
-
-		$serverData = [
-			// a reader who is logged in gets the app, with its navigation and
-			// its reply box; this said `true` for everybody, so following a
-			// link to a post logged you out of the page you landed on
-			'public' => ($viewer === null),
-			'firstrun' => false,
-			'setup' => false,
-		];
-
-		$this->initialState->provideInitialState('serverData', $serverData);
-
-		if ($post !== null) {
-			$this->initialState->provideInitialState('item', $post);
-		}
-
-		return new TemplateResponse(Application::APP_ID, 'main', []);
-	}
-
-	/**
-	 * A post by the numeric id the client API knows it as, for the links the
-	 * app itself writes. Only for the browser page: an ActivityPub request asks
-	 * for a post by its address, and answering a different identifier there
-	 * would invent a second canonical id for every post.
-	 *
-	 * @param string $token the last segment of the URL
-	 * @return Stream|null
-	 */
-	private function postByNid(string $token): ?Stream {
-		if (!ctype_digit($token)) {
-			return null;
-		}
-
-		try {
-			return $this->streamService->getStreamByNid((int)$token);
-		} catch (Exception $e) {
-			return null;
-		}
+		// a browser: who is reading decides between the app and the public page,
+		// and the public controller knows both
+		return $this->socialPubController->displayPost($username, $token);
 	}
 
 	/**

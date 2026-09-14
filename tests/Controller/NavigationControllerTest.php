@@ -21,6 +21,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -277,6 +278,54 @@ class NavigationControllerTest extends TestCase {
 
 		$this->assertSame('main', $this->controller()->timeline('home')->getTemplateName());
 		$this->assertSame('main', $this->controller()->account('alice')->getTemplateName());
+	}
+
+	/**
+	 * The client-side router owns these paths; the server has to answer them
+	 * too, or reloading or bookmarking one is a 404. `/search` was missing,
+	 * so a reload of a search — or a search somebody sent — was one.
+	 *
+	 * @return iterable<string, array{string}>
+	 */
+	public static function clientSidePaths(): iterable {
+		yield 'follow requests' => ['/follow_requests'];
+		yield 'blocked' => ['/blocked'];
+		yield 'discover' => ['/discover'];
+		yield 'migration' => ['/migration'];
+		yield 'statistics' => ['/statistics'];
+		yield 'settings' => ['/settings'];
+		yield 'search' => ['/search'];
+		yield 'search with a term' => ['/search/{term}'];
+	}
+
+	#[DataProvider('clientSidePaths')]
+	public function testTheServerAnswersEveryPathTheClientSideRouterOwns(string $path): void {
+		$routes = $this->routesOf('navigate');
+
+		$this->assertContains($path, array_keys($routes), $path . ' is not a route of navigate()');
+		$this->assertSame('GET', $routes[$path]->getVerb());
+	}
+
+	public function testEveryRouteOfNavigateHasANameOfItsOwn(): void {
+		// a route is keyed by controller, method and postfix: two without one
+		// would leave only the last registered
+		$postfixes = array_map(
+			static fn (FrontpageRoute $route): string => (string)$route->getPostfix(),
+			array_values($this->routesOf('navigate'))
+		);
+
+		$this->assertSame(count($postfixes), count(array_unique($postfixes)));
+	}
+
+	/** @return array<string, FrontpageRoute> the routes of a method, by url */
+	private function routesOf(string $method): array {
+		$routes = [];
+		foreach ((new \ReflectionMethod(NavigationController::class, $method))->getAttributes(FrontpageRoute::class) as $attribute) {
+			$route = $attribute->newInstance();
+			$routes[$route->getUrl()] = $route;
+		}
+
+		return $routes;
 	}
 
 	// documents

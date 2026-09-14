@@ -168,6 +168,33 @@ describe('TimelineSinglePost', () => {
 		expect(wrapper.findComponent(TimelineEntryStub).props('item')).toEqual(fromServer)
 	})
 
+	it('opens a post addressed by its ActivityPub id under the id the app uses', () => {
+		// what a link from the rest of the fediverse looks like: the last
+		// segment is the post's ActivityPub id, not the numeric one the client
+		// API — and everything below this view — speaks
+		const tail = '12345678901234567890'
+		setState('item', { ...fromServer, uri: `https://cloud.example.org/index.php/apps/social/@bob/${tail}` })
+
+		const wrapper = mountView(reactive({ name: 'single-post', params: { account: 'bob', id: tail } }))
+
+		expect(store.changeTimelineType).toHaveBeenCalledWith({
+			type: 'single-post',
+			params: { account: 'bob', id: '123', type: 'single-post', singlePost: '123' },
+		})
+		expect(wrapper.findComponent(TimelineEntryStub).props('item').id).toBe('123')
+	})
+
+	it('does not answer one post with another the server happened to render', async () => {
+		// the page is rendered once and the reader goes on reading: opening a
+		// second post used to be answered with the first one again whenever the
+		// store had not loaded the second
+		const wrapper = mountView(reactive({ name: 'single-post', params: { account: 'bob', id: '456' } }))
+		await flushPromises()
+
+		expect(store.getSinglePost).toBeUndefined()
+		expect(wrapper.find('.empty-name').text()).toBe('This post is not available')
+	})
+
 	it('renders the main post as a block with the ancestors above and the replies below', () => {
 		store.addToStatuses(status)
 		const wrapper = mountView()
@@ -380,7 +407,9 @@ describe('TimelineSinglePost', () => {
 		// this used to split window.location.href and slice a '@' off the
 		// second-to-last segment, which broke on any other URL shape
 		window.history.replaceState({}, '', '/index.php/apps/social/some/other/path')
+		store.addToStatuses({ ...status, id: '9' })
 		mountView(reactive({ name: 'single-post', params: { account: '@carol@remote.example', id: '9' } }))
+		await flushPromises()
 
 		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('carol@remote.example')
 		expect(store.changeTimelineType).toHaveBeenCalledWith({
