@@ -43,6 +43,7 @@ class DocumentationTest extends TestCase {
 		'docs/API.md',
 		'docs/Architecture.md',
 		'docs/OCC-Commands.md',
+		'docs/User-Guide.md',
 	];
 
 	/**
@@ -990,8 +991,10 @@ class DocumentationTest extends TestCase {
 	 * The two surveys stay in the repository, and stay reachable.
 	 *
 	 * `docs/Technical-Debt.md` was written once before and lived only in a
-	 * working tree, so it was lost without anything noticing. All three of these
-	 * began as reports written outside the repository. Their *contents*
+	 * working tree, so it was lost without anything noticing. Three of these
+	 * began as reports written outside the repository; the user guide is here
+	 * because it is the one document a reader who is not a developer is sent
+	 * to, and the same three ways of disappearing apply to it. Their *contents*
 	 * are deliberately not asserted — a test over "45% of lib is older than
 	 * 2023" would either be brittle or be the fix — but a file that is deleted,
 	 * renamed, or quietly orphaned from the README is something a test can
@@ -1003,6 +1006,7 @@ class DocumentationTest extends TestCase {
 		yield 'technical debt' => ['docs/Technical-Debt.md', 'Technical debt and legacy code'];
 		yield 'performance' => ['docs/Performance.md', 'Performance and scalability'];
 		yield 'mastodon compatibility' => ['docs/Mastodon-Compatibility.md', 'Mastodon compatibility'];
+		yield 'user guide' => ['docs/User-Guide.md', 'User guide'];
 	}
 
 	#[DataProvider('surveyDocuments')]
