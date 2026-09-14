@@ -15,6 +15,8 @@ import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusBut
 import VisibilitySelect from '../../../src/components/Visibility/VisibilitySelect.vue'
 import eventBus from '../../../src/services/eventBus.js'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
+import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
@@ -108,10 +110,25 @@ const MENTION_BOB = '<span class="mention" contenteditable="false">'
 
 const wrappers = []
 
-function mountComposer(props = {}) {
+/**
+ * @param {object} props what the parent passes the composer
+ * @param {object} [options] the rest of the world it is mounted into
+ * @param {string} [options.accountPrivacy] `source.privacy` of the signed-in
+ *   account, as `verify_credentials` answers it; omitted for an account whose
+ *   settings have not arrived
+ * @return {object} the wrapper and the timeline store
+ */
+function mountComposer(props = {}, { accountPrivacy } = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org' })
+	if (accountPrivacy !== undefined) {
+		useAccountStore().setCredentials({
+			id: '1',
+			url: 'https://cloud.example.org/@alice',
+			source: { privacy: accountPrivacy },
+		})
+	}
 	const store = useTimelineStore()
 	// `post` resolves with the created status and with undefined when the
 	// server refused, which is how the composer tells the two apart
@@ -384,6 +401,74 @@ describe('Composer', () => {
 			localStorage.setItem('social.lastPostType', 'direct')
 			const { wrapper } = mountComposer()
 			expect(currentVisibility(wrapper)).toBe('direct')
+		})
+
+		it("takes the account's own default over the last post", () => {
+			localStorage.setItem('social.lastPostType', 'direct')
+			const { wrapper } = mountComposer({}, { accountPrivacy: 'unlisted' })
+			expect(currentVisibility(wrapper)).toBe('unlisted')
+		})
+
+		it('lets the caller overrule the account default', () => {
+			const { wrapper } = mountComposer({ defaultVisibility: 'direct' }, { accountPrivacy: 'unlisted' })
+			expect(currentVisibility(wrapper)).toBe('direct')
+		})
+
+		// `private` on the wire is what this app calls `followers`
+		it("reads the wire's name for a followers-only default", () => {
+			const { wrapper } = mountComposer({}, { accountPrivacy: 'private' })
+			expect(currentVisibility(wrapper)).toBe('followers')
+		})
+
+		it('ignores an account default this app has never heard of', () => {
+			localStorage.setItem('social.lastPostType', 'direct')
+			const { wrapper } = mountComposer({}, { accountPrivacy: 'local-only' })
+			expect(currentVisibility(wrapper)).toBe('direct')
+		})
+
+		/**
+		 * The timeline draws a composer as the page opens, which is before
+		 * `verify_credentials` has answered.
+		 */
+		it('takes the account default when it arrives after the composer', async () => {
+			const { wrapper } = mountComposer()
+			expect(currentVisibility(wrapper)).toBe('followers')
+
+			useAccountStore().setCredentials({
+				id: '1',
+				url: 'https://cloud.example.org/@alice',
+				source: { privacy: 'unlisted' },
+			})
+			await nextTick()
+
+			expect(currentVisibility(wrapper)).toBe('unlisted')
+		})
+
+		it('leaves an audience the reader has already chosen alone', async () => {
+			const { wrapper } = mountComposer()
+			await selectVisibility(wrapper, 'direct')
+
+			useAccountStore().setCredentials({
+				id: '1',
+				url: 'https://cloud.example.org/@alice',
+				source: { privacy: 'public' },
+			})
+			await nextTick()
+
+			expect(currentVisibility(wrapper)).toBe('direct')
+		})
+
+		it('leaves a reply with the audience of the post it answers', async () => {
+			const { wrapper } = mountComposer({ inReplyTo: replyTo() })
+
+			useAccountStore().setCredentials({
+				id: '1',
+				url: 'https://cloud.example.org/@alice',
+				source: { privacy: 'public' },
+			})
+			await nextTick()
+
+			expect(currentVisibility(wrapper)).toBe('unlisted')
 		})
 
 		it('defaults to followers only', () => {

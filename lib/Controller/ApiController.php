@@ -46,6 +46,7 @@ use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
@@ -114,11 +115,15 @@ use Throwable;
  *
  * @package OCA\Social\Controller
  */
-class ApiController extends ClientApiController {
+class ApiController extends Controller {
 	use TNCDataResponse;
 
 	private IURLGenerator $urlGenerator;
+	private IUserSession $userSession;
+	private LoggerInterface $logger;
 	private InstanceService $instanceService;
+	private ClientService $clientService;
+	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
 	private CacheDocumentService $cacheDocumentService;
 	private DocumentService $documentService;
@@ -145,6 +150,10 @@ class ApiController extends ClientApiController {
 	 * "forever" for content whose URL names its bytes and never changes.
 	 */
 	private const MEDIA_CACHE_SECONDS = 31536000;
+
+	private string $bearer = '';
+	private ?SocialClient $client = null;
+	private ?Person $viewer = null;
 
 	public function __construct(
 		IRequest $request,
@@ -187,10 +196,14 @@ class ApiController extends ClientApiController {
 		private DeliveryService $deliveryService,
 		private NotificationService $notificationService,
 	) {
-		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->urlGenerator = $urlGenerator;
+		$this->userSession = $userSession;
+		$this->logger = $logger;
 		$this->instanceService = $instanceService;
+		$this->clientService = $clientService;
+		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->cacheDocumentService = $cacheDocumentService;
 		$this->documentService = $documentService;
@@ -204,6 +217,14 @@ class ApiController extends ClientApiController {
 		$this->searchService = $searchService;
 		$this->configService = $configService;
 		$this->curlService = $curlService;
+
+		$authHeader = trim($this->request->getHeader('Authorization'));
+		if (strpos($authHeader, ' ')) {
+			[$authType, $authToken] = explode(' ', $authHeader);
+			if (strtolower($authType) === 'bearer') {
+				$this->bearer = $authToken;
+			}
+		}
 	}
 
 	/**
@@ -215,7 +236,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/apps/verify_credentials')]
 	public function appsCredentials() {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			// `vapid_key` is always present, because a client reads it out of
 			// this response before it decides whether to offer push at all; it
@@ -252,7 +273,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/verify_credentials')]
 	public function verifyCredentials() {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			return new DataResponse($this->accountEntity($this->viewer), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -285,19 +306,19 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'PATCH', url: '/api/v1/accounts/update_credentials')]
 	public function updateCredentials(): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$changed = false;
 			$input = $this->convertInput(file_get_contents('php://input'));
 			if (array_key_exists('locked', $input)) {
-				$this->accountService->setLocked($this->currentSession($this->routeScopes()), $this->formBool($input['locked']));
+				$this->accountService->setLocked($this->currentSession(), $this->formBool($input['locked']));
 				$changed = true;
 			}
 
 			// an absent `note` is a client that did not mention the bio, not a
 			// client asking for an empty one
 			if (array_key_exists('note', $input)) {
-				$this->accountService->setSummary($this->currentSession($this->routeScopes()), (string)$input['note']);
+				$this->accountService->setSummary($this->currentSession(), (string)$input['note']);
 				$changed = true;
 			}
 
@@ -305,7 +326,7 @@ class ApiController extends ClientApiController {
 			// client does not name one, and `statusNew()` reads it back
 			$privacy = $input['source']['privacy'] ?? null;
 			if (is_string($privacy) && $privacy !== '') {
-				$this->accountService->setDefaultPrivacy($this->currentSession($this->routeScopes()), $privacy);
+				$this->accountService->setDefaultPrivacy($this->currentSession(), $privacy);
 				$changed = true;
 			}
 
@@ -314,7 +335,7 @@ class ApiController extends ClientApiController {
 			// refusal rather than a 200 over an unchanged profile
 			if (array_key_exists('display_name', $input)) {
 				$this->accountService->setDisplayName(
-					$this->currentSession($this->routeScopes()), (string)$input['display_name']
+					$this->currentSession(), (string)$input['display_name']
 				);
 				$changed = true;
 			}
@@ -328,7 +349,7 @@ class ApiController extends ClientApiController {
 				}
 			}
 			if ($flags !== []) {
-				$this->accountService->setActorFlags($this->currentSession($this->routeScopes()), $flags);
+				$this->accountService->setActorFlags($this->currentSession(), $flags);
 				$changed = true;
 			}
 
@@ -339,20 +360,20 @@ class ApiController extends ClientApiController {
 			// rather than answering 200 over an unchanged picture.
 			$header = $_FILES['header'] ?? [];
 			if ($header !== [] && ($header['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-				$this->bannerService->setFromTempFile($this->currentSession($this->routeScopes()), $header['tmp_name']);
+				$this->bannerService->setFromTempFile($this->currentSession(), $header['tmp_name']);
 				$changed = true;
 			}
 
 			$avatar = $_FILES['avatar'] ?? [];
 			if ($avatar !== [] && ($avatar['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-				$this->avatarService->setFromTempFile($this->currentSession($this->routeScopes()), $avatar);
+				$this->avatarService->setFromTempFile($this->currentSession(), $avatar);
 				$changed = true;
 			}
 
 			if (array_key_exists('fields_attributes', $input) && is_array($input['fields_attributes'])) {
 				// clients send either a list or an object keyed by index
 				$this->accountService->setFields(
-					$this->currentSession($this->routeScopes()), array_values($input['fields_attributes'])
+					$this->currentSession(), array_values($input['fields_attributes'])
 				);
 				$changed = true;
 			}
@@ -404,7 +425,7 @@ class ApiController extends ClientApiController {
 	 * Account this app emitted, including other people's and anonymous reads.
 	 */
 	private function accountEntity(Person $account): array {
-		// the viewer is already in local format, see loadViewer()
+		// the viewer is already in local format, see initViewer()
 		$data = $account->jsonSerialize();
 		$data['source'] = $account->exportSourceAsLocal();
 
@@ -412,7 +433,7 @@ class ApiController extends ClientApiController {
 		// rather than on the actor: the model has no way to know it
 		if ($account->isLocal()) {
 			$data['source']['privacy'] = $this->accountService->getDefaultPrivacy(
-				$this->currentSession($this->routeScopes())
+				$this->currentSession()
 			);
 		}
 
@@ -459,7 +480,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/follow_requests')]
 	public function followRequests(): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$accounts = $this->followService->getPendingRequests();
 			foreach ($accounts as $account) {
@@ -488,7 +509,7 @@ class ApiController extends ClientApiController {
 
 	private function followRequestAction(string $id, bool $authorize): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$follower = $this->resolveTargetAccount($id);
 
 			if ($authorize) {
@@ -514,7 +535,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/polls/{nid}')]
 	public function pollGet(int $nid): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$poll = $this->pollService->getPoll($nid, $this->viewer);
 
@@ -537,7 +558,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/polls/{nid}/votes')]
 	public function pollVote(int $nid): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$input = $this->convertInput(file_get_contents('php://input'));
 			$choices = $input['choices'] ?? [];
@@ -567,7 +588,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/reports')]
 	public function reportNew(): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$input = $this->convertInput(file_get_contents('php://input'));
 			$accountId = (string)($input['account_id'] ?? '');
@@ -717,7 +738,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/saved_searches/list.json')]
 	public function savedSearches(): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			return new DataResponse([], Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -841,7 +862,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses')]
 	public function statusNew(): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$input = file_get_contents('php://input');
 			$this->logger->debug('[ApiController] statusNew: ' . $input);
@@ -860,7 +881,7 @@ class ApiController extends ClientApiController {
 			if ($this->scheduledStatusService->requestedTime($data) > 0) {
 				return new DataResponse(
 					$this->scheduledStatusService->schedule(
-						$this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true),
+						$this->accountService->getActorFromUserId($this->currentSession(), true),
 						$status,
 						$data
 					),
@@ -878,7 +899,7 @@ class ApiController extends ClientApiController {
 			}
 
 			// Use the viewer that was already initialized
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 			$post = new Post($actor);
 			$post->setContent($status->getStatus());
 			$post->setPoll($status->getPoll());
@@ -958,7 +979,7 @@ class ApiController extends ClientApiController {
 	private function visibilityOf(Status $status): string {
 		$visibility = trim($status->getVisibility());
 		if ($visibility === '') {
-			return $this->accountService->getDefaultPrivacy($this->currentSession($this->routeScopes()));
+			return $this->accountService->getDefaultPrivacy($this->currentSession());
 		}
 
 		if (!Stream::isKnownClientVisibility($visibility)) {
@@ -1059,13 +1080,13 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/statuses/{nid}')]
 	public function statusUpdate(int $nid): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$input = file_get_contents('php://input');
 			$status = new Status();
 			$status->import($this->convertInput($input));
 
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 
 			$item = $this->postService->editPost(
 				$nid,
@@ -1093,7 +1114,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media')]
 	public function mediaNew(): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$file = $_FILES['file'] ?? [];
 			if (empty($file)) {
@@ -1154,7 +1175,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media/from-file')]
 	public function mediaFromFile(): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$input = $this->convertInput(file_get_contents('php://input'));
 			$path = trim((string)($input['path'] ?? $this->request->getParam('path', '')));
@@ -1162,7 +1183,7 @@ class ApiController extends ClientApiController {
 				throw new InvalidActionException('no file named');
 			}
 
-			$file = $this->ownFile($this->currentSession($this->routeScopes()), $path);
+			$file = $this->ownFile($this->currentSession(), $path);
 			$this->refuseOversized((int)$file->getSize(), $file->getMimeType());
 
 			$description = (string)($input['description'] ?? $this->request->getParam('description', ''));
@@ -1291,7 +1312,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/media/{nid}')]
 	public function mediaGet(string $nid, string $preview = ''): Response {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			return new DataResponse($this->ownAttachment($nid), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -1307,7 +1328,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/media/{nid}')]
 	public function mediaUpdate(string $nid): Response {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$document = $this->ownDocument($nid);
 			$input = $this->convertInput(file_get_contents('php://input'));
@@ -1359,14 +1380,6 @@ class ApiController extends ClientApiController {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
-	// generous, because a timeline is many pictures: a page of forty posts
-	// with a preview each, the avatars beside them and a grid of photos all
-	// come through here, and a browser that has them cached still asks again
-	// after a hard reload. The anonymous ceiling is per address, and one
-	// address may be a whole office reading public pages; what it has to stop
-	// is a scraper walking every uuid it has ever seen, not a reader scrolling
-	#[AnonRateLimit(limit: 300, period: 60)]
-	#[UserRateLimit(limit: 1200, period: 60)]
 	#[FrontpageRoute(verb: 'GET', url: '/media/{uuid}')]
 	public function mediaOpen(string $uuid): Response {
 		if (strpos($uuid, '.') > 0) {
@@ -1568,7 +1581,7 @@ class ApiController extends ClientApiController {
 			// so it still needs a viewer. A token that *was* presented still has
 			// to be a good one: a client whose token has been revoked has to
 			// learn that, not quietly get the anonymous view instead.
-			$this->loadViewer(
+			$this->initViewer(
 				$this->bearer !== '' || strtolower($timeline) !== ProbeOptions::PUBLIC
 			);
 			$this->logger->debug('[ApiController] Viewer initialized', [
@@ -1636,7 +1649,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}')]
 	public function statusGet(int $nid): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 
 			$item = $this->streamService->attachCard($this->streamService->getStreamByNid($nid));
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
@@ -1661,7 +1674,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/card')]
 	public function statusCard(int $nid): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 
 			$card = $this->streamService
 				->attachCard($this->streamService->getStreamByNid($nid))
@@ -1684,7 +1697,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/context')]
 	public function statusContext(int $nid): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 			$context = $this->streamService->getContextByNid($nid);
 
 			return new DataResponse(
@@ -1717,8 +1730,8 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/statuses/{nid}')]
 	public function statusDelete(int $nid): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 
 			$item = $this->streamService->getStreamByNid($nid);
 			if ($item->getAttributedTo() !== $actor->getId()) {
@@ -1754,8 +1767,8 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/source')]
 	public function statusSource(int $nid): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 
 			$item = $this->streamService->getStreamByNid($nid);
 			if ($item->getAttributedTo() !== $actor->getId()) {
@@ -1794,8 +1807,8 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/delivery')]
 	public function statusDelivery(int $nid): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 
 			$item = $this->streamService->getStreamByNid($nid);
 			if ($item->getAttributedTo() !== $actor->getId()) {
@@ -1831,7 +1844,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/{act}')]
 	public function statusAction(int $nid, string $act): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$actor = $this->accountService->getActor($this->viewer->getPreferredUsername());
 			$item = $this->actionService->action($actor, $nid, $act);
 
@@ -1864,8 +1877,8 @@ class ApiController extends ClientApiController {
 		int $since_id = 0,
 	): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 
 			return new DataResponse(
 				$this->scheduledStatusService->getAll($actor, $limit, $max_id, $min_id, $since_id),
@@ -1882,8 +1895,8 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/scheduled_statuses/{id}')]
 	public function scheduledStatusGet(int $id): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 
 			return new DataResponse($this->scheduledStatusService->getOne($actor, $id), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -1897,8 +1910,8 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/scheduled_statuses/{id}')]
 	public function scheduledStatusUpdate(int $id): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 			$data = $this->convertInput(file_get_contents('php://input'));
 
 			return new DataResponse(
@@ -1915,8 +1928,8 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/scheduled_statuses/{id}')]
 	public function scheduledStatusDelete(int $id): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession($this->routeScopes()), true);
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 			$this->scheduledStatusService->delete($actor, $id);
 
 			return new DataResponse([], Http::STATUS_OK);
@@ -1950,7 +1963,7 @@ class ApiController extends ClientApiController {
 
 	private function reactedBy(int $nid, string $type, int $limit): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 			$limit = min(max($limit, 1), 80);
 			$post = $this->streamService->getStreamByNid($nid);
 
@@ -1990,7 +2003,7 @@ class ApiController extends ClientApiController {
 		bool $following = false,
 	): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$q = trim($q);
 			$limit = min(max($limit, 1), 80);
 
@@ -2085,12 +2098,12 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/preferences')]
 	public function preferences(): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$source = $this->viewer->exportSourceAsLocal();
 
 			return new DataResponse([
 				'posting:default:visibility' => $this->accountService->getDefaultPrivacy(
-					$this->currentSession($this->routeScopes())
+					$this->currentSession()
 				),
 				'posting:default:sensitive' => (bool)($source['sensitive'] ?? false),
 				'posting:default:language' => ($source['language'] ?? '') !== ''
@@ -2120,7 +2133,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/familiar_followers')]
 	public function familiarFollowers(array|string $id = []): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$ids = is_array($id) ? $id : [$id];
 
 			$familiar = [];
@@ -2151,7 +2164,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/follow', requirements: ['id' => '.+'])]
 	public function accountFollow(string $id, ?bool $notify = null): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
 
 			$this->followService->followAccount($this->viewer, $target->getAccount());
@@ -2177,7 +2190,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/unfollow', requirements: ['id' => '.+'])]
 	public function accountUnfollow(string $id): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
 
 			$this->followService->unfollowAccount($this->viewer, $target->getAccount());
@@ -2225,7 +2238,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v2/search')]
 	public function searchV2(string $q = '', string $type = '', int $limit = 20, bool $resolve = false): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$q = trim($q);
 			$limit = min(max($limit, 1), 40);
 
@@ -2294,7 +2307,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/trends/tags')]
 	public function trendTags(int $limit = 10, string $period = HashtagService::PERIOD_DEFAULT): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 			$limit = max(1, min(20, $limit));
 
 			// the same builder the tag lookup and the follow answers use, so a
@@ -2343,7 +2356,7 @@ class ApiController extends ClientApiController {
 		string $id, string $action, bool $notifications = true, int $duration = 0,
 	): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
 
 			switch ($action) {
@@ -2392,7 +2405,7 @@ class ApiController extends ClientApiController {
 
 	private function listRelatedAccounts(string $type, int $limit): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 			$limit = max(1, min(ProbeOptions::MAX_LIMIT, $limit));
 
 			$related = $this->relationshipService->getRelated($this->viewer, $type, $limit);
@@ -2442,7 +2455,7 @@ class ApiController extends ClientApiController {
 	#[UserRateLimit(limit: 300, period: 60)]
 	public function accountGet(string $id): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 			$account = $this->resolveTargetAccount($id);
 			$account->setExportFormat(ACore::FORMAT_LOCAL);
 
@@ -2467,7 +2480,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/lookup')]
 	public function accountLookup(string $acct = ''): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 			$acct = ltrim(trim($acct), '@');
 			if ($acct === '') {
 				throw new InvalidActionException('acct is required');
@@ -2554,7 +2567,7 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/relationships')]
 	public function relationships(array $id = []): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			return new DataResponse($this->followService->getRelationships($id), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -2588,7 +2601,7 @@ class ApiController extends ClientApiController {
 		string $media_type = '',
 	): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 
 			// `{account}` is whatever the client holds, which for every entity
 			// this app emits is the numeric id — not the acct handle this route
@@ -2647,7 +2660,7 @@ class ApiController extends ClientApiController {
 		int $since = 0,
 	): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 			$actor = $this->resolveTargetAccount($account);
 
 			$parts = explode('@', $this->handleOf($account, $actor));
@@ -2696,7 +2709,7 @@ class ApiController extends ClientApiController {
 		int $since = 0,
 	): DataResponse {
 		try {
-			$this->loadViewer(false);
+			$this->initViewer(false);
 
 			$actor = $this->resolveTargetAccount($account);
 
@@ -2746,7 +2759,7 @@ class ApiController extends ClientApiController {
 		int $since_id = 0,
 	): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -2776,7 +2789,7 @@ class ApiController extends ClientApiController {
 		int $since_id = 0,
 	): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -2811,8 +2824,8 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/notifications/unread_count')]
 	public function notificationsUnreadCount(): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$userId = $this->currentSession($this->routeScopes());
+			$this->initViewer(true);
+			$userId = $this->currentSession();
 
 			return new DataResponse([
 				'count' => $this->streamRequest->countNotificationsSince(
@@ -2836,13 +2849,13 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/markers')]
 	public function markersGet(array $timeline = []): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			// an object, never a list: a fresh account has no markers at all,
 			// and `[]` is not something a client can read `home.last_read_id`
 			// out of
 			return new DataResponse(
-				(object)$this->markerService->get($this->currentSession($this->routeScopes()), $timeline),
+				(object)$this->markerService->get($this->currentSession(), $timeline),
 				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
@@ -2863,8 +2876,8 @@ class ApiController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/markers')]
 	public function markersSet(): DataResponse {
 		try {
-			$this->loadViewer(true);
-			$userId = $this->currentSession($this->routeScopes());
+			$this->initViewer(true);
+			$userId = $this->currentSession();
 
 			$input = $this->convertInput(file_get_contents('php://input'));
 			$updated = [];
@@ -2900,7 +2913,7 @@ class ApiController extends ClientApiController {
 		string $accountId = '',
 	): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -2958,7 +2971,7 @@ class ApiController extends ClientApiController {
 		bool $only_video = false,
 	): DataResponse {
 		try {
-			$this->loadViewer(true);
+			$this->initViewer(true);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -3069,73 +3082,78 @@ class ApiController extends ClientApiController {
 	}
 
 	/**
-	 * The viewer behind the request, if there is one.
 	 *
-	 * With `$required`, a route that has nothing to say to a stranger: no
-	 * usable credentials is a 401 and a token granted too little is a 403.
-	 * Without it, a route that answers anonymously and shows more to a
-	 * signed-in reader -- but a token that *was* presented still has to be a
-	 * good one, so a refused scope is raised either way rather than quietly
-	 * downgraded to the anonymous view.
+	 * @param bool $exception
 	 *
-	 * @return bool whether a viewer was found
-	 *
+	 * @return bool
 	 * @throws ClientNotFoundException
-	 * @throws InsufficientScopeException
 	 */
-	private function loadViewer(bool $required = false): bool {
+	private function initViewer(bool $exception = false): bool {
 		try {
-			$this->initViewer($this->routeScopes());
+			$userId = $this->currentSession();
+
+			$this->logger->debug('[ApiController] initViewer: ' . $userId);
+
+			// Get or create the actor
+			$account = $this->accountService->getActorFromUserId($userId, true);
+			$this->logger->debug('[ApiController] Actor retrieved/created', [
+				'userId' => $userId,
+				'username' => $account->getPreferredUsername()
+			]);
+
+			// Try to get from cache, if it fails, cache it first
+			try {
+				$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			} catch (Exception $e) {
+				$this->logger->warning('[ApiController] Actor not in cache, caching now', [
+					'username' => $account->getPreferredUsername(),
+					'exception' => $e->getMessage()
+				]);
+				// Cache the actor and retry
+				$this->accountService->cacheLocalActorByUsername($account->getPreferredUsername());
+				$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			}
+
+			$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);
+
+			$this->streamService->setViewer($this->viewer);
+			$this->followService->setViewer($this->viewer);
+			$this->cacheActorService->setViewer($this->viewer);
+
+			$this->logger->debug('[ApiController] Viewer initialized successfully', [
+				'viewerId' => $this->viewer->getId()
+			]);
 
 			return true;
 		} catch (InsufficientScopeException $e) {
-			throw $e;
-		} catch (ClientNotFoundException $e) {
-			if ($required) {
+			// the token is fine, its grant is not — tell the client which scope it lacks
+			if ($exception) {
 				throw $e;
 			}
 		} catch (Exception $e) {
-			// the credentials were fine and the account behind them could not
-			// be loaded: a fault of this side, and it says so
-			$this->logger->warning('[ApiController] loadViewer failed', ['exception' => $e]);
+			// A request with a missing, stale or made-up token is ordinary
+			// internet noise — every scanner that finds the API produces some —
+			// and it is answered with a 401, not a server-side failure. Logging
+			// each one at error with a stack trace filled the admin's log with
+			// entries nobody can act on. Anything else failing here is a real
+			// fault and still says so.
+			$credentials = ($e instanceof ClientNotFoundException
+				|| $e instanceof AccountDoesNotExistException
+				|| $e instanceof ActorDoesNotExistException);
+			if ($credentials) {
+				$this->logger->debug('[ApiController] initViewer: no usable credentials', [
+					'exception' => $e->getMessage()
+				]);
+			} else {
+				$this->logger->warning('[ApiController] initViewer failed', ['exception' => $e]);
+			}
 
-			if ($required) {
+			if ($exception) {
 				throw new ClientNotFoundException('the access_token was revoked');
 			}
 		}
 
 		return false;
-	}
-
-	/**
-	 * The viewer as the rest of this controller wants it: the cached actor in
-	 * local format, and the three services that filter by reader told who is
-	 * reading. The base class resolves the credentials and the account.
-	 */
-	#[\Override]
-	protected function initViewer(array $scopes): void {
-		parent::initViewer($scopes);
-		$account = $this->viewer();
-
-		// Try to get from cache, if it fails, cache it first
-		try {
-			$viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
-		} catch (Exception $e) {
-			$this->logger->warning('[ApiController] Actor not in cache, caching now', [
-				'username' => $account->getPreferredUsername(),
-				'exception' => $e->getMessage()
-			]);
-			// Cache the actor and retry
-			$this->accountService->cacheLocalActorByUsername($account->getPreferredUsername());
-			$viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
-		}
-
-		$viewer->setExportFormat(ACore::FORMAT_LOCAL);
-		$this->viewer = $viewer;
-
-		$this->streamService->setViewer($viewer);
-		$this->followService->setViewer($viewer);
-		$this->cacheActorService->setViewer($viewer);
 	}
 
 	/**
@@ -3178,26 +3196,48 @@ class ApiController extends ClientApiController {
 	}
 
 	/**
-	 * The scope a bearer token needs for the current route. Everything
-	 * defaults to `read`; the state-changing routes are enumerated. A route
-	 * that is not in the write list is readable with a read-only token, so a
-	 * route that writes and is missing from it is a defect -- `mediaFromFile`
-	 * was one, and a read-only token could attach the viewer's files.
-	 *
-	 * The rule that decides whether a grant satisfies these is the base
-	 * class's: `write` is satisfied by `write` and by nothing narrower. A copy
-	 * here used to take any `write:*` grant for `write`, so a token granted
-	 * `write:media` could post, delete posts and edit the profile.
-	 *
-	 * @return string[]
+	 * @return string
+	 * @throws AccountDoesNotExistException
+	 * @throws ClientNotFoundException
 	 */
-	private function routeScopes(): array {
+	/**
+	 * A bearer token wins over the session cookie: an OAuth client stays inside
+	 * the scopes it was granted even when the browser also carries a session.
+	 * The cookie is only accepted together with a valid CSRF token — these
+	 * routes carry #[NoCSRFRequired] so that external clients (which cannot obtain
+	 * one) work, and without this check a cross-site form POST would act as the
+	 * logged-in user.
+	 */
+	private function currentSession(): string {
+		if ($this->bearer !== '') {
+			$this->client = $this->clientService->getFromToken($this->bearer);
+			$this->checkTokenScope();
+
+			return $this->client->getAuthUserId();
+		}
+
+		$user = $this->userSession->getUser();
+		if ($user !== null && $this->request->passesCSRFCheck()) {
+			return $user->getUID();
+		}
+
+		throw new AccountDoesNotExistException('userId not defined');
+	}
+
+	/**
+	 * The scope a bearer token needs for the current route. Everything defaults
+	 * to 'read'; the state-changing routes are enumerated. A scope is satisfied
+	 * by itself or any of its granular variants ('write' by 'write:statuses').
+	 *
+	 * @throws ClientNotFoundException
+	 */
+	private function checkTokenScope(): void {
 		$route = $this->request->getParam('_route', '');
 		$name = substr((string)$route, strrpos((string)$route, '.') + 1);
 
-		return match ($name) {
+		$accepted = match ($name) {
 			'statusNew', 'statusUpdate', 'statusDelete', 'mediaNew', 'mediaNewV2', 'mediaUpdate',
-			'mediaFromFile', 'statusAction', 'updateCredentials', 'reportNew', 'pollVote', 'markersSet',
+			'statusAction', 'updateCredentials', 'reportNew', 'pollVote', 'markersSet',
 			'scheduledStatusUpdate', 'scheduledStatusDelete' => ['write'],
 			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
 			'accountFollow', 'accountUnfollow',
@@ -3205,6 +3245,20 @@ class ApiController extends ClientApiController {
 			'appsCredentials' => [],
 			default => ['read'],
 		};
+
+		foreach ($accepted as $scope) {
+			foreach ($this->client->getAuthScopes() as $granted) {
+				if ($granted === $scope || str_starts_with($granted, $scope . ':')) {
+					return;
+				}
+			}
+		}
+
+		if ($accepted !== []) {
+			throw new InsufficientScopeException(
+				'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
+			);
+		}
 	}
 
 	/**
@@ -3260,8 +3314,7 @@ class ApiController extends ClientApiController {
 	 * `getMessage()` published whatever the failure happened to name: a table,
 	 * a file path, an internal host.
 	 */
-	#[\Override]
-	protected function error(Throwable $e): DataResponse {
+	private function error(Throwable $e): DataResponse {
 		if ($e instanceof InsufficientScopeException) {
 			return new DataResponse(
 				['error' => $e->getMessage()],

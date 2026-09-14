@@ -10,14 +10,18 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use Exception;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\ListsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -54,7 +58,7 @@ use Throwable;
  * ran. Every route here then requires a viewer itself — no token, no session,
  * 401 — so nothing is public in fact.
  */
-class ListController extends ClientApiController {
+class ListController extends Controller {
 	/** What Mastodon defaults and caps a page of list members at. */
 	private const MEMBERS_LIMIT = 40;
 	private const MAX_MEMBERS_LIMIT = 80;
@@ -67,20 +71,32 @@ class ListController extends ClientApiController {
 	 */
 	private const ALL_MEMBERS_LIMIT = 500;
 
+	private string $bearer = '';
+	private ?SocialClient $client = null;
+	private ?Person $viewer = null;
+
 	public function __construct(
 		IRequest $request,
-		IUserSession $userSession,
-		LoggerInterface $logger,
-		AccountService $accountService,
+		private IUserSession $userSession,
+		private LoggerInterface $logger,
+		private AccountService $accountService,
 		private CacheActorService $cacheActorService,
-		ClientService $clientService,
+		private ClientService $clientService,
 		private FollowService $followService,
 		private LinkPreviewService $linkPreviewService,
 		private ListsRequest $listsRequest,
 		private PlaceService $placeService,
 		private GroupListService $groupListService,
 	) {
-		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
+		parent::__construct(Application::APP_ID, $request);
+
+		$authHeader = trim($this->request->getHeader('Authorization'));
+		if (strpos($authHeader, ' ')) {
+			[$authType, $authToken] = explode(' ', $authHeader);
+			if (strtolower($authType) === 'bearer') {
+				$this->bearer = $authToken;
+			}
+		}
 	}
 
 	/**
@@ -94,7 +110,7 @@ class ListController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/lists')]
 	public function index(): DataResponse {
 		try {
-			$this->initViewer(['read:lists']);
+			$this->initViewer();
 			// the lists the viewer's groups give them, made when they would
 			// notice they were missing; a failure here must not cost the sidebar
 			try {
@@ -139,7 +155,7 @@ class ListController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/lists/{id}')]
 	public function get(int $id): DataResponse {
 		try {
-			$this->initViewer(['read:lists']);
+			$this->initViewer();
 
 			return new DataResponse($this->ownedList($id), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -223,7 +239,7 @@ class ListController extends ClientApiController {
 		int $min_id = 0,
 	): DataResponse {
 		try {
-			$this->initViewer(['read:lists']);
+			$this->initViewer();
 			$list = $this->ownedList($id);
 
 			// Mastodon documents limit=0 as "all accounts without pagination"
@@ -328,7 +344,7 @@ class ListController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/{account}/lists', requirements: ['account' => '.+'])]
 	public function accountLists(string $account): DataResponse {
 		try {
-			$this->initViewer(['read:lists']);
+			$this->initViewer();
 			$actor = $this->resolveAccount($account);
 
 			return new DataResponse(
@@ -368,7 +384,7 @@ class ListController extends ClientApiController {
 		bool $only_video = false,
 	): DataResponse {
 		try {
-			$this->initViewer(['read:lists']);
+			$this->initViewer();
 			$list = $this->ownedList($id);
 
 			$this->listsRequest->setViewer($this->viewer);
@@ -539,6 +555,85 @@ class ListController extends ClientApiController {
 	}
 
 	/**
+	 * Resolves the viewer from the bearer token, or from the Nextcloud session
+	 * when there is none — the same order `ApiController` uses, because the
+	 * same clients call both.
+	 *
+	 * @param string[] $scopes any one of which satisfies a bearer token
+	 *
+	 * @throws ClientNotFoundException there is nobody to answer for
+	 * @throws InsufficientScopeException the token is fine, its grant is not
+	 */
+	private function initViewer(array $scopes = ['read:lists']): void {
+		try {
+			$userId = $this->currentSession($scopes);
+			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
+		} catch (InsufficientScopeException $e) {
+			throw $e;
+		} catch (Exception $e) {
+			// a missing, stale or made-up token is ordinary internet noise and
+			// is answered with a 401, not logged as a fault
+			$this->logger->debug('[ListController] no usable credentials', [
+				'exception' => $e->getMessage(),
+			]);
+
+			throw new ClientNotFoundException('the access_token was revoked');
+		}
+	}
+
+	/**
+	 * @param string[] $scopes
+	 *
+	 * @throws ClientNotFoundException
+	 * @throws InsufficientScopeException
+	 */
+	private function currentSession(array $scopes): string {
+		if ($this->bearer !== '') {
+			$this->client = $this->clientService->getFromToken($this->bearer);
+			$this->checkTokenScope($scopes);
+
+			return $this->client->getAuthUserId();
+		}
+
+		$user = $this->userSession->getUser();
+		if ($user !== null && $this->request->passesCSRFCheck()) {
+			return $user->getUID();
+		}
+
+		throw new ClientNotFoundException('userId not defined');
+	}
+
+	/**
+	 * A granular scope is satisfied by itself or by the broad scope that
+	 * contains it: `read:lists` by `read:lists` or by `read`, and by nothing
+	 * else.
+	 *
+	 * Not by any other granular variant of the same parent — a token granted
+	 * `read:statuses` has not been granted the reader's lists, and lists are
+	 * the one thing in this API that nobody but their owner may see.
+	 *
+	 * @param string[] $accepted
+	 *
+	 * @throws InsufficientScopeException
+	 */
+	private function checkTokenScope(array $accepted): void {
+		foreach ($accepted as $scope) {
+			$broad = strstr($scope, ':', true);
+			$broad = ($broad === false) ? $scope : $broad;
+
+			foreach ($this->client->getAuthScopes() as $granted) {
+				if ($granted === $scope || $granted === $broad) {
+					return;
+				}
+			}
+		}
+
+		throw new InsufficientScopeException(
+			'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
+		);
+	}
+
+	/**
 	 * A page of entities with the `Link` header masto.js reads its cursor
 	 * from — without it Elk and Phanpy show the first page of a list and stop.
 	 *
@@ -602,4 +697,50 @@ class ListController extends ClientApiController {
 		return $path . '?' . http_build_query(array_merge($query, $cursor));
 	}
 
+	/**
+	 * A failure as a Mastodon client can act on it: `{"error": "..."}` with a
+	 * status that says what to do about it. An unrecognised failure is a bug
+	 * on this side, so it answers 500 and its message is not sent on — these
+	 * are `#[PublicPage]` routes, and echoing getMessage() publishes whatever
+	 * the failure happened to name.
+	 */
+	private function error(Throwable $e): DataResponse {
+		if ($e instanceof InsufficientScopeException) {
+			return new DataResponse(
+				['error' => $e->getMessage()],
+				Http::STATUS_FORBIDDEN,
+				['WWW-Authenticate' => 'Bearer error="insufficient_scope"']
+			);
+		}
+
+		if ($e instanceof ClientNotFoundException) {
+			$message = trim($e->getMessage());
+
+			return new DataResponse(
+				['error' => ($message === '') ? 'the access_token is invalid' : $message],
+				Http::STATUS_UNAUTHORIZED,
+				['WWW-Authenticate' => 'Bearer error="invalid_token"']
+			);
+		}
+
+		// a list that is not there, a list that is somebody else's, and an
+		// account that cannot be found are one answer: 404 with Mastodon's own
+		// wording, so that none of them can be told apart from the others
+		if ($e instanceof ItemNotFoundException || $e instanceof CacheActorDoesNotExistException) {
+			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
+		}
+
+		if ($e instanceof InvalidResourceException) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		$this->logger->error('[ListController] unexpected failure answering the client API', [
+			'exception' => $e,
+			'route' => (string)$this->request->getParam('_route', ''),
+		]);
+
+		return new DataResponse(
+			['error' => 'internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR
+		);
+	}
 }

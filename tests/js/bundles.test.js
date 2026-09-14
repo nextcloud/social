@@ -53,8 +53,12 @@ describe('the built bundles', () => {
 	})
 
 	it('keeps the chunk that carries the post menu small', () => {
-		const menus = readdirSync(JS).filter((entry) => entry.includes('NcActionButton') && entry.endsWith('.js'))
-		expect(menus.length).toBeGreaterThan(0)
+		// `NcAction`, not `NcActionButton`: webpack names a vendor chunk after
+		// whichever of the modules in it sorts first, so the exact name moves
+		// whenever an import is added anywhere. What has to stay true is that
+		// the chunk the menu pulls in is small, whatever it ends up called.
+		const menus = readdirSync(JS).filter((entry) => entry.includes('NcAction') && entry.endsWith('.js'))
+		expect(menus.length, 'no chunk carries the menu components; run the build').toBeGreaterThan(0)
 
 		for (const name of menus) {
 			// every post's "..." menu needs this; it was 1.1 MB when the emoji

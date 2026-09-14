@@ -11,8 +11,32 @@
 		<!-- A list of sections. Migration was the second of them; it used to be
 		     a page of its own with an entry in the account menu, and that menu
 		     is for places to read something rather than things you do to the
-		     account. -->
-		<section class="settings__section">
+		     account.
+
+		     Each carries an id, because other pages link to one of them: the
+		     follow requests page sends the reader to #account for the switch
+		     its empty state talks about. -->
+		<section id="account" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Your account') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'How you are named, how others find you, and who sees what you post.') }}
+			</p>
+			<AccountSettings />
+		</section>
+
+		<section id="lists" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Lists') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'A list is a few of the people you follow, read as a timeline of its own. Your lists are in the sidebar.') }}
+			</p>
+			<ListsSettings />
+		</section>
+
+		<section id="shortcuts" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Keyboard shortcuts') }}
 			</h3>
@@ -22,7 +46,7 @@
 			<ShortcutList />
 		</section>
 
-		<section class="settings__section">
+		<section id="migration" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Scheduled posts') }}
 			</h3>
@@ -48,7 +72,13 @@
 import MigrationSettings from '../components/MigrationSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
+import { defineAsyncComponent } from 'vue'
 import { t } from '@nextcloud/l10n'
+
+// Two forms of some size that nobody sees until they open this page, so they
+// travel in a chunk of their own rather than in the entry every reader loads.
+const AccountSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/AccountSettings.vue'))
+const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/ListsSettings.vue'))
 
 /**
  * Settings: what this app holds about how the reader uses it.
@@ -64,13 +94,51 @@ export default {
 	name: 'Settings',
 
 	components: {
+		AccountSettings,
+		ListsSettings,
 		MigrationSettings,
 		ScheduledPosts,
 		ShortcutList,
 	},
 
+	data() {
+		return {
+			/** the section already scrolled to, so it is not chased twice */
+			scrolledTo: '',
+		}
+	},
+
+	mounted() {
+		this.scrollToSection()
+	},
+
+	updated() {
+		// the sections arrive after their chunk does, so a link to one of them
+		// lands on a page that does not have it yet
+		this.scrollToSection()
+	},
+
 	methods: {
 		t,
+
+		/**
+		 * Puts the section named in the address in view. Vue Router leaves the
+		 * hash alone on a page that is already mounted, and the section a link
+		 * points at may not have been drawn when the page first was.
+		 */
+		scrollToSection() {
+			const id = (this.$route?.hash ?? '').replace(/^#/, '')
+			if (id === '' || this.scrolledTo === id) {
+				return
+			}
+			const section = document.getElementById(id)
+			if (!section || typeof section.scrollIntoView !== 'function') {
+				return
+			}
+			this.scrolledTo = id
+			const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+			section.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' })
+		},
 	},
 }
 </script>

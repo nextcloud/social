@@ -287,6 +287,21 @@
 						</template>
 						{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
 					</NcActionButton>
+					<!-- what to do about somebody else, from the post that
+					     made the reader want to: both take their posts out of
+					     every timeline at once -->
+					<NcActionButton v-if="canModerateAuthor" @click="showMuteDialog = true">
+						<template #icon>
+							<VolumeOff :size="20" />
+						</template>
+						{{ t('social', 'Mute {account}', { account: item.account.acct }) }}
+					</NcActionButton>
+					<NcActionButton v-if="canModerateAuthor" @click="showBlockDialog = true">
+						<template #icon>
+							<Cancel :size="20" />
+						</template>
+						{{ t('social', 'Block {account}', { account: item.account.acct }) }}
+					</NcActionButton>
 					<NcActionButton
 						v-if="item.account.acct !== currentAccount?.acct"
 						@click="showReportDialog = true">
@@ -298,6 +313,18 @@
 				</NcActions>
 			</div>
 		</div>
+		<MuteDialog
+			v-if="showMuteDialog"
+			v-model:open="showMuteDialog"
+			:account="item.account" />
+		<NcDialog
+			v-model:open="showBlockDialog"
+			:name="t('social', 'Block {account}?', { account: item.account.acct })"
+			:buttons="blockButtons">
+			<p class="report-hint">
+				{{ t('social', 'Their posts leave your timelines, they are unfollowed both ways, and they can no longer follow you or see your posts.') }}
+			</p>
+		</NcDialog>
 		<NcDialog
 			v-model:open="showReportDialog"
 			:name="t('social', 'Report {account}', { account: item.account.acct })"
@@ -372,6 +399,8 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import EyeOff from 'vue-material-design-icons/EyeOff.vue'
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Flag from 'vue-material-design-icons/Flag.vue'
+import Cancel from 'vue-material-design-icons/Cancel.vue'
+import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
@@ -402,10 +431,18 @@ import { useInstanceStore } from '../store/instance.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
+import { defineAsyncComponent } from 'vue'
+
+// The mute dialog is the same one the profile opens, and it is worth nothing
+// until somebody asks for it: the post menu is on every post on the page.
+const MuteDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./MuteDialog.vue'))
 
 export default {
 	name: 'TimelinePost',
 	components: {
+		Cancel,
+		MuteDialog,
+		VolumeOff,
 		PostAttachment,
 		PostCard,
 		NcActions,
@@ -470,6 +507,8 @@ export default {
 			editContent: '',
 			editSpoiler: '',
 			showReportDialog: false,
+			showMuteDialog: false,
+			showBlockDialog: false,
 			showDeleteDialog: false,
 			showDeliveryDialog: false,
 			/** the answer of /statuses/{nid}/delivery, or null before it came */
@@ -642,6 +681,33 @@ export default {
 		 */
 		canQuote() {
 			return this.item.visibility === 'public' || this.item.visibility === 'unlisted'
+		},
+
+		/**
+		 * @return {boolean} whether this post's author is somebody the reader
+		 * can act on: not themselves, and not on the public pages, where there
+		 * is nobody signed in to do the blocking
+		 */
+		canModerateAuthor() {
+			return !this.serverData.public
+				&& !!this.currentAccount
+				&& this.item.account.acct !== this.currentAccount?.acct
+		},
+
+		blockButtons() {
+			return [
+				{
+					label: t('social', 'Cancel'),
+					callback: () => {
+						this.showBlockDialog = false
+					},
+				},
+				{
+					label: t('social', 'Block'),
+					variant: 'error',
+					callback: () => this.blockAuthor(),
+				},
+			]
 		},
 
 		reportButtons() {
@@ -929,6 +995,20 @@ export default {
 		quote() {
 			this.timelineStore.setComposerDisplayStatus(true)
 			eventBus.emit('composer-quote', this.item)
+		},
+
+		/**
+		 * Blocks the author, once the dialog has agreed. The store takes their
+		 * posts out of every timeline, this one included, so there is nothing
+		 * left here to say afterwards.
+		 */
+		async blockAuthor() {
+			const relationship = await this.accountStore.blockAccount({ id: this.item.account.id })
+			// the store said what went wrong; the dialog stays for another try
+			if (relationship?.id) {
+				this.showBlockDialog = false
+				showSuccess(t('social', 'You have blocked {account}', { account: this.item.account.acct }))
+			}
 		},
 
 		async sendReport() {

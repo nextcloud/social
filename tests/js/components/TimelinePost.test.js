@@ -13,6 +13,16 @@ import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 import axios from '@nextcloud/axios'
 
+// the toast service fetches `@nextcloud/dialogs` when it is first used, and
+// this file now has tests that reach it (mute and block from the post menu).
+// That import resolves after the test has ended, so vitest tears the
+// environment down underneath it and the run fails with every assertion green.
+vi.mock('../../../src/services/toast.js', async (importOriginal) => ({
+	...await importOriginal(),
+	showError: vi.fn(),
+	showSuccess: vi.fn(),
+}))
+
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }))
@@ -918,6 +928,78 @@ describe('TimelinePost', () => {
 
 			expect(wrapper.find('.post-action-group--like').classes()).toContain('post-action-group--refused')
 			expect(wrapper.find('.post-action__burst').exists()).toBe(false)
+		})
+	})
+
+	describe('blocking and muting the author', () => {
+		it('offers both for somebody else\'s post', () => {
+			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
+
+			expect(menuItem(wrapper, 'Mute bob@remote.example')).toBeDefined()
+			expect(menuItem(wrapper, 'Block bob@remote.example')).toBeDefined()
+		})
+
+		it('offers neither on the reader\'s own post', () => {
+			const { wrapper } = mountPost()
+
+			expect(menuItem(wrapper, 'Mute alice')).toBeUndefined()
+			expect(menuItem(wrapper, 'Block alice')).toBeUndefined()
+		})
+
+		it('offers neither on the public pages, where nobody is signed in', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({ account: bob }),
+				currentAccount: null,
+				serverData: { public: true, cloudAddress: 'https://cloud.example.org' },
+			})
+
+			expect(menuItem(wrapper, 'Mute bob@remote.example')).toBeUndefined()
+			expect(menuItem(wrapper, 'Block bob@remote.example')).toBeUndefined()
+		})
+
+		/** The same dialog the profile opens, with the same two questions. */
+		it('asks the mute dialog rather than muting outright', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
+			const accountStore = useAccountStore()
+			vi.spyOn(accountStore, 'muteAccount').mockResolvedValue({ id: bob.id })
+
+			await menuItem(wrapper, 'Mute bob@remote.example').trigger('click')
+			await flushPromises()
+
+			expect(accountStore.muteAccount).not.toHaveBeenCalled()
+			// the dialog is fetched before it is mounted, which is more than
+			// one tick: the press awaits a real `import()`
+			await vi.waitUntil(
+				() => wrapper.findComponent({ name: 'MuteDialog' }).exists(),
+				{ timeout: 15000 },
+			)
+		})
+
+		it('asks before blocking, and then blocks', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
+			const accountStore = useAccountStore()
+			vi.spyOn(accountStore, 'blockAccount').mockResolvedValue({ id: bob.id, blocking: true })
+
+			await menuItem(wrapper, 'Block bob@remote.example').trigger('click')
+			expect(accountStore.blockAccount).not.toHaveBeenCalled()
+
+			await wrapper.find('.nc-dialog__button--1').trigger('click')
+			await flushPromises()
+
+			expect(accountStore.blockAccount).toHaveBeenCalledWith({ id: bob.id })
+		})
+
+		it('leaves the confirmation up when the block was refused', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
+			const accountStore = useAccountStore()
+			// the store says what went wrong and answers with nothing
+			vi.spyOn(accountStore, 'blockAccount').mockResolvedValue(undefined)
+
+			await menuItem(wrapper, 'Block bob@remote.example').trigger('click')
+			await wrapper.find('.nc-dialog__button--1').trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.nc-dialog').exists()).toBe(true)
 		})
 	})
 

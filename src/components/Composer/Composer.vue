@@ -314,7 +314,7 @@
 					{{ undescribedWarning }}
 				</span>
 				<LanguageSelect :language="language" @update:language="language = $event" />
-				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
+				<VisibilitySelect :visibility="visibility" @update:visibility="chooseVisibility" />
 				<div class="emptySpace" />
 				<span
 					v-if="statusText.length > 0"
@@ -373,6 +373,7 @@ import logger from '../../services/logger.js'
 import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 import { mapStores } from 'pinia'
 import { useInstanceStore } from '../../store/instance.js'
+import { useAccountStore } from '../../store/account.js'
 import { useTimelineStore } from '../../store/timeline.js'
 import { applyFilterToFile } from '../../utils/imageFilters.js'
 import { focusParam, isFocalPoint } from '../../utils/focalPoint.js'
@@ -575,7 +576,23 @@ export default {
 			openedByHand: this.startExpanded,
 			// a reply goes where the post it answers went, which is also what
 			// the reply flow does when a composer is retargeted by hand
-			visibility: this.defaultVisibility || this.inReplyTo?.visibility || rememberedVisibility() || 'followers',
+			// the audience, in order of who gets to say: whoever opened this
+			// composer, the post being answered, the account's own default,
+			// the last one the reader used, and failing all of those the
+			// narrow choice rather than the public one
+			visibility: this.defaultVisibility
+				|| this.inReplyTo?.visibility
+				|| useAccountStore().defaultPostVisibility
+				|| rememberedVisibility()
+				|| 'followers',
+
+			/**
+			 * Whether the audience above has been settled by somebody rather
+			 * than merely defaulted to, so that an account default arriving
+			 * late leaves it alone.
+			 */
+			visibilityChosen: Boolean(this.defaultVisibility || this.inReplyTo?.visibility),
+
 			// what the last post went out in, else what Nextcloud is set to:
 			// the server would guess the same, but a guess the poster can see
 			// is one they can correct
@@ -707,7 +724,7 @@ export default {
 	},
 
 	computed: {
-		...mapStores(useInstanceStore, useTimelineStore),
+		...mapStores(useAccountStore, useInstanceStore, useTimelineStore),
 
 		/** @return {number} what the server accepts in one status */
 		maxLength() {
@@ -922,6 +939,21 @@ export default {
 		spoilerText: 'rememberDraft',
 		showWarning: 'rememberDraft',
 		visibility: 'rememberDraft',
+
+		/**
+		 * `verify_credentials` can land after a composer is already on screen
+		 * — the timeline draws one as the page opens — and the account's
+		 * default audience only comes with it. A composer nobody has spoken
+		 * for takes it; one that was opened as a reply, or whose audience the
+		 * reader has already named, keeps what it has.
+		 *
+		 * @param {string} visibility the account's default, '' until it comes
+		 */
+		'accountStore.defaultPostVisibility': function(visibility) {
+			if (visibility !== '' && !this.visibilityChosen) {
+				this.visibility = visibility
+			}
+		},
 	},
 
 	mounted() {
@@ -947,6 +979,7 @@ export default {
 			// one of three people
 			this.prefillMessageWithMentions(this.participantsOf(data))
 			this.visibility = data.visibility
+			this.visibilityChosen = true
 			// somebody pressed reply, which is a request to write one — including
 			// on the post this box is anchored under, where the target does not
 			// change and the box opening is the whole of the answer
@@ -1206,10 +1239,21 @@ export default {
 			// it looks up: an unknown id took the whole composer down
 			if (isKnownVisibility(draft.visibility) && this.defaultVisibility === undefined) {
 				this.visibility = draft.visibility
+				this.visibilityChosen = true
 			}
 			this.updateStatusContent()
 
 			return true
+		},
+
+		/**
+		 * The reader naming an audience for this post, which settles it.
+		 *
+		 * @param {string} visibility the id they picked
+		 */
+		chooseVisibility(visibility) {
+			this.visibility = visibility
+			this.visibilityChosen = true
 		},
 
 		clickImportInput() {

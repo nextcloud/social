@@ -27,7 +27,8 @@ What it does:
 - 📱 Pixelfed's own config and discover routes, so its clients find what they look for
 - 🧭 A Discover page: who to follow, with starter packs you can follow in one go
 - 📤 Share to Social from the Files app: pick pictures or videos there and the composer opens with them attached
-- 👥 Lists, and every Nextcloud group you are in as a list of its own — kept in step with the group automatically
+- 👥 Lists, and every Nextcloud group you are in as a list of its own — kept in step with the group automatically; you make, rename, delete and fill your own in Settings
+- ⚙️ Account settings: the name you publish under, whether people ask before they follow you, whether other servers may suggest you and index your public posts, and the audience every new post starts with
 - 👋 A short introduction on the first visit: your address, who to follow, and a way to bring the follows you already have
 - 📱 A layout for phones: the post takes the width of the screen, the face inside the card, the composer's toolbar wrapping
 - 🔗 Links that land where they should: a post or profile link opens inside the app when you are signed in, a search can be reloaded or sent to somebody, and an address that names nobody says so instead of erroring
@@ -36,8 +37,8 @@ What it does:
 - 🕘 Follows, mentions, boosts and favourites show in the Activity app too, and in its digest mail for those who turn that on
 - 🗓️ A composer that says what a post is: the language it is written in, a clock to publish it later (with the waiting posts listed in Settings), and a crosshair that says where the subject of a picture is
 
-You can pin your own posts to the top of your profile, bookmark any post, and see which hashtags the instance is using most. This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. Polls are fully supported: create your own, and view and vote on federated ones. Profiles carry an avatar, a banner image and up to four profile metadata fields. Posts that link somewhere get a link preview card. Image (JPEG, PNG, GIF, WebP, AVIF, and HEIC from an iPhone where the server can read it), video (MP4, WebM, QuickTime) and audio attachments are supported, up to ten per post, each with alt text and a focal point. It does not offer lists.]]></description>
-	<version>0.19.82</version>
+You can pin your own posts to the top of your profile, bookmark any post, and see which hashtags the instance is using most. This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported — a mute can be taken for an hour, a day, seven days or thirty, and either is offered from a post's menu as well as from a profile — as are locked accounts with approvable follow requests. You can keep a private note about another account, which nobody else ever sees. Polls are fully supported: create your own, and view and vote on federated ones. Profiles carry an avatar, a banner image and up to four profile metadata fields. Posts that link somewhere get a link preview card. Image (JPEG, PNG, GIF, WebP, AVIF, and HEIC from an iPhone where the server can read it), video (MP4, WebM, QuickTime) and audio attachments are supported, up to ten per post, each with alt text and a focal point.]]></description>
+	<version>0.19.83</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>

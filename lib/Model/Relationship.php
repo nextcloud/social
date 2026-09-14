@@ -40,6 +40,8 @@ class Relationship implements JsonSerializable {
 	private bool $endorsed = false;
 	private bool $requestedBy = false;
 	private string $note = '';
+	/** Unix time the mute runs out, or 0 for a mute that does not. */
+	private int $muteExpiresAt = 0;
 	private array $languages = [];
 
 	public function __construct(int $id = 0) {
@@ -192,6 +194,24 @@ class Relationship implements JsonSerializable {
 	}
 
 	/**
+	 * When the mute the viewer holds over this account lifts itself.
+	 *
+	 * Mastodon keeps this on the account entities of `GET /api/v1/mutes` and
+	 * not on the relationship, which means a client that has just muted
+	 * somebody for an hour has no way of being told so. It is reported here as
+	 * well, where every client already looks after a mute.
+	 */
+	public function setMuteExpiresAt(int $muteExpiresAt): self {
+		$this->muteExpiresAt = $muteExpiresAt;
+
+		return $this;
+	}
+
+	public function getMuteExpiresAt(): int {
+		return $this->muteExpiresAt;
+	}
+
+	/**
 	 * Which languages the viewer wants from this account. Mastodon sends null
 	 * for "all of them", which is the only thing this app offers.
 	 */
@@ -230,6 +250,11 @@ class Relationship implements JsonSerializable {
 			'endorsed' => $this->isEndorsed(),
 			'requested_by' => $this->isRequestedBy(),
 			'note' => $this->getNote(),
+			// null rather than absent, as every other optional date on the
+			// wire: a client reads the key and finds nothing there
+			'mute_expires_at' => ($this->getMuteExpiresAt() === 0)
+				? null
+				: gmdate('Y-m-d\TH:i:s', $this->getMuteExpiresAt()) . '.000Z',
 			'languages' => ($this->getLanguages() === []) ? null : $this->getLanguages(),
 		];
 	}

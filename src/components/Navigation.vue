@@ -93,7 +93,18 @@
 			<!-- the reader's lists: the ones their Nextcloud groups give them
 			     first, since nobody made those and they are what a colleague
 			     looks for, then the ones they made themselves -->
-			<NcAppNavigationCaption v-if="lists.length > 0" :name="t('social', 'Lists')" />
+			<NcAppNavigationCaption v-if="lists.length > 0" :name="t('social', 'Lists')">
+				<!-- the lists are made and filled in Settings; the caption is
+				     where a reader looks for the way there -->
+				<template #actions>
+					<NcActionButton closeAfterClick @click="navigate({ name: 'settings', hash: '#lists' })">
+						<template #icon>
+							<IconCog :size="20" />
+						</template>
+						{{ t('social', 'Manage lists') }}
+					</NcActionButton>
+				</template>
+			</NcAppNavigationCaption>
 			<NcAppNavigationItem
 				v-for="list in lists"
 				:key="`list-${list.id}`"
@@ -211,6 +222,7 @@
 </template>
 
 <script>
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationSearch from '@nextcloud/vue/components/NcAppNavigationSearch'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
@@ -255,6 +267,7 @@ import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { afterFirstTimeline } from '../services/boot.js'
+import eventBus, { LISTS_CHANGED } from '../services/eventBus.js'
 
 // the composer pulls the emoji picker and the attachment stack with it:
 // its own chunk keeps all of that out of the entry bundle
@@ -269,6 +282,7 @@ const SEARCH_DEBOUNCE_MS = 300
 export default {
 	name: 'Navigation',
 	components: {
+		NcActionButton,
 		NcAppNavigation,
 		NcAppNavigationSearch,
 		NcAppNavigationItem,
@@ -514,6 +528,9 @@ export default {
 		// this one defers itself: the composer asks for it too, and it must
 		// wait whichever of the two asks first
 		this.instanceStore.load()
+		// the settings page changes them; this sidebar holds its own copy
+		this.onListsChanged = () => this.fetchLists()
+		eventBus.on(LISTS_CHANGED, this.onListsChanged)
 		this.openComposerFromQuery()
 
 		// the badge is only honest if it keeps up: with notify_push the server
@@ -530,6 +547,7 @@ export default {
 	},
 
 	beforeUnmount() {
+		eventBus.off(LISTS_CHANGED, this.onListsChanged)
 		if (typeof this.stopListening === 'function') {
 			this.stopListening()
 		}

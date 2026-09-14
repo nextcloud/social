@@ -29,7 +29,10 @@ async function mountView(requests = [bob, carol]) {
 		global: {
 			stubs: {
 				ActorAvatar: true,
-				NcEmptyContent: { template: '<div class="empty-content"><slot /></div>' },
+				NcEmptyContent: {
+					props: ['name'],
+					template: '<div class="empty-content">{{ name }}<slot name="description" /><slot /></div>',
+				},
 				RouterLink: RouterLinkStub,
 			},
 		},
@@ -58,6 +61,18 @@ describe('FollowRequests', () => {
 
 		expect(wrapper.find('.empty-content').exists()).toBe(true)
 		expect(wrapper.findAll('.follow-request')).toHaveLength(0)
+	})
+
+	/**
+	 * The page is empty for two quite different reasons, and one of them is
+	 * that the switch the sentence names is off.
+	 */
+	it('sends the reader to the switch the empty state talks about', async () => {
+		const wrapper = await mountView([])
+
+		expect(wrapper.find('.empty-content').text()).toContain('When your account is locked')
+		expect(wrapper.findComponent(RouterLinkStub).props('to'))
+			.toEqual({ name: 'settings', hash: '#account' })
 	})
 
 	it('accepts a request and removes it from the list', async () => {

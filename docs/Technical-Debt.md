@@ -373,20 +373,6 @@ sixty when twenty survive the check.
   — Playwright against a throwaway Nextcloud on every pull request. 1,500 unit
   tests and an integration suite could not see a page that stays empty because
   a bundle did not load; the smoke suite can.
-- **Twelve copies of the client API's bearer-auth are one.** Each of
-  `ApiController`, `AdminApiController`, `AnnouncementController`,
-  `ConversationController`, `DiscoveryController`, `FilterController`,
-  `FollowerController`, `HistoryController`, `ListController`,
-  `NotificationController`, `RelationController` and `TagController` carried a
-  private `initViewer()`, `currentSession()`, `checkTokenScope()` and `error()`
-  — about 150 lines apiece — and they extend `ClientApiController` now, as the
-  five controllers written since always did. This was the expensive kind of
-  duplication rather than the tidy kind: three of the copies had drifted onto a
-  scope rule that accepted any granular grant for its parent, so a token
-  granted `read:statuses` read notifications, blocks and bookmarks, and one
-  granted `write:media` could post, delete posts and edit the profile. Each
-  controller keeps its own route-to-scope table; what a grant means is the base
-  class's to say.
 
 | Item | Outcome |
 |---|---|

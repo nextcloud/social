@@ -9,6 +9,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import Navigation from '../../../src/components/Navigation.vue'
 import appRouter from '../../../src/router.js'
 import axios from '@nextcloud/axios'
+import eventBus, { LISTS_CHANGED } from '../../../src/services/eventBus.js'
 import { useErrorsStore } from '../../../src/store/errors.js'
 import { useNotificationsStore } from '../../../src/store/notifications.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
@@ -40,6 +41,9 @@ const stubs = {
 	},
 	NcCounterBubble: { props: ['count', 'type'], template: '<span class="nc-counter" :data-count="count">{{ count }}</span>' },
 	NcAppNavigationSpacer: { template: '<hr>' },
+	// the caption's own menu lives in a popover it only fills once opened
+	NcAppNavigationCaption: { props: ['name'], template: '<h3 class="nav-caption">{{ name }}<slot name="actions" /></h3>' },
+	NcActionButton: { emits: ['click'], template: '<button class="nav-caption__action" @click="$emit(\'click\')"><slot /></button>' },
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" :data-size="size" />' },
 	NcModal: { props: ['name'], emits: ['close'], template: '<div class="modal-stub" :data-name="name"><slot /></div>' },
@@ -217,6 +221,34 @@ describe('Navigation', () => {
 			await flushPromises()
 
 			expect(activeNames(wrapper)).toEqual(['Design'])
+		})
+
+		it('offers the way to where lists are made', async () => {
+			withLists([list(4, 'Design', 'design')])
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			const manage = wrapper.findAll('.nav-caption__action').find((button) => button.text() === 'Manage lists')
+			expect(manage).toBeDefined()
+			await manage.trigger('click')
+
+			expect(router.push).toHaveBeenCalledWith({ name: 'settings', hash: '#lists' })
+		})
+
+		/** The settings page owns them; this sidebar holds a copy of its own. */
+		it('reads them again when something says they changed', async () => {
+			withLists([list(4, 'Design', 'design')])
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			axios.get.mockImplementation((url) => Promise.resolve({
+				data: url.endsWith('/lists') ? [list(4, 'Design', 'design'), list(5, 'Book club')] : [],
+			}))
+			eventBus.emit(LISTS_CHANGED)
+			await flushPromises()
+
+			expect(listItems(wrapper).map((entry) => entry.attributes('data-name')))
+				.toEqual(['Design', 'Book club'])
 		})
 
 		it('leaves the section out for a reader with no lists', async () => {

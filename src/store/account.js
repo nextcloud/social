@@ -67,6 +67,23 @@ function keyFor(state, account) {
 }
 
 /**
+ * A visibility as Mastodon's `source.privacy` spells it, as this app's composer
+ * spells it. The two agree except on `private`, which the composer and the
+ * server's `CLIENT_VISIBILITIES` both know as `followers`.
+ *
+ * @param {unknown} privacy what the server said
+ * @return {string} a composer visibility id, or '' for anything unknown
+ */
+function visibilityFromWire(privacy) {
+	if (typeof privacy !== 'string') {
+		return ''
+	}
+	const id = privacy === 'private' ? 'followers' : privacy
+
+	return ['public', 'unlisted', 'followers', 'direct'].includes(id) ? id : ''
+}
+
+/**
  * Files an account under its actor URL, and remembers which handle names it.
  *
  * @param {object} state the store state
@@ -133,6 +150,15 @@ export const useAccountStore = defineStore('account', {
 	state: () => ({
 		/** the handle of the account the reader is signed in as */
 		currentAccountHandle: '',
+		/**
+		 * The reader's own CredentialAccount — `verify_credentials`' answer,
+		 * the Account entity with `source` on it — or null before it came.
+		 * The seeded `currentAccount` is the plain Account and has no
+		 * `source`, so the default audience lives here and nowhere else.
+		 *
+		 * @type {import('../types/Mastodon.js').Account & {source?: object}|null}
+		 */
+		credentials: null,
 		accounts: {},
 		accountsFollowers: {},
 		accountsFollowings: {},
@@ -190,6 +216,19 @@ export const useAccountStore = defineStore('account', {
 		 */
 		currentAccount() {
 			return this.getAccount(this.currentAccountHandle)
+		},
+		/**
+		 * The audience the reader's posts go out with when nothing else names
+		 * one, as the composer spells it. The wire says `private` where this
+		 * app says `followers`; an account that has not been asked about yet,
+		 * or a value this app does not know, is '' so the caller falls through
+		 * to its next choice.
+		 *
+		 * @param {object} state the store state
+		 * @return {string} one of the composer's visibility ids, or ''
+		 */
+		defaultPostVisibility(state) {
+			return visibilityFromWire(state.credentials?.source?.privacy)
 		},
 		/**
 		 * @param {object} state the store state
@@ -427,6 +466,65 @@ export const useAccountStore = defineStore('account', {
 		fetchCurrentAccountInfo(account) {
 			this.setCurrentAccount(account)
 			this.fetchAccountInfo(account)
+			// the settings on the account — the default audience among them —
+			// are only on the credentials route, and the composer wants them
+			// before the reader opens it rather than after
+			this.fetchCredentials()
+		},
+		/**
+		 * The reader's own account with its settings on it. Nothing waits for
+		 * this: the composer reads the default audience off the store when it
+		 * opens and follows it when it arrives, and the settings page shows
+		 * its fields when they come.
+		 *
+		 * @return {Promise<object|undefined>} the CredentialAccount, or undefined when it could not be read
+		 */
+		async fetchCredentials() {
+			try {
+				const response = await axios.get(generateUrl('apps/social/api/v1/accounts/verify_credentials'))
+				this.setCredentials(response.data)
+				return response.data
+			} catch (error) {
+				logger.error('Failed to load the account settings', { error })
+			}
+		},
+		/**
+		 * Writes what a settings form changed, and keeps what the server
+		 * answered with: it is the CredentialAccount as it now stands, so the
+		 * form, the composer's default audience and the profile all see the
+		 * change at once.
+		 *
+		 * Only what is passed is sent — `update_credentials` writes only the
+		 * fields it was given — so a caller changing one thing leaves the rest
+		 * alone. Failure is said out loud here and answered with undefined,
+		 * the way the other account actions do it.
+		 *
+		 * @param {object} changes the fields as `update_credentials` names them
+		 * @return {Promise<object|undefined>} the updated CredentialAccount, or undefined
+		 */
+		async updateCredentials(changes) {
+			try {
+				const response = await axios.patch(generateUrl('apps/social/api/v1/accounts/update_credentials'), changes)
+				this.setCredentials(response.data)
+				return response.data
+			} catch (error) {
+				logger.error('Failed to save the account settings', { error })
+				showError(error?.response?.data?.error || t('social', 'Could not save your account settings'))
+			}
+		},
+		/**
+		 * @param {object} data a CredentialAccount as the credentials routes answer
+		 */
+		setCredentials(data) {
+			if (!data?.id) {
+				return
+			}
+			this.credentials = data
+			// the same account the profile shows, so a changed display name
+			// or flag reaches every place that reads it
+			if (data.url) {
+				this.addAccount({ actorId: data.url, data })
+			}
 		},
 		async followAccount({ accountToFollow }) {
 			try {
@@ -488,10 +586,17 @@ export const useAccountStore = defineStore('account', {
 				logger.error('Failed to unblock the account', { error })
 			}
 		},
-		async muteAccount({ id }) {
+		/**
+		 * @param {object} options what to mute
+		 * @param {string} options.id the account's numeric id
+		 * @param {boolean} [options.notifications] whether their notifications go quiet too
+		 * @param {number} [options.duration] seconds until the mute lifts itself, 0 for never
+		 */
+		async muteAccount({ id, notifications = true, duration = 0 }) {
 			try {
-				// No body: the backend mutes notifications by default
-				const response = await axios.post(generateUrl(`apps/social/api/v1/accounts/${id}/mute`))
+				// said in full rather than left to the server's defaults, so a
+				// reader who unticked the box gets what they asked for
+				const response = await axios.post(generateUrl(`apps/social/api/v1/accounts/${id}/mute`), { notifications, duration })
 				if (response.data?.id) {
 					this.addRelationship({ actorId: response.data.id, data: response.data })
 					useTimelineStore().removeStatusesByActor(response.data.id)
