@@ -302,7 +302,9 @@ class AccountRelationService {
 			$expiresAt = $expiries[$actorId] ?? 0;
 			if ($relationship->isMuting() && $expiresAt !== 0 && $expiresAt <= $now) {
 				$relationship->setMuting(false)->setMutingNotifications(false);
+				$expiresAt = 0;
 			}
+			$relationship->setMuteExpiresAt($relationship->isMuting() ? $expiresAt : 0);
 		}
 	}
 
@@ -312,10 +314,17 @@ class AccountRelationService {
 		$relationship->setDomainBlocking($this->domainBlockService->isBlocking($viewerId, $actorId));
 		$relationship->setNote($this->getNote($viewerId, $actorId));
 
-		if ($relationship->isMuting() && $this->isMuteExpired($viewerId, $actorId, $now)) {
+		// read once and used twice: whether the mute still applies, and when
+		// it stops, are the same row
+		$expiresAt = $relationship->isMuting()
+			? $this->muteExpiryRequest->getExpiry($viewerId, $actorId)
+			: 0;
+		if ($expiresAt !== 0 && $expiresAt <= ($now ?? time())) {
 			$relationship->setMuting(false)
 				->setMutingNotifications(false);
+			$expiresAt = 0;
 		}
+		$relationship->setMuteExpiresAt($expiresAt);
 
 		return $relationship;
 	}

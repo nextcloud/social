@@ -229,10 +229,14 @@ class ApiContractTest extends TestCase {
 	public function testTheRelationshipEntityKeysAreStable(): void {
 		$relationship = new Relationship();
 
+		// `mute_expires_at` is this app's own addition to the entity: Mastodon
+		// sends it on the accounts of a mutes listing, and a client that has
+		// just taken a timed mute has nowhere else to read it from
 		$expected = [
 			'blocked_by', 'blocking', 'domain_blocking', 'endorsed', 'followed_by',
-			'following', 'id', 'languages', 'muting', 'muting_notifications',
-			'note', 'notifying', 'requested', 'requested_by', 'showing_reblogs',
+			'following', 'id', 'languages', 'mute_expires_at', 'muting',
+			'muting_notifications', 'note', 'notifying', 'requested', 'requested_by',
+			'showing_reblogs',
 		];
 		$actual = array_keys($relationship->jsonSerialize());
 		sort($expected);

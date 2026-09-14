@@ -15,7 +15,7 @@ import { useTimelineStore } from '../../../src/store/timeline.js'
 import logger from '../../../src/services/logger.js'
 
 vi.mock('@nextcloud/axios', () => ({
-	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
@@ -32,6 +32,7 @@ const ALICE = 'alice@cloud.example.org'
 function freshState() {
 	return {
 		currentAccountHandle: '',
+		credentials: null,
 		accounts: {},
 		accountsFollowers: {},
 		accountsFollowings: {},
@@ -344,6 +345,78 @@ describe('account store actions', () => {
 		expect(store.currentAccount).toEqual(alice)
 	})
 
+	describe('the account’s own settings', () => {
+		const credentials = (privacy = 'private') => ({
+			id: '1',
+			acct: 'alice',
+			username: 'alice',
+			display_name: 'Alice',
+			url: alice.url,
+			locked: false,
+			source: { privacy },
+		})
+
+		it('reads them off verify_credentials, which is where source lives', async () => {
+			axios.get.mockResolvedValue({ data: credentials() })
+
+			await store.fetchCredentials()
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/verify_credentials`)
+			expect(store.credentials).toEqual(credentials())
+		})
+
+		it('files the account where the rest of the app reads it', async () => {
+			axios.get.mockResolvedValue({ data: credentials() })
+
+			await store.fetchCredentials()
+
+			expect(store.getAccount(ALICE)).toMatchObject({ display_name: 'Alice' })
+		})
+
+		it('says nothing about a default nobody has asked for yet', () => {
+			expect(store.defaultPostVisibility).toBe('')
+		})
+
+		it.each([
+			['private', 'followers'],
+			['public', 'public'],
+			['unlisted', 'unlisted'],
+			['direct', 'direct'],
+			// a visibility from a server this app does not know
+			['local-only', ''],
+		])('reads %s off the wire as %s', (privacy, expected) => {
+			store.setCredentials(credentials(privacy))
+
+			expect(store.defaultPostVisibility).toBe(expected)
+		})
+
+		it('sends only the fields it was given', async () => {
+			axios.patch.mockResolvedValue({ data: credentials('public') })
+
+			await store.updateCredentials({ source: { privacy: 'public' } })
+
+			expect(axios.patch).toHaveBeenCalledWith(
+				`${API}/accounts/update_credentials`,
+				{ source: { privacy: 'public' } },
+			)
+			expect(store.defaultPostVisibility).toBe('public')
+		})
+
+		it('says so and answers with nothing when the save was refused', async () => {
+			axios.patch.mockRejectedValue({ response: { data: { error: 'Your name is set elsewhere' } } })
+
+			await expect(store.updateCredentials({ display_name: 'Alice A.' })).resolves.toBeUndefined()
+
+			expect(showError).toHaveBeenCalledWith('Your name is set elsewhere')
+		})
+
+		it('keeps nothing from an answer that is not an account', () => {
+			store.setCredentials({})
+
+			expect(store.credentials).toBeNull()
+		})
+	})
+
 	describe('followAccount', () => {
 		beforeEach(() => {
 			store.addAccount({ actorId: bob.url, data: bob })
@@ -463,17 +536,31 @@ describe('account store actions', () => {
 			expect(timelineStore.timeline).toEqual(['1', '2'])
 		})
 
-		it('muteAccount POSTs without a body so the backend mutes notifications by default, and purges', async () => {
+		it('muteAccount mutes for good and hides the notifications when it is asked for nothing else, and purges', async () => {
 			const relationship = { ...defaultRelationship(bob.id, true), muting: true, muting_notifications: true }
 			axios.post.mockResolvedValue({ data: relationship })
 
 			await expect(store.muteAccount({ id: bob.id })).resolves.toEqual(relationship)
 
 			expect(axios.post).toHaveBeenCalledTimes(1)
-			expect(axios.post).toHaveBeenCalledWith(`${API}/accounts/${bob.id}/mute`)
-			expect(axios.post.mock.calls[0]).toHaveLength(1)
+			// said in full rather than left to the server's defaults
+			expect(axios.post).toHaveBeenCalledWith(
+				`${API}/accounts/${bob.id}/mute`,
+				{ notifications: true, duration: 0 },
+			)
 			expect(store.getRelationshipWith(bob.id)).toEqual(relationship)
 			expect(timelineStore.timeline).toEqual(['2'])
+		})
+
+		it('muteAccount sends the duration and the notification choice it was given', async () => {
+			axios.post.mockResolvedValue({ data: { ...defaultRelationship(bob.id, true), muting: true } })
+
+			await store.muteAccount({ id: bob.id, notifications: false, duration: 3600 })
+
+			expect(axios.post).toHaveBeenCalledWith(
+				`${API}/accounts/${bob.id}/mute`,
+				{ notifications: false, duration: 3600 },
+			)
 		})
 
 		it('unmuteAccount POSTs to the unmute endpoint and updates the relationship without purging', async () => {

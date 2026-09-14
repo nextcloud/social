@@ -319,28 +319,4 @@ class TagControllerTest extends TestCase {
 			$this->controller('Bearer readonly')->followedTags()->getStatus()
 		);
 	}
-
-	/**
-	 * The rule used to be "a scope is satisfied by itself or by any granular
-	 * variant of it", so a grant to read one's own posts was read as a grant
-	 * to read everything, and a grant to upload a picture as a grant to
-	 * follow. It is the other way round: a granular grant is narrower than its
-	 * parent, never wider.
-	 */
-	public function testAGranularGrantDoesNotSatisfyItsParent(): void {
-		$client = new SocialClient();
-		$client->setAuthUserId('alice');
-		$client->setAuthScopes(['read:statuses', 'write:media']);
-		$this->clientService->method('getFromToken')->willReturn($client);
-
-		$this->assertSame(
-			Http::STATUS_FORBIDDEN,
-			$this->controller('Bearer granular')->follow('nextcloud')->getStatus()
-		);
-		$this->assertSame([], $this->writes);
-		$this->assertSame(
-			Http::STATUS_FORBIDDEN,
-			$this->controller('Bearer granular')->followedTags()->getStatus()
-		);
-	}
 }

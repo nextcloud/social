@@ -371,6 +371,44 @@ class AccountRelationServiceTest extends TestCase {
 		$this->assertTrue($relationship->isMutingNotifications());
 	}
 
+	/**
+	 * A client that has just muted somebody for an hour is told for how long,
+	 * which is the only place it could learn it from.
+	 */
+	public function testATimedMuteReportsWhenItLifts(): void {
+		$service = $this->service();
+		$service->setMuteExpiry($this->person(self::ALICE), $this->person(self::CAROL), 3600, self::NOW);
+
+		$muting = (new Relationship(4))->setMuting(true);
+
+		$this->assertSame(
+			self::NOW + 3600,
+			$service->decorate($muting, self::ALICE, self::CAROL, self::NOW + 60)->getMuteExpiresAt()
+		);
+	}
+
+	public function testAPermanentMuteHasNoExpiryToReport(): void {
+		$muting = (new Relationship(4))->setMuting(true);
+
+		$this->assertSame(
+			0,
+			$this->service()->decorate($muting, self::ALICE, self::CAROL, self::NOW)->getMuteExpiresAt()
+		);
+	}
+
+	/** An expiry that has passed is not a mute, so it is not a date either. */
+	public function testAnExpiredMuteReportsNoExpiry(): void {
+		$service = $this->service();
+		$service->setMuteExpiry($this->person(self::ALICE), $this->person(self::CAROL), 3600, self::NOW);
+
+		$muting = (new Relationship(4))->setMuting(true);
+
+		$this->assertSame(
+			0,
+			$service->decorate($muting, self::ALICE, self::CAROL, self::NOW + 7200)->getMuteExpiresAt()
+		);
+	}
+
 	public function testOneAccountsExpiryDoesNotEndAnothersMute(): void {
 		$service = $this->service();
 		$service->setMuteExpiry($this->person(self::ALICE), $this->person(self::CAROL), 3600, self::NOW);

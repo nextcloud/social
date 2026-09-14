@@ -18,7 +18,6 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\PayloadTooLargeException;
 use OCA\Social\Exceptions\RealTokenException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
@@ -67,17 +66,6 @@ use OCP\IRequest;
 use Psr\Log\LoggerInterface;
 
 class ActivityPubController extends Controller {
-	/**
-	 * The most an inbox delivery may weigh, in bytes. Mastodon refuses
-	 * anything past 2 MB, and the largest legitimate activity -- a long post
-	 * with a dozen attachments described at length, or a `Move` with a
-	 * paragraph of `alsoKnownAs` -- is a few hundred kilobytes. The body was
-	 * read whole before anything about the request had been verified, so the
-	 * cost of an oversized unsigned POST was paid by this instance's memory
-	 * rather than by the sender.
-	 */
-	public const MAX_INBOX_BODY = 2 * 1024 * 1024;
-
 	use TNCDataResponse;
 	use TStringTools;
 	use TAsync;
@@ -207,15 +195,6 @@ class ActivityPubController extends Controller {
 	 * Refuses the request when this instance is in secure mode and nothing
 	 * signed it.
 	 *
-	 * Every ActivityPub GET this controller serves asks this first: the actor,
-	 * the outbox, the featured, followers and following collections, a post,
-	 * its replies and a quote authorization. It used to be asked by the actor
-	 * and the post only, so a secure-mode instance that would not show a
-	 * profile still listed everything the profile had posted and everyone who
-	 * followed it. Where a route also serves an HTML page to a browser, the
-	 * gate sits on the ActivityPub branch alone -- a browser is not making a
-	 * fetch and has nothing to sign with.
-	 *
 	 * @throws SignatureException
 	 */
 	private function assertReadable(): void {
@@ -268,7 +247,7 @@ class ActivityPubController extends Controller {
 		$origin = '';
 		try {
 			$this->inboxLimiter->assertAllowed($this->request);
-			$body = $this->requestBody();
+			$body = (string)file_get_contents('php://input');
 
 			$requestTime = 0;
 			$signer = '';
@@ -304,8 +283,6 @@ class ActivityPubController extends Controller {
 			return $this->success();
 		} catch (TooManyRequestsException $e) {
 			return new DataResponse(['error' => 'too many requests'], Http::STATUS_TOO_MANY_REQUESTS);
-		} catch (PayloadTooLargeException $e) {
-			return new DataResponse(['error' => 'payload too large'], Http::STATUS_REQUEST_ENTITY_TOO_LARGE);
 		} catch (ItemUnknownException $e) {
 			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
@@ -331,7 +308,7 @@ class ActivityPubController extends Controller {
 		$origin = '';
 		try {
 			$this->inboxLimiter->assertAllowed($this->request);
-			$body = $this->requestBody();
+			$body = (string)file_get_contents('php://input');
 
 			$requestTime = 0;
 			$signer = '';
@@ -369,34 +346,11 @@ class ActivityPubController extends Controller {
 			return $this->success();
 		} catch (TooManyRequestsException $e) {
 			return new DataResponse(['error' => 'too many requests'], Http::STATUS_TOO_MANY_REQUESTS);
-		} catch (PayloadTooLargeException $e) {
-			return new DataResponse(['error' => 'payload too large'], Http::STATUS_REQUEST_ENTITY_TOO_LARGE);
 		} catch (ItemUnknownException $e) {
 			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
 			return $this->rejectDelivery($e);
 		}
-	}
-
-	/**
-	 * The delivery's body, or a refusal to read it: one byte past the ceiling
-	 * and nothing further is done with the request -- no digest, no key
-	 * fetch, no signature check.
-	 *
-	 * @throws PayloadTooLargeException
-	 */
-	private function requestBody(): string {
-		$body = $this->readInput(self::MAX_INBOX_BODY + 1);
-		if (strlen($body) > self::MAX_INBOX_BODY) {
-			throw new PayloadTooLargeException('the request body exceeds ' . self::MAX_INBOX_BODY . ' bytes');
-		}
-
-		return $body;
-	}
-
-	/** At most `$limit` bytes of the request body. */
-	protected function readInput(int $limit): string {
-		return (string)file_get_contents('php://input', false, null, 0, $limit);
 	}
 
 	/**
@@ -538,8 +492,11 @@ class ActivityPubController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/outbox')]
 	#[FrontpageRoute(verb: 'POST', url: '/@{username}/outbox', postfix: 'post')]
 	public function outbox(string $username, string $page = ''): Response {
+		//		if (!$this->checkSourceActivityStreams()) {
+		//			return $this->socialPubController->outbox($username);
+		//		}
+
 		try {
-			$this->assertReadable();
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$requested = OrderedCollectionPage::requestedPage($page);
@@ -548,8 +505,6 @@ class ActivityPubController extends Controller {
 			}
 
 			return $this->activityPubSuccess($this->streamService->getOutboxCollection($actor));
-		} catch (SignatureException $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -608,7 +563,6 @@ class ActivityPubController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/collections/featured')]
 	public function featured(string $username): Response {
 		try {
-			$this->assertReadable();
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$posts = $this->pinService->getPinnedPosts($actor->getId());
 
@@ -627,8 +581,6 @@ class ActivityPubController extends Controller {
 			);
 
 			return $this->activityPubSuccess($collection);
-		} catch (SignatureException $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
 		} catch (Exception $e) {
 			return $this->fail($e, [], 404);
 		}
@@ -653,7 +605,6 @@ class ActivityPubController extends Controller {
 		}
 
 		try {
-			$this->assertReadable();
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			// The collection has always advertised `first` as `?page=1` while
@@ -668,8 +619,6 @@ class ActivityPubController extends Controller {
 			}
 
 			return $this->activityPubSuccess($this->followService->getFollowersCollection($actor));
-		} catch (SignatureException $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -694,7 +643,6 @@ class ActivityPubController extends Controller {
 		}
 
 		try {
-			$this->assertReadable();
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$requested = OrderedCollectionPage::requestedPage($page);
@@ -705,8 +653,6 @@ class ActivityPubController extends Controller {
 			}
 
 			return $this->activityPubSuccess($this->followService->getFollowingCollection($actor));
-		} catch (SignatureException $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -732,12 +678,6 @@ class ActivityPubController extends Controller {
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}/quote_authorizations/{stamp}')]
 	public function displayQuoteAuthorization(string $username, string $token, string $stamp): Response {
-		try {
-			$this->assertReadable();
-		} catch (SignatureException $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
-		}
-
 		$quotedId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
 		try {
@@ -802,12 +742,6 @@ class ActivityPubController extends Controller {
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}/replies')]
 	public function replies(string $username, string $token, string $page = ''): Response {
-		try {
-			$this->assertReadable();
-		} catch (SignatureException $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
-		}
-
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
 		try {

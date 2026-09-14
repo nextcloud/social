@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.82  
+**App version:** 0.19.83  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -378,29 +378,6 @@ An activity that is understood but has no handler is still answered 200 (see bel
 | `Move` | Actions, follows, streams and cached documents are repointed to the target actor — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused |
 
 **OAuth: one authorization per account.** `social_client` is the app registration — the name, the redirect URIs, the client id and secret — and nothing else. Everything about *who authorized it* is a row of `social_client_auth`: the code, the token, the scopes granted and the account they were granted to, unique on (client, account). Before that, the app row held one `auth_user_id` and one `token`, so an app registration belonged to exactly one person at a time and the second person to sign in with Elk or Phanpy — which register one app per instance — signed the first one out, silently. Re-authorizing replaces that account's row and nobody else's; revoking takes one authorization, where it used to take the app row's only token and sign out everybody; and the expiry sweep deletes authorizations rather than the whole `social_client` row, which used to take the app's registration with an idle token and make the client register again. A code is spent in the same statement that writes the token, so two requests arriving together cannot both exchange it. Every read joins the app row, so the rest of the app still sees one `SocialClient` carrying both halves.
-
-
-**One implementation of "who is asking".** Every controller that answers the
-client API extends `ClientApiController`, which owns the four things all of
-them need: reading the bearer token off the `Authorization` header, resolving
-it (or a session that passes its CSRF check) to a Nextcloud user, checking the
-token's scope, and turning a failure into the `{"error": "..."}` a Mastodon
-client can act on. Twelve of them used to carry a private copy of those four
-methods, and three of the copies had drifted onto a looser scope rule --
-`str_starts_with($granted, $scope . ':')`, which takes *any* granular grant for
-its parent, so a token granted only `read:statuses` read notifications, blocks,
-mutes, bookmarks and follow requests, and one granted `write:media` could post,
-delete posts, edit the profile and file reports. The rule that stands is the
-base class's: **a scope is satisfied by itself or by the broad scope containing
-it, and by nothing else**. A controller keeps its own route-to-scope table --
-`ApiController::routeScopes()` is a `match` on the route name, the others name
-the scopes at each call to `initViewer()` -- because which scope a route needs
-is that controller's business; how a grant is judged against it is not. Where a
-controller needs a different *sequence* rather than a different rule --
-`AdminApiController` establishes who is asking, refuses a caller who may not
-moderate, and only then looks at the scope, so that a non-administrator learns
-nothing from the difference between 403 and 401 -- it composes `currentSession()`
-and `checkTokenScope()` itself.
 
 **Notifications that are not activities.** Six of the nine notification types are an activity somebody sent — a Like, an Announce, a Mention, an Update, a Follow, a follow request — and `Stream::NOTIFICATION_TYPES` maps each to its Mastodon name. The other four are events this instance raises itself, with no ActivityPub verb behind them, so the subtype is this app's own name for the event: `poll` (swept by `PollService::announceClosedPolls()` from the cron, because a poll closes by its end time passing and nothing happens at the moment it does), `status` (the bell on a profile — a `notify` row in `social_actor_relation`, written by `POST /accounts/{id}/follow` with `notify`, and raised for local subscribers only since a remote one is told by their own server), `moderation_warning` (raised beside the Nextcloud notification a strike already sends, because a Mastodon client cannot see that one) and `severed_relationships` (raised by `DomainPurgeService` for the local accounts a block cuts off, counted *before* the purge because afterwards there is nothing left to count).
 
@@ -788,6 +765,7 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 ### Components
 
 `src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `FirstRun` (the four-step introduction a new account sees once, in place of the beta banner: the address, the colleagues and starter packs from the same routes Discover reads, the follows import Settings offers, and a hand-off to the composer), `FirstPostCelebration`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`, `LanguageSelect`), `ScheduledPosts` (the posts waiting to go out, in Settings), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components). AltBadge`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `FirstRun` (the four-step introduction a new account sees once, in place of the beta banner: the address, the colleagues and starter packs from the same routes Discover reads, the follows import Settings offers, and a hand-off to the composer), `FirstPostCelebration`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), the settings sections (`AccountSettings`, `ListsSettings`, `MigrationSettings`, `ShortcutList`) and the two account dialogs (`MuteDialog`, `ListMembershipDialog`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
 
 `ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
 (a file, or the address of one), the bio and the metadata fields. The banner
@@ -925,6 +903,56 @@ description in an `alt` attribute and nowhere else.
 **Phone layout.** One breakpoint, 600px, stated twice on purpose: as `PHONE_WIDTH` in `src/services/phone.js` (a shared `matchMedia` query with `isPhone()` and `onPhoneChange()`) and as the `@media (max-width: 600px)` rule in the stylesheets that lay themselves out differently on a phone — `TimelineEntry.vue` (the avatar column goes; the face, 36px, sits inside the card over the corner `.post-header` leaves for it, which is why `TimelineAvatar` takes a `size`), `TimelinePost.vue` (less padding), `TimelineSinglePost.vue` (the 64px the fine print and the spine kept for the avatar column), and `Composer.vue` (the toolbar wraps, the visibility menu is icon-only, Post keeps the end of its row). Nextcloud's own mobile breakpoint, 1024px, is where the sidebar collapses; the only rule at that width is `Timeline.vue`'s, which starts the page's first element below the sidebar toggle. A tablet in portrait is between the two and keeps the avatar column.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
+
+**The Settings page, and what is on it.** `src/views/Settings.vue` is a list of
+sections, each with an id — `#account`, `#lists`, `#shortcuts`, `#migration` —
+because other pages link to one of them: the Follow requests page's empty state
+sends the reader to `#account` for the switch it talks about. The two large
+sections are `defineAsyncComponent` imports in a `settings` chunk, since nobody
+loads them until they open the page, and a section that arrives after the page
+did is why the scroll to the hash is retried in `updated()`.
+
+`AccountSettings.vue` is `PATCH /api/v1/accounts/update_credentials` as a form:
+the display name, `locked`, `discoverable`, `indexable`, `bot` and
+`source[privacy]`. It sends **only the fields that changed**, which is not an
+optimisation: the route writes only what it is given, and a form that posted the
+whole of itself back would re-save a display name into a backend that owns it
+(LDAP, SAML) and be refused for a switch it never meant to touch. The bio, the
+banner and the metadata fields stay in the profile's own editor, because they are
+what a visitor reads and are edited where they are seen.
+
+**The default audience.** `source.privacy` lives on `verify_credentials` and
+nowhere else — the account the initial state seeds the store with is the plain
+Account entity and has no `source` — so the account store keeps the
+CredentialAccount separately as `credentials` and exposes
+`defaultPostVisibility`, which translates the wire's `private` into the
+composer's `followers` and answers `''` for anything it does not know. The
+composer's chain is: what the caller passed, the post being replied to, the
+account's default, the last visibility the reader used, and failing all of those
+`followers`. Because `verify_credentials` can land after a composer is already on
+screen — the timeline draws one as the page opens — a watcher takes the default
+when it arrives, unless the audience has been settled by a caller, a reply or the
+reader.
+
+`ListsSettings.vue` is the whole of `ListController` in one section: create,
+rename, delete with a confirmation, and members added through the same
+`/api/v1/global/accounts/search` the composer's mention autocomplete uses.
+Lists carrying `nextcloud_group` are shown — a reader looks here when they wonder
+who is in "Design" — with their members and without any of the three controls,
+because the group decides all of it and the server answers 422 to anybody who
+tries. The sidebar draws the lists from a fetch of its own, once per page, so
+every change here is announced on the event bus as `LISTS_CHANGED` (exported by
+`src/services/eventBus.js`, because two unrelated components have to agree on the
+name) and `Navigation.vue` asks again.
+
+**Muting asks two questions.** `MuteDialog.vue` — whether the notifications go
+quiet too, and for how long: indefinitely, an hour, a day, seven days or thirty —
+is opened from a profile and from the overflow menu of any post its author did
+not write, in an `account-dialogs` chunk shared with `ListMembershipDialog`. It
+mutes itself rather than handing the answers back, because both callers would do
+exactly the same with them. Blocking is a plain confirmation in the same two
+places. A relationship reports `mute_expires_at` while a timed mute is running,
+which is what the profile writes out under the name.
 
 **The Statistics page.** `src/views/Statistics.vue` behind the account menu, and
 `StatisticsService` behind that. Everything is counted from this instance's own
@@ -1475,11 +1503,10 @@ a freshly imported account has none. No `Delete`, no `Move`, no `Like`, no
 
 **What is enforced**
 
-- **Authorized fetch (inbound)** — a signature on a **GET** is verified by `SignatureService::checkGetRequest()` and resolved to the account behind it by `AuthorizedFetchService::reader()`, so what this instance serves can depend on who asked: `displayPost()` reads the object as that remote account, which is what lets a followers-only post reach the people who follow it from another server. Before this, verification ran on inbox POSTs only, every GET served what an anonymous reader gets, and a follower elsewhere saw a profile with nothing on it — safe, and also wrong. A GET has no body, so the digest and content-length checks that bind one are not asked for; everything else is the POST path's, including the requirement that `(request-target)`, `host` and `date` be inside the signature and the replay window on the date. An **unsigned** GET is not an error — it is the ordinary case, and it gets what it always got. A signature that is present and *fails* leaves the reader anonymous rather than answering 401: a peer whose clock has drifted, or whose key cannot be fetched at that moment, should still see the public object the route exists to serve. A signer on an instance the access list excludes, and a *local* actor's key signing an inbound fetch (this instance talking to itself, or a replay of one of our own requests), are both refused as readers. **Secure mode** — `secure_mode`, off by default — turns the other half on: an unsigned ActivityPub GET is a 401. It is asked by **every** ActivityPub GET this controller serves — the actor, the outbox, the featured, followers and following collections, a post, its replies and a quote authorization — through `assertReadable()`. It used to be asked by the actor and the post alone, so an instance that would not show a stranger a profile still listed everything that profile had posted, everything it had pinned and everyone who followed it. On the routes that also serve an HTML page to a browser the gate sits on the ActivityPub branch only, because a browser is not making a fetch and has nothing to sign with. It is off by default because switching it on makes this instance invisible to every peer that does not sign, which is a decision about who to federate with rather than something to arrive at by upgrading
+- **Authorized fetch (inbound)** — a signature on a **GET** is verified by `SignatureService::checkGetRequest()` and resolved to the account behind it by `AuthorizedFetchService::reader()`, so what this instance serves can depend on who asked: `displayPost()` reads the object as that remote account, which is what lets a followers-only post reach the people who follow it from another server. Before this, verification ran on inbox POSTs only, every GET served what an anonymous reader gets, and a follower elsewhere saw a profile with nothing on it — safe, and also wrong. A GET has no body, so the digest and content-length checks that bind one are not asked for; everything else is the POST path's, including the requirement that `(request-target)`, `host` and `date` be inside the signature and the replay window on the date. An **unsigned** GET is not an error — it is the ordinary case, and it gets what it always got. A signature that is present and *fails* leaves the reader anonymous rather than answering 401: a peer whose clock has drifted, or whose key cannot be fetched at that moment, should still see the public object the route exists to serve. A signer on an instance the access list excludes, and a *local* actor's key signing an inbound fetch (this instance talking to itself, or a replay of one of our own requests), are both refused as readers. **Secure mode** — `secure_mode`, off by default — turns the other half on: an unsigned ActivityPub GET is a 401. It is off by default because switching it on makes this instance invisible to every peer that does not sign, which is a decision about who to federate with rather than something to arrive at by upgrading
 - **HTTP Signatures on outbound requests** — every queued delivery is signed with the sending actor's RSA private key over `(request-target)`, `content-length`, `date`, `host` and `digest`. Outbound ActivityPub **GET**s are signed too, by `HttpSignatureService::signFetch()`, over `(request-target) host date` — there is no body to digest. Without this, any peer running Mastodon's authorized-fetch or GoToSocial's secure mode answers 401 to every actor, object and collection fetch, which reads as "user not found" when following and as threads that stop at the first remote reply. The signing identity is one fixed local actor rather than whoever is reading, so a remote instance is not told which of our accounts read which of its posts; a peer that rejects a signed GET is retried once unsigned, so nobody becomes less reachable than before. WebFinger, host-meta and NodeInfo stay unsigned
 - **HTTP Signature verification on inbound requests** — `SignatureService::checkRequest()` requires `(request-target)`, `host`, `date` and `digest` to all be within the signed header set, so the signature binds the body and cannot be replayed against another host; it rejects a missing, stale or future `date` (±`DATE_DELAY`, 300 s), a `content-length` that disagrees with the body *when the header is sent* (a chunked sender omits it, and refusing those outright cost interoperability for nothing), and a `digest` that does not match. `Digest` and `Content-Digest` are parsed rather than byte-compared, so a lowercase algorithm token, a multi-value digest or an RFC 9530 header is accepted as long as one algorithm we can compute matches. A signature algorithm that is neither `hs2019` nor absent is refused by name instead of being assumed to be sha256, which used to fail an Ed25519 key with a misleading message. When the signed `host` differs from the configured one — which fails every inbound delivery on a multi-domain or non-default-port install — the log now names both. A signature that does not verify, or whose key cannot be retrieved, is refused by `checkRequest()` itself (it throws), rather than returning an empty origin for a later check to catch
 - **Inbound inbox deliveries are rate-limited** — `InboxLimiter` caps deliveries in two places (`inbox_throttle` app setting, default 300 per minute, 0 disables). Before any signature work, `assertAllowed()` spends a bucket keyed on the **source address**, which is the one thing about an unauthenticated request the sender cannot choose. After the signature has been verified, `assertOriginAllowed()` spends a second, looser bucket (`HOST_LIMIT_FACTOR`, 4×) keyed on the **verified origin**, which bounds what one instance can send from however many addresses. The second bucket used to be spent up front on the host named in the sender's own unverified `keyId` — which meant four cheap addresses could fill a large instance's bucket every minute and have its genuine deliveries answered 429, cutting this server off from it. Only a peer that can sign for a host now spends that host's budget
-- **An inbox delivery is read with a ceiling** — `ActivityPubController::MAX_INBOX_BODY`, 2 MB, which is Mastodon's figure. The body used to be read whole with `file_get_contents('php://input')` before anything about the request had been verified, so the cost of an oversized *unsigned* POST fell on this instance's memory rather than on the sender. At most one byte past the ceiling is read, a body past it is answered **413**, and no digest, key fetch or signature check is attempted for it
 - **LD signatures are bounded in time and replay-checked** — `checkObject()` refuses a signature whose `created` lies more than `LD_WINDOW` (24 h) from now, and remembers accepted signatures in a distributed cache for twice the window, so a captured activity cannot be re-POSTed indefinitely by an instance that once saw it
 - **Linked Data Signatures** — outgoing Create, Update, Delete, Like, Announce and Undo carry an RsaSignature2017 signature; incoming ones are verified by `SignatureService::checkObject()`, which also retries against a refreshed public key. Follow and Accept are not LD-signed
 - **Instance access control** — `FediverseService::authorized()` is checked on both inbox routes and on every outgoing `CurlService` request. It reads one app config value, `access_type`, which is either `all_but` (the default: everything is allowed unless the host is in the list) or `none_but` (only listed hosts, plus the local host, are allowed), together with a single host list in `access_list`. Hosts are compared case-insensitively and without the trailing dot of the absolute form, and the two modes read the list differently on purpose: a deny-list entry covers the domain and everything under it (`isListed()`), because blocking `evil.test` while `www.evil.test` walks straight back in is not a block; an allow-list entry matches exactly (`isExactlyListed()`), because a subdomain of an allowed domain is a different instance and whoever runs the parent was never asked. `occ social:fediverse` manages both
@@ -1492,7 +1519,7 @@ a freshly imported account has none. No `Delete`, no `Move`, no `Like`, no
 
 **Known gaps — these are real and deliberate to record**
 
-- **The federation endpoints are readable by anyone, unless secure mode is on.** Every `ActivityPubController` GET carries `#[PublicPage]` with `#[NoCSRFRequired]`, and by default this instance does not *require* a signed fetch of its own documents, so any anonymous caller can read a local actor's profile, outbox, featured, follower and following collections, a post, its replies and a quote authorization. `secure_mode` refuses all of them unsigned; it is off by default for the reason given above. (Outbound fetches this app makes *are* signed — see above; the two directions are independent.)
+- **The federation endpoints are readable by anyone.** `ActivityPubController::actor()`, `actorAlias()`, `outbox()`, `followers()`, `following()` and `displayPost()` all carry `#[PublicPage]` with `#[NoCSRFRequired]`. This instance does not *require* a signed fetch of its own collections, so any anonymous caller can read a local actor's profile, outbox, follower and following collections and individual posts. (Outbound fetches this app makes *are* signed — see above; the two directions are independent.)
 - **The older dual blacklist/whitelist implementation in `FediverseService` is commented out**. What remains is the single-list `access_type`/`access_list` mechanism described above
 - **`FediverseService::getKnownAddresses()` returns an empty array** unconditionally
 - **The base URL is set once.** `ConfigService::setCloudUrl()` will overwrite it, but stored actor and stream ids embed the old URL, so changing it in practice requires `occ social:reset`

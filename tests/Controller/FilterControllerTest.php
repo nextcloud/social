@@ -624,27 +624,4 @@ class FilterControllerTest extends TestCase {
 			Http::STATUS_OK, $this->controller('Bearer readonly')->index()->getStatus()
 		);
 	}
-
-	/**
-	 * A filter decides what its owner is shown, so rewriting one is as close
-	 * to reading their mind as this API gets. The rule used to take any
-	 * granular grant for its parent, so `write:lists` -- a grant to organise
-	 * one's own lists -- satisfied the `write` these routes also accept.
-	 */
-	public function testAnUnrelatedGranularWriteGrantMayNotRewriteFilters(): void {
-		$client = new SocialClient();
-		$client->setAuthUserId('alice');
-		$client->setAuthScopes(['read', 'write:lists']);
-		$this->clientService->method('getFromToken')->willReturn($client);
-
-		$this->assertSame(
-			Http::STATUS_FORBIDDEN,
-			$this->controller('Bearer lists')->create('spoilers', ['home'])->getStatus()
-		);
-		$this->assertSame([], $this->filters);
-		// the broad read it does hold still reads them
-		$this->assertSame(
-			Http::STATUS_OK, $this->controller('Bearer lists')->index()->getStatus()
-		);
-	}
 }

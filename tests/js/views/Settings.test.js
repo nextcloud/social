@@ -18,9 +18,19 @@ vi.mock('@nextcloud/axios', () => ({
 
 const NcModalStub = { name: 'NcModal', template: '<div class="modal-stub"><slot /></div>' }
 
+// The two account sections are `defineAsyncComponent`s, so mounting the page
+// starts a dynamic import that outlives the test: vitest tears the
+// environment down while `@nextcloud/vue` is still pulling in a stylesheet,
+// and the run ends with an EnvironmentTeardownError although every assertion
+// passed. They have tests of their own; here they are stubs.
+const asyncStubs = {
+	AccountSettings: { name: 'AccountSettings', template: '<section class="account-settings-stub" />' },
+	ListsSettings: { name: 'ListsSettings', template: '<section class="lists-settings-stub" />' },
+}
+
 describe('Settings', () => {
 	it('shows every shortcut the app listens for', () => {
-		const wrapper = mount(Settings)
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 		const rows = wrapper.findAll('.shortcut-list__row')
 
 		expect(rows).toHaveLength(SHORTCUTS.length)
@@ -30,7 +40,7 @@ describe('Settings', () => {
 
 	/** A shortcut with two keys is two keys, not "j/k" in one box. */
 	it('gives every key of a shortcut its own cap', () => {
-		const wrapper = mount(Settings)
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 		const twoKeyed = SHORTCUTS.findIndex((shortcut) => shortcut.keys.length > 1)
 
 		expect(twoKeyed).toBeGreaterThan(-1)
@@ -39,7 +49,7 @@ describe('Settings', () => {
 	})
 
 	it('says that the keys stop while you are typing', () => {
-		expect(mount(Settings).find('.shortcut-list__hint').text())
+		expect(mount(Settings, { global: { stubs: asyncStubs } }).find('.shortcut-list__hint').text())
 			.toBe('Shortcuts are off while you are writing.')
 	})
 
@@ -48,7 +58,7 @@ describe('Settings', () => {
 	 * same one. They draw the same component so the two cannot drift apart.
 	 */
 	it('draws the same list the ? dialog does', () => {
-		const page = mount(Settings)
+		const page = mount(Settings, { global: { stubs: asyncStubs } })
 		const dialog = mount(ShortcutHelp, {
 			props: { open: true },
 			global: { stubs: { NcModal: NcModalStub } },
@@ -62,11 +72,11 @@ describe('Settings', () => {
 
 	/** The frame is a list of sections, and Migration was the second. */
 	it('is a page of sections rather than a page about shortcuts', () => {
-		const wrapper = mount(Settings)
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Keyboard shortcuts', 'Scheduled posts', 'Migration'])
+			.toEqual(['Your account', 'Lists', 'Keyboard shortcuts', 'Scheduled posts', 'Migration'])
 	})
 
 	/**
@@ -85,7 +95,7 @@ describe('Settings', () => {
 	 * to the account, which is what Settings is for.
 	 */
 	it('holds the migration tools', () => {
-		const wrapper = mount(Settings)
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 
 		expect(wrapper.findComponent(MigrationSettings).exists()).toBe(true)
 		// the section supplies the heading, so the panel no longer repeats it

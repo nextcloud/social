@@ -281,6 +281,87 @@ describe('ProfileInfo', () => {
 		expect(bannerOf(wrapper).classes()).not.toContain('user-profile__banner--visible')
 	})
 
+	describe('the private note', () => {
+		const relationship = (extra = {}) => ({
+			id: '42',
+			following: false,
+			blocking: false,
+			muting: false,
+			note: '',
+			...extra,
+		})
+		const noteBox = (wrapper) => wrapper.find('.user-profile__private-note-input')
+
+		it('is offered on somebody else’s profile', () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship() })
+
+			expect(noteBox(mountProfile('bob@remote.example')).exists()).toBe(true)
+		})
+
+		it('is not offered on the reader’s own profile', () => {
+			accountStore.addRelationship({ actorId: alice.id, data: relationship() })
+
+			expect(noteBox(mountProfile('alice')).exists()).toBe(false)
+		})
+
+		it('shows the note the relationship carries', () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ note: 'met at the conference' }) })
+
+			expect(noteBox(mountProfile('bob@remote.example')).element.value).toBe('met at the conference')
+		})
+
+		it('saves it as the comment the route takes', async () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship() })
+			const wrapper = mountProfile('bob@remote.example')
+			vi.spyOn(axios, 'post').mockResolvedValue({ data: relationship({ note: 'met at the conference' }) })
+
+			await noteBox(wrapper).setValue('met at the conference')
+			await wrapper.find('.user-profile__private-note').trigger('submit')
+			await flushPromises()
+
+			expect(axios.post).toHaveBeenCalledWith(
+				'/index.php/apps/social/api/v1/accounts/42/note',
+				{ comment: 'met at the conference' },
+			)
+			expect(showSuccess).toHaveBeenCalledWith('Your note has been saved')
+		})
+
+		it('says so when an empty box cleared it', async () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ note: 'met at the conference' }) })
+			const wrapper = mountProfile('bob@remote.example')
+			vi.spyOn(axios, 'post').mockResolvedValue({ data: relationship() })
+
+			await noteBox(wrapper).setValue('')
+			await wrapper.find('.user-profile__private-note').trigger('submit')
+			await flushPromises()
+
+			expect(axios.post).toHaveBeenCalledWith(
+				'/index.php/apps/social/api/v1/accounts/42/note',
+				{ comment: '' },
+			)
+			expect(showSuccess).toHaveBeenCalledWith('Your note has been cleared')
+		})
+
+		it('has nothing to save until the note changes', () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ note: 'met at the conference' }) })
+			const wrapper = mountProfile('bob@remote.example')
+
+			expect(buttonByText(wrapper, 'Save note').attributes('disabled')).toBeDefined()
+		})
+
+		it('says so when the note could not be saved', async () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship() })
+			const wrapper = mountProfile('bob@remote.example')
+			vi.spyOn(axios, 'post').mockRejectedValue(new Error('nope'))
+
+			await noteBox(wrapper).setValue('met at the conference')
+			await wrapper.find('.user-profile__private-note').trigger('submit')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith('Could not save your note')
+		})
+	})
+
 	describe('block and mute menu', () => {
 		const relationship = (extra = {}) => ({
 			id: '42',
@@ -303,7 +384,7 @@ describe('ProfileInfo', () => {
 		it('offers Block and Mute for an account that is neither blocked nor muted', () => {
 			accountStore.addRelationship({ actorId: bob.id, data: relationship() })
 			const wrapper = mountProfile('bob@remote.example')
-			expect(menuItems(wrapper)).toEqual(['Block', 'Mute'])
+			expect(menuItems(wrapper)).toEqual(['Block', 'Mute', 'Add to list'])
 			expect(wrapper.findComponent(FollowButtonStub).exists()).toBe(true)
 			expect(wrapper.find('.user-profile__blocked-hint').exists()).toBe(false)
 		})
@@ -311,20 +392,21 @@ describe('ProfileInfo', () => {
 		it('flips to Unblock, shows the Blocked hint and hides the follow button for a blocked account', () => {
 			accountStore.addRelationship({ actorId: bob.id, data: relationship({ blocking: true }) })
 			const wrapper = mountProfile('bob@remote.example')
-			expect(menuItems(wrapper)).toEqual(['Unblock', 'Mute'])
+			expect(menuItems(wrapper)).toEqual(['Unblock', 'Mute', 'Add to list'])
 			expect(wrapper.find('.user-profile__blocked-hint').text()).toBe('Blocked')
 			expect(wrapper.findComponent(FollowButtonStub).exists()).toBe(false)
 		})
 
 		it('flips to Unmute for a muted account', () => {
 			accountStore.addRelationship({ actorId: bob.id, data: relationship({ muting: true, muting_notifications: true }) })
-			expect(menuItems(mountProfile('bob@remote.example'))).toEqual(['Block', 'Unmute'])
+			expect(menuItems(mountProfile('bob@remote.example'))).toEqual(['Block', 'Unmute', 'Add to list'])
 		})
 
+		// Mute is missing on purpose: it opens a dialog with questions of its
+		// own, and the store is only called once that has been answered
 		it.each([
 			['Block', relationship(), 'blockAccount'],
 			['Unblock', relationship({ blocking: true }), 'unblockAccount'],
-			['Mute', relationship(), 'muteAccount'],
 			['Unmute', relationship({ muting: true }), 'unmuteAccount'],
 		])('clicking %s calls %s with the relationship id', async (label, data, action) => {
 			accountStore.addRelationship({ actorId: bob.id, data })
@@ -335,6 +417,22 @@ describe('ProfileInfo', () => {
 			await flushPromises()
 
 			expect(accountStore[action]).toHaveBeenCalledWith({ id: '42' })
+		})
+
+		it('says when a timed mute lifts, and only when there is a date', () => {
+			accountStore.addRelationship({
+				actorId: bob.id,
+				data: relationship({ muting: true, mute_expires_at: '2026-01-01T00:00:00.000Z' }),
+			})
+
+			expect(mountProfile('bob@remote.example').find('.user-profile__blocked-hint').text())
+				.toContain('Muted until')
+
+			makeStore()
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ muting: true }) })
+
+			expect(mountProfile('bob@remote.example').find('.user-profile__blocked-hint').text())
+				.toBe('Muted')
 		})
 
 		it('shows no menu on the own profile', () => {

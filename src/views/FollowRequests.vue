@@ -10,10 +10,18 @@
 		<transition name="empty">
 			<NcEmptyContent
 				v-if="!loading && requests.length === 0"
-				:name="t('social', 'No pending follow requests')"
-				:description="t('social', 'When your account is locked, people asking to follow you show up here.')">
+				:name="t('social', 'No pending follow requests')">
 				<template #icon>
 					<AccountClock />
+				</template>
+				<!-- the sentence names a switch, so it links to it: this page
+				     is empty for two quite different reasons, and one of them
+				     is that the switch is off -->
+				<template #description>
+					{{ t('social', 'When your account is locked, people asking to follow you show up here.') }}
+					<router-link :to="{ name: 'settings', hash: '#account' }">
+						{{ t('social', 'Change that in your account settings.') }}
+					</router-link>
 				</template>
 			</NcEmptyContent>
 		</transition>

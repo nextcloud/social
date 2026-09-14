@@ -22,7 +22,10 @@ class RelationshipTest extends TestCase {
 		// `id: String` cannot decode an integer, and the follow/block/mute
 		// button state broke after every action that returns one of these
 		$this->assertSame('5', $json['id']);
-		unset($json['id'], $json['note'], $json['languages'], $json['showing_reblogs']);
+		unset(
+			$json['id'], $json['note'], $json['languages'], $json['showing_reblogs'],
+			$json['mute_expires_at']
+		);
 		$this->assertSame(array_fill_keys([
 			'following', 'notifying', 'followed_by', 'blocking', 'blocked_by',
 			'muting', 'muting_notifications', 'requested', 'domain_blocking', 'endorsed',
@@ -44,6 +47,20 @@ class RelationshipTest extends TestCase {
 		// null is Mastodon's "no language filter", which is all this app offers
 		$this->assertNull($json['languages']);
 		$this->assertFalse($json['requested_by']);
+		// nothing is muted, so there is nothing for a mute to run out of
+		$this->assertNull($json['mute_expires_at']);
+	}
+
+	/**
+	 * A timed mute is reported on the relationship, which is where a client
+	 * that has just taken one looks. Mastodon keeps it on the account entities
+	 * of `GET /api/v1/mutes` only, so a client that muted somebody for an hour
+	 * had no way of being told for how long.
+	 */
+	public function testATimedMuteSaysWhenItLifts(): void {
+		$json = (new Relationship(5))->setMuting(true)->setMuteExpiresAt(1_767_225_600)->jsonSerialize();
+
+		$this->assertSame('2026-01-01T00:00:00.000Z', $json['mute_expires_at']);
 	}
 
 	public function testJsonSerializeUsesTheMastodonFieldNames(): void {
@@ -62,6 +79,7 @@ class RelationshipTest extends TestCase {
 			->setEndorsed(true)
 			->setRequestedBy(true)
 			->setNote('a note to self')
+			->setMuteExpiresAt(1_767_225_600)
 			->setLanguages(['en']);
 
 		$this->assertSame(3, $relationship->getId());
@@ -83,6 +101,7 @@ class RelationshipTest extends TestCase {
 			'endorsed' => true,
 			'requested_by' => true,
 			'note' => 'a note to self',
+			'mute_expires_at' => '2026-01-01T00:00:00.000Z',
 			'languages' => ['en'],
 		], $relationship->jsonSerialize());
 	}
