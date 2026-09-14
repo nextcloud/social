@@ -28,6 +28,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\ReactionService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
@@ -93,7 +94,8 @@ class StreamServiceTest extends TestCase {
 			$this->linkPreviewService,
 			$this->emojiService,
 			new NullLogger(),
-			$this->createMock(PlaceService::class)
+			$this->createMock(PlaceService::class),
+			$this->createMock(ReactionService::class)
 		);
 	}
 
@@ -532,7 +534,8 @@ class StreamServiceTest extends TestCase {
 			$this->linkPreviewService,
 			$this->emojiService,
 			new NullLogger(),
-			$this->createMock(PlaceService::class)
+			$this->createMock(PlaceService::class),
+			$this->createMock(ReactionService::class)
 		);
 
 		$note = new Note();

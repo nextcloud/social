@@ -29,6 +29,7 @@ use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\EmojiReactInterface;
 use OCA\Social\Interfaces\Object\FlagInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
@@ -72,6 +73,7 @@ trait TActivityPubMocks {
 			FollowInterface::class,
 			ImageInterface::class,
 			LikeInterface::class,
+			EmojiReactInterface::class,
 			MoveInterface::class,
 			NoteInterface::class,
 			SocialAppNotificationInterface::class,

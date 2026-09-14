@@ -31,6 +31,7 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\EmojiReactInterface;
 use OCA\Social\Interfaces\Object\FlagInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
@@ -56,6 +57,7 @@ use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\EmojiReact;
 use OCA\Social\Model\ActivityPub\Object\Flag;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
@@ -121,6 +123,7 @@ class AP {
 		public FollowInterface $followInterface,
 		public ImageInterface $imageInterface,
 		public LikeInterface $likeInterface,
+		public EmojiReactInterface $emojiReactInterface,
 		public MoveInterface $moveInterface,
 		public NoteInterface $noteInterface,
 		public SocialAppNotificationInterface $notificationInterface,
@@ -366,6 +369,10 @@ class AP {
 				$item = new Like();
 				break;
 
+			case EmojiReact::TYPE:
+				$item = new EmojiReact();
+				break;
+
 			case Note::TYPE:
 				$item = new Note();
 				break;
@@ -474,6 +481,8 @@ class AP {
 				return $this->imageInterface;
 			case Like::TYPE:
 				return $this->likeInterface;
+			case EmojiReact::TYPE:
+				return $this->emojiReactInterface;
 			case Move::TYPE:
 				return $this->moveInterface;
 			case Note::TYPE:

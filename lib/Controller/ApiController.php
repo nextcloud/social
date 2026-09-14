@@ -76,6 +76,7 @@ use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\ReactionService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
@@ -194,6 +195,7 @@ class ApiController extends Controller {
 		private FediverseService $fediverseService,
 		private PlaceService $placeService,
 		private DeliveryService $deliveryService,
+		private ReactionService $reactionService,
 		private NotificationService $notificationService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -1830,6 +1832,87 @@ class ApiController extends Controller {
 		$text = strip_tags((string)$text);
 
 		return html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	}
+
+	/**
+	 * Reacts to a status with an emoji.
+	 *
+	 * **Declared before `statusAction()` on purpose.** That method's route is
+	 * `POST /api/v1/statuses/{nid}/{act}`, which matches this path too; within
+	 * one controller the attribute routes are offered to the matcher in
+	 * method-declaration order, so this one has to come first or it is never
+	 * reached. Moving it below `statusAction()` would turn a reaction into an
+	 * unknown action, which is a **400** and looks like a client bug.
+	 *
+	 * The emoji is a parameter rather than a path segment: one emoji can be a
+	 * long grapheme cluster, and percent-encoding a family-with-skin-tones
+	 * into a URL to get it back out again is a round trip with nothing to gain.
+	 *
+	 * Answers the status, so a client redraws the card from one response.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/react')]
+	public function statusReact(int $nid, string $emoji = ''): DataResponse {
+		return $this->react($nid, $emoji, true);
+	}
+
+	/** Takes a reaction back. Declared before `statusAction()` for the same reason. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/unreact')]
+	public function statusUnreact(int $nid, string $emoji = ''): DataResponse {
+		return $this->react($nid, $emoji, false);
+	}
+
+	private function react(int $nid, string $emoji, bool $add): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActor($this->viewer->getPreferredUsername());
+			$post = $this->streamService->getStreamByNid($nid);
+
+			if ($add) {
+				$this->reactionService->create($actor, $post->getId(), $emoji);
+			} else {
+				$this->reactionService->delete($actor, $post->getId(), $emoji);
+			}
+
+			// read back rather than patched in memory, so the count the client
+			// redraws is the one the next reader will be served
+			$item = $this->streamService->getStreamByNid($nid);
+			$item->setReactions($this->reactionService->summaryOf($item->getId(), $actor->getId()));
+			$item->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($item, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The emoji reactions on a status: each emoji, how many used it, and
+	 * whether the caller is one of them.
+	 *
+	 * The status is resolved through the visibility filter first, so one the
+	 * caller may not read is a **404** and none of its reactions is looked at
+	 * — who reacted to a post is as private as the post, the same rule
+	 * `favourited_by` follows.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/reactions')]
+	public function statusReactions(int $nid): DataResponse {
+		try {
+			$this->initViewer(false);
+			$post = $this->streamService->getStreamByNid($nid);
+
+			return new DataResponse(
+				$this->reactionService->summaryOf($post->getId(), $this->viewer?->getId() ?? ''),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
 	}
 
 	/**

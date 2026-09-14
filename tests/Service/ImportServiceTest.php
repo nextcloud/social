@@ -34,6 +34,7 @@ use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\EmojiReactInterface;
 use OCA\Social\Interfaces\Object\FlagInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
@@ -94,6 +95,7 @@ class ImportServiceTest extends TestCase {
 			$this->createMock(FollowInterface::class),
 			$this->createMock(ImageInterface::class),
 			$this->createMock(LikeInterface::class),
+			$this->createMock(EmojiReactInterface::class),
 			$this->createMock(MoveInterface::class),
 			$this->createMock(NoteInterface::class),
 			$this->createMock(SocialAppNotificationInterface::class),

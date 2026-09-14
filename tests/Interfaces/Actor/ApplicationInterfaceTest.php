@@ -20,6 +20,7 @@ class ApplicationInterfaceTest extends ActorInterfaceTestCase {
 	protected function createHandler(): PersonInterface {
 		return new ApplicationInterface(
 			$this->actionsRequest,
+			$this->reactionsRequest,
 			$this->cacheActorsRequest,
 			$this->cacheDocumentsRequest,
 			$this->followsRequest,

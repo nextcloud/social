@@ -14,6 +14,7 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ReactionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -43,6 +44,8 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 
 	/** @var ActionsRequest&MockObject */
 	private $actionsRequest;
+	/** @var ReactionsRequest&MockObject */
+	private $reactionsRequest;
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
 	/** @var CacheDocumentsRequest&MockObject */
@@ -68,6 +71,7 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		parent::setUp();
 
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->reactionsRequest = $this->createMock(ReactionsRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->cacheDocumentsRequest = $this->createMock(CacheDocumentsRequest::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
@@ -79,6 +83,7 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 
 		$this->handler = new MoveInterface(
 			$this->actionsRequest,
+			$this->reactionsRequest,
 			$this->cacheActorsRequest,
 			$this->cacheDocumentsRequest,
 			$this->followsRequest,

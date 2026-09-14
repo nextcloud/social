@@ -71,11 +71,15 @@ class ApiContractTest extends TestCase {
 		// 'place' is Pixelfed's, and is null for almost every post: a place is
 		// never inferred, only stated. It is in the client format and not in the
 		// ActivityPub one, because places are local and are not federated.
+		// 'reactions' is the same kind of thing: the emoji reactions on a post
+		// are counted here from the EmojiReact activities received, and a peer
+		// counts the ones it received itself, so it is local and derived and
+		// never goes out on the wire.
 		$expected = [
 			'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote',
-			'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
+			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
 			'tags', 'uri', 'url', 'visibility',
 		];
 		sort($expected);

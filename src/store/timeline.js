@@ -375,6 +375,23 @@ export const useTimelineStore = defineStore('timeline', {
 				this.statuses[statusId] = { ...known, poll }
 			}
 		},
+		/**
+		 * The reaction bar of a post, as the server rebuilt it.
+		 *
+		 * Kept in the store rather than on the card, so the same post shown
+		 * twice — a thread and the timeline behind it — does not end up with
+		 * two different bars.
+		 *
+		 * @param {object} root0 the arguments
+		 * @param {string} root0.statusId which post
+		 * @param {Array<{name: string, count: number, me: boolean}>} root0.reactions the bar
+		 */
+		updateStatusReactions({ statusId, reactions }) {
+			const known = this.statuses[statusId]
+			if (known !== undefined) {
+				this.statuses[statusId] = { ...known, reactions }
+			}
+		},
 		bookmarkStatus({ status, bookmarked }) {
 			if (this.statuses[status.id] !== undefined) {
 				this.statuses[status.id] = { ...this.statuses[status.id], bookmarked }

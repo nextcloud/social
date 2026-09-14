@@ -216,6 +216,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private ?StreamCard $card = null;
 
 	/**
+	 * The emoji reactions on this post, attached by ReactionService.
+	 *
+	 * @var list<array{name: string, count: int, me: bool}>
+	 */
+	private array $reactions = [];
+
+	/**
 	 * The parents already looked up in this request, keyed by their
 	 * ActivityPub id: `{'https://…' => [status nid, author nid]}`.
 	 *
@@ -594,6 +601,33 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	public function setCard(?StreamCard $card): Stream {
 		$this->card = $card;
+
+		return $this;
+	}
+
+	/**
+	 * The emoji reactions on this post: `{name, count, me}` each, most used
+	 * first.
+	 *
+	 * Local, derived data attached by ReactionService the way a card is, and
+	 * never part of the wire object — an `EmojiReact` is its own activity, and
+	 * a peer counts the ones it has received itself.
+	 *
+	 * The key is always present, as an array: a client should never have to
+	 * tell "no reactions" from "this server does not do reactions", and a post
+	 * nobody has reacted to answers `[]`.
+	 *
+	 * @return list<array{name: string, count: int, me: bool}>
+	 */
+	public function getReactions(): array {
+		return $this->reactions;
+	}
+
+	/**
+	 * @param list<array{name: string, count: int, me: bool}> $reactions
+	 */
+	public function setReactions(array $reactions): Stream {
+		$this->reactions = $reactions;
 
 		return $this;
 	}
@@ -1226,6 +1260,11 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'bookmarked' => $bookmarked,
 			'pinned' => $this->isPinned(),
 			'card' => $this->card?->jsonSerialize(),
+			// Pleroma and Akkoma call this `emoji_reactions` and Misskey sends
+			// its own shape; `reactions` with `{name, count, me}` is what the
+			// Mastodon-family clients that support them read, and it is what
+			// this app's own frontend draws
+			'reactions' => $this->getReactions(),
 			// null, not absent. A Question overwrites this with the real poll;
 			// every other status has to carry the key, because the entity's
 			// rule here is that a client never has to test for a missing one

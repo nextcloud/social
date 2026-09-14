@@ -1836,6 +1836,8 @@ class StreamRequest extends StreamRequestBuilder {
 			[self::TABLE_STATUS_REVISIONS, 'stream_id_prim'],
 			// the Like and Announce activities pointing at the post
 			[self::TABLE_ACTIONS, 'object_id_prim'],
+			// and the emoji reactions on it, which are a table of their own
+			[self::TABLE_REACTIONS, 'object_id_prim'],
 			// and its place in any album its author put it in: a collection
 			// entry pointing at a post that is gone would draw a gap
 			[self::TABLE_COLLECTION_ITEMS, 'stream_id_prim'],

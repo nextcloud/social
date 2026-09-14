@@ -170,6 +170,15 @@
 				{{ t('social', 'Show sensitive content') }}
 			</NcButton>
 		</div>
+		<!-- The reactions stay on the card rather than joining the row below:
+		     that row is revealed by the pointer, and a reaction somebody left
+		     is something to be seen without hovering. -->
+		<ReactionBar
+			v-if="$route && $route.params.type !== 'notifications'"
+			:nid="item.nid"
+			:modelValue="item.reactions || []"
+			:canReact="!serverData.public"
+			@update:modelValue="onReactionsChanged" />
 		<!-- The row is revealed by the pointer and the card grows to make
 		     room for it. The grid row going from 0fr to 1fr is the one way
 		     to animate to a height nobody can know in advance, and the
@@ -391,6 +400,7 @@ import 'linkify-plugin-mention'
 import 'linkify-string'
 import PostAttachment from './PostAttachment.vue'
 import PostCard from './PostCard.vue'
+import ReactionBar from './ReactionBar.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
@@ -442,6 +452,7 @@ export default {
 	components: {
 		Cancel,
 		MuteDialog,
+		ReactionBar,
 		VolumeOff,
 		PostAttachment,
 		PostCard,
@@ -888,6 +899,18 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * The reaction bar came back from the server after a press. It goes to
+		 * the store rather than onto this card, so the same post shown twice —
+		 * a thread and the timeline behind it — cannot end up with two
+		 * different bars.
+		 *
+		 * @param {Array<{name: string, count: number, me: boolean}>} reactions the bar
+		 */
+		onReactionsChanged(reactions) {
+			this.timelineStore.updateStatusReactions({ statusId: this.item.id, reactions })
+		},
+
 		/**
 		 * @param {import('../types/Mastodon.js').Status} status the post the keyboard moved to
 		 */
