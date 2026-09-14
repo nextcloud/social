@@ -84,8 +84,8 @@
 			:hasNext="current < (media.length - 1)"
 			size="full"
 			@close="closeModal"
-			@previous="current--"
-			@next="current++">
+			@previous="toPrevious"
+			@next="toNext">
 			<div ref="viewer" class="attachment__viewer">
 				<!-- `playsinline` here too: the lightbox *is* the full-screen
 				     view, and iOS taking it into its own player on top of that
@@ -103,8 +103,17 @@
 					:aria-label="attachments[current].description || ''"
 					controls />
 				<!-- `description` is null for an attachment whose author gave it
-				     no alt text, and a null alt is no alt attribute at all -->
-				<img v-else :src="attachments[current].url" :alt="attachments[current].description || ''">
+				     no alt text, and a null alt is no alt attribute at all.
+
+				     A picture in the lightbox can be zoomed into and swiped
+				     between; the modal's own controls still page it, and the
+				     swipe is emitted here so both go through the same step. -->
+				<ZoomableImage
+					v-else
+					:src="attachments[current].url"
+					:alt="attachments[current].description || ''"
+					@previous="toPrevious"
+					@next="toNext" />
 			</div>
 			<p v-if="attachments[current].description" class="attachment__viewer-description">
 				{{ attachments[current].description }}
@@ -118,6 +127,7 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import AltBadge from './AltBadge.vue'
 import MediaAttachment from './MediaAttachment.vue'
 import GalleryCarousel from './GalleryCarousel.vue'
+import ZoomableImage from './ZoomableImage.vue'
 import GalleryMedia from './GalleryMedia.vue'
 import { DEFAULT_RATIO, ratioOf } from './GalleryRatio.js'
 import { nameForTransition, withViewTransition } from '../utils/viewTransition.js'
@@ -138,6 +148,7 @@ export default {
 		AltBadge,
 		MediaAttachment,
 		GalleryCarousel,
+		ZoomableImage,
 		GalleryMedia,
 	},
 
@@ -306,6 +317,24 @@ export default {
 		 *
 		 * @param {number} index which attachment was pressed
 		 */
+		/**
+		 * One picture back, and one on. The modal's own controls and a swipe
+		 * across the picture both land here, so paging cannot run off either
+		 * end however it was asked for — a swipe has no disabled state to stop
+		 * it the way the modal's buttons do.
+		 */
+		toPrevious() {
+			if (this.current > 0) {
+				this.current--
+			}
+		},
+
+		toNext() {
+			if (this.current < this.media.length - 1) {
+				this.current++
+			}
+		},
+
 		openMedia(index) {
 			if (this.to === null) {
 				return this.showModal(index)
