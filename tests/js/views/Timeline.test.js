@@ -32,6 +32,7 @@ const ComposerStub = {
 	props: ['defaultVisibility', 'initialMention'],
 	template: '<div class="composer-stub" />',
 }
+const OnThisDayStub = { name: 'OnThisDay', template: '<div class="on-this-day-stub" />' }
 const TimelineListStub = {
 	name: 'TimelineList',
 	props: ['type', 'showParents', 'reverseOrder'],
@@ -67,7 +68,10 @@ function mountTimeline(route = {}) {
 		global: {
 			plugins: [pinia],
 			mocks: { $route: { name: 'timeline', params: {}, query: {}, ...route } },
-			stubs: { Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
+			// OnThisDay reads the reader's own anniversaries on mount, which is
+			// its own request with its own tests; left real it would answer
+			// after these tests have finished
+			stubs: { Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub },
 		},
 	})
 }

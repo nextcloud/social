@@ -1555,6 +1555,63 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * An author's own posts published inside a window of time.
+	 *
+	 * Used to look the reader up their own past: unlike the profile charts
+	 * above, this is only ever called for the caller's own account, so it is
+	 * not held to public posts — somebody looking back at their own year
+	 * should see what they actually wrote, followers-only posts included.
+	 * Every caller must therefore check that the actor is the viewer.
+	 *
+	 * @param string $actorId the author
+	 * @param int $from unix time, inclusive
+	 * @param int $until unix time, exclusive
+	 * @param int $limit how many to return at most
+	 * @param int $format how the posts are to be exported
+	 * @return Stream[] newest first
+	 */
+	public function getByAuthorBetween(
+		string $actorId,
+		int $from,
+		int $until,
+		int $limit = 10,
+		int $format = ACore::FORMAT_ACTIVITYPUB,
+	): array {
+		if ($actorId === '' || $limit < 1 || $until <= $from) {
+			return [];
+		}
+
+		$fromDate = new DateTime();
+		$fromDate->setTimestamp($from);
+		$untilDate = new DateTime();
+		$untilDate->setTimestamp($until);
+
+		$qb = $this->getStreamSelectSql($format);
+		$qb->limitToAttributedTo($actorId, true);
+		$qb->limitToStatusTypes();
+
+		$expr = $qb->expr();
+		$qb->andWhere($expr->gte(
+			's.published_time', $qb->createNamedParameter($fromDate, IQueryBuilder::PARAM_DATE)
+		));
+		$qb->andWhere($expr->lt(
+			's.published_time', $qb->createNamedParameter($untilDate, IQueryBuilder::PARAM_DATE)
+		));
+
+		// a reply is an answer to somebody else's post and reads as a
+		// fragment out of its thread, which is not much of a memory
+		$qb->limitToDBFieldEmpty('in_reply_to');
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
+
+		$qb->orderBy('s.published_time', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
 	 * The hashtags an author uses most, over their public posts since a point
 	 * in time.
 	 *

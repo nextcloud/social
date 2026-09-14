@@ -45,6 +45,10 @@
 			:label="t('social', 'Which activities to show')"
 			@update:value="chooseNotificationFilter" />
 
+		<!-- what the reader wrote on this day in years gone by; only over
+		     their own home feed, which is the one page that is about them -->
+		<OnThisDay v-if="isHome" />
+
 		<TimelineList :type="type" :listTitle="listTitle" />
 
 		<!-- the first post somebody ever publishes here, marked once -->
@@ -69,6 +73,7 @@ import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
+import OnThisDay from './../components/OnThisDay.vue'
 import { tagStyle } from '../utils/tagColour.js'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
@@ -90,6 +95,7 @@ export default {
 		FirstRun,
 		HashtagFollowButton,
 		HashtagFollowedList,
+		OnThisDay,
 		TimelineList,
 		TimelineSwitcher,
 	},
@@ -172,6 +178,21 @@ export default {
 		 */
 		isScopedPage() {
 			return this.type === 'photos' || this.type === 'videos'
+		},
+
+		/**
+		 * Whether this is the reader's own feed.
+		 *
+		 * That is the route with no `type` at all — see `scopes()`: the local
+		 * and global feeds are `timeline` and `federated`, and home is the one
+		 * with nothing. The memories belong here and nowhere else; on a tag
+		 * page or a profile they would be an interruption from another
+		 * subject.
+		 *
+		 * @return {boolean}
+		 */
+		isHome() {
+			return (this.type ?? '') === ''
 		},
 
 		/**

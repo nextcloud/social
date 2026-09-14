@@ -600,6 +600,7 @@ The Statistics page. A session route with CSRF rather than a client-API one, for
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
 | GET | `/api/v1/statistics` | user | — | Everything the Statistics page shows, counted from this instance's rows at the moment it is asked for: nothing is stored and no cron precomputes it. See the shape below. Rate-limited to 30 an hour, because the answer is a walk rather than a lookup. |
+| GET | `/api/v1/memories/on_this_day` | user | — | The caller's own top-level posts from this calendar day in each of the last five years, newest first, at most six. Status entities in the local format, with their link previews and places attached, as a timeline page carries them. A session route and not a client-API one: it answers with the caller's followers-only and direct posts as well as their public ones, which is what a third-party token should not be handed. **There is no account parameter and there must never be one** — the query behind it does not filter by audience, because it is only ever asked about the caller. Each year is looked up as that calendar day in the reader's own timezone rather than as "about a year ago", so the 4th of March finds the 4th of March; a post written at 23:50 belongs to the day it was written on. A leap day is found in leap years only, rather than sliding to the 1st of March. Replies are left out: a reply read outside its thread is a fragment. |
 
 The answer:
 
