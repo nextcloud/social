@@ -2584,9 +2584,14 @@ $composer-duration: 220ms;
 	flex-grow: 1;
 }
 
-/* whatever else has to give, the button that sends the post does not */
+/*
+ * Whatever else has to give, the button that sends the post does not: it
+ * keeps its width, and when the icons above it wrap it stays at the end of
+ * the row rather than starting a new one on the left.
+ */
 .options > :last-child {
 	flex-shrink: 0;
+	margin-inline-start: auto;
 }
 
 /*
