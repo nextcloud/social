@@ -36,6 +36,7 @@ use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tests\Model\TActivityPubMocks;
+use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\Notification\INotification;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -144,6 +145,7 @@ class NotificationServiceTest extends TestCase {
 				}
 
 				$bob = $this->person($id, '');
+				$bob->setNid(42);
 				$bob->setName('Bob');
 				$bob->setAccount('bob@remote.example');
 				$bob->setAvatar('https://remote.example/avatars/bob.png');
@@ -191,8 +193,19 @@ class NotificationServiceTest extends TestCase {
 			$this->actionsRequest,
 			$this->accountRelationService,
 			$this->notificationManager,
-			new NullLogger()
+			new NullLogger(),
+			$this->urlGenerator()
 		);
+	}
+
+	/** The app is served at cloud.example/apps/social/, which every bell link points into. */
+	private function urlGenerator(): IURLGenerator {
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
+			fn (string $route): string => ($route === 'social.Navigation.navigate') ? 'https://cloud.example/apps/social/' : 'https://cloud.example/' . $route
+		);
+
+		return $urlGenerator;
 	}
 
 	protected function tearDown(): void {
@@ -297,7 +310,8 @@ class NotificationServiceTest extends TestCase {
 		$this->assertSame('alice', $this->raised[0]['user']);
 		$this->assertSame('mention', $this->raised[0]['subject']);
 		$this->assertSame('Bob', $this->raised[0]['parameters']['account']);
-		$this->assertSame(self::POST, $this->raised[0]['parameters']['link']);
+		// into this app's page for the post, not out to the remote object
+		$this->assertSame('https://cloud.example/apps/social/@bob@remote.example/90', $this->raised[0]['parameters']['link']);
 		$this->assertSame(
 			'https://remote.example/avatars/bob.png', $this->raised[0]['parameters']['avatar']
 		);
@@ -332,14 +346,55 @@ class NotificationServiceTest extends TestCase {
 
 		$this->assertCount(1, $this->raised);
 		$this->assertSame('follow', $this->raised[0]['subject']);
-		$this->assertSame(self::BOB, $this->raised[0]['parameters']['link']);
+		$this->assertSame('https://cloud.example/apps/social/@bob@remote.example', $this->raised[0]['parameters']['link']);
 	}
 
-	public function testAFollowRequestIsItsOwnSubject(): void {
+	public function testAFollowRequestIsItsOwnSubjectAndNamesWhoToAnswer(): void {
 		$this->service->onNotification($this->row(Follow::TYPE_REQUEST, self::ALICE, self::BOB));
 
 		$this->assertCount(1, $this->raised);
 		$this->assertSame('follow_request', $this->raised[0]['subject']);
+		// the follower's id, which the Accept and Decline actions POST with
+		$this->assertSame(42, $this->raised[0]['parameters']['nid']);
+	}
+
+	public function testAPostWhoseAuthorIsNotCachedLinksToTheObjectItself(): void {
+		// a post this instance cannot name a page for: the remote address is
+		// better than a broken one
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB)->setObjectId('https://elsewhere.example/p/1'));
+
+		$this->assertSame('https://elsewhere.example/p/1', $this->raised[0]['parameters']['link']);
+	}
+
+	public function testAClosedPollTellsItsVotersAndItsAuthor(): void {
+		// the author is the actor and the recipient at once: their own poll
+		// closing is news to them, which is also who Mastodon tells
+		$this->local[self::BOB] = 'bob';
+		$this->service->onNotification($this->row(Stream::SUBTYPE_POLL, self::BOB, self::BOB));
+
+		$this->assertCount(1, $this->raised);
+		$this->assertSame('poll', $this->raised[0]['subject']);
+		$this->assertSame('bob', $this->raised[0]['user']);
+	}
+
+	public function testAPostFromASubscribedAccountRingsTheBell(): void {
+		$this->service->onNotification($this->row(Stream::SUBTYPE_STATUS, self::ALICE, self::BOB));
+
+		$this->assertCount(1, $this->raised);
+		$this->assertSame('status', $this->raised[0]['subject']);
+		$this->assertSame('https://cloud.example/apps/social/@bob@remote.example/90', $this->raised[0]['parameters']['link']);
+	}
+
+	public function testAnsweringAFollowRequestTakesItsBellEntryDown(): void {
+		$request = $this->row(Follow::TYPE_REQUEST, self::ALICE, self::BOB, 12);
+		$other = $this->row(Like::TYPE, self::ALICE, self::BOB, 11);
+		$this->timeline = [$request, $other];
+
+		$this->service->onFollowRequestAnswered($this->person(self::ALICE, 'alice'), self::BOB);
+
+		$this->assertSame([[$request->getId(), SocialAppNotification::TYPE]], $this->deleted);
+		$this->assertCount(1, $this->withdrawn);
+		$this->assertSame([$other], $this->timeline, 'the like stays');
 	}
 
 	public function testNobodyIsToldAboutTheirOwnAction(): void {

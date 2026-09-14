@@ -71,6 +71,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
+use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
@@ -193,6 +194,7 @@ class ApiController extends Controller {
 		private FediverseService $fediverseService,
 		private PlaceService $placeService,
 		private DeliveryService $deliveryService,
+		private NotificationService $notificationService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -515,6 +517,8 @@ class ApiController extends Controller {
 			} else {
 				$this->followService->rejectFollowRequest($follower);
 			}
+			// the bell entry that asked comes down with the answer
+			$this->notificationService->onFollowRequestAnswered($this->viewer, $follower->getId());
 
 			return new DataResponse(
 				$this->followService->getRelationshipWith($follower), Http::STATUS_OK
