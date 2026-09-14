@@ -279,6 +279,55 @@ $reportRow = function (\OCA\Social\Model\Report $report) use ($l, $moderation): 
 			</tbody>
 		</table>
 	<?php endif; ?>
+
+	<?php if ($federation['abandoned'] === 0): ?>
+		<p><em><?php p($l->n(
+			'Nothing has been given up on in the last %n day.',
+			'Nothing has been given up on in the last %n days.',
+			$federation['retentionDays']
+		)); ?></em></p>
+	<?php else: ?>
+		<h3><?php p($l->t('Given up on')); ?></h3>
+		<p>
+			<strong><?php p($l->n(
+				'%n delivery was given up on: that server never got it.',
+				'%n deliveries were given up on: those servers never got them.',
+				$federation['abandoned']
+			)); ?></strong>
+			<?php if ($federation['abandonedTruncated']): ?>
+				<?php p($l->t('(only the first few hundred were counted)')); ?>
+			<?php endif; ?>
+			<?php p($l->n(
+				'Counted over the last %n day, which is how long a finished delivery is kept.',
+				'Counted over the last %n days, which is how long a finished delivery is kept.',
+				$federation['retentionDays']
+			)); ?>
+		</p>
+
+		<table class="grid social-federation">
+			<thead>
+				<tr>
+					<th><?php p($l->t('Instance')); ?></th>
+					<th><?php p($l->t('Deliveries given up on')); ?></th>
+					<th><?php p($l->t('Most attempts so far')); ?></th>
+					<th><?php p($l->t('Last attempt')); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php foreach ($federation['givenUp'] as $instance): ?>
+				<tr>
+					<td><?php p($instance['host']); ?></td>
+					<td><?php p((string)$instance['requests']); ?></td>
+					<td><?php p($instance['tries'] . ' / ' . $federation['maxTries']); ?></td>
+					<td><?php p($instance['last'] > 0 ? gmdate('Y-m-d H:i', $instance['last']) : $l->t('never')); ?></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<p class="settings-hint">
+			<?php p($l->t('Once the reason is fixed, "occ social:queue:retry --instance HOST" puts them back in the queue.')); ?>
+		</p>
+	<?php endif; ?>
 </div>
 
 <div id="social-access" class="section">

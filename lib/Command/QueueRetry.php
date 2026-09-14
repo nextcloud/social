@@ -28,6 +28,12 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
  * refuses) kept a worker busy until then. This is the other half: put them
  * back in the queue, or take them out of it.
  *
+ * `--instance` is the form that answers the report: `social:queue:status` names
+ * the hosts this instance has given up on, and the reason it gave up is
+ * usually one thing that has since been fixed — a certificate, a firewall, a
+ * peer that was down for three days. Those deliveries are still in the table
+ * for a week after they were abandoned, and this is what puts them back.
+ *
  * It reads and writes the queue tables directly rather than through the queue
  * services, in the same way `social:benchmark` does — the services have no
  * "reset this row" operation, and inventing one for a maintenance command
@@ -36,6 +42,17 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
 class QueueRetry extends SocialCommand {
 	/** how many rows one run will touch unless --limit says otherwise */
 	private const DEFAULT_LIMIT = 500;
+
+	/**
+	 * How many rows are read at a time while looking for one instance's.
+	 *
+	 * The host a delivery was for lives inside the JSON `instance` column, so
+	 * `--instance` is matched in PHP — the same reason `FederationHealthService`
+	 * groups by host in PHP. Reading the table in pages keeps that bounded: a
+	 * queue with a hundred thousand rows for other servers costs page-sized
+	 * reads, not one enormous one.
+	 */
+	private const SCAN_PAGE = 1000;
 
 	/**
 	 * Both queue tables carry the same (id, token, status, tries) shape and
@@ -61,6 +78,10 @@ class QueueRetry extends SocialCommand {
 			->addOption(
 				'min-tries', '', InputOption::VALUE_REQUIRED,
 				'act on requests that have already failed at least this many times', '1'
+			)
+			->addOption(
+				'instance', 'i', InputOption::VALUE_REQUIRED,
+				'act on the deliveries for one host only, including the ones given up on', ''
 			)
 			->addOption(
 				'limit', '', InputOption::VALUE_REQUIRED,
@@ -90,8 +111,18 @@ class QueueRetry extends SocialCommand {
 		$minTries = max(0, (int)$input->getOption('min-tries'));
 		$limit = max(1, (int)$input->getOption('limit'));
 		$flush = (bool)$input->getOption('flush');
+		$host = strtolower(trim((string)$input->getOption('instance')));
 
-		$matched = $this->matching($table, $token, $minTries, $limit);
+		if ($host !== '' && $input->getOption('stream')) {
+			$output->writeln(
+				'<error>--instance names the server a delivery was going to, and the stream'
+				. ' queue holds what came in: the two cannot be combined.</error>'
+			);
+
+			return 1;
+		}
+
+		$matched = $this->matching($table, $token, $minTries, $limit, $host);
 		if ($matched === []) {
 			$output->writeln('nothing in <info>' . $table . '</info> matches.');
 
@@ -122,11 +153,55 @@ class QueueRetry extends SocialCommand {
 	 * The rows this run would act on.
 	 *
 	 * A successful row (status 9) is left alone: it is history, not a pending
-	 * delivery, and re-queueing it would send the activity a second time.
+	 * delivery, and re-queueing it would send the activity a second time. An
+	 * abandoned one (status 8) is not — it is precisely what this command is
+	 * for, a delivery the drain has given up on and that nothing else will
+	 * ever try again.
+	 *
+	 * @param string $host a hostname to restrict to, or '' for all of them
 	 *
 	 * @return list<array<string, mixed>>
 	 */
-	private function matching(string $table, string $token, int $minTries, int $limit): array {
+	private function matching(string $table, string $token, int $minTries, int $limit, string $host = ''): array {
+		if ($host === '') {
+			return $this->page($table, $token, $minTries, $limit, 0, 'tries');
+		}
+
+		// paged by id rather than ordered by attempts: with the filter in PHP
+		// the run has to be able to say where it got to, and `tries` is not
+		// unique enough to resume on
+		$matched = [];
+		$after = 0;
+		while (count($matched) < $limit) {
+			$rows = $this->page($table, $token, $minTries, self::SCAN_PAGE, $after, 'id');
+			if ($rows === []) {
+				break;
+			}
+
+			$after = (int)$rows[count($rows) - 1]['id'];
+			foreach ($rows as $row) {
+				if ($this->hostOf($row) !== $host) {
+					continue;
+				}
+
+				$matched[] = $row;
+				if (count($matched) >= $limit) {
+					break;
+				}
+			}
+		}
+
+		return $matched;
+	}
+
+	/**
+	 * One page of candidate rows.
+	 *
+	 * @param string $order 'tries' for the worst first, 'id' to walk the table
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	private function page(string $table, string $token, int $minTries, int $limit, int $after, string $order): array {
 		$qb = $this->connection->getQueryBuilder();
 		$qb->select('id', 'token', 'status', 'tries')
 			->from($table)
@@ -134,9 +209,21 @@ class QueueRetry extends SocialCommand {
 				'status',
 				$qb->createNamedParameter(RequestQueue::STATUS_SUCCESS, IQueryBuilder::PARAM_INT)
 			))
-			->orderBy('tries', 'desc')
-			->addOrderBy('id', 'asc')
 			->setMaxResults($limit);
+
+		if ($table === CoreRequestBuilder::TABLE_REQUEST_QUEUE) {
+			// only the delivery queue knows what it was delivering to
+			$qb->addSelect('instance');
+		}
+
+		if ($order === 'tries') {
+			$qb->orderBy('tries', 'desc');
+		}
+		$qb->addOrderBy('id', 'asc');
+
+		if ($after > 0) {
+			$qb->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)));
+		}
 
 		if ($token !== '') {
 			$qb->andWhere($qb->expr()->eq('token', $qb->createNamedParameter($token)));
@@ -152,6 +239,22 @@ class QueueRetry extends SocialCommand {
 		$cursor->closeCursor();
 
 		return $rows;
+	}
+
+	/**
+	 * The host one queued delivery was for, lower-cased, or '' when the row
+	 * does not say — which is what a row written before the column held an
+	 * uri, or one whose JSON cannot be read, looks like.
+	 *
+	 * @param array<string, mixed> $row
+	 */
+	private function hostOf(array $row): string {
+		$instance = json_decode((string)($row['instance'] ?? ''), true);
+		if (!is_array($instance) || !is_string($instance['uri'] ?? null)) {
+			return '';
+		}
+
+		return strtolower(parse_url($instance['uri'], PHP_URL_HOST) ?: '');
 	}
 
 	/**

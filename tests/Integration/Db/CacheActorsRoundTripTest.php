@@ -160,6 +160,79 @@ class CacheActorsRoundTripTest extends TestCase {
 		$this->assertSame([], $this->request->getFromIds(['', 'not-a-uri']));
 	}
 
+	/**
+	 * The refresh selects on the attempt and the failure count, so both have
+	 * to survive the write — and a success has to clear the count, or an actor
+	 * that came back would stay on the long wait for ever.
+	 *
+	 * Asserted by what the query refuses to offer rather than by what it
+	 * offers: `getRemoteActorsToUpdate()` returns a batch of fifty out of
+	 * whatever else this instance has cached, so "is in the batch" depends on
+	 * rows this test did not write. Being *excluded* does not.
+	 */
+	public function testAFailedRefreshIsNotAskedAgainUntilItsWaitHasPassed(): void {
+		$this->request->save($this->erin());
+		$now = 1_700_000_000;
+
+		$this->request->recordSyncAttempt(self::ACTOR, false, $now);
+		$this->request->recordSyncAttempt(self::ACTOR, false, $now + 60);
+
+		// two failures on record: the wait is two hours from the second attempt
+		$this->assertNotContains(
+			self::ACTOR,
+			$this->idsOf($this->request->getRemoteActorsToUpdate(false, $now + 3600)),
+			'an actor whose refresh just failed twice is not asked again in an hour'
+		);
+
+		$this->request->recordSyncAttempt(self::ACTOR, true, $now + 3 * 3600);
+
+		// cleared by the success: back on the cache lifetime rather than the
+		// backoff, so it is not due an hour later either
+		$this->assertNotContains(
+			self::ACTOR,
+			$this->idsOf($this->request->getRemoteActorsToUpdate(false, $now + 4 * 3600))
+		);
+	}
+
+	public function testAnActorGivenUpOnIsNeverOfferedAgainAndIsStillThere(): void {
+		$this->request->save($this->erin());
+		$now = 1_700_000_000;
+
+		for ($attempt = 0; $attempt < CacheActorsRequest::SYNC_MAX_FAILURES; $attempt++) {
+			$this->request->recordSyncAttempt(self::ACTOR, false, $now);
+		}
+
+		// a year later, and still not asked: the requests stop, the row stays
+		$this->assertNotContains(
+			self::ACTOR,
+			$this->idsOf($this->request->getRemoteActorsToUpdate(false, $now + 365 * 86400))
+		);
+		$this->assertSame(self::ACTOR, $this->request->getFromId(self::ACTOR)->getId());
+	}
+
+	/**
+	 * An actor nothing here refers to, evicted; one that wrote a post stored
+	 * here, kept — a post without its author is a post nobody can read.
+	 */
+	public function testTheSweepOffersOnlyTheActorsNothingRefersTo(): void {
+		$this->request->save($this->erin());
+		$this->request->recordSyncAttempt(self::ACTOR, false, 1_700_000_000);
+
+		// the row was written a moment ago, so the cutoff has to be ahead of
+		// the clock for `creation` to be behind it
+		$this->assertContains(self::ACTOR, $this->request->getSweepableIds(time() + 86400, 500));
+		$this->assertNotContains(
+			self::ACTOR,
+			$this->request->getSweepableIds(1_600_000_000, 500),
+			'an actor tried since the cutoff is one the cron still cares about'
+		);
+	}
+
+	/** @param Person[] $actors */
+	private function idsOf(array $actors): array {
+		return array_map(static fn (Person $actor): string => $actor->getId(), $actors);
+	}
+
 	public function testSharedInboxesSkipWhatCannotBeDeliveredTo(): void {
 		$this->request->save($this->erin());
 		$this->actor(self::NO_INBOX, '');

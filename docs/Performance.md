@@ -155,6 +155,19 @@ webfinger both land there.
   values") where MySQL quietly invents the empty string, so the default is what
   makes such a column safe to add at all. `InitialSchemaTest` holds the four
   columns on that table to it.
+- ~~The queue drain's sort had no index behind it~~ — `getStandby()` selects on
+  `status` and orders `priority DESC, tries ASC, last ASC, id ASC` to take 200
+  rows, and the only index on the table was `social_rq_si (status, id)`: every
+  drain, every twelve minutes, sorted the whole standby set to pick its window.
+  `Version1000Date20260914000003` adds `social_rq_sptl (status, priority, tries,
+  last)`, which is the select and the first three sort keys in order, so the
+  window is read off the index. `id` is left out on purpose — it only breaks
+  ties between rows that agree on the other three, and a fifth column would be
+  write cost on the hottest-written table in the app for nothing.
+- The same migration adds `social_cache_actor.sync_attempt`/`sync_failures` and
+  `social_ca_lsa (local, sync_attempt)`. Both are integers rather than
+  datetimes so that "never" is 0 and sorts identically on every database, where
+  a NULL datetime does not.
 - `social_stream_act.bookmarked` is `SMALLINT` while its three sibling flags are
   `BOOLEAN`.
 - `social_stream` carries nine JSON-in-TEXT columns — `to_array`, `cc`, `bcc`,
@@ -283,6 +296,9 @@ here so a reader who finds that report knows why the code no longer matches it.
 | A page of relationships cost six queries per account — two follow rows, the blocks and mutes, the note, the mute's expiry | Five queries for any number of accounts (`getBetweenMany()`, `getNotes()`, `getExpiries()`), and the single-account route goes down the same path so the two cannot disagree |
 | `HashtagService::manageHashtags()` read every hashtag the instance had ever seen on every cron run | `getWithAnyTrend()` reads only the rows that claim a trend — the only ones it can change |
 | `FollowService::getFollowers()` hydrated every follower for a route with no cursor | Bounded at `FOLLOWERS_PAGE`; the paging route is `/api/v1/accounts/{account}/followers` |
+| One dead instance froze the actor-cache refresh: `getRemoteActorsToUpdate()` took 50 stale rows with no order and no record of having tried, and a failed refresh wrote nothing — so the same 50 unreachable rows came back every twelve minutes and no live profile was refreshed again | Every attempt is stamped in `sync_attempt`, the oldest attempt goes first, a failure doubles the wait from an hour, and after ten failures the refresh leaves the actor alone. Nothing is deleted: the row, its followers and its posts stay, and an on-demand fetch still resets the count |
+| `Cron\Cache` had no wall-clock budget while `Cron\Queue` had one: eleven steps, two of them a request per remote actor, ran until they were done — so a handful of slow peers could hold a cron slot open past the twelve-minute interval | `MAX_DURATION` of 300 seconds, threaded through the steps and into the two loops. A skipped step is named in the log and the next run starts with it, so the tail of the list is not the part that never runs |
+| Nothing ever evicted a cached remote actor: a row was written the first time this instance saw an account and only a remote `Delete` or a domain purge removed one | `CacheActorSweepService`, bounded per cron pass, removes the ones nobody here follows, that follow nobody here, that wrote no stored post and have no pending relation, after `cache_actor_days` (180) — with their avatars. `occ social:media:usage` is what says how much that is worth |
 | `StreamRequest::save()` wrote the post, then its recipients, then its tags, outside any transaction, and the recipient insert swallowed its failure | One transaction, and `StreamDestRequest::create()` raises. A post that cannot have recipients is not stored at all, so the delivery can be retried into a clean state. The duplicate recipient and hashtag rows an ordinary post produces are skipped by the database rather than caught, which a transaction on PostgreSQL does not survive |
 
 ## The home timeline, and one thing that did not work

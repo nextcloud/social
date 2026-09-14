@@ -436,9 +436,14 @@ Genuinely absent, in rough order of how much they would be missed:
    is an unanchored `ILIKE` over `content`, which is honest at the instance
    sizes this app targets and will not survive a large one; see
    [Performance.md](Performance.md).
-5. `tootctl` equivalents for `accounts cull/prune`, `preview_cards remove` and
-   media-only sweeps. `social:cache:refresh`, `social:stream:prune` and
-   `social:domain:purge` cover neighbouring ground, not these.
+5. `tootctl` equivalents for `preview_cards remove` and media-only sweeps.
+   `accounts cull` and `accounts prune` no longer belong on this list: the cache
+   cron gives up on an unreachable remote actor after ten failed refreshes
+   (`CacheActorService`, the cull) and evicts the cached remote accounts nobody
+   here refers to after `cache_actor_days` (`CacheActorSweepService`, the
+   prune), both of them continuous rather than a command an administrator has
+   to remember. `occ social:media:usage` reports what the media costs but
+   deletes nothing.
 6. Canonical email blocks, which belong with registration.
 
 **No longer on this list**, each verified against the code rather than assumed:
@@ -586,7 +591,7 @@ missing. All of them have since landed.
 | 20 | **IP blocks, email-domain blocks, canonical email blocks** | Days | The first two are there (`/api/v1/admin/ip_blocks`, `/admin/email_domain_blocks`); canonical email blocks are not, and belong to a sign-up this app does not own | partly done |
 | 21 | **A moderator role distinct from Nextcloud admin** | Days | Every admin route asked `IGroupManager::isAdmin()`, so moderating meant full server administration. It is now Nextcloud's own settings delegation rather than a second list of names | done |
 | 22 | **Admin metrics** — trends, measures, dimensions, retention | Weeks | Absent | done |
-| 23 | **`tootctl` equivalents** — `accounts cull`/`prune`, `preview_cards remove`, media-only sweeps | Days | `social:cache:refresh`, `social:stream:prune` and `social:domain:purge` cover neighbouring ground; the culls and the media-only sweep have no equivalent | **open** |
+| 23 | **`tootctl` equivalents** — `accounts cull`/`prune`, `preview_cards remove`, media-only sweeps | Days | `social:cache:refresh`, `social:stream:prune` and `social:domain:purge` cover neighbouring ground; the culls and the media-only sweep had no equivalent | **partly done** — both culls are now continuous rather than commands: `CacheActorService` stops refreshing a remote actor after ten consecutive failures (`accounts cull`), and `CacheActorSweepService` evicts the cached accounts nobody here follows, that follow nobody here and that wrote no stored post, with their avatars, after `cache_actor_days` (`accounts prune`). `occ social:media:usage` answers what the media is costing, split into local uploads and cached remote files; `preview_cards remove` and a media-only sweep are still open |
 
 ### Tier 5 — the takeover, which is a different project
 

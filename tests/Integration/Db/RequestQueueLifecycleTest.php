@@ -229,6 +229,33 @@ class RequestQueueLifecycleTest extends TestCase {
 		$this->assertSame($sorted, $tries, 'worst first, so the top of the table is the worst news');
 	}
 
+	/**
+	 * What the drain has given up on used to appear in nothing at all: it left
+	 * the failing set the moment it was abandoned, and no other read looked
+	 * for it. The rows are there for seven days, which is the window an
+	 * administrator has to notice a peer has been lost.
+	 */
+	public function testTheDeliveriesGivenUpOnCanBeReadBack(): void {
+		$failing = $this->service->getRequestFromToken($this->enqueue())[0];
+		$this->service->initRequest($failing);
+		$this->service->endRequest($failing, false);
+
+		$abandoned = $this->service->getRequestFromToken($this->enqueue())[0];
+		$this->service->abandonRequest($abandoned);
+
+		$ids = array_map(fn (RequestQueue $request): int => $request->getId(), $this->request->getAbandoned());
+
+		$this->assertContains($abandoned->getId(), $ids);
+		$this->assertNotContains(
+			$failing->getId(), $ids, 'a delivery still being retried has not been given up on'
+		);
+		$this->assertNotContains(
+			$abandoned->getId(),
+			array_map(fn (RequestQueue $request): int => $request->getId(), $this->request->getFailing()),
+			'and the two sets do not overlap, or the same row would be counted twice'
+		);
+	}
+
 	public function testTheFailureThresholdIsRespected(): void {
 		$queue = $this->service->getRequestFromToken($this->enqueue())[0];
 		$this->service->initRequest($queue);

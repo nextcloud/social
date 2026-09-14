@@ -29,6 +29,7 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ProfileLinkVerifier;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -39,6 +40,7 @@ use Psr\Log\NullLogger;
 class CacheActorServiceTest extends TestCase {
 	private const BOB = 'https://remote.example/users/bob';
 	private const ALICE = 'https://cloud.example.com/apps/social/@alice';
+	private const NOW = 1_700_000_000;
 
 	private ActorsRequest|MockObject $actorsRequest;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
@@ -286,6 +288,86 @@ class CacheActorServiceTest extends TestCase {
 
 		$this->assertSame(2, $this->service->manageCacheRemoteActors(true));
 		$this->assertSame([self::BOB, 'https://other.example/users/carol'], $retrieved);
+	}
+
+	/**
+	 * The refresh used to swallow a failure and write nothing at all, so the
+	 * row was due again on the very next pass — and fifty rows on a dead
+	 * instance were the fifty the refresh picked every twelve minutes, for as
+	 * long as the instance stayed dead. Every attempt is now stamped, and the
+	 * clock it is stamped with is the one the query selected on.
+	 */
+	public function testEveryRefreshAttemptIsRecordedWhetherItWorkedOrNot(): void {
+		$carol = 'https://other.example/users/carol';
+		$stale = [$this->person(self::BOB), $this->person($carol, 'carol')];
+		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')
+			->with(false, self::NOW)->willReturn($stale);
+		$this->curlService->method('retrieveObject')->willReturnCallback(
+			function (string $id) use ($carol): array {
+				if ($id === $carol) {
+					throw new RequestNetworkException('down');
+				}
+
+				return ['_host' => 'remote.example'];
+			}
+		);
+		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
+		$recorded = [];
+		$this->cacheActorsRequest->method('recordSyncAttempt')
+			->willReturnCallback(function (string $id, bool $success, int $now) use (&$recorded): void {
+				$recorded[] = [$id, $success, $now];
+			});
+
+		$this->assertSame(2, $this->serviceWithClock()->manageCacheRemoteActors());
+		$this->assertSame(
+			[[self::BOB, true, self::NOW], [$carol, false, self::NOW]],
+			$recorded
+		);
+	}
+
+	/**
+	 * `details_update` only moves on success, so without a record of the
+	 * attempt the fifty oldest details were the fifty unreachable ones on
+	 * every pass, exactly as for the refresh above.
+	 */
+	public function testAFailedDetailsRefreshIsRecordedToo(): void {
+		$bob = $this->person(self::BOB);
+		$this->cacheActorsRequest->method('getRemoteActorsToUpdateDetails')
+			->with(false, self::NOW)->willReturn([$bob]);
+		$this->cacheActorsRequest->method('updateDetails')
+			->willThrowException(new \RuntimeException('the peer is gone'));
+		$this->cacheActorsRequest->expects($this->once())->method('recordSyncAttempt')
+			->with(self::BOB, false, self::NOW);
+
+		$this->assertSame(1, $this->serviceWithClock()->manageDetailsRemoteActors());
+	}
+
+	public function testAnActorThatCanBeFetchedAgainHasItsFailureCountCleared(): void {
+		$bob = $this->person(self::BOB);
+		$this->curlService->method('retrieveObject')->willReturn(['_host' => 'remote.example']);
+		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
+		$this->cacheActorsRequest->expects($this->once())->method('recordSyncAttempt')
+			->with(self::BOB, true, self::NOW);
+
+		$this->assertTrue($this->serviceWithClock()->refreshRemoteActor($bob));
+	}
+
+	/** The same service, with a clock a test can hold still. */
+	private function serviceWithClock(int $now = self::NOW): CacheActorService {
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturn($now);
+
+		return new CacheActorService(
+			$this->createMock(IURLGenerator::class),
+			$this->actorsRequest,
+			$this->cacheActorsRequest,
+			$this->curlService,
+			$this->createMock(FediverseService::class),
+			$this->configService,
+			new NullLogger(),
+			null,
+			$time,
+		);
 	}
 
 	public function testAddRemoteActorDetailCountReadsTheCollectionTotals(): void {

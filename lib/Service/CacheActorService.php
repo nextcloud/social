@@ -35,6 +35,7 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IURLGenerator;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
@@ -56,7 +57,13 @@ class CacheActorService {
 		private ConfigService $configService,
 		private LoggerInterface $logger,
 		private ?ContainerInterface $container = null,
+		private ?ITimeFactory $timeFactory = null,
 	) {
+	}
+
+	/** The clock the refresh stamps attempts with; injectable so a test can move it. */
+	private function now(): int {
+		return $this->timeFactory?->getTime() ?? time();
 	}
 
 	/**
@@ -281,20 +288,50 @@ class CacheActorService {
 	}
 
 	/**
-	 * @return int
+	 * Refreshes every cached remote actor that is due.
+	 *
+	 * @return int how many were due, whether or not their refresh worked
 	 * @throws Exception
 	 */
 	public function manageCacheRemoteActors(bool $force = false): int {
-		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate($force);
+		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate($force, $this->now());
 
 		foreach ($update as $item) {
-			try {
-				$this->getFromId($item->getId(), true);
-			} catch (Exception $e) {
-			}
+			$this->refreshRemoteActor($item);
 		}
 
 		return sizeof($update);
+	}
+
+	/**
+	 * Fetches one cached remote actor again and records that it was tried.
+	 *
+	 * The record is the point. A failed refresh used to leave the row exactly
+	 * as it was, so it was due again on the next pass, and fifty rows on a
+	 * dead instance were the fifty the refresh selected every twelve minutes
+	 * for as long as the instance stayed dead — which for a dead instance is
+	 * for ever. Stamped, the row waits `CacheActorsRequest::syncWait()` and
+	 * after `SYNC_MAX_FAILURES` is left alone; the row itself, and everything
+	 * pointing at it, stays.
+	 *
+	 * @return bool whether the actor could be fetched
+	 */
+	public function refreshRemoteActor(Person $actor): bool {
+		try {
+			$this->getFromId($actor->getId(), true);
+		} catch (Exception $e) {
+			$this->logger->info(
+				'could not refresh cached actor ' . $actor->getId() . ': ' . $e->getMessage(),
+				['actor' => $actor->getId(), 'exception' => $e]
+			);
+			$this->cacheActorsRequest->recordSyncAttempt($actor->getId(), false, $this->now());
+
+			return false;
+		}
+
+		$this->cacheActorsRequest->recordSyncAttempt($actor->getId(), true, $this->now());
+
+		return true;
 	}
 
 	/**
@@ -320,7 +357,7 @@ class CacheActorService {
 	 * @throws Exception
 	 */
 	public function manageDetailsRemoteActors(bool $force = false): int {
-		$update = $this->cacheActorsRequest->getRemoteActorsToUpdateDetails($force);
+		$update = $this->cacheActorsRequest->getRemoteActorsToUpdateDetails($force, $this->now());
 
 		// WARNING: risk of race condition if something else update details on remote actor.
 		// Any details update on remote cache-actor must be managed from here.
@@ -333,6 +370,14 @@ class CacheActorService {
 				$this->profileLinkVerifier()?->verify($item);
 				$this->cacheActorsRequest->updateDetails($item);
 			} catch (Exception $e) {
+				// the same book the refresh keeps: `details_update` only moves
+				// on success, so without this the fifty oldest were the fifty
+				// unreachable, on every pass
+				$this->logger->info(
+					'could not refresh the details of ' . $item->getId() . ': ' . $e->getMessage(),
+					['actor' => $item->getId(), 'exception' => $e]
+				);
+				$this->cacheActorsRequest->recordSyncAttempt($item->getId(), false, $this->now());
 			}
 		}
 

@@ -131,6 +131,8 @@ class CoreRequestBuilder {
 			'source',
 			'details',
 			'details_update',
+			'sync_attempt',
+			'sync_failures',
 			'creation'
 		],
 		self::TABLE_CACHE_DOCUMENTS => [

@@ -36,9 +36,10 @@ class FederationHealthServiceTest extends TestCase {
 		return $queue;
 	}
 
-	private function queueHolds(array $counts, array $failing): void {
+	private function queueHolds(array $counts, array $failing, array $abandoned = []): void {
 		$this->requestQueueRequest->method('countByStatus')->willReturn($counts);
 		$this->requestQueueRequest->method('getFailing')->willReturn($failing);
+		$this->requestQueueRequest->method('getAbandoned')->willReturn($abandoned);
 	}
 
 	public function testAnEmptyQueueIsReportedAsHealthy(): void {
@@ -51,6 +52,9 @@ class FederationHealthServiceTest extends TestCase {
 		$this->assertSame(0, $summary['failing']);
 		$this->assertSame([], $summary['instances']);
 		$this->assertFalse($summary['truncated']);
+		$this->assertSame(0, $summary['abandoned']);
+		$this->assertSame([], $summary['givenUp']);
+		$this->assertFalse($summary['abandonedTruncated']);
 	}
 
 	public function testWaitingAndRunningAreReadFromTheirOwnStates(): void {
@@ -142,6 +146,51 @@ class FederationHealthServiceTest extends TestCase {
 		$this->requestQueueRequest->method('countStandbyOlderThan')->willReturn(0);
 
 		$this->assertSame(['abandoned' => 0, 'stale' => 0], $this->service->stuck());
+	}
+
+	/**
+	 * The state nothing reported: a request on its last attempt was counted as
+	 * failing, and the moment the drain gave up on it it left every count — so
+	 * the queue looked healthiest exactly when a peer had been lost for good.
+	 */
+	public function testTheDeliveriesGivenUpOnAreCountedAndGroupedToo(): void {
+		$this->queueHolds([], [$this->request('slow.example', 3)], [
+			$this->request('gone.example', 16, 1_700_000_900),
+			$this->request('gone.example', 16, 1_700_000_400),
+			$this->request('sometimes.example', 16, 1_700_000_100),
+		]);
+
+		$summary = $this->service->summary();
+
+		$this->assertSame(1, $summary['failing'], 'what is given up on is no longer failing');
+		$this->assertSame(3, $summary['abandoned']);
+		$this->assertSame([
+			['host' => 'gone.example', 'requests' => 2, 'tries' => 16, 'last' => 1_700_000_900],
+			['host' => 'sometimes.example', 'requests' => 1, 'tries' => 16, 'last' => 1_700_000_100],
+		], $summary['givenUp']);
+	}
+
+	/**
+	 * The rows are purged after `RETENTION_SECONDS`, so the count is a window
+	 * and the page that shows it has to be able to say how wide.
+	 */
+	public function testTheGivenUpCountSaysHowFarBackItReaches(): void {
+		$this->queueHolds([], []);
+
+		$this->assertSame(7, $this->service->summary()['retentionDays']);
+	}
+
+	public function testACountOfGivenUpDeliveriesThatStoppedShortSaysSo(): void {
+		$abandoned = [];
+		for ($i = 0; $i < 500; $i++) {
+			$abandoned[] = $this->request('gone.example', 16);
+		}
+		$this->queueHolds([], [], $abandoned);
+
+		$summary = $this->service->summary();
+
+		$this->assertTrue($summary['abandonedTruncated']);
+		$this->assertFalse($summary['truncated'], 'the two reads are capped separately');
 	}
 
 	public function testARequestWithNowhereToGoIsNotCountedAsAnInstance(): void {

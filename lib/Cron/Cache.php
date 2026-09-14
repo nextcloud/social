@@ -13,6 +13,8 @@ use Exception;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\CacheActorSweepService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
@@ -25,93 +27,162 @@ use OCP\BackgroundJob\TimedJob;
 use Psr\Log\LoggerInterface;
 
 class Cache extends TimedJob {
-	private AccountService $accountService;
-	private CacheActorService $cacheActorService;
-	private DocumentService $documentService;
-	private HashtagService $hashtagService;
-	private StreamService $streamService;
-	private StreamPruneService $streamPruneService;
-	private CacheActorsRequest $cacheActorsRequest;
-	private LoggerInterface $logger;
+	/**
+	 * How long one pass may spend on the steps below, in seconds.
+	 *
+	 * `Cron\Queue` has had a budget for a while; this job, which does more and
+	 * talks to more servers, had none. Eleven steps ran one after another, two
+	 * of them a request per remote actor, until they were done or something
+	 * killed the process — so a handful of slow peers could hold a cron slot
+	 * open past the twelve-minute interval and overlap the next run. Same
+	 * value as the queue's, and for the same reason: well inside the interval,
+	 * so two runs cannot meet.
+	 *
+	 * Nothing is lost when the budget runs out. Every step is resumable by
+	 * design — each takes a bounded batch of whatever is due — and the steps
+	 * that did not get a turn are where the next run starts.
+	 */
+	public const MAX_DURATION = 300;
+
+	/** Cached remote actors evicted per pass; see CacheActorSweepService. */
+	public const SWEEP_BATCH = 500;
 
 	public function __construct(
 		ITimeFactory $time,
-		AccountService $accountService,
-		CacheActorService $cacheActorService,
-		DocumentService $documentService,
-		HashtagService $hashtagService,
-		StreamService $streamService,
-		StreamPruneService $streamPruneService,
-		CacheActorsRequest $cacheActorsRequest,
+		private AccountService $accountService,
+		private CacheActorService $cacheActorService,
+		private DocumentService $documentService,
+		private HashtagService $hashtagService,
+		private StreamService $streamService,
+		private StreamPruneService $streamPruneService,
+		private CacheActorsRequest $cacheActorsRequest,
 		private PollService $pollService,
-		LoggerInterface $logger,
+		private LoggerInterface $logger,
 		private ?GroupListService $groupListService = null,
 		private ?ProfileLinkVerifier $profileLinkVerifier = null,
+		private ?CacheActorSweepService $cacheActorSweepService = null,
+		private ?ConfigService $configService = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60);
-		$this->accountService = $accountService;
-		$this->cacheActorService = $cacheActorService;
-		$this->documentService = $documentService;
-		$this->hashtagService = $hashtagService;
-		$this->streamService = $streamService;
-		$this->streamPruneService = $streamPruneService;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->logger = $logger;
+	}
+
+	/**
+	 * The steps of one pass, in the order they are meant to run.
+	 *
+	 * @param int $deadline the wall clock past which this run is over; the two
+	 *                      steps that loop over remote servers watch it themselves,
+	 *                      because either can outlast the whole budget on its own
+	 *
+	 * @return array<string, callable(): void>
+	 */
+	private function steps(int $deadline): array {
+		return [
+			'manageDeletedActors' => function (): void {
+				$this->accountService->manageDeletedActors();
+			},
+			'manageCacheLocalActors' => function (): void {
+				$this->accountService->manageCacheLocalActors();
+			},
+			'manageCacheRemoteActors' => function (): void {
+				$this->cacheActorService->manageCacheRemoteActors();
+			},
+			'manageDetailsRemoteActors' => function (): void {
+				$this->cacheActorService->manageDetailsRemoteActors();
+			},
+			'manageCacheDocuments' => function (): void {
+				$this->documentService->manageCacheDocuments();
+			},
+			'manageHashtags' => function (): void {
+				$this->hashtagService->manageHashtags();
+			},
+			'announceClosedPolls' => function (): void {
+				// a poll closes by its end time passing, so nothing happens at the
+				// moment it does and something has to look
+				$this->pollService->announceClosedPolls();
+			},
+			'prune' => function (): void {
+				// bounded per run so retention never dominates a cron slot
+				$this->streamPruneService->prune(null, false, 5000);
+			},
+			'sweepCachedActors' => function (): void {
+				// the cached remote actors nothing here refers to any more, and
+				// their avatars; bounded for the same reason as the prune above
+				$this->cacheActorSweepService?->sweep(null, false, self::SWEEP_BATCH);
+			},
+			'syncRemoteTimelines' => function () use ($deadline): void {
+				$this->syncRemoteTimelines($deadline);
+			},
+			'verifyProfileLinks' => function (): void {
+				// this instance's own accounts; remote ones are checked with their
+				// details refresh
+				$this->profileLinkVerifier?->verifyLocalActors();
+			},
+			'reconcileGroupLists' => function (): void {
+				// the catch-all behind the listener: an account made after its
+				// group's lists were, a change the listener did not see
+				$this->groupListService?->reconcile();
+			},
+		];
 	}
 
 	#[\Override]
 	protected function run($argument) {
-		$this->step('manageDeletedActors', function (): void {
-			$this->accountService->manageDeletedActors();
-		});
+		$deadline = $this->time->getTime() + self::MAX_DURATION;
+		$steps = $this->steps($deadline);
+		$names = array_keys($steps);
+		$start = $this->startingStep(count($names));
 
-		$this->step('manageCacheLocalActors', function (): void {
-			$this->accountService->manageCacheLocalActors();
-		});
+		$skipped = [];
+		for ($offset = 0; $offset < count($names); $offset++) {
+			$name = $names[($start + $offset) % count($names)];
+			if ($this->time->getTime() >= $deadline) {
+				$skipped[] = $name;
+				continue;
+			}
 
-		$this->step('manageCacheRemoteActors', function (): void {
-			$this->cacheActorService->manageCacheRemoteActors();
-		});
+			$this->step($name, $steps[$name]);
+		}
 
-		$this->step('manageDetailsRemoteActors', function (): void {
-			$this->cacheActorService->manageDetailsRemoteActors();
-		});
+		$this->rememberStartingStep($skipped === [] ? 0 : (int)array_search($skipped[0], $names, true));
 
-		$this->step('manageCacheDocuments', function (): void {
-			$this->documentService->manageCacheDocuments();
-		});
+		if ($skipped !== []) {
+			$this->logger->warning(
+				'[Cron\\Cache] out of time after ' . self::MAX_DURATION . 's, '
+				. count($skipped) . ' step(s) skipped: ' . implode(', ', $skipped)
+				. '; the next run starts with ' . $skipped[0],
+				['skipped' => $skipped, 'budget' => self::MAX_DURATION]
+			);
+		}
+	}
 
-		$this->step('manageHashtags', function (): void {
-			$this->hashtagService->manageHashtags();
-		});
+	/**
+	 * Which step this pass begins with.
+	 *
+	 * The order above is the order the steps want to run in, not an order any
+	 * of them depends on — each reads what is due and writes what it finished.
+	 * Run from the top every time under a budget, though, the tail of the list
+	 * is the part that never runs on a busy instance: `verifyProfileLinks` and
+	 * `reconcileGroupLists` sit behind two steps that each make one request per
+	 * remote actor. So a pass that ran out of time hands the next one the step
+	 * it stopped at, and a pass that finished starts from the top again.
+	 */
+	private function startingStep(int $steps): int {
+		$stored = $this->configService?->getAppValueInt(ConfigService::SOCIAL_CACHE_CRON_START) ?? 0;
 
-		$this->step('announceClosedPolls', function (): void {
-			// a poll closes by its end time passing, so nothing happens at the
-			// moment it does and something has to look
-			$this->pollService->announceClosedPolls();
-		});
+		return ($stored < 0) ? 0 : $stored % $steps;
+	}
 
-		$this->step('prune', function (): void {
-			// bounded per run so retention never dominates a cron slot
-			$this->streamPruneService->prune(null, false, 5000);
-		});
-
-		$this->step('syncRemoteTimelines', function (): void {
-			$this->syncRemoteTimelines();
-		});
-
-		$this->step('verifyProfileLinks', function (): void {
-			// this instance's own accounts; remote ones are checked with their
-			// details refresh
-			$this->profileLinkVerifier?->verifyLocalActors();
-		});
-
-		$this->step('reconcileGroupLists', function (): void {
-			// the catch-all behind the listener: an account made after its
-			// group's lists were, a change the listener did not see
-			$this->groupListService?->reconcile();
-		});
+	private function rememberStartingStep(int $step): void {
+		try {
+			$this->configService?->setAppValue(ConfigService::SOCIAL_CACHE_CRON_START, (string)$step);
+		} catch (\Throwable $e) {
+			// losing the rotation costs fairness between the steps, not correctness
+			$this->logger->warning(
+				'[Cron\\Cache] could not record which step to start with next time',
+				['exception' => $e]
+			);
+		}
 	}
 
 	/**
@@ -138,9 +209,24 @@ class Cache extends TimedJob {
 	 * One unreachable remote instance must not stop the sync of the others,
 	 * so each actor is caught on its own — but it is still logged, with the
 	 * actor it happened on.
+	 *
+	 * One request per actor, and the batch is fifty: on its own this step can
+	 * outlast the whole budget against a slow peer, so it checks the clock
+	 * between actors rather than only at its own start.
+	 *
+	 * Its own batch, not the refresh's: `getRemoteActorsToSync()` says why.
 	 */
-	private function syncRemoteTimelines(): void {
-		foreach ($this->cacheActorsRequest->getRemoteActorsToUpdate(false) as $actor) {
+	private function syncRemoteTimelines(int $deadline): void {
+		foreach ($this->cacheActorsRequest->getRemoteActorsToSync() as $actor) {
+			if ($this->time->getTime() >= $deadline) {
+				$this->logger->info(
+					'[Cron\\Cache] out of time while syncing remote timelines; the rest wait for the next run',
+					['step' => 'syncRemoteTimelines']
+				);
+
+				return;
+			}
+
 			try {
 				$this->streamService->syncRemoteTimeline($actor);
 			} catch (Exception $e) {

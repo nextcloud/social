@@ -75,29 +75,78 @@ class QueueStatus extends SocialCommand {
 
 		if ($summary['failing'] === 0) {
 			$output->writeln('<info>nothing is failing to deliver</info>');
+		} else {
+			$output->writeln(
+				'<comment>' . $summary['failing'] . ($summary['truncated'] ? '+' : '')
+				. ' have failed at least once, ' . $summary['atRisk']
+				. ' are close to being given up on (abandoned after '
+				. $summary['maxTries'] . ' attempts)</comment>'
+			);
+			$output->writeln('');
+
+			foreach ($summary['instances'] as $instance) {
+				$output->writeln(
+					sprintf(
+						'  %-40s %4d waiting   %2d/%d attempts   last %s',
+						$instance['host'],
+						$instance['requests'],
+						$instance['tries'],
+						$summary['maxTries'],
+						$instance['last'] > 0 ? gmdate('Y-m-d H:i', $instance['last']) : 'never'
+					)
+				);
+			}
+		}
+
+		$this->reportGivenUp($output, $summary);
+	}
+
+	/**
+	 * What this instance has stopped trying to deliver.
+	 *
+	 * Printed even when nothing is currently failing, and printed separately:
+	 * an empty "failing" section on an instance that gave up on a peer
+	 * yesterday is the reassuring half of a bad answer.
+	 *
+	 * @param array<string, mixed> $summary what FederationHealthService::summary() answers
+	 */
+	private function reportGivenUp(OutputInterface $output, array $summary): void {
+		$abandoned = (int)$summary['abandoned'];
+		$days = (int)$summary['retentionDays'];
+		$maxTries = (int)$summary['maxTries'];
+
+		if ($abandoned === 0) {
+			$output->writeln('<info>nothing has been given up on in the last ' . $days . ' days</info>');
 
 			return;
 		}
 
+		$output->writeln('');
 		$output->writeln(
-			'<comment>' . $summary['failing'] . ($summary['truncated'] ? '+' : '')
-			. ' have failed at least once, ' . $summary['atRisk']
-			. ' are close to being given up on (abandoned after '
-			. $summary['maxTries'] . ' attempts)</comment>'
+			'<error>' . $abandoned . ($summary['abandonedTruncated'] ? '+' : '')
+			. ' deliveries were given up on in the last ' . $days
+			. ' days: those servers never got them</error>'
 		);
 		$output->writeln('');
 
-		foreach ($summary['instances'] as $instance) {
+		/** @var list<array{host: string, requests: int, tries: int, last: int}> $givenUp */
+		$givenUp = $summary['givenUp'];
+		foreach ($givenUp as $instance) {
 			$output->writeln(
 				sprintf(
-					'  %-40s %4d waiting   %2d/%d attempts   last %s',
+					'  %-40s %4d given up   %2d/%d attempts   last %s',
 					$instance['host'],
 					$instance['requests'],
 					$instance['tries'],
-					$summary['maxTries'],
+					$maxTries,
 					$instance['last'] > 0 ? gmdate('Y-m-d H:i', $instance['last']) : 'never'
 				)
 			);
 		}
+
+		$output->writeln('');
+		$output->writeln(
+			'Once the reason is fixed, "occ social:queue:retry --instance HOST" queues them again.'
+		);
 	}
 }

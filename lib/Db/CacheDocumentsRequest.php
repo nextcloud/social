@@ -427,6 +427,72 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * The documents attached to one parent — for an actor, its avatar (and a
+	 * header, where one was stored as a document).
+	 *
+	 * Read before `deleteByParent()` by the caller that also owns the files:
+	 * the row knows the file's name and the delete forgets it, so a delete
+	 * that does not read first leaves the bytes in appdata for good.
+	 *
+	 * @return Document[]
+	 */
+	public function getByParent(string $parentId): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$qb->limitToDBField('parent_id_prim', $qb->prim($parentId));
+
+		$documents = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
+	/**
+	 * One page of every document row, with what `occ social:media:usage`
+	 * needs to tell them apart, keyed by `nid` so the next page starts after
+	 * the last row of this one.
+	 *
+	 * The join answers "is the parent a cached actor" — which is what makes
+	 * a row an avatar rather than an attachment — and whether that actor is
+	 * one of ours, without hydrating either side.
+	 *
+	 * @return list<array{nid: int, id: string, url: string, account: string, local_copy: string, resized_copy: string, actor_local: ?bool}>
+	 */
+	public function getUsagePage(int $limit, int $after = 0): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->select('cd.nid', 'cd.id', 'cd.url', 'cd.account', 'cd.local_copy', 'cd.resized_copy')
+			->selectAlias('ca.local', 'actor_local')
+			->from(self::TABLE_CACHE_DOCUMENTS, 'cd')
+			->leftJoin('cd', self::TABLE_CACHE_ACTORS, 'ca', $expr->eq('ca.id_prim', 'cd.parent_id_prim'))
+			->where($expr->gt('cd.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)))
+			->orderBy('cd.nid', 'asc')
+			->setMaxResults($limit);
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$rows[] = [
+				'nid' => (int)$data['nid'],
+				'id' => (string)($data['id'] ?? ''),
+				'url' => (string)($data['url'] ?? ''),
+				'account' => (string)($data['account'] ?? ''),
+				'local_copy' => (string)($data['local_copy'] ?? ''),
+				'resized_copy' => (string)($data['resized_copy'] ?? ''),
+				// NULL when the parent is not a cached actor; the boolean column
+				// comes back as an int on MySQL and as a bool on PostgreSQL
+				'actor_local' => ($data['actor_local'] === null) ? null : (bool)(int)$data['actor_local'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
 	public function deleteByParent(string $parentId): void {
 		$qb = $this->getCacheDocumentsDeleteSql();
 		$qb->limitToDBField('parent_id_prim', $qb->prim($parentId));

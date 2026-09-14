@@ -14,6 +14,8 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\CacheActorSweepService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
@@ -45,6 +47,10 @@ class CacheTest extends TestCase {
 	private PollService|MockObject $pollService;
 	private GroupListService|MockObject $groupListService;
 	private ProfileLinkVerifier|MockObject $profileLinkVerifier;
+	private CacheActorSweepService|MockObject $sweepService;
+	private ConfigService|MockObject $configService;
+	/** The clock every part of the job reads; a step may move it. */
+	private int $now = self::NOW;
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
 	/** @var IJobList&MockObject */
@@ -56,8 +62,9 @@ class CacheTest extends TestCase {
 	private Cache $job;
 
 	protected function setUp(): void {
+		$this->now = self::NOW;
 		$time = $this->createMock(ITimeFactory::class);
-		$time->method('getTime')->willReturn(self::NOW);
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->documentService = $this->createMock(DocumentService::class);
@@ -71,6 +78,8 @@ class CacheTest extends TestCase {
 		$this->pollService = $this->createMock(PollService::class);
 		$this->groupListService = $this->createMock(GroupListService::class);
 		$this->profileLinkVerifier = $this->createMock(ProfileLinkVerifier::class);
+		$this->sweepService = $this->createMock(CacheActorSweepService::class);
+		$this->configService = $this->createMock(ConfigService::class);
 
 		$this->job = new Cache(
 			$time,
@@ -84,7 +93,9 @@ class CacheTest extends TestCase {
 			$this->pollService,
 			$this->logger,
 			$this->groupListService,
-			$this->profileLinkVerifier
+			$this->profileLinkVerifier,
+			$this->sweepService,
+			$this->configService
 		);
 	}
 
@@ -112,7 +123,7 @@ class CacheTest extends TestCase {
 		$this->profileLinkVerifier->expects($this->once())->method('verifyLocalActors');
 		$bob = $this->createMock(Person::class);
 		$carol = $this->createMock(Person::class);
-		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')->with(false)->willReturn([$bob, $carol]);
+		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToSync')->willReturn([$bob, $carol]);
 		$synced = [];
 		$this->streamService->expects($this->exactly(2))->method('syncRemoteTimeline')
 			->willReturnCallback(function (Person $actor) use (&$synced): int {
@@ -137,7 +148,7 @@ class CacheTest extends TestCase {
 		$this->cacheActorService->expects($this->once())->method('manageDetailsRemoteActors');
 		$this->documentService->expects($this->once())->method('manageCacheDocuments');
 		$this->hashtagService->expects($this->once())->method('manageHashtags');
-		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')->willReturn([]);
+		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToSync')->willReturn([]);
 		$this->captureWarnings();
 
 		$this->job->start($this->jobList);
@@ -152,7 +163,7 @@ class CacheTest extends TestCase {
 	 */
 	public function testEachFailingStepIsLoggedAtWarningAndNamed(): void {
 		$this->accountService->method('manageDeletedActors')->willThrowException(new \RuntimeException('boom'));
-		$this->cacheActorsRequest->method('getRemoteActorsToUpdate')->willReturn([]);
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
 		$this->logger->expects($this->never())->method('debug');
 		$this->captureWarnings();
 
@@ -173,7 +184,7 @@ class CacheTest extends TestCase {
 		$this->documentService->method('manageCacheDocuments')->willThrowException(new \RuntimeException('e'));
 		$this->hashtagService->method('manageHashtags')->willThrowException(new \RuntimeException('f'));
 		$this->streamPruneService->method('prune')->willThrowException(new \RuntimeException('g'));
-		$this->cacheActorsRequest->method('getRemoteActorsToUpdate')->willThrowException(new \RuntimeException('h'));
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willThrowException(new \RuntimeException('h'));
 		$this->captureWarnings();
 
 		$this->job->start($this->jobList);
@@ -189,7 +200,7 @@ class CacheTest extends TestCase {
 		$gone->method('getId')->willReturn('https://gone.example/users/x');
 		$alive = $this->createMock(Person::class);
 		$alive->method('getId')->willReturn('https://alive.example/users/y');
-		$this->cacheActorsRequest->method('getRemoteActorsToUpdate')->willReturn([$gone, $alive]);
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([$gone, $alive]);
 		$this->streamService->expects($this->exactly(2))->method('syncRemoteTimeline')
 			->willReturnCallback(function (Person $actor) use ($gone): int {
 				if ($actor === $gone) {
@@ -218,6 +229,153 @@ class CacheTest extends TestCase {
 			->willReturnCallback(function (string $message, array $context = []): void {
 				$this->warnings[] = ['message' => $message, 'context' => $context];
 			});
+	}
+
+	/**
+	 * Records the order the steps run in.
+	 *
+	 * Each step is a different mock, so "which ran first" cannot be asserted
+	 * with expectations; they all write into one list instead.
+	 *
+	 * @return list<string> filled while the job runs
+	 */
+	private function &recordStepOrder(): array {
+		$order = [];
+		$note = static function (string $step) use (&$order): int {
+			$order[] = $step;
+
+			return 0;
+		};
+
+		$this->accountService->method('manageDeletedActors')->willReturnCallback(fn (): int => $note('manageDeletedActors'));
+		$this->accountService->method('manageCacheLocalActors')->willReturnCallback(fn (): int => $note('manageCacheLocalActors'));
+		$this->cacheActorService->method('manageCacheRemoteActors')->willReturnCallback(fn (): int => $note('manageCacheRemoteActors'));
+		$this->cacheActorService->method('manageDetailsRemoteActors')->willReturnCallback(fn (): int => $note('manageDetailsRemoteActors'));
+		$this->documentService->method('manageCacheDocuments')->willReturnCallback(fn (): int => $note('manageCacheDocuments'));
+		$this->hashtagService->method('manageHashtags')->willReturnCallback(fn (): int => $note('manageHashtags'));
+		$this->pollService->method('announceClosedPolls')->willReturnCallback(fn (): int => $note('announceClosedPolls'));
+		$this->streamPruneService->method('prune')->willReturnCallback(fn (): array => ['streams' => $note('prune')]);
+		$this->sweepService->method('sweep')->willReturnCallback(fn (): array => ['actors' => $note('sweepCachedActors')]);
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturnCallback(function () use ($note): array {
+			$note('syncRemoteTimelines');
+
+			return [];
+		});
+		$this->profileLinkVerifier->method('verifyLocalActors')->willReturnCallback(fn (): int => $note('verifyProfileLinks'));
+		$this->groupListService->method('reconcile')->willReturnCallback(fn (): int => $note('reconcileGroupLists'));
+
+		return $order;
+	}
+
+	public function testTheCacheCronEvictsTheActorsNobodyRefersToAnyMore(): void {
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
+		$this->sweepService->expects($this->once())->method('sweep')
+			->with(null, false, Cache::SWEEP_BATCH)
+			->willReturn(['actors' => 3, 'documents' => 4]);
+
+		$this->job->start($this->jobList);
+	}
+
+	/**
+	 * The job used to run until it was done or something killed it, so a
+	 * handful of slow peers could hold a cron slot open past the interval and
+	 * overlap the next run. `Cron\Queue` has had a budget for a while.
+	 */
+	public function testAStepThatSpendsTheBudgetStopsTheRestOfTheRun(): void {
+		$order = &$this->recordStepOrder();
+		$this->accountService->method('manageDeletedActors')->willReturnCallback(function (): int {
+			$this->now += Cache::MAX_DURATION;
+
+			return 0;
+		});
+		$this->captureWarnings();
+
+		$this->job->start($this->jobList);
+
+		$this->assertSame(
+			['manageDeletedActors'], $order,
+			'nothing after the step that ran out of time may run'
+		);
+		$this->assertCount(1, $this->warnings);
+		$this->assertStringContainsString('11 step(s) skipped', $this->warnings[0]['message']);
+		$this->assertStringContainsString('manageCacheLocalActors', $this->warnings[0]['message']);
+	}
+
+	/**
+	 * Run from the top every time under a budget, the tail of the list is the
+	 * part that never runs: `verifyProfileLinks` and `reconcileGroupLists` sit
+	 * behind two steps that make a request per remote actor.
+	 */
+	public function testTheNextRunStartsWithTheStepThisOneSkipped(): void {
+		$this->recordStepOrder();
+		$this->accountService->method('manageCacheLocalActors')->willReturnCallback(function (): int {
+			$this->now += Cache::MAX_DURATION;
+
+			return 0;
+		});
+		$this->configService->expects($this->once())->method('setAppValue')
+			->with(ConfigService::SOCIAL_CACHE_CRON_START, '2');
+
+		$this->job->start($this->jobList);
+	}
+
+	public function testARunThatGetsThroughEverythingStartsFromTheTopAgain(): void {
+		$this->recordStepOrder();
+		$this->configService->expects($this->once())->method('setAppValue')
+			->with(ConfigService::SOCIAL_CACHE_CRON_START, '0');
+		$this->logger->expects($this->never())->method('warning');
+
+		$this->job->start($this->jobList);
+	}
+
+	public function testARunPicksUpWhereTheLastOneStopped(): void {
+		$order = &$this->recordStepOrder();
+		$this->configService->method('getAppValueInt')
+			->with(ConfigService::SOCIAL_CACHE_CRON_START)->willReturn(10);
+
+		$this->job->start($this->jobList);
+
+		$this->assertSame('verifyProfileLinks', $order[0]);
+		$this->assertSame('reconcileGroupLists', $order[1]);
+		$this->assertSame('manageDeletedActors', $order[2]);
+		$this->assertCount(12, $order, 'every step still gets a turn, only in a rotated order');
+	}
+
+	/**
+	 * One request per actor and a batch of fifty: on its own this step can
+	 * outlast the whole budget against a slow peer, so it watches the clock
+	 * between actors rather than only at its own start.
+	 */
+	public function testTheTimelineSyncStopsMidBatchWhenTheBudgetIsSpent(): void {
+		$actors = [];
+		foreach (['a', 'b', 'c'] as $name) {
+			$actor = $this->createMock(Person::class);
+			$actor->method('getId')->willReturn('https://slow.example/users/' . $name);
+			$actors[] = $actor;
+		}
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn($actors);
+		$this->streamService->expects($this->once())->method('syncRemoteTimeline')
+			->willReturnCallback(function (): int {
+				$this->now += Cache::MAX_DURATION;
+
+				return 0;
+			});
+
+		$this->job->start($this->jobList);
+	}
+
+	/**
+	 * The timeline sync used to be handed the refresh's own batch, which
+	 * worked only because nothing could make an actor stop being stale. Now
+	 * that a refresh stamps what it touched, sharing the selection would mean
+	 * that on an instance with fewer than fifty remote actors the refresh
+	 * consumed the whole set and no timeline was ever synced again.
+	 */
+	public function testTheTimelineSyncHasABatchTheRefreshCannotConsume(): void {
+		$this->cacheActorsRequest->expects($this->never())->method('getRemoteActorsToUpdate');
+		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToSync')->willReturn([]);
+
+		$this->job->start($this->jobList);
 	}
 
 	public function testRunIsSkippedWhenTheLastRunIsTooRecent(): void {

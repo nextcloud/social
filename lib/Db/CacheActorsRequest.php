@@ -27,6 +27,44 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public const DETAILS_TTL = 60 * 18; // 18h
 
 	/**
+	 * How many refreshes in a row may fail before an actor is left alone.
+	 *
+	 * With `syncWait()` doubling from an hour, ten failures span about six
+	 * weeks: long enough to outlast any outage a server comes back from, short
+	 * enough that a server that is gone stops costing a request every pass.
+	 * Past this the row is kept as it is — the follows that point at it, the
+	 * posts it wrote — and only the refresh stops; a fetch that is asked for
+	 * (a mention, a profile opened) still goes to the network and, when it
+	 * works, resets the count.
+	 */
+	public const SYNC_MAX_FAILURES = 10;
+
+	/** The first wait after a failed refresh, in seconds; it doubles per failure. */
+	public const SYNC_BACKOFF_BASE = 3600;
+
+	/**
+	 * How long a cached remote actor is left alone after a refresh attempt.
+	 *
+	 * With no failure on record it is the cache lifetime: the actor is due
+	 * again CACHE_TTL after the last attempt. After `n` failures in a row it
+	 * is `SYNC_BACKOFF_BASE * 2^(n-1)` — an hour, two, four ... — so one dead
+	 * instance costs the cron a request an hour, then a request a day, then
+	 * nothing, instead of fifty requests every twelve minutes for ever. The
+	 * same schedule has to be applied by the query that reads the queue
+	 * (`limitToSyncDue()`) and by the caller that judges an actor in PHP, so
+	 * both call this.
+	 */
+	public static function syncWait(int $failures): int {
+		if ($failures < 1) {
+			return self::CACHE_TTL * 60;
+		}
+
+		// shifted rather than raised to a power: `2 **` is a float in PHP, and
+		// a wait is a number of seconds
+		return self::SYNC_BACKOFF_BASE << (min($failures, self::SYNC_MAX_FAILURES) - 1);
+	}
+
+	/**
 	 * Insert cache about an Actor in database.
 	 */
 	public function save(Person $actor): void {
@@ -259,18 +297,71 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	}
 
 	/**
+	 * The cached remote actors whose refresh is due, the longest-waiting first.
+	 *
+	 * Due means the wait `syncWait()` prescribes for the row's failure count
+	 * has passed since its last attempt, whether or not that attempt worked;
+	 * a row past SYNC_MAX_FAILURES is not due at all. The selection used to
+	 * read `creation`, which for a remote actor is the `published` date its
+	 * instance reports and never moves, so every remote actor was always
+	 * stale and, with no order, the same fifty came back on every run.
+	 *
+	 * @param int|null $now the clock to judge "due" by; the wall clock when null
+	 *
 	 * @return Person[]
 	 * @throws Exception
 	 */
-	public function getRemoteActorsToUpdate(bool $force = false): array {
+	public function getRemoteActorsToUpdate(bool $force = false, ?int $now = null): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$qb->limitToLocal(false);
 		if (!$force) {
-			$qb->limitToCreation(self::CACHE_TTL);
+			$this->limitToSyncDue($qb, $now ?? time(), true);
 			// One cron pass syncs a bounded batch; on a large instance the full set
 			// would be thousands of outbound requests in a single job.
 			$qb->setMaxResults(self::SYNC_BATCH);
 		}
+
+		// the oldest attempt first, so the batch walks the whole table rather
+		// than returning whatever the database stores first; nid breaks the
+		// tie among the rows that were never attempted
+		$qb->orderBy('ca.sync_attempt', 'asc');
+		$qb->addOrderBy('ca.nid', 'asc');
+
+		return $this->getCacheActorsFromRequest($qb);
+	}
+
+	/**
+	 * The cached remote actors whose timeline the cron syncs next, the
+	 * longest-untried first.
+	 *
+	 * A batch of its own rather than the refresh's. The timeline sync used to
+	 * be handed whatever `getRemoteActorsToUpdate()` returned, which worked
+	 * only because nothing the refresh did could make an actor stop being
+	 * stale — every remote actor always was. Now that a refresh stamps what it
+	 * touched, the refresh step would consume the whole due set before the
+	 * sync step ran, and on an instance with fewer than SYNC_BATCH remote
+	 * actors no timeline would ever be synced again.
+	 *
+	 * Ordering on the same attempt stamp still rotates it: the actors the
+	 * refresh just stamped sort last, so this gets the ones it did not reach.
+	 * The give-up threshold is shared, because a dead instance has no timeline
+	 * to read either.
+	 *
+	 * @return Person[]
+	 * @throws Exception
+	 */
+	public function getRemoteActorsToSync(int $limit = self::SYNC_BATCH): array {
+		$qb = $this->getCacheActorsSelectSql();
+		$qb->limitToLocal(false);
+		$qb->andWhere(
+			$qb->expr()->lt(
+				'ca.sync_failures',
+				$qb->createNamedParameter(self::SYNC_MAX_FAILURES, IQueryBuilder::PARAM_INT)
+			)
+		);
+		$qb->orderBy('ca.sync_attempt', 'asc');
+		$qb->addOrderBy('ca.nid', 'asc');
+		$qb->setMaxResults($limit);
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
@@ -279,13 +370,18 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @return Person[]
 	 * @throws Exception
 	 */
-	public function getRemoteActorsToUpdateDetails(bool $force = false): array {
+	public function getRemoteActorsToUpdateDetails(bool $force = false, ?int $now = null): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$qb->limitToLocal(false);
 		if (!$force) {
 			$date = new DateTime('now');
 			$date->sub(new DateInterval('PT' . self::DETAILS_TTL . 'M'));
 			$qb->limitToDBFieldDateTime('details_update', $date, true);
+			// an actor whose refresh just failed is not asked three more
+			// questions; one that has been given up on is not asked at all.
+			// Without this the fifty oldest `details_update` were the fifty
+			// dead ones, on every pass, since a failure never advanced it
+			$this->limitToSyncDue($qb, $now ?? time(), false);
 			// three outbound requests per actor (followers, following, outbox),
 			// so one cron pass takes a bounded batch just as the sibling above
 			// does — the rest are picked up by the next pass
@@ -295,6 +391,119 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->orderBy('ca.details_update', 'asc');
 
 		return $this->getCacheActorsFromRequest($qb);
+	}
+
+	/**
+	 * The backoff schedule, in SQL: one branch per failure count below the
+	 * give-up threshold, `sync_failures = n AND sync_attempt <= now - wait(n)`.
+	 * The threshold falls out of the same expression — no branch, never due.
+	 *
+	 * @param bool $waitWhenHealthy whether a row with no failure on record
+	 *                              waits CACHE_TTL (the refresh) or is due at
+	 *                              once (the details, which have a clock of
+	 *                              their own in `details_update`)
+	 */
+	private function limitToSyncDue(SocialQueryBuilder $qb, int $now, bool $waitWhenHealthy): void {
+		$expr = $qb->expr();
+		$due = $expr->orX();
+		for ($failures = 0; $failures < self::SYNC_MAX_FAILURES; $failures++) {
+			$wait = ($failures === 0 && !$waitWhenHealthy) ? 0 : self::syncWait($failures);
+			$due->add(
+				$expr->andX(
+					$expr->eq('ca.sync_failures', $qb->createNamedParameter($failures, IQueryBuilder::PARAM_INT)),
+					$expr->lte('ca.sync_attempt', $qb->createNamedParameter($now - $wait, IQueryBuilder::PARAM_INT))
+				)
+			);
+		}
+
+		$qb->andWhere($due);
+	}
+
+	/**
+	 * Stamps a refresh attempt on one cached actor.
+	 *
+	 * Written whether the attempt worked or not — that is the whole point: a
+	 * row that is never stamped is due again on the next pass, and fifty of
+	 * those on a dead instance were the only fifty the refresh ever saw. A
+	 * success clears the failure count; a failure adds to it, in SQL, so two
+	 * workers stamping the same row cannot lose a count between them.
+	 */
+	public function recordSyncAttempt(string $id, bool $success, int $now): void {
+		$qb = $this->getCacheActorsUpdateSql();
+		$qb->set('sync_attempt', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT));
+		if ($success) {
+			$qb->set('sync_failures', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT));
+		} else {
+			$qb->set('sync_failures', $qb->func()->add('sync_failures', $qb->expr()->literal(1)));
+		}
+
+		$this->limitToIdPrimString($qb, $id);
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * The cached remote actors nothing here refers to any more, a page at a
+	 * time: not followed by and not following any account this instance
+	 * knows, no follow request or block/mute/endorsement either way, no post
+	 * of theirs stored, and neither seen (`creation`) nor tried (`sync_attempt`)
+	 * since `$cutoff`.
+	 *
+	 * Both dates have to be old. `creation` is the `published` date the
+	 * actor's instance reports, or the moment it was first cached when it
+	 * reports none; `sync_attempt` is when the refresh last looked, 0 for
+	 * never. A row that was tried last week is one the cron still cares
+	 * about, however old its profile says it is.
+	 *
+	 * Bounded because the caller deletes what it is handed and asks again; the
+	 * next call returns the next page without an offset to keep track of.
+	 *
+	 * @return string[] actor ids, the longest-untouched first
+	 */
+	public function getSweepableIds(int $cutoff, int $limit): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->select('ca.id')
+			->from(self::TABLE_CACHE_ACTORS, 'ca')
+			->where($expr->eq('ca.local', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
+			->andWhere($expr->lt('ca.sync_attempt', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_INT)))
+			->andWhere($expr->lt('ca.creation', $qb->createNamedParameter(
+				new DateTime('@' . $cutoff), IQueryBuilder::PARAM_DATE
+			)))
+			->orderBy('ca.sync_attempt', 'asc')
+			->addOrderBy('ca.nid', 'asc')
+			->setMaxResults($limit);
+
+		// a follow in either direction, accepted or still pending
+		$follow = $this->getQueryBuilder();
+		$follow->select($follow->createFunction('1'))
+			->from(self::TABLE_FOLLOWS, 'f')
+			->where('(f.actor_id_prim = ca.id_prim OR f.object_id_prim = ca.id_prim)');
+		$qb->andWhere('NOT EXISTS (' . $follow->getSQL() . ')');
+
+		// a block, a mute, an endorsement, a bell — anything one account has
+		// decided about another
+		$relation = $this->getQueryBuilder();
+		$relation->select($relation->createFunction('1'))
+			->from(self::TABLE_ACTOR_RELATION, 'r')
+			->where('(r.actor_id_prim = ca.id_prim OR r.object_id_prim = ca.id_prim)');
+		$qb->andWhere('NOT EXISTS (' . $relation->getSQL() . ')');
+
+		// a post of theirs that is still stored here needs its author
+		$stream = $this->getQueryBuilder();
+		$stream->select($stream->createFunction('1'))
+			->from(self::TABLE_STREAM, 's')
+			->where('s.attributed_to_prim = ca.id_prim');
+		$qb->andWhere('NOT EXISTS (' . $stream->getSQL() . ')');
+
+		$ids = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$ids[] = (string)$data['id'];
+		}
+		$cursor->closeCursor();
+
+		return $ids;
 	}
 
 	/**
