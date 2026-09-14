@@ -102,6 +102,57 @@ class QueueRetryTest extends CommandTestCase {
 		$this->assertSame(1, $this->tries($token));
 	}
 
+	/**
+	 * The form that answers `social:queue:status`, which names the hosts this
+	 * instance has given up on. An abandoned row is not history the way a
+	 * delivered one is: nothing else will ever try it again, and it is in the
+	 * table for seven days precisely so that somebody can.
+	 */
+	public function testAnAbandonedDeliveryCanBeQueuedAgainForOneInstance(): void {
+		$token = $this->failedDelivery();
+		$queued = $this->service->getRequestFromToken($token);
+		$this->service->abandonRequest($queued[0]);
+		$this->assertCount(
+			1, $this->service->getRequestFromToken($token, RequestQueue::STATUS_ABANDONED)
+		);
+
+		$tester = $this->tester(QueueRetry::class);
+		$code = $this->runNonInteractive(
+			$tester, ['--instance' => 'remote.example', '--min-tries' => '0', '--force' => true]
+		);
+
+		$this->assertSame(0, $code, $tester->getDisplay());
+		$this->assertCount(
+			1,
+			$this->service->getRequestFromToken($token, RequestQueue::STATUS_STANDBY),
+			'the row the drain gave up on has to be back on standby'
+		);
+		$this->assertSame(0, $this->tries($token));
+	}
+
+	public function testAnotherInstancesDeliveriesAreLeftAlone(): void {
+		$token = $this->failedDelivery();
+
+		$tester = $this->tester(QueueRetry::class);
+		$code = $this->runNonInteractive(
+			$tester, ['--instance' => 'somewhere.else', '--min-tries' => '0', '--force' => true]
+		);
+
+		$this->assertSame(0, $code);
+		$this->assertStringContainsString('nothing', $tester->getDisplay());
+		$this->assertSame(1, $this->tries($token));
+	}
+
+	public function testTheStreamQueueHasNoInstanceToNarrowTo(): void {
+		$tester = $this->tester(QueueRetry::class);
+		$code = $this->runNonInteractive(
+			$tester, ['--instance' => 'remote.example', '--stream' => true, '--force' => true]
+		);
+
+		$this->assertSame(1, $code);
+		$this->assertStringContainsString('cannot be combined', $tester->getDisplay());
+	}
+
 	/** A queued delivery that has already failed once. */
 	private function failedDelivery(): string {
 		$note = new Note();

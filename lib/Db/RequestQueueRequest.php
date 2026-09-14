@@ -180,6 +180,36 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	}
 
 	/**
+	 * The deliveries this instance has given up on, the most recently
+	 * abandoned first.
+	 *
+	 * They are the ones nobody saw: a failing request is at least counted
+	 * while it is still being retried, and then it changes status and drops
+	 * out of every summary there is. The rows live `RETENTION_SECONDS` (seven
+	 * days) past their last attempt, which is exactly the window in which an
+	 * administrator can still be told that a server stopped receiving
+	 * anything from here.
+	 *
+	 * @return list<RequestQueue>
+	 * @throws Exception
+	 */
+	public function getAbandoned(int $limit = 500): array {
+		$qb = $this->getRequestQueueSelectSql();
+		$qb->limitToStatus(RequestQueue::STATUS_ABANDONED);
+		$qb->orderBy('last', 'desc');
+		$qb->setMaxResults($limit);
+
+		$requests = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$requests[] = $this->parseRequestQueueSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $requests;
+	}
+
+	/**
 	 * Return Queue from database based on the token
 	 *
 	 * @return list<RequestQueue>

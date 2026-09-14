@@ -57,9 +57,13 @@ class AdminAnnouncementsSectionTest extends TestCase {
 				'running' => 0,
 				'failing' => 0,
 				'atRisk' => 0,
+				'abandoned' => 0,
 				'maxTries' => 15,
 				'truncated' => false,
+				'abandonedTruncated' => false,
+				'retentionDays' => 7,
 				'instances' => [],
+				'givenUp' => [],
 			],
 			'moderation' => [],
 		];

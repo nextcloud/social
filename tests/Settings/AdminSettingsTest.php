@@ -130,9 +130,13 @@ class AdminSettingsTest extends TestCase {
 			'running' => 0,
 			'failing' => 0,
 			'atRisk' => 0,
+			'abandoned' => 0,
 			'maxTries' => 15,
 			'truncated' => false,
+			'abandonedTruncated' => false,
+			'retentionDays' => 7,
 			'instances' => [],
+			'givenUp' => [],
 		], $overrides);
 	}
 
@@ -346,6 +350,45 @@ class AdminSettingsTest extends TestCase {
 		foreach ($ids as $id) {
 			$this->assertStringContainsString('id="' . $id . '"', $html, $id . ' is not in the markup');
 		}
+	}
+
+	/**
+	 * The one state an administrator has to act on was the one state the page
+	 * did not show: a delivery left the failing count the moment the drain
+	 * gave up on it.
+	 */
+	public function testTheInstancesGivenUpOnGetATableOfTheirOwn(): void {
+		$html = $this->render($this->summary([
+			'abandoned' => 12,
+			'givenUp' => [
+				['host' => 'gone.example', 'requests' => 12, 'tries' => 16, 'last' => 1_700_000_000],
+			],
+		]));
+
+		$this->assertStringContainsString('Given up on', $html);
+		$this->assertStringContainsString('12 deliveries were given up on', $html);
+		$this->assertStringContainsString('Deliveries given up on', $html);
+		$this->assertStringContainsString('gone.example', $html);
+		$this->assertStringContainsString('2023-11-14 22:13', $html);
+		$this->assertStringContainsString('social:queue:retry --instance', $html);
+	}
+
+	public function testAQueueThatHasGivenUpOnNothingSaysSoAndShowsNoTable(): void {
+		$html = $this->render($this->summary(['waiting' => 4]));
+
+		$this->assertStringContainsString('Nothing has been given up on in the last 7 days.', $html);
+		$this->assertStringNotContainsString('Deliveries given up on', $html);
+	}
+
+	public function testTheGivenUpCountIsShownEvenWhenNothingIsFailingNow(): void {
+		$html = $this->render($this->summary([
+			'abandoned' => 1,
+			'givenUp' => [['host' => 'gone.example', 'requests' => 1, 'tries' => 16, 'last' => 0]],
+		]));
+
+		$this->assertStringContainsString('Nothing is failing to deliver.', $html);
+		$this->assertStringContainsString('1 delivery was given up on', $html);
+		$this->assertStringContainsString('never', $html);
 	}
 
 	/**

@@ -50,6 +50,20 @@ class ConfigService {
 	public const SOCIAL_RETENTION_DAYS = 'retention_days';
 
 	/**
+	 * Days to keep a cached remote actor nobody here refers to any more —
+	 * not followed, not following, no post stored, no relation pending — before
+	 * the cache cron evicts it with its avatar; 0 disables the sweep.
+	 */
+	public const SOCIAL_CACHE_ACTOR_DAYS = 'cache_actor_days';
+
+	/**
+	 * Which of `Cron\Cache`'s steps the next pass begins with — bookkeeping,
+	 * not a setting. Written by the job when it runs out of its budget, so the
+	 * steps at the end of the list are not the ones that never run.
+	 */
+	public const SOCIAL_CACHE_CRON_START = 'cache_cron_start';
+
+	/**
 	 * Instances whose accounts are silenced rather than blocked: out of the
 	 * public and global timelines, still readable by whoever follows them.
 	 *
@@ -111,6 +125,7 @@ class ConfigService {
 		self::SOCIAL_SELF_SIGNED => '0',
 		self::SOCIAL_INBOX_THROTTLE => '300',
 		self::SOCIAL_RETENTION_DAYS => '0',
+		self::SOCIAL_CACHE_ACTOR_DAYS => '180',
 		self::SOCIAL_SILENCED_LIST => '[]',
 		self::SOCIAL_SECURE_MODE => '0',
 		self::SOCIAL_PUBLISH_BLOCKS => '0',

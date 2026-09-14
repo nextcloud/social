@@ -382,6 +382,14 @@ instances — how many deliveries are stacked up for each, the highest attempt
 count so far and when it was last tried. The same figures appear in the
 Federation health section of the administration settings.
 
+Then the half that matters most: what this instance has **given up on**. An
+abandoned delivery used to appear nowhere — it left the failing count the moment
+it was abandoned, so the queue looked healthiest exactly when a peer had been
+lost for good. The count covers the last seven days, which is how long a
+finished row is kept, and is followed by the same per-instance table under
+"given up". `occ social:queue:retry --instance HOST` puts those deliveries back
+in the queue once the reason they failed has been dealt with.
+
 ---
 
 ### `social:queue:retry`
@@ -389,14 +397,15 @@ Federation health section of the administration settings.
 Put queued deliveries back on standby, or drop them.
 
 ```
-php occ social:queue:retry [-t|--token TOKEN] [--min-tries N] [--limit N]
-                           [--stream] [--flush] [-f|--force]
+php occ social:queue:retry [-t|--token TOKEN] [--min-tries N] [-i|--instance HOST]
+                           [--limit N] [--stream] [--flush] [-f|--force]
 ```
 
 | Option | Value | Description |
 |--------|-------|-------------|
 | `-t`, `--token` | optional | Act on one delivery only, by the token `social:queue:status` prints |
 | `--min-tries` | int (1) | Without a token, act on the rows that have already failed at least this many times |
+| `-i`, `--instance` | hostname | Act on the deliveries for one host only, including the ones already given up on. Cannot be combined with `--stream`, which holds what came in rather than what was going out |
 | `--limit` | int (500) | How many rows one run touches at most; run it again to work through the rest |
 | `--stream` | none | Act on the inbound stream queue (`social_stream_queue`) instead of the outbound delivery queue |
 | `--flush` | none | Delete the matching rows instead of queueing them again |
@@ -409,7 +418,19 @@ activities are never delivered, which is what you want for a delivery that will
 never succeed — a peer that is gone, or an activity it refuses.
 
 Rows that already succeeded are never touched, so a retry cannot send an activity
-twice. The command prints how many rows matched, across how many delivery tokens
+twice. Rows that were *abandoned* are: they are exactly what this command is for,
+and they are still in the table for seven days after the drain gave up on them.
+`--instance` is the form that answers `social:queue:status`, which names the
+hosts this instance has stopped delivering to:
+
+```
+php occ social:queue:retry --instance gone.example
+```
+
+The host is matched in PHP — it lives inside the JSON `instance` column — so the
+table is read in pages of 1000 rows until `--limit` matching rows are found.
+
+The command prints how many rows matched, across how many delivery tokens
 and with what spread of attempt counts, and asks before it changes anything.
 
 ---
@@ -457,7 +478,7 @@ php occ social:cache:refresh [-f|--force] [--rotate-keys]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `-f`, `--force` | none | Refresh cached remote actors even if they are not due |
+| `-f`, `--force` | none | Refresh cached remote actors even if they are not due — including the ones whose refresh has been given up on after ten consecutive failures, so this is also how an instance that has come back is asked again straight away. Every attempt is recorded either way, and one that works clears the failure count |
 | `--rotate-keys` | none | Renew the RSA key pair of local actors older than `AccountService::KEY_PAIR_LIFESPAN` (60) days. Blind rotation: no `Update` is federated, remote servers pick the new key up when they next fetch the actor (most do so after a failed signature check), so expect a short delivery hiccup. Deliberately opt-in and never run by the cron |
 
 Steps and their output lines: local accounts deleted, local accounts regenerated,
@@ -498,6 +519,56 @@ video can be tried again after whatever was wrong with it is fixed.
 It is a command rather than a background job on purpose: it is a one-off after
 an upgrade, it spends a subprocess and a temporary copy of each video, and an
 instance with a large media library should choose when that happens.
+
+### `social:media:usage`
+
+Report what the app's media occupies on disk, split into what was uploaded here
+and what was cached off other servers.
+
+```
+php occ social:media:usage
+```
+
+No options of its own. `--output=json` (or `json_pretty`) prints the same
+figures as a structure, for a monitoring script.
+
+The two halves are very different things: an upload is the only copy there is,
+and a cached remote file is a copy that can be thrown away and fetched again.
+Each half is broken down into attachments and the avatars and headers of
+accounts. Every row of `social_cache_doc` is walked and the size of each stored
+copy — the original and the resized one — is read from appdata, file by file,
+rather than taken from anything the row claims:
+
+```
+12043 document row(s) in social_cache_doc
+
+Uploaded here                   842 files     2.1 GiB
+  attachments                   808 files     2.0 GiB
+  avatars and headers            34 files    41.3 MiB
+Cached from other servers     19664 files     8.7 GiB
+  attachments                 15912 files     8.4 GiB
+  avatars and headers          3752 files   311.0 MiB
+
+Total on disk                 20506 files    10.8 GiB
+```
+
+Three counts are printed after the total when they are not zero: copies that are
+*streamed* (a pointer at a file on the server that holds it, so no bytes here),
+copies served from Nextcloud's own avatar store rather than by this app, and
+copies a row names that are **not in appdata** — reported rather than counted as
+zero bytes, because a cached remote one is simply fetched again when it is next
+asked for.
+
+No quota accounting: this is what is on disk, not what anybody is allowed. It
+also does not walk appdata looking for files no row names — the path of a copy
+is derived from its own name, so finding an orphan means listing a four-level
+tree with a directory per file, and there is no safe way to delete a file this
+app cannot name.
+
+The number to read it against is `cache_actor_days` (default 180), which is how
+long a cached remote account nobody here refers to survives before the cache
+cron evicts it with its avatar; `occ config:app:set social cache_actor_days
+--value 0` turns that sweep off.
 
 ---
 
@@ -793,7 +864,7 @@ cron, and queues two more on demand:
 
 | Job | Class | Description |
 |-----|-------|-------------|
-| Cache maintenance | `OCA\Social\Cron\Cache` | Every 12 minutes. Same steps as `social:cache:refresh` (deleted actors, local actor cache, remote actors and their details, documents, hashtags), and additionally syncs the timelines of cached remote actors. No key rotation is performed. |
+| Cache maintenance | `OCA\Social\Cron\Cache` | Every 12 minutes, with a 300-second budget. Same steps as `social:cache:refresh` (deleted actors, local actor cache, remote actors and their details, documents, hashtags), and additionally closes polls, prunes remote statuses past retention, evicts cached remote accounts nobody here refers to, syncs the timelines of cached remote actors, verifies profile links and reconciles group lists. A run that spends its budget logs which steps it skipped, and the next run starts with the first of them, so the steps at the end of the list are not the ones that never run. No key rotation is performed. |
 | Queue processing | `OCA\Social\Cron\Queue` | Every 12 minutes. Processes the outbound request queue **and** the stream queue, like `social:queue:process`. |
 | Expired stories | `OCA\Social\Cron\ExpiredStories` | Hourly. Deletes the stories whose day is up, at most 500 per run. The second of the two guards on a story's expiry: every read already filters on `expires_at`, so an instance whose cron has stopped shows nothing it should not — but without this the rows and their pictures would pile up for ever, and "it disappears after a day" would be true of what people can see and false of what is stored. |
 | Scheduled posts | `OCA\Social\Cron\ScheduledPosts` | Every 5 minutes. Publishes the posts whose `scheduled_at` has passed, at most 50 per run. Shorter than the other two on purpose: a scheduled post may be published up to one cron period late, and a longer period would promise a precision the five-minute minimum on `scheduled_at` implies but the app could not keep. |

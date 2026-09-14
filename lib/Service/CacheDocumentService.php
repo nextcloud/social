@@ -563,13 +563,6 @@ class CacheDocumentService {
 	}
 
 	/**
-	 * @param string $filename
-	 *
-	 * @return ISimpleFile
-	 * @throws CacheContentException
-	 * @throws CacheDocumentDoesNotExistException
-	 */
-	/**
 	 * Removes a cached copy from appdata; a missing or empty filename (or the
 	 * 'avatar' placeholder) is a no-op — retention must never abort on a file
 	 * that is already gone.
@@ -584,6 +577,29 @@ class CacheDocumentService {
 				->getFile($filename)
 				->delete();
 		} catch (Exception $e) {
+		}
+	}
+
+	/**
+	 * How many bytes one cached copy occupies in appdata, or null when there
+	 * is no file behind the name: an empty name, the `avatar`/`header`
+	 * placeholders of a local account (served from Nextcloud's own avatar,
+	 * never copied), a streamed document (`Document::COPY_STREAMED`, a pointer
+	 * at somebody else's bytes) — or a name whose file has gone missing,
+	 * which is the case `occ social:media:usage` reports.
+	 */
+	public function cachedFileSize(string $filename): ?int {
+		if ($filename === '' || $filename === 'avatar' || $filename === 'header'
+			|| $filename === Document::COPY_STREAMED) {
+			return null;
+		}
+
+		try {
+			return (int)$this->appData->getFolder($this->generatePath($filename))
+				->getFile($filename)
+				->getSize();
+		} catch (Exception $e) {
+			return null;
 		}
 	}
 
