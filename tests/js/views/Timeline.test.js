@@ -33,6 +33,7 @@ const ComposerStub = {
 	template: '<div class="composer-stub" />',
 }
 const OnThisDayStub = { name: 'OnThisDay', template: '<div class="on-this-day-stub" />' }
+const WeeklyRecapStub = { name: 'WeeklyRecap', template: '<div class="weekly-recap-stub" />' }
 const TimelineListStub = {
 	name: 'TimelineList',
 	props: ['type', 'showParents', 'reverseOrder'],
@@ -71,7 +72,7 @@ function mountTimeline(route = {}) {
 			// OnThisDay reads the reader's own anniversaries on mount, which is
 			// its own request with its own tests; left real it would answer
 			// after these tests have finished
-			stubs: { Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub },
+			stubs: { Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub },
 		},
 	})
 }

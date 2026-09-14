@@ -45,8 +45,10 @@
 			:label="t('social', 'Which activities to show')"
 			@update:value="chooseNotificationFilter" />
 
-		<!-- what the reader wrote on this day in years gone by; only over
-		     their own home feed, which is the one page that is about them -->
+		<!-- what the reader wrote on this day in years gone by, and how their
+		     week went if they asked to be told; only over their own home feed,
+		     which is the one page that is about them -->
+		<WeeklyRecap v-if="isHome" />
 		<OnThisDay v-if="isHome" />
 
 		<TimelineList :type="type" :listTitle="listTitle" />
@@ -74,6 +76,7 @@ import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import OnThisDay from './../components/OnThisDay.vue'
+import WeeklyRecap from './../components/WeeklyRecap.vue'
 import { tagStyle } from '../utils/tagColour.js'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
@@ -96,6 +99,7 @@ export default {
 		HashtagFollowButton,
 		HashtagFollowedList,
 		OnThisDay,
+		WeeklyRecap,
 		TimelineList,
 		TimelineSwitcher,
 	},

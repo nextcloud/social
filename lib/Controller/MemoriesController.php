@@ -79,4 +79,49 @@ class MemoriesController extends Controller {
 			);
 		}
 	}
+
+	/**
+	 * How the reader's week went, if they asked to be told.
+	 *
+	 * Answers `enabled: false` and no numbers at all when they did not, so
+	 * that turning it off means the counts are not computed rather than
+	 * computed and hidden.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 60, period: 3600)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/memories/recap')]
+	public function recap(): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+
+			return new DataResponse(
+				$this->memoriesService->recap($actor, $this->userId), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			$this->logger->warning('could not read the recap', [
+				'userId' => $this->userId, 'exception' => $e,
+			]);
+
+			return new DataResponse(
+				['error' => 'could not read the recap'], Http::STATUS_INTERNAL_SERVER_ERROR
+			);
+		}
+	}
+
+	/** Turns the weekly recap on or off for the caller. */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/memories/recap')]
+	public function setRecap(bool $enabled): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		$this->memoriesService->setRecapEnabled($this->userId, $enabled);
+
+		return new DataResponse(['enabled' => $enabled], Http::STATUS_OK);
+	}
 }

@@ -26,6 +26,9 @@ const NcModalStub = { name: 'NcModal', template: '<div class="modal-stub"><slot 
 const asyncStubs = {
 	AccountSettings: { name: 'AccountSettings', template: '<section class="account-settings-stub" />' },
 	ListsSettings: { name: 'ListsSettings', template: '<section class="lists-settings-stub" />' },
+	// reads the recap setting on mount, for the same reason: its request would
+	// answer after this file has finished
+	RecapSettings: { name: 'RecapSettings', template: '<section class="recap-settings-stub" />' },
 }
 
 describe('Settings', () => {
@@ -76,7 +79,7 @@ describe('Settings', () => {
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Your account', 'Lists', 'Keyboard shortcuts', 'Scheduled posts', 'Migration'])
+			.toEqual(['Your account', 'Lists', 'Keyboard shortcuts', 'Scheduled posts', 'Looking back', 'Migration'])
 	})
 
 	/**

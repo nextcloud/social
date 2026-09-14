@@ -15,7 +15,9 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MemoriesService;
+use OCA\Social\Service\ProfileHighlightsService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -28,11 +30,17 @@ use PHPUnit\Framework\TestCase;
  */
 class MemoriesServiceTest extends TestCase {
 	private StreamRequest&MockObject $streamRequest;
+	private ConfigService&MockObject $configService;
+	private ProfileHighlightsService&MockObject $profileHighlightsService;
 	private MemoriesService $service;
 
 	protected function setUp(): void {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
-		$this->service = new MemoriesService($this->streamRequest);
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->profileHighlightsService = $this->createMock(ProfileHighlightsService::class);
+		$this->service = new MemoriesService(
+			$this->streamRequest, $this->configService, $this->profileHighlightsService
+		);
 	}
 
 	private function actor(): Person {
@@ -170,5 +178,69 @@ class MemoriesServiceTest extends TestCase {
 		$this->streamRequest->expects($this->never())->method('getByAuthorBetween');
 
 		$this->assertSame([], $this->service->onThisDay(new Person(), new DateTimeZone('UTC')));
+	}
+
+	public function testTheRecapIsOffUntilItIsAskedFor(): void {
+		$this->configService->method('getValueForUser')->willReturn('');
+		$this->profileHighlightsService->expects($this->never())->method('forActor');
+
+		$recap = $this->service->recap($this->actor(), 'alice');
+
+		$this->assertFalse($recap['enabled']);
+		$this->assertSame(0, $recap['this_week']);
+	}
+
+	/**
+	 * Read off the same twelve-week chart the profile draws, so the number
+	 * here cannot disagree with the number on the reader's own profile: the
+	 * last bucket is the week in progress and the one before it is last week.
+	 */
+	public function testTheRecapReadsTheLastTwoWeeksOfTheChart(): void {
+		$this->configService->method('getValueForUser')->willReturn('1');
+		$this->profileHighlightsService->method('forActor')->willReturn([
+			'available' => true,
+			'since' => 0,
+			'weeks' => [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 5, 3],
+			'week_starts' => 0,
+			'hashtags' => [],
+		]);
+
+		$recap = $this->service->recap($this->actor(), 'alice');
+
+		$this->assertTrue($recap['enabled']);
+		$this->assertSame(3, $recap['this_week']);
+		$this->assertSame(5, $recap['last_week']);
+	}
+
+	public function testARecapWithNoChartBehindItIsZeroesRatherThanAnError(): void {
+		$this->configService->method('getValueForUser')->willReturn('1');
+		$this->profileHighlightsService->method('forActor')->willReturn([
+			'available' => false,
+			'since' => 0,
+			'weeks' => [],
+			'week_starts' => 0,
+			'hashtags' => [],
+		]);
+
+		$recap = $this->service->recap($this->actor(), 'alice');
+
+		$this->assertSame(0, $recap['this_week']);
+		$this->assertSame(0, $recap['last_week']);
+	}
+
+	public function testTheSwitchIsStoredAsAFlag(): void {
+		$this->configService->expects($this->once())
+			->method('setValueForUser')
+			->with('alice', MemoriesService::RECAP_KEY, '1');
+
+		$this->service->setRecapEnabled('alice', true);
+	}
+
+	public function testTurningItOffStoresAFlagRatherThanRemovingIt(): void {
+		$this->configService->expects($this->once())
+			->method('setValueForUser')
+			->with('alice', MemoriesService::RECAP_KEY, '0');
+
+		$this->service->setRecapEnabled('alice', false);
 	}
 }

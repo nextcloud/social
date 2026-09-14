@@ -17,13 +17,15 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 
 /**
- * What the reader wrote on this day in years gone by.
+ * The reader looking back at their own posting: what they wrote on this day in
+ * years gone by, and how the last week went.
  *
  * An internal social feed is a company's memory, and almost all of it is
  * unreachable the moment it scrolls off the timeline: a post is found again
- * only by somebody who remembers enough of it to search for it. This is the
- * one view that surfaces old posts without being asked — the same day, a year
- * or more ago.
+ * only by somebody who remembers enough of it to search for it. `onThisDay()`
+ * is the one view that surfaces old posts without being asked — the same day,
+ * a year or more ago. `recap()` is the other direction, the week just gone,
+ * and it is off until the reader asks for it.
  *
  * **Only ever the caller's own posts.** Not a privacy convenience but the
  * whole design: because it is the reader's own, it can include their
@@ -46,9 +48,60 @@ class MemoriesService {
 	/** How many come back in all, however many years had something. */
 	private const TOTAL = 6;
 
+	/**
+	 * The user config key the weekly recap is switched on with.
+	 *
+	 * Off unless it says `'1'`: a card that appears in somebody's feed
+	 * commenting on how much they have posted is something to ask for, not
+	 * something to be given.
+	 */
+	public const RECAP_KEY = 'weekly_recap';
+
 	public function __construct(
 		private StreamRequest $streamRequest,
+		private ConfigService $configService,
+		private ProfileHighlightsService $profileHighlightsService,
 	) {
+	}
+
+	/** @return bool whether this reader asked for the weekly recap */
+	public function recapEnabled(string $userId): bool {
+		return $this->configService->getValueForUser($userId, self::RECAP_KEY) === '1';
+	}
+
+	/** Turns the weekly recap on or off for one reader. */
+	public function setRecapEnabled(string $userId, bool $enabled): void {
+		$this->configService->setValueForUser($userId, self::RECAP_KEY, $enabled ? '1' : '0');
+	}
+
+	/**
+	 * How the reader's week went, and the one before it for comparison.
+	 *
+	 * Read off the same twelve-week chart the profile draws, rather than
+	 * counted again: one place decides what a week is and what counts as a
+	 * post, and the number here cannot disagree with the number on the
+	 * reader's own profile.
+	 *
+	 * No streak, deliberately. A count of consecutive weeks turns posting into
+	 * something that can be lost, and a feed that tells somebody they have
+	 * broken a run is asking for posts rather than offering anything.
+	 *
+	 * @return array{enabled: bool, this_week: int, last_week: int}
+	 */
+	public function recap(Person $actor, string $userId): array {
+		$enabled = $this->recapEnabled($userId);
+		if (!$enabled) {
+			return ['enabled' => false, 'this_week' => 0, 'last_week' => 0];
+		}
+
+		$weeks = $this->profileHighlightsService->forActor($actor)['weeks'];
+		$count = count($weeks);
+
+		return [
+			'enabled' => true,
+			'this_week' => ($count > 0) ? $weeks[$count - 1] : 0,
+			'last_week' => ($count > 1) ? $weeks[$count - 2] : 0,
+		];
 	}
 
 	/**

@@ -56,6 +56,16 @@
 			<ScheduledPosts />
 		</section>
 
+		<section id="recap" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Looking back') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'Posts you wrote on this day in earlier years appear at the top of your feed on their own. This is the other half: a note about the week just gone, if you want one.') }}
+			</p>
+			<RecapSettings />
+		</section>
+
 		<section class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Migration') }}
@@ -70,6 +80,7 @@
 
 <script>
 import MigrationSettings from '../components/MigrationSettings.vue'
+import RecapSettings from '../components/RecapSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
 import { defineAsyncComponent } from 'vue'
@@ -97,6 +108,7 @@ export default {
 		AccountSettings,
 		ListsSettings,
 		MigrationSettings,
+		RecapSettings,
 		ScheduledPosts,
 		ShortcutList,
 	},
