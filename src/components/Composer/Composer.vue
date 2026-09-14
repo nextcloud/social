@@ -86,14 +86,30 @@
 			class="new-post-form"
 			:class="{ 'new-post-form--media-first': hasAttachments }"
 			@submit.prevent>
-			<input
-				v-if="showWarning"
-				v-model="spoilerText"
-				type="text"
-				class="content-warning"
-				maxlength="200"
-				:aria-label="t('social', 'Content warning')"
-				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
+			<div v-if="showWarning" class="content-warning-row">
+				<input
+					v-model="spoilerText"
+					type="text"
+					class="content-warning"
+					maxlength="200"
+					:aria-label="t('social', 'Content warning')"
+					:placeholder="t('social', 'Content warning, e.g. what the post is about')">
+				<!-- the warnings people actually write, as one press each: the
+				     box stays, because the list cannot cover what a post is
+				     about, and pressing one only fills the box in -->
+				<ul class="content-warning-presets" :aria-label="t('social', 'Common content warnings')">
+					<li v-for="preset in warningPresets" :key="preset">
+						<button
+							type="button"
+							class="content-warning-presets__item"
+							:class="{ 'content-warning-presets__item--active': spoilerText === preset }"
+							:aria-pressed="spoilerText === preset ? 'true' : 'false'"
+							@click="chooseWarning(preset)">
+							{{ preset }}
+						</button>
+					</li>
+				</ul>
+			</div>
 			<!-- above the box, not below it: once there is a picture the post
 			     is the picture, and what is typed underneath is its caption -->
 			<PreviewGrid
@@ -434,6 +450,27 @@ const FILTER_DEBOUNCE = 600
 const REFUSAL_DURATION = 400
 
 /**
+ * The content warnings worth one press.
+ *
+ * Not a taxonomy and not a moderation policy — the box is still there and
+ * still takes anything. These are the handful that come up often enough that
+ * typing them again is friction, and having them written the same way every
+ * time is what makes a warning filterable by the people who filter on them.
+ *
+ * Translated, because a warning is read by the people on this instance.
+ */
+function contentWarningPresets() {
+	return [
+		translate('social', 'Spoiler'),
+		translate('social', 'Food'),
+		translate('social', 'Politics'),
+		translate('social', 'Mental health'),
+		translate('social', 'Eye contact'),
+		translate('social', 'Work'),
+	]
+}
+
+/**
  * How far ahead a scheduled post has to be, in milliseconds: the server's
  * `ScheduledStatusService::MIN_LEAD_TIME`, which is Mastodon's five minutes.
  * Checked here as well so the refusal comes before the request, while the
@@ -725,6 +762,11 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useInstanceStore, useTimelineStore),
+
+		/** @return {string[]} the warnings offered as one press each */
+		warningPresets() {
+			return contentWarningPresets()
+		},
 
 		/** @return {number} what the server accepts in one status */
 		maxLength() {
@@ -1038,6 +1080,17 @@ export default {
 	methods: {
 		expand() {
 			this.openedByHand = true
+		},
+
+		/**
+		 * Fills the warning box in from the presets, or empties it when the
+		 * one already chosen is pressed again — the same press undoing itself
+		 * is what the pressed state promises.
+		 *
+		 * @param {string} preset the warning that was pressed
+		 */
+		chooseWarning(preset) {
+			this.spoilerText = this.spoilerText === preset ? '' : preset
 		},
 
 		/**
@@ -2630,6 +2683,50 @@ $composer-duration: 220ms;
 		border-color: var(--color-primary-element);
 		outline: 2px solid var(--color-primary-element);
 		outline-offset: 1px;
+	}
+}
+
+/* the box and the presses that fill it in are one thing on the form */
+.content-warning-row {
+	margin-bottom: 6px;
+
+	.content-warning {
+		margin-bottom: 4px;
+	}
+}
+
+.content-warning-presets {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.content-warning-presets__item {
+	margin: 0;
+	padding: 2px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-pill, 16px);
+	background: var(--color-background-hover);
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+	line-height: 20px;
+	cursor: pointer;
+
+	&:hover,
+	&:focus-visible {
+		border-color: var(--color-primary-element);
+		color: var(--color-main-text);
+	}
+
+	/* the one the box is currently showing, so pressing it again to clear it
+	   is an obvious thing to do rather than a discovery */
+	&--active {
+		border-color: var(--color-primary-element);
+		background: var(--color-primary-element-light);
+		color: var(--color-main-text);
 	}
 }
 </style>
