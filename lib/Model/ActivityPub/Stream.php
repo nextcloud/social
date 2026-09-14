@@ -1599,10 +1599,32 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		// already carries them as `media_attachments`, and a second copy under
 		// a key Mastodon does not define was only ever confusing.
 		if ($this->getExportFormat() !== self::FORMAT_LOCAL) {
-			$result['attachment'] = $this->getAttachments();
+			// as Documents, whatever format the attachments themselves are in:
+			// a post read back from the database has them hydrated in the local
+			// format, and served like that a peer got Mastodon's client entity
+			// under an ActivityPub key -- Pixelfed dropped every picture
+			$result['attachment'] = array_map(
+				static fn (MediaAttachment|array $attachment): array => self::asWireDocument($attachment),
+				$this->getAttachments()
+			);
 		}
 
 		return $result;
+	}
+
+	/**
+	 * One attachment as the wire carries it. A caller may hand the list over
+	 * as arrays already shaped for the wire; those go through as they are.
+	 *
+	 * @param MediaAttachment|array<string, mixed> $attachment
+	 * @return array<string, mixed>
+	 */
+	private static function asWireDocument(MediaAttachment|array $attachment): array {
+		if ($attachment instanceof MediaAttachment) {
+			return $attachment->asDocument();
+		}
+
+		return $attachment;
 	}
 
 	/**

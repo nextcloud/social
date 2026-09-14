@@ -165,6 +165,12 @@ class MediaAttachment implements JsonSerializable {
 		$this->setId($this->get('id', $data));
 		$this->setType($this->get('type', $data));
 		$this->setUrl($this->get('url', $data));
+		// this app's own key on the stored row (see asLocal()); a row from
+		// before it existed, or a Mastodon entity, has none and gets a guess
+		$this->setMediaType($this->get('media_type', $data, $this->get('mediaType', $data, '')));
+		if ($this->getMediaType() === '') {
+			$this->setMediaType(self::guessMediaType($this->getType(), $this->getUrl()));
+		}
 		$this->setPreviewUrl($this->get('preview_url', $data));
 		$this->setRemoteUrl($this->get('remote_url', $data));
 		$this->setDescription($this->get('description', $data));
@@ -206,6 +212,11 @@ class MediaAttachment implements JsonSerializable {
 		return [
 			'id' => $this->getId(),
 			'type' => $this->getType(),
+			// not Mastodon's: the full mime, kept so that the ActivityPub
+			// Document this row is served as later can state it. Pixelfed
+			// refuses an attachment without one; Mastodon sniffs the URL and
+			// hid for weeks that every re-served post had lost it.
+			'media_type' => $this->getMediaType(),
 			'url' => $this->onThisInstance($this->getUrl()),
 			'preview_url' => ($preview === null || $preview === '') ? null : $preview,
 			'remote_url' => ($remote === null || $remote === '') ? null : $remote,
@@ -216,6 +227,32 @@ class MediaAttachment implements JsonSerializable {
 			'description' => ($this->getDescription() === '') ? null : $this->getDescription(),
 			'blurhash' => ($this->getBlurHash() === '') ? null : $this->getBlurHash(),
 		];
+	}
+
+	/**
+	 * The mime a row written before `media_type` was stored most likely has:
+	 * from the file extension where there is one, else the commonest type of
+	 * its kind. A guess, but a guess Pixelfed accepts; '' it refuses.
+	 */
+	public static function guessMediaType(string $type, string $url): string {
+		$extension = strtolower(pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+		$byExtension = [
+			'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif',
+			'webp' => 'image/webp', 'avif' => 'image/avif', 'heic' => 'image/heic', 'heif' => 'image/heif',
+			'mp4' => 'video/mp4', 'm4v' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime',
+			'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'ogg' => 'audio/ogg', 'oga' => 'audio/ogg',
+			'opus' => 'audio/opus', 'wav' => 'audio/wav', 'flac' => 'audio/flac', 'aac' => 'audio/aac',
+		];
+		if (isset($byExtension[$extension])) {
+			return $byExtension[$extension];
+		}
+
+		return match ($type) {
+			'image' => 'image/jpeg',
+			'video', 'gifv' => 'video/mp4',
+			'audio' => 'audio/mpeg',
+			default => '',
+		};
 	}
 
 	/**
