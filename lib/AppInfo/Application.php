@@ -26,6 +26,7 @@ use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Middleware\AccessBlockMiddleware;
 use OCA\Social\Notification\Notifier;
+use OCA\Social\Reference\PostReferenceProvider;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
@@ -63,6 +64,7 @@ class Application extends App implements IBootstrap {
 		// refused whatever it was asking for
 		$context->registerMiddleware(AccessBlockMiddleware::class);
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
+		$context->registerReferenceProvider(PostReferenceProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
 		$context->registerEventListener(UserUpdatedEvent::class, UserAccountListener::class);

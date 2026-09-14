@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Activity\Publisher as ActivityPublisher;
 use OCA\Social\AP;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorRelationRequest;
@@ -70,6 +71,9 @@ class NotificationServiceTest extends TestCase {
 	private ActionsRequest|MockObject $actionsRequest;
 	private AccountRelationService|MockObject $accountRelationService;
 	private INotificationManager|MockObject $notificationManager;
+	private ActivityPublisher|MockObject $activityPublisher;
+	/** @var array<int, array> every Activity entry published: user, subject, actor label, link, excerpt */
+	private array $activities = [];
 	private NotificationService $service;
 
 	/** @var array<string, string> local actor id => the Nextcloud user it belongs to */
@@ -184,6 +188,17 @@ class NotificationServiceTest extends TestCase {
 				$this->withdrawn[] = $this->fieldsOf($notification);
 			});
 
+		$this->activityPublisher = $this->createMock(ActivityPublisher::class);
+		$this->activityPublisher->method('publish')->willReturnCallback(
+			function (string $userId, string $subject, ?Person $actor, string $actorId, string $link, string $excerpt, int $objectId): void {
+				$this->activities[] = [
+					'user' => $userId, 'subject' => $subject, 'actor' => $actor?->getName() ?? $actorId,
+					'actorUser' => $actor?->getUserId() ?? '',
+					'link' => $link, 'excerpt' => $excerpt, 'object' => $objectId,
+				];
+			}
+		);
+
 		$this->service = new NotificationService(
 			$this->streamRequest,
 			$this->streamService,
@@ -193,6 +208,7 @@ class NotificationServiceTest extends TestCase {
 			$this->actionsRequest,
 			$this->accountRelationService,
 			$this->notificationManager,
+			$this->activityPublisher,
 			new NullLogger(),
 			$this->urlGenerator()
 		);
@@ -315,6 +331,50 @@ class NotificationServiceTest extends TestCase {
 		$this->assertSame(
 			'https://remote.example/avatars/bob.png', $this->raised[0]['parameters']['avatar']
 		);
+	}
+
+	public function testWhatTheBellIsToldTheActivityAppIsToldToo(): void {
+		$post = $this->post();
+		$post->setContent('<p>Hello <b>@alice</b>, look at this</p>');
+		$this->service->onNotification($this->mention(self::ALICE, $post));
+
+		$this->assertCount(1, $this->activities);
+		$this->assertSame('alice', $this->activities[0]['user']);
+		$this->assertSame('mention', $this->activities[0]['subject']);
+		$this->assertSame('Bob', $this->activities[0]['actor']);
+		$this->assertSame($this->raised[0]['parameters']['link'], $this->activities[0]['link'], 'the same link as the bell');
+		$this->assertSame('Hello @alice, look at this', $this->activities[0]['excerpt'], 'the post, as plain text');
+		$this->assertSame(5, $this->activities[0]['object'], 'its own entry, keyed by the row it mirrors');
+	}
+
+	public function testALocalActorReachesTheActivityAppAsTheNextcloudUserTheyAre(): void {
+		// carol has no cached copy at all in this fixture; the actors table knows her
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::CAROL));
+
+		$this->assertCount(1, $this->activities);
+		$this->assertSame('carol', $this->activities[0]['actorUser']);
+	}
+
+	public function testARemoteActorReachesTheActivityAppWithoutAUser(): void {
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		$this->assertSame('', $this->activities[0]['actorUser']);
+	}
+
+	public function testTheActivityEntryReadsThePostOffTheStoreWhenTheRowOnlyNamesIt(): void {
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		$this->assertCount(1, $this->activities);
+		$this->assertSame('favourite', $this->activities[0]['subject']);
+		$this->assertSame('', $this->activities[0]['excerpt'], 'the stored post has no content in this fixture');
+	}
+
+	public function testWhatTheBellKeepsQuietAboutTheActivityAppKeepsQuietAboutToo(): void {
+		$this->service->onNotification($this->row(Like::TYPE, self::BOB, self::BOB));
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::ALICE));
+
+		$this->assertSame([], $this->raised);
+		$this->assertSame([], $this->activities);
 	}
 
 	public function testAMentionWithoutTheAuthorAtHandReadsItOffThePost(): void {
