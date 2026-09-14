@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.43  
+**App version:** 0.19.49  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -774,6 +774,8 @@ in the DOM, so the tab order follows the eye — and the box becomes a caption
 field. A picture with no alt text is marked as such on its own thumbnail, and a
 description is saved on leaving the field rather than only when the post goes
 out, so it survives a post that is never sent.
+
+**Phone layout.** One breakpoint, 600px, stated twice on purpose: as `PHONE_WIDTH` in `src/services/phone.js` (a shared `matchMedia` query with `isPhone()` and `onPhoneChange()`) and as the `@media (max-width: 600px)` rule in the stylesheets that lay themselves out differently on a phone — `TimelineEntry.vue` (the avatar column goes; the face, 36px, sits inside the card over the corner `.post-header` leaves for it, which is why `TimelineAvatar` takes a `size`), `TimelinePost.vue` (less padding), `TimelineSinglePost.vue` (the 64px the fine print and the spine kept for the avatar column), and `Composer.vue` (the toolbar wraps, the visibility menu is icon-only, Post keeps the end of its row). Nextcloud's own mobile breakpoint, 1024px, is where the sidebar collapses; the only rule at that width is `Timeline.vue`'s, which starts the page's first element below the sidebar toggle. A tablet in portrait is between the two and keeps the avatar column.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
 

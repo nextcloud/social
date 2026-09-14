@@ -394,6 +394,28 @@ export default {
 	font-size: 13px;
 }
 
+/* a phone: no avatar column to be level with, so nothing is set in 64px
+   from it, and the spine runs down the middle of the face inside the card */
+@media (max-width: 600px) {
+	.thread .social__timeline {
+		margin-inline-start: 0;
+	}
+
+	.thread--connected::before {
+		inset-inline-start: 29px;
+	}
+
+	.main-post {
+		margin-inline-start: 0;
+	}
+
+	.main-post__under,
+	.thread__hidden {
+		margin-inline-start: 0;
+		padding-inline-start: 12px;
+	}
+}
+
 #app-content {
 	position: relative;
 }

@@ -356,4 +356,13 @@ export default {
 	position: relative;
 }
 
+/* while the sidebar is collapsed its toggle sits over the top-left corner of
+   the content, where the composer or the heading begins; the first thing on
+   the page starts below it */
+@media (max-width: 1024px) {
+	.social__wrapper > :first-child {
+		margin-top: calc(var(--default-clickable-area, 44px) + var(--default-grid-baseline, 4px) * 2);
+	}
+}
+
 </style>

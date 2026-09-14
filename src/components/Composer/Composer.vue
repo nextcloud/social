@@ -2008,6 +2008,32 @@ $composer-duration: 220ms;
 	flex-grow: 1;
 }
 
+/*
+ * A phone. Seven controls and a Post button do not fit one row of 358px, and
+ * the row used to end with half the button off the screen. The row wraps: the
+ * spacer goes, the visibility menu shows its icon only, and Post keeps the
+ * end of whatever row it lands on.
+ */
+@media (max-width: 600px) {
+	.options {
+		flex-wrap: wrap;
+		row-gap: 4px;
+		max-height: 120px;
+
+		.emptySpace {
+			display: none;
+		}
+
+		:deep(.action-item__menutoggle .button-vue__text) {
+			display: none;
+		}
+
+		> :last-child {
+			margin-inline-start: auto;
+		}
+	}
+}
+
 .hashtag {
 	color: var(--color-primary-element);
 	text-decoration: none;

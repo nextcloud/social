@@ -1172,6 +1172,13 @@ function nodeToPlainText(node) {
 	75% { transform: translateX(4px); }
 }
 
+@media (max-width: 600px) {
+	.post-content {
+		// the screen's width is the post's: less of it goes to the frame
+		padding: 14px 16px 12px;
+	}
+}
+
 .post-content--openable {
 	cursor: pointer;
 }

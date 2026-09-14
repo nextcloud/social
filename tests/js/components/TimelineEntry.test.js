@@ -4,12 +4,22 @@
  */
 
 import { mount, RouterLinkStub } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import TimelineEntry from '../../../src/components/TimelineEntry.vue'
 import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
 import ActorAvatar from '../../../src/components/ActorAvatar.vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTimelineStore } from '../../../src/store/timeline.js'
+
+// the phone query, under the test's control: what it answers and who listens
+const phone = vi.hoisted(() => ({ matches: false, listeners: new Set() }))
+vi.mock('../../../src/services/phone.js', () => ({
+	isPhone: () => phone.matches,
+	onPhoneChange: (callback) => {
+		phone.listeners.add(callback)
+		return () => phone.listeners.delete(callback)
+	},
+}))
 
 const alice = {
 	id: '1',
@@ -67,7 +77,7 @@ const TimelinePostStub = {
 }
 const TimelineAvatarStub = {
 	name: 'TimelineAvatar',
-	props: ['item'],
+	props: ['item', 'size'],
 	template: '<div class="timeline-avatar-stub" />',
 }
 const UserEntryStub = {
@@ -251,6 +261,38 @@ describe('TimelineEntry', () => {
 			expect(header.find('.material-design-icon').exists()).toBe(false)
 			expect(header.find('.notification__summary').text()).toBe('')
 			expect(wrapper.findComponent(TimelinePostStub).props('item')).toEqual(post)
+		})
+	})
+
+	describe('on a phone', () => {
+		afterEach(() => {
+			phone.matches = false
+			phone.listeners.clear()
+		})
+
+		it('leaves the avatar its default size on a wide screen', () => {
+			const { wrapper } = mountEntry(post)
+
+			expect(wrapper.findComponent(TimelineAvatarStub).props('size')).toBeNull()
+		})
+
+		it('asks for a face small enough to sit inside the card', () => {
+			phone.matches = true
+			const { wrapper } = mountEntry(post)
+
+			expect(wrapper.findComponent(TimelineAvatarStub).props('size')).toBe(36)
+		})
+
+		it('follows a rotation, and stops listening when it is gone', async () => {
+			const { wrapper } = mountEntry(post)
+			expect(phone.listeners.size).toBe(1)
+
+			phone.listeners.forEach((fn) => fn(true))
+			await wrapper.vm.$nextTick()
+			expect(wrapper.findComponent(TimelineAvatarStub).props('size')).toBe(36)
+
+			wrapper.unmount()
+			expect(phone.listeners.size).toBe(0)
 		})
 	})
 })
