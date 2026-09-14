@@ -357,8 +357,12 @@ export default {
 			exploreOpen: true,
 			/** the window's height, the fallback until the rail can be measured */
 			viewportHeight: 0,
-			/** how many entries the rail has room for, measured from the rail */
-			measuredCap: 0,
+			/**
+			 * How many entries the rail has room for, measured from the rail.
+			 * `null` until there is something to measure — zero is a real
+			 * answer, so it cannot double as "not measured yet".
+			 */
+			measuredCap: null,
 			localSearch: '',
 			showComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
@@ -388,7 +392,7 @@ export default {
 		 * @return {number}
 		 */
 		exploreCap() {
-			return this.measuredCap > 0 ? this.measuredCap : entriesThatFit(this.viewportHeight)
+			return this.measuredCap === null ? entriesThatFit(this.viewportHeight) : this.measuredCap
 		},
 
 		/**
@@ -819,34 +823,35 @@ export default {
 		measureRail() {
 			const item = this.$refs.exploreItem?.$el
 			const list = item?.parentElement
+			const children = item?.querySelector('.app-navigation-entry__children')
+			const rows = children ? children.children : []
 
-			if (!item || !list || typeof list.clientHeight !== 'number' || list.clientHeight === 0) {
-				// nothing laid out yet, or jsdom: the window figure stands in
-				this.measuredCap = 0
+			if (!list || !list.clientHeight || rows.length === 0) {
+				// nothing laid out yet, or collapsed, or jsdom: the window
+				// figure stands in
+				this.measuredCap = null
 				return
 			}
 
-			const children = item.querySelector('.app-navigation-entry__children')
-			const childrenHeight = children ? children.offsetHeight : 0
-			const rowHeight = children?.firstElementChild?.offsetHeight || 0
+			// Where the children begin, in the rail's own content
+			// coordinates. This is set by everything *above* them and not by
+			// how many there are, which is what keeps the measurement from
+			// feeding on itself.
+			const listTop = list.getBoundingClientRect().top
+			const childrenTop = children.getBoundingClientRect().top - listTop + list.scrollTop
 
-			// Everything in the rail except the Explore children: the button,
-			// the entries, the spacers, the Explore row itself. Summed from
-			// the rows rather than taken from `scrollHeight`, which is only
-			// the content height while the content overflows — - the rest of
-			// the time it is the container's height, so `scrollHeight` less
-			// the children grew with the window and left `free` pinned at
-			// whatever the children already occupied. The entry then never
-			// grew back once it had shrunk.
-			let fixed = 0
-			for (const row of list.children) {
-				fixed += row.offsetHeight
-			}
-			fixed -= childrenHeight
+			// The pitch from one row to the next, which is the only figure
+			// that carries whatever margin they have. `offsetHeight` does not,
+			// and summing it left the rail overflowing by exactly the margins
+			// — the last entries ran under the account footer.
+			const first = rows[0].getBoundingClientRect()
+			const pitch = rows.length > 1
+				? rows[1].getBoundingClientRect().top - first.top
+				: first.height
 
 			this.measuredCap = capacityFrom({
-				free: list.clientHeight - fixed,
-				rowHeight,
+				free: list.clientHeight - childrenTop,
+				rowHeight: pitch,
 			})
 		},
 

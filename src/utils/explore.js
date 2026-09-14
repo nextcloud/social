@@ -31,12 +31,14 @@ const RESERVED_HEIGHT = 544
 export const MAX_ENTRIES = 12
 
 /**
- * And never fewer than this, however short.
+ * And never fewer than this.
  *
- * Below this the entry stops being a way to reach anything and the reader is
- * better served by the count and the Discover page.
+ * Zero: when there is no room left above the account footer the entries go
+ * rather than run underneath it. The Explore row itself stays, so the reader
+ * can still collapse it or make the window bigger, and nothing is drawn where
+ * it cannot be read.
  */
-export const MIN_ENTRIES = 3
+export const MIN_ENTRIES = 0
 
 /**
  * How many entries fit, from a measurement of the rail itself.

@@ -390,35 +390,31 @@ describe('Navigation', () => {
 			 * the content height, or the container's when nothing overflows —
 			 * so that a measurement which leant on it would be caught here.
 			 */
-			const layOut = (wrapper, { railHeight, fixedHeight, rowHeight, shownRows = 1 }) => {
+			/**
+			 * Lays the rail out the way a browser reports it.
+			 *
+			 * The measurement reads geometry, not `offsetHeight`: where the
+			 * children start, and the pitch from one row to the next. jsdom
+			 * reports zero for all of it, so it is given here.
+			 */
+			const layOut = (wrapper, { railHeight, childrenTop, pitch, shownRows = 2 }) => {
 				const item = wrapper.findAll('.nav-item.navigation__explore')[0].element
 				const list = item.parentElement
 
 				item.querySelector('.app-navigation-entry__children')?.remove()
 				const children = document.createElement('ul')
 				children.className = 'app-navigation-entry__children'
-				for (let i = 0; i < shownRows; i++) {
+				for (let i = 0; i < Math.max(2, shownRows); i++) {
 					const row = document.createElement('li')
-					Object.defineProperty(row, 'offsetHeight', { value: rowHeight, configurable: true })
+					row.getBoundingClientRect = () => ({ top: childrenTop + i * pitch, height: pitch })
 					children.appendChild(row)
 				}
-				const childrenHeight = shownRows * rowHeight
-				Object.defineProperty(children, 'offsetHeight', { value: childrenHeight, configurable: true })
+				children.getBoundingClientRect = () => ({ top: childrenTop, height: shownRows * pitch })
 				item.appendChild(children)
 
-				// the fixed content sits on the Explore row, plus its children
-				Object.defineProperty(item, 'offsetHeight', { value: fixedHeight + childrenHeight, configurable: true })
-				for (const sibling of list.children) {
-					if (sibling !== item) {
-						Object.defineProperty(sibling, 'offsetHeight', { value: 0, configurable: true })
-					}
-				}
-
+				list.getBoundingClientRect = () => ({ top: 0, height: railHeight })
 				Object.defineProperty(list, 'clientHeight', { value: railHeight, configurable: true })
-				Object.defineProperty(list, 'scrollHeight', {
-					value: Math.max(railHeight, fixedHeight + childrenHeight),
-					configurable: true,
-				})
+				Object.defineProperty(list, 'scrollTop', { value: 0, configurable: true })
 			}
 
 			it('shows more when the rail has more room', async () => {
@@ -426,18 +422,17 @@ describe('Navigation', () => {
 				const wrapper = mountNavigation()
 				await flushPromises()
 
-				layOut(wrapper, { railHeight: 900, fixedHeight: 500, rowHeight: 44 })
+				layOut(wrapper, { railHeight: 900, childrenTop: 400, pitch: 42 })
 				wrapper.vm.measureRail()
 				await nextTick()
 				const roomy = tagItems(wrapper).length
 
-				layOut(wrapper, { railHeight: 700, fixedHeight: 500, rowHeight: 44 })
+				layOut(wrapper, { railHeight: 700, childrenTop: 400, pitch: 42 })
 				wrapper.vm.measureRail()
 				await nextTick()
 				const tight = tagItems(wrapper).length
 
 				expect(roomy).toBeGreaterThan(tight)
-				expect(tight).toBeGreaterThanOrEqual(3)
 			})
 
 			/**
@@ -458,12 +453,12 @@ describe('Navigation', () => {
 				const wrapper = mountNavigation()
 				await flushPromises()
 
-				layOut(wrapper, { railHeight: 420, fixedHeight: 400, rowHeight: 38, shownRows: 3 })
+				layOut(wrapper, { railHeight: 520, childrenTop: 400, pitch: 38, shownRows: 3 })
 				wrapper.vm.measureRail()
 				await nextTick()
 				const shrunk = tagItems(wrapper).length
 
-				layOut(wrapper, { railHeight: 900, fixedHeight: 400, rowHeight: 38, shownRows: shrunk })
+				layOut(wrapper, { railHeight: 900, childrenTop: 400, pitch: 38, shownRows: shrunk })
 				wrapper.vm.measureRail()
 				await nextTick()
 
@@ -475,7 +470,7 @@ describe('Navigation', () => {
 				const wrapper = mountNavigation()
 				await flushPromises()
 
-				layOut(wrapper, { railHeight: 900, fixedHeight: 500, rowHeight: 44 })
+				layOut(wrapper, { railHeight: 900, childrenTop: 400, pitch: 42 })
 				wrapper.vm.measureRail()
 				await nextTick()
 				const first = tagItems(wrapper).length
@@ -488,6 +483,44 @@ describe('Navigation', () => {
 				await nextTick()
 
 				expect(tagItems(wrapper).length).toBe(first)
+			})
+
+			/**
+			 * What the reader saw: the entries ran on past the bottom of the
+			 * rail and under the account footer. The pitch from one row to the
+			 * next is the figure that carries their margins — `offsetHeight`
+			 * does not, and summing that let exactly the margins overflow.
+			 */
+			it('never asks for more rows than fit between the children and the bottom', async () => {
+				withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+				const wrapper = mountNavigation()
+				await flushPromises()
+
+				const railHeight = 800
+				const childrenTop = 500
+				const pitch = 42
+				layOut(wrapper, { railHeight, childrenTop, pitch })
+				wrapper.vm.measureRail()
+				await nextTick()
+
+				const shown = tagItems(wrapper).length
+
+				expect(childrenTop + shown * pitch).toBeLessThanOrEqual(railHeight)
+			})
+
+			// no room at all: they go rather than run under the footer
+			it('shows none when there is no room left', async () => {
+				withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+				const wrapper = mountNavigation()
+				await flushPromises()
+
+				layOut(wrapper, { railHeight: 520, childrenTop: 500, pitch: 42 })
+				wrapper.vm.measureRail()
+				await nextTick()
+
+				expect(tagItems(wrapper).length).toBe(0)
+				// the entry itself stays, so it can still be collapsed
+				expect(wrapper.findAll('.nav-item.navigation__explore')).toHaveLength(1)
 			})
 
 			it('falls back to the window when there is nothing laid out', async () => {
