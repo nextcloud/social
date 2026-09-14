@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.40  
+**App version:** 0.19.41  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -1137,7 +1137,7 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Dashboard | `SocialReportsWidget` | `Application::register()` | Open moderation reports; conditional — admins only |
 | Dashboard | `SocialFederationHealthWidget` | `Application::register()` | Instances the outbound queue is failing to reach; conditional — admins only |
 | Unified Search | `UnifiedSearchProvider` | `Application::register()` | Searches URIs, accounts, hashtags and **status content** (case-insensitive substring over the statuses the viewer may see: own posts, public/unlisted, and what is addressed to them — the timeline viewer bound). Local hits link to the post page, remote hits to their origin. Honours the query's cursor and limit — each source is asked for one entry past the end of the page, and a further page is offered only when one of them supplied it. It used to advertise a next cursor unconditionally while reading neither, so "load more" served the first page for ever |
-| Notifications | `Notifier` | `Application::register()` | Prepares Social notifications for the NC notification system |
+| Notifications | `Notifier` | `Application::register()` | Prepares Social notifications for the NC notification system: every subject in `NotificationService::SUBJECTS` is worded, linked into this app's own pages (`NotificationService::emit()` builds the link from the post's nid or the account's handle), and a `follow_request` carries Accept/Decline actions that POST to `/api/v1/follow_requests/{id}/authorize` and `/reject`; the answer dismisses the stored row and withdraws the bell entry (`onFollowRequestAnswered()`) |
 | User migration | `UserMigration\SocialMigrator` | `Application::register()` | Puts the user's Social data in a Nextcloud account export, and reads it back on import. See "Account export and import" below |
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
 | Files | `FilesScriptsListener` | `Application::register()` (on `OCA\Files\Event\LoadAdditionalScriptsEvent`) | Adds the self-contained `social-filesAction` init script, which registers "Share to Social" on pictures and videos |

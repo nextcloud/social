@@ -111,6 +111,21 @@ class Notifier implements INotifier {
 					$l10n->t('%s wants to follow you', [$this->account($params)])
 				);
 				$this->point($notification, $params);
+				$this->offerToAnswer($notification, $params, $l10n);
+				break;
+			case 'poll':
+				$notification->setParsedSubject(
+					$l10n->t('The poll by %s has ended', [$this->account($params)])
+				);
+				$this->point($notification, $params);
+				break;
+			case 'status':
+				// the bell on a profile: a post from an account the reader asked
+				// to be told about
+				$notification->setParsedSubject(
+					$l10n->t('%s posted', [$this->account($params)])
+				);
+				$this->point($notification, $params);
 				break;
 
 			case 'update':
@@ -190,6 +205,34 @@ class Notifier implements INotifier {
 		if ($this->isWebUrl($avatar)) {
 			$notification->setIcon($avatar);
 		}
+	}
+
+	/**
+	 * Accept and Decline, on the bell entry itself. Both POST to the routes a
+	 * Mastodon client uses for the same answer, and the answer takes the entry
+	 * down (`NotificationService::onFollowRequestAnswered()`). Offered only
+	 * when the follower's id is known -- an entry raised before it was stored
+	 * still says who asked and links to them.
+	 */
+	private function offerToAnswer(INotification $notification, array $params, IL10N $l10n): void {
+		$nid = (int)($params['nid'] ?? 0);
+		if ($nid < 1) {
+			return;
+		}
+
+		$accept = $notification->createAction();
+		$accept->setLabel('accept')
+			->setParsedLabel($l10n->t('Accept'))
+			->setPrimary(true)
+			->setLink($this->url->linkToRouteAbsolute('social.Api.followRequestAuthorize', ['id' => (string)$nid]), 'POST');
+		$notification->addAction($accept);
+
+		$decline = $notification->createAction();
+		$decline->setLabel('decline')
+			->setParsedLabel($l10n->t('Decline'))
+			->setPrimary(false)
+			->setLink($this->url->linkToRouteAbsolute('social.Api.followRequestReject', ['id' => (string)$nid]), 'POST');
+		$notification->addAction($decline);
 	}
 
 	private function isWebUrl(string $url): bool {

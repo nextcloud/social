@@ -166,6 +166,7 @@ class NotifierSubjectsTest extends TestCase {
 	public function testASubjectNothingRaisesIsStillRejected(): void {
 		$this->expectException(\InvalidArgumentException::class);
 
-		$this->notifier->prepare($this->notification('poll', $this->params()), 'en');
+		// `severed_relationships` reaches the client API but no bell is raised for it
+		$this->notifier->prepare($this->notification('severed_relationships', $this->params()), 'en');
 	}
 }

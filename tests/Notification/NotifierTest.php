@@ -145,6 +145,86 @@ class NotifierTest extends TestCase {
 		return $notification;
 	}
 
+	/** @return INotification&MockObject with the actions it was given captured */
+	private function notificationWith(string $subject, array $params, array &$actions): INotification {
+		$notification = $this->createMock(INotification::class);
+		$notification->method('getApp')->willReturn('social');
+		$notification->method('getSubject')->willReturn($subject);
+		$notification->method('getSubjectParameters')->willReturn($params);
+		$notification->method('setIcon')->willReturnSelf();
+		$notification->method('setLink')->willReturnSelf();
+		$notification->method('setParsedSubject')->willReturnSelf();
+		$notification->method('setParsedMessage')->willReturnSelf();
+		$notification->method('createAction')->willReturnCallback(function () use (&$actions): IAction {
+			$index = count($actions);
+			$actions[$index] = ['label' => '', 'link' => '', 'method' => '', 'primary' => false];
+			$action = $this->createMock(IAction::class);
+			$action->method('setLabel')->willReturnSelf();
+			$action->method('setParsedLabel')->willReturnCallback(function (string $label) use (&$actions, $index, $action): IAction {
+				$actions[$index]['label'] = $label;
+				return $action;
+			});
+			$action->method('setPrimary')->willReturnCallback(function (bool $primary) use (&$actions, $index, $action): IAction {
+				$actions[$index]['primary'] = $primary;
+				return $action;
+			});
+			$action->method('setLink')->willReturnCallback(function (string $link, string $method) use (&$actions, $index, $action): IAction {
+				$actions[$index]['link'] = $link;
+				$actions[$index]['method'] = $method;
+				return $action;
+			});
+			return $action;
+		});
+		$notification->method('addAction')->willReturnSelf();
+
+		return $notification;
+	}
+
+	/**
+	 * A follow request is answered where it is seen: Accept and Decline on the
+	 * bell entry, POSTing to the routes a Mastodon client uses for the same.
+	 */
+	public function testAFollowRequestOffersAcceptAndDecline(): void {
+		$this->translationsFor('en');
+		$this->urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
+			fn (string $route, array $params = []): string => 'https://cloud.example/' . $route . '/' . ($params['id'] ?? '')
+		);
+		$actions = [];
+		$notification = $this->notificationWith('follow_request', ['account' => 'Bob', 'link' => 'https://cloud.example/apps/social/@bob', 'nid' => 42], $actions);
+		$notification->expects($this->exactly(2))->method('addAction');
+
+		$this->notifier->prepare($notification, 'en');
+
+		$this->assertSame(
+			[
+				['label' => '[en] Accept', 'link' => 'https://cloud.example/social.Api.followRequestAuthorize/42', 'method' => 'POST', 'primary' => true],
+				['label' => '[en] Decline', 'link' => 'https://cloud.example/social.Api.followRequestReject/42', 'method' => 'POST', 'primary' => false],
+			],
+			$actions
+		);
+	}
+
+	public function testAFollowRequestWithoutAKnownFollowerOffersNothingToClick(): void {
+		$this->translationsFor('en');
+		$actions = [];
+		$notification = $this->notificationWith('follow_request', ['account' => 'Bob', 'link' => ''], $actions);
+		$notification->expects($this->never())->method('addAction');
+
+		$this->notifier->prepare($notification, 'en');
+	}
+
+	public function testAClosedPollAndASubscribedPostAreWorded(): void {
+		$this->translationsFor('en');
+		$actions = [];
+		foreach (['poll' => '[en] The poll by Bob has ended', 'status' => '[en] Bob posted'] as $subject => $expected) {
+			$notification = $this->notificationWith($subject, ['account' => 'Bob', 'link' => 'https://cloud.example/apps/social/@bob/9'], $actions);
+			$notification->expects($this->once())->method('setParsedSubject')->with($expected);
+			$notification->expects($this->once())->method('setLink')->with('https://cloud.example/apps/social/@bob/9');
+
+			$this->notifier->prepare($notification, 'en');
+		}
+	}
+
 	public function testANewLocalReportLinksToTheAdminSettings(): void {
 		$this->translationsFor('en');
 		$this->urlGenerator->method('linkToRouteAbsolute')

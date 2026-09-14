@@ -29,6 +29,7 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
 use Psr\Log\LoggerInterface;
 
@@ -68,6 +69,11 @@ class NotificationService {
 		Follow::TYPE => 'follow',
 		Follow::TYPE_REQUEST => 'follow_request',
 		Update::TYPE => 'update',
+		// the two events this instance raises itself that a reader wants to
+		// hear about: a poll they voted in closing, and a post from an account
+		// whose bell they rang
+		Stream::SUBTYPE_POLL => 'poll',
+		Stream::SUBTYPE_STATUS => 'status',
 	];
 
 	/** The `object_type` every notification of this app is filed under. */
@@ -98,6 +104,7 @@ class NotificationService {
 		private AccountRelationService $accountRelationService,
 		private INotificationManager $notificationManager,
 		private LoggerInterface $logger,
+		private IURLGenerator $urlGenerator,
 	) {
 	}
 
@@ -415,9 +422,13 @@ class NotificationService {
 
 		$recipientId = $notification->getTo();
 		$actorId = ($actorId !== '') ? $actorId : $this->actorOf($notification);
-		if ($recipientId === '' || $actorId === '' || $recipientId === $actorId) {
+		if ($recipientId === '' || $actorId === '') {
+			return;
+		}
+		if ($recipientId === $actorId && $subject !== 'poll') {
 			// somebody boosting their own post, or replying to themselves with
-			// their own handle in it, is not news to them
+			// their own handle in it, is not news to them -- their own poll
+			// closing is, which is also who Mastodon tells
 			return;
 		}
 
@@ -432,22 +443,95 @@ class NotificationService {
 		}
 
 		$actor = $this->cachedActor($actorId);
-		$link = in_array($subject, ['follow', 'follow_request'], true)
-			? $actorId
-			: $notification->getObjectId();
+		$parameters = [
+			'account' => ($actor === null) ? $actorId : $this->labelOf($actor),
+			// into this app, not at the remote object: a bell entry that opened
+			// a Mastodon page for a post the reader can see here was the
+			// complaint in nextcloud/social#1628
+			'link' => in_array($subject, ['follow', 'follow_request'], true)
+				? $this->profileLink($actor, $actorId)
+				: $this->postLink($notification),
+			'avatar' => ($actor === null) ? '' : $actor->getAvatar(),
+		];
+		if ($subject === 'follow_request' && $actor !== null && $actor->getNid() > 0) {
+			// what Notifier builds the Accept and Decline actions from
+			$parameters['nid'] = $actor->getNid();
+		}
 
 		$raised = $this->notificationManager->createNotification();
 		$raised->setApp('social')
 			->setDateTime(new DateTime('now'))
 			->setUser($recipient->getUserId())
 			->setObject(self::OBJECT, $this->objectId($notification->getId()))
-			->setSubject($subject, [
-				'account' => ($actor === null) ? $actorId : $this->labelOf($actor),
-				'link' => $link,
-				'avatar' => ($actor === null) ? '' : $actor->getAvatar(),
-			]);
+			->setSubject($subject, $parameters);
 
 		$this->notificationManager->notify($raised);
+	}
+
+	/**
+	 * A follow request was answered: the bell entry that asked is taken down
+	 * with the row behind it, so it does not come back on the next reload.
+	 * Never throws -- the answer is given whether or not the bell hears.
+	 */
+	public function onFollowRequestAnswered(Person $viewer, string $followerId): void {
+		try {
+			foreach ($this->page($viewer, self::CLEAR_PAGE) as $row) {
+				if ($row->getSubType() === Follow::TYPE_REQUEST
+					&& $row->getAttributedTo() === $followerId) {
+					$this->dismiss($viewer, $row->getNid());
+				}
+			}
+		} catch (Exception $e) {
+			$this->logger->debug('could not take a follow request off the bell', ['exception' => $e]);
+		}
+	}
+
+	/** This app's page for an account, or the actor's own address when it has no handle here. */
+	private function profileLink(?Person $actor, string $actorId): string {
+		$acct = $this->acctOf($actor);
+
+		return ($acct === '') ? $actorId : $this->appLink('@' . $acct);
+	}
+
+	/**
+	 * This app's page for the post a notification is about, or the post's
+	 * own address when it is not one this instance holds.
+	 */
+	private function postLink(SocialAppNotification $notification): string {
+		$post = $notification->getDetailsAll()['post'] ?? null;
+		if (!($post instanceof Stream)) {
+			try {
+				$post = $this->streamRequest->getStreamById($notification->getObjectId());
+			} catch (Exception $e) {
+				return $notification->getObjectId();
+			}
+		}
+
+		$acct = $this->acctOf($this->cachedActor($post->getAttributedTo()));
+		if ($acct === '') {
+			try {
+				$acct = $this->actorsRequest->getFromId($post->getAttributedTo())->getPreferredUsername();
+			} catch (Exception $e) {
+				$acct = '';
+			}
+		}
+		if ($acct === '' || $post->getNid() < 1) {
+			return $notification->getObjectId();
+		}
+
+		return $this->appLink('@' . $acct . '/' . $post->getNid());
+	}
+
+	private function acctOf(?Person $actor): string {
+		if ($actor === null) {
+			return '';
+		}
+
+		return ($actor->getAccount() !== '') ? $actor->getAccount() : $actor->getPreferredUsername();
+	}
+
+	private function appLink(string $path): string {
+		return rtrim($this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'), '/') . '/' . $path;
 	}
 
 	/**
