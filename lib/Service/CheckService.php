@@ -8,6 +8,7 @@
 namespace OCA\Social\Service;
 
 use Exception;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -26,6 +27,7 @@ use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
 use OCP\ICache;
+use OCP\ICacheFactory;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -43,11 +45,12 @@ class CheckService {
 	public const CACHE_PREFIX = 'social_check_';
 
 	private ?string $userId = null;
+	private ICache $cache;
 
 	public function __construct(
 		private IUserManager $userManager,
 		?string $userId,
-		private ICache $cache,
+		ICacheFactory $cacheFactory,
 		private IConfig $config,
 		private IClientService $clientService,
 		private IRequest $request,
@@ -60,6 +63,12 @@ class CheckService {
 		private ConfigService $configService,
 		private MiscService $miscService,
 	) {
+		// not the plain ICache the server hands out: that is the *user's* file
+		// cache, and it throws when nobody is logged in. A setup check runs
+		// with no session, and what is remembered here — whether this
+		// instance answers its own WebFinger — belongs to the instance, not
+		// to whoever happened to ask first.
+		$this->cache = $cacheFactory->createDistributed(Application::APP_ID . '/check');
 		$this->userId = $userId;
 	}
 
