@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Settings;
 
+use OCA\Social\Model\Report;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
@@ -16,6 +17,7 @@ use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ServerSettingsService;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IGroupManager;
 use OCP\IL10N;
 use OCP\IUserSession;
@@ -27,6 +29,10 @@ use OCP\Util;
  * state of outbound federation, the Fediverse access list the occ
  * social:fediverse command manages, the announcements the instance is showing
  * everybody — and, for an administrator proper, the Server card.
+ *
+ * The page is one Vue application (`src/adminSettings.js`); the template is
+ * the element it mounts on and nothing else, and what is known at render time
+ * travels as initial state.
  *
  * The announcements section carries no data from here. It is read from
  * `/admin/announcements` when the page loads, because that is the same route
@@ -57,29 +63,35 @@ class AdminSettings implements IDelegatedSettings {
 		private ServerSettingsService $serverSettingsService,
 		private IUserSession $userSession,
 		private IGroupManager $groupManager,
+		private IInitialState $initialState,
 	) {
 	}
 
 	#[\Override]
 	public function getForm(): TemplateResponse {
-		Util::addScript('social', 'social-adminSettings');
-		// its own bundle rather than a second panel in the hand-written one:
-		// the announcements section reads and writes its own routes, and
-		// nothing on the page above it is loaded any earlier for it
-		// the framework these entries were built without; see webpack.common.js
+		// the framework chunk first, then the page's own entry: an entry of
+		// this app is no longer self-contained, and one served without the
+		// framework leaves the page empty without saying anything
 		Util::addScript('social', 'social-framework');
-		Util::addScript('social', 'social-adminAnnouncements');
-		// and the account browser, which is the same page's other half: the
-		// reports table is what somebody complained about, this is everything
-		// else the instance knows
-		Util::addScript('social', 'social-adminModeration');
+		Util::addScript('social', 'social-adminSettings');
 
 		$open = $this->reportService->page(false, 1);
+		$decisions = $this->currentDecisions();
 
-		return new TemplateResponse('social', 'settings/admin', [
-			// the first page of the open reports; the rest, and the resolved
-			// ones, are read from /moderation/reports when asked for
-			'reports' => $open['reports'],
+		// The page is a Vue application; what the server knows when it renders
+		// is handed over as initial state rather than as markup, and
+		// everything after it — a further page of reports, the account
+		// browser, the announcements — is read from the routes the page also
+		// writes through.
+		$this->initialState->provideInitialState('adminSettings', [
+			// the first page of the open reports, in the shape
+			// `ModerationController::reports()` answers in, so a row that
+			// arrived with the page and one fetched afterwards are the same
+			// thing to the table that draws them
+			'reports' => array_map(
+				static fn (Report $report): array => $report->moderationRow($decisions),
+				$open['reports']
+			),
 			'openReports' => $open['total'],
 			'resolvedReports' => $this->reportService->countResolved(),
 			'reportsPerPage' => $open['perPage'],
@@ -88,8 +100,9 @@ class AdminSettings implements IDelegatedSettings {
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
 			'federation' => $this->federationHealthService->summary(),
-			'moderation' => $this->currentDecisions(),
 		]);
+
+		return new TemplateResponse('social', 'settings/admin');
 	}
 
 	/**

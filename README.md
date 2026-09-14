@@ -117,9 +117,9 @@ npm run build        # production bundle into js/
    files and writes `build/artifacts/social.tar.gz`. `make appstore` builds the same
    archive through the Makefile, but installs from the lock files (`npm ci`,
    `composer install`) rather than resolving dependency versions no CI job has run,
-   and refuses to package when `js/social-adminSettings.js` or `js/.htaccess` is
-   missing — both are committed files rather than webpack output, and the target
-   used to delete `js/` wholesale before building. Despite the `sign_dir` name it
+   and refuses to package when `js/.htaccess` is missing — it is a committed file
+   rather than webpack output, and the target used to delete `js/` wholesale
+   before building. Despite the `sign_dir` name it
    only stages and tars, it does not sign anything.
 
 ## 🧭 "`.well-known/webfinger` isn't properly set up!" — Troubleshooting

@@ -63,12 +63,11 @@ lint-fix:
 	npm run lint:fix
 
 # Cleaning
-# js/ is not purely build output: js/.htaccess and the hand-written
-# js/social-adminSettings.js -- which lib/Settings/AdminSettings.php loads --
-# are committed sources, and no webpack entry point can regenerate them. Wiping
-# the directory here is why the released tarball had a broken admin settings
-# page. Webpack clears stale bundles out of js/ on every build and keeps those
-# two files (see output.clean in webpack.common.js), so nothing is needed here.
+# js/ is not purely build output: js/.htaccess is a committed source no webpack
+# entry point can regenerate. Wiping the directory here is why a released
+# tarball once had a broken admin settings page. Webpack clears stale bundles
+# out of js/ on every build and keeps that file (see output.clean in
+# webpack.common.js), so nothing is needed here.
 clean:
 	rm -rf $(build_dir)
 
@@ -90,9 +89,6 @@ release: appstore
 
 # creating .tar.gz + signature
 appstore: release-setup lint build-js-production composer
-	@test -f js/social-adminSettings.js || { \
-		echo "js/social-adminSettings.js is missing. It is a committed file, not webpack output, and lib/Settings/AdminSettings.php loads it; restore it before packaging."; \
-		exit 1; }
 	@test -f js/.htaccess || { \
 		echo "js/.htaccess is missing. It is a committed file, not webpack output; restore it before packaging."; \
 		exit 1; }

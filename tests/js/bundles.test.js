@@ -219,8 +219,7 @@ describe('the pages that load the bundles', () => {
 		['templates/oauth2.php', 'social-oauth'],
 		['lib/Dashboard/SocialWidget.php', 'social-dashboard'],
 		['lib/Listeners/ProfileSectionListener.php', 'social-profilePage'],
-		['lib/Settings/AdminSettings.php', 'social-adminAnnouncements'],
-		['lib/Settings/AdminSettings.php', 'social-adminModeration'],
+		['lib/Settings/AdminSettings.php', 'social-adminSettings'],
 	]
 
 	it.each(SITES)('%s loads the framework before %s', (file, entry) => {

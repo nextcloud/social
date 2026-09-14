@@ -15,8 +15,7 @@ webpackConfig.plugins.push(new CopyPlugin({
 }))
 
 webpackConfig.entry = {
-	adminAnnouncements: path.join(__dirname, 'src', 'adminAnnouncements.js'),
-	adminModeration: path.join(__dirname, 'src', 'adminModeration.js'),
+	adminSettings: path.join(__dirname, 'src', 'adminSettings.js'),
 	social: path.join(__dirname, 'src', 'main.js'),
 	ostatus: path.join(__dirname, 'src', 'ostatus.js'),
 	profilePage: path.join(__dirname, 'src', 'profile.js'),
@@ -107,10 +106,11 @@ webpackConfig.module.rules.unshift({
 })
 webpackConfig.resolve.extensions = ['.*', '.ts', '.js', '.vue', '.json']
 
-// Preserve .htaccess and the hand-written admin-settings script when cleaning
-// the output directory
+// Preserve .htaccess when cleaning the output directory. It is the one file in
+// js/ that is not build output; the administration page's script was the other
+// one until that page became a Vue entry like every other.
 webpackConfig.output.clean = {
-	keep: /\.htaccess|social-adminSettings\.js/,
+	keep: /\.htaccess/,
 }
 
 module.exports = webpackConfig

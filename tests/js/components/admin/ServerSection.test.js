@@ -1,0 +1,104 @@
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import axios from '@nextcloud/axios'
+
+import ServerSection from '../../../../src/components/admin/ServerSection.vue'
+
+vi.mock('@nextcloud/axios', () => ({
+	default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+}))
+vi.mock('../../../../src/services/toast.js', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
+
+const SERVER = '/index.php/apps/social/admin/server'
+
+/**
+ * @param {object} overrides what this instance has set
+ * @return {object} the mounted card
+ */
+function mountServer(overrides = {}) {
+	return mount(ServerSection, {
+		props: {
+			settings: {
+				contact_email: ' admin@instance.example ',
+				extended_description: 'a friendly place',
+				max_size: 20,
+				max_video_size: 4096,
+				inbox_throttle: 0,
+				secure_mode: true,
+				publish_blocks: false,
+				allow_self_signed: false,
+				...overrides,
+			},
+		},
+	})
+}
+
+describe('the server card', () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		axios.post.mockResolvedValue({ data: {} })
+	})
+
+	it('shows what the instance is set to', () => {
+		const wrapper = mountServer()
+
+		// the browser sanitises an email field's value; the trim on the way out
+		// is what makes the payload the same either way
+		expect(wrapper.find('input[type="email"]').element.value).toBe('admin@instance.example')
+		expect(wrapper.find('textarea').element.value).toBe('a friendly place')
+		expect(wrapper.vm.form.secureMode).toBe(true)
+	})
+
+	it('says what turning secure mode on costs, and that self-signed is for development', () => {
+		const wrapper = mountServer()
+
+		expect(wrapper.text()).toContain('Unsigned ActivityPub fetches are refused.')
+		expect(wrapper.text()).toContain('For development only.')
+	})
+
+	it('writes the whole card in one request, with the numbers as numbers', async () => {
+		const wrapper = mountServer()
+
+		await wrapper.vm.save()
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(SERVER, {
+			contactEmail: 'admin@instance.example',
+			extendedDescription: 'a friendly place',
+			maxSize: 20,
+			maxVideoSize: 4096,
+			inboxThrottle: 0,
+			secureMode: true,
+			publishBlocks: false,
+			allowSelfSigned: false,
+		})
+		expect(wrapper.text()).toContain('Saved')
+	})
+
+	it('repeats the field the endpoint would not take', async () => {
+		axios.post.mockRejectedValue({ response: { data: { error: 'contact_email is not an address' } } })
+		const wrapper = mountServer()
+
+		expect(await wrapper.vm.save()).toBe(false)
+		await flushPromises()
+
+		// the endpoint names the field; it is the one thing that tells an
+		// administrator what to change
+		expect(wrapper.text()).toContain('contact_email is not an address')
+	})
+
+	it('falls back to saying it could not save when the server said nothing', async () => {
+		axios.post.mockRejectedValue(new Error('network'))
+		const wrapper = mountServer()
+
+		await wrapper.vm.save()
+		await flushPromises()
+
+		expect(wrapper.text()).toContain('Could not save the server settings')
+	})
+})

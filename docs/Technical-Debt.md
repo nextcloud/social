@@ -302,9 +302,10 @@ in `SocialCrossQueryBuilder`, which binds its parameters.
 **`@nextcloud/vue` v9 usage: current.** All 74 imports use the v9 subpath-export
 style; zero deep `dist/` imports, zero removed or renamed components.
 
-**Unlinted code: none.** `npm run lint` covers `src`, `tests/js`, the hand-written
-`js/social-adminSettings.js` and the root configuration; `npm run stylelint`
-covers `src` and `css`.
+**Unlinted code: none.** `npm run lint` covers `src`, `tests/js`, the end-to-end
+tests and the root configuration; `npm run stylelint` covers `src` and `css`.
+Nothing in `js/` is hand-written any more: the administration page was the last
+script there, and it is a webpack entry like every other now.
 
 **Dead frontend code: none.** The import graph over all 100 files in `src/`
 resolves, and there are no unused exports.
