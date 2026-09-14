@@ -16,8 +16,16 @@
 		@click.self="close"
 		@keydown.esc.stop="close">
 		<div class="reaction-picker__panel">
+			<!-- NcEmojiPicker is a popover: it opens from its own trigger and
+			     there is no prop to open it from here, so the trigger is
+			     pressed for the reader as soon as the dialog appears. It is a
+			     real, labelled button rather than a hidden anchor — if that
+			     press ever fails to land, what is left is something to press
+			     rather than an empty box. -->
 			<NcEmojiPicker :closeOnSelect="true" container=".reaction-picker__panel" @select="pick">
-				<span class="reaction-picker__anchor" />
+				<button ref="anchor" type="button" class="reaction-picker__anchor">
+					{{ t('social', 'Choose an emoji') }}
+				</button>
 			</NcEmojiPicker>
 			<NcButton
 				variant="tertiary"
@@ -87,10 +95,11 @@ export default {
 			this.open = this.react !== null
 
 			if (this.open) {
+				await this.$nextTick()
 				// or Escape would go to whatever the reader last pressed,
 				// which is a card behind the backdrop
-				await this.$nextTick()
 				this.$refs.backdrop?.focus()
+				this.$refs.anchor?.click()
 			}
 		},
 
@@ -142,11 +151,16 @@ export default {
 	box-shadow: var(--social-elevation-raised);
 }
 
-/* the picker needs a trigger in its default slot; the panel is already open,
-   so the trigger is a point for it to position against rather than a control */
+/* the trigger the picker positions against. Pressed for the reader on open,
+   so it is normally seen for an instant; it stays a real button so that a
+   press which does not land leaves something to press. */
 .reaction-picker__anchor {
-	display: block;
-	width: 1px;
-	height: 1px;
+	padding: 4px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius, 8px);
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font-size: 13px;
+	cursor: pointer;
 }
 </style>
