@@ -12,14 +12,16 @@ vi.mock('../../../src/services/logger.js', () => ({
 	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
-const memory = (overrides = {}) => ({
-	id: '9',
-	created_at: '2023-03-04T10:00:00.000Z',
-	content: '<p>We shipped the thing</p>',
-	spoiler_text: '',
-	account: { acct: 'alice' },
-	...overrides,
-})
+function memory(overrides = {}) {
+	return {
+		id: '9',
+		created_at: '2023-03-04T10:00:00.000Z',
+		content: '<p>We shipped the thing</p>',
+		spoiler_text: '',
+		account: { acct: 'alice' },
+		...overrides,
+	}
+}
 
 /**
  * @param {Array} memories what the server answers
