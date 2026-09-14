@@ -35,7 +35,8 @@
 				:key="entry.id"
 				:class="{ 'timeline-entry--focused': index === focused }"
 				:item="entry"
-				:type="type" />
+				:type="type"
+				:depth="depths[entry.id] ?? 0" />
 		</transition-group>
 		<TimelineSkeleton v-if="display !== 'grid' && loading && timeline.length === 0" />
 		<!--
@@ -328,6 +329,10 @@ export default {
 		},
 
 		timeline() {
+			if (this.isThread) {
+				return this.thread.order
+			}
+
 			const timeline = this.showParents
 				? this.timelineStore.getParentsTimeline
 				: this.timelineStore.getTimeline
@@ -335,6 +340,72 @@ export default {
 			// a copy: .reverse() sorts in place, and this array comes from a
 			// cached Vuex getter that every other reader shares
 			return this.reverseOrder ? [...timeline].reverse() : timeline
+		},
+
+		/**
+		 * @return {boolean} whether this list is the replies under a post,
+		 * which read as a conversation rather than as a feed
+		 */
+		isThread() {
+			return this.type === 'single-post' && !this.showParents
+		},
+
+		/**
+		 * The replies under a post, as the conversation they are: each reply
+		 * followed by the replies to it, oldest first, with how deep it sits.
+		 *
+		 * They used to be one flat list, newest first — a reply to a reply
+		 * landed above the post it answered, and nothing said which reply it
+		 * answered (nextcloud/social#825, #1630). The tree is built from
+		 * `in_reply_to_id` over what this page holds; a reply whose parent is
+		 * not here (deleted, or a branch this instance holds only part of)
+		 * keeps its place in time at the top level, and its own replies hang
+		 * off it.
+		 *
+		 * @return {{order: object[], depth: Record<string, number>}}
+		 */
+		thread() {
+			const root = String(this.timelineStore.params?.singlePost ?? this.timelineStore.params?.id ?? '')
+			const chronological = [...this.timelineStore.getTimeline].reverse()
+			const byParent = new Map()
+			for (const status of chronological) {
+				const parent = String(status.in_reply_to_id ?? '')
+				if (!byParent.has(parent)) {
+					byParent.set(parent, [])
+				}
+				byParent.get(parent).push(status)
+			}
+
+			const order = []
+			const depth = {}
+			const seen = new Set()
+			const visit = (parentId, level) => {
+				for (const status of byParent.get(parentId) ?? []) {
+					if (seen.has(status.id)) {
+						continue
+					}
+					seen.add(status.id)
+					order.push(status)
+					depth[status.id] = level
+					visit(status.id, level + 1)
+				}
+			}
+			visit(root, 0)
+			for (const status of chronological) {
+				if (!seen.has(status.id)) {
+					seen.add(status.id)
+					order.push(status)
+					depth[status.id] = 0
+					visit(status.id, 1)
+				}
+			}
+
+			return { order, depth }
+		},
+
+		/** @return {Record<string, number>} how deep each entry sits; empty outside a thread */
+		depths() {
+			return this.isThread ? this.thread.depth : {}
 		},
 	},
 

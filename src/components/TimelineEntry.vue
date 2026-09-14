@@ -6,7 +6,8 @@
 	<component
 		:is="element"
 		class="timeline-entry"
-		:class="{ notification: isNotification, 'with-header': isNotification }"
+		:class="{ notification: isNotification, 'with-header': isNotification, 'timeline-entry--reply': depth > 0 }"
+		:style="depth > 0 ? { '--thread-depth': Math.min(depth, MAX_INDENT) } : undefined"
 		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">
@@ -97,6 +98,9 @@ import { useTimelineStore } from '../store/timeline.js'
 /** the face's size inside the card, on a phone */
 const PHONE_AVATAR = 36
 
+/** how many levels of a conversation are indented before the column runs out */
+const MAX_INDENT = 4
+
 export default {
 	name: 'TimelineEntry',
 	components: {
@@ -127,6 +131,16 @@ export default {
 			required: true,
 		},
 
+		/**
+		 * How deep this entry sits in a conversation: 0 for a reply to the post
+		 * being read, 1 for a reply to that, and so on. Indented accordingly,
+		 * up to MAX_INDENT levels — deeper than that the column would run out.
+		 */
+		depth: {
+			type: Number,
+			default: 0,
+		},
+
 		element: {
 			type: String,
 			default: 'li',
@@ -141,7 +155,7 @@ export default {
 			 * shrinks; see the `@media` block below.
 			 */
 			isPhone: isPhone(),
-
+			MAX_INDENT,
 			/** re-read from the shared clock, so the wording stays true */
 			now: Date.now(),
 		}
@@ -256,6 +270,15 @@ export default {
 	margin-bottom: 14px;
 	padding: 0;
 	border-radius: 8px;
+
+	// a reply to a reply steps in under the one it answers, with a line down
+	// its side that says so; the depth is the custom property the list sets
+	&--reply {
+		margin-inline-start: calc(var(--thread-depth, 1) * 24px);
+		padding-inline-start: 12px;
+		border-inline-start: 2px solid var(--color-border);
+		border-radius: 0 8px 8px 0;
+	}
 
 	&:last-child {
 		margin-bottom: 0;
