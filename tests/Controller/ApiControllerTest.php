@@ -65,6 +65,8 @@ use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\File;
@@ -84,6 +86,8 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use ReflectionAttribute;
+use ReflectionMethod;
 
 class ApiControllerTest extends TestCase {
 	private const REVOKED = 'the access_token was revoked';
@@ -470,6 +474,22 @@ class ApiControllerTest extends TestCase {
 		}
 	}
 
+	/**
+	 * `/media/{uuid}` is unauthenticated by design, so the only thing standing
+	 * between it and a scraper is the rate limit. Its sibling `/media/stream`
+	 * always carried one; this one did not.
+	 */
+	public function testServingMediaIsRateLimited(): void {
+		$method = new ReflectionMethod(ApiController::class, 'mediaOpen');
+		$attributes = array_map(
+			static fn (ReflectionAttribute $a): string => $a->getName(),
+			$method->getAttributes()
+		);
+
+		$this->assertContains(AnonRateLimit::class, $attributes);
+		$this->assertContains(UserRateLimit::class, $attributes);
+	}
+
 	// credentials
 
 	public function testAppsCredentialsRequiresAViewer(): void {
@@ -643,9 +663,65 @@ class ApiControllerTest extends TestCase {
 		);
 	}
 
-	public function testAGranularWriteScopeSatisfiesAWriteRoute(): void {
+	/**
+	 * These routes require the broad `write`, and a granular grant is not it:
+	 * `write:media` is a grant to upload, not to post, delete posts or edit
+	 * the profile. The rule used to take any `write:*` for `write`, and it is
+	 * the base class's now, so it cannot be looser here than anywhere else.
+	 */
+	#[DataProvider('granularWriteGrants')]
+	public function testAGranularWriteScopeDoesNotSatisfyAWriteRoute(string $granted, string $method, array $arguments): void {
+		$this->route = 'social.Api.' . $method;
+		$this->bearerFor(['read', $granted]);
+		$this->postService->expects($this->never())->method('createPost');
+		$this->accountService->expects($this->never())->method('setSummary');
+
+		$response = $this->controller('Bearer s3cret')->$method(...$arguments);
+
+		$this->assertInsufficientScope(
+			$response, 'token scope does not allow this request (needs write)'
+		);
+	}
+
+	/** @return iterable<string, array{string, string, array}> */
+	public static function granularWriteGrants(): iterable {
+		yield 'write:media may not post' => ['write:media', 'statusNew', []];
+		yield 'write:media may not delete a post' => ['write:media', 'statusDelete', [7]];
+		yield 'write:media may not edit the profile' => ['write:media', 'updateCredentials', []];
+		yield 'write:media may not file a report' => ['write:media', 'reportNew', []];
+		yield 'write:statuses may not edit the profile' => ['write:statuses', 'updateCredentials', []];
+	}
+
+	/**
+	 * The other half of the same rule: `read:statuses` is a grant to read
+	 * posts, and these routes hand out what a token with it was never
+	 * granted -- who the account blocks, who wants to follow it, what it
+	 * bookmarked, and the credentials themselves.
+	 */
+	#[DataProvider('granularReadGrants')]
+	public function testAGranularReadScopeDoesNotSatisfyAReadRoute(string $method, array $arguments): void {
+		$this->route = 'social.Api.' . $method;
+		$this->bearerFor(['read:statuses']);
+
+		$response = $this->controller('Bearer s3cret')->$method(...$arguments);
+
+		$this->assertInsufficientScope(
+			$response, 'token scope does not allow this request (needs read)'
+		);
+	}
+
+	/** @return iterable<string, array{string, array}> */
+	public static function granularReadGrants(): iterable {
+		yield 'verify_credentials' => ['verifyCredentials', []];
+		yield 'blocks' => ['blocks', []];
+		yield 'mutes' => ['mutes', []];
+		yield 'bookmarks' => ['bookmarks', []];
+		yield 'follow requests' => ['followRequests', []];
+	}
+
+	public function testTheBroadWriteScopeSatisfiesAWriteRoute(): void {
 		$this->route = 'social.Api.statusNew';
-		$this->bearerFor(['read', 'write:statuses']);
+		$this->bearerFor(['read', 'write']);
 		$this->request->method('getParams')->willReturn(['status' => 'hi']);
 
 		$activity = $this->createMock(ACore::class);
@@ -654,6 +730,21 @@ class ApiControllerTest extends TestCase {
 		$this->streamService->method('getStreamById')->willReturn($this->createMock(Stream::class));
 
 		$this->assertSame(Http::STATUS_OK, $this->controller('Bearer s3cret')->statusNew()->getStatus());
+	}
+
+	/**
+	 * `POST /api/v1/media/from-file` was missing from the write list, so a
+	 * read-only token could attach any file of the viewer's to a post.
+	 */
+	public function testAttachingAFileNeedsAWriteToken(): void {
+		$this->route = 'social.Api.mediaFromFile';
+		$this->bearerFor(['read']);
+		$this->rootFolder->expects($this->never())->method('getUserFolder');
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->mediaFromFile(),
+			'token scope does not allow this request (needs write)'
+		);
 	}
 
 	// statusNew()

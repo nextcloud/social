@@ -16,10 +16,13 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\RequestQueueService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use ReflectionMethod;
 
 class QueueControllerTest extends TestCase {
 	private RequestQueueService|MockObject $requestQueueService;
@@ -97,6 +100,27 @@ class QueueControllerTest extends TestCase {
 		// the caller is a detached worker draining a batch: it has to go on
 		$this->controller->deliverOne((new RequestQueue())->setToken('tok'));
 		$this->addToAssertionCount(1);
+	}
+
+	/**
+	 * The route is public and takes a token anybody can make up; a ceiling on
+	 * it has to leave room for the instance's own calls to itself, which is
+	 * every one of the legitimate ones.
+	 */
+	public function testTheAsyncRouteIsRateLimited(): void {
+		$method = new ReflectionMethod(QueueController::class, 'asyncForRequest');
+		$limits = [];
+		foreach ($method->getAttributes() as $attribute) {
+			if (str_ends_with($attribute->getName(), 'RateLimit')) {
+				$limits[$attribute->getName()] = $attribute->getArguments()['limit'];
+			}
+		}
+
+		$this->assertArrayHasKey(AnonRateLimit::class, $limits);
+		$this->assertArrayHasKey(UserRateLimit::class, $limits);
+		$this->assertGreaterThanOrEqual(
+			600, min($limits), 'a busy instance calls this route from one address'
+		);
 	}
 }
 

@@ -9,17 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use Exception;
-use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\DiscoveryRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Exceptions\ClientNotFoundException;
-use OCA\Social\Exceptions\InsufficientScopeException;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -66,18 +59,14 @@ use Throwable;
  * asking account and require a viewer — there is no such thing as an anonymous
  * "accounts you might follow".
  */
-class DiscoveryController extends Controller {
-	private string $bearer = '';
-	private ?SocialClient $client = null;
-	private ?Person $viewer = null;
-
+class DiscoveryController extends ClientApiController {
 	public function __construct(
 		IRequest $request,
-		private IUserSession $userSession,
-		private LoggerInterface $logger,
-		private AccountService $accountService,
+		IUserSession $userSession,
+		LoggerInterface $logger,
+		AccountService $accountService,
 		private CacheActorService $cacheActorService,
-		private ClientService $clientService,
+		ClientService $clientService,
 		private DirectoryService $directoryService,
 		private SuggestionService $suggestionService,
 		private TrendService $trendService,
@@ -86,15 +75,7 @@ class DiscoveryController extends Controller {
 		private PlaceService $placeService,
 		private StarterPackService $starterPackService,
 	) {
-		parent::__construct(Application::APP_ID, $request);
-
-		$authHeader = trim($this->request->getHeader('Authorization'));
-		if (strpos($authHeader, ' ')) {
-			[$authType, $authToken] = explode(' ', $authHeader);
-			if (strtolower($authType) === 'bearer') {
-				$this->bearer = $authToken;
-			}
-		}
+		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
 
 	/**
@@ -123,7 +104,7 @@ class DiscoveryController extends Controller {
 		bool $local = true,
 	): DataResponse {
 		try {
-			$this->initViewer(['read'], false);
+			$this->optionalViewer(['read']);
 
 			return new DataResponse(
 				$this->directoryService->page($order, $limit, $offset), Http::STATUS_OK
@@ -203,7 +184,7 @@ class DiscoveryController extends Controller {
 		string $period = HashtagService::PERIOD_DEFAULT,
 	): DataResponse {
 		try {
-			$this->initViewer(['read'], false);
+			$this->optionalViewer(['read']);
 
 			$statuses = $this->trendService->trendingStatuses($period, $limit, $offset);
 			// one query for the whole page, as the timelines do it
@@ -247,7 +228,7 @@ class DiscoveryController extends Controller {
 		string $media = '',
 	): DataResponse {
 		try {
-			$this->initViewer(['read'], false);
+			$this->optionalViewer(['read']);
 
 			$media = in_array($media, ['image', 'video', 'audio'], true) ? $media : '';
 			$statuses = $this->trendService->trendingStatuses($period, $limit, $offset, true, $media);
@@ -318,7 +299,7 @@ class DiscoveryController extends Controller {
 	)]
 	public function followStarterPack(string $slug): DataResponse {
 		try {
-			$this->initViewer(['write:follows'], true);
+			$this->initViewer(['write:follows']);
 
 			return new DataResponse(
 				['followed' => $this->starterPackService->followAll($this->viewer, $slug)],
@@ -351,7 +332,7 @@ class DiscoveryController extends Controller {
 		int $min_id = 0,
 	): DataResponse {
 		try {
-			$this->initViewer(['read'], false);
+			$this->optionalViewer(['read']);
 
 			$statuses = $this->trendService->linkTimeline($url, $limit, $max_id, $min_id);
 			// one query for the whole page, as the timelines do it
@@ -372,7 +353,7 @@ class DiscoveryController extends Controller {
 		string $period = HashtagService::PERIOD_DEFAULT,
 	): DataResponse {
 		try {
-			$this->initViewer(['read'], false);
+			$this->optionalViewer(['read']);
 
 			return new DataResponse(
 				$this->trendService->trendingLinks($period, $limit, $offset), Http::STATUS_OK
@@ -469,7 +450,7 @@ class DiscoveryController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/accounts/{account}/featured_tags', requirements: ['account' => '.+'])]
 	public function accountFeaturedTags(string $account): DataResponse {
 		try {
-			$this->initViewer(['read'], false);
+			$this->optionalViewer(['read']);
 			$actor = $this->resolveAccount($account);
 
 			return new DataResponse(
@@ -515,133 +496,12 @@ class DiscoveryController extends Controller {
 	}
 
 	/**
-	 * Resolves the viewer from the bearer token, or from the Nextcloud session
-	 * when there is none — the same order `ApiController` and `ListController`
-	 * use, because the same clients call all three.
-	 *
-	 * A bearer token presented on a route that does not require one still has
-	 * its scope checked: a token granted less than it claims is refused rather
-	 * than downgraded to the anonymous read the route would otherwise allow,
-	 * which would turn a refusal into a partial success.
-	 *
-	 * @param string[] $scopes any one of which satisfies a bearer token
-	 * @param bool $required whether a route may be answered with no viewer
-	 *
-	 * @throws ClientNotFoundException there is nobody to answer for
-	 * @throws InsufficientScopeException the token is fine, its grant is not
+	 * The viewer, and the actor cache told who is reading, so that what it
+	 * hands back about other accounts is what this reader may see.
 	 */
-	private function initViewer(array $scopes, bool $required = true): void {
-		try {
-			$userId = $this->currentSession($scopes);
-			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
-			$this->cacheActorService->setViewer($this->viewer);
-		} catch (InsufficientScopeException $e) {
-			throw $e;
-		} catch (Exception $e) {
-			// a missing, stale or made-up token is ordinary internet noise and
-			// is answered with a 401 or as an anonymous read, not logged as a
-			// fault
-			$this->logger->debug('[DiscoveryController] no usable credentials', [
-				'exception' => $e->getMessage(),
-			]);
-
-			if ($required) {
-				throw new ClientNotFoundException('the access_token was revoked');
-			}
-		}
-	}
-
-	/**
-	 * @param string[] $scopes
-	 *
-	 * @throws ClientNotFoundException
-	 * @throws InsufficientScopeException
-	 */
-	private function currentSession(array $scopes): string {
-		if ($this->bearer !== '') {
-			$this->client = $this->clientService->getFromToken($this->bearer);
-			$this->checkTokenScope($scopes);
-
-			return $this->client->getAuthUserId();
-		}
-
-		$user = $this->userSession->getUser();
-		if ($user !== null && $this->request->passesCSRFCheck()) {
-			return $user->getUID();
-		}
-
-		throw new ClientNotFoundException('userId not defined');
-	}
-
-	/**
-	 * A granular scope is satisfied by itself or by the broad scope that
-	 * contains it: `read:accounts` by `read:accounts` or by `read`, and by
-	 * nothing else.
-	 *
-	 * Not by any other granular variant of the same parent — a token granted
-	 * `read:statuses` has not been granted the reader's profile settings.
-	 *
-	 * @param string[] $accepted
-	 *
-	 * @throws InsufficientScopeException
-	 */
-	private function checkTokenScope(array $accepted): void {
-		foreach ($accepted as $scope) {
-			$broad = strstr($scope, ':', true);
-			$broad = ($broad === false) ? $scope : $broad;
-
-			foreach ($this->client->getAuthScopes() as $granted) {
-				if ($granted === $scope || $granted === $broad) {
-					return;
-				}
-			}
-		}
-
-		throw new InsufficientScopeException(
-			'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
-		);
-	}
-
-	/**
-	 * A failure as a Mastodon client can act on it. An unrecognised failure is
-	 * a bug on this side, so it answers 500 and its message is not sent on —
-	 * these are `#[PublicPage]` routes, and echoing getMessage() publishes
-	 * whatever the failure happened to name.
-	 */
-	private function error(Throwable $e): DataResponse {
-		if ($e instanceof InsufficientScopeException) {
-			return new DataResponse(
-				['error' => $e->getMessage()],
-				Http::STATUS_FORBIDDEN,
-				['WWW-Authenticate' => 'Bearer error="insufficient_scope"']
-			);
-		}
-
-		if ($e instanceof ClientNotFoundException) {
-			$message = trim($e->getMessage());
-
-			return new DataResponse(
-				['error' => ($message === '') ? 'the access_token is invalid' : $message],
-				Http::STATUS_UNAUTHORIZED,
-				['WWW-Authenticate' => 'Bearer error="invalid_token"']
-			);
-		}
-
-		if ($e instanceof ItemNotFoundException || $e instanceof CacheActorDoesNotExistException) {
-			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
-		}
-
-		if ($e instanceof InvalidResourceException) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
-		}
-
-		$this->logger->error('[DiscoveryController] unexpected failure answering the client API', [
-			'exception' => $e,
-			'route' => (string)$this->request->getParam('_route', ''),
-		]);
-
-		return new DataResponse(
-			['error' => 'internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR
-		);
+	#[\Override]
+	protected function initViewer(array $scopes): void {
+		parent::initViewer($scopes);
+		$this->cacheActorService->setViewer($this->viewer());
 	}
 }
