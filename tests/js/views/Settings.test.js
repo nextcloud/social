@@ -3,12 +3,18 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import Settings from '../../../src/views/Settings.vue'
 import MigrationSettings from '../../../src/components/MigrationSettings.vue'
+import ScheduledPosts from '../../../src/components/ScheduledPosts.vue'
 import ShortcutList from '../../../src/components/ShortcutList.vue'
 import ShortcutHelp from '../../../src/components/ShortcutHelp.vue'
 import { SHORTCUTS } from '../../../src/services/shortcuts.js'
+
+// the scheduled list asks the server for its entries as soon as it is drawn
+vi.mock('@nextcloud/axios', () => ({
+	default: { get: vi.fn().mockResolvedValue({ data: [] }), delete: vi.fn() },
+}))
 
 const NcModalStub = { name: 'NcModal', template: '<div class="modal-stub"><slot /></div>' }
 
@@ -60,7 +66,17 @@ describe('Settings', () => {
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Keyboard shortcuts', 'Migration'])
+			.toEqual(['Keyboard shortcuts', 'Scheduled posts', 'Migration'])
+	})
+
+	/**
+	 * A page of its own for a list that is usually empty, and whose entries
+	 * offer one action, would be a navigation entry earning its place from
+	 * nothing. The composer's clock is where a post is scheduled; this is
+	 * where one is taken back.
+	 */
+	it('holds the posts waiting to go out', () => {
+		expect(mount(Settings).findComponent(ScheduledPosts).exists()).toBe(true)
 	})
 
 	/**

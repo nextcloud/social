@@ -1129,6 +1129,22 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('hi', $this->postWith(['status' => 'hi'])->getContent());
 	}
 
+	/**
+	 * The composer sends a language with every post now, so the round trip
+	 * from the request to the Post the poster's server builds is worth
+	 * holding still: a post with no language federates as `language: null`
+	 * and is seen by neither the readers who filter for a language nor the
+	 * ones who filter one out.
+	 */
+	public function testStatusNewCarriesTheLanguageTheClientSent(): void {
+		$this->assertSame('fr', $this->postWith(['status' => 'Bonjour', 'language' => 'fr'])->getLanguage());
+	}
+
+	/** A client that sends none still gets the poster's default, from PostService. */
+	public function testStatusNewWithoutALanguageLeavesTheDefaultToTheService(): void {
+		$this->assertSame('', $this->postWith(['status' => 'hi'])->getLanguage());
+	}
+
 	public function testStatusNewIgnoresAMissingParent(): void {
 		$this->loggedInAs();
 		$this->request->method('getParams')->willReturn(['status' => 'hi', 'in_reply_to_id' => 99]);
@@ -3451,6 +3467,38 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame('new alt text', $document->getDescription());
 		$this->assertSame('new alt text', $response->getData()->getDescription());
+	}
+
+	/**
+	 * Where the subject of a picture is, so a square crop keeps it in frame.
+	 * The composer's crosshair saves through this, the same request the
+	 * description travels by.
+	 */
+	public function testMediaUpdateSetsTheFocalPoint(): void {
+		$this->loggedInAs();
+		$document = $this->ownDocumentInService('7', 'alt');
+		$this->request->method('getHeader')->willReturnCallback(
+			fn (string $name): string => $name === 'Content-Type' ? 'application/x-www-form-urlencoded' : ''
+		);
+		$this->request->method('getParams')->willReturn(['focus' => '0.5,-0.25']);
+		$this->documentService->expects($this->once())
+			->method('updateFocus')
+			->with($this->identicalTo($document), 0.5, -0.25);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->mediaUpdate('7')->getStatus());
+	}
+
+	/** Anything that is not a pair of numbers leaves the picture as it was. */
+	public function testMediaUpdateIgnoresAFocalPointItCannotRead(): void {
+		$this->loggedInAs();
+		$this->ownDocumentInService('7', 'alt');
+		$this->request->method('getHeader')->willReturnCallback(
+			fn (string $name): string => $name === 'Content-Type' ? 'application/x-www-form-urlencoded' : ''
+		);
+		$this->request->method('getParams')->willReturn(['focus' => 'the middle']);
+		$this->documentService->expects($this->never())->method('updateFocus');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->mediaUpdate('7')->getStatus());
 	}
 
 	public function testMediaUpdateOfSomeoneElsesAttachmentIsA404(): void {

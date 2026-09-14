@@ -9,7 +9,16 @@
 		variant="primary"
 		@click.prevent="handleClick">
 		<template #icon>
-			<Send title="" :size="22" decorative />
+			<ClockOutline
+				v-if="scheduled"
+				title=""
+				:size="22"
+				decorative />
+			<Send
+				v-else
+				title=""
+				:size="22"
+				decorative />
 		</template>
 		{{ postTo }}
 	</NcButton>
@@ -17,12 +26,14 @@
 
 <script>
 
+import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
 import Send from 'vue-material-design-icons/Send.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 
 export default {
 	name: 'SubmitStatusButton',
 	components: {
+		ClockOutline,
 		NcButton,
 		Send,
 	},
@@ -37,12 +48,26 @@ export default {
 			type: Boolean,
 			default: true,
 		},
+
+		/**
+		 * Whether the post is to go out later rather than now. The button
+		 * then says so, whatever the audience: pressing "Post to followers"
+		 * and having nothing appear is a button that lied.
+		 */
+		scheduled: {
+			type: Boolean,
+			default: false,
+		},
 	},
 
 	emits: ['click'],
 	computed: {
 		/** @return {string} */
 		postTo() {
+			if (this.scheduled) {
+				return t('social', 'Schedule')
+			}
+
 			switch (this.visibility) {
 				case 'public':
 				case 'unlisted':

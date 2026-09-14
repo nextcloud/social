@@ -48,6 +48,7 @@ import ImageOffOutline from 'vue-material-design-icons/ImageOffOutline.vue'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import { t } from '@nextcloud/l10n'
+import { positionOfFocus } from '../utils/focalPoint.js'
 
 /**
  * A profile as a grid of squares, which is what a profile looks like on
@@ -145,23 +146,14 @@ export default {
 		},
 
 		/**
-		 * `focus` is a pair from -1 to 1 with the origin at the centre and y
-		 * pointing *up*; CSS wants two percentages from the top left. So x maps
-		 * straight across and y is inverted.
+		 * Where to crop the tile. The conversion lives with the editor that
+		 * writes the point, so the two cannot disagree about which way is up.
 		 *
 		 * @param {object} attachment the first attachment of the post
 		 * @return {string} an `object-position` value
 		 */
 		focalPosition(attachment) {
-			const focus = attachment?.meta?.focus
-			if (!focus || typeof focus.x !== 'number' || typeof focus.y !== 'number') {
-				return '50% 50%'
-			}
-
-			const x = (focus.x + 1) / 2 * 100
-			const y = (1 - focus.y) / 2 * 100
-
-			return `${x.toFixed(2)}% ${y.toFixed(2)}%`
+			return positionOfFocus(attachment?.meta?.focus).objectPosition
 		},
 
 		/**

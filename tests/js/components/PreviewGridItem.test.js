@@ -4,6 +4,7 @@
  */
 
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vue'
 import MediaAttachment from '../../../src/components/MediaAttachment.vue'
@@ -19,11 +20,54 @@ const media = {
 }
 
 const file = new File(['x'], 'screenshot.png', { type: 'image/png' })
+const sound = new File(['x'], 'talk.ogg', { type: 'audio/ogg' })
 
 function mountItem(preview) {
 	return mount(PreviewGridItem, {
 		props: { preview, randomKey: 'blob:preview-1' },
 	})
+}
+
+const pad = (wrapper) => wrapper.find('.preview-item__focus-pad')
+
+/**
+ * A picture showing its focal point editor, 400 by 200 on screen: jsdom lays
+ * nothing out, so the pad is told how big it is.
+ *
+ * @param {object} [focus] the point the attachment already carries
+ */
+async function focusing(focus) {
+	const wrapper = mountItem({ file, data: media, ...(focus ? { focus } : {}) })
+	await wrapper.find('.preview-item__focus-toggle').trigger('click')
+	pad(wrapper).element.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 200 })
+
+	return wrapper
+}
+
+/**
+ * A pointer event on the pad. jsdom has no PointerEvent and refuses to let
+ * `trigger` write `clientX` onto a MouseEvent, so the event is built with the
+ * position in it and dispatched by hand.
+ *
+ * @param {object} wrapper the mounted item
+ * @param {string} type the event to send
+ * @param {number} [x] pixels from the left edge of the picture
+ * @param {number} [y] pixels from its top edge
+ */
+function pointer(wrapper, type, x = 0, y = 0) {
+	const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })
+	pad(wrapper).element.dispatchEvent(event)
+
+	return nextTick()
+}
+
+/**
+ * @param {object} wrapper the mounted item
+ * @param {number} x pixels from the left edge of the picture
+ * @param {number} y pixels from its top edge
+ */
+function press(wrapper, x, y) {
+	return pointer(wrapper, 'pointerdown', x, y)
 }
 
 describe('PreviewGridItem', () => {
@@ -103,5 +147,120 @@ describe('PreviewGridItem', () => {
 		const wrapper = mountItem({ file, data: null })
 		await wrapper.find('.preview-item__actions button').trigger('click')
 		expect(wrapper.emitted('delete')).toEqual([['blob:preview-1']])
+	})
+	// the focal point
+
+	/**
+	 * The point is saved against the upload, so there is nothing to set it
+	 * against until the server has answered — and a sound file has no crop.
+	 */
+	it('offers a focal point for an uploaded picture and nothing else', () => {
+		expect(mountItem({ file, data: media }).find('.preview-item__focus-toggle').exists()).toBe(true)
+		expect(mountItem({ file, data: null }).find('.preview-item__focus-toggle').exists()).toBe(false)
+		expect(mountItem({ file, data: media, failed: true }).find('.preview-item__focus-toggle').exists()).toBe(false)
+		expect(mountItem({ file: sound, data: { ...media, type: 'audio' } })
+			.find('.preview-item__focus-toggle').exists()).toBe(false)
+	})
+
+	it('shows the picture as the control once the focal point is being set', async () => {
+		const wrapper = mountItem({ file, data: media })
+		expect(wrapper.find('.preview-item__focus-pad').exists()).toBe(false)
+
+		await wrapper.find('.preview-item__focus-toggle').trigger('click')
+
+		expect(wrapper.find('.preview-item__focus-pad').exists()).toBe(true)
+		// with no point yet the crosshair sits where a crop would cut anyway
+		expect(wrapper.find('.preview-item__crosshair').attributes('style'))
+			.toContain('inset-inline-start: 50%')
+	})
+
+	it('reads a press on the picture as a point in Mastodon\'s coordinates', async () => {
+		const wrapper = await focusing()
+
+		await press(wrapper, 300, 50)
+
+		expect(wrapper.emitted('focus')).toEqual([[{ key: 'blob:preview-1', focus: { x: 0.5, y: 0.5 } }]])
+		// a press is not a save; the release is
+		expect(wrapper.emitted('commitFocus')).toBeUndefined()
+	})
+
+	it('follows the pointer while it is down and saves once on release', async () => {
+		const wrapper = await focusing()
+
+		await press(wrapper, 200, 100)
+		await pointer(wrapper, 'pointermove', 100, 150)
+		await pointer(wrapper, 'pointerup', 100, 150)
+
+		expect(wrapper.emitted('focus').map(([{ focus }]) => focus))
+			.toEqual([{ x: 0, y: 0 }, { x: -0.5, y: -0.5 }, { x: -0.5, y: -0.5 }])
+		expect(wrapper.emitted('commitFocus')).toHaveLength(1)
+	})
+
+	/** A pointer crossing the picture on its way somewhere else moves nothing. */
+	it('ignores a pointer that is not dragging', async () => {
+		const wrapper = await focusing()
+
+		await pointer(wrapper, 'pointermove', 100, 150)
+		await pointer(wrapper, 'pointerup', 100, 150)
+
+		expect(wrapper.emitted('focus')).toBeUndefined()
+		expect(wrapper.emitted('commitFocus')).toBeUndefined()
+	})
+
+	it('leaves the point where it was when a drag is cancelled', async () => {
+		const wrapper = await focusing({ x: 0.5, y: 0.5 })
+
+		await press(wrapper, 0, 0)
+		await pointer(wrapper, 'pointercancel')
+
+		// the point the parent knows is the last one it was told about, and
+		// the cancel does not read a position of its own
+		expect(wrapper.emitted('focus').map(([{ focus }]) => focus)).toEqual([{ x: -1, y: 1 }])
+		expect(wrapper.emitted('commitFocus')).toHaveLength(1)
+	})
+
+	/** Nobody with a keyboard alone can press a picture. */
+	it('moves the point with the arrow keys, up meaning up', async () => {
+		const wrapper = await focusing({ x: 0, y: 0 })
+
+		await pad(wrapper).trigger('keydown', { key: 'ArrowUp' })
+		await pad(wrapper).trigger('keydown', { key: 'ArrowLeft' })
+
+		expect(wrapper.emitted('focus').map(([{ focus }]) => focus))
+			.toEqual([{ x: 0, y: 0.05 }, { x: -0.05, y: 0 }])
+		// a key press is a decision in itself: there is no release to wait for
+		expect(wrapper.emitted('commitFocus')).toHaveLength(2)
+	})
+
+	it('leaves other keys to the page', async () => {
+		const wrapper = await focusing()
+
+		await pad(wrapper).trigger('keydown', { key: 'Tab' })
+
+		expect(wrapper.emitted('focus')).toBeUndefined()
+	})
+
+	it('draws the crosshair where the point is', async () => {
+		const wrapper = await focusing({ x: -1, y: 1 })
+		const style = wrapper.find('.preview-item__crosshair').attributes('style')
+
+		expect(style).toContain('inset-inline-start: 0%')
+		expect(style).toContain('inset-block-start: 0%')
+	})
+
+	/** Once the editor is closed the badge is all that says a point is set. */
+	it('badges a picture that has a focal point', async () => {
+		const wrapper = mountItem({ file, data: media, focus: { x: 0.2, y: -0.4 } })
+		expect(wrapper.find('.preview-item__focal').text()).toBe('Focal point')
+		expect(wrapper.find('.preview-item__crosshair').exists()).toBe(true)
+
+		await wrapper.find('.preview-item__focus-toggle').trigger('click')
+
+		expect(wrapper.find('.preview-item__focal').exists()).toBe(false)
+	})
+
+	it('does not badge a picture that has none', () => {
+		expect(mountItem({ file, data: media }).find('.preview-item__focal').exists()).toBe(false)
+		expect(mountItem({ file, data: media }).find('.preview-item__crosshair').exists()).toBe(false)
 	})
 })

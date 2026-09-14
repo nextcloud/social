@@ -104,6 +104,8 @@
 				@deleted="deletePreview"
 				@describe="describeAttachment"
 				@commitDescription="commitDescription"
+				@focus="focusAttachment"
+				@commitFocus="commitFocus"
 				@filter="applyFilter" />
 
 			<div
@@ -172,6 +174,43 @@
 				</div>
 			</div>
 
+			<!-- When the post goes out, if not now. The picker is most of a
+			     date library and arrives when the clock is pressed, not with
+			     every composer; until then this block is not here at all. -->
+			<div v-if="scheduling" class="schedule-editor">
+				<!-- the picker names itself through `ariaLabel`; a `for` here
+				     would point at the wrapper rather than the input -->
+				<span class="schedule-editor__label">
+					{{ t('social', 'Publish at') }}
+				</span>
+				<NcDateTimePicker
+					v-if="schedulePickerLoaded"
+					class="schedule-editor__picker"
+					type="datetime"
+					:modelValue="scheduledAt"
+					:min="minScheduleDate"
+					:minuteStep="5"
+					:clearable="false"
+					:ariaLabel="t('social', 'When to publish the post')"
+					@update:modelValue="scheduledAt = $event" />
+				<NcLoadingIcon v-else :size="20" />
+				<!-- the server refuses anything sooner, so say so here, where
+				     the time can still be moved -->
+				<span v-if="scheduleTooSoon" class="schedule-editor__hint" role="status">
+					{{ t('social', 'Pick a time at least five minutes from now.') }}
+				</span>
+				<NcButton
+					variant="tertiary"
+					class="schedule-editor__remove"
+					:aria-label="t('social', 'Post now instead')"
+					:title="t('social', 'Post now instead')"
+					@click.prevent="toggleSchedule">
+					<template #icon>
+						<Close :size="18" />
+					</template>
+				</NcButton>
+			</div>
+
 			<div class="options">
 				<NcButton
 					:title="t('social', 'Add attachment')"
@@ -212,6 +251,22 @@
 					@click.prevent="togglePoll">
 					<template #icon>
 						<PollIcon :size="22" decorative title="" />
+					</template>
+				</NcButton>
+				<NcButton
+					:title="scheduling ? t('social', 'Post now instead') : t('social', 'Schedule for later')"
+					variant="tertiary"
+					class="schedule-toggle"
+					:aria-label="scheduling ? t('social', 'Post now instead') : t('social', 'Schedule for later')"
+					:aria-pressed="scheduling"
+					@click.prevent="toggleSchedule">
+					<template #icon>
+						<NcLoadingIcon v-if="schedulePickerLoading" :size="22" />
+						<ClockOutline
+							v-else
+							:size="22"
+							decorative
+							title="" />
 					</template>
 				</NcButton>
 
@@ -258,6 +313,7 @@
 				<span v-if="undescribed > 0" class="composer-alt-warning" role="status">
 					{{ undescribedWarning }}
 				</span>
+				<LanguageSelect :language="language" @update:language="language = $event" />
 				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
 				<span
@@ -274,7 +330,11 @@
 						{{ charsLeft <= 50 ? charactersLeftLabel : '' }}
 					</span>
 				</span>
-				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
+				<SubmitStatusButton
+					:visibility="visibility"
+					:scheduled="scheduling"
+					:disabled="!canPost || loading"
+					@click="createPost" />
 			</div>
 		</form>
 	</div>
@@ -283,6 +343,7 @@
 <script>
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
+import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import FolderImage from 'vue-material-design-icons/FolderImage.vue'
 import Paperclip from 'vue-material-design-icons/Paperclip.vue'
@@ -294,13 +355,14 @@ import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
 import { defineAsyncComponent } from 'vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
-import { showError } from '../../services/toast.js'
+import { showError, showSuccess } from '../../services/toast.js'
 import he from 'he'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
+import LanguageSelect from './LanguageSelect.vue'
 import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
 import { isKnownVisibility } from '../Visibility/VisibilitiesInfos.js'
 import SubmitStatusButton from './SubmitStatusButton.vue'
@@ -312,6 +374,9 @@ import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 import { mapStores } from 'pinia'
 import { useTimelineStore } from '../../store/timeline.js'
 import { applyFilterToFile } from '../../utils/imageFilters.js'
+import { focusParam, isFocalPoint } from '../../utils/focalPoint.js'
+import { defaultLanguage, rememberedLanguage } from '../../utils/postLanguage.js'
+import { fullDateTime } from '../../utils/relativeTime.js'
 import { useCurrentUser } from '../../composables/useCurrentUser.js'
 import { useServerData } from '../../composables/useServerData.js'
 
@@ -367,6 +432,20 @@ const FILTER_DEBOUNCE = 600
 const REFUSAL_DURATION = 400
 
 /**
+ * How far ahead a scheduled post has to be, in milliseconds: the server's
+ * `ScheduledStatusService::MIN_LEAD_TIME`, which is Mastodon's five minutes.
+ * Checked here as well so the refusal comes before the request, while the
+ * time can still be moved.
+ */
+const MIN_SCHEDULE_LEAD = 5 * 60 * 1000
+
+/** the step the picker offers, and what a proposed time is rounded to */
+const SCHEDULE_STEP = 5 * 60 * 1000
+
+/** how far ahead the clock proposes when it is first pressed */
+const SCHEDULE_PROPOSAL = 60 * 60 * 1000
+
+/**
  * The emoji picker's module, fetched at most once.
  *
  * It carries the whole emoji set — most of a megabyte of source — so it is its
@@ -378,6 +457,15 @@ const REFUSAL_DURATION = 400
 let emojiPicker = null
 const emojiPickerModule = () => (emojiPicker ??= import('@nextcloud/vue/components/NcEmojiPicker'))
 
+/**
+ * The date picker's module, fetched at most once, for the same reason: it
+ * brings a date library and its locales with it, and most posts go out now.
+ *
+ * @return {Promise<object>} the module
+ */
+let datePicker = null
+const datePickerModule = () => (datePicker ??= import('@nextcloud/vue/components/NcDateTimePicker'))
+
 export default {
 	name: 'Composer',
 	components: {
@@ -387,16 +475,23 @@ export default {
 			onError: (error) => logger.error('Could not load the emoji picker', { error }),
 		}),
 
+		NcDateTimePicker: defineAsyncComponent({
+			loader: datePickerModule,
+			onError: (error) => logger.error('Could not load the date picker', { error }),
+		}),
+
 		NcButton,
 		NcLoadingIcon,
 		ActorAvatar,
 		Paperclip,
 		EmoticonOutline,
+		ClockOutline,
 		Close,
 		FolderImage,
 		AlertOutline,
 		PollIcon,
 		PreviewGrid,
+		LanguageSelect,
 		VisibilitySelect,
 		SubmitStatusButton,
 		MessageContent,
@@ -480,6 +575,18 @@ export default {
 			// a reply goes where the post it answers went, which is also what
 			// the reply flow does when a composer is retargeted by hand
 			visibility: this.defaultVisibility || this.inReplyTo?.visibility || rememberedVisibility() || 'followers',
+			// what the last post went out in, else what Nextcloud is set to:
+			// the server would guess the same, but a guess the poster can see
+			// is one they can correct
+			language: rememberedLanguage() || defaultLanguage(),
+			/** when the post is to go out, or null for now */
+			scheduledAt: null,
+			/** whether the clock is pressed: the picker is shown, Post reads Schedule */
+			scheduling: false,
+			/** whether the date picker has been fetched */
+			schedulePickerLoaded: false,
+			/** whether that fetch is in flight */
+			schedulePickerLoading: false,
 			loading: false,
 			/** whether an attachment is on its way to the server */
 			uploading: false,
@@ -681,11 +788,42 @@ export default {
 				: translatePlural('social', '%n character left', '%n characters left', this.charsLeft)
 		},
 
+		/**
+		 * The soonest the picker offers, which is also what the server
+		 * accepts. A Date rather than a number, because that is what the
+		 * picker's `min` takes.
+		 *
+		 * @return {Date}
+		 */
+		minScheduleDate() {
+			return new Date(Date.now() + MIN_SCHEDULE_LEAD)
+		},
+
+		/**
+		 * Whether the time picked is one the server would refuse: less than
+		 * five minutes out, or not a time at all.
+		 *
+		 * @return {boolean}
+		 */
+		scheduleTooSoon() {
+			if (!this.scheduling) {
+				return false
+			}
+
+			return !(this.scheduledAt instanceof Date)
+				|| Number.isNaN(this.scheduledAt.getTime())
+				|| this.scheduledAt.getTime() < Date.now() + MIN_SCHEDULE_LEAD
+		},
+
 		canPost() {
 			// an upload that has not answered yet is worth waiting for; one
 			// that failed used to leave `data: undefined`, which passed this
 			// check and then threw on `preview.data.id` before the try block
 			if (this.hasPendingUploads) {
+				return false
+			}
+
+			if (this.scheduleTooSoon) {
 				return false
 			}
 
@@ -725,6 +863,7 @@ export default {
 				|| (this.replyTo !== null && !this.anchoredReply)
 				|| this.quoteOf !== null
 				|| this.showPoll
+				|| this.scheduling
 				|| this.showWarning
 				|| !this.statusIsEmpty
 				|| Object.keys(this.attachments).length > 0
@@ -787,7 +926,10 @@ export default {
 		// listeners other components registered for the same event.
 		this.onComposerReply = (data) => {
 			this.replyTo = data
-			this.prefillMessageWithMention(data.account)
+			// everyone in the conversation, not only whoever wrote the post
+			// being answered: a reply that named one of three people reached
+			// one of three people
+			this.prefillMessageWithMentions(this.participantsOf(data))
 			this.visibility = data.visibility
 			// somebody pressed reply, which is a request to write one — including
 			// on the post this box is anchored under, where the target does not
@@ -892,9 +1034,10 @@ export default {
 				return
 			}
 
-			// the emoji picker and the visibility menu are teleported out of this
-			// element; using one of them is not leaving the composer
-			if (target instanceof Element && target.closest('.v-popper__popper, .modal-mask') !== null) {
+			// the emoji picker, the two menus and the date picker's calendar
+			// are teleported out of this element; using one of them is not
+			// leaving the composer
+			if (target instanceof Element && target.closest('.v-popper__popper, .modal-mask, .dp__menu') !== null) {
 				return
 			}
 
@@ -916,31 +1059,78 @@ export default {
 		},
 
 		prefillMessageWithMention(account) {
-			if (!this.statusIsEmpty || this.$refs.composerInput === undefined) {
+			this.prefillMessageWithMentions([account])
+		},
+
+		/**
+		 * Starts the message with a mention pill per account, in the order
+		 * given, unless something is already being written.
+		 *
+		 * @param {Array<{acct: string, url: string, avatar?: string}>} accounts who to address
+		 */
+		prefillMessageWithMentions(accounts) {
+			if (accounts.length === 0 || !this.statusIsEmpty || this.$refs.composerInput === undefined) {
 				return
 			}
 
-			let handle = account.acct
+			const nodes = accounts.flatMap((account) => {
+				const mention = document.createElement('span')
+				mention.className = 'mention'
+				mention.contentEditable = 'false'
 
-			if (!handle.includes('@')) {
-				handle += `@${this.hostname}`
-			}
+				const link = document.createElement('a')
+				link.href = account.url
+				link.target = '_blank'
 
-			const mention = document.createElement('span')
-			mention.className = 'mention'
-			mention.contentEditable = 'false'
+				// a Mention entity off a post carries no picture; the pill
+				// then carries none either rather than a broken one
+				if (account.avatar) {
+					const avatar = document.createElement('img')
+					avatar.src = account.avatar
+					link.append(avatar)
+				}
+				link.append(document.createTextNode(`@${this.fullHandle(account.acct)}`))
+				mention.append(link)
 
-			const link = document.createElement('a')
-			link.href = account.url
-			link.target = '_blank'
+				return [mention, document.createTextNode('\u00a0')]
+			})
 
-			const avatar = document.createElement('img')
-			avatar.src = account.avatar
-			link.append(avatar, document.createTextNode(`@${handle}`))
-			mention.append(link)
-
-			this.$refs.composerInput.replaceChildren(mention, document.createTextNode('\u00a0'))
+			this.$refs.composerInput.replaceChildren(...nodes)
 			this.updateStatusContent()
+		},
+
+		/**
+		 * @param {string} acct a handle, with or without its host
+		 * @return {string} the handle with its host, the way a mention is typed
+		 */
+		fullHandle(acct) {
+			return acct.includes('@') ? acct : `${acct}@${this.hostname}`
+		},
+
+		/**
+		 * Everyone a reply to this post should reach: its author, then
+		 * everyone it mentioned, each once, and never the reader — a reply
+		 * that addresses its own author is talking to itself.
+		 *
+		 * @param {object} post the post being answered, as the timeline holds it
+		 * @return {Array<{acct: string, url: string, avatar?: string}>}
+		 */
+		participantsOf(post) {
+			const self = `${this.currentUser.uid}@${this.hostname}`.toLowerCase()
+			const seen = new Set()
+
+			return [post.account, ...(Array.isArray(post.mentions) ? post.mentions : [])]
+				.filter((account) => typeof account?.acct === 'string' && account.acct !== '')
+				.filter((account) => {
+					const handle = this.fullHandle(account.acct).toLowerCase()
+					if (handle === self || seen.has(handle)) {
+						return false
+					}
+
+					seen.add(handle)
+
+					return true
+				})
 		},
 
 		updateStatusContent() {
@@ -1349,6 +1539,11 @@ export default {
 			if (description !== '') {
 				this.timelineStore.describeMedia({ id: mediaData.id, description })
 			}
+			// and so does the focal point: a filter changes the colours, not
+			// where the face is
+			if (isFocalPoint(attachment.focus)) {
+				this.timelineStore.focusMedia({ id: mediaData.id, focus: focusParam(attachment.focus) })
+			}
 
 			this.attachments = {
 				...this.attachments,
@@ -1469,6 +1664,15 @@ export default {
 				in_reply_to_id: this.replyTo?.id,
 				quote_id: this.quoteOf?.id,
 				visibility: this.visibility,
+				// always, so the post is never without one: the server would
+				// fill in the same default, but what the poster saw is what goes
+				language: this.language,
+			}
+
+			// ISO 8601 in UTC, which is what `scheduled_at` takes; the picker
+			// works in the reader's zone and the Date carries the conversion
+			if (this.scheduling && this.scheduledAt instanceof Date) {
+				statusData.scheduled_at = this.scheduledAt.toISOString()
 			}
 
 			const pollOptions = this.pollOptions.map((option) => option.trim()).filter((option) => option !== '')
@@ -1480,7 +1684,11 @@ export default {
 				}
 			}
 
-			logger.debug('Posting status', { visibility: statusData.visibility, attachments: statusData.media_ids.length })
+			logger.debug('Posting status', {
+				visibility: statusData.visibility,
+				attachments: statusData.media_ids.length,
+				scheduled: statusData.scheduled_at !== undefined,
+			})
 
 			let created
 			try {
@@ -1501,6 +1709,8 @@ export default {
 				return
 			}
 
+			const wasScheduled = statusData.scheduled_at !== undefined
+
 			this.replyTo = this.inReplyTo
 			this.quoteOf = null
 			if (this.inReplyTo !== null) {
@@ -1516,13 +1726,62 @@ export default {
 			this.pollMultiple = false
 			this.showWarning = false
 			this.spoilerText = ''
+			this.scheduling = false
+			this.scheduledAt = null
 			clearDraft()
 			this.updateStatusContent()
-			this.timelineStore.refreshTimeline()
 			// the sidebar's modal has no other way of knowing: it cleared the
 			// box and stayed open, which reads as if nothing had happened
 			this.$emit('posted')
+
+			if (wasScheduled) {
+				// nothing is on any timeline yet, so there is nothing to
+				// refresh and no post to celebrate; what there is to say is
+				// when it will be — the answer is a ScheduledStatus, not a Status
+				showSuccess(translate('social', 'Scheduled for {date}', {
+					date: fullDateTime(created.scheduled_at ?? statusData.scheduled_at),
+				}))
+				eventBus.emit('post-scheduled', created)
+
+				return
+			}
+
+			this.timelineStore.refreshTimeline()
 			eventBus.emit('post-published', created)
+		},
+
+		/**
+		 * Presses or releases the clock. Pressing it fetches the picker and
+		 * proposes an hour from now, rounded to the picker's step, so there is
+		 * a time to move rather than a blank to fill.
+		 */
+		async toggleSchedule() {
+			if (this.scheduling) {
+				this.scheduling = false
+				this.scheduledAt = null
+
+				return
+			}
+
+			this.scheduling = true
+			this.scheduledAt = new Date(Math.ceil((Date.now() + SCHEDULE_PROPOSAL) / SCHEDULE_STEP) * SCHEDULE_STEP)
+			if (this.schedulePickerLoaded || this.schedulePickerLoading) {
+				return
+			}
+
+			this.schedulePickerLoading = true
+			try {
+				await datePickerModule()
+				this.schedulePickerLoaded = true
+			} catch (error) {
+				// the module's onError has logged it; without a picker there is
+				// no way to choose a time, so the post goes out now after all
+				logger.debug('The date picker is not available', { error })
+				this.scheduling = false
+				this.scheduledAt = null
+			} finally {
+				this.schedulePickerLoading = false
+			}
 		},
 
 		toggleWarning() {
@@ -1652,6 +1911,43 @@ export default {
 				...this.attachments,
 				[key]: { ...this.attachments[key], description },
 			}
+		},
+
+		/**
+		 * Moves an attachment's focal point, locally: what the crosshair shows
+		 * while it is being dragged.
+		 *
+		 * @param {object} update what changed
+		 * @param {string} update.key which attachment
+		 * @param {import('../../utils/focalPoint.js').FocalPoint} update.focus where the subject is
+		 */
+		focusAttachment({ key, focus }) {
+			if (this.attachments[key] === undefined || !isFocalPoint(focus)) {
+				return
+			}
+
+			this.attachments = {
+				...this.attachments,
+				[key]: { ...this.attachments[key], focus },
+			}
+		},
+
+		/**
+		 * Saves where the subject is once the drag is over, through the same
+		 * request the description takes.
+		 *
+		 * @param {object} update what was set
+		 * @param {string} update.key which attachment
+		 * @param {import('../../utils/focalPoint.js').FocalPoint} update.focus where the subject is
+		 */
+		async commitFocus({ key, focus }) {
+			const attachment = this.attachments[key]
+			if (attachment?.data?.id === undefined || !isFocalPoint(focus)) {
+				return
+			}
+
+			this.focusAttachment({ key, focus })
+			await this.timelineStore.focusMedia({ id: attachment.data.id, focus: focusParam(focus) })
 		},
 	},
 }
@@ -2166,6 +2462,38 @@ $composer-duration: 220ms;
 		flex-wrap: wrap;
 	}
 }
+
+.schedule-editor {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 8px 0;
+	padding: 8px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius);
+
+	&__label {
+		font-size: 13px;
+		color: var(--color-text-maxcontrast);
+	}
+
+	&__picker {
+		flex: 1 1 200px;
+		min-width: 0;
+	}
+
+	&__hint {
+		flex-basis: 100%;
+		font-size: 12px;
+		color: var(--color-error);
+	}
+
+	&__remove {
+		margin-inline-start: auto;
+	}
+}
+
 /* the allowance as a ring that fills, rather than a limit you discover */
 .composer-alt-warning {
 	align-self: center;

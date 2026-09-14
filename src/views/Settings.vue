@@ -24,6 +24,16 @@
 
 		<section class="settings__section">
 			<h3 class="settings__section-heading">
+				{{ t('social', 'Scheduled posts') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'What you have written to be published later. Cancel one here; to change its time, write it again.') }}
+			</p>
+			<ScheduledPosts />
+		</section>
+
+		<section class="settings__section">
+			<h3 class="settings__section-heading">
 				{{ t('social', 'Migration') }}
 			</h3>
 			<p class="settings__section-lede">
@@ -36,6 +46,7 @@
 
 <script>
 import MigrationSettings from '../components/MigrationSettings.vue'
+import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
 import { t } from '@nextcloud/l10n'
 
@@ -54,6 +65,7 @@ export default {
 
 	components: {
 		MigrationSettings,
+		ScheduledPosts,
 		ShortcutList,
 	},
 

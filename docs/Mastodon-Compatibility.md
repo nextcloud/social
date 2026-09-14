@@ -508,6 +508,12 @@ And the whole of tier 2b followed it: conversation mute, the `poll`, `status`,
 `moderation_warning` and `severed_relationships` notifications, the three
 `instance` sub-routes, the link timeline and the standalone card.
 
+Three fields this server has long accepted have also stopped being reachable
+only from somebody else's client: the web composer sends `language` with every
+post, schedules one with `scheduled_at` and lists what is waiting through
+`/api/v1/scheduled_statuses`, and writes a `focus` onto an attachment. Nothing
+changed on the API for any of them; what changed is who can set them.
+
 Of the tier-1 pair, one has moved: per-user OAuth tokens are done. The root
 path has not.
 

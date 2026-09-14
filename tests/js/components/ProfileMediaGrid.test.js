@@ -25,15 +25,17 @@ function grid(overrides = {}) {
 
 describe('ProfileMediaGrid', () => {
 	describe('focalPosition', () => {
+		// the centre is spelled the way every other position is, since the
+		// conversion is now the one the composer's crosshair writes with
 		it('centres a picture that never said where to look', () => {
-			expect(grid().focalPosition({})).toBe('50% 50%')
-			expect(grid().focalPosition({ meta: {} })).toBe('50% 50%')
-			expect(grid().focalPosition(undefined)).toBe('50% 50%')
+			expect(grid().focalPosition({})).toBe('50.00% 50.00%')
+			expect(grid().focalPosition({ meta: {} })).toBe('50.00% 50.00%')
+			expect(grid().focalPosition(undefined)).toBe('50.00% 50.00%')
 		})
 
 		it('centres rather than trusting a malformed focus', () => {
 			for (const focus of [{ x: 'left', y: 0 }, { x: 0 }, { y: 0 }, null]) {
-				expect(grid().focalPosition({ meta: { focus } })).toBe('50% 50%')
+				expect(grid().focalPosition({ meta: { focus } })).toBe('50.00% 50.00%')
 			}
 		})
 
