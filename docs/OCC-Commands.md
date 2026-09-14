@@ -712,6 +712,57 @@ tag they were federated with; this instance no longer offering the picture does
 not rewrite what was already said. Locally, the picture stops being served, so
 the shortcode shows as text again.
 
+### `social:gif`
+
+The shared pictures the composer offers in its GIF picker.
+
+```
+php occ social:gif [-t|--title TITLE] [<action>] [<slug>] [<file>]
+```
+
+| Argument | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `action` | No | `list` | One of `list`, `add`, `remove` |
+| `slug` | No | `''` | Required by `add` and `remove`. What the picture is served and searched under: 2–64 characters of `a-z`, `0-9`, `-` and `_`. Read lowercase and trimmed |
+| `file` | No | `''` | Required by `add`. A readable path to the picture |
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-t`, `--title` | required | What the picker searches on — "the one with the cat" is how anybody actually looks for one of these |
+
+| Action | Effect |
+|--------|--------|
+| `list` _(the default)_ | Print every picture in the library with its title and the URL it is served from |
+| `add <slug> <file>` | Put the picture in the library under that slug |
+| `remove <slug>` | Take it out |
+
+An unknown action throws `specify action: list, add, remove`; removing one that
+is not there throws `there is no library picture called <slug>`.
+
+**What is accepted.** A GIF, an animated WebP or an MP4 of at most **8 MiB** —
+the bytes decide, not the extension. Animated formats only: a library of stills
+is what the Files picker beside it is already for. The metadata is stripped the
+way every other upload's is, because these end up attached to posts that leave
+this instance.
+
+**Why there is no upload form.** This is a small set curated for a whole
+instance rather than something every reader adds to, and the files an
+administrator wants in it are already on a machine they have a shell on.
+
+**Why there is no Giphy or Tenor.** Both would mean every composer on the
+instance talking to a third party: the search terms people type go there, and
+every thumbnail is a request from a reader's browser to a host the instance does
+not control. That is not a decision this app should make on an administrator's
+behalf, and a setting to turn it on would still be a setting that quietly sends
+what people are looking for to somebody else's server.
+
+**What `add` does to a slug already in use.** Replaces the picture, for the
+reason `social:emoji add` does.
+
+**What `remove` does to posts that used it.** Nothing. An attachment is a copy
+taken when the post was written, so a post keeps the picture it was published
+with.
+
 ### `social:domain:purge`
 
 Delete everything an instance already sent this one. Blocking the domain

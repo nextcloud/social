@@ -50,6 +50,7 @@ use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\GifService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
@@ -141,6 +142,7 @@ class ApiControllerTest extends TestCase {
 	private PlaceService|MockObject $placeService;
 	private DeliveryService|MockObject $deliveryService;
 	private ReactionService|MockObject $reactionService;
+	private GifService|MockObject $gifService;
 	private NotificationService|MockObject $notificationService;
 	private IAppManager|MockObject $appManager;
 	private FediverseService|MockObject $fediverseService;
@@ -248,6 +250,7 @@ class ApiControllerTest extends TestCase {
 		$this->placeService = $this->createMock(PlaceService::class);
 		$this->deliveryService = $this->createMock(DeliveryService::class);
 		$this->reactionService = $this->createMock(ReactionService::class);
+		$this->gifService = $this->createMock(GifService::class);
 		$this->notificationService = $this->createMock(NotificationService::class);
 		$this->appManager = $this->createMock(IAppManager::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
@@ -342,6 +345,7 @@ class ApiControllerTest extends TestCase {
 			$this->placeService,
 			$this->deliveryService,
 			$this->reactionService,
+			$this->gifService,
 			$this->notificationService
 		);
 	}

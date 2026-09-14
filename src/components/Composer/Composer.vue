@@ -139,6 +139,11 @@
 				@paste="handlePaste"
 				@tribute-replaced="updatePostFromTribute" />
 
+			<GifPicker
+				v-if="showGifs"
+				@close="showGifs = false"
+				@chosen="attachGif" />
+
 			<!-- what the server will publish, once the writer asks to see it;
 			     under the box, above everything the post is being given -->
 			<ComposerPreview
@@ -268,6 +273,18 @@
 					</template>
 				</NcButton>
 				<NcButton
+					:title="showGifs ? t('social', 'Close the picture library') : t('social', 'Add from the picture library')"
+					variant="tertiary"
+					:aria-label="showGifs ? t('social', 'Close the picture library') : t('social', 'Add from the picture library')"
+					:aria-pressed="showGifs"
+					:disabled="attachmentsFull"
+					@click.prevent="showGifs = !showGifs">
+					<template #icon>
+						<FileGifBox :size="22" decorative title="" />
+					</template>
+				</NcButton>
+
+				<NcButton
 					:title="showPreview ? t('social', 'Hide preview') : t('social', 'Preview this post')"
 					variant="tertiary"
 					:aria-label="showPreview ? t('social', 'Hide preview') : t('social', 'Preview this post')"
@@ -379,6 +396,7 @@ import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
 import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import FolderImage from 'vue-material-design-icons/FolderImage.vue'
+import FileGifBox from 'vue-material-design-icons/FileGifBox.vue'
 import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
@@ -397,6 +415,7 @@ import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
 import ComposerPreview from './ComposerPreview.vue'
+import GifPicker from './GifPicker.vue'
 import LanguageSelect from './LanguageSelect.vue'
 import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
 import { isKnownVisibility } from '../Visibility/VisibilitiesInfos.js'
@@ -551,6 +570,8 @@ export default {
 		PollIcon,
 		PreviewGrid,
 		ComposerPreview,
+		GifPicker,
+		FileGifBox,
 		LanguageSelect,
 		VisibilitySelect,
 		SubmitStatusButton,
@@ -685,6 +706,8 @@ export default {
 			showWarning: false,
 			/** whether the "how this will read" pane is open */
 			showPreview: false,
+			/** whether the shared picture library is open */
+			showGifs: false,
 			spoilerText: '',
 			pollOptions: ['', ''],
 			pollMultiple: false,
@@ -1554,6 +1577,57 @@ export default {
 
 			this.expand()
 			await this.attachPaths(paths)
+		},
+
+		/**
+		 * Attaches a picture from the instance's shared library.
+		 *
+		 * The same shape as attaching from Files: a placeholder goes into the
+		 * grid at once so the reader sees that something is happening, and the
+		 * server's answer replaces it. The picker stays open — choosing two is
+		 * a normal thing to want, and the ceiling closes it instead.
+		 *
+		 * @param {{slug: string, title: string}} gif the one that was chosen
+		 */
+		async attachGif(gif) {
+			if (this.attachmentsFull) {
+				this.announceCeiling()
+				this.showGifs = false
+				return
+			}
+
+			this.expand()
+
+			// the same picture may be chosen twice, and the slug cannot tell
+			// those two attachments apart
+			const key = `gif:${++this.pickCount}:${gif.slug}`
+			this.attachments = {
+				...this.attachments,
+				[key]: { file: null, path: gif.title || gif.slug, data: null, failed: false },
+			}
+
+			this.uploading = true
+			this.progressLabel = t('social', 'Attaching…')
+			const mediaData = await this.timelineStore.createMediaFromGif({ slug: gif.slug })
+			this.uploading = false
+
+			if (this.attachments[key] === undefined) {
+				// deleted while the server was copying it
+				return
+			}
+
+			this.attachments = {
+				...this.attachments,
+				[key]: {
+					...this.attachments[key],
+					data: mediaData?.id === undefined ? null : mediaData,
+					failed: mediaData?.id === undefined,
+				},
+			}
+
+			if (this.attachmentsFull) {
+				this.showGifs = false
+			}
 		},
 
 		/**
