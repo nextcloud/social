@@ -292,7 +292,13 @@ Authorized fetch inbound is **no longer** among them: a signed GET is verified
 and resolved to the account behind it (`AuthorizedFetchService`), so a
 followers-only object is served to a remote reader who follows it, and secure
 mode — refusing an unsigned ActivityPub GET outright — is available behind the
-`secure_mode` app value. Custom `Emoji` tags are emitted and reactions to an
+`secure_mode` app value. It covers **every** ActivityPub GET this instance
+serves: the actor, the outbox, the featured, followers and following
+collections, a post, its replies and a quote authorization. It used to cover
+the actor and the post only, which is Mastodon's promise kept for two
+documents out of eight — an instance with it switched on would not show a
+stranger a profile and would still list everything that profile had posted and
+everyone who followed it. Custom `Emoji` tags are emitted and reactions to an
 announcement are stored and served; emoji reactions to a *status* are a
 Misskey and Pleroma extension that Mastodon itself does not handle, and are
 not implemented here either.

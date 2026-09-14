@@ -17,6 +17,7 @@ use OCA\Social\Model\Client\AdminDomainBlock;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Service\AccessBlockService;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
@@ -174,7 +175,8 @@ class AdminApiControllerTest extends TestCase {
 			$this->metricsService,
 			$this->hashtagService,
 			$this->trendService,
-			$this->clientService
+			$this->clientService,
+			$this->createMock(AccountService::class)
 		);
 	}
 

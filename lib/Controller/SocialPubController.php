@@ -11,16 +11,10 @@ namespace OCA\Social\Controller;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -28,7 +22,6 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
-use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -41,31 +34,18 @@ use OCP\IRequest;
 class SocialPubController extends Controller {
 	use TNCDataResponse;
 
-	private ?string $userId = null;
 	private IL10N $l10n;
-	private NavigationController $navigationController;
-	private AccountService $accountService;
-	private StreamService $streamService;
 	private IInitialState $initialState;
 
 	public function __construct(
-		?string $userId,
 		IInitialState $initialState,
 		IRequest $request,
 		IL10N $l10n,
-		NavigationController $navigationController,
 		private CacheActorService $cacheActorService,
-		AccountService $accountService,
-		StreamService $streamService,
-		private ConfigService $configService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
-		$this->userId = $userId;
 		$this->initialState = $initialState;
 		$this->l10n = $l10n;
-		$this->navigationController = $navigationController;
-		$this->accountService = $accountService;
-		$this->streamService = $streamService;
 	}
 
 	/**
@@ -136,42 +116,5 @@ class SocialPubController extends Controller {
 	#[PublicPage]
 	public function following(string $username): Response {
 		return $this->renderPage($username);
-	}
-
-	/**
-	 * Display the navigation page of the Social app.
-	 *
-	 * @throws SocialAppConfigException
-	 * @throws StreamNotFoundException
-	 */
-	#[NoCSRFRequired]
-	#[PublicPage]
-	public function displayPost(string $username, string $token): Response {
-		try {
-			$viewer = $this->accountService->getCurrentViewer();
-			$this->streamService->setViewer($viewer);
-		} catch (AccountDoesNotExistException $e) {
-		}
-
-		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
-
-		$stream = $this->streamService->getStreamById($postId, false);
-
-		if (strtolower($stream->getActor()->getDisplayName()) !== strtolower($username)
-			&& strtolower($stream->getActor()->getPreferredUsername()) !== strtolower($username)) {
-			throw new StreamNotFoundException();
-		}
-
-		$data = [
-			'application' => 'Social'
-		];
-
-		$stream->setCompleteDetails(true);
-		$stream->setExportFormat(ACore::FORMAT_LOCAL);
-		$this->initialState->provideInitialState('item', $stream);
-		$this->initialState->provideInitialState('serverData', [
-			'public' => ($this->userId === null),
-		]);
-		return new TemplateResponse(Application::APP_ID, 'main', $data);
 	}
 }

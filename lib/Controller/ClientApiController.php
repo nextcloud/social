@@ -33,14 +33,15 @@ use Throwable;
  * asking, whether their token is allowed to ask, and what to say when something
  * goes wrong.
  *
- * Twelve controllers carry a private copy of this -- `initViewer()`,
- * `currentSession()`, `checkTokenScope()` and `error()`, the same four methods
- * each time. That is the shape the app grew into and this does not rewrite it;
- * it exists so the controllers added since do not make it fourteen. The older
- * ones can move onto it one at a time, and each one that does is a hundred and
- * fifty lines that stop being able to drift from the others.
+ * Every client-API controller extends this and none of them carries a copy:
+ * `initViewer()`, `currentSession()`, `checkTokenScope()` and `error()` exist
+ * once. Twelve of them used to have their own, the same four methods each
+ * time, and three of the copies had drifted onto a looser scope rule -- one
+ * that took any granular grant as its parent, so a token granted only
+ * `read:statuses` read notifications, blocks and bookmarks. A rule that lives
+ * in one place cannot drift like that.
  *
- * The rules it encodes are the ones the copies already agreed on:
+ * The rules it encodes:
  *
  *  - A bearer token identifies the caller. Failing that, a Nextcloud session
  *    that passes its CSRF check does -- which is what lets the app's own
@@ -48,9 +49,21 @@ use Throwable;
  *  - A granular scope is satisfied by itself or by the broad scope containing
  *    it (`read:lists` by `read:lists` or by `read`), and by nothing else. Not
  *    by another granular variant of the same parent: a token granted
- *    `read:statuses` has not been granted the caller's collections.
+ *    `read:statuses` has not been granted the caller's collections. And a
+ *    broad scope is satisfied by the broad scope only: a route that requires
+ *    `write` is not open to `write:media`.
+ *  - An empty list of scopes means no scope is required and any valid token
+ *    will do, which is what Mastodon documents for a handful of reads.
+ *  - A token that is presented is checked even where the route would have
+ *    answered an anonymous caller: a grant that does not cover the route is a
+ *    refusal, not a downgrade to the anonymous view.
  *  - "Not there", "somebody else's" and "no such account" are one answer, so
  *    that none of them can be told apart from the others by someone probing.
+ *
+ * A controller whose rule is the same but whose sequence is not -- the admin
+ * API establishes who is asking, then whether they may moderate, and only
+ * then looks at the scope -- composes `currentSession()` and
+ * `checkTokenScope()` itself rather than carrying its own.
  */
 abstract class ClientApiController extends Controller {
 	protected string $bearer = '';
@@ -116,6 +129,10 @@ abstract class ClientApiController extends Controller {
 			$this->initViewer($scopes);
 
 			return $this->viewer;
+		} catch (InsufficientScopeException $e) {
+			// the token is real and was granted less than this: answering the
+			// anonymous view instead would turn a refusal into a partial success
+			throw $e;
 		} catch (Throwable $e) {
 			return null;
 		}
@@ -127,7 +144,7 @@ abstract class ClientApiController extends Controller {
 	 * @throws ClientNotFoundException
 	 * @throws InsufficientScopeException
 	 */
-	private function currentSession(array $scopes): string {
+	protected function currentSession(array $scopes): string {
 		if ($this->bearer !== '') {
 			$this->client = $this->clientService->getFromToken($this->bearer);
 			$this->checkTokenScope($scopes);
@@ -144,11 +161,16 @@ abstract class ClientApiController extends Controller {
 	}
 
 	/**
-	 * @param string[] $accepted
+	 * @param string[] $accepted any one of which satisfies the token; none
+	 *                           means no scope is required of it
 	 *
 	 * @throws InsufficientScopeException
 	 */
-	private function checkTokenScope(array $accepted): void {
+	protected function checkTokenScope(array $accepted): void {
+		if ($accepted === []) {
+			return;
+		}
+
 		foreach ($accepted as $scope) {
 			$broad = strstr($scope, ':', true);
 			$broad = ($broad === false) ? $scope : $broad;

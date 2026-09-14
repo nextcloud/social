@@ -17,9 +17,11 @@ use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Tools\Traits\TAsync;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
@@ -60,6 +62,15 @@ class QueueController extends Controller {
 
 	#[PublicPage]
 	#[NoCSRFRequired]
+	// Every call to this route is this instance calling itself, once per
+	// batch of outbound activities, so every one of them arrives from the same
+	// address: the ceiling has to hold a busy instance's own traffic -- a
+	// burst of posts, each fanning out to its followers -- and only needs to
+	// stop somebody hammering the route with made-up tokens from outside. A
+	// token that matches nothing costs one indexed read, so ten a second is a
+	// generous allowance for a stranger and no constraint on the instance
+	#[AnonRateLimit(limit: 600, period: 60)]
+	#[UserRateLimit(limit: 600, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/async/request/{token}')]
 	public function asyncForRequest(string $token): Response {
 		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);

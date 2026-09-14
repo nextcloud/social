@@ -51,6 +51,7 @@ use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
@@ -65,9 +66,15 @@ use Psr\Log\LoggerInterface;
  */
 class AsyncFreeActivityPubController extends ActivityPubController {
 	public int $asyncCalls = 0;
+	/** What `php://input` would hold; read with the same ceiling the controller asks for. */
+	public string $body = '';
 
 	public function async(string $result = ''): void {
 		$this->asyncCalls++;
+	}
+
+	protected function readInput(int $limit): string {
+		return substr($this->body, 0, $limit);
 	}
 }
 
@@ -1380,5 +1387,138 @@ class ActivityPubControllerTest extends TestCase {
 			->willReturn(new \OCP\AppFramework\Http\TemplateResponse('social', 'main'));
 
 		$this->assertNotSame(Http::STATUS_UNAUTHORIZED, $this->controller->actor('alice')->getStatus());
+	}
+
+	// the inbox body ceiling
+
+	/**
+	 * The body was read whole before anything about the delivery had been
+	 * verified, so an oversized unsigned POST cost this instance its memory
+	 * and the sender nothing. Past the ceiling the answer is 413 and no
+	 * digest, key fetch or signature check is attempted.
+	 */
+	public function testAnInboxBodyPastTheCeilingIs413BeforeAnySignatureWork(): void {
+		$this->controller->body = str_repeat('a', ActivityPubController::MAX_INBOX_BODY + 1);
+		$this->signatureService->expects($this->never())->method('checkRequest');
+		$this->importService->expects($this->never())->method('importFromJson');
+
+		$this->assertSame(Http::STATUS_REQUEST_ENTITY_TOO_LARGE, $this->controller->sharedInbox()->getStatus());
+		$this->assertSame(Http::STATUS_REQUEST_ENTITY_TOO_LARGE, $this->controller->inbox('alice')->getStatus());
+	}
+
+	public function testAnInboxBodyAtTheCeilingIsReadWhole(): void {
+		$body = str_repeat('a', ActivityPubController::MAX_INBOX_BODY);
+		$this->controller->body = $body;
+		$this->signatureService->expects($this->once())
+			->method('checkRequest')
+			->with($this->anything(), $body)
+			->willThrowException(new SignatureException('bad signature'));
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testTheCeilingIsMastodons(): void {
+		$this->assertSame(2 * 1024 * 1024, ActivityPubController::MAX_INBOX_BODY);
+	}
+
+	// secure mode on every ActivityPub GET
+
+	/** @return iterable<string, array{string}> */
+	public static function activityPubCollections(): iterable {
+		yield 'outbox' => ['outbox'];
+		yield 'featured' => ['featured'];
+		yield 'followers' => ['followers'];
+		yield 'following' => ['following'];
+		yield 'replies' => ['replies'];
+		yield 'quote authorization' => ['quoteAuthorization'];
+	}
+
+	/** Fetches one of the collections as an ActivityPub client, with what it needs to answer arranged. */
+	private function fetchCollection(string $route): Response {
+		$this->acceptHeader('application/activity+json');
+
+		switch ($route) {
+			case 'outbox':
+				$this->localActor('alice');
+				$this->streamService->method('getOutboxCollection')->willReturn(new OrderedCollection());
+
+				return $this->controller->outbox('alice');
+			case 'featured':
+				$actor = new Person();
+				$actor->setId(self::SOCIAL_URL . '@alice');
+				$actor->setFeatured(self::SOCIAL_URL . '@alice/collections/featured');
+				$this->localActor('alice', $actor);
+				$this->pinService->method('getPinnedPosts')->willReturn([]);
+
+				return $this->controller->featured('alice');
+			case 'followers':
+				$this->localActor('alice');
+				$this->followService->method('getFollowersCollection')->willReturn(new OrderedCollection());
+
+				return $this->controller->followers('alice');
+			case 'following':
+				$this->localActor('alice');
+				$this->followService->method('getFollowingCollection')->willReturn(new OrderedCollection());
+
+				return $this->controller->following('alice');
+			case 'replies':
+				$this->quotablePost();
+				$this->streamService->method('getRepliesCollection')->willReturn(new OrderedCollection());
+
+				return $this->controller->replies('alice', 'abc123');
+			default:
+				$this->quotablePost();
+
+				return $this->controller->displayQuoteAuthorization(
+					'alice', 'abc123', QuoteRequestInterface::stamp('https://remote.example/1')
+				);
+		}
+	}
+
+	/**
+	 * Secure mode covered the actor and the post and nothing else, so an
+	 * instance that would not show a stranger a profile still listed
+	 * everything the profile had posted, pinned, and everyone it followed.
+	 */
+	#[DataProvider('activityPubCollections')]
+	public function testInSecureModeAnUnsignedCollectionFetchIsRefused(string $route): void {
+		$this->secureMode = true;
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->fetchCollection($route)->getStatus());
+	}
+
+	#[DataProvider('activityPubCollections')]
+	public function testInSecureModeASignedCollectionFetchIsAnswered(string $route): void {
+		$this->secureMode = true;
+		$this->signedReader = $this->createMock(Person::class);
+
+		$this->assertSame(Http::STATUS_OK, $this->fetchCollection($route)->getStatus());
+	}
+
+	#[DataProvider('activityPubCollections')]
+	public function testWithoutSecureModeAnUnsignedCollectionFetchIsAnswered(string $route): void {
+		$this->assertSame(Http::STATUS_OK, $this->fetchCollection($route)->getStatus());
+	}
+
+	/** The refusal comes before anything is looked up, so it says nothing about what is there. */
+	public function testASecureModeRefusalLooksNothingUp(): void {
+		$this->secureMode = true;
+		$this->cacheActorService->expects($this->never())->method('getFromLocalAccount');
+		$this->streamService->expects($this->never())->method('getStreamById');
+
+		$this->fetchCollection('outbox');
+		$this->fetchCollection('replies');
+	}
+
+	/** A browser asking for the followers page is not making an ActivityPub fetch. */
+	public function testSecureModeDoesNotRefuseABrowserAskingForFollowers(): void {
+		$this->acceptHeader('text/html');
+		$this->secureMode = true;
+		$page = new TemplateResponse('social', 'main');
+		$this->socialPubController->method('followers')->willReturn($page);
+		$this->socialPubController->method('following')->willReturn($page);
+
+		$this->assertSame($page, $this->controller->followers('alice'));
+		$this->assertSame($page, $this->controller->following('alice'));
 	}
 }
