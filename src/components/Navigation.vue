@@ -853,11 +853,27 @@ export default {
 	box-shadow: none;
 }
 
-/* on a phone the modal is the screen, so the composer's edges are the
-   screen's edges and the box and the Post button were drawn against them */
+/*
+ * The gap the composer lost when its frame came off.
+ *
+ * In a timeline the composer is a card with 18px of padding of its own. The
+ * rule above takes the card away inside a dialog -- rightly, a panel over a
+ * dimmed page has already drawn one frame -- but it took the padding with it,
+ * and nothing put it back, so the box you write in and the Post button sat
+ * hard against the dialog's edge. The dialog owns the inset now, which is
+ * what the Errors dialog beside it has always done.
+ *
+ * Less at the top than the sides: the dialog's own header and its rule
+ * already separate the composer from the name above it.
+ */
+.modal-composer {
+	padding: 12px 18px 18px;
+}
+
+/* a phone has less to spare, and the dialog is the whole screen */
 @media (max-width: 600px) {
 	.modal-composer {
-		padding: 0 12px 12px;
+		padding: 8px 12px 12px;
 	}
 }
 
