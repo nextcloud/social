@@ -17,6 +17,7 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\PollService;
+use OCA\Social\Service\ProfileLinkVerifier;
 use OCA\Social\Service\StreamPruneService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -45,6 +46,7 @@ class Cache extends TimedJob {
 		private PollService $pollService,
 		LoggerInterface $logger,
 		private ?GroupListService $groupListService = null,
+		private ?ProfileLinkVerifier $profileLinkVerifier = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60);
@@ -97,6 +99,12 @@ class Cache extends TimedJob {
 
 		$this->step('syncRemoteTimelines', function (): void {
 			$this->syncRemoteTimelines();
+		});
+
+		$this->step('verifyProfileLinks', function (): void {
+			// this instance's own accounts; remote ones are checked with their
+			// details refresh
+			$this->profileLinkVerifier?->verifyLocalActors();
 		});
 
 		$this->step('reconcileGroupLists', function (): void {

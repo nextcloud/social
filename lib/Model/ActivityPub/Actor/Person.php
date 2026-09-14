@@ -1090,8 +1090,13 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		$headerUrl = $this->getHeader();
 		$details = $this->getDetailsAll();
+		// when the page a field names was last seen linking back with rel="me"
+		// (ProfileLinkVerifier); null until it has, as on Mastodon
+		$verified = $details['fields_verified'] ?? [];
 		$fields = array_map(
-			static fn (array $field): array => array_merge($field, ['verified_at' => null]),
+			static fn (array $field): array => array_merge($field, [
+				'verified_at' => (isset($verified[$field['value']]) && is_string($verified[$field['value']])) ? $verified[$field['value']] : null,
+			]),
 			$this->getFields()
 		);
 		$result

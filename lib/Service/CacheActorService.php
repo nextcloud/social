@@ -23,6 +23,7 @@ use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Interfaces\Activity\FeaturedCollection;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\Client\Options\ProbeOptions;
@@ -35,6 +36,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
 use OCP\IURLGenerator;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -53,6 +55,7 @@ class CacheActorService {
 		private FediverseService $fediverseService,
 		private ConfigService $configService,
 		private LoggerInterface $logger,
+		private ?ContainerInterface $container = null,
 	) {
 	}
 
@@ -295,6 +298,24 @@ class CacheActorService {
 	}
 
 	/**
+	 * Resolved when first needed rather than injected: FeaturedCollection needs
+	 * StreamRequest, which needs StreamDestRequest, which needs this service —
+	 * a cycle the container refuses while constructing and is fine with once
+	 * everything exists. Null without a container, as in a unit test.
+	 */
+	private function featuredCollection(): ?FeaturedCollection {
+		$service = $this->container?->get(FeaturedCollection::class);
+
+		return ($service instanceof FeaturedCollection) ? $service : null;
+	}
+
+	private function profileLinkVerifier(): ?ProfileLinkVerifier {
+		$service = $this->container?->get(ProfileLinkVerifier::class);
+
+		return ($service instanceof ProfileLinkVerifier) ? $service : null;
+	}
+
+	/**
 	 * @return int
 	 * @throws Exception
 	 */
@@ -306,6 +327,10 @@ class CacheActorService {
 		foreach ($update as $item) {
 			try {
 				$this->addRemoteActorDetailCount($item);
+				// what else a profile shows that only a fetch can answer: the
+				// posts the account has pinned, and whether its links link back
+				$this->featuredCollection()?->refresh($item);
+				$this->profileLinkVerifier()?->verify($item);
 				$this->cacheActorsRequest->updateDetails($item);
 			} catch (Exception $e) {
 			}

@@ -308,6 +308,18 @@ class PersonTest extends TestCase {
 		$this->assertSame([], $account['fields']);
 	}
 
+	public function testAFieldWhosePageLinksBackCarriesWhenItWasSeenDoingSo(): void {
+		$person = new Person();
+		$person->setId('https://cloud.example/users/alice');
+		$person->setFields([['name' => 'Web', 'value' => 'https://alice.example/'], ['name' => 'City', 'value' => 'Berlin']]);
+		$person->setDetailArray('fields_verified', ['https://alice.example/' => '2026-09-14T00:00:00+00:00']);
+
+		$fields = $person->exportAsLocal()['fields'];
+
+		$this->assertSame('2026-09-14T00:00:00+00:00', $fields[0]['verified_at']);
+		$this->assertNull($fields[1]['verified_at'], 'not a link, never verified');
+	}
+
 	public function testLastStatusAtIsNullUntilSomethingWasPosted(): void {
 		$person = new Person();
 		$this->assertNull($person->exportAsLocal()['last_status_at'], 'a date-or-null field, never the empty string');
