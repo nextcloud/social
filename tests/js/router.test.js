@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import router from '../../src/router.js'
+import eventBus from '../../src/services/eventBus.js'
 
 // The views are lazy-loaded chunks; navigation would otherwise pull in the
 // whole component tree. Stubs keep the routing table under test.
@@ -137,11 +138,40 @@ describe('router', () => {
 	})
 
 	describe('where a navigation lands', () => {
-		it('restores the position Back and Forward were last at', () => {
+		it('restores the position Back and Forward were last at, once the list is drawn', async () => {
 			// without a scrollBehavior, opening a post and pressing Back
 			// landed at the top of a timeline the reader had scrolled far into
 			const saved = { left: 0, top: 1200 }
-			expect(router.options.scrollBehavior({}, {}, saved)).toBe(saved)
+			const pending = router.options.scrollBehavior({}, {}, saved)
+			let settled = false
+			pending.then(() => {
+				settled = true
+			})
+
+			// nothing has been drawn yet: scrolling now would be scrolling a
+			// page one screen tall, and the browser would clamp the offset
+			await Promise.resolve()
+			expect(settled).toBe(false)
+
+			eventBus.emit('timeline:rendered')
+
+			await expect(pending).resolves.toBe(saved)
+		})
+
+		it('restores it anyway when nothing says it has been drawn', async () => {
+			// a view with no timeline in it never sends the event; waiting for
+			// it forever would mean never scrolling at all
+			vi.useFakeTimers()
+			try {
+				const saved = { left: 0, top: 40 }
+				const pending = router.options.scrollBehavior({}, {}, saved)
+
+				vi.advanceTimersByTime(2000)
+
+				await expect(pending).resolves.toBe(saved)
+			} finally {
+				vi.useRealTimers()
+			}
 		})
 
 		it('goes to the top of a page it has not been at before', () => {

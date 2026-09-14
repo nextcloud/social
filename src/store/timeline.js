@@ -120,6 +120,21 @@ export const useTimelineStore = defineStore('timeline', {
 		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string}} */
 		params: {},
 		account: '',
+		/**
+		 * The list the reader left last, kept so that coming back to it finds
+		 * the pages they had loaded. One list, not all of them: it holds a full
+		 * status index, and keeping every timeline ever opened is exactly the
+		 * leak `resetTimeline()` was written to stop.
+		 *
+		 * @type {?{identity: string, timeline: string[], parentsTimeline: string[], statuses: object, removedFrom: object}}
+		 */
+		remembered: null,
+		/**
+		 * Whether the list on screen was put back rather than loaded: what tells
+		 * the view that it already holds its pages and must not ask for another
+		 * one on top of them.
+		 */
+		restored: false,
 		composerDisplayStatus: false,
 		searchQuery: '',
 		/** whether the one-time first-post celebration is on screen right now */
@@ -409,22 +424,70 @@ export const useTimelineStore = defineStore('timeline', {
 			this.firstPostCelebration = false
 		},
 		changeTimelineType({ type, params }) {
-			this.resetTimeline()
-			this.setTimelineType(type)
-			this.setTimelineParams(params)
-			this.setAccount('')
+			this.switchTimeline(type, params, '')
 		},
 		/**
 		 * @param {string} account whose posts to show
 		 * @param {string} media which kind of attachment to keep, '' for all
 		 */
 		changeTimelineTypeAccount(account, media = '') {
-			this.resetTimeline()
-			this.setTimelineType('account')
-			// part of what identifies this timeline, so that changing the tab
-			// asks the server again rather than filtering the page on screen
-			this.setTimelineParams(media === '' ? {} : { media })
+			// the media kind is part of what identifies this timeline, so that
+			// changing the tab asks the server again rather than filtering the
+			// page on screen
+			this.switchTimeline('account', media === '' ? {} : { media }, account)
+		},
+		/**
+		 * Points the store at a list, keeping what is loaded when it can.
+		 *
+		 * Opening a post and pressing Back mounts the timeline view again,
+		 * which comes through here. It used to throw the whole index away every
+		 * time: the reader came back to the first fifteen posts of a list they
+		 * had read four pages into, so the browser had nothing to put the
+		 * scroll offset back on and clamped it to the bottom of what little was
+		 * there. The list is now only cleared when it is genuinely a different
+		 * list, and the one just left is remembered so that coming straight
+		 * back to it — which is what Back out of a post is — finds it whole.
+		 *
+		 * An explicit reset is still `resetTimeline()`, and a reload of the
+		 * page is still a reload.
+		 *
+		 * @param {string} type which timeline
+		 * @param {object} params what narrows it: a tag, a list id, a post
+		 * @param {string} account whose posts, for a profile
+		 */
+		switchTimeline(type, params, account) {
+			const left = {
+				identity: this.getTimelineIdentity,
+				timeline: this.timeline,
+				parentsTimeline: this.parentsTimeline,
+				statuses: this.statuses,
+				removedFrom: this.removedFrom,
+			}
+
+			this.setTimelineType(type)
+			this.setTimelineParams(params)
 			this.setAccount(account)
+
+			if (this.getTimelineIdentity === left.identity) {
+				return
+			}
+
+			const returning = this.remembered?.identity === this.getTimelineIdentity ? this.remembered : null
+			this.remembered = left
+			this.restored = returning !== null
+
+			if (returning === null) {
+				this.resetTimeline()
+				return
+			}
+
+			// the objects themselves, not copies: `resetTimeline()` replaces
+			// them rather than emptying them, so the ones put aside above are
+			// still the ones that were loaded
+			this.timeline = returning.timeline
+			this.parentsTimeline = returning.parentsTimeline
+			this.statuses = returning.statuses
+			this.removedFrom = returning.removedFrom
 		},
 		/**
 		 * Tells the server what an attachment shows, so it federates as alt text.

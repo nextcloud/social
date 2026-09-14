@@ -83,6 +83,8 @@ function mountList({
 	serverData = { public: false, cloudAddress: 'https://cloud.example.org' },
 	responses = [[]],
 	props = {},
+	restored = false,
+	attachTo = undefined,
 } = {}) {
 	const dispatch = vi.fn()
 	for (const response of responses) {
@@ -105,9 +107,11 @@ function mountList({
 		statuses: Object.fromEntries([...timeline, ...parents].map((entry) => [entry.id, entry])),
 		timeline: timeline.map((entry) => entry.id),
 		parentsTimeline: parents.map((entry) => entry.id),
+		restored,
 		...showing(identity),
 	})
 	const wrapper = mount(TimelineList, {
+		attachTo,
 		props: { type: 'home', ...props },
 		global: {
 			plugins: [pinia],
@@ -224,6 +228,43 @@ describe('TimelineList', () => {
 
 			// up there the posts simply appear; a pill would be noise
 			expect(wrapper.find('.new-posts-pill').exists()).toBe(false)
+		})
+
+		it('puts the pill below the composer it used to be painted behind', async () => {
+			// both are sticky and the composer is the taller of the two, in the
+			// same stacking context and above it: the pill only shows once the
+			// reader has scrolled, which is exactly when the composer is stuck
+			// to the top of the page
+			scrolledTo(800)
+			const { wrapper } = mountList({ responses: [[], [status('9')]], attachTo: document.body })
+			await flushPromises()
+
+			// where the view puts it: a sibling above the list, not a parent
+			const composer = document.createElement('div')
+			composer.className = 'new-post'
+			Object.defineProperty(composer, 'offsetHeight', { value: 72 })
+			wrapper.element.parentElement.insertBefore(composer, wrapper.element)
+
+			await wrapper.vm.fetchNewStatuses()
+			await flushPromises()
+
+			expect(wrapper.find('.new-posts-pill').attributes('style')).toContain('top: 80px')
+
+			wrapper.unmount()
+			composer.remove()
+		})
+
+		it('leaves the pill where it is on a page with no composer', async () => {
+			scrolledTo(800)
+			const { wrapper } = mountList({ responses: [[], [status('9')]], attachTo: document.body })
+			await flushPromises()
+
+			await wrapper.vm.fetchNewStatuses()
+			await flushPromises()
+
+			expect(wrapper.find('.new-posts-pill').attributes('style')).toBeUndefined()
+
+			wrapper.unmount()
 		})
 
 		it('scrolls back to the top and forgets the count when asked', async () => {
@@ -456,6 +497,27 @@ describe('TimelineList', () => {
 			await flushPromises()
 			expect(dispatch).toHaveBeenCalledTimes(1)
 			expect(dispatch).toHaveBeenCalledWith({})
+		})
+
+		it('asks for nothing when the list came back with the reader', async () => {
+			// Back out of a post: the store still holds every page they had
+			// read, and a request here would have appended the page after them
+			// while the browser was putting their scroll offset back
+			const { dispatch } = mountList({ timeline: [status('30'), status('20')], restored: true })
+			await flushPromises()
+
+			expect(dispatch).not.toHaveBeenCalled()
+		})
+
+		it('says when the list is on the page, so a restored offset can be applied', async () => {
+			const rendered = vi.fn()
+			eventBus.on('timeline:rendered', rendered)
+
+			mountList()
+			await flushPromises()
+
+			expect(rendered).toHaveBeenCalled()
+			eventBus.off('timeline:rendered', rendered)
 		})
 
 		it('requests the statuses older than the last one shown', async () => {

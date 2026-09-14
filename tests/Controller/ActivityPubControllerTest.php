@@ -945,115 +945,32 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(self::SOCIAL_URL . '@alice/missing', $response->getData()['stream']);
 	}
 
-	public function testDisplayPostRendersThePageWithTheItemForBrowsers(): void {
-		$this->acceptHeader('text/html');
-		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
-		$stream = $this->createMock(Stream::class);
-		$this->streamService->method('getStreamById')->with(self::SOCIAL_URL . '@alice/abc123', true)->willReturn($stream);
-
-		$states = [];
-		$this->initialState->method('provideInitialState')
-			->willReturnCallback(function (string $key, $data) use (&$states): void {
-				$states['social'][$key] = $data;
-			});
-
-		$response = $this->controller->displayPost('alice', 'abc123');
-
-		$this->assertInstanceOf(TemplateResponse::class, $response);
-		$this->assertSame('main', $response->getTemplateName());
-		$this->assertSame(['public' => true, 'firstrun' => false, 'setup' => false], $states['social']['serverData']);
-		$this->assertSame($stream, $states['social']['item']);
-	}
-
 	/**
-	 * The page said `public` for everybody, so following a link to a post
-	 * logged you out of the page you landed on: no navigation, no reply box,
-	 * nothing but the post.
+	 * A browser is somebody reading, and who they are decides between the app
+	 * and the public page. `SocialPubController` knows both; the ActivityPub
+	 * half only has to keep out of the way — resolving the post here as well
+	 * would read it twice, once as nobody.
 	 */
-	public function testDisplayPostGivesALoggedInReaderTheAppRatherThanThePublicPage(): void {
-		$this->acceptHeader('text/html');
-		$viewer = $this->createMock(Person::class);
-		$this->accountService->method('getCurrentViewer')->willReturn($viewer);
-		$this->streamService->expects($this->once())->method('setViewer')->with($viewer);
-		$this->streamService->method('getStreamById')->willReturn($this->createMock(Stream::class));
-
-		$states = [];
-		$this->initialState->method('provideInitialState')
-			->willReturnCallback(function (string $key, $data) use (&$states): void {
-				$states[$key] = $data;
-			});
-
-		$this->controller->displayPost('alice', 'abc123');
-
-		$this->assertFalse($states['serverData']['public']);
-	}
-
-	/**
-	 * The app writes its own links to a post with the numeric id its client API
-	 * uses, which is not the token in the post's address. Opening one in a new
-	 * tab, reloading it, or following one somebody sent found nothing.
-	 */
-	public function testDisplayPostFallsBackToTheNumericIdTheAppLinksWith(): void {
-		$this->acceptHeader('text/html');
-		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
-		$stream = $this->createMock(Stream::class);
-		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
-		$this->streamService->expects($this->once())->method('getStreamByNid')
-			->with(1789250751711653456)->willReturn($stream);
-
-		$states = [];
-		$this->initialState->method('provideInitialState')
-			->willReturnCallback(function (string $key, $data) use (&$states): void {
-				$states[$key] = $data;
-			});
-
-		$this->controller->displayPost('alice', '1789250751711653456');
-
-		$this->assertSame($stream, $states['item']);
-	}
-
-	public function testDisplayPostDoesNotLookForANumericIdForATokenThatIsNotOne(): void {
-		$this->acceptHeader('text/html');
-		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
-		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
-
+	#[DataProvider('humanAcceptHeaders')]
+	public function testDisplayPostHandsABrowserToThePublicController(string $accept): void {
+		$this->acceptHeader($accept);
+		$page = new TemplateResponse('social', 'main');
+		$this->socialPubController->expects($this->once())->method('displayPost')
+			->with('alice', '1789250751711653456')->willReturn($page);
+		$this->streamService->expects($this->never())->method('getStreamById');
 		$this->streamService->expects($this->never())->method('getStreamByNid');
+		$this->initialState->expects($this->never())->method('provideInitialState');
 
-		$this->controller->displayPost('alice', 'abc123');
+		$this->assertSame($page, $this->controller->displayPost('alice', '1789250751711653456'));
 	}
 
-	public function testDisplayPostSaysNothingIsThereWhenNeitherIdResolves(): void {
+	public function testDisplayPostStillRoutesReservedTokensForBrowsers(): void {
 		$this->acceptHeader('text/html');
-		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
-		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
-		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException());
+		$page = new TemplateResponse('social', 'main');
+		$this->socialPubController->expects($this->once())->method('followers')->with('alice')->willReturn($page);
+		$this->socialPubController->expects($this->never())->method('displayPost');
 
-		$keys = [];
-		$this->initialState->method('provideInitialState')
-			->willReturnCallback(function (string $key) use (&$keys): void {
-				$keys[] = $key;
-			});
-
-		$this->controller->displayPost('alice', '404404404');
-
-		$this->assertSame(['serverData'], $keys);
-	}
-
-	public function testDisplayPostRendersPublicPageWithoutItemWhenStreamIsUnknown(): void {
-		$this->acceptHeader('text/html');
-		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
-		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
-
-		$keys = [];
-		$this->initialState->method('provideInitialState')
-			->willReturnCallback(function (string $key, $data) use (&$keys): void {
-				$keys[] = $key;
-			});
-
-		$response = $this->controller->displayPost('alice', 'missing');
-
-		$this->assertInstanceOf(TemplateResponse::class, $response);
-		$this->assertSame(['serverData'], $keys);
+		$this->assertSame($page, $this->controller->displayPost('alice', 'followers'));
 	}
 
 	// instanceActor()

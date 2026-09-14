@@ -268,13 +268,22 @@ export default {
 			// read before the reset: changeTimelineType prunes the status index
 			const singlePost = this.timelineStore.getPostFromTimeline(this.$route.params.id) ?? this.postFromInitialState()
 
+			// A post has two addresses here. The app links it by the numeric id
+			// its client API knows, `/@alice/42`; the wider fediverse links it
+			// by its ActivityPub id, whose last segment is a twenty-digit
+			// number. Both land on this view, and everything below — the
+			// `/context` request, and which status the page then shows — speaks
+			// the first. So when the server has handed the post over, its own
+			// id is the one to go on rather than the one in the address.
+			const id = String(singlePost?.id ?? this.$route.params.id ?? '')
+
 			this.timelineStore.changeTimelineType({
 				type: 'single-post',
 				params: {
 					account: this.account,
-					id: this.$route.params.id,
+					id,
 					type: 'single-post',
-					singlePost: this.$route.params.id || singlePost?.id,
+					singlePost: id,
 				},
 			})
 			this.timelineStore.addToStatuses(singlePost)
@@ -299,15 +308,33 @@ export default {
 		 * deleted post looks like — and the throw used to happen inside
 		 * beforeMount, so the view never rendered at all.
 		 *
+		 * It is only this post if the address says so. The page is rendered
+		 * once and the reader goes on reading: opening a second post from the
+		 * first would otherwise have been answered with the first one again,
+		 * whenever the store had not loaded the second. The address names it
+		 * either by the client id or by the last segment of its ActivityPub id,
+		 * and both are checked, which is also what makes a fediverse permalink
+		 * resolve at all.
+		 *
 		 * @return {object|null}
 		 */
 		postFromInitialState() {
+			let item
 			try {
-				return loadState('social', 'item')
+				item = loadState('social', 'item')
 			} catch (error) {
 				logger.debug('No post in the initial state', { error })
 				return null
 			}
+
+			const id = String(this.$route.params.id ?? '')
+			const named = id !== '' && (
+				String(item?.id ?? '') === id
+				|| String(item?.uri ?? '').endsWith('/' + id)
+				|| String(item?.url ?? '').endsWith('/' + id)
+			)
+
+			return named ? item : null
 		},
 	},
 }

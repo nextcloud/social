@@ -415,6 +415,72 @@ describe('timeline store actions', () => {
 		expect(tl()).toMatchObject({ timeline: [], type: 'account', account: 'bob@remote.tld' })
 	})
 
+	it('changeTimelineType keeps what is loaded when it is the same timeline', async () => {
+		await store.changeTimelineType({ type: 'home', params: {} })
+		store.addToTimeline([makeStatus('1'), makeStatus('2')])
+
+		// the view mounts again — a navigation that ends up where it started —
+		// and asks for the list it is already showing
+		await store.changeTimelineType({ type: 'home', params: {} })
+
+		expect(tl().timeline).toEqual(['1', '2'])
+		expect(Object.keys(tl().statuses)).toEqual(['1', '2'])
+	})
+
+	it('changeTimelineType puts the timeline back when the reader comes straight back to it', async () => {
+		await store.changeTimelineType({ type: 'home', params: {} })
+		store.addToTimeline([makeStatus('1'), makeStatus('2'), makeStatus('3')])
+
+		// into a post, and back out of it: this is what Back does, and what
+		// used to leave the reader on the first page of a list they had read
+		// four pages into
+		await store.changeTimelineType({ type: 'single-post', params: { id: '2', singlePost: '2' } })
+		expect(tl().timeline).toEqual([])
+
+		await store.changeTimelineType({ type: 'home', params: {} })
+
+		expect(tl().timeline).toEqual(['1', '2', '3'])
+		expect(tl().restored).toBe(true)
+	})
+
+	it('changeTimelineType clears the timeline when it is a different one', async () => {
+		await store.changeTimelineType({ type: 'home', params: {} })
+		store.addToTimeline([makeStatus('1'), makeStatus('2')])
+
+		await store.changeTimelineType({ type: 'federated', params: {} })
+
+		expect(tl().timeline).toEqual([])
+		expect(tl().statuses).toEqual({})
+		expect(tl().restored).toBe(false)
+	})
+
+	it('changeTimelineType remembers one timeline, not every timeline ever opened', async () => {
+		await store.changeTimelineType({ type: 'home', params: {} })
+		store.addToTimeline([makeStatus('1')])
+		await store.changeTimelineType({ type: 'federated', params: {} })
+		store.addToTimeline([makeStatus('2')])
+		await store.changeTimelineType({ type: 'timeline', params: {} })
+
+		// Home is two timelines back and is gone; Global, the one just left,
+		// is the one that comes back
+		await store.changeTimelineType({ type: 'home', params: {} })
+		expect(tl().timeline).toEqual([])
+
+		await store.changeTimelineType({ type: 'federated', params: {} })
+		expect(tl().timeline).toEqual([])
+	})
+
+	it('changeTimelineTypeAccount tells a profile from a tab of the same profile', async () => {
+		await store.changeTimelineTypeAccount('bob@remote.tld')
+		store.addToTimeline([makeStatus('1')])
+
+		await store.changeTimelineTypeAccount('bob@remote.tld', 'image')
+		expect(tl().timeline).toEqual([])
+
+		await store.changeTimelineTypeAccount('bob@remote.tld')
+		expect(tl().timeline).toEqual(['1'])
+	})
+
 	it('addToTimeline stores the given statuses', async () => {
 		await store.addToTimeline([makeStatus('1'), makeStatus('2')])
 

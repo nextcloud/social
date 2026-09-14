@@ -9,12 +9,22 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
+use OCA\Social\Controller\NavigationController;
 use OCA\Social\Controller\SocialPubController;
+use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
+use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IInitialStateService;
 use OCP\IL10N;
@@ -24,39 +34,100 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class SocialPubControllerTest extends TestCase {
+	private const SOCIAL_URL = 'https://cloud.example/apps/social/';
+
 	/** @var IInitialState&MockObject */
 	private $initialState;
 	/** @var CacheActorService&MockObject */
 	private $cacheActorService;
+	/** @var AccountService&MockObject */
+	private $accountService;
+	/** @var StreamService&MockObject */
+	private $streamService;
+	/** @var NavigationController&MockObject */
+	private $navigationController;
+	/** the page navigate() answers with, so a test can tell it apart */
+	private TemplateResponse $app;
 	private array $states = [];
 
 	protected function setUp(): void {
 		$this->initialState = $this->createMock(IInitialState::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
-
-		// `PublicTemplateResponse` reaches the container for this one itself
-		\OC::$server->register(
-			IInitialStateService::class, $this->createMock(IInitialStateService::class)
-		);
+		$this->accountService = $this->createMock(AccountService::class);
+		$this->streamService = $this->createMock(StreamService::class);
+		$this->navigationController = $this->createMock(NavigationController::class);
+		$this->app = new TemplateResponse('social', 'main');
+		$this->navigationController->method('navigate')->willReturn($this->app);
 
 		$this->initialState->method('provideInitialState')
 			->willReturnCallback(function (string $key, $data): void {
-				$this->states['social'][$key] = $data;
+				$this->states[$key] = $data;
 			});
+
+		// PublicTemplateResponse registers the public page menu with the
+		// server's own initial state on construction
+		\OC::$server->register(IInitialStateService::class, $this->createMock(IInitialStateService::class));
 	}
 
 	protected function tearDown(): void {
 		\OC::$server->reset();
 	}
 
-	private function controller(): SocialPubController {
+	private function controller(?string $userId): SocialPubController {
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getSocialUrl')->willReturn(self::SOCIAL_URL);
+		$l10n = $this->createMock(IL10N::class);
+		$l10n->method('t')->willReturnCallback(
+			static fn (string $text, array $parameters = []): string => vsprintf($text, $parameters)
+		);
+
 		return new SocialPubController(
+			$userId,
 			$this->initialState,
 			$this->createMock(IRequest::class),
-			$this->createMock(IL10N::class),
-			$this->cacheActorService
+			$l10n,
+			$this->navigationController,
+			$this->cacheActorService,
+			$this->accountService,
+			$this->streamService,
+			$configService
 		);
 	}
+
+	private function knownActor(string $name = 'Alice'): void {
+		$actor = $this->createMock(Person::class);
+		$actor->method('getName')->willReturn($name);
+		$actor->method('getPreferredUsername')->willReturn('alice');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+	}
+
+	private function unknownActor(): void {
+		$this->cacheActorService->method('getFromAccount')
+			->willThrowException(new CacheActorDoesNotExistException());
+	}
+
+	private function anonymous(): void {
+		$this->accountService->method('getCurrentViewer')->willThrowException(new AccountDoesNotExistException());
+	}
+
+	/** @return Stream&MockObject */
+	private function knownPost(string $token = 'abc'): Stream {
+		$stream = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamById')->with(self::SOCIAL_URL . '@alice/' . $token, true)->willReturn($stream);
+
+		return $stream;
+	}
+
+	private function assertNotFoundGuestPage(Response $response, string $title): void {
+		$this->assertInstanceOf(TemplateResponse::class, $response);
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame('notfound', $response->getTemplateName());
+		$this->assertSame(TemplateResponse::RENDER_AS_GUEST, $response->getRenderAs());
+		$this->assertSame($title, $response->getParams()['title']);
+		$this->assertNotSame('', $response->getParams()['message']);
+	}
+
+	// the profile pages: actor(), followers(), following()
 
 	/** @return iterable<string, array{string}> */
 	public static function publicPages(): iterable {
@@ -65,50 +136,84 @@ class SocialPubControllerTest extends TestCase {
 		yield 'following' => ['following'];
 	}
 
-	/**
-	 * These are the pages a browser gets for a profile URL; the account is
-	 * named in the title and the frontend is told nobody is signed in.
-	 */
 	#[DataProvider('publicPages')]
-	public function testPublicPagesRenderTheProfileForAVisitor(string $page): void {
-		$actor = $this->createMock(Person::class);
-		$actor->method('getName')->willReturn('Alice Wonder');
-		$actor->method('getPreferredUsername')->willReturn('alice');
-		$this->cacheActorService->method('getFromAccount')->with('alice')->willReturn($actor);
+	public function testAVisitorGetsThePublicPageOfAKnownAccount(string $page): void {
+		$this->knownActor();
 
-		$response = $this->controller()->$page('alice');
+		$response = $this->controller(null)->$page('alice');
 
 		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame(['application' => 'Alice Wonder - Social'], $response->getParams());
-		$this->assertSame(['public' => true], $this->states['social']['serverData']);
+		$this->assertSame('main', $response->getTemplateName());
+		$this->assertSame('Alice - Social', $response->getParams()['application']);
+		$this->assertSame(['public' => true], $this->states['serverData']);
 	}
 
-	public function testAnAccountWithNoDisplayNameIsTitledByItsUsername(): void {
-		$actor = $this->createMock(Person::class);
-		$actor->method('getName')->willReturn('');
-		$actor->method('getPreferredUsername')->willReturn('alice');
-		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+	public function testThePublicPageFallsBackToTheHandleWhenTheAccountHasNoName(): void {
+		$this->knownActor('');
 
-		$this->assertSame(['application' => 'alice - Social'], $this->controller()->actor('alice')->getParams());
+		$response = $this->controller(null)->actor('alice');
+
+		$this->assertSame('alice - Social', $response->getParams()['application']);
 	}
 
+	/**
+	 * The public page was served to everybody: a reader who was logged in
+	 * followed a link to a profile and landed on a page with no navigation, a
+	 * "Get your own free account" banner and a Follow button that started the
+	 * remote-follow flow for an account one click would have followed.
+	 */
 	#[DataProvider('publicPages')]
-	public function testPublicPagesOfAnUnknownAccountAre404(string $page): void {
-		$this->cacheActorService->method('getFromAccount')
+	public function testALoggedInReaderGetsTheAppInsteadOfThePublicPage(string $page): void {
+		$this->knownActor();
+		$this->navigationController->expects($this->once())->method('navigate');
+
+		$response = $this->controller('alice')->$page('bob');
+
+		$this->assertSame($this->app, $response);
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertArrayNotHasKey('serverData', $this->states, 'navigate() provides the state of the app');
+	}
+
+	/**
+	 * An unknown name used to be a 500: the lookup went on to webfinger the
+	 * name, a name without a host is not an account to resolve, and the
+	 * exception saying so was reported as a server fault.
+	 */
+	#[DataProvider('publicPages')]
+	public function testAnUnknownAccountIsANotFoundPageForAVisitor(string $page): void {
+		$this->unknownActor();
+
+		$response = $this->controller(null)->$page('ghost');
+
+		$this->assertNotFoundGuestPage($response, 'Account not found');
+		$this->assertStringContainsString('ghost', $response->getParams()['message']);
+	}
+
+	public function testAnUnknownAccountIsTheAppWithA404ForALoggedInReader(): void {
+		$this->unknownActor();
+
+		$response = $this->controller('alice')->actor('ghost');
+
+		// the app's own profile view says "User not found" once it has asked;
+		// the status code tells the browser the same thing
+		$this->assertSame($this->app, $response);
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+	}
+
+	public function testThePageDoesNotGoAndFetchAnAccountItHasNeverSeen(): void {
+		$this->cacheActorService->expects($this->once())->method('getFromAccount')
+			->with('bob@remote.tld', false)
 			->willThrowException(new CacheActorDoesNotExistException());
 
-		$response = $this->controller()->$page('ghost');
-
-		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
-		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->controller(null)->actor('bob@remote.tld');
 	}
 
 	#[DataProvider('publicPages')]
 	public function testPublicPagesReportUnexpectedLookupFailures(string $page): void {
 		$this->cacheActorService->method('getFromAccount')->with('alice')->willThrowException(new \RuntimeException('db down'));
 
-		$response = $this->controller()->$page('alice');
+		$response = $this->controller(null)->$page('alice');
 
 		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
 		$this->assertSame(-1, $response->getData()['status']);
@@ -116,13 +221,98 @@ class SocialPubControllerTest extends TestCase {
 		$this->assertArrayNotHasKey('exception', $response->getData(), 'internals must not leak');
 	}
 
+	// displayPost()
+
+	public function testAVisitorGetsThePublicPageWithThePostRenderedIntoIt(): void {
+		$this->anonymous();
+		$this->streamService->expects($this->never())->method('setViewer');
+		$post = $this->knownPost();
+		$post->expects($this->once())->method('setCompleteDetails')->with(true);
+		// the app reads a status the way the client API serves one; the
+		// ActivityPub shape has no `account` and its `id` is an address
+		$post->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+
+		$response = $this->controller(null)->displayPost('alice', 'abc');
+
+		$this->assertInstanceOf(TemplateResponse::class, $response);
+		$this->assertNotInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertSame('main', $response->getTemplateName());
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($post, $this->states['item']);
+		$this->assertSame(['public' => true, 'firstrun' => false, 'setup' => false], $this->states['serverData']);
+	}
+
+	public function testThePostIsReadAsItsViewer(): void {
+		$viewer = $this->createMock(Person::class);
+		$this->accountService->method('getCurrentViewer')->willReturn($viewer);
+		$this->streamService->expects($this->once())->method('setViewer')->with($viewer);
+		$this->knownPost();
+
+		$this->controller('alice')->displayPost('alice', 'abc');
+	}
+
+	public function testALoggedInReaderGetsTheAppWithThePostRenderedIntoIt(): void {
+		$this->accountService->method('getCurrentViewer')->willReturn($this->createMock(Person::class));
+		$post = $this->knownPost();
+		$this->navigationController->expects($this->once())->method('navigate');
+
+		$response = $this->controller('alice')->displayPost('alice', 'abc');
+
+		$this->assertSame($this->app, $response);
+		$this->assertSame($post, $this->states['item']);
+		$this->assertArrayNotHasKey('serverData', $this->states, 'navigate() provides the state of the app');
+	}
+
 	/**
-	 * The post page used to have a second, unrouted renderer here that read
-	 * the post with the visibility filter off. The one route that serves a
-	 * post is `ActivityPubController::displayPost()`, which reads it as the
-	 * viewer, and this controller no longer knows how to read a post at all.
+	 * The app writes its own links to a post with the numeric id its client
+	 * API uses, which is not the token in the post's address. Opening one in a
+	 * new tab, reloading it, or following one somebody sent found nothing.
 	 */
-	public function testThisControllerDoesNotRenderPosts(): void {
-		$this->assertFalse(method_exists(SocialPubController::class, 'displayPost'));
+	public function testAPostIsFoundByTheNumericIdTheAppLinksWith(): void {
+		$this->anonymous();
+		$post = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streamService->expects($this->once())->method('getStreamByNid')
+			->with(1789250751711653456)->willReturn($post);
+
+		$this->controller(null)->displayPost('alice', '1789250751711653456');
+
+		$this->assertSame($post, $this->states['item']);
+	}
+
+	public function testATokenThatIsNotANumberIsNotLookedUpAsOne(): void {
+		$this->anonymous();
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streamService->expects($this->never())->method('getStreamByNid');
+
+		$this->controller(null)->displayPost('alice', 'abc123');
+	}
+
+	/**
+	 * The public page used to be rendered with nothing in it, and a 200, for a
+	 * post that does not exist.
+	 */
+	public function testAnUnknownPostIsANotFoundPageForAVisitor(): void {
+		$this->anonymous();
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException());
+
+		$response = $this->controller(null)->displayPost('alice', '404404404');
+
+		$this->assertNotFoundGuestPage($response, 'Post not found');
+		$this->assertSame([], $this->states);
+	}
+
+	public function testAnUnknownPostIsTheAppWithA404ForALoggedInReader(): void {
+		$this->accountService->method('getCurrentViewer')->willReturn($this->createMock(Person::class));
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$response = $this->controller('alice')->displayPost('alice', 'missing');
+
+		// the app's own post view says the post is not available once it has
+		// asked; nothing is rendered into the page for it to show first
+		$this->assertSame($this->app, $response);
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertArrayNotHasKey('item', $this->states);
 	}
 }
