@@ -23,12 +23,30 @@ vi.hoisted(() => {
 	document.head.dataset.userDisplayname = 'Alice'
 })
 
+// Nothing here is testing the network, and a request that is allowed to be made
+// is a request that can still be failing — and logging about it — after the test
+// that started it has gone. The stores App mounts fetch on their own.
+vi.mock('@nextcloud/axios', () => ({
+	default: {
+		get: vi.fn().mockResolvedValue({ data: [] }),
+		post: vi.fn().mockResolvedValue({ data: {} }),
+		put: vi.fn().mockResolvedValue({ data: {} }),
+		patch: vi.fn().mockResolvedValue({ data: {} }),
+		delete: vi.fn().mockResolvedValue({ data: {} }),
+	},
+}))
+
 const stubs = {
 	NcContent: { props: ['appName'], template: '<div class="content-stub" :data-app-name="appName"><slot /></div>' },
 	NcAppContent: { template: '<main class="app-content-stub"><slot /></main>' },
 	Navigation: { emits: ['search'], template: '<nav class="navigation-stub" />' },
 	// the real one is an async chunk; the stub stands in synchronously
 	AccountSetup: { name: 'AccountSetup', emits: ['created'], template: '<section class="account-setup-stub" />' },
+	// so is the emoji picker, and it is the larger of the two. Left to itself it
+	// resolves after the file that mounted it has finished, and logging from a
+	// worker whose rpc is already closing fails the whole run with an
+	// EnvironmentTeardownError that names no test.
+	ReactionPicker: { name: 'ReactionPicker', template: '<div class="reaction-picker-stub" />' },
 	RouterView: { template: '<div class="router-view-stub" />' },
 }
 
@@ -81,10 +99,29 @@ const routePlugin = {
 	},
 }
 
+/**
+ * Every App this file mounts, so that teardown can take them all down again.
+ *
+ * A component left mounted keeps its watchers, its timers and whatever it has
+ * in flight alive past the test that made it. When one of those finally logs,
+ * the worker's rpc is already closing and the whole run fails with an
+ * `EnvironmentTeardownError` that names no test — which is exactly as hard to
+ * find as it sounds.
+ *
+ * @type {object[]}
+ */
+const mounted = []
+
+/**
+ * @return {object} a mounted App, registered for teardown
+ */
 function mountApp() {
-	return mount(App, {
+	const wrapper = mount(App, {
 		global: { plugins: [pinia, routePlugin], mocks: { $router: router }, stubs },
 	})
+	mounted.push(wrapper)
+
+	return wrapper
 }
 
 describe('App', () => {
@@ -95,7 +132,13 @@ describe('App', () => {
 		setServerData()
 	})
 
-	afterEach(() => {
+	afterEach(async () => {
+		while (mounted.length > 0) {
+			mounted.pop().unmount()
+		}
+		// let anything the unmount kicked off finish while the worker is still
+		// listening, rather than after it has gone
+		await flushPromises()
 		vi.restoreAllMocks()
 		delete globalThis.OCA.Push
 	})
