@@ -377,6 +377,84 @@ describe('Navigation', () => {
 			expect(listItems(wrapper).map((e) => e.attributes('data-name'))).toEqual(['Design', 'Book club'])
 		})
 
+		/**
+		 * The rail is measured rather than guessed from the window: it holds
+		 * things that come and go, and zoom or a denser theme changes every
+		 * height at once.
+		 *
+		 * jsdom lays nothing out, so the heights are given here the way a
+		 * browser would report them.
+		 */
+		describe('measuring the rail', () => {
+			const layOut = (wrapper, { railHeight, fixedHeight, rowHeight }) => {
+				const item = wrapper.findAll('.nav-item.navigation__explore')[0].element
+				const list = item.parentElement
+				const children = document.createElement('ul')
+				children.className = 'app-navigation-entry__children'
+				const row = document.createElement('li')
+				Object.defineProperty(row, 'offsetHeight', { value: rowHeight, configurable: true })
+				children.appendChild(row)
+				Object.defineProperty(children, 'offsetHeight', { value: 0, configurable: true })
+				item.appendChild(children)
+				Object.defineProperty(list, 'clientHeight', { value: railHeight, configurable: true })
+				Object.defineProperty(list, 'scrollHeight', { value: fixedHeight, configurable: true })
+			}
+
+			it('shows more when the rail has more room', async () => {
+				withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+				const wrapper = mountNavigation()
+				await flushPromises()
+
+				layOut(wrapper, { railHeight: 900, fixedHeight: 500, rowHeight: 44 })
+				wrapper.vm.measureRail()
+				await nextTick()
+				const roomy = tagItems(wrapper).length
+
+				layOut(wrapper, { railHeight: 700, fixedHeight: 500, rowHeight: 44 })
+				wrapper.vm.measureRail()
+				await nextTick()
+				const tight = tagItems(wrapper).length
+
+				expect(roomy).toBeGreaterThan(tight)
+				expect(tight).toBeGreaterThanOrEqual(3)
+			})
+
+			/**
+			 * The children are in the rail too. A measurement that counted
+			 * them would grow every time it was applied and shrink every time
+			 * it was read back, and the entry would flicker between two
+			 * lengths for ever.
+			 */
+			it('settles rather than feeding on itself', async () => {
+				withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+				const wrapper = mountNavigation()
+				await flushPromises()
+
+				layOut(wrapper, { railHeight: 900, fixedHeight: 500, rowHeight: 44 })
+				wrapper.vm.measureRail()
+				await nextTick()
+				const first = tagItems(wrapper).length
+
+				// measuring again changes nothing, because the figure is taken
+				// from everything except the children
+				wrapper.vm.measureRail()
+				await nextTick()
+				wrapper.vm.measureRail()
+				await nextTick()
+
+				expect(tagItems(wrapper).length).toBe(first)
+			})
+
+			it('falls back to the window when there is nothing laid out', async () => {
+				withExplore({ tags: Array.from({ length: 40 }, (_, i) => tag(`t${i}`)) })
+				const wrapper = mountNavigation()
+				await flushPromises()
+
+				// jsdom reports 0 for every height, which is what this is
+				expect(tagItems(wrapper).length).toBe(12)
+			})
+		})
+
 		it('leaves the entry out for a reader with neither', async () => {
 			withExplore({})
 			const wrapper = mountNavigation()

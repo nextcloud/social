@@ -100,6 +100,7 @@
 			     there are, the count is how the reader knows the rest exist. -->
 			<NcAppNavigationItem
 				v-if="exploreTotal > 0"
+				ref="exploreItem"
 				class="navigation__explore"
 				:name="t('social', 'Explore')"
 				:allowCollapse="true"
@@ -274,7 +275,7 @@ import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
-import { chooseEntries, entriesThatFit } from '../utils/explore.js'
+import { capacityFrom, chooseEntries, entriesThatFit } from '../utils/explore.js'
 import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -358,8 +359,10 @@ export default {
 			followedTags: [],
 			/** whether the Explore entry is open; remembered per reader */
 			exploreOpen: true,
-			/** the window's height, watched so the entry can shrink with it */
+			/** the window's height, the fallback until the rail can be measured */
 			viewportHeight: 0,
+			/** how many entries the rail has room for, measured from the rail */
+			measuredCap: 0,
 			localSearch: '',
 			showComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
@@ -389,7 +392,7 @@ export default {
 		 * @return {number}
 		 */
 		exploreCap() {
-			return entriesThatFit(this.viewportHeight)
+			return this.measuredCap > 0 ? this.measuredCap : entriesThatFit(this.viewportHeight)
 		},
 
 		/**
@@ -565,6 +568,25 @@ export default {
 	},
 
 	watch: {
+		/**
+		 * The entry is not in the rail until there is something to put in it,
+		 * so there is nothing to observe or measure at mount: both wait for
+		 * the hashtags and lists to arrive.
+		 */
+		exploreTotal: {
+			async handler(total) {
+				await this.$nextTick()
+
+				if (total > 0) {
+					this.watchRail()
+				}
+
+				this.measureRail()
+			},
+
+			immediate: true,
+		},
+
 		showComposer(open) {
 			// the paths were for that one dialog; a later "New post" starts empty
 			if (!open) {
@@ -600,9 +622,10 @@ export default {
 		this.onListsChanged = () => this.fetchLists()
 		eventBus.on(LISTS_CHANGED, this.onListsChanged)
 
-		// how many entries Explore shows depends on how tall the window is
+		// how many entries Explore shows depends on how much room the rail has
 		this.measureViewport()
 		window.addEventListener('resize', this.measureViewport)
+		this.watchRail()
 
 		try {
 			this.exploreOpen = window.localStorage.getItem(EXPLORE_OPEN_KEY) !== '0'
@@ -627,6 +650,7 @@ export default {
 	beforeUnmount() {
 		eventBus.off(LISTS_CHANGED, this.onListsChanged)
 		window.removeEventListener('resize', this.measureViewport)
+		this.railObserver?.disconnect()
 		if (typeof this.stopListening === 'function') {
 			this.stopListening()
 		}
@@ -749,9 +773,74 @@ export default {
 			}
 		},
 
-		/** Keeps the entry count in step with the window. */
+		/**
+		 * Re-measures whenever the rail changes shape, not only when the
+		 * window does: the Trending section arriving, an error entry
+		 * appearing, a zoom, a theme with taller rows.
+		 */
+		watchRail() {
+			if (typeof ResizeObserver !== 'function') {
+				// the window listener still keeps it roughly right
+				return
+			}
+
+			// called again whenever the entry comes back; one observer only
+			this.railObserver?.disconnect()
+
+			this.railObserver = new ResizeObserver(() => {
+				// off the observer's own callback, or a measurement that
+				// changes the rail re-enters it
+				window.requestAnimationFrame(() => this.measureRail())
+			})
+
+			const list = this.$refs.exploreItem?.$el?.parentElement
+			if (list) {
+				this.railObserver.observe(list)
+			}
+		},
+
+		/** Keeps the fallback in step with the window. */
 		measureViewport() {
 			this.viewportHeight = window.innerHeight
+			this.measureRail()
+		},
+
+		/**
+		 * How many entries the rail actually has room for, right now.
+		 *
+		 * Measured rather than worked out from the window, because the rail
+		 * holds things that come and go — the Trending section when the
+		 * instance has trends, an error entry when something breaks — and
+		 * because browser zoom and a denser theme change every height at once.
+		 * A constant for "everything that is not an Explore child" was wrong
+		 * the first time it was written and would go wrong again.
+		 *
+		 * The free space is the rail's own height less everything in it that
+		 * is not an Explore child. It has to be measured that way round: the
+		 * children are in the rail too, so a figure that counted them would
+		 * grow each time it was applied and shrink each time it was read back.
+		 */
+		measureRail() {
+			const item = this.$refs.exploreItem?.$el
+			const list = item?.parentElement
+
+			if (!item || !list || typeof list.clientHeight !== 'number' || list.clientHeight === 0) {
+				// nothing laid out yet, or jsdom: the window figure stands in
+				this.measuredCap = 0
+				return
+			}
+
+			const children = item.querySelector('.app-navigation-entry__children')
+			const childrenHeight = children ? children.offsetHeight : 0
+			const rowHeight = children?.firstElementChild?.offsetHeight || 0
+			// everything in the rail except the children: the button, the
+			// entries, the spacers, the Explore row itself
+			const fixed = list.scrollHeight - childrenHeight
+
+			this.measuredCap = capacityFrom({
+				free: list.clientHeight - fixed,
+				rowHeight,
+			})
 		},
 
 		async fetchLists() {

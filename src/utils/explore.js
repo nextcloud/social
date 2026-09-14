@@ -12,20 +12,18 @@
  * room for and says how many there are in all.
  */
 
-/** A navigation row, as Nextcloud sizes one. */
-const ROW_HEIGHT = 44
+/** A navigation row, as Nextcloud sizes one, when nothing has been measured. */
+export const ROW_HEIGHT = 44
 
 /**
- * The height the rail needs for everything that is not an Explore child: the
- * New post button, the six entries above, the Explore row itself, the spacers
- * and the account footer.
+ * What the rail needs for everything that is not an Explore child, used only
+ * when the rail cannot be measured.
  *
- * Measured against the running app rather than derived, because the parts are
- * not all rows and a formula over them would be a second copy of the template
- * that has to be kept in step with it. A number that is a little too large
- * costs one entry; one that is too small puts the last entry under the account
- * footer, which is what this exists to avoid — the first value tried was 430
- * and did exactly that at 720px.
+ * The real figure is taken from the DOM — see `capacityFrom()` — because the
+ * parts are not all rows and they come and go: the Trending section appears
+ * when the instance has trends, an error entry appears when something breaks,
+ * and browser zoom changes every height at once. This is the answer for the
+ * first paint, before there is anything to measure, and for jsdom.
  */
 const RESERVED_HEIGHT = 544
 
@@ -41,7 +39,34 @@ export const MAX_ENTRIES = 12
 export const MIN_ENTRIES = 3
 
 /**
- * How many entries the rail has room for.
+ * How many entries fit, from a measurement of the rail itself.
+ *
+ * `free` is the height left over once everything that is *not* an Explore
+ * child has been accounted for, which is why this cannot simply divide the
+ * rail's height: the children are in the rail too, and a figure that counted
+ * them would grow every time it was applied and shrink every time it was
+ * re-measured.
+ *
+ * @param {object} measured what the rail reports
+ * @param {number} measured.free pixels available for children
+ * @param {number} measured.rowHeight what one child measures
+ * @return {number} between MIN_ENTRIES and MAX_ENTRIES
+ */
+export function capacityFrom({ free, rowHeight }) {
+	const row = Number(rowHeight) > 0 ? Number(rowHeight) : ROW_HEIGHT
+	const space = Number(free)
+
+	if (!Number.isFinite(space)) {
+		return MAX_ENTRIES
+	}
+
+	return Math.max(MIN_ENTRIES, Math.min(MAX_ENTRIES, Math.floor(space / row)))
+}
+
+/**
+ * How many entries the rail has room for, judged from the window alone.
+ *
+ * The fallback for the first paint, before the rail has been laid out.
  *
  * @param {number} viewportHeight the window's inner height, in pixels
  * @return {number} between MIN_ENTRIES and MAX_ENTRIES
@@ -52,9 +77,7 @@ export function entriesThatFit(viewportHeight) {
 		return MAX_ENTRIES
 	}
 
-	const fits = Math.floor((height - RESERVED_HEIGHT) / ROW_HEIGHT)
-
-	return Math.max(MIN_ENTRIES, Math.min(MAX_ENTRIES, fits))
+	return capacityFrom({ free: height - RESERVED_HEIGHT, rowHeight: ROW_HEIGHT })
 }
 
 /**

@@ -3,10 +3,49 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { MAX_ENTRIES, MIN_ENTRIES, chooseEntries, entriesThatFit, shareOut } from '../../../src/utils/explore.js'
+import { MAX_ENTRIES, MIN_ENTRIES, ROW_HEIGHT, capacityFrom, chooseEntries, entriesThatFit, shareOut } from '../../../src/utils/explore.js'
 
 const tags = (n) => Array.from({ length: n }, (_, i) => ({ name: `tag${i}` }))
 const lists = (n) => Array.from({ length: n }, (_, i) => ({ id: String(i), title: `list${i}` }))
+
+describe('capacityFrom', () => {
+	it('fits as many whole rows as the space holds', () => {
+		expect(capacityFrom({ free: 440, rowHeight: 44 })).toBe(10)
+		expect(capacityFrom({ free: 439, rowHeight: 44 })).toBe(9)
+	})
+
+	// more room, more entries: the whole point of measuring
+	it('shows more as the space grows', () => {
+		const small = capacityFrom({ free: 200, rowHeight: 44 })
+		const larger = capacityFrom({ free: 350, rowHeight: 44 })
+
+		expect(larger).toBeGreaterThan(small)
+	})
+
+	// a denser theme or a browser zoom changes what a row measures
+	it('fits more of a shorter row into the same space', () => {
+		const tall = capacityFrom({ free: 300, rowHeight: 50 })
+		const short = capacityFrom({ free: 300, rowHeight: 30 })
+
+		expect(short).toBeGreaterThan(tall)
+	})
+
+	it('keeps the ceiling and the floor', () => {
+		expect(capacityFrom({ free: 9999, rowHeight: 44 })).toBe(MAX_ENTRIES)
+		expect(capacityFrom({ free: 10, rowHeight: 44 })).toBe(MIN_ENTRIES)
+		expect(capacityFrom({ free: -500, rowHeight: 44 })).toBe(MIN_ENTRIES)
+	})
+
+	it('falls back to a standard row when nothing could be measured', () => {
+		expect(capacityFrom({ free: 5 * ROW_HEIGHT, rowHeight: 0 })).toBe(5)
+		expect(capacityFrom({ free: 5 * ROW_HEIGHT, rowHeight: undefined })).toBe(5)
+	})
+
+	it('falls back to the ceiling when the space makes no sense', () => {
+		expect(capacityFrom({ free: Number.NaN, rowHeight: 44 })).toBe(MAX_ENTRIES)
+		expect(capacityFrom({ free: undefined, rowHeight: 44 })).toBe(MAX_ENTRIES)
+	})
+})
 
 describe('entriesThatFit', () => {
 	it('never shows more than the ceiling, however tall the screen', () => {
