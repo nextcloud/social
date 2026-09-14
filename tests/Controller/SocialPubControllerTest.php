@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Controller;
 use OCA\Social\Controller\NavigationController;
 use OCA\Social\Controller\SocialPubController;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -104,6 +105,19 @@ class SocialPubControllerTest extends TestCase {
 	private function unknownActor(): void {
 		$this->cacheActorService->method('getFromAccount')
 			->willThrowException(new CacheActorDoesNotExistException());
+	}
+
+	/**
+	 * What a bare local name that nobody holds actually throws.
+	 *
+	 * `getFromAccount()` tries `getFromLocalAccount()` first, and that reaches
+	 * `getFromUsername()`, which throws this one — the cache exception only
+	 * comes back for a name that got as far as the remote cache. A mistyped
+	 * local handle is the common case, and it is this exception.
+	 */
+	private function unknownLocalActor(): void {
+		$this->cacheActorService->method('getFromAccount')
+			->willThrowException(new ActorDoesNotExistException('Actor not found'));
 	}
 
 	private function anonymous(): void {
@@ -301,6 +315,17 @@ class SocialPubControllerTest extends TestCase {
 
 		$this->assertNotFoundGuestPage($response, 'Post not found');
 		$this->assertSame([], $this->states);
+	}
+
+	public function testAMistypedLocalHandleIsAlsoANotFoundPage(): void {
+		// it was a 500: the page caught only the cache exception, and a name
+		// with no local actor throws the other one
+		$this->anonymous();
+		$this->unknownLocalActor();
+
+		$response = $this->controller(null)->actor('nobodyhere');
+
+		$this->assertSame(404, $response->getStatus());
 	}
 
 	public function testAnUnknownPostIsTheAppWithA404ForALoggedInReader(): void {

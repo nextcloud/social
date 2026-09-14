@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -93,7 +94,13 @@ class SocialPubController extends Controller {
 			// not a valid account to resolve, and the exception saying so was
 			// a 500 rather than the 404 it meant
 			$actor = $this->cacheActorService->getFromAccount($username, false);
-		} catch (CacheActorDoesNotExistException $e) {
+		} catch (CacheActorDoesNotExistException|ActorDoesNotExistException $e) {
+			// both, because which one comes back depends on how far the lookup
+			// got: a name this server has no local actor for throws
+			// ActorDoesNotExistException from inside getFromLocalAccount(),
+			// and only a name that got as far as the remote cache throws the
+			// other. Catching one of the two left the bare local name — the
+			// common case, a mistyped handle — as a 500.
 			return $this->notFound(
 				$this->l10n->t('Account not found'),
 				$this->l10n->t('There is no account named %s on this server.', [$username])

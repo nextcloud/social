@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.78  
+**App version:** 0.19.79  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -864,7 +864,7 @@ that moment the timeline is one screen tall, so the browser clamped a four-page
 offset to the bottom of what was there. `scrollBehavior` returns a promise
 instead: `TimelineList` emits `timeline:rendered` on the event bus once its
 entries are on the page, and the router waits for that, or for two seconds,
-whichever comes first — a view that never says anything still scrolls.
+whichever comes first — a view that never says anything still scrolls. The offset restored is the content column's, not the window's: a Nextcloud app is given a fixed viewport and the column scrolls inside it, so the position Vue Router remembers is always zero and applying it moved nothing. A `beforeEach` guard records `#app-content-vue`'s `scrollTop` for the view being left, at most ten views deep.
 
 The "N new posts" pill that polling puts up is sticky, and so is the box the
 reader writes in: same stacking context, and the composer both taller and above.
