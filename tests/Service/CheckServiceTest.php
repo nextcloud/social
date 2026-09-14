@@ -28,6 +28,7 @@ use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
 use OCP\ICache;
+use OCP\ICacheFactory;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -54,6 +55,8 @@ class CheckServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->cache = $this->createMock(ICache::class);
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('createDistributed')->willReturn($this->cache);
 		$this->config = $this->createMock(IConfig::class);
 		$this->client = $this->createMock(IClient::class);
 		$clientService = $this->createMock(IClientService::class);
@@ -70,7 +73,7 @@ class CheckServiceTest extends TestCase {
 		$this->service = new CheckService(
 			$this->userManager,
 			'alice',
-			$this->cache,
+			$cacheFactory,
 			$this->config,
 			$clientService,
 			$this->request,
@@ -90,6 +93,37 @@ class CheckServiceTest extends TestCase {
 		$response->method('getStatusCode')->willReturn($status);
 
 		return $response;
+	}
+
+	/**
+	 * A setup check runs with nobody logged in, and the cache the server hands
+	 * out for `ICache` is the *user's* file cache: it throws
+	 * `ForbiddenException` without a session. The WebFinger check crashed in
+	 * exactly the place it exists to report from, so the cache has to be one
+	 * that belongs to the instance.
+	 */
+	public function testTheWellKnownAnswerIsRememberedInstanceWideNotPerUser(): void {
+		$factory = $this->createMock(ICacheFactory::class);
+		$factory->expects($this->once())->method('createDistributed')
+			->with($this->stringContains('social'))
+			->willReturn($this->createMock(ICache::class));
+
+		new CheckService(
+			$this->userManager,
+			'alice',
+			$factory,
+			$this->config,
+			$this->createMock(IClientService::class),
+			$this->request,
+			$this->urlGenerator,
+			$this->followRequest,
+			$this->cacheActorsRequest,
+			$this->createMock(StreamDestRequest::class),
+			$this->streamRequest,
+			$this->accountService,
+			$this->configService,
+			$this->miscService,
+		);
 	}
 
 	public function testCheckWellKnownTrustsTheCache(): void {
