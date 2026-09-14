@@ -91,6 +91,10 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   Nextcloud group you are in is already a list**, built and maintained by nobody.
 - **Follow a hashtag** and it reads exactly like following a person.
 - **Bookmarks and favourites**, each with a page of their own.
+- **Announcements from your administrators** at the top of the timeline, above the
+  composer. An unread one interrupts; **Got it** marks it read for your account on
+  every device, and it does not come back. What you have already read is kept out of
+  the way behind one line, and an emoji reaction is the one thing you can say back.
 - **Keyboard throughout**: `j` `k` `l` `f` `b` `r` `o` `n` `g`, and `?` for the list.
 - **Live** when [notify_push](https://github.com/nextcloud/notify_push) is installed;
   polling every 30 seconds when it is not.
@@ -265,8 +269,10 @@ the administration settings:
   ceilings, inbox rate limit, secure mode, whether the block list is published, whether
   self-signed certificates are accepted. Every one of these used to be an
   `occ config:app:set` key that almost nobody set.
-- **Announcements**, **retention** and the **instance access list** (an allow-list or a
-  deny-list of remote hosts, enforced both ways).
+- **Announcements** — a notice to the whole instance, optionally between a start and
+  an end, that everybody reads at the top of their timeline and dismisses once.
+  **Retention** and the **instance access list** (an allow-list or a deny-list of
+  remote hosts, enforced both ways) are here too.
 - **Domain blocks that clean up.** Adding a host to the deny list also removes what it
   already sent: its accounts, their posts, the follows in both directions and the
   deliveries still queued towards it.
@@ -327,8 +333,6 @@ These are absent from the code today, not merely rough edges:
   Nextcloud channel, not a Mastodon one.)
 - **No web editor for keyword filters, profile metadata fields or featured hashtags.**
   Each is set through the API or a Mastodon client; this app has no page for them.
-- **Announcements are not shown in the web client.** An administrator can publish one
-  and only Mastodon clients will display it.
 
 ## 📦 Quickstart (install & develop)
 

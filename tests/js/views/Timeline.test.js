@@ -33,6 +33,7 @@ const ComposerStub = {
 	template: '<div class="composer-stub" />',
 }
 const OnThisDayStub = { name: 'OnThisDay', template: '<div class="on-this-day-stub" />' }
+const AnnouncementsStub = { name: 'Announcements', template: '<div class="announcements-stub" />' }
 const WeeklyRecapStub = { name: 'WeeklyRecap', template: '<div class="weekly-recap-stub" />' }
 const TimelineListStub = {
 	name: 'TimelineList',
@@ -69,10 +70,11 @@ function mountTimeline(route = {}) {
 		global: {
 			plugins: [pinia],
 			mocks: { $route: { name: 'timeline', params: {}, query: {}, ...route } },
-			// OnThisDay reads the reader's own anniversaries on mount, which is
-			// its own request with its own tests; left real it would answer
+			// OnThisDay reads the reader's own anniversaries on mount, and
+			// Announcements what the instance is telling everybody; each is its
+			// own request with its own tests, and left real they would answer
 			// after these tests have finished
-			stubs: { Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub },
+			stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub },
 		},
 	})
 }
@@ -98,6 +100,23 @@ describe('Timeline', () => {
 		const wrapper = mountTimeline({ params: { type } })
 		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type, params: {} })
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe(type)
+	})
+
+	// what the instance is telling everybody belongs above the posts and above
+	// the composer, on every timeline but a single post's page -- that one was
+	// navigated to for that post
+	it.each([
+		[{ name: 'timeline', params: {} }, true],
+		[{ name: 'timeline', params: { type: 'notifications' } }, true],
+		[{ name: 'single-post', params: { type: 'single-post' } }, false],
+	])('puts the announcements at the top of %o', (route, present) => {
+		const wrapper = mountTimeline(route)
+
+		expect(wrapper.find('.announcements-stub').exists()).toBe(present)
+		if (present) {
+			// the first thing in the column, above the composer
+			expect(wrapper.element.firstElementChild.className).toContain('announcements-stub')
+		}
 	})
 
 	it('resets the previously loaded posts when switching', () => {

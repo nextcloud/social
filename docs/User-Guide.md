@@ -6,7 +6,7 @@ looking after the account. It describes the web client that comes with the
 app; where something is only reachable through the Mastodon-compatible API or
 a Mastodon client, it says so.
 
-**Verified against:** app version 0.19.49, `master`, 2026-09-14 — every claim
+**Verified against:** app version 0.19.95, `master`, 2026-09-15 — every claim
 below was checked against the code of that tree. Menu and button names are
 the English strings of the web client.
 
@@ -168,6 +168,32 @@ post; a post's `…` menu adds **Bookmark**, **Open on original instance** and
 A post that links somewhere gets a preview card, read by this server rather
 than by your browser. With the `notify_push` app installed, new posts arrive
 live; without it the page checks every 30 seconds.
+
+### Announcements from your administrators
+
+When the administrators of this Nextcloud post a notice — a maintenance
+window, a move, a new rule — it appears at the top of the timeline, above the
+composer, on every page except a single post's own. It is there because you
+have not read it yet.
+
+**Got it** marks it read. It does not disappear under you: it stays where it
+was, greyed, with a **Read** mark, so you can finish the sentence you were on.
+It is gone the next time you open the app, and gone on your phone too — being
+read is remembered by the server for your account, not by this browser.
+
+Announcements you have already read are not shown. While the card is up —
+that is, while something in it is still unread — a line at its foot, **Show 2
+announcements you have read**, brings them back; once everything is read the
+card is gone entirely and so are they. An announcement with an end says when
+it runs out ("Until 21 September"), and one that has not started yet, or has
+run out, is never shown at all.
+
+The emoji buttons under an announcement are the one thing you can say back to
+one. Press one to add yours or to take it back, or press the smiley with a
+plus on it to choose another; you may put up to eight different emoji on the
+same announcement.
+
+Administrators post and remove announcements in **Administration → Social**.
 
 ## Managing your account
 

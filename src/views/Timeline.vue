@@ -7,6 +7,12 @@
 		<!-- the first thing a new account sees; gone for good once closed -->
 		<FirstRun v-if="showInfo" @done="hideInfo" />
 
+		<!-- what the administrators are telling everybody, above the posts and
+		     above the composer: it is read before anything is written, and it
+		     is only here at all while something in it is unread. Not on a
+		     single post's page, which the reader navigated to for that post -->
+		<Announcements v-if="type !== 'single-post'" />
+
 		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :defaultVisibility="type === 'direct' ? 'direct' : undefined" />
 
 		<!-- the three timelines that are the same place seen from three
@@ -73,6 +79,7 @@ import IconRepeat from 'vue-material-design-icons/Repeat.vue'
 import TimelineList from './../components/TimelineList.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
+import Announcements from './../components/Announcements.vue'
 import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import OnThisDay from './../components/OnThisDay.vue'
@@ -93,6 +100,7 @@ const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "compose
 export default {
 	name: 'Timeline',
 	components: {
+		Announcements,
 		Composer,
 		FirstPostCelebration,
 		FirstRun,
