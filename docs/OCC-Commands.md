@@ -2,7 +2,7 @@
 
 All commands are invoked via `php occ <command>` from the Nextcloud root directory.
 
-This page documents the twenty-one commands the app registers in
+This page documents the twenty-four commands the app registers in
 `appinfo/info.xml`. Every command extends `OCA\Social\Command\SocialCommand`,
 the app's own base class, which extends Symfony's `Command` — nothing here
 reaches into the server's private `core/`. That base class declares the generic

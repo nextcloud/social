@@ -6,7 +6,9 @@ whoever has to decide where refactoring effort goes.
 
 **Verified against:** app version 0.17.0, 2026-09-12, after the wave described
 in [What has been done](#what-has-been-done). Every number was measured on that
-tree rather than carried over, and
+tree rather than carried over — except the migration, repair-step, table,
+class, controller, import and `src/` file counts, which were re-measured on
+0.19.49 on 2026-09-14 — and
 [Reproducing the measurements](#reproducing-the-measurements) gives the command
 for each.
 
@@ -119,17 +121,17 @@ server does, and treats an empty route table as a failure rather than a pass.
 `Performance.md` covers query behaviour and the index and schema-shape hazards.
 What follows is the debt in the migration set itself.
 
-All 30 schema steps use the frozen prefix `Version1000Date`, so only the date
+All 43 schema steps use the frozen prefix `Version1000Date`, so only the date
 orders them:
 
 | Era | Steps |
 |---|---|
 | 2022-11-18 | 1 (creates all 14 original tables) |
 | 2026-06-11 | 1 (drops 14 legacy `social_3_*` tables) |
-| 2026-09-07 onward | 28 |
+| 2026-09-07 onward | 40 |
 
 There are numbering gaps at `20260911000003`, `000012` and `000015`–`000019`,
-and most steps were authored in a six-day window.
+and most steps were authored in an eight-day window.
 
 The 2023 block is gone: its three steps repaired instances the 2022 step had
 created, and the 2022 step had been edited over the years to produce the
@@ -149,7 +151,7 @@ on, not which version of this app.
 other file in the tree ever creates** — the creating migrations were deleted and
 only the drop survives, so it is dead weight on every fresh install. The legacy
 naming split it addresses is finished: there is no `social_a2_*` prefix
-anywhere, and all 32 current tables are both read and written.
+anywhere, and all 42 current tables are both read and written.
 
 `tests/Migration/InitialSchemaTest` records what the creation step produces,
 including the columns and keys the retired repairs used to add. That is what any
@@ -297,20 +299,22 @@ in `SocialCrossQueryBuilder`, which binds its parameters.
 **Legacy bootstrap: none.** No `appinfo/app.php`, no `appinfo/application.php`.
 `lib/AppInfo/Application.php` is 71 lines of correct `IBootstrap` registration.
 
-**`@nextcloud/vue` v9 usage: current.** All 63 imports use the v9 subpath-export
+**`@nextcloud/vue` v9 usage: current.** All 74 imports use the v9 subpath-export
 style; zero deep `dist/` imports, zero removed or renamed components.
 
 **Unlinted code: none.** `npm run lint` covers `src`, `tests/js`, the hand-written
 `js/social-adminSettings.js` and the root configuration; `npm run stylelint`
 covers `src` and `css`.
 
-**Dead frontend code: none.** The import graph over all 81 files in `src/`
+**Dead frontend code: none.** The import graph over all 100 files in `src/`
 resolves, and there are no unused exports.
 
-**Dead model classes: none** (70 checked). **Dead exception classes: none** (46
-checked). **Unused controllers: none** (21 checked).
+**Dead model classes: none** (77 checked). **Dead exception classes: none** (48
+checked). **Unused controllers: none** (28 checked; `ClientApiController` is the
+abstract base of three of them and `SocialPubController` is called by
+`ActivityPubController` rather than routed to).
 
-**Repair steps that re-scan on every upgrade: none.** All four carry a version
+**Repair steps that re-scan on every upgrade: none.** All five carry a version
 marker in app config and return early.
 
 ### A trap worth knowing before you audit this app

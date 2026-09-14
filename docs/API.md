@@ -2,6 +2,20 @@
 
 > This document is written by hand but mechanically checked: `tests/DocumentationTest.php` asserts that the set of routes documented here matches the set of routes the app registers, which it reads the way the server does — the `#[FrontpageRoute]` attributes on the controller methods, plus what is left in `appinfo/routes.php`. Every route below appears in a table row with its URL exactly as written in the attribute. Paths that are *not* routes of this app (the `.well-known` discovery documents handled by the Nextcloud WellKnown API) are deliberately written without code spans so that check stays exact.
 
+## Contents
+
+- [Overview](#overview)
+- [Authentication](#authentication)
+- [Mastodon-compatible API](#mastodon-compatible-api)
+- [Custom Local API](#custom-local-api)
+- [OAuth](#oauth)
+- [ActivityPub Federation](#activitypub-federation)
+- [Legacy OStatus](#legacy-ostatus)
+- [Frontend / Document serving](#frontend--document-serving)
+- [Async Queue](#async-queue)
+- [Error Responses](#error-responses)
+
+---
 ## Overview
 
 The Social app exposes four groups of endpoints. Each is registered as a `#[FrontpageRoute]` attribute on the controller method that answers it, with one exception noted at the end of this section:

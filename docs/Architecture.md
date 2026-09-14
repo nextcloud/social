@@ -1,5 +1,20 @@
 # Nextcloud Social — Architecture Overview
 
+## Contents
+
+- [Introduction](#introduction)
+- [Directory Structure](#directory-structure)
+- [HTTP routing](#http-routing)
+- [Database Schema](#database-schema)
+- [Key Services](#key-services)
+- [ActivityPub Federation](#activitypub-federation)
+- [Frontend Architecture](#frontend-architecture)
+- [Integration Points](#integration-points)
+- [Account export and import](#account-export-and-import)
+- [Security](#security)
+- [Keeping this document in sync](#keeping-this-document-in-sync)
+
+---
 ## Introduction
 
 Nextcloud Social is a federated social networking app built on the W3C ActivityPub standard. It integrates into Nextcloud as an app, providing each user with an ActivityPub identity (Person actor) that can interact with Mastodon, Friendica, and other Fediverse platforms.
@@ -21,7 +36,7 @@ All of the above come from `appinfo/info.xml`.
 social/
 ├── appinfo/
 │   ├── info.xml                # App metadata, dependencies, cron jobs, occ commands
-│   └── routes.php              # One route; the other 201 are attributes on the controller methods
+│   └── routes.php              # One route; the other 258 are attributes on the controller methods
 ├── lib/
 │   ├── AP.php                  # ActivityPub type registry (factory + interface lookup)
 │   ├── AppInfo/
@@ -74,7 +89,7 @@ There is no `lib/bootstrap.php`; Composer's autoloader is pulled in by `lib/AppI
 
 ## HTTP routing
 
-The app registers 202 routes. 201 of them are `#[FrontpageRoute]` attributes on
+The app registers 259 routes. 258 of them are `#[FrontpageRoute]` attributes on
 the controller method that answers the request, next to the `#[PublicPage]`,
 `#[NoCSRFRequired]` and rate-limit attributes that decide who may call it — url
 and policy in one place. None are `#[ApiRoute]`: that is the OCS type, and the
@@ -1379,6 +1394,7 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
 | Files | `FilesScriptsListener` | `Application::register()` (on `OCA\Files\Event\LoadAdditionalScriptsEvent`) | Adds the self-contained `social-filesAction` init script, which registers "Share to Social" on pictures and videos |
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |
+| User Events | `UserDeletedListener` | `Application::register()` (on `UserDeletedEvent`) | Deletes the Social account of a deleted Nextcloud user through `AccountService::deleteActor()`: the actor is tombstoned, what belongs to it is dropped and a `Delete` is federated. A user who never opened Social has nothing here and is skipped; a failure is logged rather than thrown, since the Nextcloud user is already gone |
 | Group Events | `GroupListListener` | `Application::register()` (on `UserAddedEvent`, `UserRemovedEvent`, `GroupDeletedEvent`, `GroupChangedEvent`) | Keeps the group lists in step with the groups; never fails the group operation, a failure is logged and the cron's reconcile settles it |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
 | Contacts Menu | `ContactsMenuProvider` | `appinfo/info.xml` | "Follow %s on Social" entry linking to the actor page |
@@ -1403,7 +1419,7 @@ on the next poll — `setMinId()` would return the oldest matching rows instead 
 the newest. A boost renders as the post it repeats, subtitled with who boosted
 it; a boost or notification whose subject did not resolve has no row.
 
-Twenty-one occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `SocialCommand.php`, the base class all of them extend — it declares `--output` and the writers that honour it, in place of the server's private `OC\Core\Command\Base` — and `ExtendedBase.php`, a shared base several of them extend. Neither calls `setName()`, so neither registers a command of its own. See `docs/OCC-Commands.md`.
+Twenty-four occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `SocialCommand.php`, the base class all of them extend — it declares `--output` and the writers that honour it, in place of the server's private `OC\Core\Command\Base` — and `ExtendedBase.php`, a shared base several of them extend. Neither calls `setName()`, so neither registers a command of its own. See `docs/OCC-Commands.md`.
 
 ---
 
