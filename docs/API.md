@@ -547,6 +547,8 @@ Boosting from a client goes through `POST /api/v1/statuses/{nid}/{act}` with `re
 |--------|-------|------|------------|-------------|
 | PUT | `/api/v1/account/fields` | user | `fields` (list of `{name, value}`) | Replaces the profile metadata fields (at most four name/value pairs; entries with an empty half are dropped, names capped at 255 and values at 500 characters). Federated as `PropertyValue` attachments on the actor. `{"result": {"account": <Person>}, "status": 1}`. |
 | PUT | `/api/v1/current/follow` | user | `account` (required) | Follows an account; `{"result": [], "status": 1}`. |
+| POST | `/api/v1/account/create` | user | `username` (the handle; empty takes the one derived from the user id) | Creates the reader's account — the one place an actor is made for a logged-in person; the page no longer creates one on its first load. The handle has to be theirs to take (`AccountService::assertHandleAvailable()`: the pattern, not another Nextcloud user's id, not a handle an actor holds); a refused handle is a **422** whose `error` says why. `{"result": {"account": <Account>}, "status": 1}`. |
+| POST | `/api/v1/account/link` | user | `handle` (`user@server.example`, a leading `@` is fine) | Writes an account the reader already has elsewhere into the `fediverse` field of their Nextcloud profile, where Discover's colleague suggestions read it, and creates nothing here. An address on this server, or anything that is not `user@host`, is a **422** with the reason. `{"result": {"handle": "…"}, "status": 1}`. |
 | DELETE | `/api/v1/current/follow` | user | `account` (required) | Unfollows an account; `{"result": [], "status": 1}`. |
 
 ### Account info

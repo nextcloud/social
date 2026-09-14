@@ -12,12 +12,14 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -395,6 +397,62 @@ class LocalController extends Controller {
 			$this->streamService->deleteLocalItem($note, Note::TYPE);
 
 			return $this->success();
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+	/**
+	 * Creates the reader's account, with the handle they chose.
+	 *
+	 * The one place an actor is made for a logged-in person: the setup screen
+	 * asks, they answer. The handle has to be theirs to take
+	 * (`AccountService::assertHandleAvailable()`); the account comes back as
+	 * the client entity so the page can carry on without a reload.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/account/create')]
+	public function accountCreate(string $username = ''): DataResponse {
+		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
+			$username = trim($username);
+			if ($username === '') {
+				$username = $this->accountService->generateHandleFromUserId($this->userId);
+			}
+			$this->accountService->assertHandleAvailable($this->userId, $username);
+			$this->accountService->createActor($this->userId, $username);
+
+			$viewer = $this->accountService->getCachedLocalActor($username);
+			$viewer->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return $this->success(['account' => $viewer]);
+		} catch (InvalidHandleException|AccountAlreadyExistsException $e) {
+			// the reason is the answer: which handle to try instead
+			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+	/**
+	 * Names the account the reader already has elsewhere on their Nextcloud
+	 * profile, and creates nothing here. What the people on this Nextcloud
+	 * need is to find them, and the `fediverse` profile field is where
+	 * Discover looks.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/account/link')]
+	public function accountLink(string $handle = ''): DataResponse {
+		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
+
+			return $this->success(['handle' => $this->accountService->linkExternalHandle($this->userId, $handle)]);
+		} catch (InvalidHandleException $e) {
+			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

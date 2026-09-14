@@ -27,12 +27,15 @@ const stubs = {
 	NcContent: { props: ['appName'], template: '<div class="content-stub" :data-app-name="appName"><slot /></div>' },
 	NcAppContent: { template: '<main class="app-content-stub"><slot /></main>' },
 	Navigation: { emits: ['search'], template: '<nav class="navigation-stub" />' },
+	// the real one is an async chunk; the stub stands in synchronously
+	AccountSetup: { name: 'AccountSetup', emits: ['created'], template: '<section class="account-setup-stub" />' },
 	RouterView: { template: '<div class="router-view-stub" />' },
 }
 
 const baseServerData = {
 	public: false,
 	setup: false,
+	needsAccount: false,
 	isAdmin: false,
 	firstrun: false,
 	cloudAddress: 'https://cloud.example.org',
@@ -95,6 +98,30 @@ describe('App', () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
 		delete globalThis.OCA.Push
+	})
+
+	describe('before there is an account', () => {
+		it('asks, and mounts none of the app that would create one behind the reader', async () => {
+			setServerData({ needsAccount: true, suggestedHandle: 'alice' })
+			makeStore()
+			const wrapper = mountApp()
+			await flushPromises()
+
+			expect(wrapper.findComponent({ name: 'AccountSetup' }).exists()).toBe(true)
+			expect(wrapper.findComponent({ name: 'Navigation' }).exists()).toBe(false)
+			expect(wrapper.find('.timeline-list-stub, .router-view-stub').exists()).toBe(false)
+		})
+
+		it('reloads into the introduction once the account exists', async () => {
+			setServerData({ needsAccount: true, suggestedHandle: 'alice' })
+			makeStore()
+			const wrapper = mountApp()
+			const reload = vi.spyOn(wrapper.vm, 'reloadTo').mockImplementation(() => {})
+
+			wrapper.findComponent({ name: 'AccountSetup' }).vm.$emit('created', { id: '1' })
+
+			expect(reload).toHaveBeenCalledWith('/index.php/apps/social/?welcome=1')
+		})
 	})
 
 	describe('keyboard shortcuts', () => {
