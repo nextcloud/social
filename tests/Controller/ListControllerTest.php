@@ -578,6 +578,33 @@ class ListControllerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The controller used to read `limit=0` as "all of them", which Mastodon
+	 * documents. It never ran: Nextcloud's dispatcher applies a range of 1–500
+	 * to any parameter named `limit` and throws before the method is entered,
+	 * so every request the settings page made came back a 500. What is left is
+	 * a plain clamp, and these pin its two edges.
+	 */
+	public function testALimitLargerThanTheCeilingIsClampedToIt(): void {
+		$this->given(4, self::VIEWER);
+		$this->members[4] = array_fill(0, 120, self::FOLLOWED);
+
+		$response = $this->controller()->accounts(4, 900);
+
+		$this->assertCount(120, $response->getData(), 'nothing under the ceiling is dropped');
+	}
+
+	public function testALimitOfNoneIsStillOneRatherThanNothing(): void {
+		$this->given(4, self::VIEWER);
+		$this->members[4] = [self::FOLLOWED, self::STRANGER];
+
+		// the dispatcher refuses this before the method in a real request;
+		// the clamp is what keeps it sane if it ever arrives another way
+		$response = $this->controller()->accounts(4, 0);
+
+		$this->assertCount(1, $response->getData());
+	}
+
 	public function testTheMembersPageOnTheMembershipRowIdRatherThanTheAccount(): void {
 		// an account can be removed from a list and added again, so its own id
 		// does not move in one direction
@@ -614,8 +641,9 @@ class ListControllerTest extends TestCase {
 	}
 
 	public function testAskingForEverythingIsStillBounded(): void {
-		// Mastodon documents limit=0 as "all accounts without pagination"; the
-		// page is built in memory, so "all" has to have a ceiling
+		// The page is built in memory, one cached actor per row, so there is a
+		// ceiling however much is asked for. It is 500 because that is the
+		// most Nextcloud's dispatcher will pass through for a `limit` at all.
 		$this->given(4, self::VIEWER);
 		$asked = 0;
 		$this->listsRequest = $this->createMock(ListsRequest::class);
@@ -627,10 +655,10 @@ class ListControllerTest extends TestCase {
 				return [];
 			});
 
-		$this->controller()->accounts(4, 0);
+		$this->controller()->accounts(4, 900);
 
 		$this->assertGreaterThan(80, $asked, 'more than one page');
-		$this->assertLessThanOrEqual(1000, $asked, 'and not unbounded');
+		$this->assertLessThanOrEqual(500, $asked, 'and never past what the dispatcher allows');
 	}
 
 	public function testAMemberWhoseActorIsGoneIsLeftOutRatherThanHalfFilled(): void {

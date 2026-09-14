@@ -59,17 +59,26 @@ use Throwable;
  * 401 — so nothing is public in fact.
  */
 class ListController extends Controller {
-	/** What Mastodon defaults and caps a page of list members at. */
+	/** What Mastodon defaults a page of list members at. */
 	private const MEMBERS_LIMIT = 40;
-	private const MAX_MEMBERS_LIMIT = 80;
 
 	/**
-	 * What `limit=0` — Mastodon's "all accounts without pagination" — is
-	 * turned into. The page is built in memory, one cached actor per row, so
-	 * "all" has to have a ceiling; a list longer than this is read with the
-	 * cursor like any other.
+	 * The most members one request may ask for.
+	 *
+	 * 500 rather than Mastodon's 80, and **not** 0.
+	 *
+	 * Mastodon documents `limit=0` as "all accounts without pagination", and
+	 * this controller used to honour it. It never ran: Nextcloud's dispatcher
+	 * applies a default range of 1–500 to any parameter named `limit`
+	 * (`Dispatcher::ensureParameterValueSatisfiesRange`) and throws before the
+	 * method is entered, so `limit=0` was a 500 and an HTML error page rather
+	 * than a list of members. 500 is the largest the platform will pass
+	 * through, so it is what "as many as you can" has to mean here.
+	 *
+	 * The page is built in memory, one cached actor per row, which is why
+	 * there is a ceiling at all; a longer list is read with the cursor.
 	 */
-	private const ALL_MEMBERS_LIMIT = 500;
+	private const MAX_MEMBERS_LIMIT = 500;
 
 	private string $bearer = '';
 	private ?SocialClient $client = null;
@@ -242,10 +251,9 @@ class ListController extends Controller {
 			$this->initViewer();
 			$list = $this->ownedList($id);
 
-			// Mastodon documents limit=0 as "all accounts without pagination"
-			$limit = ($limit === 0)
-				? self::ALL_MEMBERS_LIMIT
-				: max(1, min(self::MAX_MEMBERS_LIMIT, $limit));
+			// the dispatcher has already refused anything outside 1–500; this
+			// is the app's own ceiling on top of that
+			$limit = max(1, min(self::MAX_MEMBERS_LIMIT, $limit));
 
 			$rows = $this->listsRequest->getMembers($list, $limit, $max_id, $min_id);
 			$actors = $this->cacheActorService->getCachedFromIds(array_column($rows, 'actorId'));

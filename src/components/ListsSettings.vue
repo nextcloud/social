@@ -195,6 +195,16 @@ import { showError, showSuccess } from '../services/toast.js'
 const SEARCH_DELAY_MS = 250
 
 /**
+ * How many members one request asks for.
+ *
+ * The server's own ceiling, and also the most Nextcloud will let through: its
+ * dispatcher refuses any `limit` outside 1–500 before the route is reached.
+ * A list longer than this shows its first 500 — the panel is a check on who
+ * is in a group, not a directory.
+ */
+const MEMBERS_PER_REQUEST = 500
+
+/**
  * The reader's lists, and everything that can be done to them: made, renamed,
  * deleted, and filled or emptied one person at a time. A section of Settings.
  *
@@ -403,9 +413,15 @@ export default {
 		/** @param {object} list the list to ask about */
 		async fetchMembers(list) {
 			try {
-				// limit=0 is Mastodon's "all of them, no paging"
+				// As many as one request may carry, which is 500.
+				//
+				// Not `limit=0` — Mastodon's "all of them, no paging" — which
+				// is what this asked for and why the panel only ever showed an
+				// error. Nextcloud's dispatcher applies a range of 1–500 to
+				// any parameter called `limit` and throws before the route is
+				// reached, so 0 came back as an HTML error page.
 				const { data } = await axios.get(generateUrl(`apps/social/api/v1/lists/${list.id}/accounts`), {
-					params: { limit: 0 },
+					params: { limit: MEMBERS_PER_REQUEST },
 				})
 				this.members = { ...this.members, [list.id]: Array.isArray(data) ? data : [] }
 			} catch (error) {
