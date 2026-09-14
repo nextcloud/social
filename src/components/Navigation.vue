@@ -106,10 +106,6 @@
 				:allowCollapse="true"
 				:open="exploreOpen"
 				@update:open="onExploreToggle">
-				<template #counter>
-					<NcCounterBubble :count="exploreTotal" />
-				</template>
-
 				<NcAppNavigationItem
 					v-for="entry in exploreEntries"
 					:key="entry.kind === 'tag' ? `tag-${entry.tag.name}` : `list-${entry.list.id}`"

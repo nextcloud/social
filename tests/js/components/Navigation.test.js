@@ -247,25 +247,20 @@ describe('Navigation', () => {
 			expect(listItems(wrapper)[0].find('.material-design-icon').exists()).toBe(true)
 		})
 
-		it('says how much is inside', async () => {
+		// the word and the chevron, nothing else
+		it('carries no count', async () => {
 			withExplore({ tags: [tag('a11y'), tag('nextcloud')], lists: [list(1, 'Friends')] })
 			const wrapper = mountNavigation()
 			await flushPromises()
 
-			expect(explore(wrapper).find('.nc-counter').attributes('data-count')).toBe('3')
+			expect(explore(wrapper).find('.nc-counter').exists()).toBe(false)
 		})
 
-		/**
-		 * The count is of everything, not of what is drawn: when the rail has
-		 * room for fewer than there are, it is how the reader knows the rest
-		 * are there.
-		 */
-		it('counts what it cannot show', async () => {
+		it('shows what it has room for out of everything there is', async () => {
 			withExplore({ tags: Array.from({ length: 20 }, (_, i) => tag(`t${i}`)), lists: [list(1, 'Friends')] })
 			const wrapper = mountNavigation()
 			await flushPromises()
 
-			expect(explore(wrapper).find('.nc-counter').attributes('data-count')).toBe('21')
 			expect(tagItems(wrapper).length + listItems(wrapper).length).toBe(12)
 		})
 
