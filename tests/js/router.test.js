@@ -158,6 +158,47 @@ describe('router', () => {
 			await expect(pending).resolves.toBe(saved)
 		})
 
+		it('puts the scrolling column back where it was, not the window', async () => {
+			// the window never scrolls in a Nextcloud app: the content column
+			// does, so restoring `savedPosition` alone moved nothing. This is
+			// the whole of what Back has to do.
+			const column = document.createElement('div')
+			column.id = 'app-content-vue'
+			document.body.appendChild(column)
+			try {
+				column.scrollTop = 4200
+				// leaving the timeline is what records the offset
+				const guard = router.options.scrollBehavior
+				await router.push('/timeline/home').catch(() => {})
+				await router.push('/@alice/7').catch(() => {})
+				column.scrollTop = 0
+
+				const pending = guard({ fullPath: '/timeline/home' }, {}, { left: 0, top: 0 })
+				eventBus.emit('timeline:rendered')
+				await pending
+
+				expect(column.scrollTop).toBe(4200)
+			} finally {
+				column.remove()
+			}
+		})
+
+		it('leaves the column alone when the view was never scrolled', async () => {
+			const column = document.createElement('div')
+			column.id = 'app-content-vue'
+			document.body.appendChild(column)
+			try {
+				column.scrollTop = 0
+				const pending = router.options.scrollBehavior({ fullPath: '/never-visited' }, {}, { left: 0, top: 0 })
+				eventBus.emit('timeline:rendered')
+				await pending
+
+				expect(column.scrollTop).toBe(0)
+			} finally {
+				column.remove()
+			}
+		})
+
 		it('restores it anyway when nothing says it has been drawn', async () => {
 			// a view with no timeline in it never sends the event; waiting for
 			// it forever would mean never scrolling at all

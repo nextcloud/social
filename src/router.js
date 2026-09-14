@@ -47,6 +47,46 @@ function getBase() {
 const RENDER_TIMEOUT = 2000
 
 /**
+ * Where the reader was in each view, by path, so Back can put them there.
+ *
+ * Bounded: the app has a handful of views and only the most recent few are
+ * ever reachable with Back in one session, so an unbounded map would be a
+ * leak for no benefit.
+ */
+const offsets = new Map()
+
+/** How many views are remembered before the oldest is forgotten. */
+const REMEMBERED_VIEWS = 10
+
+/**
+ * The element that scrolls. The window does not: Nextcloud gives an app a
+ * fixed viewport and the content column scrolls inside it.
+ *
+ * @return {Element|null} the column, or null before the app has rendered
+ */
+function scroller() {
+	return document.querySelector('#app-content-vue')
+}
+
+/**
+ * Remembers where the reader is in the view they are leaving.
+ *
+ * @param {string} path the view being left
+ */
+function remember(path) {
+	const column = scroller()
+	if (column === null || path === '') {
+		return
+	}
+
+	offsets.delete(path)
+	offsets.set(path, column.scrollTop)
+	while (offsets.size > REMEMBERED_VIEWS) {
+		offsets.delete(offsets.keys().next().value)
+	}
+}
+
+/**
  * Resolves once the timeline has said it is on the page, or after
  * `RENDER_TIMEOUT`, whichever is first.
  *
@@ -86,7 +126,20 @@ const router = createRouter({
 	 */
 	scrollBehavior(to, from, savedPosition) {
 		if (savedPosition) {
-			return whenRendered().then(() => savedPosition)
+			// `savedPosition` is the window's, and the window never scrolls
+			// here: Nextcloud gives the app a fixed viewport and the content
+			// column scrolls inside it. Restoring it therefore did nothing.
+			// What Back needs is the offset of that column, remembered when
+			// the reader left the view.
+			return whenRendered().then(() => {
+				const column = scroller()
+				const top = offsets.get(to.fullPath) ?? 0
+				if (column !== null && top > 0) {
+					column.scrollTop = top
+				}
+
+				return savedPosition
+			})
 		}
 
 		if (to.hash) {
@@ -219,6 +272,12 @@ const router = createRouter({
 			props: true,
 		},
 	],
+})
+
+// before the view changes, not after: once it has, the column belongs to the
+// next view and the offset of the one being left is gone
+router.beforeEach((to, from) => {
+	remember(from.fullPath)
 })
 
 export default router
