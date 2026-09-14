@@ -95,31 +95,26 @@ any refused statement, so that caught violation took the commit with it and the
 post was lost. Both now use `insertIgnoreConflict()`: the database skips the
 duplicate row, nothing fails, and the raise is left to mean what it says.
 
-Two places still have no transaction and want one:
-
-- `StreamActionService::saveAction()` — update, and insert if no row was
-  affected. Two concurrent likes both see nothing affected and both insert. On
-  MySQL/MariaDB `rowCount()` returns *changed* rows, so setting a flag to the
-  value it already holds takes the same path. `ActorRelationRequest` and
-  `StreamCardsRequest` already use the insert-then-catch-unique-then-update
-  shape that avoids this.
-- `ModerationRequest::save()` — delete then insert, with the insert failure only
-  logged: the old decision is gone and the new one was never applied.
+The two places this section used to name are settled: `StreamActionsRequest::save()`
+inserts first and updates on the unique violation (`StreamActionsFlagsTest` pins
+the race), and `ModerationRequest::save()` does the same rather than delete-then-
+insert, so a decision is replaced or kept, never lost.
 
 ### Wide `SELECT DISTINCT`
 
 `getStreamNidsSelectSql()` exists precisely to avoid deduplicating over every
-column — it selects nids, then hydrates. Seven call sites use it: the home and
-public branches of `getTimeline()`, the marked timelines (favourites and
-bookmarks), the list timeline in `ListsRequest`, and the deprecated direct
-timeline. **Eighteen** call sites in `StreamRequest` still go through
-`getStreamSelectSql()`, which pairs `selectDistinct('s.id')` with the full
-stream column set plus, on some paths, a second `os_*` stream set and two
-cached-actor and cached-document sets. The database sorts or hashes all of it —
-including `content`, `source`, `details`, `cache`, `tags` and `to_array` — to
-deduplicate. Direct messages, account timelines, hashtag timelines,
-notifications, search, `getNoteSince` and `getDescendants` are the ones worth
-moving.
+column — it selects nids, then hydrates. **Every branch of `getTimeline()` now
+goes through it**: home (both halves), public, direct, account, hashtag,
+favourites and bookmarks, notifications, and the list timeline in `ListsRequest`
+— each a `*TimelineNids()` method that decides the page over one indexed
+column, then `streamsByNids()` for exactly those rows
+(`tests/Db/TwoQueryTimelinesTest.php` pins the shape for the three moved last).
+What still pairs `selectDistinct('s.id')` with the full stream column set is
+the single-row lookups (`getStreamById()` and friends, which return one row and
+have nothing to deduplicate), `searchContent()`, `getDescendants()` /
+`getRepliesTo()`, `getAnnouncesAndRepliesTo()`, and the `*_dep()` methods behind
+the uncalled Custom Local API routes. Of those, search and the thread walk are
+the ones worth moving next; the `_dep` ones go with their routes.
 
 ### Lookups that cannot use an index
 
@@ -325,22 +320,16 @@ What is left, in order of how much it would cost to try:
 
 ## What to do next
 
-1. **Move the remaining read paths onto `getStreamNidsSelectSql()`.** The one
-   item left that changes how the app scales. Every timeline that is not home or
-   public still makes the database sort or hash `content`, `source`, `details`,
-   `cache` and `to_array` to deduplicate a page of twenty rows. It is also the
-   most mechanical: the pattern exists, it is proven on seven paths, and each
-   move is independently testable. Do notifications first — it carries two full
-   stream column sets, two cached-actor sets and two cached-document sets, and
-   every client polls it on a timer.
-2. **`StreamActionService::saveAction()`** wants the
-   insert-then-catch-unique-then-update shape its two neighbours already use.
-   Correctness rather than speed: two concurrent likes can both insert today.
-3. **`ModerationRequest::save()`** wants a transaction around its delete and
-   insert, for the same reason.
-4. **The schema items**, next time a migration touches those tables. The
+1. **Move `searchContent()` and the thread walk (`getDescendants()`,
+   `getRepliesTo()`) onto `getStreamNidsSelectSql()`.** Every timeline is on it
+   now; these two are what is left of the wide `SELECT DISTINCT`, and the thread
+   walk is also the one read that is still a query per level.
+2. **Retire the `*_dep()` methods with the Custom Local API routes** that call
+   them (Technical-Debt.md, item 2): that removes the last wide timeline reads
+   without rewriting them.
+3. **The schema items**, next time a migration touches those tables. The
    `social_follow` index order is the one worth doing deliberately: it is why a
    duplicate accepted/pending pair can exist at all.
-5. **An index on `social_actor.preferred_username`**, or a `*_prim` column for
+4. **An index on `social_actor.preferred_username`**, or a `*_prim` column for
    it, if the public actor endpoint and webfinger ever show up in a profile.
    Both still compare `LOWER(column)` against `LOWER(?)`.

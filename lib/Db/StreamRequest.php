@@ -1017,21 +1017,38 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineDirect(ProbeOptions $options): array {
-		$qb = $this->getStreamSelectSql($options->getFormat());
+		// two queries, as every other timeline: which posts, decided over one
+		// indexed column, then what they say
+		$nids = $this->directTimelineNids($options);
+		if ($nids === []) {
+			return [];
+		}
 
-		$qb->filterType(SocialAppNotification::TYPE);
-		$qb->paginate($options);
-		$this->filterMedia($qb, $options);
+		return $this->streamsByNids($nids, $options);
+	}
 
-		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+	/**
+	 * The page of direct messages addressed to the viewer.
+	 *
+	 * The recipient join fixes the viewer and the type `dm`, which the unique
+	 * index on the recipient rows makes at most one row per post, so the page
+	 * needs no `DISTINCT`.
+	 *
+	 * @return int[]
+	 */
+	protected function directTimelineNids(ProbeOptions $options): array {
+		$page = $this->getStreamNidsSelectSql(false);
+		$page->filterType(SocialAppNotification::TYPE);
+		$page->paginate($options);
+		$this->filterMedia($page, $options);
 
-		$viewer = $qb->getViewer();
-		$qb->selectDestFollowing('sd', '');
-		$qb->limitToDest($viewer->getId(), 'dm', '', 'sd');
+		// the author is joined for the filters below, not for its columns
+		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
+		$page->selectDestFollowing('sd', '');
+		$page->limitToDest($page->getViewer()->getId(), 'dm', '', 'sd');
+		$page->filterHiddenActors();
 
-		$qb->filterHiddenActors();
-
-		return $this->getStreamsFromRequest($qb);
+		return $this->getNidsFromRequest($page);
 	}
 
 	/**
@@ -1044,30 +1061,50 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineAccount(ProbeOptions $options): array {
-		$qb = $this->getStreamSelectSql($options->getFormat());
-
-		$qb->limitToStatusTypes();
-		$qb->paginate($options);
-		$this->filterMedia($qb, $options);
-
-		$actorId = $options->getAccountId();
-		if ($actorId === '') {
+		if ($options->getAccountId() === '') {
 			return [];
 		}
 
-		$qb->limitToAttributedTo($actorId, true);
+		$nids = $this->accountTimelineNids($options);
+		if ($nids === []) {
+			return [];
+		}
 
-		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
-		$accountIsViewer = ($qb->hasViewer() && $qb->getViewer()->getId() === $actorId);
-		$qb->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+		return $this->streamsByNids($nids, $options);
+	}
 
-		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-		$qb->leftJoinStreamAction();
+	/**
+	 * The page of one account's posts the viewer may read: its public ones,
+	 * or -- for the account reading its own profile -- everything it wrote.
+	 *
+	 * The recipient join is one row per post when it names the public
+	 * collection; for the account itself it names no recipient at all and a
+	 * post addressed to several accounts would come back once per row, so
+	 * that page is `DISTINCT` and the other is not.
+	 *
+	 * @return int[]
+	 */
+	protected function accountTimelineNids(ProbeOptions $options): array {
+		$actorId = $options->getAccountId();
+		$page = $this->getStreamNidsSelectSql(false);
+		$accountIsViewer = ($page->hasViewer() && $page->getViewer()->getId() === $actorId);
+		if ($accountIsViewer) {
+			$page = $this->getStreamNidsSelectSql(true);
+		}
 
-		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		$page->limitToStatusTypes();
+		$page->paginate($options);
+		$this->filterMedia($page, $options);
+		$page->limitToAttributedTo($actorId, true);
 
-		return $this->getStreamsFromRequest($qb);
+		$page->selectDestFollowing('sd', '');
+		$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+		$page->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+
+		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
+		$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+
+		return $this->getNidsFromRequest($page);
 	}
 
 	/**
@@ -1146,24 +1183,39 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineHashtag(ProbeOptions $options): array {
-		$qb = $this->getStreamSelectSql($options->getFormat());
-		$qb->limitToStatusTypes();
-		$qb->paginate($options);
-		$this->filterMedia($qb, $options);
+		$nids = $this->hashtagTimelineNids($options);
+		if ($nids === []) {
+			return [];
+		}
 
-		$expr = $qb->expr();
-		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-		$qb->linkToStreamTags('st', 's.id_prim');
-		$qb->andWhere($qb->exprLimitToDBField('hashtag', $options->getArgument(), true, false, 'st'));
+		return $this->streamsByNids($nids, $options);
+	}
 
-		$qb->limitToViewer('sd', 'f', true);
-		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
+	/**
+	 * The page of posts carrying a hashtag that the viewer may read.
+	 *
+	 * The tag join and the viewer's recipient join can each match a post more
+	 * than once, so the page is `DISTINCT` -- over one integer column, which
+	 * is what this is for: it used to be over the whole post.
+	 *
+	 * @return int[]
+	 */
+	protected function hashtagTimelineNids(ProbeOptions $options): array {
+		$page = $this->getStreamNidsSelectSql(true);
+		$page->limitToStatusTypes();
+		$page->paginate($options);
+		$this->filterMedia($page, $options);
+
+		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
+		$page->linkToStreamTags('st', 's.id_prim');
+		$page->andWhere($page->exprLimitToDBField('hashtag', $options->getArgument(), true, false, 'st'));
+
+		$page->limitToViewer('sd', 'f', true);
+		$page->andWhere($page->expr()->eq('s.attributed_to_prim', 'ca.id_prim'));
 		// a hashtag timeline is part of the public square a silenced account loses
-		$this->filterSilencedActors($qb);
+		$this->filterSilencedActors($page);
 
-		$qb->leftJoinStreamAction('sa');
-
-		return $this->getStreamsFromRequest($qb);
+		return $this->getNidsFromRequest($page);
 	}
 
 	/**
