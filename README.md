@@ -182,6 +182,23 @@ NEXTCLOUD_ROOT=/path/to/nextcloud composer run test:integration
 
 See `tests/Integration/README.md` for what it covers.
 
+### Browser tests
+
+`tests/e2e/` drives a real Nextcloud with the app installed, in Chromium,
+through [Playwright](https://playwright.dev): sign in, open the app, write a
+post and see it in the feed, walk the Discover page, switch scopes, open a
+group list. Nothing is mocked, and the bundle under test is the committed one
+in `js/`. `.github/workflows/e2e.yml` sets up a throwaway server for every pull
+request; against an instance of your own:
+
+```
+npx playwright install chromium
+E2E_BASE_URL=https://cloud.example E2E_USER=alice E2E_PASSWORD=… E2E_GROUP="Design" npm run test:e2e
+```
+
+`E2E_GROUP` is optional — the display name of a Nextcloud group the account is
+in, for the list test; without it that test is skipped.
+
 ## 🛠️ Contributing
 
 - Contributions welcome — open a pull request and run the build and tests locally

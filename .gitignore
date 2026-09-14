@@ -23,3 +23,6 @@ RELEASE.md
 # test artefacts
 tests/.phpunit.result.cache
 coverage/
+# Playwright
+playwright-report/
+test-results/

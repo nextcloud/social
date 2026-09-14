@@ -369,6 +369,10 @@ sixty when twenty survive the check.
   the only way a third party's Linked Data signature survives.
 - **The superseded Custom Local API is gone** (0.19.39): nineteen routes, the
   nine `getStream*()` methods and the seven `_dep` queries, and their tests.
+- **A browser-test layer** (0.19.58): `tests/e2e/` and `.github/workflows/e2e.yml`
+  — Playwright against a throwaway Nextcloud on every pull request. 1,500 unit
+  tests and an integration suite could not see a page that stays empty because
+  a bundle did not load; the smoke suite can.
 
 | Item | Outcome |
 |---|---|
