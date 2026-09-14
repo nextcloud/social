@@ -37,8 +37,9 @@
 			     yourself, over the box you are typing in, is nobody's idea of
 			     a preview -->
 			<NcAvatar
-				:user="currentUser.uid"
+				:url="ownAvatarUrl"
 				:displayName="currentUser.displayName"
+				:hideStatus="true"
 				:disableMenu="true"
 				:disableTooltip="true"
 				:size="32" />
@@ -825,6 +826,29 @@ export default {
 		/** @return {string[]} the warnings offered as one press each */
 		warningPresets() {
 			return contentWarningPresets()
+		},
+
+		/**
+		 * The reader's own face, addressed directly rather than by account name.
+		 *
+		 * `NcAvatar` given a `user` keeps a per-account note in browser storage
+		 * saying whether that account has a picture, and on every later render it
+		 * trusts the note instead of the image: one failed load, from a restart
+		 * or a deploy, and the note says no picture for as long as the browser
+		 * keeps it -- in this browser only, which is why it looks like the
+		 * picture simply went. Given a `url` it validates the image each time and
+		 * falls back to the initials when it truly cannot be had.
+		 *
+		 * It also avoids the malformed address that path builds for your own
+		 * account: the component appends its cache-buster with a second `?`.
+		 *
+		 * @return {string} the avatar of the account writing this post
+		 */
+		ownAvatarUrl() {
+			return generateUrl('/avatar/{userId}/{size}', {
+				userId: this.currentUser.uid,
+				size: 64,
+			})
 		},
 
 		/** @return {number} what the server accepts in one status */
@@ -2535,9 +2559,16 @@ $composer-duration: 220ms;
 .options {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	// the row has grown a control at a time -- attachments, files, a warning,
+	// a picture library, a preview, a poll, a clock, emoji, a language, an
+	// audience -- and the last thing in it is the button that sends the post.
+	// Left in one line they all shrink together and the button loses its
+	// words: "Post to followers" became "P". The icons wrap instead, and the
+	// button keeps the width its label needs.
+	flex-wrap: wrap;
+	gap: 4px 8px;
 	margin-top: 10px;
-	max-height: 60px;
+	max-height: 120px;
 	opacity: 1;
 	overflow: hidden;
 	transform: translateY(0);
@@ -2551,6 +2582,11 @@ $composer-duration: 220ms;
 
 .emptySpace {
 	flex-grow: 1;
+}
+
+/* whatever else has to give, the button that sends the post does not */
+.options > :last-child {
+	flex-shrink: 0;
 }
 
 /*

@@ -314,6 +314,20 @@ describe('Composer', () => {
 	})
 
 	describe('the length allowance', () => {
+		it("addresses the reader's own face by url rather than by account name", () => {
+			// NcAvatar given a `user` keeps a note in browser storage saying whether
+			// that account has a picture, and trusts the note over the image ever
+			// after: one failed load, from a restart or a deploy, and the face is
+			// gone in that browser until the note is cleared. A url is validated on
+			// every render, and falls back to the initials when it truly fails.
+			const { wrapper } = mountComposer()
+			const avatar = wrapper.findComponent({ name: 'NcAvatar' })
+
+			expect(avatar.exists()).toBe(true)
+			expect(avatar.attributes('user')).toBeUndefined()
+			expect(avatar.attributes('url')).toMatch(/\/avatar\/[^/]+\/64$/)
+		})
+
 		it('shows a ring that fills as the post grows, and only once there is text', async () => {
 			const { wrapper } = mountComposer()
 			expect(wrapper.find('.char-ring').exists()).toBe(false)
