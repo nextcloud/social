@@ -79,6 +79,26 @@ describe('PostAttachment', () => {
 		getContext.mockRestore()
 	})
 
+	it('lists files under the pictures instead of tiling them', () => {
+		const picture = attachments(1)[0]
+		const file = { id: 'f1', type: 'unknown', url: 'https://cloud.example.org/media/notes.pdf', preview_url: null, description: 'notes.pdf' }
+		const wrapper = mountAttachments([picture, file])
+
+		// one tile, for the picture; the file is not in the tile count
+		expect(wrapper.findAll('button.attachment')).toHaveLength(1)
+		const files = wrapper.find('.post-attachments__files')
+		expect(files.exists()).toBe(true)
+		expect(files.findAllComponents(MediaAttachment).map((tile) => tile.props('attachment'))).toEqual([file])
+	})
+
+	it('shows a post that carries only a file as a file, with no empty gallery', () => {
+		const file = { id: 'f1', type: 'unknown', url: 'https://cloud.example.org/media/notes.pdf', preview_url: null, description: 'notes.pdf' }
+		const wrapper = mountAttachments([file], { mediaFirst: true })
+
+		expect(wrapper.find('.gallery-mosaic').exists()).toBe(false)
+		expect(wrapper.find('.post-attachments__files').exists()).toBe(true)
+	})
+
 	it('renders a tile per attachment for up to four attachments', () => {
 		const items = attachments(4)
 		const wrapper = mountAttachments(items)

@@ -162,6 +162,28 @@ class DocumentTest extends TestCase {
 		$this->assertSame($media->getUrl(), $media->getPreviewUrl(), 'no resized copy: the media is the preview');
 	}
 
+	/**
+	 * A PDF is not an "application": it is a file a client cannot render, which
+	 * Mastodon calls `unknown` -- and it has no preview of itself, so none is
+	 * offered rather than the file being handed back as a picture.
+	 */
+	public function testAFileConvertsToAnUnknownAttachmentWithoutAPreview(): void {
+		$document = new Document();
+		$document->setNid(9)
+			->setMediaType('application/pdf')
+			->setLocalCopy('doc')
+			->setResizedCopy('')
+			->setDescription('minutes.pdf');
+
+		$media = $document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->assertSame('unknown', $media->getType());
+		$this->assertSame('application/pdf', $media->getMediaType());
+		$this->assertSame('https://cloud.example.org/social.Api.mediaOpen/doc.pdf', $media->getUrl());
+		$this->assertSame('', $media->getPreviewUrl(), 'a file is not its own preview');
+		$this->assertSame('minutes.pdf', $media->getDescription());
+	}
+
 	public function testConvertToMediaAttachmentWithoutUrlGeneratorLeavesLocalUrlsEmpty(): void {
 		$document = new Document();
 		$document->setMediaType('video/mp4')

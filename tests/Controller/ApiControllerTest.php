@@ -3057,6 +3057,7 @@ class ApiControllerTest extends TestCase {
 
 		$file = $this->createMock(File::class);
 		$file->method('getSize')->willReturn(strlen($contents));
+		$file->method('getName')->willReturn(basename($path));
 		$file->method('getPath')->willReturn('/alice/files/' . ltrim($path, '/'));
 		$file->method('fopen')->willReturn($stream);
 

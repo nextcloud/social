@@ -122,6 +122,7 @@ class MediaAttachmentTest extends TestCase {
 		$this->assertSame('image/jpeg', MediaAttachment::guessMediaType('image', 'https://x.example/media/uuid'));
 		$this->assertSame('video/mp4', MediaAttachment::guessMediaType('gifv', 'https://x.example/media/uuid'));
 		$this->assertSame('audio/mpeg', MediaAttachment::guessMediaType('audio', ''));
+		$this->assertSame('application/pdf', MediaAttachment::guessMediaType('unknown', 'https://x.example/media/report.pdf'));
 		$this->assertSame('', MediaAttachment::guessMediaType('unknown', ''));
 	}
 

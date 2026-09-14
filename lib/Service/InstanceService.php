@@ -51,6 +51,13 @@ class InstanceService {
 		'video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska',
 		'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/opus', 'audio/wav', 'audio/x-wav',
 		'audio/flac', 'audio/aac', 'audio/webm', 'audio/3gpp',
+		'application/pdf', 'text/plain', 'text/markdown', 'text/csv', 'application/zip', 'application/epub+zip',
+		'application/vnd.oasis.opendocument.text', 'application/vnd.oasis.opendocument.spreadsheet',
+		'application/vnd.oasis.opendocument.presentation',
+		'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+		'application/x-msdownload', 'text/html',
 	];
 
 	/**

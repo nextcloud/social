@@ -34,6 +34,22 @@
 			preload="metadata"
 			@click="onMediaClick"
 			@loadedmetadata="previewLoaded = true" />
+		<!-- a file: nothing to draw, so it is named. The whole card is the
+		     link, since there is nothing else on it to press -->
+		<a
+			v-else-if="attachment !== null && attachment.type === 'unknown'"
+			class="attachment__file"
+			:href="attachment.url"
+			target="_blank"
+			rel="noopener"
+			download
+			@click.stop>
+			<FileDocumentOutline :size="28" class="attachment__file-icon" />
+			<span class="attachment__file-text">
+				<span class="attachment__file-name">{{ fileName }}</span>
+				<span v-if="fileKind" class="attachment__file-kind">{{ fileKind }}</span>
+			</span>
+		</a>
 		<template v-else>
 			<canvas
 				ref="canvas"
@@ -58,7 +74,7 @@
 				<ImageOff :size="32" />
 			</span>
 		</template>
-		<NcLoadingIcon v-if="attachment === null || (!previewLoaded && !showsPlaceholder && !isAv)" :size="40" />
+		<NcLoadingIcon v-if="attachment === null || (!previewLoaded && !showsPlaceholder && !isAv && !isFile)" :size="40" />
 	</div>
 </template>
 
@@ -66,12 +82,14 @@
 import { decode } from 'blurhash'
 import { translate } from '@nextcloud/l10n'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import ImageOff from 'vue-material-design-icons/ImageOff.vue'
 import logger from '../services/logger.js'
 
 export default {
 	name: 'MediaAttachment',
 	components: {
+		FileDocumentOutline,
 		ImageOff,
 		NcLoadingIcon,
 	},
@@ -110,6 +128,31 @@ export default {
 		/** @return {boolean} */
 		isAv() {
 			return this.attachment?.type === 'video' || this.attachment?.type === 'audio'
+		},
+
+		/** @return {boolean} whether this is a file rather than something to draw or play */
+		isFile() {
+			return this.attachment?.type === 'unknown'
+		},
+
+		/**
+		 * @return {string} what the file is called: the description the server
+		 * filled in from the upload's name, else the last bit of its address
+		 */
+		fileName() {
+			const description = (this.attachment?.description || '').trim()
+			if (description !== '') {
+				return description
+			}
+			const path = (this.attachment?.url || this.attachment?.remote_url || '').split('?')[0]
+			return decodeURIComponent(path.split('/').pop() || '') || t('social', 'File')
+		},
+
+		/** @return {string} the extension, upper-cased, as a kind label; '' when there is none */
+		fileKind() {
+			const path = (this.attachment?.url || this.attachment?.remote_url || '').split('?')[0]
+			const match = /\.([a-z0-9]{1,8})$/i.exec(path)
+			return match ? match[1].toUpperCase() : ''
 		},
 
 		/**
@@ -250,6 +293,52 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/* the card a file is shown as: its name, what kind it is, and the whole of
+   it a link to the download */
+.attachment__file {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 64px;
+	padding: 12px 16px;
+	box-sizing: border-box;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large, 12px);
+	background: var(--color-background-hover);
+	color: var(--color-main-text);
+	text-decoration: none;
+
+	&:hover,
+	&:focus-visible {
+		border-color: var(--color-primary-element);
+	}
+}
+
+.attachment__file-icon {
+	flex: none;
+	color: var(--color-primary-element);
+}
+
+.attachment__file-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.attachment__file-name {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.attachment__file-kind {
+	font-size: 12px;
+	letter-spacing: .04em;
+	color: var(--color-text-maxcontrast);
+}
+
 .attachment {
 	position: relative;
 	height: 100%;

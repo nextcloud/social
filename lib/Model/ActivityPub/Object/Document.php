@@ -512,7 +512,9 @@ class Document extends ACore implements JsonSerializable {
 		$mime = '';
 		if (strpos($this->getMediaType(), '/')) {
 			[$type, $mime] = explode('/', $this->getMediaType(), 2);
-			$media->setType($type);
+			// Mastodon's four kinds, and its word for everything else: a PDF
+			// is not an "application", it is a file a client cannot render
+			$media->setType(in_array($type, ['image', 'video', 'audio', 'gifv'], true) ? $type : 'unknown');
 		}
 
 		// the whole of it, not just the half the client entity shows: what
@@ -530,7 +532,11 @@ class Document extends ACore implements JsonSerializable {
 				$media->setUrl($this->streamUrl($urlGenerator));
 			} else {
 				$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
-				$media->setPreviewUrl($this->previewUrl($urlGenerator, $mime));
+				// a file has no preview of itself; handing the file back as
+				// one would have a client try to draw a PDF as a picture
+				if ($media->getType() !== 'unknown') {
+					$media->setPreviewUrl($this->previewUrl($urlGenerator, $mime));
+				}
 			}
 		}
 

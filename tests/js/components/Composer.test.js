@@ -709,7 +709,7 @@ describe('Composer', () => {
 			await addFromFiles(wrapper)
 
 			expect(builder.setMultiSelect).toHaveBeenCalledWith(true)
-			expect(builder.setMimeTypeFilter).toHaveBeenCalledWith(['image/*', 'video/*'])
+			expect(builder.setMimeTypeFilter).toHaveBeenCalledWith(expect.arrayContaining(['image/*', 'video/*', 'application/pdf', 'text/plain']))
 			expect(builder.allowDirectories).toHaveBeenCalledWith(false)
 			expect(store.createMediaFromFile).toHaveBeenCalledWith({ path: beach })
 		})
@@ -993,7 +993,7 @@ describe('Composer', () => {
 
 		it('refuses a file the file dialog would never have offered', async () => {
 			const { wrapper, store } = mountComposer()
-			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
+			const notes = new File(['x'], 'setup.exe', { type: 'application/x-msdownload' })
 
 			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([notes]) }))
 			await flushPromises()
@@ -1006,7 +1006,7 @@ describe('Composer', () => {
 		it('takes the pictures out of a mixed drop and leaves the rest', async () => {
 			const { wrapper, store } = mountComposer()
 			const file = picture()
-			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
+			const notes = new File(['x'], 'setup.exe', { type: 'application/x-msdownload' })
 
 			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([file, notes]) }))
 			await flushPromises()
@@ -1057,7 +1057,7 @@ describe('Composer', () => {
 
 		it('leaves a pasted file of a kind it cannot take to the input', async () => {
 			const { wrapper, store } = mountComposer()
-			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
+			const notes = new File(['x'], 'setup.exe', { type: 'application/x-msdownload' })
 
 			const event = await dispatch(wrapper, input(wrapper).element, pasteEvent([notes]))
 			await flushPromises()

@@ -1145,7 +1145,8 @@ class ApiController extends Controller {
 				$this->storeAttachment(
 					$name,
 					(string)$this->request->getParam('description', ''),
-					(string)$this->request->getParam('focus', '')
+					(string)$this->request->getParam('focus', ''),
+					basename($file['name'] ?? '')
 				),
 				Http::STATUS_OK
 			);
@@ -1208,7 +1209,7 @@ class ApiController extends Controller {
 				fclose($handle);
 			}
 
-			return new DataResponse($this->storeAttachment($tmpPath, $description), Http::STATUS_OK);
+			return new DataResponse($this->storeAttachment($tmpPath, $description, '', $file->getName()), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -1249,7 +1250,7 @@ class ApiController extends Controller {
 	 *
 	 * @return MediaAttachment the entity a client is answered with
 	 */
-	private function storeAttachment(string $tmpPath, string $description, string $focus = ''): MediaAttachment {
+	private function storeAttachment(string $tmpPath, string $description, string $focus = '', string $filename = ''): MediaAttachment {
 		$document = new Document();
 		$document->setLocal(true);
 		$document->setAccount($this->viewer->getPreferredUsername());
@@ -1273,6 +1274,12 @@ class ApiController extends Controller {
 		}
 
 		$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
+		if ($description === '' && $filename !== '' && CacheDocumentService::isDocumentMime($document->getMediaType())) {
+			// a file is known by its name, and the description is the one
+			// field the entity has for saying what it is; a picture with no
+			// alt text stays undescribed, which is a fact worth keeping
+			$document->setDescription(mb_substr($filename, 0, 255));
+		}
 		$service = AP::instance()->getInterfaceForItem($document);
 		$service->save($document);
 

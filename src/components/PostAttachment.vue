@@ -10,17 +10,17 @@
 		<GalleryCarousel
 			v-if="isCarousel"
 			ref="carousel"
-			:attachments="attachments"
+			:attachments="media"
 			:interactive="to === null"
 			@open="openMedia" />
-		<div v-else-if="mediaFirst" class="gallery-mosaic" :class="`gallery-mosaic--${attachments.length}`">
+		<div v-else-if="mediaFirst && media.length" class="gallery-mosaic" :class="`gallery-mosaic--${media.length}`">
 			<GalleryMedia
-				v-for="(item, index) in attachments"
+				v-for="(item, index) in media"
 				:key="item.id ?? index"
 				ref="frames"
 				:attachment="item"
 				:index="index"
-				:total="attachments.length"
+				:total="media.length"
 				:ratio="mosaicRatio"
 				:interactive="to === null"
 				@open="openMedia(index)" />
@@ -55,19 +55,25 @@
 				<MediaAttachment v-else ref="thumbnails" :attachment="item" />
 			</template>
 			<button
-				v-if="attachments.length > 4"
+				v-if="media.length > 4"
 				type="button"
 				class="attachment more-attachments"
-				:aria-label="n('social', 'Show %n more attachment', 'Show %n more attachments', attachments.length - 4)"
+				:aria-label="n('social', 'Show %n more attachment', 'Show %n more attachments', media.length - 4)"
 				@click="openMedia(3)">
 				<span aria-hidden="true">+</span>
 			</button>
 		</div>
+		<!-- files are named, not shown: one row each, the whole row a download -->
+		<ul v-if="documents.length" class="post-attachments__files">
+			<li v-for="(item, index) in documents" :key="item.id ?? `file-${index}`">
+				<MediaAttachment :attachment="item" :interactive="true" />
+			</li>
+		</ul>
 		<NcModal
 			v-if="modal"
 			:name="currentLabel"
 			:hasPrevious="current > 0"
-			:hasNext="current < (attachments.length - 1)"
+			:hasNext="current < (media.length - 1)"
 			size="full"
 			@close="closeModal"
 			@previous="current--"
@@ -169,21 +175,35 @@ export default {
 	},
 
 	computed: {
+		/**
+		 * @return {import('../types/Mastodon.js').MediaAttachment[]} what can be
+		 * drawn or played: pictures, video, audio. Everything the mosaic, the
+		 * carousel and the viewer work on.
+		 */
+		media() {
+			return this.attachments.filter((item) => item?.type !== 'unknown')
+		},
+
+		/** @return {import('../types/Mastodon.js').MediaAttachment[]} the files: named and linked, never tiled */
+		documents() {
+			return this.attachments.filter((item) => item?.type === 'unknown')
+		},
+
 		/** What the open viewer is showing, so the dialog has a name. */
 		currentLabel() {
-			const attachment = this.attachments[this.current] ?? null
+			const attachment = this.media[this.current] ?? null
 
 			return attachment?.description
 				? attachment.description
 				: translate('social', 'Attachment {number} of {total}', {
 						number: this.current + 1,
-						total: this.attachments.length,
+						total: this.media.length,
 					})
 		},
 
 		/** @return {boolean} */
 		isCarousel() {
-			return this.mediaFirst && this.attachments.length >= CAROUSEL_FROM
+			return this.mediaFirst && this.media.length >= CAROUSEL_FROM
 		},
 
 		/**
@@ -192,15 +212,15 @@ export default {
 		 * beside one another read as two posts.
 		 */
 		mosaicRatio() {
-			return this.attachments.length === 1 ? ratioOf(this.attachments[0], DEFAULT_RATIO) : 1
+			return this.media.length === 1 ? ratioOf(this.media[0], DEFAULT_RATIO) : 1
 		},
 
 		/** @return {import('../types/Mastodon.js').MediaAttachment[]} */
 		attachementsSlice() {
-			if (this.attachments.length <= 4) {
-				return this.attachments
+			if (this.media.length <= 4) {
+				return this.media
 			} else {
-				return this.attachments.slice(0, 3)
+				return this.media.slice(0, 3)
 			}
 		},
 	},
@@ -381,5 +401,14 @@ export default {
 		color: var(--color-main-text);
 		background: var(--color-main-background);
 	}
+}
+
+.post-attachments__files {
+	list-style: none;
+	margin: 8px 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
 }
 </style>
