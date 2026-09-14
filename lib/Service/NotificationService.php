@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use DateTime;
 use Exception;
+use OCA\Social\Activity\Publisher as ActivityPublisher;
 use OCA\Social\AP;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorRelationRequest;
@@ -29,6 +30,7 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Reference\PostReferenceProvider;
 use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
 use Psr\Log\LoggerInterface;
@@ -103,6 +105,7 @@ class NotificationService {
 		private ActionsRequest $actionsRequest,
 		private AccountRelationService $accountRelationService,
 		private INotificationManager $notificationManager,
+		private ActivityPublisher $activityPublisher,
 		private LoggerInterface $logger,
 		private IURLGenerator $urlGenerator,
 	) {
@@ -466,6 +469,39 @@ class NotificationService {
 			->setSubject($subject, $parameters);
 
 		$this->notificationManager->notify($raised);
+
+		// the same news, in the Activity app's stream and digest mail — with
+		// the actor as the Nextcloud user they are, when they are one here
+		$activityActor = $actor;
+		$local = $this->localActor($actorId);
+		if ($local !== null) {
+			$activityActor ??= $local;
+			$activityActor->setUserId($local->getUserId());
+		}
+		$this->activityPublisher->publish(
+			$recipient->getUserId(), $subject, $activityActor, $actorId, $parameters['link'],
+			$this->excerptOf($notification), $notification->getNid()
+		);
+	}
+
+	/**
+	 * The post an entry is about, as plain text: the copy the caller passed
+	 * along where there is one, else the stored one, else nothing.
+	 */
+	private function excerptOf(SocialAppNotification $notification): string {
+		$post = $notification->getDetailsAll()['post'] ?? null;
+		if (!($post instanceof Stream)) {
+			if ($notification->getObjectId() === '') {
+				return '';
+			}
+			try {
+				$post = $this->streamRequest->getStreamById($notification->getObjectId());
+			} catch (Exception $e) {
+				return '';
+			}
+		}
+
+		return PostReferenceProvider::excerpt($post->getContent(), 200);
 	}
 
 	/**
@@ -685,6 +721,18 @@ class NotificationService {
 		$actor = $this->cachedActor($actorId);
 
 		return ($actor === null) ? $actorId : $this->labelOf($actor);
+	}
+
+	/**
+	 * The actor as this server's account, null for anyone else. The cached
+	 * copy of an actor does not carry the Nextcloud user; the actors table does.
+	 */
+	private function localActor(string $actorId): ?Person {
+		try {
+			return $this->actorsRequest->getFromId($actorId);
+		} catch (Exception $e) {
+			return null;
+		}
 	}
 
 	private function isLocal(string $actorId): bool {
