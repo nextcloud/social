@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.84  
+**App version:** 0.19.85  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -426,7 +426,7 @@ The account used to be a row of its own above the footer. It is not one any more
 
 The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice; what took its place is **My profile**, first in the menu behind that face. Moving the button without putting the link back would have left the reader's own profile reachable from nowhere.
 
-**Migration.** A page of the app's own, in the menu behind the account, for taking your data out and putting it back. Nextcloud can already export a whole account with `SocialMigrator` in it, but only if the admin installed the user migration app and only from `occ` or that app's page; taking a copy of what you wrote should not depend on either. `MigrationArchiveService` therefore drives **the same migrator** into a zip a person can download, and reads one back — so what travels, and what deliberately does not (the private key, above all: see the class comment on `SocialMigrator`), is decided in one place for both. `ZipExportDestination` and `ZipImportSource` are the two adapters that make a zip look like the framework's `IExportDestination` and `IImportSource`; they implement what the migrator actually calls and refuse the rest — `copyFolder()` throws rather than quietly producing an archive that claims to hold files it does not. The file names are the migrator's, so an archive from this page and one from `occ user:export` are interchangeable; the extra `social/export.json` names the app version, the account and the migrator version, and an archive that holds the data but no manifest is read as version 1, which is what the server's own exporter wrote.
+**Migration.** A page of the app's own, in the menu behind the account, for taking your data out and putting it back. Nextcloud can already export a whole account with `SocialMigrator` in it, but only if the admin installed the user migration app and only from `occ` or that app's page; taking a copy of what you wrote should not depend on either. `MigrationArchiveService` therefore drives **the same migrator** into a zip a person can download, and reads one back — so what travels, and what deliberately does not (the private key, above all: see the class comment on `SocialMigrator`), is decided in one place for both. `ZipExportDestination` and `ZipImportSource` are the two adapters that make a zip look like the framework's `IExportDestination` and `IImportSource`; they implement what the migrator actually calls and refuse the rest — `copyFolder()` throws rather than quietly producing an archive that claims to hold files it does not. A file added as a stream is copied to a temporary file and handed to `ZipArchive::addFile()` rather than read into a string: what arrives that way is as often a video as an outbox, and `stream_get_contents()` of a two-gigabyte upload is two gigabytes of memory. The file names are the migrator's, so an archive from this page and one from `occ user:export` are interchangeable; the extra `social/export.json` names the app version, the account and the migrator version, and an archive that holds the data but no manifest is read as version 1, which is what the server's own exporter wrote.
 
 The import is **additive**: the profile, follows, blocks, mutes, bookmarks and favourites are restored alongside what is already there, and the posts in `outbox.json` are reported rather than re-published, so importing cannot flood the timelines of people who follow you. An archive with no `social/actor.json` is refused by name, because the likeliest mistake is picking the wrong zip.
 
@@ -1428,12 +1428,30 @@ writes lives under `social/` in the archive:
 | `social/bookmarks.csv` | The URLs of the bookmarked posts |
 | `social/likes.csv` | The URLs of the favourited posts |
 | `social/outbox.json` | The user's own posts as an ActivityPub `OrderedCollection`, written a page at a time through a temporary file so that an account with years of posts never has to fit in memory |
+| `social/media_attachments/files/<id>/original.<ext>` | The file of one attachment of one of those posts, in the layout Mastodon's own export uses. `<id>` is the attachment id the post carries |
+| `social/media_attachments/header.<ext>`, `avatar.<ext>` | The profile banner, and a profile picture where this app has one of its own. Named in `actor.json` as `headerFile` and `avatarFile` |
 
 Reads are paged everywhere (`SocialMigrator::PAGE`, 50 rows); the block and mute
 lists come from one capped query (`RELATIONS_LIMIT`, 5000), and reaching the cap
 is reported on the console rather than silently truncating. A follow whose
 account this server never cached is left out of the CSV instead of being written
 as a bare actor URL, which no reader of the format accepts.
+
+**The files travel with the posts.** As the outbox is walked, each attachment
+that names a copy this instance stored is copied into the archive and its `url`
+is rewritten to that path — relative, because an absolute one names the server
+the archive is leaving. The address it had here is kept beside it as
+`originalUrl`, so nothing the archive knew is lost and a reader that cannot use
+the copy still knows where the picture was served from. The bytes go through
+`IExportDestination::addFileAsStream()` from the stored copy's own stream: a
+two-gigabyte video costs the export no more memory than a sentence does. An
+attachment this instance has no bytes of — a streamed PeerTube video, a copy a
+retention sweep removed — keeps the URL it had, which is all there ever was of
+it. The size estimate (`ISizeEstimationMigrator`) counts the media too, per kind
+(`SIZE_IMAGE`/`SIZE_AUDIO`/`SIZE_VIDEO`, from one grouped count in
+`CacheDocumentsRequest::countLocalCopiesByType()`): the table stores no file
+size, and an estimate that left the files out was wrong by orders of magnitude
+for any account with a video on it.
 
 ### What deliberately does not travel
 
@@ -1455,8 +1473,11 @@ as a bare actor URL, which no reader of the format accepts.
   so it must not be something a user can shed by exporting and re-importing.
 - **Tokens, OAuth clients and client secrets**, and the outbound request queue.
   A credential that survived a move would be one nobody can revoke.
-- **Media files.** Attachments are referenced by the URLs in `outbox.json`; the
-  cached files themselves are not copied into the archive.
+- **Other people's media.** Only the files of the user's own posts are copied,
+  and only where this instance stored them. A streamed video is deliberately
+  never mirrored here (`Document::COPY_STREAMED`) and there is nothing to put in
+  the archive; the Nextcloud account's avatar is the account's rather than this
+  app's, and core's own migrator carries it.
 
 ### What an import does
 
@@ -1492,6 +1513,26 @@ no account either: a Fediverse identity is something a user asks for.
   here, and minting new ids would either publish years of posts to the Fediverse
   again or fill the timeline with statuses no remote server can resolve.
   Mastodon's own import does not restore statuses either.
+- their **files** are, onto the posts this server does have: an attachment whose
+  URL names a `media_attachments/…` path in the archive is stored through
+  `DocumentService::storeLocalAttachment()` — which is the path the composer's
+  own upload takes, so the type is sniffed from the bytes, anything
+  `filterMimeTypes()` refuses is refused here too, and the metadata is stripped —
+  and the post's stored copy of its attachments is re-pointed at it. Nothing is
+  transcoded: the file in the archive is the one that was stored here, already
+  converted and resized when it was first uploaded. Where the post's picture is
+  still here nothing happens; where the post itself is not here the file stays in
+  the archive rather than becoming a row nothing can show; and where the archive
+  names a file it does not hold, the attachment keeps the address it had, which
+  is what `originalUrl` is for. This is the case of an archive read back after
+  the files were lost and the rows were not.
+- the **banner** goes back through `BannerService::setFromTempFile()`, the path
+  that owns it, so the actor cache and the followers are told exactly as they are
+  when it is set by hand. The **avatar** is the Nextcloud account's, so
+  `AvatarService::restoreFromArchive()` decides: a picture the account already
+  has is never written over, and only an account still showing its generated
+  initials gets the one out of the archive — the order the migrators of an
+  account import run in is not this app's to depend on.
 
 So the only thing an import sends to other servers is a `Follow` per followed
 account — which is the only way a follow can exist at all — plus the single

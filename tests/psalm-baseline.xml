@@ -28,10 +28,4 @@
       <code><![CDATA[$size]]></code>
     </InvalidOperand>
   </file>
-  <file src="lib/UserMigration/SocialMigrator.php">
-    <InvalidOperand>
-      <code><![CDATA[$size += ($this->followsRequest->countFollowing($actor->getId())
-			+ $this->followsRequest->countFollowers($actor->getId())) / 25]]></code>
-    </InvalidOperand>
-  </file>
 </files>

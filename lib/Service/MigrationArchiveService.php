@@ -69,7 +69,7 @@ class MigrationArchiveService {
 			throw new UserMigrationException('could not open the archive for writing');
 		}
 
-		$destination = new ZipExportDestination($zip);
+		$destination = new ZipExportDestination($zip, $this->tempManager);
 		$output = new BufferedOutput();
 
 		try {

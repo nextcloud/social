@@ -13,6 +13,7 @@ use OCA\Social\UserMigration\SocialMigrator;
 use OCA\Social\UserMigration\ZipExportDestination;
 use OCA\Social\UserMigration\ZipImportSource;
 use OCP\Files\Folder;
+use OCP\ITempManager;
 use OCP\UserMigration\UserMigrationException;
 use PHPUnit\Framework\TestCase;
 use ZipArchive;
@@ -27,6 +28,9 @@ use ZipArchive;
 class ZipArchiveTest extends TestCase {
 	private string $path;
 
+	/** @var string[] what the temp manager handed out, to clean up after */
+	private array $tempFiles = [];
+
 	protected function setUp(): void {
 		parent::setUp();
 		$path = tempnam(sys_get_temp_dir(), 'social-zip-test');
@@ -37,6 +41,10 @@ class ZipArchiveTest extends TestCase {
 
 	protected function tearDown(): void {
 		@unlink($this->path);
+		foreach ($this->tempFiles as $path) {
+			@unlink($path);
+		}
+		$this->tempFiles = [];
 		parent::tearDown();
 	}
 
@@ -44,7 +52,15 @@ class ZipArchiveTest extends TestCase {
 		$zip = new ZipArchive();
 		$this->assertTrue($zip->open($this->path, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true);
 
-		return [$zip, new ZipExportDestination($zip)];
+		$tempManager = $this->createMock(ITempManager::class);
+		$tempManager->method('getTemporaryFile')->willReturnCallback(function (): string {
+			$path = (string)tempnam(sys_get_temp_dir(), 'social-zip-stream');
+			$this->tempFiles[] = $path;
+
+			return $path;
+		});
+
+		return [$zip, new ZipExportDestination($zip, $tempManager)];
 	}
 
 	private function reading(string $uid = ''): array {

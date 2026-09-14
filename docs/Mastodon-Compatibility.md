@@ -361,10 +361,13 @@ The archive half has moved since this was written, in one direction. An account
 can now take its data out and put it back: `SocialMigrator` — driven by
 `occ user:export`, by Nextcloud's account migration, and by the Migration page's
 two buttons — writes the profile, the follows and followers as CSV, the
-bookmarks and favourites as URLs, and the account's **own posts as an
-ActivityPub `OrderedCollection`**. What comes back on import is the profile, the
-follows, the relations and the marks. The posts are counted and not written
-(`reportOutbox()`), and the key pair is deliberately never carried.
+bookmarks and favourites as URLs, the account's **own posts as an ActivityPub
+`OrderedCollection`**, and **the files of those posts**, under
+`media_attachments/` in the layout Mastodon's own archive uses, with each
+attachment's `url` rewritten to point into the archive. What comes back on import
+is the profile, the follows, the relations, the marks, the banner and the files
+of the posts this server still has. The posts themselves are counted and not
+written, and the key pair is deliberately never carried.
 
 Follower import is still the other half, and it is still impossible without
 identity continuity: the relationship's other half lives on the follower's
@@ -392,7 +395,11 @@ notices on the first signature check.
    conversation, addressing, language — rejecting any id whose host is not ours.
    The export side of this exists (`SocialMigrator` writes the outbox); nothing
    reads it back.
-6. **Write the media importer.** Nothing exists here at all.
+6. **Write the media importer.** Half of it exists: the export carries every
+   file, and the import stores one back through the upload path
+   (`DocumentService::storeLocalAttachment()`) and hangs it on the post it
+   belongs to — but only where this server already has that post, because
+   nothing mints the posts. It becomes whole with 5.
 7. **Write the follower-graph importer**, inserting rows directly rather than
    calling the follow service, which would re-send a `Follow` to everyone.
 8. **Import the remaining per-actor state** with the same write-the-row,
@@ -603,7 +610,7 @@ Untouched, and item 24 gates the other six.
 | 25 | **Serve the Mastodon URL space** — `/users/{name}`, `/users/{name}/statuses/{id}`, root `/inbox`, `/outbox`, `/followers`, `/following` — and resolve the requested URI rather than rebuilding it | Weeks | Peers hold the old URIs as primary keys; after a domain swap every one of them 404s |
 | 26 | **Key-pair import**, root-only and loudly warned | Days | Keys are always generated; the old `keyId` becomes unresolvable and every signature fails on the far side |
 | 27 | **A handle and id rename path** | Weeks | The `*_prim` md5 columns mean an id change is a fan-out rewrite across roughly a dozen tables |
-| 28 | **Status, media and follower-graph importers**, writing rows and federating nothing | Months | The *export* half now exists — `SocialMigrator` writes the account's own posts as an ActivityPub `OrderedCollection`, its followers and following as CSV, and the import side restores the profile, follows, relations and bookmarks. Nothing writes statuses or media back (`reportOutbox()` only counts them), and followers cannot be imported at all until identity is continuous |
+| 28 | **Status and follower-graph importers**, writing rows and federating nothing | Months | The *export* half is whole — `SocialMigrator` writes the account's own posts as an ActivityPub `OrderedCollection`, **their pictures and videos** under `media_attachments/`, and its followers and following as CSV — and the import side restores the profile, follows, relations, bookmarks, the banner and the files of the posts this server already has. Nothing writes **statuses** back, so the media of a post that is not here stays in the archive; followers cannot be imported at all until identity is continuous |
 | 29 | **Counter and threading reconciliation**, and a **cutover verification command** that fetches our own actor over HTTPS as a peer would | Weeks | Without it, nobody can tell whether a cutover worked until the network says so |
 | 30 | **The operational runbook** — freeze, drain, dump, import, flip, keep the old inbox reachable | Days | |
 
