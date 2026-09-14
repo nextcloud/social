@@ -136,9 +136,20 @@ describe('the shared framework chunk', () => {
 			return
 		}
 
-		// each of these was over 900 KB with the framework inside it
-		expect(statSync(join(JS, name)).size, `${name} looks like it still has one`)
-			.toBeLessThan(320 * 1024)
+		const size = statSync(join(JS, name)).size
+		const framework = statSync(join(JS, 'social-framework.js')).size
+
+		// Each of these was over 900 KB with the framework inside it, and the
+		// framework chunk is itself around 800 KB — so an entry that had
+		// swallowed it could not be a fraction of its size. That ratio is what
+		// this is really about, and unlike a byte count it does not have to be
+		// retuned every time a feature adds a few hundred bytes.
+		expect(size, `${name} is not much smaller than the framework it should be sharing`)
+			.toBeLessThan(framework / 2)
+
+		// and an absolute ceiling well clear of the 900 KB failure, so an entry
+		// cannot creep towards it a little at a time
+		expect(size, `${name} looks like it still has one`).toBeLessThan(400 * 1024)
 	})
 
 	it('does nothing when an entry is served without it', async () => {

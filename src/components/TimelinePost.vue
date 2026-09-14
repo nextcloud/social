@@ -175,7 +175,7 @@
 		     is something to be seen without hovering. -->
 		<ReactionBar
 			v-if="$route && $route.params.type !== 'notifications'"
-			:nid="item.nid"
+			:statusId="String(item.id || '')"
 			:modelValue="item.reactions || []"
 			:canReact="!serverData.public"
 			@update:modelValue="onReactionsChanged" />

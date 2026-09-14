@@ -415,7 +415,6 @@ import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
 import ComposerPreview from './ComposerPreview.vue'
-import GifPicker from './GifPicker.vue'
 import LanguageSelect from './LanguageSelect.vue'
 import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
 import { isKnownVisibility } from '../Visibility/VisibilitiesInfos.js'
@@ -423,6 +422,7 @@ import SubmitStatusButton from './SubmitStatusButton.vue'
 import MessageContent from '../MessageContent.js'
 import Tribute from 'tributejs'
 import eventBus from '../../services/eventBus.js'
+import { emojiPickerModule } from '../../services/emojiPicker.js'
 import logger from '../../services/logger.js'
 import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 import { mapStores } from 'pinia'
@@ -531,8 +531,6 @@ const SCHEDULE_PROPOSAL = 60 * 60 * 1000
  *
  * @return {Promise<object>} the module
  */
-let emojiPicker = null
-const emojiPickerModule = () => (emojiPicker ??= import('@nextcloud/vue/components/NcEmojiPicker'))
 
 /**
  * The date picker's module, fetched at most once, for the same reason: it
@@ -542,6 +540,17 @@ const emojiPickerModule = () => (emojiPicker ??= import('@nextcloud/vue/componen
  */
 let datePicker = null
 const datePickerModule = () => (datePicker ??= import('@nextcloud/vue/components/NcDateTimePicker'))
+
+/**
+ * The shared picture library, fetched when somebody first asks for it.
+ *
+ * Same reason as the two pickers above: it brings `NcTextField` with it, and
+ * that pulls `@nextcloud/vue`'s l10n chunk — half a megabyte — into whatever
+ * chunk it lands in. Statically imported here it landed in the app's initial
+ * bundle and nearly doubled it, for a panel most readers never open.
+ */
+let gifPicker = null
+const gifPickerModule = () => (gifPicker ??= import('./GifPicker.vue'))
 
 export default {
 	name: 'Composer',
@@ -557,6 +566,11 @@ export default {
 			onError: (error) => logger.error('Could not load the date picker', { error }),
 		}),
 
+		GifPicker: defineAsyncComponent({
+			loader: gifPickerModule,
+			onError: (error) => logger.error('Could not load the picture library', { error }),
+		}),
+
 		NcButton,
 		NcLoadingIcon,
 		ActorAvatar,
@@ -570,7 +584,6 @@ export default {
 		PollIcon,
 		PreviewGrid,
 		ComposerPreview,
-		GifPicker,
 		FileGifBox,
 		LanguageSelect,
 		VisibilitySelect,

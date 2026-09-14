@@ -80,7 +80,6 @@
 
 <script>
 import MigrationSettings from '../components/MigrationSettings.vue'
-import RecapSettings from '../components/RecapSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
 import { defineAsyncComponent } from 'vue'
@@ -89,6 +88,10 @@ import { t } from '@nextcloud/l10n'
 // Two forms of some size that nobody sees until they open this page, so they
 // travel in a chunk of their own rather than in the entry every reader loads.
 const AccountSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/AccountSettings.vue'))
+// in the same chunk as the two forms above, and for the same reason: it is a
+// switch nobody sees until they open this page, and it brings a form control
+// of its own with it
+const RecapSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/RecapSettings.vue'))
 const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/ListsSettings.vue'))
 
 /**

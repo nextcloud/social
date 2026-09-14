@@ -1408,4 +1408,44 @@ describe('TimelinePost', () => {
 			expect(attachmentsOf(wrapper).exists()).toBe(false)
 		})
 	})
+	describe('the reaction bar', () => {
+		/**
+		 * The card must address the post by `id`, the string, and never by
+		 * `nid`, the JSON number.
+		 *
+		 * A post id is a snowflake well past Number.MAX_SAFE_INTEGER: parsed as
+		 * a number it loses its last digits, so `…043682` becomes `…043600` and
+		 * the server answers 404 for a post that is on the screen. The card
+		 * passed `nid` and every reaction failed with "Could not add that
+		 * reaction".
+		 */
+		it('addresses the post by its string id, not the rounded nid', () => {
+			const { wrapper } = mountPost({
+				// Number(), not a literal: the literal is the lossy value this
+				// test is about, and eslint refuses to let one be written
+				item: makeItem({ id: '1789344497747043682', nid: Number('1789344497747043682') }),
+			})
+
+			const bar = wrapper.findComponent({ name: 'ReactionBar' })
+
+			expect(bar.props('statusId')).toBe('1789344497747043682')
+			expect(bar.props('statusId')).not.toContain('043600')
+		})
+
+		it('hands the bar what the server sent with the post', () => {
+			const reactions = [{ name: '🎉', count: 2, me: true }]
+			const { wrapper } = mountPost({ item: makeItem({ reactions }) })
+
+			expect(wrapper.findComponent({ name: 'ReactionBar' }).props('modelValue')).toEqual(reactions)
+		})
+
+		// the public page has nobody to react as
+		it('lets nobody react on the public page', () => {
+			const { wrapper } = mountPost({
+				serverData: { public: true, cloudAddress: 'https://cloud.example.org' },
+			})
+
+			expect(wrapper.findComponent({ name: 'ReactionBar' }).props('canReact')).toBe(false)
+		})
+	})
 })

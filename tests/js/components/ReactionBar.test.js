@@ -6,6 +6,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
 import ReactionBar from '../../../src/components/ReactionBar.vue'
+import eventBus, { REACTION_PICK } from '../../../src/services/eventBus.js'
 
 vi.mock('@nextcloud/axios', () => ({ default: { post: vi.fn() } }))
 vi.mock('../../../src/services/logger.js', () => ({
@@ -13,11 +14,7 @@ vi.mock('../../../src/services/logger.js', () => ({
 }))
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 
-const stubs = {
-	// the real one is an async chunk pulled in on first use; it stands in here
-	NcEmojiPicker: { name: 'NcEmojiPicker', template: '<div class="emoji-picker-stub"><slot /></div>' },
-	NcLoadingIcon: true,
-}
+const stubs = {}
 
 /**
  * @param {object} props what the card passes down
@@ -25,7 +22,7 @@ const stubs = {
  */
 function mountBar(props = {}) {
 	return mount(ReactionBar, {
-		props: { nid: 7, modelValue: [], canReact: true, ...props },
+		props: { statusId: '7', modelValue: [], canReact: true, ...props },
 		global: { stubs },
 	})
 }
@@ -171,5 +168,86 @@ describe('ReactionBar', () => {
 		const wrapper = mountBar({ modelValue: undefined })
 
 		expect(wrapper.findAll('.reaction:not(.reaction--add)')).toHaveLength(0)
+	})
+
+	/**
+	 * A post id is a snowflake well past Number.MAX_SAFE_INTEGER. The entity
+	 * carries it twice — as `nid`, a JSON number, and as `id`, a string — and
+	 * only the string survives being parsed: `…043682` read as a number comes
+	 * back `…043600`, and the server then answers 404 for a post that is on
+	 * the screen. This component addressed posts by `nid` and every reaction
+	 * failed; the id must go out with every digit it arrived with.
+	 */
+	it('sends a large post id without losing its last digits', async () => {
+		axios.post.mockResolvedValue({ data: { reactions: [] } })
+		const id = '1789344497747043682'
+		const wrapper = mountBar({ statusId: id, modelValue: bar })
+
+		await wrapper.findAll('.reaction:not(.reaction--add)')[0].trigger('click')
+		await flushPromises()
+
+		const [url] = axios.post.mock.calls[0]
+
+		expect(url).toContain(`/statuses/${id}/react`)
+		expect(url).not.toContain('1789344497747043600')
+	})
+
+	// the id is empty until the card has one; a request to /statuses//react
+	// is a 404 that looks like a bug in the feature
+	it('sends nothing when it has no post to address', async () => {
+		const wrapper = mountBar({ statusId: '', modelValue: bar })
+
+		await wrapper.findAll('.reaction:not(.reaction--add)')[0].trigger('click')
+		await flushPromises()
+
+		expect(axios.post).not.toHaveBeenCalled()
+	})
+	describe('asking for the picker', () => {
+		/**
+		 * The card does not own a picker. `@nextcloud/vue` may not be imported
+		 * anywhere under TimelinePost — the app's entry and the dashboard's both
+		 * pull it in, and a framework import beneath it moves the shared l10n
+		 * chunk out of social-framework and copies half a megabyte into each.
+		 * So it asks over the bus and keeps the request itself.
+		 */
+		it('asks over the bus rather than opening one itself', async () => {
+			const asked = []
+			eventBus.on(REACTION_PICK, (payload) => asked.push(payload))
+			const wrapper = mountBar({ modelValue: bar })
+
+			await wrapper.find('.reaction--add').trigger('click')
+
+			expect(asked).toHaveLength(1)
+			expect(typeof asked[0].react).toBe('function')
+			eventBus.all.clear()
+		})
+
+		it('sends what the picker gives back', async () => {
+			axios.post.mockResolvedValue({ data: { reactions: [] } })
+			let react
+			eventBus.on(REACTION_PICK, (payload) => {
+				react = payload.react
+			})
+			const wrapper = mountBar({ statusId: '7', modelValue: bar })
+
+			await wrapper.find('.reaction--add').trigger('click')
+			react('🚀')
+			await flushPromises()
+
+			expect(axios.post).toHaveBeenCalledWith(
+				expect.stringContaining('/statuses/7/react'),
+				{ emoji: '🚀' },
+			)
+			eventBus.all.clear()
+		})
+
+		it('asks for nothing when the reader may not react', async () => {
+			const asked = []
+			eventBus.on(REACTION_PICK, (payload) => asked.push(payload))
+			mountBar({ modelValue: bar, canReact: false })
+
+			expect(asked).toHaveLength(0)
+			eventBus.all.clear()
+		})
 	})
 })

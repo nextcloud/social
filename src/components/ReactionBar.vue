@@ -18,36 +18,22 @@
 			<span class="reaction__count" aria-hidden="true">{{ reaction.count }}</span>
 		</button>
 
-		<!-- The picker carries the whole emoji set — 130 KB over the wire — so
-		     it is fetched when somebody first asks for it rather than by every
-		     reader of every timeline, the same way the composer does it. -->
-		<NcEmojiPicker
-			v-if="pickerLoaded"
-			:closeOnSelect="true"
-			container="#content-vue"
-			@select="react">
-			<button
-				type="button"
-				class="reaction reaction--add"
-				:disabled="busy !== ''"
-				:aria-haspopup="true"
-				:aria-label="t('social', 'Add a reaction')"
-				:title="t('social', 'Add a reaction')"
-				@click.stop>
-				<EmoticonPlusOutline :size="16" />
-			</button>
-		</NcEmojiPicker>
+		<!-- The picker is not here. `@nextcloud/vue` must not be imported
+		     anywhere under TimelinePost — the app's entry and the dashboard's
+		     both pull that in, and a framework import beneath it moves the
+		     shared l10n chunk out of `social-framework` and copies half a
+		     megabyte into each. So this asks for the picker over the bus and
+		     keeps the request; see ReactionPicker. -->
 		<button
-			v-else-if="canReact"
+			v-if="canReact"
 			type="button"
 			class="reaction reaction--add"
-			:disabled="pickerLoading"
+			:disabled="busy !== ''"
 			:aria-haspopup="true"
 			:aria-label="t('social', 'Add a reaction')"
 			:title="t('social', 'Add a reaction')"
-			@click.stop="loadPicker">
-			<NcLoadingIcon v-if="pickerLoading" :size="16" />
-			<EmoticonPlusOutline v-else :size="16" />
+			@click.stop="askForPicker">
+			<EmoticonPlusOutline :size="16" />
 		</button>
 	</div>
 </template>
@@ -57,14 +43,9 @@ import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import EmoticonPlusOutline from 'vue-material-design-icons/EmoticonPlusOutline.vue'
-import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import { defineAsyncComponent } from 'vue'
+import eventBus, { REACTION_PICK } from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
-
-/** Fetched once for the page, however many cards ask for it. */
-let emojiPicker = null
-const emojiPickerModule = () => (emojiPicker ??= import('@nextcloud/vue/components/NcEmojiPicker'))
 
 /**
  * The emoji reactions under a post.
@@ -90,18 +71,23 @@ export default {
 
 	components: {
 		EmoticonPlusOutline,
-		NcLoadingIcon,
-		NcEmojiPicker: defineAsyncComponent({
-			loader: emojiPickerModule,
-			onError: (error) => logger.error('Could not load the emoji picker', { error }),
-		}),
 	},
 
 	props: {
-		/** the post's numeric id, which is what the routes take */
-		nid: {
-			type: [Number, String],
-			default: 0,
+		/**
+		 * Which post, as the API's `id` — a **string**.
+		 *
+		 * Not `nid`. The two carry the same number, but the entity sends `nid`
+		 * as a JSON number and a post id is a snowflake well past
+		 * `Number.MAX_SAFE_INTEGER`: parsing one loses its last digits, so
+		 * `…043682` arrives as `…043600` and the server answers 404 for a post
+		 * that is on the screen. `id` is the same value as a string and
+		 * survives the round trip, which is why every other action on a post
+		 * addresses it that way too.
+		 */
+		statusId: {
+			type: String,
+			default: '',
 		},
 
 		/**
@@ -127,8 +113,6 @@ export default {
 		return {
 			/** which emoji is in flight, '' when none */
 			busy: '',
-			pickerLoaded: false,
-			pickerLoading: false,
 		}
 	},
 
@@ -161,41 +145,17 @@ export default {
 		},
 
 		/**
-		 * Fetches the picker and opens it, which is what the button that was
-		 * pressed would have done had it been there.
+		 * Asks for the shared picker, and hands it what to do with the answer.
+		 *
+		 * The callback keeps the request here rather than in the picker, so the
+		 * two need know nothing about each other beyond the one event.
 		 */
-		async loadPicker() {
-			if (this.pickerLoaded || this.pickerLoading) {
+		askForPicker() {
+			if (!this.canReact || this.busy !== '') {
 				return
 			}
 
-			this.pickerLoading = true
-			try {
-				await emojiPickerModule()
-				this.pickerLoaded = true
-				await this.$nextTick()
-				// the real button has replaced this one by now; it has to be
-				// pressed for the popover to open, which is what the reader
-				// was asking for when they pressed the placeholder
-				this.$el.querySelector('.reaction--add')?.click()
-			} catch (error) {
-				logger.error('Could not load the emoji picker', { error })
-				showError(t('social', 'Could not open the emoji picker'))
-			} finally {
-				this.pickerLoading = false
-			}
-		},
-
-		/**
-		 * @param {object|string} chosen what the picker handed over — its
-		 *        `select` passes the emoji as a string, but a native object
-		 *        with `native` is what older versions gave
-		 */
-		react(chosen) {
-			const emoji = typeof chosen === 'string' ? chosen : (chosen?.native ?? '')
-			if (emoji !== '') {
-				this.send(emoji, true)
-			}
+			eventBus.emit(REACTION_PICK, { react: (emoji) => this.send(emoji, true) })
 		},
 
 		/**
@@ -211,14 +171,14 @@ export default {
 		 * @param {boolean} add whether to add it or take it back
 		 */
 		async send(emoji, add) {
-			if (!this.canReact || this.busy !== '') {
+			if (!this.canReact || this.busy !== '' || this.statusId === '') {
 				return
 			}
 
 			this.busy = emoji
 			try {
 				const { data } = await axios.post(
-					generateUrl(`/apps/social/api/v1/statuses/${this.nid}/${add ? 'react' : 'unreact'}`),
+					generateUrl(`/apps/social/api/v1/statuses/${this.statusId}/${add ? 'react' : 'unreact'}`),
 					{ emoji },
 				)
 
