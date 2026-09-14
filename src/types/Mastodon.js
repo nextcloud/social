@@ -138,8 +138,21 @@
  * @property {StatusTag[]} tags - Ex: []
  * @property {CustomEmoji[]} emojis - Ex: []
  * @property {Card?} card - the link preview, null when the post links nowhere
+ * @property {Reaction[]} reactions - the emoji reactions on the post, most used first; always an array, `[]` when there are none
  * @property {?{state: string, quoted_status: ?Status}} quote - the post this one quotes, null when it quotes none; `state` is pending, accepted, rejected or revoked
  * @property {Poll} [poll] - Ex: null
+ */
+
+/**
+ * @typedef Reaction - one emoji under a post, and who used it
+ *
+ * Not a Mastodon entity: Mastodon has no reactions. The shape is the one the
+ * Misskey-family servers and their clients use, and it is what this app's own
+ * API answers — see docs/API.md.
+ *
+ * @property {string} name - the emoji itself; always a unicode emoji, never a `:shortcode:`
+ * @property {number} count - how many accounts used it
+ * @property {boolean} me - whether the reader is one of them; false when anonymous
  */
 
 /**

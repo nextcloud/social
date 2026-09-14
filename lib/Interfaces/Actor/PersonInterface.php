@@ -20,6 +20,7 @@ use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Db\FiltersRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ListsRequest;
+use OCA\Social\Db\ReactionsRequest;
 use OCA\Social\Db\ReportsRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\ScheduledStatusesRequest;
@@ -62,6 +63,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 
 	public function __construct(
 		private ActionsRequest $actionsRequest,
+		private ReactionsRequest $reactionsRequest,
 		private CacheActorsRequest $cacheActorsRequest,
 		private CacheDocumentsRequest $cacheDocumentsRequest,
 		private FollowsRequest $followsRequest,
@@ -143,6 +145,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 
 		$this->actionsRequest->deleteByActor($item->getId());
+		$this->reactionsRequest->deleteByActor($item->getId());
 		$this->cacheActorsRequest->deleteCacheById($item->getId());
 		$this->cacheDocumentsRequest->deleteByParent($item->getId());
 		$this->requestQueueRequest->deleteByAuthor($item->getId());

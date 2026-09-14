@@ -166,8 +166,20 @@
 			<!-- Sanitized: a bio is HTML, remote ones from anywhere, see sanitizeHtml.js -->
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div v-if="note" class="user-profile__note" v-html="note" />
+			<!-- the hashtags this account pins to itself: a claim it makes
+			     about what it is about, so it sits with the bio rather than
+			     among the numbers -->
+			<FeaturedTags :accountId="highlightsAccountId" />
+			<!-- what this account is like, over and above how much of it there
+			     is; renders nothing for a remote account, whose history this
+			     instance only ever holds a part of -->
+			<ProfileHighlights :accountId="highlightsAccountId" />
 			<dl v-if="profileFields.length" class="user-profile__fields">
-				<div v-for="(field, index) in profileFields" :key="index" class="user-profile__field">
+				<div
+					v-for="(field, index) in profileFields"
+					:key="index"
+					class="user-profile__field"
+					:class="{ 'user-profile__field--verified': field.verified }">
 					<dt>{{ field.name }}</dt>
 					<dd>
 						<a
@@ -178,6 +190,7 @@
 						<template v-else>
 							{{ field.text }}
 						</template>
+						<VerifiedCheck v-if="field.verified" :verifiedAt="field.verifiedAt" />
 					</dd>
 				</div>
 			</dl>
@@ -298,6 +311,9 @@ import { generateUrl } from '@nextcloud/router'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import FollowButton from './FollowButton.vue'
+import FeaturedTags from './FeaturedTags.vue'
+import ProfileHighlights from './ProfileHighlights.vue'
+import VerifiedCheck from './VerifiedCheck.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
 import { formatCount } from '../utils/number.js'
 import { profileFields } from '../utils/profileFields.js'
@@ -345,9 +361,12 @@ export default {
 		NcActions,
 		NcAvatar,
 		NcButton,
+		FeaturedTags,
 		NcModal,
+		ProfileHighlights,
 		ImagePlus,
 		TableEdit,
+		VerifiedCheck,
 		VolumeHigh,
 		VolumeOff,
 	},
@@ -403,6 +422,20 @@ export default {
 
 		displayName() {
 			return this.accountInfo.display_name ?? this.accountInfo.username ?? this.profileAccount
+		},
+
+		/**
+		 * Which account the highlights are asked for.
+		 *
+		 * The numeric id when the entity carries one, and the handle
+		 * otherwise: the route takes either, and the id is the cheaper lookup
+		 * of the two. Empty until the account has loaded, which is what keeps
+		 * the component from asking for a profile nobody is looking at yet.
+		 *
+		 * @return {string}
+		 */
+		highlightsAccountId() {
+			return String(this.accountInfo?.id ?? this.profileAccount ?? '')
 		},
 
 		/**

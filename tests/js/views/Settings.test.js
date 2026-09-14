@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import Settings from '../../../src/views/Settings.vue'
 import MigrationSettings from '../../../src/components/MigrationSettings.vue'
@@ -26,11 +26,15 @@ const NcModalStub = { name: 'NcModal', template: '<div class="modal-stub"><slot 
 const asyncStubs = {
 	AccountSettings: { name: 'AccountSettings', template: '<section class="account-settings-stub" />' },
 	ListsSettings: { name: 'ListsSettings', template: '<section class="lists-settings-stub" />' },
+	// reads the recap setting on mount, for the same reason: its request would
+	// answer after this file has finished
+	RecapSettings: { name: 'RecapSettings', template: '<section class="recap-settings-stub" />' },
 }
 
 describe('Settings', () => {
-	it('shows every shortcut the app listens for', () => {
+	it('shows every shortcut the app listens for', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
 		const rows = wrapper.findAll('.shortcut-list__row')
 
 		expect(rows).toHaveLength(SHORTCUTS.length)
@@ -39,8 +43,9 @@ describe('Settings', () => {
 	})
 
 	/** A shortcut with two keys is two keys, not "j/k" in one box. */
-	it('gives every key of a shortcut its own cap', () => {
+	it('gives every key of a shortcut its own cap', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
 		const twoKeyed = SHORTCUTS.findIndex((shortcut) => shortcut.keys.length > 1)
 
 		expect(twoKeyed).toBeGreaterThan(-1)
@@ -48,8 +53,11 @@ describe('Settings', () => {
 			.toHaveLength(SHORTCUTS[twoKeyed].keys.length)
 	})
 
-	it('says that the keys stop while you are typing', () => {
-		expect(mount(Settings, { global: { stubs: asyncStubs } }).find('.shortcut-list__hint').text())
+	it('says that the keys stop while you are typing', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		expect(wrapper.find('.shortcut-list__hint').text())
 			.toBe('Shortcuts are off while you are writing.')
 	})
 
@@ -57,8 +65,9 @@ describe('Settings', () => {
 	 * A shortcut is a promise about a keystroke, and the `?` dialog makes the
 	 * same one. They draw the same component so the two cannot drift apart.
 	 */
-	it('draws the same list the ? dialog does', () => {
+	it('draws the same list the ? dialog does', async () => {
 		const page = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
 		const dialog = mount(ShortcutHelp, {
 			props: { open: true },
 			global: { stubs: { NcModal: NcModalStub } },
@@ -71,12 +80,13 @@ describe('Settings', () => {
 	})
 
 	/** The frame is a list of sections, and Migration was the second. */
-	it('is a page of sections rather than a page about shortcuts', () => {
+	it('is a page of sections rather than a page about shortcuts', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Your account', 'Lists', 'Keyboard shortcuts', 'Scheduled posts', 'Migration'])
+			.toEqual(['Your account', 'Lists', 'Keyboard shortcuts', 'Scheduled posts', 'Looking back', 'Migration'])
 	})
 
 	/**
@@ -85,8 +95,11 @@ describe('Settings', () => {
 	 * nothing. The composer's clock is where a post is scheduled; this is
 	 * where one is taken back.
 	 */
-	it('holds the posts waiting to go out', () => {
-		expect(mount(Settings).findComponent(ScheduledPosts).exists()).toBe(true)
+	it('holds the posts waiting to go out', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		expect(wrapper.findComponent(ScheduledPosts).exists()).toBe(true)
 	})
 
 	/**
@@ -94,8 +107,9 @@ describe('Settings', () => {
 	 * menu. That menu is for places to read something; this is a thing you do
 	 * to the account, which is what Settings is for.
 	 */
-	it('holds the migration tools', () => {
+	it('holds the migration tools', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
 
 		expect(wrapper.findComponent(MigrationSettings).exists()).toBe(true)
 		// the section supplies the heading, so the panel no longer repeats it

@@ -86,14 +86,30 @@
 			class="new-post-form"
 			:class="{ 'new-post-form--media-first': hasAttachments }"
 			@submit.prevent>
-			<input
-				v-if="showWarning"
-				v-model="spoilerText"
-				type="text"
-				class="content-warning"
-				maxlength="200"
-				:aria-label="t('social', 'Content warning')"
-				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
+			<div v-if="showWarning" class="content-warning-row">
+				<input
+					v-model="spoilerText"
+					type="text"
+					class="content-warning"
+					maxlength="200"
+					:aria-label="t('social', 'Content warning')"
+					:placeholder="t('social', 'Content warning, e.g. what the post is about')">
+				<!-- the warnings people actually write, as one press each: the
+				     box stays, because the list cannot cover what a post is
+				     about, and pressing one only fills the box in -->
+				<ul class="content-warning-presets" :aria-label="t('social', 'Common content warnings')">
+					<li v-for="preset in warningPresets" :key="preset">
+						<button
+							type="button"
+							class="content-warning-presets__item"
+							:class="{ 'content-warning-presets__item--active': spoilerText === preset }"
+							:aria-pressed="spoilerText === preset ? 'true' : 'false'"
+							@click="chooseWarning(preset)">
+							{{ preset }}
+						</button>
+					</li>
+				</ul>
+			</div>
 			<!-- above the box, not below it: once there is a picture the post
 			     is the picture, and what is typed underneath is its caption -->
 			<PreviewGrid
@@ -122,6 +138,18 @@
 				@input="updateStatusContent"
 				@paste="handlePaste"
 				@tribute-replaced="updatePostFromTribute" />
+
+			<GifPicker
+				v-if="showGifs"
+				@close="showGifs = false"
+				@chosen="attachGif" />
+
+			<!-- what the server will publish, once the writer asks to see it;
+			     under the box, above everything the post is being given -->
+			<ComposerPreview
+				v-if="showPreview"
+				:text="statusText"
+				:warning="showWarning ? spoilerText : ''" />
 
 			<div v-if="showPoll" class="poll-editor">
 				<div v-for="(option, index) in pollOptions" :key="index" class="poll-editor__option">
@@ -245,6 +273,28 @@
 					</template>
 				</NcButton>
 				<NcButton
+					:title="showGifs ? t('social', 'Close the picture library') : t('social', 'Add from the picture library')"
+					variant="tertiary"
+					:aria-label="showGifs ? t('social', 'Close the picture library') : t('social', 'Add from the picture library')"
+					:aria-pressed="showGifs"
+					:disabled="attachmentsFull"
+					@click.prevent="showGifs = !showGifs">
+					<template #icon>
+						<FileGifBox :size="22" decorative title="" />
+					</template>
+				</NcButton>
+
+				<NcButton
+					:title="showPreview ? t('social', 'Hide preview') : t('social', 'Preview this post')"
+					variant="tertiary"
+					:aria-label="showPreview ? t('social', 'Hide preview') : t('social', 'Preview this post')"
+					:aria-pressed="showPreview"
+					@click.prevent="showPreview = !showPreview">
+					<template #icon>
+						<EyeOutline :size="22" decorative title="" />
+					</template>
+				</NcButton>
+				<NcButton
 					:title="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
 					variant="tertiary"
 					:aria-label="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
@@ -346,12 +396,14 @@ import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
 import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import FolderImage from 'vue-material-design-icons/FolderImage.vue'
+import FileGifBox from 'vue-material-design-icons/FileGifBox.vue'
 import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
+import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
 import { defineAsyncComponent } from 'vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
@@ -362,6 +414,7 @@ import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
+import ComposerPreview from './ComposerPreview.vue'
 import LanguageSelect from './LanguageSelect.vue'
 import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
 import { isKnownVisibility } from '../Visibility/VisibilitiesInfos.js'
@@ -369,6 +422,7 @@ import SubmitStatusButton from './SubmitStatusButton.vue'
 import MessageContent from '../MessageContent.js'
 import Tribute from 'tributejs'
 import eventBus from '../../services/eventBus.js'
+import { emojiPickerModule } from '../../services/emojiPicker.js'
 import logger from '../../services/logger.js'
 import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 import { mapStores } from 'pinia'
@@ -434,6 +488,27 @@ const FILTER_DEBOUNCE = 600
 const REFUSAL_DURATION = 400
 
 /**
+ * The content warnings worth one press.
+ *
+ * Not a taxonomy and not a moderation policy — the box is still there and
+ * still takes anything. These are the handful that come up often enough that
+ * typing them again is friction, and having them written the same way every
+ * time is what makes a warning filterable by the people who filter on them.
+ *
+ * Translated, because a warning is read by the people on this instance.
+ */
+function contentWarningPresets() {
+	return [
+		translate('social', 'Spoiler'),
+		translate('social', 'Food'),
+		translate('social', 'Politics'),
+		translate('social', 'Mental health'),
+		translate('social', 'Eye contact'),
+		translate('social', 'Work'),
+	]
+}
+
+/**
  * How far ahead a scheduled post has to be, in milliseconds: the server's
  * `ScheduledStatusService::MIN_LEAD_TIME`, which is Mastodon's five minutes.
  * Checked here as well so the refusal comes before the request, while the
@@ -456,8 +531,6 @@ const SCHEDULE_PROPOSAL = 60 * 60 * 1000
  *
  * @return {Promise<object>} the module
  */
-let emojiPicker = null
-const emojiPickerModule = () => (emojiPicker ??= import('@nextcloud/vue/components/NcEmojiPicker'))
 
 /**
  * The date picker's module, fetched at most once, for the same reason: it
@@ -467,6 +540,17 @@ const emojiPickerModule = () => (emojiPicker ??= import('@nextcloud/vue/componen
  */
 let datePicker = null
 const datePickerModule = () => (datePicker ??= import('@nextcloud/vue/components/NcDateTimePicker'))
+
+/**
+ * The shared picture library, fetched when somebody first asks for it.
+ *
+ * Same reason as the two pickers above: it brings `NcTextField` with it, and
+ * that pulls `@nextcloud/vue`'s l10n chunk — half a megabyte — into whatever
+ * chunk it lands in. Statically imported here it landed in the app's initial
+ * bundle and nearly doubled it, for a panel most readers never open.
+ */
+let gifPicker = null
+const gifPickerModule = () => (gifPicker ??= import('./GifPicker.vue'))
 
 export default {
 	name: 'Composer',
@@ -482,6 +566,11 @@ export default {
 			onError: (error) => logger.error('Could not load the date picker', { error }),
 		}),
 
+		GifPicker: defineAsyncComponent({
+			loader: gifPickerModule,
+			onError: (error) => logger.error('Could not load the picture library', { error }),
+		}),
+
 		NcButton,
 		NcLoadingIcon,
 		ActorAvatar,
@@ -491,8 +580,11 @@ export default {
 		Close,
 		FolderImage,
 		AlertOutline,
+		EyeOutline,
 		PollIcon,
 		PreviewGrid,
+		ComposerPreview,
+		FileGifBox,
 		LanguageSelect,
 		VisibilitySelect,
 		SubmitStatusButton,
@@ -625,6 +717,10 @@ export default {
 			attachments: {},
 			showPoll: false,
 			showWarning: false,
+			/** whether the "how this will read" pane is open */
+			showPreview: false,
+			/** whether the shared picture library is open */
+			showGifs: false,
 			spoilerText: '',
 			pollOptions: ['', ''],
 			pollMultiple: false,
@@ -725,6 +821,11 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useInstanceStore, useTimelineStore),
+
+		/** @return {string[]} the warnings offered as one press each */
+		warningPresets() {
+			return contentWarningPresets()
+		},
 
 		/** @return {number} what the server accepts in one status */
 		maxLength() {
@@ -1038,6 +1139,17 @@ export default {
 	methods: {
 		expand() {
 			this.openedByHand = true
+		},
+
+		/**
+		 * Fills the warning box in from the presets, or empties it when the
+		 * one already chosen is pressed again — the same press undoing itself
+		 * is what the pressed state promises.
+		 *
+		 * @param {string} preset the warning that was pressed
+		 */
+		chooseWarning(preset) {
+			this.spoilerText = this.spoilerText === preset ? '' : preset
 		},
 
 		/**
@@ -1478,6 +1590,57 @@ export default {
 
 			this.expand()
 			await this.attachPaths(paths)
+		},
+
+		/**
+		 * Attaches a picture from the instance's shared library.
+		 *
+		 * The same shape as attaching from Files: a placeholder goes into the
+		 * grid at once so the reader sees that something is happening, and the
+		 * server's answer replaces it. The picker stays open — choosing two is
+		 * a normal thing to want, and the ceiling closes it instead.
+		 *
+		 * @param {{slug: string, title: string}} gif the one that was chosen
+		 */
+		async attachGif(gif) {
+			if (this.attachmentsFull) {
+				this.announceCeiling()
+				this.showGifs = false
+				return
+			}
+
+			this.expand()
+
+			// the same picture may be chosen twice, and the slug cannot tell
+			// those two attachments apart
+			const key = `gif:${++this.pickCount}:${gif.slug}`
+			this.attachments = {
+				...this.attachments,
+				[key]: { file: null, path: gif.title || gif.slug, data: null, failed: false },
+			}
+
+			this.uploading = true
+			this.progressLabel = t('social', 'Attaching…')
+			const mediaData = await this.timelineStore.createMediaFromGif({ slug: gif.slug })
+			this.uploading = false
+
+			if (this.attachments[key] === undefined) {
+				// deleted while the server was copying it
+				return
+			}
+
+			this.attachments = {
+				...this.attachments,
+				[key]: {
+					...this.attachments[key],
+					data: mediaData?.id === undefined ? null : mediaData,
+					failed: mediaData?.id === undefined,
+				},
+			}
+
+			if (this.attachmentsFull) {
+				this.showGifs = false
+			}
 		},
 
 		/**
@@ -2630,6 +2793,50 @@ $composer-duration: 220ms;
 		border-color: var(--color-primary-element);
 		outline: 2px solid var(--color-primary-element);
 		outline-offset: 1px;
+	}
+}
+
+/* the box and the presses that fill it in are one thing on the form */
+.content-warning-row {
+	margin-bottom: 6px;
+
+	.content-warning {
+		margin-bottom: 4px;
+	}
+}
+
+.content-warning-presets {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.content-warning-presets__item {
+	margin: 0;
+	padding: 2px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-pill, 16px);
+	background: var(--color-background-hover);
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+	line-height: 20px;
+	cursor: pointer;
+
+	&:hover,
+	&:focus-visible {
+		border-color: var(--color-primary-element);
+		color: var(--color-main-text);
+	}
+
+	/* the one the box is currently showing, so pressing it again to clear it
+	   is an obvious thing to do rather than a discovery */
+	&--active {
+		border-color: var(--color-primary-element);
+		background: var(--color-primary-element-light);
+		color: var(--color-main-text);
 	}
 }
 </style>

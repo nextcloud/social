@@ -15,6 +15,7 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ReactionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -32,6 +33,7 @@ use Psr\Log\LoggerInterface;
 class MoveInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	public function __construct(
 		private ActionsRequest $actionsRequest,
+		private ReactionsRequest $reactionsRequest,
 		private CacheActorsRequest $cacheActorsRequest,
 		private CacheDocumentsRequest $cacheDocumentsRequest,
 		private FollowsRequest $followsRequest,
@@ -83,6 +85,7 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 		$followers = $this->localFollowsTowards($actor->getId());
 
 		$this->actionsRequest->moveAccount($actor->getId(), $target->getId());
+		$this->reactionsRequest->moveAccount($actor->getId(), $target->getId());
 		$this->cacheDocumentsRequest->moveAccount($actor->getId(), $target->getId());
 
 		$this->followsRequest->moveAccountFollowers($actor->getId(), $target);

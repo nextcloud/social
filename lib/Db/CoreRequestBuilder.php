@@ -37,6 +37,7 @@ class CoreRequestBuilder {
 	public const TABLE_CLIENT = 'social_client';
 	public const TABLE_CLIENT_AUTH = 'social_client_auth';
 	public const TABLE_EMOJI = 'social_emoji';
+	public const TABLE_GIFS = 'social_gif';
 	public const TABLE_FOLLOWED_TAGS = 'social_followed_tag';
 	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_HASHTAGS = 'social_hashtag';
@@ -59,6 +60,7 @@ class CoreRequestBuilder {
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
+	public const TABLE_REACTIONS = 'social_reaction';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_SCHEDULED = 'social_scheduled';
 	public const TABLE_PLACES = 'social_place';
@@ -81,6 +83,24 @@ class CoreRequestBuilder {
 			'actor_id_prim',
 			'object_id',
 			'object_id_prim',
+			'creation'
+		],
+		self::TABLE_GIFS => [
+			'id',
+			'slug',
+			'title',
+			'filename',
+			'media_type',
+			'creation'
+		],
+		self::TABLE_REACTIONS => [
+			'id_prim',
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'object_id',
+			'object_id_prim',
+			'emoji',
 			'creation'
 		],
 		self::TABLE_ACTOR_RELATION => [

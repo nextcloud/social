@@ -56,6 +56,16 @@
 			<ScheduledPosts />
 		</section>
 
+		<section id="recap" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Looking back') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'Posts you wrote on this day in earlier years appear at the top of your feed on their own. This is the other half: a note about the week just gone, if you want one.') }}
+			</p>
+			<RecapSettings />
+		</section>
+
 		<section class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Migration') }}
@@ -78,6 +88,10 @@ import { t } from '@nextcloud/l10n'
 // Two forms of some size that nobody sees until they open this page, so they
 // travel in a chunk of their own rather than in the entry every reader loads.
 const AccountSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/AccountSettings.vue'))
+// in the same chunk as the two forms above, and for the same reason: it is a
+// switch nobody sees until they open this page, and it brings a form control
+// of its own with it
+const RecapSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/RecapSettings.vue'))
 const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/ListsSettings.vue'))
 
 /**
@@ -97,6 +111,7 @@ export default {
 		AccountSettings,
 		ListsSettings,
 		MigrationSettings,
+		RecapSettings,
 		ScheduledPosts,
 		ShortcutList,
 	},

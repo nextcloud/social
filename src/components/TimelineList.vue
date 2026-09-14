@@ -44,6 +44,7 @@
 					:class="{ 'timeline-entry--focused': index === focused }"
 					:item="entry"
 					:type="type"
+					:index="index"
 					:depth="depths[entry.id] ?? 0"
 					:unread="index < dividerAt" />
 			</template>
@@ -238,9 +239,13 @@ export default {
 			markerAsked: false,
 			emptyContent: {
 				default: {
-					image: 'img/undraw/posts.svg',
-					title: t('social', 'No posts found'),
-					description: t('social', 'Posts from people you follow will show up here'),
+					illustration: 'quiet-timeline',
+					title: t('social', 'Your timeline is quiet'),
+					description: t('social', 'Posts from the people you follow will show up here. Find a few to get started.'),
+					action: {
+						label: t('social', 'Find people to follow'),
+						to: { name: 'discover' },
+					},
 				},
 
 				direct: {
@@ -265,11 +270,16 @@ export default {
 					image: 'img/undraw/global.svg',
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here'),
+					action: {
+						label: t('social', 'Discover accounts'),
+						to: { name: 'discover' },
+					},
 				},
 
 				favourites: {
 					image: 'img/undraw/likes.svg',
 					title: t('social', 'No liked posts found'),
+					description: t('social', 'Posts you like are kept here, for you alone to see'),
 				},
 
 				profile: {
@@ -301,9 +311,13 @@ export default {
 				},
 
 				list: {
-					image: 'img/undraw/posts.svg',
+					illustration: 'nobody-yet',
 					title: t('social', 'Nothing in this list yet'),
-					description: t('social', 'Posts from the people in this list will show up here'),
+					description: t('social', 'Posts from the people in this list will show up here. A list with nobody in it stays empty.'),
+					action: {
+						label: t('social', 'Find people to add'),
+						to: { name: 'discover' },
+					},
 				},
 
 				'single-post': {
@@ -1100,5 +1114,35 @@ export default {
 .timeline-entry--focused :deep(.main-post) {
 	border-color: var(--color-primary-element);
 	box-shadow: 0 0 0 2px var(--color-primary-element-light);
+}
+
+/*
+ * The list has been a <transition-group name="list"> for as long as it has
+ * existed, with no rules to go with the name: deleting a post made it vanish
+ * and everything under it jump. Entering is the entry's own business — it
+ * staggers itself, see TimelineEntry — so only leaving and moving are here.
+ */
+.list-leave-active {
+	transition: opacity .2s ease, transform .2s ease;
+	/* taken out of the flow, or the gap it leaves closes in one step while it
+	   is still fading in place */
+	position: absolute;
+	width: 100%;
+}
+
+.list-leave-to {
+	opacity: 0;
+	transform: translateY(-4px);
+}
+
+.list-move {
+	transition: transform .24s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.list-leave-active,
+	.list-move {
+		transition: none;
+	}
 }
 </style>

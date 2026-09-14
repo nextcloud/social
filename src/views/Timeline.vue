@@ -18,7 +18,10 @@
 			:value="scope"
 			:label="t('social', 'Which posts to show')" />
 
-		<div class="timeline-heading-row">
+		<div
+			class="timeline-heading-row"
+			:class="{ 'timeline-heading-row--tag': type === 'tags' }"
+			:style="tagStyle">
 			<!-- the page had no heading at all outside tags and notifications, so
 			     there was nothing to land on and nothing to say where you were -->
 			<h1 class="timeline-heading" :class="{ 'hidden-visually': !headingIsVisible }">
@@ -42,7 +45,13 @@
 			:label="t('social', 'Which activities to show')"
 			@update:value="chooseNotificationFilter" />
 
-		<TimelineList :type="type" :listTitle="listTitle" />
+		<!-- what the reader wrote on this day in years gone by, and how their
+		     week went if they asked to be told; only over their own home feed,
+		     which is the one page that is about them -->
+		<WeeklyRecap v-if="isHome" />
+		<OnThisDay v-if="isHome" />
+
+		<TimelineList :type="type" :listTitle="listTitle" :display="display" />
 
 		<!-- the first post somebody ever publishes here, marked once -->
 		<FirstPostCelebration v-if="celebratingFirstPost" @done="endCelebration" />
@@ -66,6 +75,9 @@ import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
+import OnThisDay from './../components/OnThisDay.vue'
+import WeeklyRecap from './../components/WeeklyRecap.vue'
+import { tagStyle } from '../utils/tagColour.js'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -86,6 +98,8 @@ export default {
 		FirstRun,
 		HashtagFollowButton,
 		HashtagFollowedList,
+		OnThisDay,
+		WeeklyRecap,
 		TimelineList,
 		TimelineSwitcher,
 	},
@@ -105,6 +119,17 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
+		/**
+		 * The tag's own colour, so `#design` reads as `#design` wherever it is
+		 * met. Only a tag page has one; everywhere else the heading keeps the
+		 * theme's colour and the properties are simply absent.
+		 *
+		 * @return {object|null} custom properties, or null off a tag page
+		 */
+		tagStyle() {
+			return this.type === 'tags' ? tagStyle(this.$route.params.tag) : null
+		},
+
 		/** What this timeline is, in the words the sidebar uses for it. */
 		heading() {
 			switch (this.type) {
@@ -157,6 +182,40 @@ export default {
 		 */
 		isScopedPage() {
 			return this.type === 'photos' || this.type === 'videos'
+		},
+
+		/**
+		 * How the posts are drawn here.
+		 *
+		 * The same rule the profile follows, and for the same reason it gives:
+		 * Posts is what somebody wrote, which is a list; Photos and Videos are
+		 * what they showed, which is a grid. Those two pages were a list here
+		 * and a grid on a profile, so the same picture was a row in one place
+		 * and a tile in the other.
+		 *
+		 * Not a toggle. One question, one answer — a control to make Photos
+		 * look like a list would be asking the reader to settle something the
+		 * page has already answered by being Photos.
+		 *
+		 * @return {string} 'grid' or 'list'
+		 */
+		display() {
+			return this.isScopedPage ? 'grid' : 'list'
+		},
+
+		/**
+		 * Whether this is the reader's own feed.
+		 *
+		 * That is the route with no `type` at all — see `scopes()`: the local
+		 * and global feeds are `timeline` and `federated`, and home is the one
+		 * with nothing. The memories belong here and nowhere else; on a tag
+		 * page or a profile they would be an interruption from another
+		 * subject.
+		 *
+		 * @return {boolean}
+		 */
+		isHome() {
+			return (this.type ?? '') === ''
 		},
 
 		/**
@@ -405,6 +464,42 @@ export default {
 	margin: calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 2);
 	color: var(--color-text-lighter);
 	letter-spacing: -.01em;
+}
+
+/*
+ * A tag page wears its tag's colour: the heading takes it, and a rule of it
+ * runs under the row so the page is recognisable before the word is read.
+ *
+ * The hue comes from the tag's name (see utils/tagColour.js), so it is the
+ * same on every device without anything being stored. Both themes get their
+ * own lightness, because one hue cannot be legible on both.
+ */
+.timeline-heading-row--tag {
+	border-block-end: 2px solid var(--tag-colour, var(--color-border));
+	margin-block-end: calc(var(--default-grid-baseline) * 2);
+
+	.timeline-heading {
+		color: var(--tag-colour, var(--color-text-lighter));
+	}
+}
+
+/* the same hue, at the lightness that comes forward on a dark surface */
+@media (prefers-color-scheme: dark) {
+	.timeline-heading-row--tag {
+		border-block-end-color: var(--tag-colour-dark, var(--color-border));
+
+		.timeline-heading {
+			color: var(--tag-colour-dark, var(--color-text-lighter));
+		}
+	}
+}
+
+[data-themes*='dark'] .timeline-heading-row--tag {
+	border-block-end-color: var(--tag-colour-dark, var(--color-border));
+
+	.timeline-heading {
+		color: var(--tag-colour-dark, var(--color-text-lighter));
+	}
 }
 
 /*

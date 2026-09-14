@@ -7,7 +7,7 @@
 		:is="element"
 		class="timeline-entry"
 		:class="{ notification: isNotification, 'with-header': isNotification, 'timeline-entry--reply': depth > 0, 'timeline-entry--unread': unread }"
-		:style="depth > 0 ? { '--thread-depth': Math.min(depth, MAX_INDENT) } : undefined"
+		:style="entryStyle"
 		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">
@@ -112,6 +112,19 @@ const PHONE_AVATAR = 36
 /** how many levels of a conversation are indented before the column runs out */
 const MAX_INDENT = 4
 
+/**
+ * How many entries are staggered on the way in.
+ *
+ * Only what a reader can plausibly see at first paint: past that the delay
+ * would be time spent looking at nothing, and a page appended by the infinite
+ * scroll is already on screen by the time it arrives, so it fades with no
+ * delay at all rather than counting up from wherever it landed.
+ */
+const STAGGER_DEPTH = 8
+
+/** how far apart the staggered ones start, in milliseconds */
+const STAGGER_STEP = 45
+
 export default {
 	name: 'TimelineEntry',
 	components: {
@@ -166,6 +179,16 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+
+		/**
+		 * Where this entry sits in the list, so the first screenful can come
+		 * in one after another instead of all at once. Only the first few are
+		 * staggered — see STAGGER_DEPTH.
+		 */
+		index: {
+			type: Number,
+			default: 0,
+		},
 	},
 
 	data() {
@@ -186,6 +209,27 @@ export default {
 		/** the face's size: smaller on a phone, where it sits inside the card */
 		avatarSize() {
 			return this.isPhone ? PHONE_AVATAR : null
+		},
+
+		/**
+		 * The thread indent and the stagger delay, which are both one custom
+		 * property on the same element.
+		 *
+		 * @return {object|undefined} the style, or undefined when there is
+		 *                            neither an indent nor a delay to set
+		 */
+		entryStyle() {
+			const style = {}
+
+			if (this.depth > 0) {
+				style['--thread-depth'] = Math.min(this.depth, MAX_INDENT)
+			}
+
+			if (this.index < STAGGER_DEPTH) {
+				style['--stagger-delay'] = `${this.index * STAGGER_STEP}ms`
+			}
+
+			return Object.keys(style).length > 0 ? style : undefined
 		},
 
 		...mapStores(useTimelineStore),
@@ -307,6 +351,17 @@ export default {
 	margin-bottom: 14px;
 	padding: 0;
 	border-radius: 8px;
+
+	/*
+	 * Cards used to appear all at once, in one hard step from the skeleton to
+	 * a full page. They now rise in, and the first screenful one after another
+	 * so the eye is led down the column instead of having to find the top of a
+	 * page that arrived whole. --stagger-delay is set by the component for the
+	 * first few only; everything below the fold, and every page appended
+	 * afterwards, has no delay and simply fades.
+	 */
+	animation: timeline-rise .28s ease-out both;
+	animation-delay: var(--stagger-delay, 0ms);
 
 	// a reply to a reply steps in under the one it answers, with a line down
 	// its side that says so; the depth is the custom property the list sets
@@ -508,6 +563,29 @@ export default {
 			min-height: 36px;
 			align-items: center;
 		}
+	}
+}
+
+@keyframes timeline-rise {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/*
+ * The stagger is decoration: the page is the same page without it, so it goes
+ * away entirely rather than being made faster. `both` on the animation above
+ * means a card would otherwise sit at the from-state for its whole delay.
+ */
+@media (prefers-reduced-motion: reduce) {
+	.timeline-entry {
+		animation: none;
 	}
 }
 </style>

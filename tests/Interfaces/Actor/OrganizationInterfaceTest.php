@@ -20,6 +20,7 @@ class OrganizationInterfaceTest extends ActorInterfaceTestCase {
 	protected function createHandler(): PersonInterface {
 		return new OrganizationInterface(
 			$this->actionsRequest,
+			$this->reactionsRequest,
 			$this->cacheActorsRequest,
 			$this->cacheDocumentsRequest,
 			$this->followsRequest,

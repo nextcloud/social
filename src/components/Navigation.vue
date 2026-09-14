@@ -90,12 +90,40 @@
 
 			<NcAppNavigationSpacer v-if="trending.length > 0" />
 
-			<!-- the reader's lists: the ones their Nextcloud groups give them
-			     first, since nobody made those and they are what a colleague
-			     looks for, then the ones they made themselves -->
-			<NcAppNavigationCaption v-if="lists.length > 0" :name="t('social', 'Lists')">
-				<!-- the lists are made and filled in Settings; the caption is
-				     where a reader looks for the way there -->
+			<!-- One entry for everything the reader keeps an eye on: the
+			     hashtags they follow and their lists, in one collapsible row
+			     rather than two captions that each grow without limit.
+
+			     No icon of its own, so the chevron is the only thing before
+			     the word and the children line up under it. The count is what
+			     is inside, all of it — when the rail has room for fewer than
+			     there are, the count is how the reader knows the rest exist. -->
+			<NcAppNavigationItem
+				v-if="exploreTotal > 0"
+				ref="exploreItem"
+				class="navigation__explore"
+				:name="t('social', 'Explore')"
+				:allowCollapse="true"
+				:open="exploreOpen"
+				@update:open="onExploreToggle">
+				<NcAppNavigationItem
+					v-for="entry in exploreEntries"
+					:key="entry.kind === 'tag' ? `tag-${entry.tag.name}` : `list-${entry.list.id}`"
+					:class="entry.kind === 'tag' ? 'navigation__trend' : 'navigation__list'"
+					:name="entry.kind === 'tag' ? `#${entry.tag.name}` : entry.list.title"
+					:title="titleFor(entry)"
+					:href="hrefFor(routeFor(entry))"
+					:active="isExploreActive(entry)"
+					@click="navigate(routeFor(entry), $event)">
+					<template #icon>
+						<IconPound v-if="entry.kind === 'tag'" :size="20" />
+						<IconAccountGroup v-else-if="entry.list.nextcloud_group" :size="20" />
+						<IconFormatListBulleted v-else :size="20" />
+					</template>
+				</NcAppNavigationItem>
+
+				<!-- the lists are made and filled in Settings; this is where a
+				     reader looks for the way there -->
 				<template #actions>
 					<NcActionButton closeAfterClick @click="navigate({ name: 'settings', hash: '#lists' })">
 						<template #icon>
@@ -104,23 +132,9 @@
 						{{ t('social', 'Manage lists') }}
 					</NcActionButton>
 				</template>
-			</NcAppNavigationCaption>
-			<NcAppNavigationItem
-				v-for="list in lists"
-				:key="`list-${list.id}`"
-				class="navigation__list"
-				:name="list.title"
-				:title="list.nextcloud_group ? t('social', 'Everyone in the Nextcloud group {group} who has a Social account', { group: list.title }) : undefined"
-				:href="hrefFor({ name: 'list', params: { id: list.id } })"
-				:active="isListActive(list)"
-				@click="navigate({ name: 'list', params: { id: list.id } }, $event)">
-				<template #icon>
-					<IconAccountGroup v-if="list.nextcloud_group" :size="20" />
-					<IconFormatListBulleted v-else :size="20" />
-				</template>
 			</NcAppNavigationItem>
 
-			<NcAppNavigationSpacer v-if="lists.length > 0" />
+			<NcAppNavigationSpacer v-if="exploreTotal > 0" />
 		</template>
 		<template #footer>
 			<div class="navigation__footer">
@@ -257,6 +271,7 @@ import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
+import { capacityFrom, chooseEntries, entriesThatFit } from '../utils/explore.js'
 import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -283,6 +298,15 @@ const UNREAD_POLL_MS = 60 * 1000
 
 /** how long to let the typing settle before searching */
 const SEARCH_DEBOUNCE_MS = 300
+
+/**
+ * Where the Explore entry remembers whether it was left open.
+ *
+ * `localStorage` rather than a user setting: it is a per-browser convenience
+ * worth nothing to anybody else, and a reader whose browser cannot store it
+ * simply gets it open, which is the better default.
+ */
+const EXPLORE_OPEN_KEY = 'social.navigation.exploreOpen'
 
 export default {
 	name: 'Navigation',
@@ -327,6 +351,18 @@ export default {
 			trending: [],
 			/** the reader's lists, the group-bound ones first */
 			lists: [],
+			/** the hashtags the reader follows, as the server orders them */
+			followedTags: [],
+			/** whether the Explore entry is open; remembered per reader */
+			exploreOpen: true,
+			/** the window's height, the fallback until the rail can be measured */
+			viewportHeight: 0,
+			/**
+			 * How many entries the rail has room for, measured from the rail.
+			 * `null` until there is something to measure — zero is a real
+			 * answer, so it cannot double as "not measured yet".
+			 */
+			measuredCap: null,
 			localSearch: '',
 			showComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
@@ -340,6 +376,35 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useErrorsStore, useInstanceStore, useNotificationsStore, useTimelineStore),
+
+		/**
+		 * Everything inside Explore, however much of it the rail can show.
+		 *
+		 * @return {number} how many hashtags and lists there are in all
+		 */
+		exploreTotal() {
+			return this.followedTags.length + this.lists.length
+		},
+
+		/**
+		 * How many entries there is room for, which shrinks with the window.
+		 *
+		 * @return {number}
+		 */
+		exploreCap() {
+			return this.measuredCap === null ? entriesThatFit(this.viewportHeight) : this.measuredCap
+		},
+
+		/**
+		 * What Explore actually draws: hashtags first, then lists, shared out
+		 * between the two when there is not room for all of them.
+		 *
+		 * @return {Array<object>}
+		 */
+		exploreEntries() {
+			return chooseEntries(this.followedTags, this.lists, this.exploreCap)
+		},
+
 		hasErrors() {
 			return this.errorsStore.hasErrors
 		},
@@ -503,6 +568,25 @@ export default {
 	},
 
 	watch: {
+		/**
+		 * The entry is not in the rail until there is something to put in it,
+		 * so there is nothing to observe or measure at mount: both wait for
+		 * the hashtags and lists to arrive.
+		 */
+		exploreTotal: {
+			async handler(total) {
+				await this.$nextTick()
+
+				if (total > 0) {
+					this.watchRail()
+				}
+
+				this.measureRail()
+			},
+
+			immediate: true,
+		},
+
 		showComposer(open) {
 			// the paths were for that one dialog; a later "New post" starts empty
 			if (!open) {
@@ -528,6 +612,7 @@ export default {
 		afterFirstTimeline(() => {
 			this.fetchTrending()
 			this.fetchLists()
+			this.fetchFollowedTags()
 			this.notificationsStore.fetchUnreadNotifications()
 		})
 		// this one defers itself: the composer asks for it too, and it must
@@ -536,6 +621,17 @@ export default {
 		// the settings page changes them; this sidebar holds its own copy
 		this.onListsChanged = () => this.fetchLists()
 		eventBus.on(LISTS_CHANGED, this.onListsChanged)
+
+		// how many entries Explore shows depends on how much room the rail has
+		this.measureViewport()
+		window.addEventListener('resize', this.measureViewport)
+		this.watchRail()
+
+		try {
+			this.exploreOpen = window.localStorage.getItem(EXPLORE_OPEN_KEY) !== '0'
+		} catch {
+			// no stored preference to read; open is the better default
+		}
 		this.openComposerFromQuery()
 
 		// the badge is only honest if it keeps up: with notify_push the server
@@ -553,6 +649,8 @@ export default {
 
 	beforeUnmount() {
 		eventBus.off(LISTS_CHANGED, this.onListsChanged)
+		window.removeEventListener('resize', this.measureViewport)
+		this.railObserver?.disconnect()
 		if (typeof this.stopListening === 'function') {
 			this.stopListening()
 		}
@@ -609,6 +707,154 @@ export default {
 		 * lists they are missing, so this is asked once per page and the
 		 * answer drawn as it comes.
 		 */
+		/**
+		 * The hashtags the reader follows.
+		 *
+		 * These had no place in the sidebar at all: somebody could follow a
+		 * tag and then only meet it again by going to its page. A failure
+		 * leaves them out rather than bothering anyone about it, the way the
+		 * trending read does.
+		 */
+		async fetchFollowedTags() {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/followed_tags'))
+				this.followedTags = Array.isArray(data) ? data : []
+			} catch {
+				this.followedTags = []
+			}
+		},
+
+		/**
+		 * @param {object} entry one Explore entry
+		 * @return {object} where pressing it goes
+		 */
+		routeFor(entry) {
+			return entry.kind === 'tag'
+				? { name: 'tags', params: { tag: entry.tag.name } }
+				: { name: 'list', params: { id: entry.list.id } }
+		},
+
+		/**
+		 * @param {object} entry one Explore entry
+		 * @return {string|undefined} what hovering it explains, where that is
+		 *                            not obvious from the name
+		 */
+		titleFor(entry) {
+			if (entry.kind === 'list' && entry.list.nextcloud_group) {
+				return translate(
+					'social',
+					'Everyone in the Nextcloud group {group} who has a Social account',
+					{ group: entry.list.title },
+				)
+			}
+
+			return undefined
+		},
+
+		/**
+		 * @param {object} entry one Explore entry
+		 * @return {boolean} whether its timeline is the one being shown
+		 */
+		isExploreActive(entry) {
+			return entry.kind === 'tag' ? this.isTagActive(entry.tag) : this.isListActive(entry.list)
+		},
+
+		/**
+		 * @param {boolean} open what the reader just did to the entry
+		 */
+		onExploreToggle(open) {
+			this.exploreOpen = open
+
+			try {
+				window.localStorage.setItem(EXPLORE_OPEN_KEY, open ? '1' : '0')
+			} catch {
+				// a private window or blocked site data; the entry still works,
+				// it just opens again next time
+			}
+		},
+
+		/**
+		 * Re-measures whenever the rail changes shape, not only when the
+		 * window does: the Trending section arriving, an error entry
+		 * appearing, a zoom, a theme with taller rows.
+		 */
+		watchRail() {
+			if (typeof ResizeObserver !== 'function') {
+				// the window listener still keeps it roughly right
+				return
+			}
+
+			// called again whenever the entry comes back; one observer only
+			this.railObserver?.disconnect()
+
+			this.railObserver = new ResizeObserver(() => {
+				// off the observer's own callback, or a measurement that
+				// changes the rail re-enters it
+				window.requestAnimationFrame(() => this.measureRail())
+			})
+
+			const list = this.$refs.exploreItem?.$el?.parentElement
+			if (list) {
+				this.railObserver.observe(list)
+			}
+		},
+
+		/** Keeps the fallback in step with the window. */
+		measureViewport() {
+			this.viewportHeight = window.innerHeight
+			this.measureRail()
+		},
+
+		/**
+		 * How many entries the rail actually has room for, right now.
+		 *
+		 * Measured rather than worked out from the window, because the rail
+		 * holds things that come and go — the Trending section when the
+		 * instance has trends, an error entry when something breaks — and
+		 * because browser zoom and a denser theme change every height at once.
+		 * A constant for "everything that is not an Explore child" was wrong
+		 * the first time it was written and would go wrong again.
+		 *
+		 * The free space is the rail's own height less everything in it that
+		 * is not an Explore child. It has to be measured that way round: the
+		 * children are in the rail too, so a figure that counted them would
+		 * grow each time it was applied and shrink each time it was read back.
+		 */
+		measureRail() {
+			const item = this.$refs.exploreItem?.$el
+			const list = item?.parentElement
+			const children = item?.querySelector('.app-navigation-entry__children')
+			const rows = children ? children.children : []
+
+			if (!list || !list.clientHeight || rows.length === 0) {
+				// nothing laid out yet, or collapsed, or jsdom: the window
+				// figure stands in
+				this.measuredCap = null
+				return
+			}
+
+			// Where the children begin, in the rail's own content
+			// coordinates. This is set by everything *above* them and not by
+			// how many there are, which is what keeps the measurement from
+			// feeding on itself.
+			const listTop = list.getBoundingClientRect().top
+			const childrenTop = children.getBoundingClientRect().top - listTop + list.scrollTop
+
+			// The pitch from one row to the next, which is the only figure
+			// that carries whatever margin they have. `offsetHeight` does not,
+			// and summing it left the rail overflowing by exactly the margins
+			// — the last entries ran under the account footer.
+			const first = rows[0].getBoundingClientRect()
+			const pitch = rows.length > 1
+				? rows[1].getBoundingClientRect().top - first.top
+				: first.height
+
+			this.measuredCap = capacityFrom({
+				free: list.clientHeight - childrenTop,
+				rowHeight: pitch,
+			})
+		},
+
 		async fetchLists() {
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/lists'))

@@ -50,6 +50,7 @@ use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\GifService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
@@ -58,6 +59,8 @@ use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\ReactionService;
+use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
@@ -139,6 +142,9 @@ class ApiControllerTest extends TestCase {
 	private EmojiService|MockObject $emojiService;
 	private PlaceService|MockObject $placeService;
 	private DeliveryService|MockObject $deliveryService;
+	private ReactionService|MockObject $reactionService;
+	private ReactionSummaryService|MockObject $reactionSummaryService;
+	private GifService|MockObject $gifService;
 	private NotificationService|MockObject $notificationService;
 	private IAppManager|MockObject $appManager;
 	private FediverseService|MockObject $fediverseService;
@@ -245,6 +251,9 @@ class ApiControllerTest extends TestCase {
 		$this->emojiService = $this->createMock(EmojiService::class);
 		$this->placeService = $this->createMock(PlaceService::class);
 		$this->deliveryService = $this->createMock(DeliveryService::class);
+		$this->reactionService = $this->createMock(ReactionService::class);
+		$this->reactionSummaryService = $this->createMock(ReactionSummaryService::class);
+		$this->gifService = $this->createMock(GifService::class);
 		$this->notificationService = $this->createMock(NotificationService::class);
 		$this->appManager = $this->createMock(IAppManager::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
@@ -338,6 +347,9 @@ class ApiControllerTest extends TestCase {
 			$this->fediverseService,
 			$this->placeService,
 			$this->deliveryService,
+			$this->reactionService,
+			$this->reactionSummaryService,
+			$this->gifService,
 			$this->notificationService
 		);
 	}

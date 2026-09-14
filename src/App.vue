@@ -14,6 +14,9 @@
 	<NcContent v-else-if="!serverData.setup" appName="social" :class="{public: serverData.public}">
 		<Navigation v-if="!serverData.public" @search="search" />
 		<ShortcutHelp :open="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
+		<!-- one emoji picker for the page, fetched the first time a reaction
+		     bar asks for one; see ReactionPicker for why it is not on the card -->
+		<ReactionPicker />
 		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<SetupChecks :checks="serverData.checks.checks" :addresses="serverData.checks.addresses" />
@@ -84,6 +87,9 @@ import { useServerData } from './composables/useServerData.js'
 // one page load in an account's life: not worth a place in the entry every
 // other load pays for, so it arrives as its own chunk when it is needed
 const AccountSetup = defineAsyncComponent(() => import(/* webpackChunkName: "account-setup" */'./views/AccountSetup.vue'))
+// the emoji picker is most of a megabyte; it travels in its own chunk and is
+// fetched the first time somebody presses "add a reaction"
+const ReactionPicker = defineAsyncComponent(() => import(/* webpackChunkName: "reaction-picker" */'./components/ReactionPicker.vue'))
 
 export default {
 	name: 'App',
@@ -93,6 +99,7 @@ export default {
 		NcAppContent,
 		NcButton,
 		Navigation,
+		ReactionPicker,
 		ShortcutHelp,
 		SetupChecks,
 	},

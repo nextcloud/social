@@ -41,6 +41,9 @@ use Psr\Log\LoggerInterface;
 class StreamService {
 	use TArrayTools;
 
+	/** Who is reading, once somebody has said; null for an anonymous read. */
+	private ?Person $viewer = null;
+
 	/** How far up a thread one context request walks; Mastodon's cap. */
 	private const ANCESTOR_LIMIT = 40;
 
@@ -65,6 +68,7 @@ class StreamService {
 		private EmojiService $emojiService,
 		private LoggerInterface $logger,
 		private PlaceService $placeService,
+		private ReactionSummaryService $reactionSummaryService,
 	) {
 	}
 
@@ -72,6 +76,9 @@ class StreamService {
 	 * @param Person $viewer
 	 */
 	public function setViewer(Person $viewer) {
+		// kept here as well as handed down: the reaction bars this service
+		// attaches have to say whether the reader is one of the people in them
+		$this->viewer = $viewer;
 		$this->streamRequest->setViewer($viewer);
 	}
 
@@ -524,9 +531,10 @@ class StreamService {
 		);
 		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
 			// one query each for the whole page, and only for pages a client
-			// reads -- neither is part of the wire object
+			// reads -- none of them is part of the wire object
 			$this->linkPreviewService->attachCards($posts);
 			$this->placeService->attachPlaces($posts);
+			$this->reactionSummaryService->attachReactions($posts, $this->viewer?->getId() ?? '');
 		}
 
 		return $posts;

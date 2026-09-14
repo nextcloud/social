@@ -375,6 +375,23 @@ export const useTimelineStore = defineStore('timeline', {
 				this.statuses[statusId] = { ...known, poll }
 			}
 		},
+		/**
+		 * The reaction bar of a post, as the server rebuilt it.
+		 *
+		 * Kept in the store rather than on the card, so the same post shown
+		 * twice — a thread and the timeline behind it — does not end up with
+		 * two different bars.
+		 *
+		 * @param {object} root0 the arguments
+		 * @param {string} root0.statusId which post
+		 * @param {Array<{name: string, count: number, me: boolean}>} root0.reactions the bar
+		 */
+		updateStatusReactions({ statusId, reactions }) {
+			const known = this.statuses[statusId]
+			if (known !== undefined) {
+				this.statuses[statusId] = { ...known, reactions }
+			}
+		},
 		bookmarkStatus({ status, bookmarked }) {
 			if (this.statuses[status.id] !== undefined) {
 				this.statuses[status.id] = { ...this.statuses[status.id], bookmarked }
@@ -571,6 +588,27 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @param {string} [media.description] what it shows
 		 * @return {Promise<object|undefined>} the media entity, or undefined when the server refused
 		 */
+		/**
+		 * Copies a picture out of the instance's shared library onto a post.
+		 *
+		 * @param {object} root0 the arguments
+		 * @param {string} root0.slug which library picture
+		 * @param {string} [root0.description] alt text; the picture's own title is used when empty
+		 * @return {Promise<object|undefined>} the attachment, or undefined when it was refused
+		 */
+		async createMediaFromGif({ slug, description = '' }) {
+			try {
+				const { data } = await axios.post(
+					generateUrl('apps/social/api/v1/media/from-gif'),
+					{ slug, description },
+				)
+				logger.info('Media created from the library picture ' + slug + ' with id ' + data.id)
+				return data
+			} catch (error) {
+				showError(t('social', 'Could not attach {file}', { file: slug }))
+				logger.error('Failed to attach a picture from the library', { error })
+			}
+		},
 		async createMediaFromFile({ path, description = '' }) {
 			try {
 				const { data } = await axios.post(

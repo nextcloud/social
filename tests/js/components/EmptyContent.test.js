@@ -66,4 +66,37 @@ describe('EmptyContent', () => {
 
 		expect(wrapper.find('.empty-content__icon').exists()).toBe(false)
 	})
+
+	it.each([
+		['quiet-timeline', 'QuietTimeline'],
+		['nobody-yet', 'NobodyYet'],
+	])('knows the drawing named %s', (name, component) => {
+		const wrapper = mountEmpty({ title: 'Nothing here', illustration: name })
+
+		expect(wrapper.findComponent({ name: component }).exists()).toBe(true)
+	})
+
+	describe('the next step', () => {
+		// a page that only says it is empty leaves the reader to work out what
+		// to do about it
+		it('offers the action a state carries', () => {
+			const wrapper = mountEmpty({
+				title: 'Your timeline is quiet',
+				action: { label: 'Find people to follow', to: { name: 'discover' } },
+			})
+
+			const button = wrapper.find('.empty-content__action button, .empty-content__action a')
+
+			expect(wrapper.text()).toContain('Find people to follow')
+			expect(button.exists()).toBe(true)
+		})
+
+		// where there is no obvious next step, one invented for the sake of
+		// having a button would be worse than none
+		it('offers nothing when the state carries no action', () => {
+			const wrapper = mountEmpty({ title: 'No posts found for this tag' })
+
+			expect(wrapper.find('.empty-content__action').exists()).toBe(false)
+		})
+	})
 })

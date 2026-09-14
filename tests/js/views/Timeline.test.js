@@ -32,9 +32,11 @@ const ComposerStub = {
 	props: ['defaultVisibility', 'initialMention'],
 	template: '<div class="composer-stub" />',
 }
+const OnThisDayStub = { name: 'OnThisDay', template: '<div class="on-this-day-stub" />' }
+const WeeklyRecapStub = { name: 'WeeklyRecap', template: '<div class="weekly-recap-stub" />' }
 const TimelineListStub = {
 	name: 'TimelineList',
-	props: ['type', 'showParents', 'reverseOrder'],
+	props: ['type', 'showParents', 'reverseOrder', 'display'],
 	template: '<ul class="timeline-list-stub" />',
 }
 const FirstRunStub = {
@@ -67,7 +69,10 @@ function mountTimeline(route = {}) {
 		global: {
 			plugins: [pinia],
 			mocks: { $route: { name: 'timeline', params: {}, query: {}, ...route } },
-			stubs: { Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub },
+			// OnThisDay reads the reader's own anniversaries on mount, which is
+			// its own request with its own tests; left real it would answer
+			// after these tests have finished
+			stubs: { Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub },
 		},
 	})
 }
@@ -586,5 +591,22 @@ describe('Timeline', () => {
 		const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
 
 		expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(false)
+	})
+	describe('how the posts are drawn', () => {
+		// the same rule the profile follows: Posts is what somebody wrote, which
+		// is a list; Photos and Videos are what they showed, which is a grid.
+		// These two pages were a list here and a grid on a profile, so the same
+		// picture was a row in one place and a tile in the other.
+		it.each(['photos', 'videos'])('draws %s as a grid', (type) => {
+			const wrapper = mountTimeline({ params: { type } })
+
+			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('grid')
+		})
+
+		it.each(['', 'timeline', 'federated', 'notifications'])('draws %s as a list', (type) => {
+			const wrapper = mountTimeline({ params: { type } })
+
+			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('list')
+		})
 	})
 })
