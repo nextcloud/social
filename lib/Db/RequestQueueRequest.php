@@ -125,6 +125,35 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	}
 
 	/**
+	 * How many standby requests were last attempted before `$before` and are
+	 * still waiting.
+	 *
+	 * The longest wait in the retry schedule is fourteen hours, so a row that
+	 * has sat on standby for a day past its last attempt is one no drain has
+	 * come back for: the cron is not running, or something ahead of it in the
+	 * batch never lets it through. A row that was never attempted has no
+	 * `last` and is not counted — its age is unknown.
+	 *
+	 * @throws Exception
+	 */
+	public function countStandbyOlderThan(int $before): int {
+		$qb = $this->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'total'))
+			->from(self::TABLE_REQUEST_QUEUE)
+			->where($qb->expr()->eq('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->isNotNull('last'))
+			->andWhere($qb->expr()->lt('last', $qb->createNamedParameter(
+				new DateTime('@' . $before), IQueryBuilder::PARAM_DATE
+			)));
+
+		$cursor = $qb->executeQuery();
+		$total = (int)$cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return $total;
+	}
+
+	/**
 	 * The requests that have already failed at least `$minTries` times, worst
 	 * first — the ones on their way to being abandoned.
 	 *

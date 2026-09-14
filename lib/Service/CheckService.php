@@ -25,7 +25,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
-use OCP\IAppConfig;
 use OCP\ICache;
 use OCP\IConfig;
 use OCP\IRequest;
@@ -49,7 +48,6 @@ class CheckService {
 		private IUserManager $userManager,
 		?string $userId,
 		private ICache $cache,
-		private IAppConfig $appConfig,
 		private IConfig $config,
 		private IClientService $clientService,
 		private IRequest $request,
@@ -158,31 +156,79 @@ class CheckService {
 	}
 
 	/**
-	 * @return bool
+	 * Whether `/.well-known/webfinger` answers for a local account.
+	 *
+	 * Probed at the address the app is set up for first, then at the address
+	 * this request came in on, then at the server's base URL. A success is
+	 * remembered for an hour.
+	 *
+	 * @param string|null $username the local account to ask about; the
+	 *                              current user's when not given. A setup
+	 *                              check runs for an administrator who may
+	 *                              never have opened the app, so it passes an
+	 *                              account that is known to exist.
 	 */
-	public function checkWellKnown(): bool {
+	public function checkWellKnown(?string $username = null): bool {
 		$state = (bool)($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true');
 		if ($state === true) {
 			return true;
 		}
 
-		$address = $this->appConfig->getValueString('social', 'address', '');
+		$username ??= (string)$this->userId;
 
-		if ($address !== '' && $this->requestWellKnown($address)) {
+		$address = $this->configuredSocialBase();
+		if ($address !== '' && $this->requestWellKnown($address, $username)) {
 			return true;
 		}
 
 		if ($this->requestWellKnown(
-			$this->request->getServerProtocol() . '://' . $this->request->getServerHost()
+			$this->request->getServerProtocol() . '://' . $this->request->getServerHost(), $username
 		)) {
 			return true;
 		}
 
-		if ($this->requestWellKnown($this->urlGenerator->getBaseUrl())) {
+		if ($this->requestWellKnown($this->urlGenerator->getBaseUrl(), $username)) {
 			return true;
 		}
 
 		return false;
+	}
+
+	/**
+	 * The address other servers ask about this instance's accounts at, as a
+	 * base URL: `social_address` when the admin set one, otherwise the host
+	 * of the cloud URL.
+	 *
+	 * This used to read an app value named `address`, which nothing ever
+	 * wrote, so the branch was dead and the probe always started from the
+	 * request's own Host header — which is not where a remote server looks.
+	 */
+	private function configuredSocialBase(): string {
+		try {
+			$host = trim($this->configService->getSocialAddress());
+		} catch (SocialAppConfigException $e) {
+			return '';
+		}
+
+		if ($host === '') {
+			return '';
+		}
+
+		if (parse_url($host, PHP_URL_SCHEME) !== null) {
+			return rtrim($host, '/');
+		}
+
+		$scheme = 'https';
+		try {
+			$cloudScheme = parse_url((string)$this->configService->getCloudUrl(), PHP_URL_SCHEME);
+			if (is_string($cloudScheme) && $cloudScheme !== '') {
+				$scheme = strtolower($cloudScheme);
+			}
+		} catch (SocialAppConfigException $e) {
+			// no cloud URL yet: https is what a public instance answers on
+		}
+
+		return $scheme . '://' . $host;
 	}
 
 	/**
@@ -310,14 +356,14 @@ class CheckService {
 			|| $this->sameAddress($base, $this->derivedCloudAddress());
 	}
 
-	private function requestWellKnown(string $base): bool {
+	private function requestWellKnown(string $base, string $username): bool {
 		try {
 			$scheme = strtolower((string)parse_url($base, PHP_URL_SCHEME));
 			if (!in_array($scheme, ['http', 'https'], true)) {
 				return false;
 			}
 
-			$url = $base . '/.well-known/webfinger?resource=acct:' . $this->userId . '@' . parse_url($base, PHP_URL_HOST);
+			$url = $base . '/.well-known/webfinger?resource=acct:' . $username . '@' . parse_url($base, PHP_URL_HOST);
 			$options['nextcloud']['allow_local_address'] = $this->isConfiguredBase($base);
 			$options['verify'] = $this->config->getSystemValue('social.checkssl', true);
 

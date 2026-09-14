@@ -18,9 +18,15 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\SetupChecks\CloudAddressMatches;
+use OCA\Social\SetupChecks\CronRanRecently;
+use OCA\Social\SetupChecks\OutboundQueueNotStuck;
+use OCA\Social\SetupChecks\WebFingerReachable;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
+use OCP\SetupCheck\ISetupCheck;
+use OCP\SetupCheck\SetupResult;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -28,6 +34,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 
 class CheckInstall extends SocialCommand {
+	/** what the command says when nothing is wrong; the exit code is 0 */
+	public const VERDICT_OK = '- all %d checks passed';
+	/** and when something is; the exit code is 1 */
+	public const VERDICT_ERRORS = '- %1$d of %2$d checks reported an error';
+
 	use TArrayTools;
 
 	/**
@@ -57,6 +68,10 @@ class CheckInstall extends SocialCommand {
 		ConfigService $configService,
 		private MiscService $miscService,
 		IDBConnection $connection,
+		private WebFingerReachable $webFingerReachable,
+		private CloudAddressMatches $cloudAddressMatches,
+		private CronRanRecently $cronRanRecently,
+		private OutboundQueueNotStuck $outboundQueueNotStuck,
 	) {
 		parent::__construct();
 		$this->streamDestRequest = $streamDestRequest;
@@ -73,6 +88,10 @@ class CheckInstall extends SocialCommand {
 			->addOption(
 				'force', 'f', InputOption::VALUE_NONE,
 				'skip the confirmation of --index (required with --no-interaction)'
+			)
+			->addOption(
+				'offline', '', InputOption::VALUE_NONE,
+				'skip the WebFinger probe, the one check that goes out on the network'
 			)
 			->setDescription('Check the integrity of the installation');
 	}
@@ -95,42 +114,80 @@ class CheckInstall extends SocialCommand {
 		$output->writeln('- ' . $this->getInt('invalidNotes', $result, 0) . ' invalid notes removed');
 
 		$output->writeln('');
-		$this->reportChecks($output);
+		$failed = $this->reportChecks($output, (bool)$input->getOption('offline'));
 
 		$output->writeln('');
 		$output->writeln('- Your current configuration: ');
 		$output->writeln(json_encode($this->configService->getConfig(), JSON_PRETTY_PRINT));
 
-		return 0;
+		return $failed ? 1 : 0;
 	}
 
 	/**
-	 * Reports an address that no longer matches the server's, because somebody
-	 * debugging a federation problem is already looking here.
+	 * Runs the same checks Administration → Overview shows, and prints each
+	 * with its severity.
 	 *
-	 * The .well-known probe is deliberately not run: it needs the request and
-	 * the session cache that a console command does not have. The app shows
-	 * that one on its first screen.
+	 * The same classes rather than a second copy of the logic, so that what
+	 * the console says and what the settings page says cannot drift apart —
+	 * the address check used to have its own wording here and the WebFinger
+	 * probe was not run at all, on the grounds that the console has no
+	 * request; it has one, and it has the account it needs to ask about.
+	 *
+	 * @param bool $offline leave out the WebFinger probe, which is the one
+	 *                      check that goes out on the network
+	 *
+	 * @return bool whether any check reported an error
 	 */
-	private function reportChecks(OutputInterface $output): void {
-		$addresses = $this->checkService->cloudAddresses();
-
-		if ($this->checkService->checkCloudAddress()) {
-			$output->writeln('- <info>the configured address matches this server</info>');
-
-			return;
+	private function reportChecks(OutputInterface $output, bool $offline): bool {
+		$checks = $this->checks($offline);
+		if ($offline) {
+			$output->writeln('- <comment>--offline: the WebFinger probe was not run</comment>');
 		}
 
-		$output->writeln(
-			'<error>Social builds every id from ' . $addresses['configured']
-			. ', but this server reports ' . $addresses['expected'] . '.</error>'
-		);
-		$output->writeln('  Accounts here cannot be found under the address the server advertises.');
-		$output->writeln('  Point overwrite.cli.url back at the first, or accept the rename with');
-		$output->writeln(
-			'  "occ social:reset --uri=' . $addresses['expected']
-			. '" — which deletes everything Social holds.'
-		);
+		$errors = 0;
+		foreach ($checks as $check) {
+			$result = $check->run();
+			if ($result->getSeverity() === SetupResult::ERROR) {
+				$errors++;
+			}
+
+			$output->writeln($this->line($check, $result));
+			if ($result->getLinkToDoc() !== null && $result->getSeverity() !== SetupResult::SUCCESS) {
+				$output->writeln('  see ' . $result->getLinkToDoc());
+			}
+		}
+
+		// the verdict in one line, because the exit code is what a deployment
+		// script reads and this is what the exit code was decided from
+		$output->writeln($errors === 0
+			? sprintf(self::VERDICT_OK, count($checks))
+			: sprintf(self::VERDICT_ERRORS, $errors, count($checks)));
+
+		return $errors > 0;
+	}
+
+	/**
+	 * @return list<ISetupCheck>
+	 */
+	private function checks(bool $offline): array {
+		$checks = [$this->cloudAddressMatches, $this->cronRanRecently, $this->outboundQueueNotStuck];
+		if (!$offline) {
+			array_unshift($checks, $this->webFingerReachable);
+		}
+
+		return $checks;
+	}
+
+	private function line(ISetupCheck $check, SetupResult $result): string {
+		$description = (string)$result->getDescription();
+		$text = $check->getName() . ': ' . $description;
+
+		return match ($result->getSeverity()) {
+			SetupResult::ERROR => '- <error>' . $text . '</error>',
+			SetupResult::WARNING => '- <comment>' . $text . '</comment>',
+			SetupResult::SUCCESS => '- <info>' . $text . '</info>',
+			default => '- ' . $text,
+		};
 	}
 
 	/**

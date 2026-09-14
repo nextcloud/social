@@ -90,6 +90,14 @@ class ConfigService {
 	/** The long form of what this instance is, for `instance/extended_description`. */
 	public const SOCIAL_EXTENDED_DESCRIPTION = 'extended_description';
 
+	/**
+	 * Who to write to about this instance: Mastodon's `instance.email`.
+	 *
+	 * Read by every client on its first request and shown on the server's
+	 * about page; empty until an administrator fills it in.
+	 */
+	public const CONTACT_EMAIL = 'contact_email';
+
 	public array $defaults = [
 		self::CLOUD_URL => '',
 		self::SOCIAL_URL => '',
@@ -107,6 +115,7 @@ class ConfigService {
 		self::SOCIAL_SECURE_MODE => '0',
 		self::SOCIAL_PUBLISH_BLOCKS => '0',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
+		self::CONTACT_EMAIL => '',
 		self::SOCIAL_POLLS_SWEPT => '0'
 	];
 

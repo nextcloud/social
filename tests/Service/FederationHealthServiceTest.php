@@ -120,6 +120,30 @@ class FederationHealthServiceTest extends TestCase {
 		$this->assertTrue($this->service->summary()['truncated']);
 	}
 
+	/**
+	 * What the setup check asks. Both are zero on a healthy instance: an
+	 * abandoned row is one the drain gave up on, and a standby row last tried
+	 * more than a day ago is one no drain came back for — the retry schedule
+	 * never waits more than fourteen hours.
+	 */
+	public function testWhatIsStuckIsTheAbandonedRowsAndTheOnesNobodyCameBackFor(): void {
+		$this->requestQueueRequest->method('countByStatus')
+			->willReturn([RequestQueue::STATUS_ABANDONED => 3, RequestQueue::STATUS_STANDBY => 40]);
+		$this->requestQueueRequest->expects($this->once())->method('countStandbyOlderThan')
+			->with($this->callback(fn (int $before): bool
+				=> abs(time() - FederationHealthService::STALE_STANDBY_SECONDS - $before) < 5))
+			->willReturn(7);
+
+		$this->assertSame(['abandoned' => 3, 'stale' => 7], $this->service->stuck());
+	}
+
+	public function testAQueueThatHasNeverAbandonedAnythingIsNotStuck(): void {
+		$this->requestQueueRequest->method('countByStatus')->willReturn([RequestQueue::STATUS_STANDBY => 4]);
+		$this->requestQueueRequest->method('countStandbyOlderThan')->willReturn(0);
+
+		$this->assertSame(['abandoned' => 0, 'stale' => 0], $this->service->stuck());
+	}
+
 	public function testARequestWithNowhereToGoIsNotCountedAsAnInstance(): void {
 		$nowhere = new RequestQueue('{}', null, 'alice');
 		$nowhere->setTries(4);

@@ -36,6 +36,19 @@ class AdminAnnouncementsSectionTest extends TestCase {
 
 		$_ = [
 			'reports' => [],
+			'openReports' => 0,
+			'resolvedReports' => 0,
+			'reportsPerPage' => 50,
+			'server' => [
+				'contact_email' => '',
+				'extended_description' => '',
+				'max_size' => 10,
+				'max_video_size' => 2048,
+				'inbox_throttle' => 300,
+				'secure_mode' => false,
+				'publish_blocks' => false,
+				'allow_self_signed' => false,
+			],
 			'accessType' => 'all_but',
 			'accessList' => [],
 			'retentionDays' => 0,

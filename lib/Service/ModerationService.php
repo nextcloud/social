@@ -64,6 +64,7 @@ class ModerationService {
 		private StrikeService $strikeService,
 		private CollectionsRequest $collectionsRequest,
 		private StoriesRequest $storiesRequest,
+		private AuditService $auditService,
 	) {
 	}
 
@@ -136,6 +137,7 @@ class ModerationService {
 		// not 'level': the server's logger reads that key in a context as a log
 		// level and throws on anything that is not one
 		$this->logger->info('moderation decision applied', ['actor' => $actorId, 'decision' => $level]);
+		$this->auditService->accountDecided($actorId, $level);
 
 		return $moderation;
 	}
@@ -182,10 +184,19 @@ class ModerationService {
 	 * that it was never taken, and an account whose history is emptied by
 	 * lifting the last decision against it is an account nobody can tell has
 	 * been here before.
+	 *
+	 * The lift is itself recorded, against the moderator who took it. Until
+	 * this it was an info line in the app log and nothing else: the history
+	 * showed a suspension with no end, so nobody reading it afterwards could
+	 * tell an account still suspended from one let off the same afternoon.
+	 *
+	 * @param string $comment why, for whoever reads the history later
 	 */
-	public function lift(string $actorId): void {
+	public function lift(string $actorId, string $comment = ''): void {
 		$this->moderationRequest->delete($actorId);
+		$this->strikeService->record($actorId, Strike::LIFT, $comment);
 		$this->logger->info('moderation decision lifted', ['actor' => $actorId]);
+		$this->auditService->accountLifted($actorId);
 	}
 
 	/**
@@ -258,7 +269,17 @@ class ModerationService {
 			$this->streamRequest->deleteById($streamId);
 		}
 
+		// against the account that wrote it, which is where a moderator looks
+		// for what has been done about somebody. A takedown used to leave no
+		// record at all: the post was gone, and the only trace was a line in
+		// the app log naming neither the author nor the moderator.
+		$author = $stream->getAttributedTo();
+		if ($author !== '') {
+			$this->strikeService->record($author, Strike::TAKEDOWN, $streamId);
+		}
+
 		$this->logger->info('post removed by a moderator', ['stream' => $streamId]);
+		$this->auditService->postTakenDown($streamId);
 	}
 
 	/**

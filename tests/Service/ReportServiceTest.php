@@ -283,6 +283,52 @@ class ReportServiceTest extends TestCase {
 		$this->assertNull($reports[1]->getTargetAccount());
 	}
 
+	/**
+	 * The panel used to read the first two hundred reports, open and resolved
+	 * together: an instance with a busy month of resolved complaints pushed
+	 * the open ones off the bottom, and past two hundred off the page.
+	 */
+	public function testAPageOfOpenReportsIsAskedForByOffsetAndSaysHowManyThereAre(): void {
+		$report = new Report();
+		$report->setAccountId(self::BOB);
+		$this->reportsRequest->expects($this->once())->method('getPage')
+			->with(false, ReportsRequest::PAGE, 2 * ReportsRequest::PAGE)
+			->willReturn([$report]);
+		$this->reportsRequest->expects($this->once())->method('count')->with(false)->willReturn(137);
+		$this->cacheActorService->method('getCachedFromIds')->willReturn([]);
+
+		$page = $this->service->page(false, 3);
+
+		$this->assertCount(1, $page['reports']);
+		$this->assertSame(137, $page['total']);
+		$this->assertSame(3, $page['page']);
+		$this->assertSame(ReportsRequest::PAGE, $page['perPage']);
+	}
+
+	public function testAPageBelowTheFirstIsTheFirst(): void {
+		$this->reportsRequest->expects($this->once())->method('getPage')
+			->with(true, ReportsRequest::PAGE, 0)->willReturn([]);
+		$this->cacheActorService->method('getCachedFromIds')->willReturn([]);
+
+		$this->assertSame(1, $this->service->page(true, 0)['page']);
+	}
+
+	public function testThePageResolvesItsAccountsTheSameWayTheWholeListDid(): void {
+		$report = new Report();
+		$report->setAccountId(self::BOB);
+		$this->reportsRequest->method('getPage')->willReturn([$report]);
+		$this->cacheActorService->expects($this->once())->method('getCachedFromIds')
+			->with([self::BOB])->willReturn([self::BOB => $this->person(self::BOB)]);
+
+		$this->assertNotNull($this->service->page(false)['reports'][0]->getTargetAccount());
+	}
+
+	public function testHowManyHaveBeenResolvedIsAskedForSeparately(): void {
+		$this->reportsRequest->expects($this->once())->method('count')->with(true)->willReturn(12);
+
+		$this->assertSame(12, $this->service->countResolved());
+	}
+
 	public function testSetResolvedOnAnUnknownReportThrows(): void {
 		$this->reportsRequest->method('getById')->willThrowException(new ReportNotFoundException());
 		$this->reportsRequest->expects($this->never())->method('setResolved');

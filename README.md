@@ -56,7 +56,10 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - 🔔 **An unread badge that counts** — the Notifications entry in the sidebar shows how many arrived since you last looked, instead of the hard-coded zero it used to show. The position is a Mastodon **marker** (`/api/v1/markers`), kept per timeline on the server, so clearing it on your phone clears it here; `/api/v1/notifications/unread_count` serves the number.
 - 🖼️ **Alt text you can actually write** — every attachment in the composer has a description field, and a post carrying an undescribed one says so before it is sent (a nudge, never a refusal). The app has always rendered other servers' alt text; it could not produce any of its own until now.
 - ♿ **Usable without a mouse or without sight** — every post is an `article` named after its author, timelines carry a heading, `j`/`k` moves the keyboard rather than only a highlight, the composer is a named text box with a visible focus ring, attachments and the post timestamp are real buttons, like and boost are single toggles that report their state (and do not throw away the focus of whoever pressed them), and every dialog has a name.
-- 🩺 **Federation health** — the administration settings show what the outbound queue is doing: how many deliveries are waiting, how many keep failing, which instances they are stacked up against and how close each is to being given up on (a delivery is abandoned after 15 attempts, previously without a word to anyone). `occ social:queue:status` prints the same summary.
+- 🩺 **Federation health** — the administration settings show what the outbound queue is doing: how many deliveries are waiting, how many keep failing, which instances they are stacked up against and how close each is to being given up on (a delivery is abandoned after 16 attempts, previously without a word to anyone). `occ social:queue:status` prints the same summary.
+- 🩺 **Setup checks where an administrator already looks** — Administration → Overview now carries four checks of its own: whether `.well-known/webfinger` answers for an account here, whether the address Social builds every id from is still the one the server reports, whether the job that delivers everything this instance sends has run lately, and whether anything in the outbound queue is stuck. Each says what to do and links to the [admin guide](https://github.com/nextcloud/social/blob/master/docs/Admin.md). `occ social:check:install` runs the same four and exits non-zero if any of them fails, so a deployment script can ask. Before this, an administrator who never opened Social found out that nobody could follow anyone here when a user asked.
+- ⚙️ **Server settings with an interface** — the contact address, the instance description, the upload ceilings, the inbox rate limit, secure mode, whether the block list is published and whether self-signed certificates are accepted are all in a **Server** card in the Social settings. Every one of them existed as an app config key that only `occ config:app:set` could write, which is where most of them stayed. The card is for administrators; a group the section was delegated to moderates and does not see it.
+- 🧾 **An audit trail for moderation** — suspending, silencing, lifting, taking a post down and blocking or unblocking an instance are recorded with the moderator who did it, and go into the server's audit log through core's `admin_audit` app. Lifts and takedowns used to leave a log line that named nobody.
 - ⚖️ **Moderation that can act** — a report used to be something an admin could mark handled and nothing more. Each one now carries **Silence**, **Suspend** and **Lift**. Silencing keeps an account reachable for the people who follow it and takes it out of the public and global timelines, changes no data and is undone by lifting; suspending deletes what the account posted here, drops its cached actor and refuses everything it sends afterwards (lifting stops the refusal, it does not bring the posts back — the confirmation says so). Single posts can be removed too.
 - 🚫 **Blocking and muting** — block an account to sever the relationship in both directions and hide it everywhere (federated as a `Block` activity unless `occ config:app:set social federate_blocks --value 0`); mute one to hide it from your timelines — and optionally your notifications — without it ever knowing. Both are done from an account's profile menu, **Settings → Blocked and muted accounts** in the app's sidebar lists them with unblock/unmute inline, and the Mastodon API carries them (`/api/v1/accounts/{id}/block|unblock|mute|unmute`, `/api/v1/blocks`, `/api/v1/mutes`).
 - 🚩 **Reporting** — `POST /api/v1/reports` files a report, incoming federated `Flag` activities are stored the same way, admins are notified, and reports are reviewed in the Social section of the administration settings. With `forward` set, a report about a remote account is also delivered to the instance that hosts it — anonymised, signed as this server rather than as the person who filed it, because they are reporting an account on the very instance that would otherwise receive their handle.
@@ -130,6 +133,11 @@ To see the two values:
 occ config:app:get social cloud_url
 occ config:system:get overwrite.cli.url
 ```
+
+Administration → Overview reports both of these — and two more things that break
+federation quietly — without anybody having to open Social. See
+[docs/Admin.md](https://github.com/nextcloud/social/blob/master/docs/Admin.md)
+for the whole setup, every configuration key and what to watch.
 
 ## 🖼️ Banner / Header upload — Troubleshooting
 
@@ -213,6 +221,10 @@ occ social:reset
   This prompts twice and then empties every Social table. `occ social:reset
   --uninstall` additionally drops the tables, migrations, background jobs and app
   config. See [docs/OCC-Commands.md](https://github.com/nextcloud/social/blob/master/docs/OCC-Commands.md) for all commands.
+- [docs/Admin.md](https://github.com/nextcloud/social/blob/master/docs/Admin.md)
+  is the administrator's guide: what federation needs before it works, every app
+  configuration key with its meaning and default, the sections of the
+  administration page, how moderation is recorded, and the occ commands by task.
 - [docs/Mastodon-Compatibility.md](https://github.com/nextcloud/social/blob/master/docs/Mastodon-Compatibility.md)
   answers how close this is to Mastodon in the three senses that can mean —
   whether its clients work, whether peers can tell the difference, and whether an

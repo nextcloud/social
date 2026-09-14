@@ -21,15 +21,23 @@ use OCP\Server;
  * interrupted run leaves every timeline empty.
  */
 class CheckInstallTest extends CommandTestCase {
-	public function testPlainRunReportsTheConfiguration(): void {
+	public function testPlainRunReportsTheConfigurationAndAgreesWithItsOwnVerdict(): void {
+		// `--offline` because the probe goes out on the network, which a test
+		// instance cannot answer. Which checks pass here is not this test's
+		// business — a test instance is not set up for federation — so what it
+		// pins is the contract a deployment script depends on: the exit code
+		// says what the verdict line says.
 		$tester = $this->tester(CheckInstall::class);
 
-		$code = $this->runNonInteractive($tester, []);
+		$code = $this->runNonInteractive($tester, ['--offline' => true]);
 		$display = $tester->getDisplay();
 
-		$this->assertSame(0, $code);
+		$this->assertStringContainsString('the WebFinger probe was not run', $display);
 		$this->assertStringContainsString('invalid followers removed', $display);
 		$this->assertStringContainsString('Your current configuration', $display);
+
+		$passed = str_contains($display, substr(CheckInstall::VERDICT_OK, 0, strpos(CheckInstall::VERDICT_OK, '%')));
+		$this->assertSame($passed ? 0 : 1, $code, $display);
 	}
 
 	public function testTheAdviceItPrintsNamesACommandThatExists(): void {

@@ -30,8 +30,32 @@ class Strike implements JsonSerializable {
 	/** Said something and applied nothing: Mastodon's `none`. */
 	public const WARNING = 'none';
 
-	/** Everything a strike can record: a warning, or a decision that was applied. */
-	public const ACTIONS = [self::WARNING, Moderation::SILENCE, Moderation::SUSPEND];
+	/** One post taken down by a moderator: Mastodon's `delete_statuses`. */
+	public const TAKEDOWN = 'delete_statuses';
+
+	/**
+	 * The end of whatever stood against the account.
+	 *
+	 * Not one of Mastodon's actions, because Mastodon has nowhere to put it:
+	 * there, lifting is an `AccountWarning` that gets an `appeal`. Here it is
+	 * the record that answers "who lifted this, and when" — which the log line
+	 * it used to be could not, because it named nobody.
+	 */
+	public const LIFT = 'lift';
+
+	/** Everything a strike can record: a warning, an applied decision, or the end of one. */
+	public const ACTIONS = [
+		self::WARNING, Moderation::SILENCE, Moderation::SUSPEND, self::TAKEDOWN, self::LIFT,
+	];
+
+	/**
+	 * The ones that stand against the account, which is what the browser's
+	 * strike column counts.
+	 *
+	 * A lift is in the history and not in the count: an account warned once
+	 * and then let off has one thing standing against it, not two.
+	 */
+	public const COUNTED = [self::WARNING, Moderation::SILENCE, Moderation::SUSPEND, self::TAKEDOWN];
 
 	public function __construct(
 		private string $actorId = '',

@@ -14,9 +14,13 @@ use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\ServerSettingsService;
 use OCA\Social\Settings\AdminSection;
 use OCA\Social\Settings\AdminSettings;
+use OCP\IGroupManager;
 use OCP\IL10N;
+use OCP\IUser;
+use OCP\IUserSession;
 use OCP\L10N\IFactory;
 use OCP\Settings\IDelegatedSettings;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -33,6 +37,8 @@ class AdminSettingsTest extends TestCase {
 	private FederationHealthService|MockObject $federationHealthService;
 	private ModerationService|MockObject $moderationService;
 	private ReportService|MockObject $reportService;
+	private ServerSettingsService|MockObject $serverSettingsService;
+	private IGroupManager|MockObject $groupManager;
 	private AdminSettings $settings;
 
 	/** Translates nothing, which is what a test needs of it. */
@@ -57,6 +63,16 @@ class AdminSettingsTest extends TestCase {
 		$this->federationHealthService = $this->createMock(FederationHealthService::class);
 		$this->moderationService = $this->createMock(ModerationService::class);
 
+		$this->serverSettingsService = $this->createMock(ServerSettingsService::class);
+		$this->serverSettingsService->method('current')->willReturn($this->serverSettings());
+
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('admin');
+		$userSession = $this->createMock(IUserSession::class);
+		$userSession->method('getUser')->willReturn($user);
+		$this->groupManager = $this->createMock(IGroupManager::class);
+		$this->groupManager->method('isAdmin')->willReturn(true);
+
 		$this->settings = new AdminSettings(
 			$this->reportService,
 			$fediverseService,
@@ -64,6 +80,9 @@ class AdminSettingsTest extends TestCase {
 			$this->moderationService,
 			$this->federationHealthService,
 			$this->l10n(),
+			$this->serverSettingsService,
+			$userSession,
+			$this->groupManager,
 		);
 	}
 
@@ -71,6 +90,35 @@ class AdminSettingsTest extends TestCase {
 		\OC::$server->reset();
 
 		parent::tearDown();
+	}
+
+	/** What the Server card reads, with nothing an administrator has set. */
+	private function serverSettings(): array {
+		return [
+			'contact_email' => '',
+			'extended_description' => '',
+			'max_size' => 10,
+			'max_video_size' => 2048,
+			'inbox_throttle' => 300,
+			'secure_mode' => false,
+			'publish_blocks' => false,
+			'allow_self_signed' => false,
+		];
+	}
+
+	/**
+	 * The first page of the open reports, which is what the page renders
+	 * itself; everything after it is read from /moderation/reports.
+	 *
+	 * @param \OCA\Social\Model\Report[] $reports
+	 */
+	private function openReports(array $reports, ?int $total = null): void {
+		$this->reportService->method('page')->willReturn([
+			'reports' => $reports,
+			'total' => $total ?? count($reports),
+			'page' => 1,
+			'perPage' => 50,
+		]);
 	}
 
 	/**
@@ -92,8 +140,9 @@ class AdminSettingsTest extends TestCase {
 	 * Renders the template the settings page returns, with warnings promoted to
 	 * failures so a key the template reads but nobody sets cannot pass quietly.
 	 */
-	private function render(array $summary, array $reports = [], array $decisions = []): string {
-		$this->reportService->method('getReports')->willReturn($reports);
+	private function render(array $summary, array $reports = [], array $decisions = [], int $resolved = 0): string {
+		$this->openReports($reports);
+		$this->reportService->method('countResolved')->willReturn($resolved);
 		$this->moderationService->method('decisions')->willReturn($decisions);
 		$this->federationHealthService->method('summary')->willReturn($summary);
 		$parameters = $this->settings->getForm()->getParams();
@@ -166,7 +215,7 @@ class AdminSettingsTest extends TestCase {
 	}
 
 	public function testTheFormCarriesTheFederationSummary(): void {
-		$this->reportService->method('getReports')->willReturn([]);
+		$this->openReports([]);
 		$this->moderationService->method('decisions')->willReturn([]);
 		$this->federationHealthService->expects($this->once())->method('summary')
 			->willReturn($this->summary(['waiting' => 4]));
@@ -215,6 +264,88 @@ class AdminSettingsTest extends TestCase {
 		$html = $this->render($this->summary(['failing' => 500, 'truncated' => true]));
 
 		$this->assertStringContainsString('only the first few hundred were counted', $html);
+	}
+
+	/**
+	 * Two hundred reports, open and resolved mixed together, used to be the
+	 * whole table: on an instance with a busy month behind it the resolved
+	 * ones pushed the open ones off the bottom.
+	 */
+	public function testTheResolvedReportsAreFoldedAwayUnderTheOpenOnes(): void {
+		$html = $this->render($this->summary(), [], [], 12);
+
+		$this->assertStringContainsString('12 resolved reports', $html);
+		$this->assertStringContainsString('id="social-reports-resolved"', $html);
+		$this->assertStringContainsString('No open reports.', $html);
+	}
+
+	public function testAnInstanceThatHasResolvedNothingIsNotOfferedTheFold(): void {
+		$html = $this->render($this->summary(), [], [], 0);
+
+		$this->assertMatchesRegularExpression(
+			'/<details id="social-reports-resolved-section" hidden>/', $html
+		);
+	}
+
+	public function testTheServerCardSaysWhatTheInstanceIsSetTo(): void {
+		$html = $this->render($this->summary());
+
+		$this->assertStringContainsString('id="social-server-contact-email"', $html);
+		$this->assertStringContainsString('id="social-server-secure-mode"', $html);
+		// the sentence the switch needs: what turning it on costs
+		$this->assertStringContainsString('Unsigned ActivityPub fetches are refused.', $html);
+		$this->assertStringContainsString('For development only.', $html);
+	}
+
+	/**
+	 * A delegate moderates; they do not administer. What the card holds —
+	 * whether unsigned fetches are answered, how large an upload may be — is
+	 * a decision about the server, and its endpoint refuses them anyway.
+	 */
+	public function testADelegateIsNotShownTheServerCard(): void {
+		$groupManager = $this->createMock(IGroupManager::class);
+		$groupManager->method('isAdmin')->willReturn(false);
+		$userSession = $this->createMock(IUserSession::class);
+		$userSession->method('getUser')->willReturn($this->createMock(IUser::class));
+
+		$fediverseService = $this->createMock(FediverseService::class);
+		$fediverseService->method('getAccessType')->willReturn('all_but');
+		$fediverseService->method('getListedAddresses')->willReturn([]);
+
+		$this->settings = new AdminSettings(
+			$this->reportService,
+			$fediverseService,
+			$this->createMock(ConfigService::class),
+			$this->moderationService,
+			$this->federationHealthService,
+			$this->l10n(),
+			$this->serverSettingsService,
+			$userSession,
+			$groupManager,
+		);
+
+		$html = $this->render($this->summary());
+
+		$this->assertNull($this->settings->getForm()->getParams()['server']);
+		$this->assertStringNotContainsString('id="social-server"', $html);
+	}
+
+	/**
+	 * The hand-written script and the template are two files that have to
+	 * agree on a set of ids, and a rename on either side is a section that
+	 * renders, does nothing, and says nothing about why.
+	 */
+	public function testEveryControlTheHandWrittenScriptLooksUpIsInTheMarkup(): void {
+		$html = $this->render($this->summary(), [], [], 3);
+		$script = (string)file_get_contents(__DIR__ . '/../../js/social-adminSettings.js');
+
+		preg_match_all("/getElementById\('(social-[a-z-]+)'\)/", $script, $matches);
+		$ids = array_unique($matches[1]);
+
+		$this->assertNotEmpty($ids, 'the script looks nothing up, which cannot be right');
+		foreach ($ids as $id) {
+			$this->assertStringContainsString('id="' . $id . '"', $html, $id . ' is not in the markup');
+		}
 	}
 
 	/**

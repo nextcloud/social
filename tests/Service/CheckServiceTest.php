@@ -27,7 +27,6 @@ use OCA\Social\Service\MiscService;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
-use OCP\IAppConfig;
 use OCP\ICache;
 use OCP\IConfig;
 use OCP\IRequest;
@@ -40,7 +39,6 @@ use PHPUnit\Framework\TestCase;
 class CheckServiceTest extends TestCase {
 	private IUserManager|MockObject $userManager;
 	private ICache|MockObject $cache;
-	private IAppConfig|MockObject $appConfig;
 	private IConfig|MockObject $config;
 	private IClient|MockObject $client;
 	private IRequest|MockObject $request;
@@ -56,7 +54,6 @@ class CheckServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->userManager = $this->createMock(IUserManager::class);
 		$this->cache = $this->createMock(ICache::class);
-		$this->appConfig = $this->createMock(IAppConfig::class);
 		$this->config = $this->createMock(IConfig::class);
 		$this->client = $this->createMock(IClient::class);
 		$clientService = $this->createMock(IClientService::class);
@@ -74,7 +71,6 @@ class CheckServiceTest extends TestCase {
 			$this->userManager,
 			'alice',
 			$this->cache,
-			$this->appConfig,
 			$this->config,
 			$clientService,
 			$this->request,
@@ -105,7 +101,7 @@ class CheckServiceTest extends TestCase {
 
 	public function testCheckWellKnownProbesTheConfiguredAddressFirstAndCachesSuccess(): void {
 		$this->cache->method('get')->willReturn(null);
-		$this->appConfig->method('getValueString')->with('social', 'address', '')->willReturn('https://social.example.com');
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
 		$this->config->method('getSystemValue')->willReturnCallback(
 			fn (string $key, $default = null) => $key === 'social.checkssl' ? false : $default
 		);
@@ -121,11 +117,56 @@ class CheckServiceTest extends TestCase {
 		$this->assertTrue($this->service->checkWellKnown());
 	}
 
+	/**
+	 * The probe used to read an app value named `address`, which nothing ever
+	 * wrote — the app stores `social_address` — so the branch was dead and
+	 * every probe started from the request's own Host header, which is not
+	 * where a remote server looks.
+	 */
+	public function testTheProbeStartsAtTheAddressTheAppIsSetUpFor(): void {
+		$this->cache->method('get')->willReturn(null);
+		// a bare host, which is what social_address holds
+		$this->configService->method('getSocialAddress')->willReturn('social.example.com');
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example.com/index.php');
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $key === 'social.checkssl' ? false : $default
+		);
+		$this->client->expects($this->once())
+			->method('get')
+			->with(
+				'https://social.example.com/.well-known/webfinger?resource=acct:alice@social.example.com',
+				['nextcloud' => ['allow_local_address' => false], 'verify' => false],
+			)
+			->willReturn($this->response(200));
+
+		$this->assertTrue($this->service->checkWellKnown());
+	}
+
+	/**
+	 * A setup check runs for an administrator who may never have opened the
+	 * app, so it passes an account that is known to exist rather than the
+	 * viewer's — a probe for a username with no actor answers 404 however
+	 * well the redirects are set up.
+	 */
+	public function testTheProbeCanBeAskedAboutAnAccountOtherThanTheViewers(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $default
+		);
+		$this->client->expects($this->once())
+			->method('get')
+			->with($this->stringContains('resource=acct:bob@social.example.com'))
+			->willReturn($this->response(200));
+
+		$this->assertTrue($this->service->checkWellKnown('bob'));
+	}
+
 	public function testOnlyTheAdminsOwnAddressMayResolveLocally(): void {
 		// one of the candidates is built from the Host header, so reaching a
 		// local address must be limited to the URL the admin configured
 		$this->cache->method('get')->willReturn(null);
-		$this->appConfig->method('getValueString')->with('social', 'address', '')->willReturn('http://localhost');
+		$this->configService->method('getSocialAddress')->willReturn('http://localhost');
 		$this->config->method('getSystemValue')->willReturnCallback(
 			fn (string $key, $default = null) => match ($key) {
 				'overwrite.cli.url' => 'http://localhost',
@@ -146,7 +187,7 @@ class CheckServiceTest extends TestCase {
 
 	public function testTheHostHeaderCandidateNeverReachesALocalAddress(): void {
 		$this->cache->method('get')->willReturn(null);
-		$this->appConfig->method('getValueString')->with('social', 'address', '')->willReturn('');
+		$this->configService->method('getSocialAddress')->willReturn('');
 		$this->config->method('getSystemValue')->willReturnCallback(
 			fn (string $key, $default = null) => match ($key) {
 				'overwrite.cli.url' => 'https://cloud.example.com',
@@ -170,7 +211,7 @@ class CheckServiceTest extends TestCase {
 
 	public function testANonWebAddressIsNotProbedAtAll(): void {
 		$this->cache->method('get')->willReturn(null);
-		$this->appConfig->method('getValueString')->with('social', 'address', '')->willReturn('file:///etc');
+		$this->configService->method('getSocialAddress')->willReturn('file:///etc');
 		$this->config->method('getSystemValue')->willReturnCallback(
 			fn (string $key, $default = null) => $default
 		);
@@ -184,7 +225,7 @@ class CheckServiceTest extends TestCase {
 
 	public function testCheckWellKnownFallsBackToTheRequestHostThenTheBaseUrl(): void {
 		$this->cache->method('get')->willReturn(null);
-		$this->appConfig->method('getValueString')->willReturn('');
+		$this->configService->method('getSocialAddress')->willReturn('');
 		$this->config->method('getSystemValue')->willReturn(true);
 		$this->request->method('getServerProtocol')->willReturn('https');
 		$this->request->method('getServerHost')->willReturn('cloud.example.com');
@@ -207,7 +248,7 @@ class CheckServiceTest extends TestCase {
 
 	public function testCheckWellKnownFailsWhenEveryProbeFails(): void {
 		$this->cache->method('get')->willReturn(null);
-		$this->appConfig->method('getValueString')->willReturn('');
+		$this->configService->method('getSocialAddress')->willReturn('');
 		$this->request->method('getServerProtocol')->willReturn('http');
 		$this->request->method('getServerHost')->willReturn('localhost');
 		$this->urlGenerator->method('getBaseUrl')->willReturn('http://localhost');
@@ -252,7 +293,7 @@ class CheckServiceTest extends TestCase {
 
 	public function testCheckDefaultFailsWhenACheckFails(): void {
 		$this->cache->method('get')->willReturn(null);
-		$this->appConfig->method('getValueString')->willReturn('');
+		$this->configService->method('getSocialAddress')->willReturn('');
 		$this->addressesAgree();
 		$this->client->method('get')->willReturn($this->response(404));
 

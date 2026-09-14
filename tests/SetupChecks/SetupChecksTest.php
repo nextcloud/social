@@ -1,0 +1,279 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\SetupChecks;
+
+use OCA\Social\Cron\Queue;
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\CheckService;
+use OCA\Social\Service\FederationHealthService;
+use OCA\Social\SetupChecks\CloudAddressMatches;
+use OCA\Social\SetupChecks\CronRanRecently;
+use OCA\Social\SetupChecks\Docs;
+use OCA\Social\SetupChecks\OutboundQueueNotStuck;
+use OCA\Social\SetupChecks\WebFingerReachable;
+use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\BackgroundJob\IJob;
+use OCP\BackgroundJob\IJobList;
+use OCP\IL10N;
+use OCP\SetupCheck\SetupResult;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * The four checks Administration → Overview shows.
+ *
+ * Each of them is the only thing that says a particular kind of breakage has
+ * happened: an administrator who never opens Social used to find out that
+ * nobody could follow anyone here when a user asked. What the tests pin is
+ * that a healthy instance is quiet, that a broken one is not, and that the
+ * severity matches how broken it is — a warning an administrator learns to
+ * ignore is worse than no check.
+ */
+class SetupChecksTest extends TestCase {
+	private IL10N|MockObject $l10n;
+
+	protected function setUp(): void {
+		$this->l10n = $this->createMock(IL10N::class);
+		// positional, like the real one: the address check names the same
+		// address twice and a stub that could not would hide it
+		$this->l10n->method('t')->willReturnCallback(
+			static fn (string $text, array $parameters = []): string
+				=> $parameters === [] ? $text : vsprintf($text, $parameters)
+		);
+		$this->l10n->method('n')->willReturnCallback(
+			static fn (string $singular, string $plural, int $count): string
+				=> str_replace('%n', (string)$count, $count === 1 ? $singular : $plural)
+		);
+	}
+
+	private function checkService(): CheckService|MockObject {
+		return $this->createMock(CheckService::class);
+	}
+
+	private function actor(string $username): Person {
+		$actor = new Person();
+		$actor->setPreferredUsername($username);
+
+		return $actor;
+	}
+
+	public function testWebFingerIsProbedForAnAccountThatExistsRatherThanForTheAdministrator(): void {
+		// the administrator may never have opened Social, and a probe for an
+		// account that does not exist answers 404 whatever the redirects do
+		$actorsRequest = $this->createMock(ActorsRequest::class);
+		$actorsRequest->method('getAny')->willReturn($this->actor('alice'));
+
+		$checkService = $this->checkService();
+		$checkService->expects($this->once())->method('checkWellKnown')
+			->with('alice')->willReturn(true);
+
+		$result = (new WebFingerReachable($this->l10n, $checkService, $actorsRequest))->run();
+
+		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	public function testAnInstanceNobodyCanBeFoundOnIsAnError(): void {
+		$actorsRequest = $this->createMock(ActorsRequest::class);
+		$actorsRequest->method('getAny')->willReturn($this->actor('alice'));
+
+		$checkService = $this->checkService();
+		$checkService->method('checkWellKnown')->willReturn(false);
+
+		$result = (new WebFingerReachable($this->l10n, $checkService, $actorsRequest))->run();
+
+		$this->assertSame(SetupResult::ERROR, $result->getSeverity());
+		$this->assertStringContainsString('@alice', (string)$result->getDescription());
+		$this->assertSame(WebFingerReachable::DOC, $result->getLinkToDoc());
+	}
+
+	public function testAnAppNobodyHasOpenedYetIsNotProbedAtAll(): void {
+		$actorsRequest = $this->createMock(ActorsRequest::class);
+		$actorsRequest->method('getAny')->willReturn(null);
+
+		$checkService = $this->checkService();
+		$checkService->expects($this->never())->method('checkWellKnown');
+
+		$result = (new WebFingerReachable($this->l10n, $checkService, $actorsRequest))->run();
+
+		$this->assertSame(SetupResult::INFO, $result->getSeverity());
+	}
+
+	/** A database that will not answer is not a failing WebFinger. */
+	public function testALookupFailureIsNotReportedAsAnUnreachableInstance(): void {
+		$actorsRequest = $this->createMock(ActorsRequest::class);
+		$actorsRequest->method('getAny')->willThrowException(new \RuntimeException('no database'));
+
+		$result = (new WebFingerReachable($this->l10n, $this->checkService(), $actorsRequest))->run();
+
+		$this->assertSame(SetupResult::INFO, $result->getSeverity());
+	}
+
+	public function testAnAddressThatStillMatchesTheServerIsQuiet(): void {
+		$checkService = $this->checkService();
+		$checkService->method('cloudAddresses')->willReturn([
+			'configured' => 'https://cloud.example', 'expected' => 'https://cloud.example',
+		]);
+		$checkService->method('checkCloudAddress')->willReturn(true);
+
+		$result = (new CloudAddressMatches($this->l10n, $checkService))->run();
+
+		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	/**
+	 * The one failure that cannot be corrected, only decided about: the stored
+	 * address is inside every id already federated.
+	 */
+	public function testARenamedServerIsAnErrorThatNamesBothAddressesAndTheWayOut(): void {
+		$checkService = $this->checkService();
+		$checkService->method('cloudAddresses')->willReturn([
+			'configured' => 'https://old.example', 'expected' => 'https://new.example',
+		]);
+		$checkService->method('checkCloudAddress')->willReturn(false);
+
+		$result = (new CloudAddressMatches($this->l10n, $checkService))->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::ERROR, $result->getSeverity());
+		$this->assertStringContainsString('https://old.example', $description);
+		$this->assertStringContainsString('https://new.example', $description);
+		$this->assertStringContainsString('occ social:reset --uri=https://new.example', $description);
+	}
+
+	public function testAnAppThatHasNeverBeenOpenedIsNotADisagreement(): void {
+		$checkService = $this->checkService();
+		$checkService->method('cloudAddresses')->willReturn(['configured' => '', 'expected' => 'https://cloud.example']);
+
+		$result = (new CloudAddressMatches($this->l10n, $checkService))->run();
+
+		$this->assertSame(SetupResult::INFO, $result->getSeverity());
+	}
+
+	public function testAServerThatDeclaresNoUrlIsAWarningRatherThanAMismatch(): void {
+		$checkService = $this->checkService();
+		$checkService->method('cloudAddresses')->willReturn(['configured' => 'https://cloud.example', 'expected' => '']);
+
+		$result = (new CloudAddressMatches($this->l10n, $checkService))->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('overwrite.cli.url', (string)$result->getDescription());
+	}
+
+	private function cron(int $lastRun, int $now = 1_757_548_800): CronRanRecently {
+		$job = $this->createMock(IJob::class);
+		$job->method('getLastRun')->willReturn($lastRun);
+		$jobList = $this->createMock(IJobList::class);
+		$jobList->method('getJobs')->with(Queue::class, 1, 0)->willReturn($lastRun < 0 ? [] : [$job]);
+
+		$timeFactory = $this->createMock(ITimeFactory::class);
+		$timeFactory->method('getTime')->willReturn($now);
+
+		return new CronRanRecently($this->l10n, $jobList, $timeFactory);
+	}
+
+	public function testADeliveryJobThatRanThisHourIsQuiet(): void {
+		$result = $this->cron(1_757_548_800 - 600)->run();
+
+		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+		$this->assertStringContainsString('10 minutes ago', (string)$result->getDescription());
+	}
+
+	public function testADeliveryJobThatHasNotRunForHoursIsAWarning(): void {
+		$result = $this->cron(1_757_548_800 - 7200)->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('120 minutes ago', (string)$result->getDescription());
+	}
+
+	public function testADeliveryJobThatHasNeverRunIsAWarningAboutCron(): void {
+		$result = $this->cron(0)->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('never run', (string)$result->getDescription());
+	}
+
+	/** Nothing this instance sends would ever leave, which is not a warning. */
+	public function testADeliveryJobThatIsNotRegisteredAtAllIsAnError(): void {
+		$result = $this->cron(-1)->run();
+
+		$this->assertSame(SetupResult::ERROR, $result->getSeverity());
+	}
+
+	private function queue(int $abandoned, int $stale): OutboundQueueNotStuck {
+		$health = $this->createMock(FederationHealthService::class);
+		$health->method('stuck')->willReturn(['abandoned' => $abandoned, 'stale' => $stale]);
+
+		return new OutboundQueueNotStuck($this->l10n, $health);
+	}
+
+	public function testAQueueThatIsMovingIsQuiet(): void {
+		$this->assertSame(SetupResult::SUCCESS, $this->queue(0, 0)->run()->getSeverity());
+	}
+
+	public function testBothKindsOfStuckDeliveryAreNamedSeparately(): void {
+		$result = $this->queue(3, 1)->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('1 delivery has been waiting for more than a day', $description);
+		$this->assertStringContainsString('3 deliveries were given up on', $description);
+		$this->assertStringContainsString('occ social:queue:status', $description);
+	}
+
+	public function testOnlyWhatIsActuallyStuckIsMentioned(): void {
+		$description = (string)$this->queue(2, 0)->run()->getDescription();
+
+		$this->assertStringNotContainsString('waiting for more than a day', $description);
+		$this->assertStringContainsString('2 deliveries were given up on', $description);
+	}
+
+	/**
+	 * A check nobody can act on is a check nobody reads twice, so each one
+	 * links to the section of the guide that says what to do — and a section
+	 * renamed without the constant is a link to nowhere, which nothing but
+	 * this would catch.
+	 */
+	public function testEveryFailureSendsTheAdministratorSomewhereTheGuideExplainsIt(): void {
+		$anchors = $this->anchorsOfTheGuide();
+
+		foreach ([
+			WebFingerReachable::DOC,
+			CloudAddressMatches::DOC,
+			CronRanRecently::DOC,
+			OutboundQueueNotStuck::DOC,
+		] as $link) {
+			$this->assertStringStartsWith(Docs::ADMIN_GUIDE . '#', $link);
+			$anchor = substr($link, strlen(Docs::ADMIN_GUIDE) + 1);
+			$this->assertContains($anchor, $anchors, $anchor . ' has no section in docs/Admin.md');
+		}
+	}
+
+	/**
+	 * Every heading of docs/Admin.md, as the fragment GitHub makes of it.
+	 *
+	 * @return string[]
+	 */
+	private function anchorsOfTheGuide(): array {
+		$guide = (string)file_get_contents(__DIR__ . '/../../docs/Admin.md');
+		preg_match_all('/^#+ (.+)$/m', $guide, $matches);
+
+		return array_map(
+			static fn (string $heading): string => trim(preg_replace(
+				'/[^a-z0-9 -]/', '', strtolower(strip_tags($heading))
+			) ?? '', ' -') === ''
+				? ''
+				: str_replace(' ', '-', trim((string)preg_replace(
+					'/[^a-z0-9 -]/', '', strtolower($heading)
+				))),
+			$matches[1]
+		);
+	}
+}

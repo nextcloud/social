@@ -30,6 +30,14 @@ class FederationHealthService {
 	/** Past this many failures a request is on its last legs. */
 	public const AT_RISK_TRIES = 8;
 
+	/**
+	 * A standby row last tried this long ago (seconds) is stuck, not waiting.
+	 *
+	 * The retry schedule never waits more than fourteen hours, so a day is
+	 * past anything the queue would do on purpose.
+	 */
+	public const STALE_STANDBY_SECONDS = 24 * 3600;
+
 	public function __construct(
 		private RequestQueueRequest $requestQueueRequest,
 	) {
@@ -62,6 +70,23 @@ class FederationHealthService {
 			// the read is capped, so a very sick instance reports "at least"
 			'truncated' => count($failing) >= 500,
 			'instances' => $this->byInstance($failing),
+		];
+	}
+
+	/**
+	 * What in the queue is not going to move on its own: the rows the drain
+	 * has given up on, and the ones it should have come back for a day ago
+	 * and has not. Both are zero on a healthy instance, which is what the
+	 * setup check asks.
+	 *
+	 * @return array{abandoned: int, stale: int}
+	 */
+	public function stuck(): array {
+		$counts = $this->requestQueueRequest->countByStatus();
+
+		return [
+			'abandoned' => $counts[RequestQueue::STATUS_ABANDONED] ?? 0,
+			'stale' => $this->requestQueueRequest->countStandbyOlderThan(time() - self::STALE_STANDBY_SECONDS),
 		];
 	}
 

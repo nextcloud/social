@@ -30,6 +30,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Model\Strike;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\AuditService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\StrikeService;
@@ -65,6 +66,7 @@ class ModerationServiceTest extends TestCase {
 	private CollectionsRequest|MockObject $collectionsRequest;
 	private StoriesRequest|MockObject $storiesRequest;
 	private StrikeService|MockObject $strikeService;
+	private AuditService|MockObject $auditService;
 
 	/** @var array<int, array<string, mixed>> the strikes that were recorded */
 	private array $strikes = [];
@@ -88,6 +90,7 @@ class ModerationServiceTest extends TestCase {
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->strikeService = $this->createMock(StrikeService::class);
+		$this->auditService = $this->createMock(AuditService::class);
 		$this->strikeService->method('record')->willReturnCallback(
 			function (string $actorId, string $action, string $text = '', int $reportId = 0): Strike {
 				$this->strikes[] = compact('actorId', 'action', 'text', 'reportId');
@@ -113,7 +116,8 @@ class ModerationServiceTest extends TestCase {
 			$this->muteExpiryRequest,
 			$this->strikeService,
 			$this->collectionsRequest,
-			$this->storiesRequest
+			$this->storiesRequest,
+			$this->auditService
 		);
 	}
 
@@ -214,7 +218,8 @@ class ModerationServiceTest extends TestCase {
 			$this->muteExpiryRequest,
 			$this->strikeService,
 			$this->collectionsRequest,
-			$this->storiesRequest
+			$this->storiesRequest,
+			$this->auditService
 		);
 
 		$this->actorsRequest->method('getFromId')
@@ -331,7 +336,8 @@ class ModerationServiceTest extends TestCase {
 			$this->requestQueueRequest, $this->createMock(StreamService::class),
 			$this->actorsRequest, $this->accountService, $logger,
 			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest,
-			$this->strikeService, $this->collectionsRequest, $this->storiesRequest
+			$this->strikeService, $this->collectionsRequest, $this->storiesRequest,
+			$this->auditService
 		);
 
 		$service->decide(self::SPAMMER, Moderation::SILENCE);
@@ -398,5 +404,64 @@ class ModerationServiceTest extends TestCase {
 
 		$this->service->removeStream('https://spam.example/p/gone');
 		$this->addToAssertionCount(1);
+	}
+
+	/**
+	 * The history used to show a suspension with no end, so nobody reading it
+	 * afterwards could tell an account still suspended from one let off the
+	 * same afternoon.
+	 */
+	public function testLiftingIsItselfRecorded(): void {
+		$this->service->lift(self::SPAMMER, 'appealed, and fairly');
+
+		$this->assertSame(
+			[['actorId' => self::SPAMMER, 'action' => Strike::LIFT, 'text' => 'appealed, and fairly', 'reportId' => 0]],
+			$this->strikes
+		);
+	}
+
+	public function testATakedownIsRecordedAgainstTheAccountThatWroteThePost(): void {
+		$this->post('https://spam.example/p/1', false);
+
+		$this->service->removeStream('https://spam.example/p/1');
+
+		$this->assertSame(
+			[['actorId' => self::SPAMMER, 'action' => Strike::TAKEDOWN, 'text' => 'https://spam.example/p/1', 'reportId' => 0]],
+			$this->strikes
+		);
+	}
+
+	public function testAPostThatIsNotThereIsNotARecordAgainstAnybody(): void {
+		$this->streamRequest->method('getStreamById')
+			->willThrowException(new StreamNotFoundException());
+
+		$this->service->removeStream('https://spam.example/p/gone');
+
+		$this->assertSame([], $this->strikes);
+	}
+
+	/**
+	 * `social.log` is not kept and anybody with the app can write to it. The
+	 * audit log is written by the server and kept as long as it is kept.
+	 */
+	public function testEveryDecisionReachesTheAuditLog(): void {
+		$this->auditService->expects($this->once())->method('accountDecided')
+			->with(self::SPAMMER, Moderation::SILENCE);
+
+		$this->service->decide(self::SPAMMER, Moderation::SILENCE);
+	}
+
+	public function testLiftingReachesTheAuditLogToo(): void {
+		$this->auditService->expects($this->once())->method('accountLifted')->with(self::SPAMMER);
+
+		$this->service->lift(self::SPAMMER);
+	}
+
+	public function testATakedownReachesTheAuditLog(): void {
+		$this->post('https://spam.example/p/1', false);
+		$this->auditService->expects($this->once())->method('postTakenDown')
+			->with('https://spam.example/p/1');
+
+		$this->service->removeStream('https://spam.example/p/1');
 	}
 }

@@ -1,0 +1,154 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Service;
+
+use InvalidArgumentException;
+
+/**
+ * The instance-wide settings an administrator can change from the settings
+ * page, and the bounds each one is held to.
+ *
+ * Every one of these existed as an app config key and could be set with `occ
+ * config:app:set`, which is where they stayed: nothing on the page read or
+ * wrote them, so an administrator learnt of `secure_mode` from a peer's
+ * complaint and of `max_size` from a user's failed upload. Read and written
+ * here in one place so the page, the endpoint and the tests agree on what a
+ * value may be.
+ */
+class ServerSettingsService {
+	/** The longest an instance description may be; Mastodon's own ceiling. */
+	public const MAX_DESCRIPTION = 10000;
+
+	/** Megabytes; past this a picture is a video, and past ten gigabytes a mistake. */
+	public const MAX_SIZE_MB = 10240;
+
+	/** Megabytes; a hundred gigabytes is past anything a peer will accept. */
+	public const MAX_VIDEO_SIZE_MB = 102400;
+
+	/** Inbox requests per origin host per minute; 0 disables the throttle. */
+	public const MAX_INBOX_THROTTLE = 100000;
+
+	/** The keys this page owns, in the order the page shows them. */
+	public const KEYS = [
+		ConfigService::CONTACT_EMAIL,
+		ConfigService::SOCIAL_EXTENDED_DESCRIPTION,
+		ConfigService::SOCIAL_MAX_SIZE,
+		ConfigService::SOCIAL_MAX_VIDEO_SIZE,
+		ConfigService::SOCIAL_INBOX_THROTTLE,
+		ConfigService::SOCIAL_SECURE_MODE,
+		ConfigService::SOCIAL_PUBLISH_BLOCKS,
+		ConfigService::SOCIAL_SELF_SIGNED,
+	];
+
+	public function __construct(
+		private ConfigService $configService,
+	) {
+	}
+
+	/**
+	 * What stands now, typed the way the page and the endpoint hand it back.
+	 *
+	 * @return array{
+	 *     contact_email: string,
+	 *     extended_description: string,
+	 *     max_size: int,
+	 *     max_video_size: int,
+	 *     inbox_throttle: int,
+	 *     secure_mode: bool,
+	 *     publish_blocks: bool,
+	 *     allow_self_signed: bool
+	 * }
+	 */
+	public function current(): array {
+		return [
+			ConfigService::CONTACT_EMAIL => (string)$this->configService->getAppValue(ConfigService::CONTACT_EMAIL),
+			ConfigService::SOCIAL_EXTENDED_DESCRIPTION
+				=> (string)$this->configService->getAppValue(ConfigService::SOCIAL_EXTENDED_DESCRIPTION),
+			ConfigService::SOCIAL_MAX_SIZE => $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE),
+			ConfigService::SOCIAL_MAX_VIDEO_SIZE
+				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_VIDEO_SIZE),
+			ConfigService::SOCIAL_INBOX_THROTTLE
+				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_INBOX_THROTTLE),
+			// the two switches other code reads as `=== '1'`, and the one it
+			// reads leniently, all answer through the same lenient reader here
+			ConfigService::SOCIAL_SECURE_MODE => $this->configService->getAppValueBool(ConfigService::SOCIAL_SECURE_MODE),
+			ConfigService::SOCIAL_PUBLISH_BLOCKS
+				=> $this->configService->getAppValueBool(ConfigService::SOCIAL_PUBLISH_BLOCKS),
+			ConfigService::SOCIAL_SELF_SIGNED => $this->configService->getAppValueBool(ConfigService::SOCIAL_SELF_SIGNED),
+		];
+	}
+
+	/**
+	 * Validates every value and writes them all, or writes none.
+	 *
+	 * All-or-nothing on purpose: a form that saved six of its eight fields
+	 * and refused two leaves the administrator guessing which took.
+	 *
+	 * @param string $contactEmail empty, or an address
+	 * @param int $maxSize megabytes, 1 to MAX_SIZE_MB
+	 * @param int $maxVideoSize megabytes, 1 to MAX_VIDEO_SIZE_MB
+	 * @param int $inboxThrottle requests per host per minute, 0 to MAX_INBOX_THROTTLE
+	 *
+	 * @return array what current() answers afterwards
+	 * @throws InvalidArgumentException naming the field that was refused
+	 */
+	public function save(
+		string $contactEmail,
+		string $extendedDescription,
+		int $maxSize,
+		int $maxVideoSize,
+		int $inboxThrottle,
+		bool $secureMode,
+		bool $publishBlocks,
+		bool $allowSelfSigned,
+	): array {
+		$contactEmail = trim($contactEmail);
+		if ($contactEmail !== '' && filter_var($contactEmail, FILTER_VALIDATE_EMAIL) === false) {
+			throw new InvalidArgumentException('contact_email is not an email address');
+		}
+		if (strlen($contactEmail) > 255) {
+			throw new InvalidArgumentException('contact_email is too long');
+		}
+
+		$extendedDescription = trim($extendedDescription);
+		if (mb_strlen($extendedDescription) > self::MAX_DESCRIPTION) {
+			throw new InvalidArgumentException(
+				'extended_description is longer than ' . self::MAX_DESCRIPTION . ' characters'
+			);
+		}
+
+		if ($maxSize < 1 || $maxSize > self::MAX_SIZE_MB) {
+			throw new InvalidArgumentException('max_size must be between 1 and ' . self::MAX_SIZE_MB . ' MB');
+		}
+		if ($maxVideoSize < 1 || $maxVideoSize > self::MAX_VIDEO_SIZE_MB) {
+			throw new InvalidArgumentException(
+				'max_video_size must be between 1 and ' . self::MAX_VIDEO_SIZE_MB . ' MB'
+			);
+		}
+		if ($inboxThrottle < 0 || $inboxThrottle > self::MAX_INBOX_THROTTLE) {
+			throw new InvalidArgumentException(
+				'inbox_throttle must be between 0 and ' . self::MAX_INBOX_THROTTLE
+			);
+		}
+
+		$this->configService->setAppValue(ConfigService::CONTACT_EMAIL, $contactEmail);
+		$this->configService->setAppValue(ConfigService::SOCIAL_EXTENDED_DESCRIPTION, $extendedDescription);
+		$this->configService->setAppValue(ConfigService::SOCIAL_MAX_SIZE, (string)$maxSize);
+		$this->configService->setAppValue(ConfigService::SOCIAL_MAX_VIDEO_SIZE, (string)$maxVideoSize);
+		$this->configService->setAppValue(ConfigService::SOCIAL_INBOX_THROTTLE, (string)$inboxThrottle);
+		// written as the literal `1`/`0`: AuthorizedFetchService and the
+		// domain-blocks route compare against '1', not against "truthy"
+		$this->configService->setAppValue(ConfigService::SOCIAL_SECURE_MODE, $secureMode ? '1' : '0');
+		$this->configService->setAppValue(ConfigService::SOCIAL_PUBLISH_BLOCKS, $publishBlocks ? '1' : '0');
+		$this->configService->setAppValue(ConfigService::SOCIAL_SELF_SIGNED, $allowSelfSigned ? '1' : '0');
+
+		return $this->current();
+	}
+}

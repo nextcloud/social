@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PAGE, mount, render, search, stateOf, strikeLine } from '../../src/adminModeration.js'
 
 const SECTION = `
-	<table class="social-reports"><tbody>
+	<div id="social-moderation"><table class="social-reports"><tbody>
 		<tr data-report-id="1" data-actor-id="https://remote.example/users/bob">
 			<td class="social-report-statuses">
 				<span class="social-report-status" data-stream-id="https://remote.example/notes/1">
@@ -15,7 +15,7 @@ const SECTION = `
 				</span>
 			</td>
 		</tr>
-	</tbody></table>
+	</tbody></table></div>
 	<div id="social-accounts">
 		<input type="search" id="social-accounts-query">
 		<select id="social-accounts-origin"><option value="" selected></option><option value="local"></option></select>

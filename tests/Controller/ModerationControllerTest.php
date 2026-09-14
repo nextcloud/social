@@ -376,4 +376,78 @@ class ModerationControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 	}
+
+	/** A report the page renders itself and one it fetches must read alike. */
+	public function testAPageOfReportsCarriesWhatTheTableDraws(): void {
+		$target = new Person();
+		$target->setId('https://spam.example/users/spammer');
+		$target->setAccount('spammer@spam.example');
+
+		$report = new Report();
+		$report->setId(7);
+		$report->setTargetAccount($target);
+		$report->setAccountId('https://spam.example/users/spammer');
+		$report->setActorId('https://cloud.example/users/alice');
+		$report->setCategory('spam');
+		$report->setComment('endless crypto');
+		$report->setStatusIds(['https://spam.example/notes/1']);
+
+		$this->reportService->expects($this->once())->method('page')->with(false, 2)
+			->willReturn(['reports' => [$report], 'total' => 137, 'page' => 2, 'perPage' => 50]);
+		$this->moderationService->method('decisions')->willReturn([
+			new \OCA\Social\Model\Moderation('https://spam.example/users/spammer', 'suspend'),
+		]);
+
+		$data = $this->controller->reports(false, 2)->getData();
+
+		$this->assertSame(137, $data['total']);
+		$this->assertSame(2, $data['page']);
+		$this->assertSame(50, $data['perPage']);
+		$this->assertSame([
+			'id' => 7,
+			'account_id' => 'https://spam.example/users/spammer',
+			'account' => 'spammer@spam.example',
+			'reporter' => 'https://cloud.example/users/alice',
+			'local' => true,
+			'category' => 'spam',
+			'comment' => 'endless crypto',
+			'status_ids' => ['https://spam.example/notes/1'],
+			'creation' => 0,
+			'resolved' => false,
+			// what stands against the account *now*, so a report from last
+			// month says whether the account it named is still suspended
+			'level' => 'suspend',
+		], $data['reports'][0]);
+	}
+
+	public function testAReportWhoseAccountIsNoLongerCachedStillNamesIt(): void {
+		$report = new Report();
+		$report->setId(8);
+		$report->setAccountId('https://gone.example/users/x');
+		$this->reportService->method('page')
+			->willReturn(['reports' => [$report], 'total' => 1, 'page' => 1, 'perPage' => 50]);
+		$this->moderationService->method('decisions')->willReturn([]);
+
+		$row = $this->controller->reports()->getData()['reports'][0];
+
+		$this->assertSame('https://gone.example/users/x', $row['account_id']);
+		$this->assertSame('', $row['account']);
+		$this->assertSame('', $row['level']);
+	}
+
+	public function testTheResolvedOnesAreAskedForSeparately(): void {
+		$this->reportService->expects($this->once())->method('page')->with(true, 1)
+			->willReturn(['reports' => [], 'total' => 0, 'page' => 1, 'perPage' => 50]);
+		$this->moderationService->method('decisions')->willReturn([]);
+
+		$this->controller->reports(true);
+	}
+
+	/** Lifting used to drop the comment on the floor; the history keeps it now. */
+	public function testLiftingPassesOnWhyItWasLifted(): void {
+		$this->moderationService->expects($this->once())
+			->method('lift')->with('https://spam.example/users/spammer', 'appealed');
+
+		$this->controller->accountModerate('https://spam.example/users/spammer', '', 'appealed');
+	}
 }

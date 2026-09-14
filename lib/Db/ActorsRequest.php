@@ -253,6 +253,31 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
+	 * Any one live local account, or null when nobody has opened the app yet.
+	 *
+	 * For a probe that needs a real account to ask about — a WebFinger check
+	 * run by an administrator who may not have a Social account themselves.
+	 *
+	 * @throws SocialAppConfigException
+	 */
+	public function getAny(): ?Person {
+		$qb = $this->getActorsSelectSql();
+		$qb->andWhere($qb->expr()->isNull('a.deleted'));
+		$qb->orderBy('a.creation', 'asc');
+		$qb->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			return null;
+		}
+
+		return $this->parseActorsSelectSql($data);
+	}
+
+	/**
 	 * @return Person[]
 	 * @throws SocialAppConfigException
 	 */

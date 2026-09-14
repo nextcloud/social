@@ -18,6 +18,9 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * Storage for moderation reports.
  */
 class ReportsRequest extends ReportsRequestBuilder {
+	/** How many reports one page of the administration panel holds. */
+	public const PAGE = 50;
+
 	public function save(Report $report): int {
 		$qb = $this->getReportsInsertSql();
 		$qb->setValue('actor_id', $qb->createNamedParameter($report->getActorId()))
@@ -79,11 +82,42 @@ class ReportsRequest extends ReportsRequestBuilder {
 		return $reports;
 	}
 
+	/**
+	 * One page of the open or of the resolved reports, newest first.
+	 *
+	 * The panel used to read the first two hundred of both mixed together, so
+	 * an instance with a busy month of resolved complaints pushed the open
+	 * ones off the bottom — and past two hundred, off the page entirely.
+	 *
+	 * @return Report[]
+	 */
+	public function getPage(bool $resolved, int $limit = self::PAGE, int $offset = 0): array {
+		$qb = $this->getReportsSelectSql();
+		$qb->andWhere($qb->expr()->eq('r.resolved', $qb->createNamedParameter($resolved ? 1 : 0, IQueryBuilder::PARAM_INT)));
+		$qb->orderBy('r.id', 'desc');
+		$qb->setMaxResults(max(1, $limit));
+		$qb->setFirstResult(max(0, $offset));
+
+		$reports = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$reports[] = $this->parseReportsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $reports;
+	}
+
 	public function countOpen(): int {
+		return $this->count(false);
+	}
+
+	/** How many reports are open, or how many are resolved. */
+	public function count(bool $resolved): int {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
 			->from(self::TABLE_REPORTS)
-			->where($qb->expr()->eq('resolved', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->eq('resolved', $qb->createNamedParameter($resolved ? 1 : 0, IQueryBuilder::PARAM_INT)));
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();

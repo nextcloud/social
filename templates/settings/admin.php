@@ -10,106 +10,159 @@ declare(strict_types=1);
 /** @var array $_ */
 /** @var \OCP\IL10N $l */
 
-/** @var \OCA\Social\Model\Report[] $reports */
+/** @var \OCA\Social\Model\Report[] $reports the first page of the open ones */
 $reports = $_['reports'];
+$openReports = $_['openReports'];
+$resolvedReports = $_['resolvedReports'];
+$reportsPerPage = $_['reportsPerPage'];
+/** @var array|null $server null for a delegate, who moderates but does not administer */
+$server = $_['server'];
 $accessType = $_['accessType'];
 $accessList = $_['accessList'];
 $retentionDays = $_['retentionDays'];
 $federation = $_['federation'];
 $moderation = $_['moderation'];
+
+// Both report tables carry the same columns and the Javascript that appends a
+// page builds the same row, so the heading lives in one array rather than in
+// two copies that would drift apart the first time a column was added.
+$reportColumns = [
+	$l->t('Reported account'),
+	$l->t('Reporter'),
+	$l->t('Category'),
+	$l->t('Comment'),
+	$l->t('Statuses'),
+	$l->t('Date'),
+	$l->t('Status'),
+	$l->t('Account'),
+	'',
+];
+
+/** One row of a report table; see `reportRow()` in js/social-adminSettings.js. */
+$reportRow = function (\OCA\Social\Model\Report $report) use ($l, $moderation): void {
+	$target = $report->getTargetAccount();
+	$targetId = $target !== null ? $target->getId() : $report->getAccountId();
+	$level = $moderation[$targetId] ?? '';
+	?>
+	<tr data-report-id="<?php p((string)$report->getId()); ?>"
+		data-actor-id="<?php p($targetId); ?>">
+		<td>
+			<?php if ($target !== null): ?>
+				<a href="<?php p($target->getId()); ?>" target="_blank" rel="noreferrer noopener">
+					<?php p($target->getAccount() !== '' ? $target->getAccount() : $target->getPreferredUsername()); ?>
+				</a>
+			<?php else: ?>
+				<?php p($report->getAccountId()); ?>
+			<?php endif; ?>
+		</td>
+		<td>
+			<?php p($report->getActorId()); ?>
+			<?php if (!$report->isLocal()): ?>
+				<em>(<?php p($l->t('remote')); ?>)</em>
+			<?php endif; ?>
+		</td>
+		<td><?php p($report->getCategory()); ?></td>
+		<td><?php p($report->getComment()); ?></td>
+		<td class="social-report-statuses">
+			<?php foreach ($report->getStatusIds() as $statusId): ?>
+				<span class="social-report-status" data-stream-id="<?php p($statusId); ?>">
+					<?php if (str_starts_with($statusId, 'https://')): ?>
+						<a href="<?php p($statusId); ?>" target="_blank" rel="noreferrer noopener">↗</a>
+					<?php else: ?>
+						<?php p($statusId); ?>
+					<?php endif; ?>
+					<button type="button" class="social-status-remove"
+						title="<?php p($l->t('Take this post down')); ?>">
+						<?php p($l->t('Take down')); ?>
+					</button>
+				</span>
+			<?php endforeach; ?>
+		</td>
+		<td><?php p($report->getCreation() > 0 ? gmdate('Y-m-d H:i', $report->getCreation()) : ''); ?></td>
+		<td class="social-report-state">
+			<?php p($report->isResolved() ? $l->t('Resolved') : $l->t('Open')); ?>
+		</td>
+		<td class="social-moderation">
+			<span class="social-moderation-state"><?php
+				p($level === 'suspend' ? $l->t('Suspended') : ($level === 'silence' ? $l->t('Silenced') : ''));
+	?></span>
+			<button type="button" class="social-moderate" data-level="silence"
+				<?php if ($level === 'silence') {
+					p('disabled');
+				} ?>><?php p($l->t('Silence')); ?></button>
+			<button type="button" class="social-moderate" data-level="suspend"
+				<?php if ($level === 'suspend') {
+					p('disabled');
+				} ?>><?php p($l->t('Suspend')); ?></button>
+			<button type="button" class="social-moderate" data-level=""><?php p($l->t('Lift')); ?></button>
+		</td>
+		<td>
+			<button type="button" class="social-report-toggle"
+				data-resolved="<?php p($report->isResolved() ? '1' : '0'); ?>">
+				<?php p($report->isResolved() ? $l->t('Reopen') : $l->t('Resolve')); ?>
+			</button>
+		</td>
+	</tr>
+	<?php
+};
 ?>
 
 <div id="social-moderation" class="section">
 	<h2><?php p($l->t('Reports')); ?></h2>
 	<p class="settings-hint">
-		<?php p($l->t('Reports filed by the people on this instance and reports received from other instances.')); ?>
+		<?php p($l->t('Reports filed by the people on this instance and reports received from other instances. The open ones are here; the ones somebody has already dealt with are below them, folded away.')); ?>
 	</p>
 
-	<?php if (empty($reports)): ?>
-		<p><em><?php p($l->t('No reports.')); ?></em></p>
-	<?php else: ?>
-		<table class="grid social-reports">
+	<p id="social-reports-none" <?php if ($openReports > 0) {
+		p('hidden');
+	} ?>><em><?php p($l->t('No open reports.')); ?></em></p>
+
+	<table class="grid social-reports" id="social-reports-open" <?php if ($openReports === 0) {
+		p('hidden');
+	} ?>>
+		<thead>
+			<tr>
+				<?php foreach ($reportColumns as $column): ?>
+					<th><?php p($column); ?></th>
+				<?php endforeach; ?>
+			</tr>
+		</thead>
+		<tbody>
+			<?php foreach ($reports as $report) {
+				$reportRow($report);
+			} ?>
+		</tbody>
+	</table>
+
+	<p class="social-reports-paging" data-per-page="<?php p((string)$reportsPerPage); ?>">
+		<span id="social-reports-open-count" data-total="<?php p((string)$openReports); ?>">
+			<?php p($l->n('%n open report.', '%n open reports.', $openReports)); ?>
+		</span>
+		<button type="button" id="social-reports-more" <?php if ($openReports <= $reportsPerPage) {
+			p('hidden');
+		} ?>><?php p($l->t('Show more')); ?></button>
+	</p>
+
+	<details id="social-reports-resolved-section" <?php if ($resolvedReports === 0) {
+		p('hidden');
+	} ?>>
+		<summary><?php p($l->n('%n resolved report', '%n resolved reports', $resolvedReports)); ?></summary>
+
+		<table class="grid social-reports" id="social-reports-resolved">
 			<thead>
 				<tr>
-					<th><?php p($l->t('Reported account')); ?></th>
-					<th><?php p($l->t('Reporter')); ?></th>
-					<th><?php p($l->t('Category')); ?></th>
-					<th><?php p($l->t('Comment')); ?></th>
-					<th><?php p($l->t('Statuses')); ?></th>
-					<th><?php p($l->t('Date')); ?></th>
-					<th><?php p($l->t('Status')); ?></th>
-					<th><?php p($l->t('Account')); ?></th>
-					<th></th>
+					<?php foreach ($reportColumns as $column): ?>
+						<th><?php p($column); ?></th>
+					<?php endforeach; ?>
 				</tr>
 			</thead>
-			<tbody>
-			<?php foreach ($reports as $report): ?>
-				<?php $target = $report->getTargetAccount(); ?>
-				<?php $targetId = $target !== null ? $target->getId() : $report->getAccountId(); ?>
-				<tr data-report-id="<?php p((string)$report->getId()); ?>"
-					data-actor-id="<?php p($targetId); ?>">
-					<td>
-						<?php if ($target !== null): ?>
-							<a href="<?php p($target->getId()); ?>" target="_blank" rel="noreferrer noopener">
-								<?php p($target->getAccount() !== '' ? $target->getAccount() : $target->getPreferredUsername()); ?>
-							</a>
-						<?php else: ?>
-							<?php p($report->getAccountId()); ?>
-						<?php endif; ?>
-					</td>
-					<td>
-						<?php p($report->getActorId()); ?>
-						<?php if (!$report->isLocal()): ?>
-							<em>(<?php p($l->t('remote')); ?>)</em>
-						<?php endif; ?>
-					</td>
-					<td><?php p($report->getCategory()); ?></td>
-					<td><?php p($report->getComment()); ?></td>
-					<td class="social-report-statuses">
-						<?php foreach ($report->getStatusIds() as $statusId): ?>
-							<span class="social-report-status" data-stream-id="<?php p($statusId); ?>">
-								<?php if (str_starts_with($statusId, 'https://')): ?>
-									<a href="<?php p($statusId); ?>" target="_blank" rel="noreferrer noopener">↗</a>
-								<?php else: ?>
-									<?php p($statusId); ?>
-								<?php endif; ?>
-								<button type="button" class="social-status-remove"
-									title="<?php p($l->t('Take this post down')); ?>">
-									<?php p($l->t('Take down')); ?>
-								</button>
-							</span>
-						<?php endforeach; ?>
-					</td>
-					<td><?php p($report->getCreation() > 0 ? gmdate('Y-m-d H:i', $report->getCreation()) : ''); ?></td>
-					<td class="social-report-state">
-						<?php p($report->isResolved() ? $l->t('Resolved') : $l->t('Open')); ?>
-					</td>
-					<td class="social-moderation">
-						<span class="social-moderation-state"><?php
-							$level = $moderation[$targetId] ?? '';
-				p($level === 'suspend' ? $l->t('Suspended') : ($level === 'silence' ? $l->t('Silenced') : ''));
-				?></span>
-						<button type="button" class="social-moderate" data-level="silence"
-							<?php if ($level === 'silence') {
-								p('disabled');
-							} ?>><?php p($l->t('Silence')); ?></button>
-						<button type="button" class="social-moderate" data-level="suspend"
-							<?php if ($level === 'suspend') {
-								p('disabled');
-							} ?>><?php p($l->t('Suspend')); ?></button>
-						<button type="button" class="social-moderate" data-level=""><?php p($l->t('Lift')); ?></button>
-					</td>
-					<td>
-						<button type="button" class="social-report-toggle"
-							data-resolved="<?php p($report->isResolved() ? '1' : '0'); ?>">
-							<?php p($report->isResolved() ? $l->t('Reopen') : $l->t('Resolve')); ?>
-						</button>
-					</td>
-				</tr>
-			<?php endforeach; ?>
-			</tbody>
+			<tbody></tbody>
 		</table>
-	<?php endif; ?>
+
+		<p>
+			<button type="button" id="social-reports-resolved-more" hidden><?php p($l->t('Show more')); ?></button>
+		</p>
+	</details>
 </div>
 
 <div id="social-accounts" class="section">
@@ -301,3 +354,81 @@ $moderation = $_['moderation'];
 		<button type="button" id="social-announcement-add"><?php p($l->t('Post announcement')); ?></button>
 	</p>
 </div>
+
+<?php if ($server !== null): ?>
+<div id="social-server" class="section">
+	<h2><?php p($l->t('Server')); ?></h2>
+	<p class="settings-hint">
+		<?php p($l->t('What this instance tells other servers and their clients about itself, and the limits it holds them to. Every one of these could only be set with "occ config:app:set social" until now, which meant most of them were never set at all.')); ?>
+	</p>
+
+	<p>
+		<label for="social-server-contact-email"><?php p($l->t('Contact address')); ?></label>
+		<input type="email" id="social-server-contact-email" size="40"
+			placeholder="admin@instance.example"
+			value="<?php p($server['contact_email']); ?>">
+		<em class="settings-hint"><?php p($l->t('Shown to anybody asking this server what it is. Clients read it on their first request.')); ?></em>
+	</p>
+
+	<p>
+		<label for="social-server-extended-description"><?php p($l->t('About this instance')); ?></label><br>
+		<textarea id="social-server-extended-description" rows="4" cols="60"
+			placeholder="<?php p($l->t('Who runs this server, who it is for, and what is expected of the people on it.')); ?>"><?php p($server['extended_description']); ?></textarea>
+	</p>
+
+	<p>
+		<label for="social-server-max-size"><?php p($l->t('Largest picture or file (MB)')); ?></label>
+		<input type="number" id="social-server-max-size" min="1" max="10240"
+			value="<?php p((string)$server['max_size']); ?>">
+		<label for="social-server-max-video-size"><?php p($l->t('Largest video (MB)')); ?></label>
+		<input type="number" id="social-server-max-video-size" min="1" max="102400"
+			value="<?php p((string)$server['max_video_size']); ?>">
+	</p>
+
+	<p>
+		<label for="social-server-inbox-throttle"><?php p($l->t('Inbox requests allowed per instance per minute')); ?></label>
+		<input type="number" id="social-server-inbox-throttle" min="0" max="100000"
+			value="<?php p((string)$server['inbox_throttle']); ?>">
+		<em class="settings-hint"><?php p($l->t('0 accepts everything, which is what an instance behind its own rate limiter wants.')); ?></em>
+	</p>
+
+	<p>
+		<label for="social-server-secure-mode">
+			<input type="checkbox" id="social-server-secure-mode"
+				<?php if ($server['secure_mode']) {
+					p('checked');
+				} ?>>
+			<?php p($l->t('Secure mode')); ?>
+		</label>
+		<em class="settings-hint"><?php p($l->t('Unsigned ActivityPub fetches are refused. Servers that do not sign what they ask for — and every anonymous reader — stop seeing anything from this one.')); ?></em>
+	</p>
+
+	<p>
+		<label for="social-server-publish-blocks">
+			<input type="checkbox" id="social-server-publish-blocks"
+				<?php if ($server['publish_blocks']) {
+					p('checked');
+				} ?>>
+			<?php p($l->t('Publish the list of blocked instances')); ?>
+		</label>
+		<em class="settings-hint"><?php p($l->t('Anybody can then read which instances this server refuses, the way Mastodon publishes it.')); ?></em>
+	</p>
+
+	<p>
+		<label for="social-server-allow-self-signed">
+			<input type="checkbox" id="social-server-allow-self-signed"
+				<?php if ($server['allow_self_signed']) {
+					p('checked');
+				} ?>>
+			<?php p($l->t('Accept certificates that do not check out')); ?>
+		</label>
+		<strong><?php p($l->t('For development only.')); ?></strong>
+		<em class="settings-hint"><?php p($l->t('On a server anybody else uses, this hands every federated request to whoever can answer for the address.')); ?></em>
+	</p>
+
+	<p>
+		<button type="button" id="social-server-save"><?php p($l->t('Save')); ?></button>
+		<span id="social-server-message" role="status"></span>
+	</p>
+</div>
+<?php endif; ?>
