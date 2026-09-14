@@ -189,55 +189,61 @@
 			class="post-actions-reveal"
 			:class="{ 'post-actions-reveal--held': menuOpen }">
 			<div class="post-actions">
-				<div class="post-action-group">
-					<NcButton
-						:title="t('social', 'Reply')"
-						:aria-label="t('social', 'Reply')"
-						variant="tertiary"
-						@click="reply">
-						<template #icon>
-							<Reply :size="20" />
-						</template>
-					</NcButton>
-					<RollingCount :count="item.replies_count || 0" />
-				</div>
-				<div
-					class="post-action-group"
-					:class="{ 'post-action-group--refused': refused === 'boost' }">
-					<NcButton
-						v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
-						:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-						:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-						:aria-pressed="isBoosted ? 'true' : 'false'"
-						variant="tertiary"
-						:class="{ 'post-action--spun': celebrate === 'boost' }"
-						@click="boost">
-						<template #icon>
-							<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
-						</template>
-					</NcButton>
-					<RollingCount :count="item.reblogs_count || 0" />
-				</div>
-				<div
-					class="post-action-group post-action-group--like"
-					:class="{ 'post-action-group--refused': refused === 'like' }">
-					<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
-					<!-- one button whose label changes, not two swapped by v-if:
-					     unmounting the button someone just pressed drops their focus
-					     to the body and loses their place in the timeline -->
-					<NcButton
-						:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-						:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-						:aria-pressed="isLiked ? 'true' : 'false'"
-						variant="tertiary"
-						:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
-						@click="like">
-						<template #icon>
-							<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
-							<HeartOutline v-else :size="20" />
-						</template>
-					</NcButton>
-					<RollingCount :count="item.favourites_count || 0" />
+				<!-- everything but the menu lives in the rail, which is what
+				     widens; the menu is the pill at rest and never moves -->
+				<div class="post-actions__rail">
+					<div class="post-actions__groups">
+						<div class="post-action-group">
+							<NcButton
+								:title="t('social', 'Reply')"
+								:aria-label="t('social', 'Reply')"
+								variant="tertiary"
+								@click="reply">
+								<template #icon>
+									<Reply :size="20" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.replies_count || 0" />
+						</div>
+						<div
+							class="post-action-group"
+							:class="{ 'post-action-group--refused': refused === 'boost' }">
+							<NcButton
+								v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+								:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+								:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+								:aria-pressed="isBoosted ? 'true' : 'false'"
+								variant="tertiary"
+								:class="{ 'post-action--spun': celebrate === 'boost' }"
+								@click="boost">
+								<template #icon>
+									<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.reblogs_count || 0" />
+						</div>
+						<div
+							class="post-action-group post-action-group--like"
+							:class="{ 'post-action-group--refused': refused === 'like' }">
+							<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
+							<!-- one button whose label changes, not two swapped by v-if:
+							     unmounting the button someone just pressed drops their focus
+							     to the body and loses their place in the timeline -->
+							<NcButton
+								:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+								:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+								:aria-pressed="isLiked ? 'true' : 'false'"
+								variant="tertiary"
+								:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
+								@click="like">
+								<template #icon>
+									<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
+									<HeartOutline v-else :size="20" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.favourites_count || 0" />
+						</div>
+					</div>
 				</div>
 				<!-- the menu opens in a portal, so the pointer leaving the card
 				     while it is open would take the row it belongs to away -->
@@ -1289,7 +1295,10 @@ function nodeToPlainText(node) {
 }
 
 .post-content {
-	padding: 18px 20px 14px;
+	/* the bottom padding is what the pill sits in: it is 20px so that the
+	   whole of the pill is either in this padding or in the 14px gap below the
+	   card, and none of it is over anything anybody is reading */
+	padding: 18px 20px 20px;
 	font-size: 15px;
 	line-height: 1.65;
 	border-radius: 8px;
@@ -1311,39 +1320,15 @@ function nodeToPlainText(node) {
 		box-shadow: 0 0 0 2px var(--color-primary-element-light);
 	}
 
-	/*
-	 * `focus-within` is not decoration here: it is the whole of the keyboard
-	 * path. Tabbing into a card has to bring up the same row the pointer does,
-	 * or the buttons are focusable and invisible.
-	 */
-	&:hover .post-actions-reveal,
-	&:focus-within .post-actions-reveal,
-	.post-actions-reveal--held {
-		opacity: 1;
-		pointer-events: auto;
-		transform: translateY(0);
-
-		.post-actions > * {
-			transform: translateY(0);
-		}
-
-		/* each one a beat behind the last, left to right, so the row arrives as
-		   a movement rather than as four things at once */
-		.post-actions > :nth-child(1) { transition-delay: .04s; }
-		.post-actions > :nth-child(2) { transition-delay: .075s; }
-		.post-actions > :nth-child(3) { transition-delay: .11s; }
-		.post-actions > :nth-child(4) { transition-delay: .145s; }
-	}
-
-	/* the seam: while the panel is out, the card's own bottom edge is not an
-	   edge, so its corners square off and its border stops short */
+	/* The card keeps its own shape now. What used to happen here — the bottom
+	   corners squaring off and the bottom border going transparent — was the
+	   seam between the card and a panel as wide as it was. The pill is not that
+	   wide and is not part of the card's outline, so there is no seam to hide.
+	   The stacking order still has to change: the pill hangs into the gap and
+	   the card below it comes later in the document. */
 	&:hover,
 	&:focus-within,
 	&:has(.post-actions-reveal--held) {
-		border-end-start-radius: 0;
-		border-end-end-radius: 0;
-		border-block-end-color: transparent;
-		/* over the card below, which has not moved */
 		z-index: 4;
 	}
 
@@ -1539,66 +1524,106 @@ function nodeToPlainText(node) {
 
 	/*
 	 * The action row is the loudest thing in a card and the least often used:
-	 * somebody scrolling a timeline is reading, not boosting. So the card is
-	 * only as tall as what somebody is reading, and grows to make room for the
-	 * row when the pointer arrives.
+	 * somebody scrolling a timeline is reading, not boosting. So a card at rest
+	 * carries nothing at all, and what arrives when the pointer does is one
+	 * pill in the bottom-right corner: it fades in at the width of the overflow
+	 * menu and widens to the left to let the rest of the row out.
 	 *
-	 * A grid whose single row goes from `0fr` to `1fr` is what animates that:
-	 * a height nobody can know in advance — the row wraps on a narrow window,
-	 * and a count going from 9 to 10 is another pixel — cannot be transitioned
-	 * any other way. `max-height` needs a number big enough to be wrong, and
-	 * `height: auto` does not interpolate anywhere this app can rely on yet.
-	 */
-	/*
-	 * The row opens *out of* the card rather than inside it: a panel positioned
-	 * against the card's bottom edge, carrying the card's own background,
-	 * borders and corners so it reads as the card growing.
+	 * Only the pill changes size. The card does not grow, nothing below it
+	 * moves, and — unlike the full-width panel this replaces — the pill is
+	 * short enough to live in the card's own bottom padding and the fourteen
+	 * pixels of gap below it, so it covers no part of the next card.
 	 *
-	 * It is out of flow, which is the point. A row that took layout space made
-	 * every card below the pointer jump down by its height and back up again on
-	 * the way out, so running the pointer down a timeline set the whole page
-	 * twitching — and a reader chasing a moving target cannot aim. Nothing below
-	 * the hovered card moves now.
+	 * A grid whose single column goes from `0fr` to `1fr` is what animates the
+	 * width, for the same reason the height of a thing like this cannot be
+	 * animated any other way: the row's width is not knowable in advance. A
+	 * reply count going from 9 to 10 is another pixel, the icons are a
+	 * translation away from being wider, and `width: auto` does not interpolate
+	 * anywhere this app can rely on yet.
 	 *
-	 * It begins 8px above the card's bottom edge, inside the card's own bottom
-	 * padding, which is empty. That is 8px it does not have to spend on the
-	 * 14px gap to the next card, so of a 42px panel only about 20px reaches the
-	 * card below — 18px of which is that card's top padding. It covers two
-	 * pixels of anything anybody is reading, and only while the pointer is on
-	 * the card above it.
+	 * The menu is deliberately outside the rail: it is the part the pill is as
+	 * wide as when it arrives, and keeping it out of the animating column is
+	 * what stops it drifting sideways while the pill opens.
+	 *
+	 * Nothing here is discoverable without a pointer, which is a real cost and
+	 * a deliberate one — a mark on every card in a timeline is a hundred marks
+	 * on a screen. Touch does not pay it: see the `hover: none` block at the
+	 * end of this file, where the row is not a pill at all.
 	 */
 	.post-actions-reveal {
 		position: absolute;
-		top: calc(100% - 8px);
-		inset-inline: -1px;
+		/* 20px of the pill sits in the card's own bottom padding and 12px
+		   hangs into the 14px gap: it covers neither the text above it nor the
+		   card below it */
+		top: calc(100% - 20px);
+		inset-inline-end: 14px;
 		z-index: 2;
-		padding: 0 20px 8px;
+		display: flex;
+		padding: 1px;
 		background: var(--color-main-background);
 		border: 1px solid var(--color-primary-element);
-		border-block-start: none;
-		border-end-start-radius: 8px;
-		border-end-end-radius: 8px;
+		border-radius: 999px;
 		box-shadow: var(--social-elevation-raised);
+		/* nothing at all on a card nobody is pointing at */
 		opacity: 0;
-		/* it is not there to be clicked until it is there to be seen */
 		pointer-events: none;
-		transform: translateY(-8px);
-		transition:
-			opacity .16s ease,
-			transform .3s cubic-bezier(.22, 1.2, .48, 1);
+		transition: opacity .14s ease;
+	}
+
+	/*
+	 * `focus-within` is not decoration here: it is the whole of the keyboard
+	 * path. Tabbing into a card has to open the same pill the pointer does, or
+	 * the buttons are focusable and invisible.
+	 */
+	&:hover .post-actions-reveal,
+	&:focus-within .post-actions-reveal,
+	.post-actions-reveal--held {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	&:hover .post-actions__rail,
+	&:focus-within .post-actions__rail,
+	.post-actions-reveal--held .post-actions__rail {
+		grid-template-columns: 1fr;
+
+		.post-action-group {
+			opacity: 1;
+		}
+
+		/* each one a beat behind the last, so the row arrives as a movement
+		   rather than as three things at once */
+		.post-action-group:nth-child(1) { transition-delay: .1s; }
+		.post-action-group:nth-child(2) { transition-delay: .14s; }
+		.post-action-group:nth-child(3) { transition-delay: .18s; }
+	}
+
+	.post-actions__rail {
+		display: grid;
+		grid-template-columns: 0fr;
+		transition: grid-template-columns .34s cubic-bezier(.22, 1.1, .4, 1);
+	}
+
+	.post-actions__groups {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		/* the two halves of the column trick: the track may be zero wide, and
+		   what is in it must be willing to be clipped rather than set a floor
+		   under the track */
+		min-inline-size: 0;
+		overflow: hidden;
+
+		.post-action-group {
+			opacity: 0;
+			transition: opacity .18s ease;
+		}
 	}
 
 	.post-actions {
 		display: flex;
 		align-items: center;
 		gap: 2px;
-		padding-top: 8px;
-		border-top: 1px solid var(--color-border);
-
-		> * {
-			transform: translateY(4px);
-			transition: transform .34s cubic-bezier(.22, 1.4, .48, 1);
-		}
 
 		.post-action-group {
 			display: inline-flex;
@@ -1621,13 +1646,17 @@ function nodeToPlainText(node) {
 			}
 		}
 
+		/* 28px rather than the 34px a button is elsewhere: this is a
+		   secondary row, and the pill has to be short enough to fit between
+		   the text and the next card. Still above the 24px floor a pointer
+		   target has. */
 		:deep(.button-vue--icon-only) {
-			min-height: 36px;
-			min-width: 36px;
+			min-height: 28px;
+			min-width: 28px;
 		}
 
-		:deep(.actions) {
-			margin-inline-start: auto;
+		:deep(.button-vue) {
+			border-radius: 999px;
 		}
 	}
 }
@@ -1829,14 +1858,10 @@ function nodeToPlainText(node) {
 }
 
 /*
- * A finger cannot hover. On a touch screen there is no state in which the row
- * would ever appear, so it is simply always there.
- */
-/*
- * A finger cannot hover, so on a touch screen the row is simply always there —
- * and a panel that is always there cannot be the floating one, which would sit
- * over the top of the next card for ever. It goes back into the card's flow,
- * where it takes its own space and pushes nothing, because nothing is moving.
+ * A finger cannot hover, so on a touch screen there is no state in which the
+ * pill would ever open. It is not a pill there: the row goes back into the
+ * card's flow, open, where it takes its own space and pushes nothing, because
+ * nothing is moving.
  */
 @media (hover: none) {
 	.post-content .post-actions-reveal {
@@ -1844,33 +1869,44 @@ function nodeToPlainText(node) {
 		padding: 0;
 		background: none;
 		border: none;
+		border-radius: 0;
 		box-shadow: none;
+		/* the base state hides the pill until a pointer arrives, and none ever
+		   does here */
 		opacity: 1;
 		pointer-events: auto;
-		transform: none;
 	}
 
 	.post-content .post-actions {
 		margin-top: 10px;
+		padding-top: 8px;
+		border-top: 1px solid var(--color-border);
+	}
 
-		> * {
-			transform: none;
-		}
+	.post-content .post-actions__rail {
+		grid-template-columns: 1fr;
+	}
+
+	.post-content .post-action-group {
+		opacity: 1;
+	}
+
+	/* the menu goes back to the far end of a full-width row */
+	.post-content .post-actions :deep(.actions) {
+		margin-inline-start: auto;
 	}
 }
 
 /*
  * Reduced motion takes the movement away, not the reveal: the row still has to
- * arrive when the pointer does, it just stops travelling to get there.
+ * arrive when the pointer does, it just stops widening to get there.
  */
 @media (prefers-reduced-motion: reduce) {
-	.post-content .post-actions-reveal {
-		transform: none;
-		transition: opacity .01ms linear;
+	.post-content .post-actions__rail {
+		transition-duration: .01ms;
 	}
 
-	.post-content .post-actions > * {
-		transform: none;
+	.post-content .post-action-group {
 		transition: none;
 		transition-delay: 0ms !important;
 	}
