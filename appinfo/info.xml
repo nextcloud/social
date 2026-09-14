@@ -36,6 +36,12 @@ What it does:
 - 🔗 A link to a post or a profile here unfurls into a card in Talk, Text and Deck
 - 🕘 Follows, mentions, boosts and favourites show in the Activity app too, and in its digest mail for those who turn that on
 - 🗓️ A composer that says what a post is: the language it is written in, a clock to publish it later (with the waiting posts listed in Settings), and a crosshair that says where the subject of a picture is
+- 😀 Emoji reactions on a post, federated as EmojiReact, with the faces behind each one
+- 💬 Quote posts, carrying the original author's permission on the wire
+- 😀 Custom emoji of this instance's own, added with occ social:emoji and rendered on servers that have never seen them
+- 🎞️ A GIF picker in the composer, backed by the instance's own library rather than a third party
+- 📈 A statistics page for the instance, and profile highlights showing what somebody posts about
+- 🕰️ On this day, and a weekly recap of what you missed
 
 You can pin your own posts to the top of your profile, bookmark any post, and see which hashtags the instance is using most. This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. Polls are fully supported: create your own, and view and vote on federated ones. Profiles carry an avatar, a banner image and up to four profile metadata fields. Posts that link somewhere get a link preview card. Image (JPEG, PNG, GIF, WebP, AVIF, and HEIC from an iPhone where the server can read it), video (MP4, WebM, QuickTime) and audio attachments are supported, up to ten per post, each with alt text and a focal point. Third-party Mastodon clients cannot reach the API yet, because it is served under the app's own path rather than at the domain root; there is no streaming API, no push subscriptions and no post translation.]]></description>
 	<version>0.19.94</version>
@@ -46,7 +52,12 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 	<website>https://github.com/nextcloud/social</website>
 	<bugs>https://github.com/nextcloud/social/issues</bugs>
 	<repository type="git">https://github.com/nextcloud/social.git</repository>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/readme/home.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/readme/photos.jpg</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/readme/composer.jpg</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/readme/discover.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/readme/thread.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/readme/admin.png</screenshot>
 	<dependencies>
 		<php min-version="8.3" max-version="8.5" />
 		<database>pgsql</database>
