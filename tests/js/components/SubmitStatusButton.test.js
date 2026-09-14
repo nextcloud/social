@@ -45,6 +45,18 @@ describe('SubmitStatusButton', () => {
 		expect(wrapper.emitted('click')).toBeUndefined()
 	})
 
+	/**
+	 * Pressing "Post to followers" and having nothing appear is a button that
+	 * lied: a post going out later says so, whatever its audience.
+	 */
+	it('says Schedule for a post that is not going out now', () => {
+		const button = mountButton({ visibility: 'followers', disabled: false, scheduled: true }).find('button')
+
+		expect(button.text()).toBe('Schedule')
+		expect(button.find('.clock-outline-icon').exists()).toBe(true)
+		expect(button.find('.send-icon').exists()).toBe(false)
+	})
+
 	it('updates the label when the visibility changes', async () => {
 		const wrapper = mountButton({ visibility: 'public', disabled: false })
 		await wrapper.setProps({ visibility: 'direct' })

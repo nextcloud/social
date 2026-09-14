@@ -507,6 +507,27 @@ export const useTimelineStore = defineStore('timeline', {
 		},
 
 		/**
+		 * Tells the server where the subject of an attachment is, so a square
+		 * crop — the profile grid here, the timeline on Mastodon — keeps it in
+		 * frame. The same `PUT` the description travels by; it federates as
+		 * `focalPoint`.
+		 *
+		 * @param {object} media the attachment
+		 * @param {string} media.id its id on this server
+		 * @param {string} media.focus Mastodon's `x,y`, each from -1 to 1
+		 */
+		async focusMedia({ id, focus }) {
+			try {
+				await axios.put(generateUrl('apps/social/api/v1/media/' + id), { focus })
+			} catch (error) {
+				// the picture is still attached and still centred, which is
+				// what it was before the point was set
+				showError(t('social', 'Could not save the focal point of an attachment'))
+				logger.error('Failed to set the focal point of a media', { error })
+			}
+		},
+
+		/**
 		 * Uploads one attachment.
 		 *
 		 * @param {File|object} payload the file, or `{file, onProgress}`

@@ -55,6 +55,8 @@ class PostServiceTest extends TestCase {
 	private const GENERATED_ID = 'https://social.example/@alice/1234567890';
 	private const BOB_ID = 'https://remote.example/users/bob';
 	private const BOB_SHARED_INBOX = 'https://remote.example/inbox';
+	private const CAROL_ID = 'https://third.example/users/carol';
+	private const CAROL_INBOX = 'https://third.example/users/carol/inbox';
 
 	private StreamRequest|MockObject $streamRequest;
 	private AccountService|MockObject $accountService;
@@ -136,6 +138,17 @@ class PostServiceTest extends TestCase {
 		$bob->setSharedInbox(self::BOB_SHARED_INBOX);
 
 		return $bob;
+	}
+
+	/** Someone else in the conversation, on a third server that publishes no shared inbox. */
+	private function carol(): Person {
+		$carol = new Person();
+		$carol->setId(self::CAROL_ID);
+		$carol->setPreferredUsername('carol');
+		$carol->setAccount('carol@third.example');
+		$carol->setInbox(self::CAROL_INBOX);
+
+		return $carol;
 	}
 
 	private function post(string $content, string $type = Stream::TYPE_PUBLIC): Post {
@@ -381,6 +394,55 @@ class PostServiceTest extends TestCase {
 		$this->assertSame('https://remote.example/inbox', $paths[1]->getUri());
 		$this->assertSame(InstancePath::TYPE_INBOX, $paths[1]->getType());
 		$this->assertSame(InstancePath::PRIORITY_HIGH, $paths[1]->getPriority());
+	}
+
+	/**
+	 * A reply is addressed like any other post: `replyTo()` addresses the
+	 * author of the parent, and everybody the text names is addressed the way
+	 * a mention always is — a `cc` entry, a `Mention` tag and an inbox of
+	 * their own. What was missing was the naming: the composer prefilled the
+	 * author alone, so the third person in a conversation was told nothing.
+	 *
+	 * The handles are separated by the non-breaking space the composer puts
+	 * between two mention pills, because that is what the server is handed.
+	 */
+	public function testAReplyReachesEveryParticipantOfTheConversation(): void {
+		$parentId = 'https://remote.example/notes/parent';
+		$parent = new Note();
+		$parent->setId($parentId);
+		$parent->setAttributedTo(self::BOB_ID);
+		$this->streamRequest->method('getStreamById')->with($parentId)->willReturn($parent);
+		$this->cacheActorService->method('getFromId')->with(self::BOB_ID)->willReturn($this->bob());
+		$this->cacheActorService->method('getFromAccount')->willReturnMap([
+			['bob@remote.example', true, $this->bob()],
+			['carol@third.example', true, $this->carol()],
+		]);
+		$this->expectCreateActivity($note);
+
+		$post = $this->post("@bob@remote.example\u{00a0}@carol@third.example I agree");
+		$post->setReplyTo($parentId);
+		$this->service->createPost($post);
+
+		$this->assertSame(
+			['@bob@remote.example', '@carol@third.example'],
+			array_column($note->getTags('Mention'), 'name')
+		);
+		$this->assertSame(
+			[self::BOB_ID, self::CAROL_ID],
+			array_values(array_diff($note->getCcArray(), [self::ACTOR_FOLLOWERS]))
+		);
+
+		$inboxes = array_map(
+			fn (InstancePath $path): string => $path->getUri(),
+			array_filter(
+				$note->getInstancePaths(),
+				fn (InstancePath $path): bool => $path->getType() === InstancePath::TYPE_INBOX
+			)
+		);
+		$this->assertContains(self::BOB_SHARED_INBOX, $inboxes);
+		// a server with no shared inbox is reached at the personal one, which
+		// is the only address Carol has
+		$this->assertContains(self::CAROL_INBOX, $inboxes);
 	}
 
 	public function testCreatePostToUnknownReplyTargetFailsBeforeAnythingIsSent(): void {

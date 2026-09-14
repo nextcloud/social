@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.80  
+**App version:** 0.19.81  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -787,7 +787,7 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 
 ### Components
 
-`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `FirstRun` (the four-step introduction a new account sees once, in place of the beta banner: the address, the colleagues and starter packs from the same routes Discover reads, the follows import Settings offers, and a hand-off to the composer), `FirstPostCelebration`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `FirstRun` (the four-step introduction a new account sees once, in place of the beta banner: the address, the colleagues and starter packs from the same routes Discover reads, the follows import Settings offers, and a hand-off to the composer), `FirstPostCelebration`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`, `LanguageSelect`), `ScheduledPosts` (the posts waiting to go out, in Settings), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
 
 `ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
 (a file, or the address of one), the bio and the metadata fields. The banner
@@ -805,6 +805,59 @@ in the DOM, so the tab order follows the eye — and the box becomes a caption
 field. A picture with no alt text is marked as such on its own thumbnail, and a
 description is saved on leaving the field rather than only when the post goes
 out, so it survives a post that is never sent.
+
+**What a post says about itself.** Three controls in the same toolbar row as
+the visibility menu, each of them a field the client API has always taken and
+the composer never sent.
+
+`LanguageSelect.vue` is an icon-sized `NcActions` wearing the current code,
+defaulting to the reader's Nextcloud language without its region
+(`src/utils/postLanguage.js`: `getLanguage()` says how the interface is
+spelled, `de-DE`, while Mastodon's per-language filters are keyed by the plain
+`de`) and remembering the last choice in `localStorage` the way the visibility
+menu does. It is sent as `language` on every post: the server would fill in the
+same default (`PostService::languageFor()`), but a guess the poster can see is
+one they can correct, and a post that federates with `language: null` is seen
+neither by the readers who filter for a language nor by the ones who filter one
+out. The languages on offer are the ones Nextcloud itself is translated into,
+named at run time by `Intl.DisplayNames` so the list carries no names to
+translate.
+
+**Scheduling** is the clock beside the poll button. `NcDateTimePicker` is a
+date library and its locales, so it is a `defineAsyncComponent` fetched when
+the clock is pressed rather than with every composer — the same treatment the
+emoji picker gets. Pressing it proposes an hour from now rounded to five
+minutes; the minimum is five minutes out, which is `ScheduledStatusService`'s
+`MIN_LEAD_TIME`, checked here as well so the refusal arrives while the time can
+still be moved. With a time set the Post button reads **Schedule**, the payload
+carries `scheduled_at` as ISO 8601 in UTC, and the answer is a `ScheduledStatus`
+rather than a `Status`: nothing is on a timeline yet, so the composer refreshes
+nothing, celebrates nothing, and says when the post will go out instead.
+`ScheduledPosts.vue` lists what is waiting, in a section of Settings rather
+than a page of its own — the list is short (an account may hold 300), what is
+done with an entry is one thing, and a `post-scheduled` event on the bus keeps
+it in step with the dialog that opens over it. Moving one to another time is
+left to the API.
+
+**The focal point** is the crosshair on a thumbnail in `PreviewGridItem.vue`,
+beside the alt text and saved by the same `PUT /api/v1/media/{id}`. The whole
+picture becomes the control while the point is being set — pressed, dragged or
+moved by the arrow keys, which is the only way to set one without a pointer —
+and a badge on the thumbnail says a point is set once the editor is closed.
+`src/utils/focalPoint.js` holds the three conversions in one place: the browser
+measures a pointer from the top left with y pointing down, Mastodon reads a
+point from the centre with y pointing *up*, and CSS wants two percentages from
+the top left again. `ProfileMediaGrid.vue` crops its tiles through the same
+function, so the editor and the grid cannot disagree about which way is up.
+
+**A reply reaches the conversation.** `prefillMessageWithMentions()` starts a
+reply with a pill per participant — the author of the post being answered, then
+everyone that post mentioned, deduped by full handle and never the reader
+themselves. It used to insert the author alone, so an answer in a conversation
+of three reached one of three: the server turns the handles in the text into
+recipients, `Mention` tags and inboxes (`PostService::fixRecipientAndHashtags()`
+into `StreamService::addRecipient()`), and it can only address the people the
+text names.
 
 **Phone layout.** One breakpoint, 600px, stated twice on purpose: as `PHONE_WIDTH` in `src/services/phone.js` (a shared `matchMedia` query with `isPhone()` and `onPhoneChange()`) and as the `@media (max-width: 600px)` rule in the stylesheets that lay themselves out differently on a phone — `TimelineEntry.vue` (the avatar column goes; the face, 36px, sits inside the card over the corner `.post-header` leaves for it, which is why `TimelineAvatar` takes a `size`), `TimelinePost.vue` (less padding), `TimelineSinglePost.vue` (the 64px the fine print and the spine kept for the avatar column), and `Composer.vue` (the toolbar wraps, the visibility menu is icon-only, Post keeps the end of its row). Nextcloud's own mobile breakpoint, 1024px, is where the sidebar collapses; the only rule at that width is `Timeline.vue`'s, which starts the page's first element below the sidebar toggle. A tablet in portrait is between the two and keeps the avatar column.
 

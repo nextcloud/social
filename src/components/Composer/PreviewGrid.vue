@@ -36,6 +36,8 @@
 				@delete="deletePreview"
 				@describe="$emit('describe', $event)"
 				@commitDescription="$emit('commitDescription', $event)"
+				@focus="$emit('focus', $event)"
+				@commitFocus="$emit('commitFocus', $event)"
 				@filter="$emit('filter', $event)" />
 		</div>
 	</div>
@@ -77,7 +79,7 @@ export default {
 		},
 	},
 
-	emits: ['deleted', 'describe', 'commitDescription', 'filter'],
+	emits: ['deleted', 'describe', 'commitDescription', 'focus', 'commitFocus', 'filter'],
 
 	computed: {
 		/** @return {number} how many pictures the post is carrying */

@@ -6,8 +6,10 @@
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getFilePickerBuilder } from '@nextcloud/dialogs'
-import { showError } from '../../../src/services/toast.js'
+import { setLanguage } from '@nextcloud/l10n'
+import { showError, showSuccess } from '../../../src/services/toast.js'
 import Composer from '../../../src/components/Composer/Composer.vue'
+import LanguageSelect from '../../../src/components/Composer/LanguageSelect.vue'
 import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vue'
 import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusButton.vue'
 import VisibilitySelect from '../../../src/components/Visibility/VisibilitySelect.vue'
@@ -29,6 +31,22 @@ vi.mock('@nextcloud/dialogs', () => ({
 }))
 vi.mock('../../../src/services/toast.js', () => ({
 	showError: vi.fn(),
+	showSuccess: vi.fn(),
+}))
+
+// The date picker is a date library and its locales, fetched when the clock
+// is pressed. What the composer does with it is hand it a time and take one
+// back, so a stub that does exactly that stands in for the calendar.
+vi.mock('@nextcloud/vue/components/NcDateTimePicker', () => ({
+	// `__esModule` is what tells defineAsyncComponent that this is a module
+	// with a default export rather than the component itself
+	__esModule: true,
+	default: {
+		name: 'NcDateTimePicker',
+		props: ['modelValue', 'min', 'type', 'minuteStep', 'clearable', 'ariaLabel'],
+		emits: ['update:modelValue'],
+		template: '<div class="date-picker-stub" />',
+	},
 }))
 
 const media = {
@@ -101,6 +119,7 @@ function mountComposer(props = {}) {
 	vi.spyOn(store, 'createMediaFromFile').mockResolvedValue(media)
 	vi.spyOn(store, 'post').mockResolvedValue({ id: 'new-1' })
 	vi.spyOn(store, 'describeMedia').mockResolvedValue(undefined)
+	vi.spyOn(store, 'focusMedia').mockResolvedValue(undefined)
 	vi.spyOn(store, 'refreshTimeline').mockResolvedValue(undefined)
 	vi.spyOn(store, 'setComposerDisplayStatus')
 	const wrapper = mount(Composer, {
@@ -250,8 +269,10 @@ describe('Composer', () => {
 
 	beforeEach(() => {
 		localStorage.clear()
+		setLanguage('en')
 		// module mocks, which restoreAllMocks() does not touch
 		showError.mockClear()
+		showSuccess.mockClear()
 		getFilePickerBuilder.mockReset()
 		vi.spyOn(console, 'debug').mockImplementation(() => {})
 		getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
@@ -1330,6 +1351,50 @@ describe('Composer', () => {
 
 			expect(store.describeMedia).not.toHaveBeenCalled()
 		})
+
+		/**
+		 * Where the subject of a picture is, so a square crop keeps it in
+		 * frame. It belongs to the upload rather than to the post, and travels
+		 * by the same request the description does.
+		 */
+		it('saves the focal point against the upload', async () => {
+			const { wrapper, store } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			const item = wrapper.findComponent(PreviewGridItem)
+			item.vm.$emit('commitFocus', { key: item.props('randomKey'), focus: { x: 0.5, y: -0.25 } })
+			await flushPromises()
+
+			expect(store.focusMedia).toHaveBeenCalledWith({ id: media.id, focus: '0.5,-0.25' })
+		})
+
+		it('shows the point on the thumbnail while it is being moved', async () => {
+			const { wrapper, store } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			const item = wrapper.findComponent(PreviewGridItem)
+			item.vm.$emit('focus', { key: item.props('randomKey'), focus: { x: 1, y: 1 } })
+			await flushPromises()
+
+			expect(wrapper.findComponent(PreviewGridItem).props('preview').focus).toEqual({ x: 1, y: 1 })
+			// a drag is not a save; the release is
+			expect(store.focusMedia).not.toHaveBeenCalled()
+		})
+
+		it('saves nothing for an attachment the server never took', async () => {
+			const { wrapper, store } = mountComposer()
+			store.createMedia.mockResolvedValue(undefined)
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			const item = wrapper.findComponent(PreviewGridItem)
+			item.vm.$emit('commitFocus', { key: item.props('randomKey'), focus: { x: 0.5, y: 0 } })
+			await flushPromises()
+
+			expect(store.focusMedia).not.toHaveBeenCalled()
+		})
 	})
 
 	describe('posting', () => {
@@ -1349,8 +1414,10 @@ describe('Composer', () => {
 				visibility: 'public',
 				media_ids: ['media-1'],
 				in_reply_to_id: undefined,
+				quote_id: undefined,
 				sensitive: false,
 				spoiler_text: '',
+				language: 'en',
 			})
 		})
 
@@ -1464,6 +1531,99 @@ describe('Composer', () => {
 			await flushPromises()
 
 			expect(input(wrapper).find('.mention a').text()).toBe('@carol@cloud.example.org')
+		})
+
+		/**
+		 * A reply used to name the author and nobody else, so an answer in a
+		 * conversation of three reached one of three: the others were neither
+		 * addressed nor delivered to.
+		 */
+		it('prefills a mention of everyone in the conversation', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-reply', replyTo(bob, {
+				mentions: [
+					{ id: '3', acct: 'carol', username: 'carol', url: 'https://cloud.example.org/@carol' },
+					{ id: '4', acct: 'dave@other.example', username: 'dave', url: 'https://other.example/@dave' },
+				],
+			}))
+			await flushPromises()
+
+			expect(input(wrapper).findAll('.mention a').map((mention) => mention.text()))
+				.toEqual(['@bob@remote.example', '@carol@cloud.example.org', '@dave@other.example'])
+		})
+
+		/** A reply that addresses its own author is talking to itself. */
+		it('does not address the reader', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-reply', replyTo(bob, {
+				mentions: [
+					{ id: '1', acct: 'alice', username: 'alice', url: 'https://cloud.example.org/@alice' },
+					{ id: '3', acct: 'carol', username: 'carol', url: 'https://cloud.example.org/@carol' },
+				],
+			}))
+			await flushPromises()
+
+			expect(input(wrapper).findAll('.mention a').map((mention) => mention.text()))
+				.toEqual(['@bob@remote.example', '@carol@cloud.example.org'])
+		})
+
+		it('names each participant once, whether or not the handle carries its host', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-reply', replyTo(carol, {
+				mentions: [
+					{ id: '3', acct: 'carol@cloud.example.org', username: 'carol', url: 'https://cloud.example.org/@carol' },
+					{ id: '2', acct: 'bob@remote.example', username: 'bob', url: 'https://remote.example/@bob' },
+					{ id: '2', acct: 'bob@remote.example', username: 'bob', url: 'https://remote.example/@bob' },
+				],
+			}))
+			await flushPromises()
+
+			expect(input(wrapper).findAll('.mention a').map((mention) => mention.text()))
+				.toEqual(['@carol@cloud.example.org', '@bob@remote.example'])
+		})
+
+		/** A Mention entity off a post carries no picture. */
+		it('leaves out the avatar of a participant rather than showing a broken one', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-reply', replyTo(bob, {
+				mentions: [{ id: '3', acct: 'carol', username: 'carol', url: 'https://cloud.example.org/@carol' }],
+			}))
+			await flushPromises()
+
+			const mentions = input(wrapper).findAll('.mention a')
+			expect(mentions[0].find('img').exists()).toBe(true)
+			expect(mentions[1].find('img').exists()).toBe(false)
+		})
+
+		it('sends the reply addressed to everyone it named', async () => {
+			const { wrapper, store } = mountComposer()
+
+			eventBus.emit('composer-reply', replyTo(bob, {
+				mentions: [{ id: '3', acct: 'carol', username: 'carol', url: 'https://cloud.example.org/@carol' }],
+			}))
+			await flushPromises()
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			// the server turns the handles in the text into recipients and
+			// inboxes; what the composer owes it is the handles, separated the
+			// way the mention pills are
+			expect(postedStatus(store).status)
+				.toBe('@bob@remote.example\u00a0@carol@cloud.example.org')
+		})
+
+		it('survives a post that carries no mentions at all', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-reply', replyTo(bob, { mentions: undefined }))
+			await flushPromises()
+
+			expect(input(wrapper).findAll('.mention a')).toHaveLength(1)
 		})
 
 		it('does not overwrite a message that is already being written', async () => {
@@ -1823,6 +1983,179 @@ describe('Composer', () => {
 			await wrapper.vm.$nextTick()
 
 			expect(collapsed(wrapper)).toBe(false)
+		})
+	})
+
+	describe('the language of a post', () => {
+		/**
+		 * A post that says nothing about its language federated as
+		 * `language: null`: nobody filtering by language saw it, and nobody
+		 * filtering it out was spared it.
+		 */
+		it('sends the language with the post', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'Hello')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus(store)).toMatchObject({ language: 'en' })
+		})
+
+		it('starts in the language Nextcloud is set to', () => {
+			setLanguage('de_DE')
+			const { wrapper } = mountComposer()
+
+			// the region says how the interface is spelled, not what the post
+			// is written in
+			expect(wrapper.findComponent(LanguageSelect).props('language')).toBe('de')
+		})
+
+		it('starts in the language the last post went out in', () => {
+			setLanguage('de')
+			localStorage.setItem('social.lastLanguage', 'fr')
+			const { wrapper } = mountComposer()
+
+			expect(wrapper.findComponent(LanguageSelect).props('language')).toBe('fr')
+		})
+
+		it('sends the language the writer chose', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'Bonjour')
+			wrapper.findComponent(LanguageSelect).vm.$emit('update:language', 'fr')
+			await flushPromises()
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus(store)).toMatchObject({ language: 'fr' })
+		})
+	})
+
+	describe('scheduling', () => {
+		const clock = (wrapper) => wrapper.find('.schedule-toggle')
+		const picker = (wrapper) => wrapper.findComponent({ name: 'NcDateTimePicker' })
+		const inAnHour = () => new Date(Date.now() + 60 * 60 * 1000)
+
+		/**
+		 * Presses the clock and waits for the picker, which is fetched when
+		 * the button is pressed rather than with every composer.
+		 *
+		 * @param {object} wrapper the mounted composer
+		 * @param {Date} [when] the time to set, an hour from now by default
+		 */
+		async function schedule(wrapper, when = inAnHour()) {
+			await clock(wrapper).trigger('click')
+			await flushPromises()
+			picker(wrapper).vm.$emit('update:modelValue', when)
+			await flushPromises()
+
+			return when
+		}
+
+		it('does not fetch the date picker until the clock is pressed', () => {
+			const { wrapper } = mountComposer()
+
+			expect(wrapper.find('.schedule-editor').exists()).toBe(false)
+			expect(picker(wrapper).exists()).toBe(false)
+		})
+
+		it('proposes a time rather than a blank once the clock is pressed', async () => {
+			const { wrapper } = mountComposer()
+
+			await clock(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.schedule-editor').exists()).toBe(true)
+			expect(picker(wrapper).props('modelValue').getTime())
+				.toBeGreaterThan(Date.now() + 5 * 60 * 1000)
+		})
+
+		it('says that the post is being scheduled rather than sent', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'Later')
+			expect(submitButton(wrapper).text()).toContain('Post')
+
+			await schedule(wrapper)
+
+			expect(submitButton(wrapper).text()).toBe('Schedule')
+		})
+
+		it('sends the time the post is to go out, in UTC', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'The release notes')
+			const when = await schedule(wrapper)
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus(store)).toMatchObject({
+				status: 'The release notes',
+				scheduled_at: when.toISOString(),
+			})
+		})
+
+		/**
+		 * Nothing is on any timeline yet, so there is nothing to refresh and
+		 * no post to celebrate; what there is to say is when it will be.
+		 */
+		it('does not pretend a scheduled post has been published', async () => {
+			const { wrapper, store } = mountComposer()
+			const published = vi.fn()
+			const scheduled = vi.fn()
+			eventBus.on('post-published', published)
+			eventBus.on('post-scheduled', scheduled)
+			await setContent(wrapper, 'The release notes')
+			await schedule(wrapper)
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(store.refreshTimeline).not.toHaveBeenCalled()
+			expect(published).not.toHaveBeenCalled()
+			expect(scheduled).toHaveBeenCalledTimes(1)
+			expect(showSuccess).toHaveBeenCalledWith(expect.stringContaining('Scheduled for'))
+		})
+
+		it('goes back to posting now, and stops sending a time', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'Now then')
+			await schedule(wrapper)
+
+			await clock(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.schedule-editor').exists()).toBe(false)
+			expect(submitButton(wrapper).text()).toContain('Post')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus(store).scheduled_at).toBeUndefined()
+		})
+
+		/** The server refuses anything sooner, so the refusal comes first. */
+		it('refuses a time the server would refuse, and says why', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'In a minute')
+
+			await schedule(wrapper, new Date(Date.now() + 60 * 1000))
+
+			expect(wrapper.find('.schedule-editor__hint').text())
+				.toBe('Pick a time at least five minutes from now.')
+			expect(canPost(wrapper)).toBe(false)
+		})
+
+		it('clears the time once the post has been scheduled', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'The release notes')
+			await schedule(wrapper)
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.schedule-editor').exists()).toBe(false)
+			expect(typed(wrapper)).toBe('')
 		})
 	})
 

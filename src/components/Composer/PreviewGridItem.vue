@@ -11,6 +11,32 @@
 				<MediaAttachment v-if="!preview.failed" :attachment="preview.data" />
 			</div>
 
+			<!-- Where the subject is. A square crop — the profile grid here, the
+			     timeline on Mastodon — is cut around this point rather than
+			     around the middle, which is where a face is not. The point is
+			     set by pressing, or dragging, on the picture itself, and moved
+			     by the arrow keys for anyone who is not using a pointer. -->
+			<div
+				v-if="focusing"
+				ref="focusPad"
+				class="preview-item__focus-pad"
+				role="group"
+				tabindex="0"
+				:aria-label="t('social', 'Focal point. Click where the subject is, or move it with the arrow keys.')"
+				@pointerdown="startFocusing"
+				@pointermove="moveFocus"
+				@pointerup="finishFocusing"
+				@pointercancel="finishFocusing"
+				@keydown="nudgeByKey" />
+
+			<!-- the point itself, drawn whenever there is one and while one is
+			     being set; a picture with no point is cropped at the middle -->
+			<span
+				v-if="showsCrosshair"
+				class="preview-item__crosshair"
+				:style="{ insetInlineStart: crosshairPosition.left, insetBlockStart: crosshairPosition.top }"
+				aria-hidden="true" />
+
 			<div class="preview-item__actions">
 				<NcButton variant="tertiary-no-background" @click="$emit('delete', randomKey)">
 					<template #icon>
@@ -18,11 +44,33 @@
 					</template>
 					<span>{{ t('social', 'Delete') }}</span>
 				</NcButton>
+				<!-- pictures the server holds only: the point is saved against
+				     the upload, and there is nothing to save it against until
+				     the upload has come back -->
+				<NcButton
+					v-if="canFocus"
+					variant="tertiary-no-background"
+					class="preview-item__focus-toggle"
+					:aria-label="focusing ? t('social', 'Done setting the focal point') : t('social', 'Set the focal point')"
+					:title="focusing ? t('social', 'Done setting the focal point') : t('social', 'Set the focal point')"
+					:aria-pressed="focusing"
+					@click="toggleFocusing">
+					<template #icon>
+						<ImageFilterCenterFocus :size="16" fillColor="white" />
+					</template>
+				</NcButton>
 			</div>
 
 			<!-- a picture nobody described is a picture some readers never see -->
 			<span v-if="!described && !preview.failed" class="preview-item__missing" aria-hidden="true">
 				{{ t('social', 'No description') }}
+			</span>
+
+			<!-- says that a point is set without drawing attention to where:
+			     the crosshair is the where, and this is the badge that outlives
+			     the editor -->
+			<span v-if="hasFocus && !focusing" class="preview-item__focal" aria-hidden="true">
+				{{ t('social', 'Focal point') }}
 			</span>
 
 			<!-- one attachment out of several can be refused, and the grid is
@@ -62,17 +110,28 @@
 
 <script>
 import Close from 'vue-material-design-icons/Close.vue'
+import ImageFilterCenterFocus from 'vue-material-design-icons/ImageFilterCenterFocus.vue'
 import FilterPicker from './FilterPicker.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import { filterCss } from '../../utils/imageFilters.js'
+import { NUDGE, focusFromPoint, isFocalPoint, nudgeFocus, positionOfFocus } from '../../utils/focalPoint.js'
 import { translate } from '@nextcloud/l10n'
 import MediaAttachment from '../MediaAttachment.vue'
+
+/** which way each arrow key moves the point, in focus units (y points up) */
+const ARROWS = {
+	ArrowLeft: [-NUDGE, 0],
+	ArrowRight: [NUDGE, 0],
+	ArrowUp: [0, NUDGE],
+	ArrowDown: [0, -NUDGE],
+}
 
 export default {
 	name: 'PreviewGridItem',
 	components: {
 		Close,
 		FilterPicker,
+		ImageFilterCenterFocus,
 		NcButton,
 		MediaAttachment,
 	},
@@ -90,11 +149,48 @@ export default {
 		},
 	},
 
-	emits: ['delete', 'describe', 'commitDescription'],
+	emits: ['delete', 'describe', 'commitDescription', 'focus', 'commitFocus'],
+
+	data() {
+		return {
+			/** whether the picture is showing its focal point editor */
+			focusing: false,
+			/** whether a pointer is down on the editor and dragging the point */
+			dragging: false,
+		}
+	},
 
 	computed: {
 		described() {
 			return (this.preview.description || '').trim() !== ''
+		},
+
+		/** @return {boolean} whether the attachment has a focal point set */
+		hasFocus() {
+			return isFocalPoint(this.preview.focus)
+		},
+
+		/**
+		 * Whether a focal point can be set at all: an uploaded picture. A
+		 * video is cropped by its poster and an audio file by nothing.
+		 *
+		 * @return {boolean}
+		 */
+		canFocus() {
+			const type = this.preview?.file?.type || this.preview?.data?.type || ''
+
+			return !this.preview.failed && Boolean(this.preview.data?.id)
+				&& (type.startsWith('image/') || type === 'image')
+		},
+
+		/** @return {boolean} */
+		showsCrosshair() {
+			return this.canFocus && (this.focusing || this.hasFocus)
+		},
+
+		/** @return {{left: string, top: string}} where the crosshair is drawn */
+		crosshairPosition() {
+			return positionOfFocus(this.preview.focus)
 		},
 
 		/** Unique per attachment, so the label points at its own field. */
@@ -125,6 +221,93 @@ export default {
 	methods: {
 		t: translate,
 		filterCss,
+
+		toggleFocusing() {
+			this.focusing = !this.focusing
+			if (this.focusing) {
+				// the pad takes the keys, so it takes the focus: pressing the
+				// button and then an arrow should move the point, not the page
+				this.$nextTick(() => this.$refs.focusPad?.focus())
+			}
+		},
+
+		/**
+		 * @param {PointerEvent} event a press on the picture
+		 */
+		startFocusing(event) {
+			if (event.button !== undefined && event.button !== 0) {
+				return
+			}
+
+			event.preventDefault()
+			this.dragging = true
+			// keeps the moves coming even once the pointer has left the pad,
+			// which is exactly where a drag towards the edge ends up
+			if (typeof event.currentTarget?.setPointerCapture === 'function') {
+				event.currentTarget.setPointerCapture(event.pointerId)
+			}
+			this.setFocusFromEvent(event)
+		},
+
+		/**
+		 * @param {PointerEvent} event the pointer moving over the picture
+		 */
+		moveFocus(event) {
+			if (!this.dragging) {
+				return
+			}
+
+			this.setFocusFromEvent(event)
+		},
+
+		/**
+		 * The drag is over, and this is the value worth a request: the moves
+		 * in between were the preview.
+		 *
+		 * @param {PointerEvent} event the release
+		 */
+		finishFocusing(event) {
+			if (!this.dragging) {
+				return
+			}
+
+			this.dragging = false
+			if (event.type === 'pointerup') {
+				this.setFocusFromEvent(event)
+			}
+			this.$emit('commitFocus', { key: this.randomKey, focus: this.preview.focus })
+		},
+
+		/**
+		 * @param {PointerEvent} event a pointer somewhere over the pad
+		 */
+		setFocusFromEvent(event) {
+			const pad = event.currentTarget
+			const bounds = pad.getBoundingClientRect()
+			const focus = focusFromPoint(
+				event.clientX - bounds.left,
+				event.clientY - bounds.top,
+				bounds.width,
+				bounds.height,
+			)
+			this.$emit('focus', { key: this.randomKey, focus })
+		},
+
+		/**
+		 * @param {KeyboardEvent} event a key pressed on the pad
+		 */
+		nudgeByKey(event) {
+			const step = ARROWS[event.key]
+			if (step === undefined) {
+				return
+			}
+
+			event.preventDefault()
+			const focus = nudgeFocus(this.preview.focus, step[0], step[1])
+			this.$emit('focus', { key: this.randomKey, focus })
+			// a key press is a decision in itself; there is no release to wait for
+			this.$emit('commitFocus', { key: this.randomKey, focus })
+		},
 	},
 }
 </script>
@@ -146,6 +329,61 @@ export default {
 	color: var(--color-warning-text, var(--color-main-text));
 	font-size: 12px;
 	font-weight: 600;
+}
+
+.preview-item__focal {
+	position: absolute;
+	inset-inline-end: 8px;
+	inset-block-end: 8px;
+	padding: 2px 8px;
+	border-radius: var(--border-radius-pill);
+	background: rgba(0, 0, 0, .6);
+	color: white;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+// the whole picture is the control; above the badges and under the buttons
+.preview-item__focus-pad {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	cursor: crosshair;
+	touch-action: none;
+
+	&:focus-visible {
+		outline: 2px solid var(--color-primary-element);
+		outline-offset: -2px;
+	}
+}
+
+// a ring with a dot, centred on the point, that takes no clicks of its own.
+// The dark outline is what keeps it visible over a white sky; it is an
+// outline rather than a shadow, which on a card means the elevation App.vue
+// defines and not a rim.
+.preview-item__crosshair {
+	position: absolute;
+	z-index: 3;
+	width: 28px;
+	height: 28px;
+	margin-inline-start: -14px;
+	margin-block-start: -14px;
+	border: 2px solid white;
+	border-radius: 50%;
+	outline: 1px solid rgba(0, 0, 0, .5);
+	pointer-events: none;
+
+	&::after {
+		content: '';
+		position: absolute;
+		inset: 50%;
+		width: 6px;
+		height: 6px;
+		margin: -3px;
+		border-radius: 50%;
+		background: white;
+		outline: 1px solid rgba(0, 0, 0, .5);
+	}
 }
 
 .preview-item__failed {
@@ -204,6 +442,7 @@ export default {
 	&__actions {
 		position: absolute;
 		top: 0;
+		z-index: 4;
 		width: 100%;
 		background: linear-gradient(180deg,rgba(0,0,0,.8),rgba(0,0,0,.35) 80%,transparent);
 		display: flex;

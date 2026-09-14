@@ -122,6 +122,17 @@ describe('PreviewGrid', () => {
 		expect(wrapper.emitted('commitDescription')).toEqual([[{ key: 'blob:one', description: 'a beach' }]])
 	})
 
+	it('passes a focal point on to be saved, and the move on to be drawn', async () => {
+		const wrapper = mountGrid({ 'blob:one': { file: file('one.png'), data: media('m1') } })
+		const item = wrapper.findComponent(PreviewGridItem)
+
+		item.vm.$emit('focus', { key: 'blob:one', focus: { x: 0.5, y: 0 } })
+		item.vm.$emit('commitFocus', { key: 'blob:one', focus: { x: 0.5, y: 0 } })
+
+		expect(wrapper.emitted('focus')).toEqual([[{ key: 'blob:one', focus: { x: 0.5, y: 0 } }]])
+		expect(wrapper.emitted('commitFocus')).toEqual([[{ key: 'blob:one', focus: { x: 0.5, y: 0 } }]])
+	})
+
 	it('re-emits an item removal as "deleted" with the attachment key', async () => {
 		const wrapper = mountGrid({
 			'blob:one': { file: file('one.png'), data: media('m1') },
