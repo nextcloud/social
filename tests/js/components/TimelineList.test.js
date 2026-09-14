@@ -57,10 +57,10 @@ function status(id) {
 
 const TimelineEntryStub = {
 	name: 'TimelineEntry',
-	props: ['item', 'type', 'depth'],
+	props: ['item', 'type', 'depth', 'unread'],
 	// carries the real component's class and tabindex, because the list finds
 	// entries by that class and sends focus to them
-	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-depth="depth" />',
+	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-depth="depth" :data-unread="unread ? \'yes\' : \'no\'" />',
 }
 const entryDepths = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => [entry.attributes('data-id'), Number(entry.attributes('data-depth'))])
 
@@ -85,6 +85,7 @@ function mountList({
 	props = {},
 	restored = false,
 	attachTo = undefined,
+	lastRead = 0,
 } = {}) {
 	const dispatch = vi.fn()
 	for (const response of responses) {
@@ -103,6 +104,7 @@ function mountList({
 	const notificationsStore = useNotificationsStore()
 	vi.spyOn(store, 'fetchTimeline').mockImplementation(dispatch)
 	vi.spyOn(notificationsStore, 'markNotificationsRead').mockResolvedValue(undefined)
+	vi.spyOn(notificationsStore, 'fetchLastRead').mockResolvedValue(lastRead)
 	store.$patch({
 		statuses: Object.fromEntries([...timeline, ...parents].map((entry) => [entry.id, entry])),
 		timeline: timeline.map((entry) => entry.id),
@@ -467,27 +469,188 @@ describe('TimelineList', () => {
 			{ id: '1788875057712412', type: 'favourite', account: { id: 'b' } },
 		]
 
-		it('records the newest one seen, so the badge stops counting it', () => {
-			const { notificationsStore } = mountList({
-				timeline: notifications,
-				props: { type: 'notifications' },
-				route: { name: 'timeline', params: { type: 'notifications' } },
-			})
+		const onNotifications = (over = {}) => mountList({
+			timeline: notifications,
+			props: { type: 'notifications' },
+			route: { name: 'timeline', params: { type: 'notifications' } },
+			...over,
+		})
 
-			// the highest nid on screen, not the first or the last in the array
+		beforeEach(() => {
+			// the dwell is a timeout, and these tests are about when it fires
+			vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] })
+		})
+
+		/**
+		 * @param {number} ms how long the reader looks at the page
+		 */
+		async function look(ms) {
+			await vi.advanceTimersByTimeAsync(ms)
+		}
+
+		it('marks nothing read merely by rendering', async () => {
+			// the badge is shared with every other client, so a page that
+			// rendered in a background tab used to clear the reader's phone
+			const { notificationsStore } = onNotifications()
+			await flushPromises()
+
+			expect(notificationsStore.markNotificationsRead).not.toHaveBeenCalled()
+		})
+
+		it('records the newest one seen once the page has been looked at', async () => {
+			const { notificationsStore } = onNotifications()
+			await flushPromises()
+
+			await look(2000)
+
+			// the highest id on screen, not the first or the last in the array
 			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith(1788875057712412)
 		})
 
-		it('leaves the marker alone on any other timeline', () => {
+		it('covers every id a grouped card stands for', async () => {
+			// nine favourites drawn as one card are still nine rows, and the
+			// marker has to reach the newest of them
+			const { notificationsStore } = onNotifications({
+				timeline: [
+					{ id: '40', type: 'favourite', account: { id: 'a' }, status: { id: '7' } },
+					{ id: '41', type: 'favourite', account: { id: 'b' }, status: { id: '7' } },
+				],
+			})
+			await flushPromises()
+
+			await look(2000)
+
+			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith(41)
+		})
+
+		it('does not count a tab nobody is looking at as looking', async () => {
+			const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+			const { notificationsStore } = onNotifications()
+			await flushPromises()
+
+			await look(5000)
+			expect(notificationsStore.markNotificationsRead).not.toHaveBeenCalled()
+
+			// and the moment the reader comes back to it, the dwell starts
+			visibility.mockReturnValue('visible')
+			document.dispatchEvent(new Event('visibilitychange'))
+			await look(2000)
+
+			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith(1788875057712412)
+		})
+
+		it('says it once for the same newest notification', async () => {
+			const { wrapper, notificationsStore } = onNotifications()
+			await flushPromises()
+			await look(2000)
+
+			// nothing new arrived; there is nothing more to report
+			wrapper.vm.armSeenTimer()
+			await look(2000)
+
+			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledTimes(1)
+		})
+
+		it('leaves the marker alone on any other timeline', async () => {
 			const { notificationsStore } = mountList({ timeline: notifications, props: { type: 'home' } })
+			await flushPromises()
+			await look(5000)
 
 			expect(notificationsStore.markNotificationsRead).not.toHaveBeenCalled()
 		})
 
-		it('records nothing when there is nothing to show', () => {
-			const { notificationsStore } = mountList({ timeline: [], props: { type: 'notifications' } })
+		it('records nothing when there is nothing to show', async () => {
+			const { notificationsStore } = onNotifications({ timeline: [] })
+			await flushPromises()
+			await look(5000)
 
 			expect(notificationsStore.markNotificationsRead).not.toHaveBeenCalled()
+		})
+	})
+
+	describe('what is new since the reader last looked', () => {
+		const notifications = [
+			{ id: '40', type: 'mention', account: { id: 'a' } },
+			{ id: '30', type: 'mention', account: { id: 'b' } },
+			{ id: '20', type: 'mention', account: { id: 'c' } },
+		]
+
+		const onNotifications = (lastRead) => mountList({
+			timeline: notifications,
+			props: { type: 'notifications' },
+			route: { name: 'timeline', params: { type: 'notifications' } },
+			lastRead,
+		})
+
+		const headings = (wrapper) => wrapper.findAll('.timeline-divider').map((line) => line.text())
+		const unread = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => entry.attributes('data-unread'))
+
+		it('draws the line at the marker the server keeps', async () => {
+			const { wrapper } = onNotifications(30)
+			await flushPromises()
+
+			expect(headings(wrapper)).toEqual(['New', 'Earlier'])
+			expect(unread(wrapper)).toEqual(['yes', 'no', 'no'])
+		})
+
+		it('draws no line on a page that is new all the way down', async () => {
+			const { wrapper } = onNotifications(5)
+			await flushPromises()
+
+			expect(headings(wrapper)).toEqual([])
+		})
+
+		it('draws no line when nothing has arrived since', async () => {
+			const { wrapper } = onNotifications(40)
+			await flushPromises()
+
+			expect(headings(wrapper)).toEqual([])
+			expect(unread(wrapper)).toEqual(['no', 'no', 'no'])
+		})
+
+		it('leaves the line where the reader found it after the page is read', async () => {
+			// reading the page moves the marker; a line that followed it would
+			// rub out the very boundary it is there to show
+			const { wrapper } = onNotifications(30)
+			await flushPromises()
+			await vi.advanceTimersByTimeAsync(2000)
+
+			expect(headings(wrapper)).toEqual(['New', 'Earlier'])
+		})
+
+		it('reads the marker for a notifications page arrived at rather than landed on', async () => {
+			// the router-view is reused across timelines, so mounting is not
+			// what tells this page it is the notifications page
+			const { wrapper, store, notificationsStore } = mountList({ timeline: [] })
+			await flushPromises()
+			expect(notificationsStore.fetchLastRead).not.toHaveBeenCalled()
+
+			await wrapper.setProps({ type: 'notifications' })
+			store.$patch({ ...showing('["notifications","",{}]'), statuses: Object.fromEntries(notifications.map((entry) => [entry.id, entry])), timeline: notifications.map((entry) => entry.id) })
+			await flushPromises()
+
+			expect(notificationsStore.fetchLastRead).toHaveBeenCalledTimes(1)
+		})
+
+		it('folds a run of favourites of one post into one card', async () => {
+			const { wrapper } = mountList({
+				timeline: [
+					{ id: '41', type: 'favourite', account: { id: 'a' }, status: { id: '7' } },
+					{ id: '40', type: 'favourite', account: { id: 'b' }, status: { id: '7' } },
+				],
+				props: { type: 'notifications' },
+				route: { name: 'timeline', params: { type: 'notifications' } },
+			})
+			await flushPromises()
+
+			expect(entryIds(wrapper)).toEqual(['41'])
+		})
+
+		it('leaves every other timeline ungrouped', async () => {
+			const { wrapper } = mountList({ timeline: [status('30'), status('20')] })
+			await flushPromises()
+
+			expect(entryIds(wrapper)).toEqual(['30', '20'])
 		})
 	})
 
@@ -906,6 +1069,35 @@ describe('TimelineList', () => {
 			const { wrapper } = mountList({ route: { name: 'timeline', params: { type } } })
 			await flushPromises()
 			expect(emptyTitle(wrapper)).toBe(title)
+		})
+
+		/**
+		 * Bookmarks, Photos and a list reach the list as a `type` and none of
+		 * them as a route of that name, so the lookup fell through all three
+		 * to the home timeline's words.
+		 */
+		it.each([
+			['bookmarks', 'No bookmarks yet'],
+			['photos', 'No photos found'],
+			['list', 'Nothing in this list yet'],
+		])('describes an empty %s page rather than the home timeline', async (type, title) => {
+			const { wrapper } = mountList({
+				props: { type },
+				route: { name: type === 'list' ? 'list' : 'timeline', params: { type } },
+			})
+			await flushPromises()
+
+			expect(emptyTitle(wrapper)).toBe(title)
+		})
+
+		it('names the list when the server has said what it is called', async () => {
+			const { wrapper } = mountList({
+				props: { type: 'list', listTitle: 'Colleagues' },
+				route: { name: 'list', params: { id: '3' } },
+			})
+			await flushPromises()
+
+			expect(emptyTitle(wrapper)).toBe('Nothing in Colleagues yet')
 		})
 
 		it('addresses the viewer on their own empty profile', async () => {

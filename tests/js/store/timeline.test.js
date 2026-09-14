@@ -937,6 +937,34 @@ describe('timeline store actions', () => {
 			expect(tl().timeline).toEqual(['1', '2'])
 		})
 
+		it('asks for every kind of notification when nothing is filtered', async () => {
+			await store.changeTimelineType({ type: 'notifications', params: { filter: 'all' } })
+
+			await store.fetchTimeline()
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/notifications`, { params: { limit: 15 } })
+		})
+
+		it('turns the page\'s filter into the exclusions the API takes', async () => {
+			await store.changeTimelineType({ type: 'notifications', params: { filter: 'mentions' } })
+
+			await store.fetchTimeline()
+
+			const { params } = axios.get.mock.calls[0][1]
+			expect(params.exclude_types).not.toContain('mention')
+			expect(params.exclude_types).toContain('favourite')
+			expect(params.exclude_types).toContain('reblog')
+		})
+
+		it('is a different timeline per filter, so changing one refetches', async () => {
+			await store.changeTimelineType({ type: 'notifications', params: { filter: 'all' } })
+			const everything = store.getTimelineIdentity
+
+			await store.changeTimelineType({ type: 'notifications', params: { filter: 'boosts' } })
+
+			expect(store.getTimelineIdentity).not.toBe(everything)
+		})
+
 		it('requests the statuses of one account for the account timeline', async () => {
 			await store.changeTimelineTypeAccount('bob@remote.tld')
 

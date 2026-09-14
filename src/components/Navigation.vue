@@ -250,9 +250,11 @@ import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useErrorsStore } from '../store/errors.js'
+import { useInstanceStore } from '../store/instance.js'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { afterFirstTimeline } from '../services/boot.js'
 
 // the composer pulls the emoji picker and the attachment stack with it:
 // its own chunk keeps all of that out of the entry bundle
@@ -318,7 +320,7 @@ export default {
 	},
 
 	computed: {
-		...mapStores(useAccountStore, useErrorsStore, useNotificationsStore, useTimelineStore),
+		...mapStores(useAccountStore, useErrorsStore, useInstanceStore, useNotificationsStore, useTimelineStore),
 		hasErrors() {
 			return this.errorsStore.hasErrors
 		},
@@ -501,9 +503,17 @@ export default {
 	},
 
 	mounted() {
-		this.fetchTrending()
-		this.fetchLists()
-		this.notificationsStore.fetchUnreadNotifications()
+		// none of these is what the reader opened the page for, and fired
+		// together with the timeline they slowed it down by their number:
+		// they wait for it (services/boot.js says how)
+		afterFirstTimeline(() => {
+			this.fetchTrending()
+			this.fetchLists()
+			this.notificationsStore.fetchUnreadNotifications()
+		})
+		// this one defers itself: the composer asks for it too, and it must
+		// wait whichever of the two asks first
+		this.instanceStore.load()
 		this.openComposerFromQuery()
 
 		// the badge is only honest if it keeps up: with notify_push the server

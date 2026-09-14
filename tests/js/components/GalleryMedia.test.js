@@ -102,38 +102,38 @@ describe('GalleryMedia', () => {
 
 		it('reveals the description behind an ALT badge', async () => {
 			const wrapper = mountMedia()
-			const badge = wrapper.find('.photo__alt')
+			const badge = wrapper.find('.alt-badge')
 
 			expect(badge.text()).toBe('ALT')
 			expect(badge.attributes('aria-expanded')).toBe('false')
-			expect(wrapper.find('.photo__description').attributes('style')).toContain('display: none')
+			expect(wrapper.find('.alt-description').attributes('style')).toContain('display: none')
 
 			await badge.trigger('click')
 
 			expect(badge.attributes('aria-expanded')).toBe('true')
-			expect(wrapper.find('.photo__description').attributes('style') ?? '').not.toContain('display: none')
-			expect(wrapper.find('.photo__description').text()).toBe('A cat asleep on a sofa')
+			expect(wrapper.find('.alt-description').attributes('style') ?? '').not.toContain('display: none')
+			expect(wrapper.find('.alt-description').text()).toBe('A cat asleep on a sofa')
 		})
 
 		it('names the panel the badge controls', () => {
 			const wrapper = mountMedia()
 
-			expect(wrapper.find('.photo__alt').attributes('aria-controls'))
-				.toBe(wrapper.find('.photo__description').attributes('id'))
+			expect(wrapper.find('.alt-badge').attributes('aria-controls'))
+				.toBe(wrapper.find('.alt-description').attributes('id'))
 		})
 
 		it('offers no badge for a picture whose author wrote no description', () => {
-			expect(mountMedia({ attachment: photo({ description: null }) }).find('.photo__alt').exists()).toBe(false)
-			expect(mountMedia({ attachment: photo({ description: '  ' }) }).find('.photo__alt').exists()).toBe(false)
+			expect(mountMedia({ attachment: photo({ description: null }) }).find('.alt-badge').exists()).toBe(false)
+			expect(mountMedia({ attachment: photo({ description: '  ' }) }).find('.alt-badge').exists()).toBe(false)
 		})
 
 		it('closes the description again when the frame is given another picture', async () => {
 			const wrapper = mountMedia()
-			await wrapper.find('.photo__alt').trigger('click')
+			await wrapper.find('.alt-badge').trigger('click')
 
 			await wrapper.setProps({ attachment: photo({ id: '8', description: 'A dog' }) })
 
-			expect(wrapper.find('.photo__alt').attributes('aria-expanded')).toBe('false')
+			expect(wrapper.find('.alt-badge').attributes('aria-expanded')).toBe('false')
 		})
 	})
 

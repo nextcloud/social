@@ -10,7 +10,10 @@
 		class="attachment"
 		role="presentation"
 		@click="$emit('click')">
-		<!-- `controls` only where the media is the thing on screen. In a
+		<!-- `playsinline`, or iOS takes every video full screen the moment it
+		     starts: the reader is thrown out of the timeline into a player,
+		     and comes back to wherever the page has scrolled to meanwhile.
+		     `controls` only where the media is the thing on screen. In a
 		     timeline a post is a link to itself, so a player here would put a
 		     play button in the way of it — and swallow the click that was
 		     meant to open the post. The poster still shows, which is what the
@@ -23,6 +26,7 @@
 			:aria-label="attachment.description || ''"
 			:controls="interactive"
 			:preload="interactive ? preload : 'none'"
+			playsinline
 			@click="onMediaClick"
 			@loadedmetadata="previewLoaded = true" />
 		<audio

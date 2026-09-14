@@ -71,7 +71,7 @@
 				ref="editInput"
 				v-model="editContent"
 				class="post-edit-textarea"
-				:maxlength="MAX_LENGTH"
+				:maxlength="maxLength"
 				:aria-describedby="editIsTooLong ? `post-edit-count-${item.id}` : undefined"
 				:placeholder="t('social', 'Edit your post')"
 				@keydown.ctrl.enter="saveEdit" />
@@ -398,12 +398,10 @@ import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useInstanceStore } from '../store/instance.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
-
-/** what the server accepts in one status, the same limit the composer shows */
-const MAX_LENGTH = 500
 
 export default {
 	name: 'TimelinePost',
@@ -458,7 +456,6 @@ export default {
 
 	data() {
 		return {
-			MAX_LENGTH,
 			isEditing: false,
 			/** which action is playing its confirmation, '' when none */
 			celebrate: '',
@@ -487,7 +484,12 @@ export default {
 	},
 
 	computed: {
-		...mapStores(useAccountStore, useTimelineStore),
+		...mapStores(useAccountStore, useInstanceStore, useTimelineStore),
+
+		/** @return {number} what the server accepts in one status, as the composer shows it */
+		maxLength() {
+			return this.instanceStore.maxCharacters
+		},
 
 		/**
 		 * Whether the byline has a name of its own to show.
@@ -584,7 +586,7 @@ export default {
 
 		/** @return {number} how many characters the edit has left */
 		editCharsLeft() {
-			return MAX_LENGTH - this.editContent.length
+			return this.maxLength - this.editContent.length
 		},
 
 		/** @return {boolean} */

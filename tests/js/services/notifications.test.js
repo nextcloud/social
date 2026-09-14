@@ -3,9 +3,18 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { notificationSummary } from '../../../src/services/notifications.js'
+import {
+	FILTER_KEY,
+	NOTIFICATION_TYPES,
+	excludeTypesFor,
+	groupNotifications,
+	newestIdOf,
+	notificationSummary,
+	rememberFilter,
+	rememberedFilter,
+} from '../../../src/services/notifications.js'
 
 function notification(type, acct = 'bob@remote.tld') {
 	return {
@@ -13,6 +22,23 @@ function notification(type, acct = 'bob@remote.tld') {
 		type,
 		created_at: '2026-09-07T10:00:00.000Z',
 		account: { id: '22', acct, username: acct.split('@')[0] },
+	}
+}
+
+/**
+ * @param {string} id the row id
+ * @param {string} type what happened
+ * @param {string} who the display name of the account it happened by
+ * @param {string|null} statusId the post it happened to, when there is one
+ * @return {object} a notification as the server sends it
+ */
+function entry(id, type, who, statusId = null) {
+	return {
+		id,
+		type,
+		created_at: '2026-09-07T10:00:00.000Z',
+		account: { id: who, acct: who + '@remote.tld', display_name: who },
+		status: statusId === null ? null : { id: statusId, content: 'a post' },
 	}
 }
 
@@ -43,5 +69,173 @@ describe('notificationSummary', () => {
 
 	it('does not let a handle inject markup into the summary', () => {
 		expect(notificationSummary(notification('mention', '<b>evil</b>@remote.tld'))).toBe('&lt;b&gt;evil&lt;/b&gt;@remote.tld mentioned you')
+	})
+})
+
+describe('the notifications filter', () => {
+	it('sends nothing at all for "everything"', () => {
+		expect(excludeTypesFor('all')).toEqual([])
+	})
+
+	it('excludes every type but the one a filter keeps', () => {
+		const excluded = excludeTypesFor('mentions')
+
+		expect(excluded).not.toContain('mention')
+		expect(excluded).toHaveLength(NOTIFICATION_TYPES.length - 1)
+	})
+
+	it('counts a follow request as a follow, which is what it looks like', () => {
+		const excluded = excludeTypesFor('follows')
+
+		expect(excluded).not.toContain('follow')
+		expect(excluded).not.toContain('follow_request')
+	})
+
+	it('filters nothing for a name it does not know', () => {
+		expect(excludeTypesFor('nonsense')).toEqual([])
+	})
+
+	describe('what the browser remembers', () => {
+		afterEach(() => {
+			window.localStorage.removeItem(FILTER_KEY)
+			vi.restoreAllMocks()
+		})
+
+		it('opens where the reader left it', () => {
+			rememberFilter('boosts')
+
+			expect(window.localStorage.getItem(FILTER_KEY)).toBe('boosts')
+			expect(rememberedFilter()).toBe('boosts')
+		})
+
+		it('falls back to everything when what was stored is not a filter', () => {
+			window.localStorage.setItem(FILTER_KEY, 'whatever')
+
+			expect(rememberedFilter()).toBe('all')
+		})
+
+		it('survives a browser that refuses to remember anything', () => {
+			vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+				throw new Error('site data is blocked')
+			})
+			vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+				throw new Error('site data is blocked')
+			})
+
+			expect(() => rememberFilter('polls')).not.toThrow()
+			expect(rememberedFilter()).toBe('all')
+		})
+	})
+})
+
+describe('grouping the notifications', () => {
+	it('folds a run of favourites of one post into a single card', () => {
+		const cards = groupNotifications([
+			entry('30', 'favourite', 'Anna', '7'),
+			entry('29', 'favourite', 'Bob', '7'),
+			entry('28', 'favourite', 'Cara', '7'),
+		])
+
+		expect(cards).toHaveLength(1)
+		expect(cards[0].id).toBe('30')
+		expect(cards[0].accounts.map((account) => account.display_name)).toEqual(['Anna', 'Bob', 'Cara'])
+		expect(cards[0].ids).toEqual(['30', '29', '28'])
+	})
+
+	it('names the first two and counts the rest', () => {
+		const cards = groupNotifications([
+			entry('30', 'favourite', 'Anna', '7'),
+			entry('29', 'favourite', 'Bob', '7'),
+			entry('28', 'favourite', 'Cara', '7'),
+			entry('27', 'favourite', 'Dan', '7'),
+			entry('26', 'favourite', 'Eve', '7'),
+		])
+
+		expect(notificationSummary(cards[0])).toBe('Anna, Bob and 3 others liked your post')
+	})
+
+	it('says both names when there are two', () => {
+		const cards = groupNotifications([
+			entry('30', 'reblog', 'Anna', '7'),
+			entry('29', 'reblog', 'Bob', '7'),
+		])
+
+		expect(notificationSummary(cards[0])).toBe('Anna and Bob boosted your post')
+	})
+
+	it('groups consecutive follows, which are about nobody in particular', () => {
+		const cards = groupNotifications([
+			entry('30', 'follow', 'Anna'),
+			entry('29', 'follow', 'Bob'),
+		])
+
+		expect(cards).toHaveLength(1)
+		expect(notificationSummary(cards[0])).toBe('Anna and Bob started to follow you')
+	})
+
+	it('keeps favourites of different posts apart', () => {
+		const cards = groupNotifications([
+			entry('30', 'favourite', 'Anna', '7'),
+			entry('29', 'favourite', 'Bob', '8'),
+		])
+
+		expect(cards).toHaveLength(2)
+	})
+
+	it('does not fold across something that happened in between', () => {
+		// folding here would say the three favourites happened together, and
+		// put the mention somewhere it did not happen
+		const cards = groupNotifications([
+			entry('30', 'favourite', 'Anna', '7'),
+			entry('29', 'mention', 'Bob', '9'),
+			entry('28', 'favourite', 'Cara', '7'),
+		])
+
+		expect(cards.map((card) => card.id)).toEqual(['30', '29', '28'])
+	})
+
+	it('leaves a mention alone however many there are in a row', () => {
+		const cards = groupNotifications([
+			entry('30', 'mention', 'Anna', '7'),
+			entry('29', 'mention', 'Bob', '8'),
+		])
+
+		expect(cards).toHaveLength(2)
+		expect(cards[0].accounts).toBeUndefined()
+	})
+
+	it('hands a lone notification back exactly as it came', () => {
+		const one = entry('30', 'favourite', 'Anna', '7')
+
+		expect(groupNotifications([one])[0]).toBe(one)
+	})
+
+	it('counts one person who liked the same post twice once', () => {
+		const cards = groupNotifications([
+			entry('30', 'favourite', 'Anna', '7'),
+			entry('29', 'favourite', 'Anna', '7'),
+		])
+
+		expect(cards[0].accounts).toHaveLength(1)
+		expect(cards[0].ids).toEqual(['30', '29'])
+	})
+})
+
+describe('newestIdOf', () => {
+	it('takes the id of a notification', () => {
+		expect(newestIdOf({ id: '1788875057712399' })).toBe(1788875057712399)
+	})
+
+	it('takes the newest of the ids a grouped card stands for', () => {
+		// the read marker is "up to", so anything less leaves the rest unread
+		expect(newestIdOf({ id: '5', ids: ['5', '9', '3'] })).toBe(9)
+	})
+
+	it('falls back to the nid a status carries', () => {
+		expect(newestIdOf({ nid: 42 })).toBe(42)
+	})
+
+	it('answers 0 for something with no id at all', () => {
+		expect(newestIdOf({})).toBe(0)
 	})
 })

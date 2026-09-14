@@ -31,13 +31,22 @@
 			:account="account"
 			:loading="loading" />
 		<transition-group v-else name="list" tag="ul">
-			<TimelineEntry
-				v-for="(entry, index) in timeline"
-				:key="entry.id"
-				:class="{ 'timeline-entry--focused': index === focused }"
-				:item="entry"
-				:type="type"
-				:depth="depths[entry.id] ?? 0" />
+			<template v-for="(entry, index) in entries" :key="entry.id">
+				<!-- the two headings only appear when there is a boundary to
+				     mark: a page that is all new, or all seen, is one run -->
+				<li v-if="index === 0 && dividerAt > 0" class="timeline-divider">
+					{{ t('social', 'New') }}
+				</li>
+				<li v-else-if="dividerAt > 0 && index === dividerAt" class="timeline-divider">
+					{{ t('social', 'Earlier') }}
+				</li>
+				<TimelineEntry
+					:class="{ 'timeline-entry--focused': index === focused }"
+					:item="entry"
+					:type="type"
+					:depth="depths[entry.id] ?? 0"
+					:unread="index < dividerAt" />
+			</template>
 		</transition-group>
 		<TimelineSkeleton v-if="display !== 'grid' && loading && timeline.length === 0" />
 		<!--
@@ -83,6 +92,7 @@ import TimelineSkeleton from './TimelineSkeleton.vue'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
 import eventBus from '../services/eventBus.js'
+import { groupNotifications, newestIdOf } from '../services/notifications.js'
 import { mapStores } from 'pinia'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -95,6 +105,22 @@ import { useServerData } from '../composables/useServerData.js'
  * that ignores it looped for as long as the tab was open.
  */
 const MAX_CATCHUP_PAGES = 10
+
+/**
+ * How long the notifications have to be on screen before they count as read.
+ *
+ * The rule, in one sentence: the page is read once it has been in front of the
+ * reader for two seconds, and what it is read *up to* is the newest card that
+ * was on it at that moment.
+ *
+ * It used to be read the instant it rendered — a watcher with `immediate: true`
+ * — so a badge was cleared by the page merely existing. That marker is shared
+ * with every other client, so opening the tab in a background window cleared
+ * the reader's phone too, for notifications no human had seen. Two seconds is
+ * not a claim that they were read; it is the shortest interval that cannot
+ * happen by accident, and the tab has to be in front for it to pass at all.
+ */
+const SEEN_AFTER = 2000
 
 export default {
 	name: 'TimelineList',
@@ -137,6 +163,17 @@ export default {
 
 		/** Whose profile the grid links its tiles into. */
 		account: {
+			type: String,
+			default: '',
+		},
+
+		/**
+		 * The title of the list being read, when this is a list's timeline and
+		 * the server has said what it is called. Only the empty state uses it:
+		 * "Nothing in Colleagues yet" names the list the reader is looking at,
+		 * where "No posts found" could be about anything.
+		 */
+		listTitle: {
 			type: String,
 			default: '',
 		},
@@ -186,6 +223,19 @@ export default {
 			/** whether the polling failure has already been said once */
 			pollFailureReported: false,
 			observer: null,
+			/**
+			 * The server's read marker as it stood when this page opened, and
+			 * what the "New" line is drawn against. Frozen on purpose: reading
+			 * the page moves the marker, and a line that moved with it would
+			 * rub out the very boundary it is there to show.
+			 */
+			seenUpTo: 0,
+			/** the dwell in progress, -1 when none */
+			seenTimer: -1,
+			/** the newest id already reported read, so it is reported once */
+			markedUpTo: 0,
+			/** whether the marker has been asked for on this visit */
+			markerAsked: false,
 			emptyContent: {
 				default: {
 					image: 'img/undraw/posts.svg',
@@ -236,6 +286,24 @@ export default {
 					image: 'img/undraw/posts.svg',
 					title: t('social', 'No videos found'),
 					description: t('social', 'Videos posted here, and videos from the PeerTube channels you follow, will show up here'),
+				},
+
+				photos: {
+					image: 'img/undraw/profile.svg',
+					title: t('social', 'No photos found'),
+					description: t('social', 'Posts with pictures will show up here'),
+				},
+
+				bookmarks: {
+					image: 'img/undraw/likes.svg',
+					title: t('social', 'No bookmarks yet'),
+					description: t('social', 'Posts you bookmark are kept here, for you alone to see'),
+				},
+
+				list: {
+					image: 'img/undraw/posts.svg',
+					title: t('social', 'Nothing in this list yet'),
+					description: t('social', 'Posts from the people in this list will show up here'),
 				},
 
 				'single-post': {
@@ -308,6 +376,24 @@ export default {
 			}[media]
 			if (this.$route.name === 'profile' && emptyTab !== undefined) {
 				return emptyTab
+			}
+
+			// what the page says it is, before what the URL happens to spell.
+			// Bookmarks, Photos and a list all reach TimelineList as a `type`
+			// and none of them as a route of that name, so a lookup that began
+			// at the route fell through all three to "Posts from people you
+			// follow will show up here" — which a list is not, and Bookmarks
+			// least of all.
+			const byProp = this.emptyContent[this.type]
+			if (byProp !== undefined) {
+				if (this.type === 'list' && this.listTitle !== '') {
+					return {
+						...byProp,
+						title: t('social', 'Nothing in {list} yet', { list: this.listTitle }),
+					}
+				}
+
+				return byProp
 			}
 
 			const byType = this.emptyContent[this.$route.params.type]
@@ -428,6 +514,48 @@ export default {
 		pillStyle() {
 			return this.composerHeight === 0 ? {} : { top: `${this.composerHeight + 8}px` }
 		},
+
+		/**
+		 * What is actually drawn. The same list everywhere but the
+		 * notifications page, where runs of the same reaction are folded into
+		 * one card — twelve people liking one post is one thing that happened,
+		 * not twelve, and quoting the post twelve times buried everything
+		 * else. Paging still works off `timeline`, which is untouched.
+		 *
+		 * @return {object[]}
+		 */
+		entries() {
+			if (this.type !== 'notifications') {
+				return this.timeline
+			}
+
+			return groupNotifications(this.timeline)
+		},
+
+		/**
+		 * Where the already-seen part of the notifications page begins: the
+		 * number of cards newer than the marker the server held when this page
+		 * was opened. 0 when there is nothing new, or when this is not the
+		 * notifications page.
+		 *
+		 * Taken against `seenUpTo`, which is frozen at that moment rather than
+		 * following the store: the line has to stay where the reader found it
+		 * for as long as they are on the page, or reading the page would erase
+		 * the mark that says what they had not read.
+		 *
+		 * @return {number}
+		 */
+		dividerAt() {
+			if (this.type !== 'notifications' || this.seenUpTo === 0) {
+				return 0
+			}
+
+			const older = this.entries.findIndex((entry) => newestIdOf(entry) <= this.seenUpTo)
+
+			// every card is newer than the marker: the whole page is new, and
+			// a heading over all of it separates nothing
+			return older <= 0 ? 0 : older
+		},
 	},
 
 	watch: {
@@ -453,25 +581,10 @@ export default {
 			}
 		},
 
-		// reading the notifications is what marks them read; the badge should
-		// not survive the reader looking straight at what it is counting
-		timeline: {
-			immediate: true,
-			handler(entries) {
-				if (this.type !== 'notifications' || entries.length === 0) {
-					return
-				}
-
-				// a Notification entity carries the row id as `id`, a string;
-				// statuses carry the same number again as `nid`
-				const newest = entries.reduce(
-					(highest, entry) => Math.max(highest, Number(entry.id ?? entry.nid) || 0),
-					0,
-				)
-				if (newest > 0) {
-					this.notificationsStore.markNotificationsRead(newest)
-				}
-			},
+		// something new to look at restarts the dwell: what arrived while the
+		// reader was here is read on the same terms as what was already there
+		timeline() {
+			this.armSeenTimer()
 		},
 	},
 
@@ -488,6 +601,13 @@ export default {
 		eventBus.on('shortcut:next', this.focusNext)
 		eventBus.on('shortcut:previous', this.focusPrevious)
 
+		// coming back to the tab is what starts the dwell on a page that was
+		// opened in the background, so this is registered whatever the
+		// timeline is: the router-view is reused, and the notifications page
+		// is often arrived at rather than landed on
+		document.addEventListener('visibilitychange', this.armSeenTimer)
+		this.ensureMarker()
+
 		this.loadFirstPage()
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
@@ -502,6 +622,8 @@ export default {
 
 	unmounted() {
 		document.removeEventListener('visibilitychange', this.pollOnReturn)
+		document.removeEventListener('visibilitychange', this.armSeenTimer)
+		clearTimeout(this.seenTimer)
 		eventBus.off('shortcut:next', this.focusNext)
 		eventBus.off('shortcut:previous', this.focusPrevious)
 		clearInterval(this.intervalId)
@@ -587,6 +709,73 @@ export default {
 			})
 		},
 
+		/**
+		 * Reads where the reader had got to, once per visit to the
+		 * notifications page.
+		 *
+		 * Asked before anything is marked, so the line lands where they left
+		 * off rather than where they have just got to. Switching the filter is
+		 * the same visit and asks nothing; leaving the page forgets, so the
+		 * next visit draws its line against a marker this one has moved.
+		 */
+		ensureMarker() {
+			if (this.type !== 'notifications' || this.showParents) {
+				this.markerAsked = false
+				this.seenUpTo = 0
+				this.markedUpTo = 0
+
+				return
+			}
+			if (this.markerAsked) {
+				return
+			}
+
+			this.markerAsked = true
+			this.notificationsStore.fetchLastRead().then((marker) => {
+				this.seenUpTo = marker
+				this.armSeenTimer()
+			})
+		},
+
+		/**
+		 * Starts the dwell after which what is on screen counts as read.
+		 *
+		 * Nothing happens on a tab nobody is looking at, or on a page with
+		 * nothing on it yet; coming back to the tab arms it, which is why this
+		 * is also the `visibilitychange` handler.
+		 */
+		armSeenTimer() {
+			if (this.type !== 'notifications' || this.showParents) {
+				return
+			}
+			if (this.entries.length === 0 || document.visibilityState === 'hidden') {
+				return
+			}
+
+			clearTimeout(this.seenTimer)
+			this.seenTimer = setTimeout(() => this.markSeen(), SEEN_AFTER)
+		},
+
+		/**
+		 * Reports everything now on screen as read.
+		 *
+		 * The marker is "up to", so the newest id covers the whole page —
+		 * grouped cards included, which is why the id comes from
+		 * `newestIdOf()` rather than from the card's own `id`: a card that
+		 * stands for nine favourites must not leave eight of them unread.
+		 */
+		markSeen() {
+			this.seenTimer = -1
+			const newest = this.entries.reduce(
+				(highest, entry) => Math.max(highest, newestIdOf(entry)),
+				0,
+			)
+			if (newest > this.markedUpTo) {
+				this.markedUpTo = newest
+				this.notificationsStore.markNotificationsRead(newest)
+			}
+		},
+
 		/** Starts this timeline over: a different type is a different list. */
 		resetAndLoad() {
 			this.generation += 1
@@ -599,6 +788,11 @@ export default {
 			this.arrived = 0
 			this.focused = -1
 			this.pollFailureReported = false
+			// the dwell belonged to the list that was here; the new one earns
+			// its own. What has already been reported read stays reported.
+			clearTimeout(this.seenTimer)
+			this.seenTimer = -1
+			this.ensureMarker()
 			this.loadFirstPage()
 		},
 
@@ -705,13 +899,16 @@ export default {
 		 * @param {number} step 1 for the next post, -1 for the previous one
 		 */
 		moveFocus(step) {
-			if (this.timeline.length === 0) {
+			// `entries`, not `timeline`: on the notifications page the two are
+			// different lengths, and the highlight is drawn against the cards
+			// that are actually on screen
+			if (this.entries.length === 0) {
 				return
 			}
 
-			const next = Math.min(Math.max(this.focused + step, 0), this.timeline.length - 1)
+			const next = Math.min(Math.max(this.focused + step, 0), this.entries.length - 1)
 			this.focused = next
-			eventBus.emit('timeline:focused', this.timeline[next])
+			eventBus.emit('timeline:focused', this.entries[next])
 
 			this.$nextTick(() => {
 				const entries = this.$el.querySelectorAll('.timeline-entry')
@@ -884,6 +1081,20 @@ export default {
 		transition: none;
 	}
 }
+/* The line between what arrived since the reader last looked and what was
+   already there. A heading rather than a rule: "New" and "Earlier" say what
+   the two runs are, where a bare line only says that there are two of them. */
+.timeline-divider {
+	margin: 4px 0 10px;
+	padding: 0 2px;
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+	list-style: none;
+}
+
 /* where the keyboard is, for j/k readers */
 .timeline-entry--focused :deep(.post-content),
 .timeline-entry--focused :deep(.main-post) {

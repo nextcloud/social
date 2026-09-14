@@ -28,6 +28,34 @@ describe('notifications store', () => {
 		vi.restoreAllMocks()
 	})
 
+	describe('fetchLastRead', () => {
+		it('reads the marker every other client shares', async () => {
+			axios.get.mockResolvedValue({ data: { notifications: { last_read_id: '1788875057712399' } } })
+
+			const marker = await store.fetchLastRead()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				expect.stringContaining('/api/v1/markers'),
+				{ params: { timeline: ['notifications'] } },
+			)
+			expect(marker).toBe(1788875057712399)
+			expect(store.lastReadId).toBe(1788875057712399)
+		})
+
+		it('answers 0 for an account that has never read anything', async () => {
+			axios.get.mockResolvedValue({ data: {} })
+
+			expect(await store.fetchLastRead()).toBe(0)
+		})
+
+		it('answers 0 rather than guessing when the server cannot be asked', async () => {
+			axios.get.mockRejectedValue(new Error('nope'))
+
+			expect(await store.fetchLastRead()).toBe(0)
+			expect(store.lastReadId).toBe(0)
+		})
+	})
+
 	describe('fetchUnreadNotifications', () => {
 		it('reads the count the server keeps', async () => {
 			axios.get.mockResolvedValue({ data: { count: 5 } })

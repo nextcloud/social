@@ -32,7 +32,17 @@
 
 		<HashtagFollowedList v-if="type === 'tags'" ref="followedHashtags" />
 
-		<TimelineList :type="type" />
+		<!-- which kinds of activity to show; the same control as the scopes
+		     above the feed, choosing a filter of this page rather than a page -->
+		<TimelineSwitcher
+			v-if="type === 'notifications'"
+			class="notifications-filter"
+			:options="notificationFilters"
+			:value="notificationFilter"
+			:label="t('social', 'Which activities to show')"
+			@update:value="chooseNotificationFilter" />
+
+		<TimelineList :type="type" :listTitle="listTitle" />
 
 		<!-- the first post somebody ever publishes here, marked once -->
 		<FirstPostCelebration v-if="celebratingFirstPost" @done="endCelebration" />
@@ -42,8 +52,15 @@
 <script>
 import { defineAsyncComponent } from 'vue'
 import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
+import IconAccountPlusOutline from 'vue-material-design-icons/AccountPlusOutline.vue'
+import IconAt from 'vue-material-design-icons/At.vue'
+import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconEarth from 'vue-material-design-icons/Earth.vue'
+import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconHome from 'vue-material-design-icons/Home.vue'
+import IconMessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
+import IconPoll from 'vue-material-design-icons/Poll.vue'
+import IconRepeat from 'vue-material-design-icons/Repeat.vue'
 import TimelineList from './../components/TimelineList.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
@@ -53,6 +70,7 @@ import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import eventBus from './../services/eventBus.js'
+import { rememberFilter, rememberedFilter } from './../services/notifications.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
@@ -77,6 +95,11 @@ export default {
 			infoHidden: false,
 			/** the title of the list being read, once the server has said */
 			listTitle: '',
+			/**
+			 * Which kinds of activity the notifications page shows; the
+			 * browser remembers the choice, so the page opens where it was left
+			 */
+			notificationFilter: rememberedFilter(),
 		}
 	},
 
@@ -205,6 +228,24 @@ export default {
 			return this.type === 'tags' || this.type === 'list' || this.type === 'notifications' || this.isScopedPage
 		},
 
+		/**
+		 * The filters over the notifications, in the words of the sidebar:
+		 * everything, or one kind of activity at a time.
+		 *
+		 * @return {object[]} what to give the switcher
+		 */
+		notificationFilters() {
+			return [
+				{ value: 'all', label: t('social', 'All'), icon: IconBell },
+				{ value: 'mentions', label: t('social', 'Mentions'), icon: IconAt },
+				{ value: 'favourites', label: t('social', 'Favourites'), icon: IconHeart },
+				{ value: 'boosts', label: t('social', 'Boosts'), icon: IconRepeat },
+				{ value: 'follows', label: t('social', 'Follows'), icon: IconAccountPlusOutline },
+				{ value: 'polls', label: t('social', 'Polls'), icon: IconPoll },
+				{ value: 'edits', label: t('social', 'Edits'), icon: IconMessagePlusOutline },
+			]
+		},
+
 		/** @return {string} what identifies this timeline, params included */
 		timelineKey() {
 			return this.type + '|' + JSON.stringify(this.params)
@@ -221,6 +262,10 @@ export default {
 				// part of what identifies this timeline, so that changing the
 				// scope refetches rather than leaving the previous photos up
 				return { scope: this.scope }
+			} else if (this.type === 'notifications') {
+				// the same reason: a filter is a question for the server, and
+				// a different one is a different list
+				return { filter: this.notificationFilter }
 			}
 			return {}
 		},
@@ -301,6 +346,14 @@ export default {
 		},
 
 		/**
+		 * @param {string} filter one of the keys of NOTIFICATION_FILTERS
+		 */
+		chooseNotificationFilter(filter) {
+			this.notificationFilter = filter
+			rememberFilter(filter)
+		},
+
+		/**
 		 * A post went out. Whether that is the reader's first is the store's
 		 * decision; asking costs nothing and nothing here waits on the answer,
 		 * so the post itself appears exactly as it did before.
@@ -350,6 +403,34 @@ export default {
 	margin: calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 2);
 	color: var(--color-text-lighter);
 	letter-spacing: -.01em;
+}
+
+/*
+ * Seven options where the switcher was drawn for three.
+ *
+ * The track is as wide as its labels and its options do not wrap, so at the
+ * switcher's own padding seven of them run past the column. They are given
+ * less of it here, and below the width where even that stops fitting the
+ * labels give way to the icons they sit beside -- staying in the
+ * accessibility tree, because the label is the option's name. The switcher
+ * does the same thing itself at 500px; this only brings the point forward for
+ * a row that is twice as long as the ones it was built for.
+ */
+.notifications-filter {
+	:deep(.switcher__option) {
+		padding: 0 12px;
+	}
+}
+
+@media (max-width: 800px) {
+	.notifications-filter :deep(.switcher__label) {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
 }
 
 #app-content {

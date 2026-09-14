@@ -144,6 +144,13 @@ export const useAccountStore = defineStore('account', {
 		accountsFollowingsLoading: {},
 		accountsFollowersAllLoaded: {},
 		accountsFollowingsAllLoaded: {},
+		/**
+		 * Which of these lists failed to load, keyed the same way. A list that
+		 * could not be fetched is not a list with nobody in it, and the page
+		 * said "No followers yet" for both.
+		 */
+		accountsFollowersFailed: {},
+		accountsFollowingsFailed: {},
 	}),
 
 	getters: {
@@ -237,6 +244,12 @@ export const useAccountStore = defineStore('account', {
 		},
 		setFollowingsLoading({ actorId, loading }) {
 			this.accountsFollowingsLoading = { ...this.accountsFollowingsLoading, [actorId]: loading }
+		},
+		setFollowersFailed({ actorId, failed }) {
+			this.accountsFollowersFailed = { ...this.accountsFollowersFailed, [actorId]: failed }
+		},
+		setFollowingsFailed({ actorId, failed }) {
+			this.accountsFollowingsFailed = { ...this.accountsFollowingsFailed, [actorId]: failed }
 		},
 		setFollowersAllLoaded({ actorId, loaded }) {
 			this.accountsFollowersAllLoaded = { ...this.accountsFollowersAllLoaded, [actorId]: loaded }
@@ -522,8 +535,10 @@ export const useAccountStore = defineStore('account', {
 				if (response.data.length < 20) {
 					this.setFollowersAllLoaded({ actorId: key, loaded: true })
 				}
+				this.setFollowersFailed({ actorId: key, failed: false })
 				return response.data
 			} catch (error) {
+				this.setFollowersFailed({ actorId: key, failed: true })
 				showError(t('social', 'Could not load the list of followers'))
 				logger.error(`Failed to fetch followers list for user ${account}`, { error })
 			} finally {
@@ -551,8 +566,10 @@ export const useAccountStore = defineStore('account', {
 				if (response.data.length < 20) {
 					this.setFollowingsAllLoaded({ actorId: key, loaded: true })
 				}
+				this.setFollowingsFailed({ actorId: key, failed: false })
 				return response.data
 			} catch (error) {
+				this.setFollowingsFailed({ actorId: key, failed: true })
 				showError(t('social', 'Could not load the list of followed accounts'))
 				logger.error(`Failed to fetch following list for user ${account}`, { error })
 			} finally {

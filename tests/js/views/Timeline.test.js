@@ -528,9 +528,10 @@ describe('Timeline', () => {
 	/**
 	 * Everywhere else it would be a switch between three places you are not:
 	 * these views are reached from the sidebar and are not read at three
-	 * distances.
+	 * distances. Notifications is the exception -- the same control, choosing
+	 * a filter of the one page rather than one page of three.
 	 */
-	it.each(['notifications', 'direct', 'favourites', 'bookmarks'])(
+	it.each(['direct', 'favourites', 'bookmarks'])(
 		'does not offer the switcher on %s',
 		(type) => {
 			const wrapper = mountTimeline({ params: { type } })
@@ -538,6 +539,41 @@ describe('Timeline', () => {
 			expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(false)
 		},
 	)
+
+	describe('the notifications filter', () => {
+		const filters = (wrapper) => wrapper.findComponent(TimelineSwitcher)
+
+		afterEach(() => {
+			window.localStorage.removeItem('social.notificationsFilter')
+		})
+
+		it('offers one row for every kind of activity', () => {
+			const wrapper = mountTimeline({ params: { type: 'notifications' } })
+
+			expect(filters(wrapper).props('options').map((option) => option.label))
+				.toEqual(['All', 'Mentions', 'Favourites', 'Boosts', 'Follows', 'Polls', 'Edits'])
+			// a filter of this page, not a page of its own
+			expect(filters(wrapper).props('options').every((option) => option.to === undefined)).toBe(true)
+		})
+
+		it('makes the chosen filter part of what the timeline is', async () => {
+			const wrapper = mountTimeline({ params: { type: 'notifications' } })
+
+			await filters(wrapper).vm.$emit('update:value', 'favourites')
+
+			expect(timelineStore.changeTimelineType)
+				.toHaveBeenCalledWith({ type: 'notifications', params: { filter: 'favourites' } })
+		})
+
+		it('opens again where the reader left it', async () => {
+			const first = mountTimeline({ params: { type: 'notifications' } })
+			await filters(first).vm.$emit('update:value', 'follows')
+
+			const second = mountTimeline({ params: { type: 'notifications' } })
+
+			expect(filters(second).props('value')).toBe('follows')
+		})
+	})
 
 	it('does not offer the switcher on a hashtag timeline', () => {
 		const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })

@@ -66,6 +66,16 @@ describe('MediaAttachment', () => {
 	 * use as a poster: a browser handed a video for one downloads it to find a
 	 * frame, which is the whole thing a poster avoids.
 	 */
+	it('plays a video where it sits rather than taking over the screen', () => {
+		// without `playsinline` iOS opens its own full-screen player the
+		// moment a video starts, and the reader is thrown out of the timeline
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { id: '9', type: 'video', url: 'https://cloud.example.org/media/9.mp4', description: '' } },
+		})
+
+		expect(wrapper.find('video').attributes('playsinline')).toBeDefined()
+	})
+
 	it('gives a local video no poster, since its preview is the video', () => {
 		const wrapper = mount(MediaAttachment, {
 			props: {

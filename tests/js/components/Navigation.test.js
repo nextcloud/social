@@ -74,6 +74,25 @@ vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(() => Promise.resolve({ data: [] })) },
 }))
 
+// The sidebar's requests wait for the timeline's first one (services/boot.js,
+// tested on its own). Here the wait is a hook the tests can hold: it runs the
+// callback at once unless a test takes it to see what is held back.
+const boot = vi.hoisted(() => ({ held: [], immediate: true }))
+vi.mock('../../../src/services/boot.js', () => ({
+	afterFirstTimeline: (callback) => {
+		if (boot.immediate) {
+			callback()
+		} else {
+			boot.held.push(callback)
+		}
+	},
+}))
+// the instance limits are asked for alongside; not what these tests are about
+vi.mock('../../../src/services/instanceLimits.js', () => ({
+	DEFAULT_LIMITS: { maxCharacters: 500, maxAttachments: 10 },
+	loadLimits: vi.fn(async () => ({ maxCharacters: 500, maxAttachments: 10 })),
+}))
+
 describe('Navigation', () => {
 	beforeEach(() => {
 		pinia = createPinia()
@@ -92,6 +111,31 @@ describe('Navigation', () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks()
+		boot.immediate = true
+		boot.held = []
+	})
+
+	describe('what waits for the timeline', () => {
+		it('sends none of its own requests until the timeline has had its turn', async () => {
+			boot.immediate = false
+			axios.get.mockClear()
+			const fetchUnread = vi.spyOn(notificationsStore, 'fetchUnreadNotifications').mockResolvedValue(undefined)
+
+			mountNavigation()
+			await flushPromises()
+
+			// trending, lists, the badge: all of them wait
+			expect(axios.get).not.toHaveBeenCalled()
+			expect(fetchUnread).not.toHaveBeenCalled()
+			expect(boot.held.length).toBeGreaterThan(0)
+
+			boot.held.forEach((release) => release())
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/trends/tags', expect.anything())
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/lists')
+			expect(fetchUnread).toHaveBeenCalledTimes(1)
+		})
 	})
 
 	describe('arriving from "Share to Social" in the Files app', () => {

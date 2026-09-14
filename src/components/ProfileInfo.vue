@@ -47,20 +47,23 @@
 			<span v-if="relationship && relationship.blocking" class="user-profile__blocked-hint">
 				{{ t('social', 'Blocked') }}
 			</span>
+			<!-- one string each, counted and formatted: "1 posts" was wrong in
+			     English and the three labels were unpluralisable in every
+			     language that does not build them the way English does -->
 			<ul class="user-profile__info user-profile__sections">
 				<li>
 					<router-link :to="{ name: 'profile', params: { account: uid } }">
-						{{ accountInfo.statuses_count }} {{ t('social', 'posts') }}
+						{{ postsLabel }}
 					</router-link>
 				</li>
 				<li>
 					<router-link :to="{ name: 'profile.following', params: { account: uid } }">
-						{{ accountInfo.following_count }}  {{ t('social', 'following') }}
+						{{ followingLabel }}
 					</router-link>
 				</li>
 				<li>
 					<router-link :to="{ name: 'profile.followers', params: { account: uid } }">
-						{{ accountInfo.followers_count }}  {{ t('social', 'followers') }}
+						{{ followersLabel }}
 					</router-link>
 				</li>
 			</ul>
@@ -252,6 +255,7 @@ import { translate, translatePlural } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import FollowButton from './FollowButton.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
+import { formatCount } from '../utils/number.js'
 import { profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import logger from '../services/logger.js'
@@ -337,6 +341,33 @@ export default {
 
 		displayName() {
 			return this.accountInfo.display_name ?? this.accountInfo.username ?? this.profileAccount
+		},
+
+		/**
+		 * The three counters under the name. The number is a placeholder
+		 * rather than `%n` so that it can be written in the reader's own
+		 * digits and grouping; the count still decides which form is used.
+		 *
+		 * @return {string}
+		 */
+		postsLabel() {
+			const count = Number(this.accountInfo.statuses_count) || 0
+
+			return translatePlural('social', '{count} post', '{count} posts', count, { count: formatCount(count) })
+		},
+
+		/** @return {string} */
+		followingLabel() {
+			const count = Number(this.accountInfo.following_count) || 0
+
+			return translatePlural('social', '{count} following', '{count} following', count, { count: formatCount(count) })
+		},
+
+		/** @return {string} */
+		followersLabel() {
+			const count = Number(this.accountInfo.followers_count) || 0
+
+			return translatePlural('social', '{count} follower', '{count} followers', count, { count: formatCount(count) })
 		},
 
 		avatarUrl() {
