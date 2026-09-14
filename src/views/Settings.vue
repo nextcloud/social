@@ -26,6 +26,16 @@
 			<AccountSettings />
 		</section>
 
+		<section id="featured-tags" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Featured hashtags') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'The hashtags you want your profile to be known for. They sit under your bio, and anybody can click one to read what you posted with it.') }}
+			</p>
+			<FeaturedTagsSettings />
+		</section>
+
 		<section id="lists" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Lists') }}
@@ -93,6 +103,8 @@ const AccountSettings = defineAsyncComponent(() => import(/* webpackChunkName: "
 // of its own with it
 const RecapSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/RecapSettings.vue'))
 const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/ListsSettings.vue'))
+// same chunk again: a form and a text field nobody sees until they open this page
+const FeaturedTagsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/FeaturedTagsSettings.vue'))
 
 /**
  * Settings: what this app holds about how the reader uses it.
@@ -109,6 +121,7 @@ export default {
 
 	components: {
 		AccountSettings,
+		FeaturedTagsSettings,
 		ListsSettings,
 		MigrationSettings,
 		RecapSettings,

@@ -169,7 +169,9 @@
 			<!-- the hashtags this account pins to itself: a claim it makes
 			     about what it is about, so it sits with the bio rather than
 			     among the numbers -->
-			<FeaturedTags :accountId="highlightsAccountId" />
+			<!-- `!!`: isOwnProfile is the uid comparison, which is undefined
+			     until the reader is known, and the prop is a boolean -->
+			<FeaturedTags :accountId="highlightsAccountId" :editable="!!isOwnProfile" />
 			<!-- what this account is like, over and above how much of it there
 			     is; renders nothing for a remote account, whose history this
 			     instance only ever holds a part of -->

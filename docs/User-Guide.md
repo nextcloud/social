@@ -202,6 +202,13 @@ Administrators post and remove announcements in **Administration → Social**.
   one), a bio, and up to four name/value fields shown under it. A field whose
   value is a web page gets a verified tick once that page links back to your
   profile with `rel="me"`. All of it is shared with other servers.
+- **Featured hashtags.** **Settings → Featured hashtags** decides which tags sit under
+  your bio — up to ten, and anybody reading your profile can click one to see what you
+  posted under it. It opens with the hashtags you post with most and have not featured
+  yet, so you pick from your own writing rather than guessing; anything else goes in
+  the box beside them, with or without the `#`. The **×** on a row stops featuring that
+  tag and does nothing else — your posts keep their hashtags. Your own profile links
+  here from where the tags are shown, whether you feature any or not.
 - **Blocking and muting.** Both are in the menu on an account's profile.
   **Block** severs the relationship in both directions, hides the account
   everywhere, and tells the other server (unless the administrator turned

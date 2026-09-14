@@ -148,8 +148,13 @@ own unified search. No external search engine to run.
 - **A banner, a bio and four metadata fields**, federated the way Mastodon does it.
 - **Verified links.** A profile field naming a web page gets the tick when that page
   links back with `rel="me"`.
-- **Featured hashtags** and **highlights** — a twelve-week posting chart and the tags
-  somebody keeps coming back to.
+- **Featured hashtags.** Up to ten tags pinned under the bio, saying what the account is
+  about in its own words; a visitor clicks one and reads what was posted under it, with
+  the count taken from the posts rather than stored. You set your own in **Settings →
+  Featured hashtags**, which starts from the tags you already post with most instead of
+  an empty box, and your profile links straight there.
+- **Highlights** — a twelve-week posting chart and the tags somebody keeps coming back
+  to.
 - **Pinned posts**, up to five, published in the actor's `featured` collection. Remote
   accounts' pins arrive too.
 - **A grid or a timeline**, whichever you last chose, cropped to each picture's focal
@@ -331,7 +336,7 @@ These are absent from the code today, not merely rough edges:
   client does get live timelines when
   [notify_push](https://github.com/nextcloud/notify_push) is installed — that is a
   Nextcloud channel, not a Mastodon one.)
-- **No web editor for keyword filters, profile metadata fields or featured hashtags.**
+- **No web editor for keyword filters or profile metadata fields.**
   Each is set through the API or a Mastodon client; this app has no page for them.
 
 ## 📦 Quickstart (install & develop)

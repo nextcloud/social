@@ -25,6 +25,8 @@ const NcModalStub = { name: 'NcModal', template: '<div class="modal-stub"><slot 
 // passed. They have tests of their own; here they are stubs.
 const asyncStubs = {
 	AccountSettings: { name: 'AccountSettings', template: '<section class="account-settings-stub" />' },
+	// reads the featured tags and the suggestions on mount, same story
+	FeaturedTagsSettings: { name: 'FeaturedTagsSettings', template: '<section class="featured-tags-settings-stub" />' },
 	ListsSettings: { name: 'ListsSettings', template: '<section class="lists-settings-stub" />' },
 	// reads the recap setting on mount, for the same reason: its request would
 	// answer after this file has finished
@@ -86,7 +88,19 @@ describe('Settings', () => {
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Your account', 'Lists', 'Keyboard shortcuts', 'Scheduled posts', 'Looking back', 'Migration'])
+			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Keyboard shortcuts', 'Scheduled posts', 'Looking back', 'Migration'])
+	})
+
+	/**
+	 * The hashtag editor is reached from the reader's own profile, which links
+	 * at `#featured-tags` — a section with no id is a link that lands at the
+	 * top of the page and looks like it did nothing.
+	 */
+	it('gives the hashtag editor the id its profile link points at', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		expect(wrapper.find('#featured-tags').exists()).toBe(true)
 	})
 
 	/**
