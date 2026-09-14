@@ -139,6 +139,13 @@
 				@paste="handlePaste"
 				@tribute-replaced="updatePostFromTribute" />
 
+			<!-- what the server will publish, once the writer asks to see it;
+			     under the box, above everything the post is being given -->
+			<ComposerPreview
+				v-if="showPreview"
+				:text="statusText"
+				:warning="showWarning ? spoilerText : ''" />
+
 			<div v-if="showPoll" class="poll-editor">
 				<div v-for="(option, index) in pollOptions" :key="index" class="poll-editor__option">
 					<input
@@ -261,6 +268,16 @@
 					</template>
 				</NcButton>
 				<NcButton
+					:title="showPreview ? t('social', 'Hide preview') : t('social', 'Preview this post')"
+					variant="tertiary"
+					:aria-label="showPreview ? t('social', 'Hide preview') : t('social', 'Preview this post')"
+					:aria-pressed="showPreview"
+					@click.prevent="showPreview = !showPreview">
+					<template #icon>
+						<EyeOutline :size="22" decorative title="" />
+					</template>
+				</NcButton>
+				<NcButton
 					:title="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
 					variant="tertiary"
 					:aria-label="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
@@ -368,6 +385,7 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
+import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
 import { defineAsyncComponent } from 'vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
@@ -378,6 +396,7 @@ import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
+import ComposerPreview from './ComposerPreview.vue'
 import LanguageSelect from './LanguageSelect.vue'
 import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
 import { isKnownVisibility } from '../Visibility/VisibilitiesInfos.js'
@@ -528,8 +547,10 @@ export default {
 		Close,
 		FolderImage,
 		AlertOutline,
+		EyeOutline,
 		PollIcon,
 		PreviewGrid,
+		ComposerPreview,
 		LanguageSelect,
 		VisibilitySelect,
 		SubmitStatusButton,
@@ -662,6 +683,8 @@ export default {
 			attachments: {},
 			showPoll: false,
 			showWarning: false,
+			/** whether the "how this will read" pane is open */
+			showPreview: false,
 			spoilerText: '',
 			pollOptions: ['', ''],
 			pollMultiple: false,
