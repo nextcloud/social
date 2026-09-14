@@ -21,9 +21,28 @@
 import { FileType, registerFileAction } from '@nextcloud/files'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
+import { knownLimits, loadLimits } from './services/instanceLimits.js'
 
-/** What a post may carry, as Stream::MAX_ATTACHMENTS holds it server-side. */
-export const MAX_ATTACHMENTS = 10
+/**
+ * How many files a post may carry: the server's number once it has been
+ * asked, and the number it used to hard-code until then.
+ *
+ * `enabled()` is synchronous and is asked whenever the selection changes, so
+ * it cannot wait for the server. The first time it is asked with more than
+ * one file it sends for the real ceiling -- one request, on the first
+ * occasion a Files page has any use for it rather than on every Files page --
+ * and answers from the fallback meanwhile.
+ *
+ * @param {number} selected how many files are picked
+ * @return {number} the ceiling
+ */
+export function maxAttachments(selected = 0) {
+	if (selected > 1) {
+		loadLimits()
+	}
+
+	return knownLimits().maxAttachments
+}
 
 /** what the composer's picker offers, and what `POST /media/from-file` accepts */
 const SHAREABLE = /^(?:image|video)\//
@@ -78,7 +97,7 @@ export const shareAction = {
 	// them than a post can carry: the composer would have to refuse the rest,
 	// and an action that half works is worse than one that is not offered
 	enabled: ({ nodes }) => nodes.length > 0
-		&& nodes.length <= MAX_ATTACHMENTS
+		&& nodes.length <= maxAttachments(nodes.length)
 		&& nodes.every(isShareable),
 	async exec({ nodes }) {
 		return shareToSocial(nodes)[0]

@@ -26,7 +26,10 @@
 				@open="openMedia(index)" />
 		</div>
 		<div v-else class="attachments-container">
-			<template v-for="(item, index) in attachementsSlice" :key="index">
+			<!-- a frame around each one, so the ALT badge has something
+			     positioned to sit in the corner of and does not have to be
+			     nested inside the button it would otherwise be part of -->
+			<figure v-for="(item, index) in attachementsSlice" :key="index" class="attachment-frame">
 				<!-- an image is opened by pressing it, so it gets a button.
 				     Video and audio carry their own controls: nesting those
 				     inside a button is invalid, and they need no viewer to be
@@ -52,8 +55,13 @@
 					@click="openMedia(index)">
 					<MediaAttachment :attachment="item" :interactive="false" />
 				</button>
-				<MediaAttachment v-else ref="thumbnails" :attachment="item" />
-			</template>
+				<MediaAttachment
+					v-else
+					ref="thumbnails"
+					class="attachment"
+					:attachment="item" />
+				<AltBadge v-if="hasDescription(item)" :description="item.description" />
+			</figure>
 			<button
 				v-if="media.length > 4"
 				type="button"
@@ -79,12 +87,16 @@
 			@previous="current--"
 			@next="current++">
 			<div ref="viewer" class="attachment__viewer">
+				<!-- `playsinline` here too: the lightbox *is* the full-screen
+				     view, and iOS taking it into its own player on top of that
+				     loses the description below and the paging either side -->
 				<video
 					v-if="attachments[current].type === 'video'"
 					:src="attachments[current].url"
 					:aria-label="attachments[current].description || ''"
 					controls
-					autoplay />
+					autoplay
+					playsinline />
 				<audio
 					v-else-if="attachments[current].type === 'audio'"
 					:src="attachments[current].url"
@@ -103,6 +115,7 @@
 
 <script>
 import NcModal from '@nextcloud/vue/components/NcModal'
+import AltBadge from './AltBadge.vue'
 import MediaAttachment from './MediaAttachment.vue'
 import GalleryCarousel from './GalleryCarousel.vue'
 import GalleryMedia from './GalleryMedia.vue'
@@ -122,6 +135,7 @@ export default {
 	name: 'PostAttachment',
 	components: {
 		NcModal,
+		AltBadge,
 		MediaAttachment,
 		GalleryCarousel,
 		GalleryMedia,
@@ -245,6 +259,15 @@ export default {
 			return attachment?.type !== 'video' && attachment?.type !== 'audio'
 		},
 
+		/**
+		 * @param {import('../types/Mastodon').MediaAttachment} attachment one
+		 * @return {boolean} whether it carries a description worth a badge
+		 */
+		hasDescription(attachment) {
+			return typeof attachment?.description === 'string'
+				&& attachment.description.trim() !== ''
+		},
+
 		openLabel(attachment, index) {
 			return attachment.description
 				? translate('social', 'Open attachment: {description}', { description: attachment.description })
@@ -332,6 +355,20 @@ export default {
 		border-radius: 12px;
 		overflow: hidden;
 		background: var(--color-background-dark);
+
+		.attachment-frame {
+			position: relative;
+			flex-grow: 1;
+			flex-shrink: 1;
+			flex-basis: calc(50% - 3px);
+			height: 22vh;
+			margin: 0;
+
+			.attachment {
+				width: 100%;
+				height: 100%;
+			}
+		}
 
 		.attachment {
 			flex-grow: 1;

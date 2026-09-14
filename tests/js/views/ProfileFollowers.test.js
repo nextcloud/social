@@ -73,6 +73,55 @@ describe('ProfileFollowers', () => {
 		expect(shown(wrapper)).toEqual(['carol'])
 	})
 
+	describe('an empty list and a list that would not load', () => {
+		const key = (handle) => store.getActorIdForAccount(handle) || handle
+
+		it('says that nobody follows this account when nobody does', async () => {
+			store.fetchAccountFollowers.mockImplementation(async ({ account: handle }) => {
+				store.addFollowers({ account: handle, data: [] })
+			})
+			const wrapper = mountView({ name: 'profile.followers', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+
+			expect(wrapper.find('.empty-content-stub').exists() || wrapper.text()).toContain('No followers yet')
+			expect(wrapper.find('.followers-error').exists()).toBe(false)
+		})
+
+		it('does not pass a failed fetch off as an account nobody follows', async () => {
+			store.fetchAccountFollowers.mockImplementation(async ({ account: handle }) => {
+				store.setFollowersFailed({ actorId: key(handle), failed: true })
+			})
+			const wrapper = mountView({ name: 'profile.followers', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+
+			expect(wrapper.find('.followers-error').text()).toContain('The followers could not be loaded.')
+			expect(wrapper.text()).not.toContain('No followers yet')
+		})
+
+		it('offers to try the failed fetch again', async () => {
+			store.fetchAccountFollowers.mockImplementation(async ({ account: handle }) => {
+				store.setFollowersFailed({ actorId: key(handle), failed: true })
+			})
+			const wrapper = mountView({ name: 'profile.followers', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+			store.fetchAccountFollowers.mockClear()
+
+			await wrapper.find('.followers-error button').trigger('click')
+
+			expect(store.fetchAccountFollowers).toHaveBeenCalledWith({ account: 'bob@remote.example' })
+		})
+
+		it('says the other thing on the following list', async () => {
+			store.fetchAccountFollowing.mockImplementation(async ({ account: handle }) => {
+				store.setFollowingsFailed({ actorId: key(handle), failed: true })
+			})
+			const wrapper = mountView({ name: 'profile.following', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+
+			expect(wrapper.find('.followers-error').text()).toContain('The followed accounts could not be loaded.')
+		})
+	})
+
 	it('completes a bare local uid with the instance host', () => {
 		mountView({ name: 'profile.followers', params: { account: 'carol' } })
 		expect(store.fetchAccountFollowers).toHaveBeenCalledWith({ account: 'carol@cloud.example.org' })

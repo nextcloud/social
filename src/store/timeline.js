@@ -10,6 +10,8 @@ import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'
 
 import logger from '../services/logger.js'
+import { noteTimelineRequest } from '../services/boot.js'
+import { excludeTypesFor } from '../services/notifications.js'
 import { useAccountStore } from './account.js'
 
 /** Where the browser remembers that this reader's first post was celebrated. */
@@ -117,7 +119,7 @@ export const useTimelineStore = defineStore('timeline', {
 		/** which list a removed status came from, so a rollback restores it there */
 		removedFrom: {},
 		type: 'home',
-		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string}} */
+		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string, filter?: string}} */
 		params: {},
 		account: '',
 		/**
@@ -824,9 +826,17 @@ export const useTimelineStore = defineStore('timeline', {
 						params.only_video = true
 					}
 					break
-				case 'notifications':
+				case 'notifications': {
 					url = generateUrl('apps/social/api/v1/notifications')
+					// the page's filter, as the server takes it: what to leave
+					// out. Part of the params, so changing it is a different
+					// timeline and refetches rather than filtering the page
+					const excluded = excludeTypesFor(this.params.filter ?? 'all')
+					if (excluded.length > 0) {
+						params.exclude_types = excluded
+					}
 					break
+				}
 				case 'bookmarks':
 				// the only timeline the server serves without a trailing slash
 					url = generateUrl('apps/social/api/v1/bookmarks')
@@ -839,7 +849,10 @@ export const useTimelineStore = defineStore('timeline', {
 			// the reader has moved on is dropped instead of being committed under
 			// the new heading
 			const identity = this.getTimelineIdentity
-			const response = await axios.get(url, { params })
+			const request = axios.get(url, { params })
+			// the sidebar's own requests wait for the first of these
+			noteTimelineRequest(request)
+			const response = await request
 
 			if (this.getTimelineIdentity !== identity) {
 				logger.debug('Dropped a page that belongs to a timeline no longer on screen', { identity })

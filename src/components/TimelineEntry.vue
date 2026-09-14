@@ -6,12 +6,23 @@
 	<component
 		:is="element"
 		class="timeline-entry"
-		:class="{ notification: isNotification, 'with-header': isNotification, 'timeline-entry--reply': depth > 0 }"
+		:class="{ notification: isNotification, 'with-header': isNotification, 'timeline-entry--reply': depth > 0, 'timeline-entry--unread': unread }"
 		:style="depth > 0 ? { '--thread-depth': Math.min(depth, MAX_INDENT) } : undefined"
 		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">
-				<ActorAvatar :actor="notification.account" :size="24" />
+				<!-- one face, or the first few of the several this card stands
+				     for, overlapping so a row of nine cannot push the words off
+				     the card -->
+				<span v-if="groupedAccounts.length > 1" class="notification__faces">
+					<ActorAvatar
+						v-for="account in groupedAccounts"
+						:key="account.id || account.acct"
+						:actor="account"
+						:size="24"
+						:link="false" />
+				</span>
+				<ActorAvatar v-else :actor="notification.account" :size="24" />
 				<Heart v-if="notification.type === 'favourite'" :size="16" />
 				<Repeat v-if="notification.type === 'reblog'" :size="16" />
 				<AccountPlusOutline v-if="notification.type === 'follow'" :size="16" />
@@ -89,7 +100,7 @@ import TimelinePost from './TimelinePost.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
-import { notificationSummary } from '../services/notifications.js'
+import { GROUP_FACES, notificationSummary } from '../services/notifications.js'
 import { onTick } from '../services/clock.js'
 import { isPhone, onPhoneChange } from '../services/phone.js'
 import { mapStores } from 'pinia'
@@ -144,6 +155,16 @@ export default {
 		element: {
 			type: String,
 			default: 'li',
+		},
+
+		/**
+		 * Whether this arrived after the reader last read their notifications.
+		 * Drawn as a tint and a bar down the leading edge, so the new ones can
+		 * be picked out of a page that is mostly not new.
+		 */
+		unread: {
+			type: Boolean,
+			default: false,
 		},
 	},
 
@@ -215,6 +236,22 @@ export default {
 		/** @return {boolean} */
 		notificationIsAboutAnAccount() {
 			return ['follow', 'follow_request', 'admin.sign_up', 'admin.report'].includes(this.notification.type)
+		},
+
+		/**
+		 * The faces a grouped card shows: everyone in it, capped, so that nine
+		 * people liking one post is a row of five and a count rather than nine
+		 * avatars. Empty for a card that stands for one thing, which draws the
+		 * single avatar instead.
+		 *
+		 * @return {import('../types/Mastodon.js').Account[]}
+		 */
+		groupedAccounts() {
+			if (!Array.isArray(this.notification.accounts)) {
+				return []
+			}
+
+			return this.notification.accounts.slice(0, GROUP_FACES)
 		},
 
 		/**
@@ -332,6 +369,31 @@ export default {
 
 	&.notification {
 		margin-bottom: 10px;
+	}
+
+	/* Arrived since the reader last looked. A tint and a bar, not a dot: the
+	   page is read by running down it, and an edge is visible in peripheral
+	   vision where a dot beside the timestamp is not. The border is already
+	   there on a notification card, so this colours it rather than adding a
+	   second one and shifting the card by 3px against its read neighbours. */
+	&--unread.with-header {
+		background: var(--color-primary-element-light);
+		border-inline-start: 3px solid var(--color-primary-element);
+		padding-inline-start: 12px;
+	}
+}
+
+/* the faces of a card that stands for several people, overlapping */
+.notification__faces {
+	display: flex;
+	align-items: center;
+
+	> * + * {
+		// each face tucks under the one before it, and its own ring keeps the
+		// edge readable against the one it covers
+		margin-inline-start: -8px;
+		border-radius: 50%;
+		box-shadow: 0 0 0 2px var(--color-main-background);
 	}
 }
 

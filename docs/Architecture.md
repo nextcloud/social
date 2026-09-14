@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.19.81  
+**App version:** 0.19.82  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -753,7 +753,7 @@ None of those entries is self-contained. Vue, `@nextcloud/vue` and pinia used to
 
 ### Store
 
-`src/store/` holds five Pinia stores — `timeline`, `account`, `settings`, `errors` and `notifications` — and `index.js` creates the Pinia every entry point installs. Components reach them through `mapStores`, or through a composable where the same few values are wanted together: `useServerData`, `useCurrentUser` and `useAccount` in `src/composables/` replaced the three mixins the app used to carry.
+`src/store/` holds six Pinia stores — `timeline`, `account`, `settings`, `errors`, `notifications` and `instance` — and `index.js` creates the Pinia every entry point installs. Components reach them through `mapStores`, or through a composable where the same few values are wanted together: `useServerData`, `useCurrentUser` and `useAccount` in `src/composables/` replaced the three mixins the app used to carry.
 
 Server-side state is not a store: it is passed through Nextcloud's initial state as `serverData` and read by `useServerData`.
 
@@ -787,7 +787,7 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 
 ### Components
 
-`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `FirstRun` (the four-step introduction a new account sees once, in place of the beta banner: the address, the colleagues and starter packs from the same routes Discover reads, the follows import Settings offers, and a hand-off to the composer), `FirstPostCelebration`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`, `LanguageSelect`), `ScheduledPosts` (the posts waiting to go out, in Settings), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+`src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `FirstRun` (the four-step introduction a new account sees once, in place of the beta banner: the address, the colleagues and starter packs from the same routes Discover reads, the follows import Settings offers, and a hand-off to the composer), `FirstPostCelebration`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`, `LanguageSelect`), `ScheduledPosts` (the posts waiting to go out, in Settings), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components). AltBadge`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
 
 `ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
 (a file, or the address of one), the bio and the metadata fields. The banner
@@ -799,8 +799,8 @@ edited.
 `Composer.vue` grows a second attach control beside the paperclip: the
 `@nextcloud/dialogs` file picker, so a picture already in the user's Nextcloud
 goes straight to `POST /api/v1/media/from-file` instead of being downloaded and
-uploaded back. Both sources fill the same attachment map and share one ceiling
-of eight, and with anything attached the preview grid moves above the text box —
+uploaded back. Both sources fill the same attachment map and share one ceiling,
+the server's (see "What the server's limits are" below), and with anything attached the preview grid moves above the text box —
 in the DOM, so the tab order follows the eye — and the box becomes a caption
 field. A picture with no alt text is marked as such on its own thumbnail, and a
 description is saved on leaving the field rather than only when the post goes
@@ -858,6 +858,69 @@ of three reached one of three: the server turns the handles in the text into
 recipients, `Mention` tags and inboxes (`PostService::fixRecipientAndHashtags()`
 into `StreamService::addRecipient()`), and it can only address the people the
 text names.
+**The notifications page.** `/timeline/notifications` is the ordinary
+`TimelineList` with three things of its own, all of them in the client so that
+the API stays the shape every Mastodon client expects.
+
+*The filter row* is `TimelineSwitcher` again, with no `to` on any option, so the
+choice is the page's own state: `src/services/notifications.js` holds the seven
+filters and `excludeTypesFor()` turns one into the `exclude_types` the server
+takes (`ApiController::notifications()`). The choice is part of the store's
+`params`, so it is part of `getTimelineIdentity` — changing it refetches rather
+than hiding rows already on screen — and `rememberedFilter()`/`rememberFilter()`
+keep it in `localStorage` under `social.notificationsFilter`, inside a
+`try`/`catch` because reading it throws in a private window.
+
+*Grouping* is `groupNotifications()` in the same service: consecutive favourites
+or boosts of one status, and consecutive follows, become one card carrying
+`accounts` (everyone in it) and `ids` (every row it stands for). Only
+consecutive ones — folding across something that happened in between would
+reorder what happened. `TimelineEntry` draws up to `GROUP_FACES` overlapping
+avatars and `notificationSummary()` writes "Anna, Bob and 3 others liked your
+post"; `newestIdOf()` is what keeps the read marker covering every folded row.
+
+*Unread* has one rule: **the page is read once it has been in front of the
+reader for `SEEN_AFTER` (two seconds) with the tab visible**, and it is read up
+to the newest card on it at that moment. It used to be read by an
+`immediate: true` watcher, i.e. by rendering — and the marker is the
+server-side Mastodon one every client shares, so a tab opened in the background
+cleared the reader's phone for notifications no human had seen. The "New" and
+"Earlier" headings are drawn against `notificationsStore.fetchLastRead()`
+(`GET /api/v1/markers`), read once when the page opens and then frozen in the
+component: a boundary that followed the marker would rub itself out as the page
+was read.
+
+**What the server's limits are, and who asks.** `MAX_LENGTH` and
+`MAX_ATTACHMENTS` were hard-coded in `Composer.vue`, `TimelinePost.vue` and
+`src/filesAction.js` — the server's numbers on the day they were typed, and
+nothing kept them so. `src/services/instanceLimits.js` reads them from
+`GET /api/v1/instance` (`configuration.statuses.max_characters`,
+`max_media_attachments`), once per page, with the old constants as the fallback
+a failure leaves standing. It is framework-free — no Vue, no Pinia, no axios —
+because the Files action is loaded on every Files page without any of them;
+`src/store/instance.js` is the reactive face of it for the components.
+
+**What waits for the timeline.** Every page used to fire four requests as it
+mounted — the timeline, `trends/tags`, `lists` and `notifications/unread_count`
+— and on a small server they contended for PHP workers: 2.3 to 3.4 seconds each
+in parallel where the timeline alone takes 0.4. `src/services/boot.js` is the
+one place that knows about it: the timeline store calls `noteTimelineRequest()`
+with every request it sends and the first one on the page is the one everything
+else yields to, while `afterFirstTimeline()` runs its callback once that has
+settled — or, on a page that sends no timeline request at all, in the first idle
+slot after the first paint. The decision is taken in that idle slot rather than
+at mount, because the sidebar mounts before the timeline below it and at mount
+time there is nothing yet to yield to. `Navigation.vue` and the instance store
+are the callers.
+
+**The ALT badge.** `AltBadge.vue`: a badge in the corner of a thumbnail that
+carries a description, and the description under it when it is pressed. It
+renders two roots (the button and the text) so that both position themselves
+against whatever frame holds them, which therefore has to be
+`position: relative` — `.photo` in `GalleryMedia.vue`, `.attachment-frame` in
+`PostAttachment.vue`. It was `GalleryMedia`'s own markup and so appeared on the
+media-first mosaic only; the same picture in an ordinary two-up card had its
+description in an `alt` attribute and nowhere else.
 
 **Phone layout.** One breakpoint, 600px, stated twice on purpose: as `PHONE_WIDTH` in `src/services/phone.js` (a shared `matchMedia` query with `isPhone()` and `onPhoneChange()`) and as the `@media (max-width: 600px)` rule in the stylesheets that lay themselves out differently on a phone — `TimelineEntry.vue` (the avatar column goes; the face, 36px, sits inside the card over the corner `.post-header` leaves for it, which is why `TimelineAvatar` takes a `size`), `TimelinePost.vue` (less padding), `TimelineSinglePost.vue` (the 64px the fine print and the spine kept for the avatar column), and `Composer.vue` (the toolbar wraps, the visibility menu is icon-only, Post keeps the end of its row). Nextcloud's own mobile breakpoint, 1024px, is where the sidebar collapses; the only rule at that width is `Timeline.vue`'s, which starts the page's first element below the sidebar toggle. A tablet in portrait is between the two and keeps the avatar column.
 

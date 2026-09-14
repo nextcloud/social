@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
+import { getCanonicalLocale } from '@nextcloud/l10n'
 import { showError, showSuccess } from '../../../src/services/toast.js'
 import ProfileInfo from '../../../src/components/ProfileInfo.vue'
 import { useAccountStore } from '../../../src/store/account.js'
@@ -187,6 +188,22 @@ describe('ProfileInfo', () => {
 		expect(avatar.props('user')).toBeUndefined()
 		expect(avatar.props('size')).toBe(128)
 		expect(linkTexts(wrapper)).toEqual(['12 posts', '3 following', '5 followers'])
+	})
+
+	it('counts one post as a post, and one follower as a follower', () => {
+		// "1 posts" is not English, and three labels glued to a bare number
+		// cannot be pluralised in any language at all
+		const wrapper = mountProfile('carol')
+
+		expect(linkTexts(wrapper)).toEqual(['0 posts', '0 following', '1 follower'])
+	})
+
+	it('writes the counts in the reader\'s own digits and grouping', () => {
+		const account = { ...bob, acct: 'dora@remote.example', url: 'https://remote.example/users/dora', id: 'https://remote.example/users/dora', statuses_count: 1234 }
+		accountStore.addAccount({ actorId: account.url, data: account })
+		const wrapper = mountProfile('dora@remote.example')
+
+		expect(linkTexts(wrapper)[0]).toBe((1234).toLocaleString(getCanonicalLocale()) + ' posts')
 	})
 
 	it('links the counters to the profile sub pages of the shown account', () => {

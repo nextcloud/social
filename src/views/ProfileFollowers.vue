@@ -10,6 +10,22 @@
 			<NcLoadingIcon :size="24" />
 			<span>{{ t('social', 'Loading …') }}</span>
 		</div>
+		<!-- a list that could not be fetched is not a list with nobody in it,
+		     and saying "No followers yet" for a server error tells the reader
+		     something about this account that is not true -->
+		<div v-else-if="failed && users.length === 0" class="followers-error" role="alert">
+			<p class="followers-error__message">
+				{{ isFollowers
+					? t('social', 'The followers could not be loaded.')
+					: t('social', 'The followed accounts could not be loaded.') }}
+			</p>
+			<NcButton variant="primary" @click="fetchData">
+				<template #icon>
+					<Refresh :size="20" />
+				</template>
+				{{ t('social', 'Try again') }}
+			</NcButton>
+		</div>
 		<!-- a finished list with nobody in it used to be a blank panel -->
 		<NcEmptyContent
 			v-else-if="users.length === 0"
@@ -26,9 +42,11 @@
 
 <script>
 import { translate } from '@nextcloud/l10n'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AccountMultipleOutline from 'vue-material-design-icons/AccountMultipleOutline.vue'
+import Refresh from 'vue-material-design-icons/Refresh.vue'
 import UserEntry from '../components/UserEntry.vue'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
@@ -38,8 +56,10 @@ export default {
 	name: 'ProfileFollowers',
 	components: {
 		AccountMultipleOutline,
+		NcButton,
 		NcEmptyContent,
 		NcLoadingIcon,
+		Refresh,
 		UserEntry,
 	},
 
@@ -94,6 +114,18 @@ export default {
 				return !!this.accountStore.accountsFollowersLoading[this.storeKey]
 			} else {
 				return !!this.accountStore.accountsFollowingsLoading[this.storeKey]
+			}
+		},
+
+		/** @return {boolean} whether the last attempt at this list failed */
+		failed() {
+			if (!this.profileAccount) {
+				return false
+			}
+			if (this.isFollowers) {
+				return !!this.accountStore.accountsFollowersFailed[this.storeKey]
+			} else {
+				return !!this.accountStore.accountsFollowingsFailed[this.storeKey]
 			}
 		},
 
@@ -214,5 +246,24 @@ export default {
 		gap: 8px;
 		padding: 16px;
 		color: var(--color-text-lighter);
+	}
+
+	.followers-error {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		margin: 20px 0;
+		padding: 24px 20px;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		background: var(--color-main-background);
+		text-align: center;
+	}
+
+	.followers-error__message {
+		margin: 0;
+		color: var(--color-text-lighter);
+		line-height: 1.5;
 	}
 </style>

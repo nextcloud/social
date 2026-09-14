@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // what the module registered on import, kept outside any mock's call history
 const { registered } = vi.hoisted(() => ({ registered: [] }))
@@ -12,7 +12,18 @@ vi.mock('@nextcloud/files', () => ({
 	registerFileAction: (action) => registered.push(action),
 }))
 
-import { composeUrl, isShareable, MAX_ATTACHMENTS, shareAction, shareToSocial } from '../../src/filesAction.js'
+import { composeUrl, isShareable, shareAction, shareToSocial } from '../../src/filesAction.js'
+import { DEFAULT_LIMITS, loadLimits, resetLimitsForTests } from '../../src/services/instanceLimits.js'
+
+const MAX_ATTACHMENTS = DEFAULT_LIMITS.maxAttachments
+
+/** what the server answers to GET /api/v1/instance, as fetch() hands it over */
+function instanceSaying(maxMediaAttachments) {
+	return vi.fn(async () => ({
+		ok: true,
+		json: async () => ({ configuration: { statuses: { max_media_attachments: maxMediaAttachments } } }),
+	}))
+}
 
 const file = (path, mime = 'image/jpeg', type = 'file') => ({ path, mime, type, basename: path.split('/').pop() })
 
@@ -43,6 +54,56 @@ describe('Share to Social in the Files app', () => {
 		const tooMany = Array.from({ length: MAX_ATTACHMENTS + 1 }, (_, i) => file(`/${i}.jpg`))
 		expect(shareAction.enabled({ nodes: tooMany })).toBe(false)
 		expect(shareAction.enabled({ nodes: tooMany.slice(0, MAX_ATTACHMENTS) })).toBe(true)
+	})
+
+	describe('how many files a post can carry', () => {
+		// the tests above already asked, against a fetch nobody answered
+		beforeEach(resetLimitsForTests)
+
+		afterEach(() => {
+			resetLimitsForTests()
+			vi.unstubAllGlobals()
+		})
+
+		it('takes the ceiling from the server once it has answered, and the old constant until then', async () => {
+			vi.stubGlobal('fetch', instanceSaying(4))
+			const five = Array.from({ length: 5 }, (_, i) => file(`/${i}.jpg`))
+
+			// the first answer cannot wait for the server; it is the fallback
+			expect(shareAction.enabled({ nodes: five })).toBe(true)
+			expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/v1/instance/'), expect.anything())
+			// the same request the action sent; awaiting it is awaiting the answer
+			await loadLimits()
+
+			// and once the server has said four, five is too many
+			expect(shareAction.enabled({ nodes: five })).toBe(false)
+			expect(shareAction.enabled({ nodes: five.slice(0, 4) })).toBe(true)
+		})
+
+		it('asks the server once, and not for a single file', () => {
+			vi.stubGlobal('fetch', instanceSaying(10))
+
+			// one picture is a post whatever the ceiling: no request for that
+			shareAction.enabled({ nodes: [file('/a.jpg')] })
+			expect(fetch).not.toHaveBeenCalled()
+
+			shareAction.enabled({ nodes: [file('/a.jpg'), file('/b.jpg')] })
+			shareAction.enabled({ nodes: [file('/a.jpg'), file('/b.jpg'), file('/c.jpg')] })
+			expect(fetch).toHaveBeenCalledTimes(1)
+		})
+
+		it('keeps the old constant when the server cannot be asked', async () => {
+			vi.stubGlobal('fetch', vi.fn(async () => {
+				throw new Error('offline')
+			}))
+			const ten = Array.from({ length: MAX_ATTACHMENTS }, (_, i) => file(`/${i}.jpg`))
+
+			shareAction.enabled({ nodes: ten })
+			await loadLimits()
+
+			expect(shareAction.enabled({ nodes: ten })).toBe(true)
+			expect(shareAction.enabled({ nodes: [...ten, file('/more.jpg')] })).toBe(false)
+		})
 	})
 
 	it('sends the browser to the composer with one attach parameter per file', () => {

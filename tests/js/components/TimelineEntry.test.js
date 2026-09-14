@@ -211,6 +211,33 @@ describe('TimelineEntry', () => {
 			expect(header.find('.notification__summary').text()).toBe(summary)
 		})
 
+		it('shows the faces of everyone a grouped card stands for, capped', () => {
+			// nine faces would push the words off the card; five and a count
+			// say the same thing
+			const accounts = Array.from({ length: 9 }, (_, index) => ({ ...bob, id: 'a' + index, acct: 'a' + index }))
+			const { wrapper } = mountEntry(
+				notification('favourite', { accounts }),
+				{ type: 'notifications' },
+			)
+
+			expect(wrapper.findAll('.notification__faces > *')).toHaveLength(5)
+			// and the post it is about is quoted once, not nine times
+			expect(wrapper.findAllComponents(TimelinePostStub)).toHaveLength(1)
+		})
+
+		it('draws a single face for a card that stands for one thing', () => {
+			const { wrapper } = mountEntry(notification('favourite'), { type: 'notifications' })
+
+			expect(wrapper.find('.notification__faces').exists()).toBe(false)
+		})
+
+		it('marks what arrived since the reader last looked', () => {
+			expect(mountEntry(notification('favourite'), { type: 'notifications', unread: true }).wrapper.classes())
+				.toContain('timeline-entry--unread')
+			expect(mountEntry(notification('favourite'), { type: 'notifications' }).wrapper.classes())
+				.not.toContain('timeline-entry--unread')
+		})
+
 		it('previews the account a notification is about when their avatar is hovered', () => {
 			const { wrapper } = mountEntry(notification('favourite'), { type: 'notifications' })
 

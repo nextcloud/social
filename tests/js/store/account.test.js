@@ -43,6 +43,8 @@ function freshState() {
 		accountsFollowingsLoading: {},
 		accountsFollowersAllLoaded: {},
 		accountsFollowingsAllLoaded: {},
+		accountsFollowersFailed: {},
+		accountsFollowingsFailed: {},
 	}
 }
 

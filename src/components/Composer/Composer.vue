@@ -372,6 +372,7 @@ import eventBus from '../../services/eventBus.js'
 import logger from '../../services/logger.js'
 import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 import { mapStores } from 'pinia'
+import { useInstanceStore } from '../../store/instance.js'
 import { useTimelineStore } from '../../store/timeline.js'
 import { applyFilterToFile } from '../../utils/imageFilters.js'
 import { focusParam, isFocalPoint } from '../../utils/focalPoint.js'
@@ -380,8 +381,11 @@ import { fullDateTime } from '../../utils/relativeTime.js'
 import { useCurrentUser } from '../../composables/useCurrentUser.js'
 import { useServerData } from '../../composables/useServerData.js'
 
-/** what the server accepts in one status */
-const MAX_LENGTH = 500
+/*
+ * The two limits -- characters per post, attachments per post -- used to be
+ * constants here; they are the server's, read from the instance entity into
+ * the instance store, and appear below as `maxLength` and `maxAttachments`.
+ */
 
 /**
  * What the composer takes as an attachment. The file dialog is given these
@@ -417,9 +421,6 @@ const ACCEPTED_DOCUMENT_EXTENSIONS = ['.pdf', '.txt', '.md', '.csv', '.zip', '.e
  * out of a folder tree is not what this button is for.
  */
 const PICKABLE_MEDIA_TYPES = ['image/*', 'video/*', ...ACCEPTED_DOCUMENT_TYPES]
-
-/** what a post may carry, as Stream::MAX_ATTACHMENTS holds it server-side */
-const MAX_ATTACHMENTS = 10
 
 /**
  * How long to wait before uploading a filtered copy. Flicking through the
@@ -706,7 +707,18 @@ export default {
 	},
 
 	computed: {
-		...mapStores(useTimelineStore),
+		...mapStores(useInstanceStore, useTimelineStore),
+
+		/** @return {number} what the server accepts in one status */
+		maxLength() {
+			return this.instanceStore.maxCharacters
+		},
+
+		/** @return {number} what a post may carry, as the server holds it */
+		maxAttachments() {
+			return this.instanceStore.maxAttachments
+		},
+
 		/** @return {string} the `accept` of the file dialog, from one list */
 		acceptedTypes() {
 			return [...ACCEPTED_MEDIA_TYPES.map((type) => `${type}*`), ...ACCEPTED_DOCUMENT_TYPES, ...ACCEPTED_DOCUMENT_EXTENSIONS].join(',')
@@ -719,7 +731,7 @@ export default {
 
 		/** @return {boolean} whether the post is carrying all the server takes */
 		attachmentsFull() {
-			return Object.keys(this.attachments).length >= MAX_ATTACHMENTS
+			return Object.keys(this.attachments).length >= this.maxAttachments
 		},
 
 		/**
@@ -876,17 +888,17 @@ export default {
 		 * before a word was typed.
 		 */
 		statusIsTooLong() {
-			return this.statusText.length > MAX_LENGTH
+			return this.statusText.length > this.maxLength
 		},
 
 		/** @return {number} how much of the allowance is spent, 0..1 */
 		charProgress() {
-			return Math.min(this.statusText.length / MAX_LENGTH, 1)
+			return Math.min(this.statusText.length / this.maxLength, 1)
 		},
 
 		/** @return {number} how many characters remain, negative once over */
 		charsLeft() {
-			return MAX_LENGTH - this.statusText.length
+			return this.maxLength - this.statusText.length
 		},
 
 		hasMentions() {
@@ -913,6 +925,10 @@ export default {
 	},
 
 	mounted() {
+		// the counter and the attachment ceiling are the server's numbers;
+		// answered from the first call on this page, whoever made it
+		this.instanceStore.load()
+
 		// tributejs is a plain DOM library, not a component: it attaches to the
 		// contenteditable and appends its menu to the body, which the unscoped
 		// .tribute-container rule at the end of this file styles.
@@ -1359,7 +1375,7 @@ export default {
 		 * @return {Array} the ones the post can still carry
 		 */
 		roomFor(items) {
-			const room = Math.max(MAX_ATTACHMENTS - Object.keys(this.attachments).length, 0)
+			const room = Math.max(this.maxAttachments - Object.keys(this.attachments).length, 0)
 			if (items.length > room) {
 				this.announceCeiling()
 			}
@@ -1373,7 +1389,7 @@ export default {
 				'social',
 				'A post can carry %n attachment',
 				'A post can carry %n attachments',
-				MAX_ATTACHMENTS,
+				this.maxAttachments,
 			))
 		},
 

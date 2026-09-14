@@ -12,16 +12,23 @@ import { defineStore } from 'pinia'
 import logger from '../services/logger.js'
 
 /**
- * How many notifications have arrived since the reader last looked.
+ * How many notifications have arrived since the reader last looked, and where
+ * "last looked" is.
  *
- * The count comes from the server, which compares against a marker — the same
- * marker every other Fediverse client keeps, so a badge cleared on a phone is
- * cleared here too. Nothing is stored in the browser: a per-device idea of
- * "unread" is worse than none.
+ * Both come from the server, which keeps a marker — the same marker every
+ * other Fediverse client keeps, so a badge cleared on a phone is cleared here
+ * too. Nothing is stored in the browser: a per-device idea of "unread" is
+ * worse than none.
  */
 export const useNotificationsStore = defineStore('notifications', {
 	state: () => ({
 		unread: 0,
+		/**
+		 * The row id the reader had read up to, the last time the server was
+		 * asked; 0 while unknown or when nothing has ever been read. What the
+		 * notifications page draws its "New" line from.
+		 */
+		lastReadId: 0,
 	}),
 
 	getters: {
@@ -50,9 +57,35 @@ export const useNotificationsStore = defineStore('notifications', {
 		},
 
 		/**
+		 * Reads where the reader had got to, as the server remembers it.
+		 *
+		 * Asked when the notifications page opens, so that the line between
+		 * what is new and what was already seen is drawn where every client
+		 * agrees it is. A failure answers 0 — no line at all — rather than
+		 * guessing, and says nothing: the list itself is still readable.
+		 *
+		 * @return {Promise<number>} the marker; 0 when unknown
+		 */
+		async fetchLastRead() {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/markers'), {
+					params: { timeline: ['notifications'] },
+				})
+				const marker = Number(data?.notifications?.last_read_id) || 0
+				this.lastReadId = Math.max(this.lastReadId, marker)
+
+				return marker
+			} catch (error) {
+				logger.error('Failed to read the notifications marker', { error })
+
+				return 0
+			}
+		},
+
+		/**
 		 * Marks everything up to `lastReadId` as read, and clears the badge
 		 * straight away rather than waiting for the server to agree — the
-		 * reader is looking at the notifications, so the badge is already wrong.
+		 * reader has seen the notifications, so the badge is already wrong.
 		 *
 		 * @param {string|number} lastReadId the newest notification now seen
 		 */
@@ -62,6 +95,8 @@ export const useNotificationsStore = defineStore('notifications', {
 			}
 
 			this.setUnreadNotifications(0)
+			// the server never moves a marker backwards, and neither does this
+			this.lastReadId = Math.max(this.lastReadId, Number(lastReadId) || 0)
 
 			try {
 				await axios.post(generateUrl('apps/social/api/v1/markers'), {

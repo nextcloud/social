@@ -63,7 +63,7 @@ const mountMediaFirst = (items) => mountAttachments(items, { mediaFirst: true })
 const viewerImage = (wrapper) => wrapper.find('.attachment__viewer img')
 
 // MediaAttachment's own root is also class "attachment", so select the tiles only
-const tiles = (wrapper) => wrapper.findAll('.attachments-container > .attachment')
+const tiles = (wrapper) => wrapper.findAll('.attachment-frame > .attachment')
 
 describe('PostAttachment', () => {
 	let getContext
@@ -244,6 +244,57 @@ describe('PostAttachment', () => {
 			await wrapper.vm.$nextTick()
 
 			expect(viewerImage(wrapper).attributes('src')).toBe(items[2].url)
+		})
+	})
+
+	describe('the ALT badge on a timeline thumbnail', () => {
+		it('marks a described picture wherever it is drawn', async () => {
+			const wrapper = mountAttachments(attachments(2))
+			const badge = wrapper.findAll('.alt-badge')
+
+			expect(badge).toHaveLength(2)
+			expect(badge[0].text()).toBe('ALT')
+
+			await badge[0].trigger('click')
+
+			expect(wrapper.findAll('.alt-description')[0].text()).toBe('Picture 1')
+		})
+
+		it('offers no badge for a picture nobody described', () => {
+			const items = [{ ...attachment(1), description: null }, { ...attachment(2), description: '  ' }]
+
+			expect(mountAttachments(items).find('.alt-badge').exists()).toBe(false)
+		})
+
+		it('does not open the viewer when the badge is pressed', async () => {
+			const wrapper = mountAttachments(attachments(2))
+
+			await wrapper.find('.alt-badge').trigger('click')
+
+			expect(wrapper.find('.modal-stub').exists()).toBe(false)
+		})
+	})
+
+	describe('video', () => {
+		const clip = { ...attachment(1), type: 'video' }
+
+		it('plays a video in the card rather than taking over the screen', () => {
+			// without `playsinline` iOS opens its own full-screen player, and
+			// the reader comes back to a timeline that has scrolled on
+			const wrapper = mountAttachments([clip])
+
+			expect(wrapper.find('video').attributes('playsinline')).toBeDefined()
+		})
+
+		it('keeps the lightbox the full-screen view it already is', async () => {
+			const wrapper = mountAttachments([clip])
+
+			// a video tile carries its own controls in the timeline, so it is
+			// the post around it that opens the viewer
+			wrapper.vm.openMedia(0)
+			await wrapper.vm.$nextTick()
+
+			expect(wrapper.find('.attachment__viewer video').attributes('playsinline')).toBeDefined()
 		})
 	})
 
