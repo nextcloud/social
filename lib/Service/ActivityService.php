@@ -418,12 +418,18 @@ class ActivityService {
 	}
 
 	/**
-	 * The bytes the delivery puts on the wire: the stored activity, decoded and
-	 * re-encoded with unescaped slashes, which is what the transport has always
-	 * sent and therefore what the digest has always covered.
+	 * The bytes the delivery puts on the wire: the stored activity, as stored.
+	 *
+	 * They used to be decoded and re-encoded here, which defeated
+	 * `ForwardService` on purpose: it queues a third party's `getSource()`
+	 * verbatim so that their Linked Data signature still verifies on arrival,
+	 * and re-encoding -- key order, escaping, whitespace -- is exactly what
+	 * breaks such a signature. What this instance writes itself is encoded once,
+	 * with unescaped slashes, when it is queued (`generateRequestQueue()`), so
+	 * nothing it sends changes; the digest is computed over these same bytes.
 	 */
 	private function bodyFromQueue(RequestQueue $queue): string {
-		return (string)json_encode(json_decode($queue->getActivity(), true), JSON_UNESCAPED_SLASHES);
+		return $queue->getActivity();
 	}
 
 	/**

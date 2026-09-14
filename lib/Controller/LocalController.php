@@ -27,20 +27,14 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Security\RemoteAddress;
 use OCA\Social\Service\AccountService;
-use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\ActorService;
 use OCA\Social\Service\BannerService;
-use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
-use OCA\Social\Service\LikeService;
-use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
-use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
@@ -54,7 +48,6 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
-use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\Util;
@@ -85,15 +78,9 @@ class LocalController extends Controller {
 		private FollowService $followService,
 		private PostService $postService,
 		private StreamService $streamService,
-		private SearchService $searchService,
-		private BoostService $boostService,
-		private LikeService $likeService,
 		private DocumentService $documentService,
-		private MiscService $miscService,
 		private ConfigService $configService,
 		private LoggerInterface $logger,
-		private ActorService $actorService,
-		private ActivityService $activityService,
 		private CacheDocumentService $cacheDocumentService,
 		private BannerService $bannerService,
 	) {
@@ -385,51 +372,6 @@ class LocalController extends Controller {
 	}
 
 	/**
-	 * Get info about a post (limited to viewer rights).
-	 *
-	 */
-	#[NoAdminRequired]
-	#[PublicPage]
-	#[NoCSRFRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/local/v1/post')]
-	public function postGet(string $id): DataResponse {
-		$this->logger->debug('[LocalController] postGet called', ['id' => $id]);
-		try {
-			$this->initViewer(false);
-			$stream = $this->streamService->getStreamById($id, true);
-			$this->logger->debug('[LocalController] Post retrieved', [
-				'id' => $id,
-				'streamId' => $stream->getId()
-			]);
-
-			return $this->directSuccess($stream);
-		} catch (Exception $e) {
-			$this->logger->error('[LocalController] postGet failed', [
-				'id' => $id,
-				'exception' => $e->getMessage()
-			]);
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Get replies about a post (limited to viewer rights).
-	 *
-	 */
-	#[NoAdminRequired]
-	#[NoCSRFRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/local/v1/post/replies')]
-	public function postReplies(string $id, int $since = 0, int $limit = 5): DataResponse {
-		try {
-			$this->initViewer(true);
-
-			return $this->success($this->streamService->getRepliesByParentId($id, $since, $limit, true));
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
 	 * Delete your own post.
 	 *
 	 *
@@ -453,217 +395,6 @@ class LocalController extends Controller {
 			$this->streamService->deleteLocalItem($note, Note::TYPE);
 
 			return $this->success();
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Like a post.
-	 *
-	 */
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'POST', url: '/api/v1/post/like')]
-	public function postLike(string $postId): DataResponse {
-		try {
-			$this->initViewer(true);
-			$token = '';
-			$announce = $this->likeService->create($this->viewer, $postId, $token);
-
-			return $this->success(
-				[
-					'like' => $announce,
-					'token' => $token
-				]
-			);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Unlike a post.
-	 *
-	 */
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/post/like')]
-	public function postUnlike(string $postId): DataResponse {
-		try {
-			$this->initViewer(true);
-			$token = '';
-			$like = $this->likeService->delete($this->viewer, $postId, $token);
-
-			return $this->success(
-				[
-					'like' => $like,
-					'token' => $token
-				]
-			);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	#[NoCSRFRequired]
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/home')]
-	public function streamHome(int $since = 0, int $limit = 5): DataResponse {
-		$this->logger->debug('[LocalController] streamHome called', [
-			'since' => $since,
-			'limit' => $limit,
-			'userId' => $this->userId
-		]);
-		try {
-			$this->initViewer(true);
-			$posts = $this->streamService->getStreamHome($since, $limit);
-			$this->logger->debug('[LocalController] streamHome returned', [
-				'postsCount' => count($posts)
-			]);
-
-			return $this->success($posts);
-		} catch (Exception $e) {
-			$this->logger->error('[LocalController] streamHome failed', [
-				'exception' => $e->getMessage()
-			]);
-			return $this->fail($e);
-		}
-	}
-
-	#[NoCSRFRequired]
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/notifications')]
-	public function streamNotifications(int $since = 0, int $limit = 5): DataResponse {
-		try {
-			$this->initViewer(true);
-			$posts = $this->streamService->getStreamNotifications($since, $limit);
-
-			return $this->success($posts);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * A profile timeline, which first asks the account's own server for its outbox.
-	 *
-	 * Anyone may call this and the handle names the server that is fetched, so the
-	 * throttle has to be real: without it one anonymous request per second keeps a
-	 * worker busy fetching from, and ingesting into, whatever host the caller picked.
-	 */
-	#[NoAdminRequired]
-	#[PublicPage]
-	#[AnonRateLimit(limit: 30, period: 60)]
-	#[UserRateLimit(limit: 300, period: 60)]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/account/{username}/stream', requirements: ['username' => '.+'])]
-	public function streamAccount(string $username, int $since = 0, int $limit = 5): DataResponse {
-		try {
-			$this->initViewer();
-
-			$account = $this->cacheActorService->getFromAccount($username);
-			// Best-effort: a slow or unreachable remote must not fail the profile
-			// view — it falls back to whatever is already cached.
-			try {
-				$this->streamService->syncRemoteTimeline($account);
-			} catch (\Exception $e) {
-				$this->logger->debug('[LocalController] outbox sync skipped', ['exception' => $e]);
-			}
-			$posts = $this->streamService->getStreamAccount($account->getId(), $since, $limit);
-
-			return $this->success($posts);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	#[NoAdminRequired]
-	#[NoCSRFRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/direct')]
-	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
-		try {
-			$this->initViewer(true);
-			$posts = $this->streamService->getStreamDirect($since, $limit);
-
-			return $this->success($posts);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Get timeline
-	 *
-	 */
-	#[NoAdminRequired]
-	#[NoCSRFRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/timeline')]
-	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
-		$this->logger->debug('[LocalController] streamTimeline called', [
-			'since' => $since,
-			'limit' => $limit,
-			'userId' => $this->userId
-		]);
-		try {
-			$this->initViewer(true);
-			$posts = $this->streamService->getStreamLocalTimeline($since, $limit);
-			$this->logger->debug('[LocalController] streamTimeline returned', [
-				'postsCount' => count($posts)
-			]);
-
-			return $this->success($posts);
-		} catch (Exception $e) {
-			$this->logger->error('[LocalController] streamTimeline failed', [
-				'exception' => $e->getMessage()
-			]);
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Get timeline
-	 *
-	 */
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/tag/{hashtag}/')]
-	public function streamTag(string $hashtag, int $since = 0, int $limit = 5): DataResponse {
-		try {
-			$this->initViewer(true);
-			$posts = $this->streamService-> getStreamLocalTag($hashtag, $since, $limit);
-
-			return $this->success($posts);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Get timeline
-	 *
-	 */
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/federated')]
-	public function streamFederated(int $since = 0, int $limit = 5): DataResponse {
-		try {
-			$this->initViewer(true);
-			$posts = $this->streamService->getStreamGlobalTimeline($since, $limit);
-
-			return $this->success($posts);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Get liked post
-	 *
-	 */
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/stream/liked')]
-	public function streamLiked(int $since = 0, int $limit = 5): DataResponse {
-		try {
-			$this->initViewer(true);
-			$posts = $this->streamService->getStreamLiked($since, $limit);
-
-			return $this->success($posts);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -704,27 +435,6 @@ class LocalController extends Controller {
 	}
 
 	/**
-	 *
-	 * @return DataResponse
-	 */
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/current/info')]
-	public function currentInfo(): DataResponse {
-		try {
-			if ($this->userId === null) {
-				throw new AccountDoesNotExistException('User not logged in');
-			}
-			$local = $this->accountService->getActorFromUserId($this->userId);
-			$this->accountService->cacheLocalActorByUsername($local->getPreferredUsername());
-			$actor = $this->cacheActorService->getFromLocalAccount($local->getPreferredUsername());
-
-			return $this->success(['account' => $actor]);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
 	 * Replace the current user's profile metadata fields (the name/value
 	 * table under the bio, at most four entries).
 	 *
@@ -743,69 +453,6 @@ class LocalController extends Controller {
 			$actor = $this->cacheActorService->getFromLocalAccount($local->getPreferredUsername());
 
 			return $this->success(['account' => $actor]);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	/**
-	 * Replace the current user's bio — the text under the display name.
-	 *
-	 * Plain text, at most 500 characters; `AccountService::setSummary()`
-	 * flattens any markup and cuts what is over the limit, then federates the
-	 * change to the followers.
-	 *
-	 * @param string $summary the bio as plain text
-	 */
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/account/summary')]
-	public function accountSummary(string $summary = ''): DataResponse {
-		try {
-			if ($this->userId === null) {
-				throw new AccountDoesNotExistException('User not logged in');
-			}
-			$this->accountService->setSummary($this->userId, $summary);
-
-			$local = $this->accountService->getActorFromUserId($this->userId);
-			$actor = $this->cacheActorService->getFromLocalAccount($local->getPreferredUsername());
-
-			return $this->success(['account' => $actor]);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/current/followers')]
-	public function currentFollowers(): DataResponse {
-		try {
-			if ($this->userId === null) {
-				throw new AccountDoesNotExistException('User not logged in');
-			}
-			$this->initViewer();
-
-			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$followers = $this->followService->getFollowers($actor);
-
-			return $this->success($followers);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/current/following')]
-	public function currentFollowing(): DataResponse {
-		try {
-			if ($this->userId === null) {
-				throw new AccountDoesNotExistException('User not logged in');
-			}
-			$this->initViewer();
-
-			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$following = $this->followService->getFollowing($actor);
-
-			return $this->success($following);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -913,20 +560,6 @@ class LocalController extends Controller {
 		}
 	}
 
-	#[NoAdminRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/actor/info')]
-	public function globalActorInfo(string $id): DataResponse {
-		try {
-			$this->initViewer();
-			$actor = $this->knownActor($id);
-
-			return $this->success(['actor' => $actor]);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
 	/**
 	 * The actor an id names, resolving it remotely only for a caller with a
 	 * session.
@@ -1001,53 +634,6 @@ class LocalController extends Controller {
 		}
 	}
 
-	#[NoCSRFRequired]
-	#[NoAdminRequired]
-	#[PublicPage]
-	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/actor/header')]
-	public function globalActorHeader(string $id): Response {
-		try {
-			$actor = $this->knownActor($id);
-			$headerUrl = $actor->getHeader();
-			if ($headerUrl === '') {
-				throw new InvalidResourceException('no header for this Actor');
-			}
-
-			// The value comes from another instance's JSON, and this route lives
-			// on the Nextcloud origin the user trusts: a redirect to it must not
-			// be a way to send that user anywhere at all.
-			$scheme = strtolower((string)parse_url($headerUrl, PHP_URL_SCHEME));
-			if (!in_array($scheme, ['http', 'https'], true)) {
-				throw new InvalidResourceException('unsupported header address');
-			}
-
-			// Prefer the copy this instance holds: no redirect off-origin at all,
-			// and the reader's address is not handed to the remote host.
-			try {
-				$mime = '';
-				$cached = $this->documentService->getCachedFromUrl($headerUrl, $mime);
-				$response = new FileDisplayResponse(
-					$cached, Http::STATUS_OK, ['Content-Type' => $mime === '' ? 'application/octet-stream' : $mime]
-				);
-				$response->cacheFor(86400);
-
-				return $response;
-			} catch (Exception $e) {
-				$this->logger->debug('[LocalController] header is not cached locally', [
-					'id' => $actor->getId(),
-					'error' => $e->getMessage(),
-				]);
-			}
-
-			$response = new RedirectResponse($headerUrl);
-			$response->cacheFor(86400);
-
-			return $response;
-		} catch (Exception $e) {
-			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
-		}
-	}
-
 	/**
 	 * @throws Exception
 	 */
@@ -1110,26 +696,6 @@ class LocalController extends Controller {
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
-	}
-
-	/**
-	 * TODO - remove this tag
-	 * @throws Exception
-	 */
-	#[NoCSRFRequired]
-	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'GET', url: '/local/v1/search')]
-	public function search(string $search): DataResponse {
-		$search = trim($search);
-		$this->initViewer();
-
-		$result = [
-			'accounts' => $this->searchService->searchAccounts($search),
-			'hashtags' => $this->searchService->searchHashtags($search),
-			'content' => $this->searchService->searchStreamContent($search)
-		];
-
-		return $this->success($result);
 	}
 
 	/**

@@ -48,11 +48,11 @@ class FollowService {
 	use TArrayTools;
 
 	/**
-	 * The most followers one read of the legacy `/api/v1/current/followers`
-	 * answers with. It has no cursor to page on — Mastodon's
-	 * `/api/v1/accounts/{account}/followers` is the route with one, and this
-	 * one is listed as superseded by it in docs/API.md — so the choice was a
-	 * bound or an account with fifty thousand followers loading all of them,
+	 * The most followers one uncursored read (`getFollowers()`) answers with.
+	 * Mastodon's `/api/v1/accounts/{account}/followers` is the route with a
+	 * cursor; the legacy `/api/v1/current/followers` that this bounded was
+	 * retired with the rest of the superseded Custom Local API. The choice was
+	 * a bound or an account with fifty thousand followers loading all of them,
 	 * hydrated, into the memory of one request.
 	 */
 	public const FOLLOWERS_PAGE = 500;

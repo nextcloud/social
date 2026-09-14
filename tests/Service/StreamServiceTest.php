@@ -802,15 +802,6 @@ class StreamServiceTest extends TestCase {
 	 */
 	public static function timelineDelegationProvider(): array {
 		return [
-			'home' => ['getStreamHome', [10, 20, ACore::FORMAT_LOCAL], 'getTimelineHome_dep', [10, 20, ACore::FORMAT_LOCAL]],
-			'home defaults' => ['getStreamHome', [], 'getTimelineHome_dep', [0, 5, ACore::FORMAT_ACTIVITYPUB]],
-			'notifications' => ['getStreamNotifications', [10, 20], 'getTimelineNotifications_dep', [10, 20]],
-			'account' => ['getStreamAccount', ['https://remote.example/users/bob', 10, 20], 'getTimelineAccount_dep', ['https://remote.example/users/bob', 10, 20]],
-			'direct' => ['getStreamDirect', [10, 20], 'getTimelineDirect_dep', [10, 20]],
-			'local timeline restricts to local posts' => ['getStreamLocalTimeline', [10, 20], 'getTimelineGlobal_dep', [10, 20, true]],
-			'global timeline includes remote posts' => ['getStreamGlobalTimeline', [10, 20], 'getTimelineGlobal_dep', [10, 20, false]],
-			'tag' => ['getStreamLocalTag', ['nextcloud', 10, 20], 'getTimelineTag', ['nextcloud', 10, 20]],
-			'liked' => ['getStreamLiked', [10, 20], 'getTimelineLiked', [10, 20]],
 			'replies' => ['getRepliesByParentId', ['https://social.example/@alice/1', 10, 20, true], 'getRepliesByParentId', ['https://social.example/@alice/1', 10, 20, true]],
 			'replies defaults' => ['getRepliesByParentId', ['https://social.example/@alice/1'], 'getRepliesByParentId', ['https://social.example/@alice/1', 0, 5, false]],
 		];
@@ -830,12 +821,6 @@ class StreamServiceTest extends TestCase {
 			->willReturn([$note]);
 
 		$this->assertSame([$note], $this->service->$serviceMethod(...$args));
-	}
-
-	public function testInternalTimelineIsNotImplementedYet(): void {
-		$this->streamRequest->expects($this->never())->method($this->anything());
-
-		$this->assertSame([], $this->service->getStreamInternalTimeline(0, 20));
 	}
 
 	// getContextByNid()

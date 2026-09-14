@@ -33,8 +33,6 @@ JavaScript and Vue across 81 files in `src/`.
 
 | Theme | Severity | Size |
 |---|---|---|
-| The superseded half of the Custom Local API | Medium | 18 routes |
-| Delivery re-encodes the bytes it was asked to preserve | Medium | 1 call |
 | Translation catalogue covers under 40 % of source strings | Low | — |
 | PHPUnit 12 | Low | ~3,100 stub migrations |
 
@@ -92,13 +90,14 @@ So `/api/v1/stream/home` (local: `since`/`limit` cursor, default page size 5, no
 `/api/v1/timelines/home` (Mastodon: `max_id`/`since_id`, page size 20, `Link`
 header, bare entity).
 
-**18 of `LocalController`'s 31 routes have no caller anywhere in `src/`**,
-including all seven `/api/v1/stream/*` endpoints — the ones still backed by the
-`_dep` query methods. They are marked deprecated in [API.md](API.md) with the Mastodon route
-to use instead, and kept rather than removed because they are a published
-surface. Retiring them retires that whole query layer; it needs a deprecation
-cycle and a release note, which is a decision about the app's compatibility
-promise rather than a cleanup.
+**Nineteen of `LocalController`'s 31 routes had no caller anywhere in `src/`**,
+including all eight `/api/v1/stream/*` and `/account/{username}/stream`
+endpoints — the ones backed by the `_dep` query methods. They were marked
+deprecated in [API.md](API.md) for a release and are **removed in 0.19.39**,
+with the whole query layer behind them: the nine `StreamService::getStream*()`
+methods and the seven `StreamRequest::getTimeline*_dep()` / `getTimelineLiked()`
+/ `getTimelineTag()` queries. API.md keeps the table of what replaced them. The
+twelve routes the frontend does call stay.
 
 ### Routes are attributes now
 
@@ -363,6 +362,14 @@ sixty when twenty survive the check.
 
 ### Since then
 
+- **Delivery sends the stored bytes** (0.19.39). `ActivityService::bodyFromQueue()`
+  returned `json_encode(json_decode(...))`; it returns the queued string. What
+  this instance writes is encoded once at queue time, so nothing it sends
+  changes; what `ForwardService` queues verbatim now arrives verbatim, which is
+  the only way a third party's Linked Data signature survives.
+- **The superseded Custom Local API is gone** (0.19.39): nineteen routes, the
+  nine `getStream*()` methods and the seven `_dep` queries, and their tests.
+
 | Item | Outcome |
 |---|---|
 | ESLint 8 (end of life) | [#2129](https://github.com/nextcloud/social/pull/2129): ESLint 10, `@nextcloud/eslint-config` 9, flat config. |
@@ -401,21 +408,11 @@ sixty when twenty survive the check.
 
 ## Rough order of value for what is left
 
-1. **Send a queued activity's stored bytes.** Delivery decodes and re-encodes
-   the activity it queued, which defeats `ForwardService` on purpose-built
-   input: that service queues `getSource()` precisely so a third party's
-   signature survives, and the transport re-encodes it anyway. It is a wire
-   change, so it wants a real peer to test against.
-2. **Retire the 18 uncalled Custom Local API routes**, and the five
-   `getStream*()` / `getTimeline*_dep()` methods with them. A decision rather
-   than a task: they are a published surface, so either the URLs go with a
-   release note, or they stay and are re-pointed at the modern query path,
-   which changes their paging semantics.
-3. Collapse the two cache-actor joins, with a database to check against.
-4. Finish the l10n round trip — a Transifex round trip, not a code change.
-5. `vue-tsc`, so the single-file components are type-checked too.
-6. PHPUnit 12, which means `createMock` -> `createStub` across the suite.
-7. The last migration squash candidate, if an instance upgrading from 0.15 is
+1. Collapse the two cache-actor joins, with a database to check against.
+2. Finish the l10n round trip — a Transifex round trip, not a code change.
+3. `vue-tsc`, so the single-file components are type-checked too.
+4. PHPUnit 12, which means `createMock` -> `createStub` across the suite.
+5. The last migration squash candidate, if an instance upgrading from 0.15 is
    no longer a case worth supporting.
 
 ---

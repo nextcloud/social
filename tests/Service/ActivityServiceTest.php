@@ -625,10 +625,9 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame(self::BOB_INBOX, $sent['url']);
 		$this->assertSame(10, $sent['options']['timeout']);
 		$this->assertSame(['Signature' => 'keyId="k"'], $sent['options']['headers']);
-		$this->assertSame(
-			json_decode($queue->getActivity(), true),
-			json_decode($sent['options']['body'], true)
-		);
+		// byte for byte, not merely the same JSON: a forwarded activity's Linked
+		// Data signature survives only if nothing here re-encodes it
+		$this->assertSame($queue->getActivity(), $sent['options']['body']);
 	}
 
 	/**

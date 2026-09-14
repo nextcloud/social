@@ -514,23 +514,6 @@ class StreamService {
 	}
 
 	/**
-	 * @param int $since
-	 * @param int $limit
-	 * @param int $format
-	 *
-	 * @return Note[]
-	 * @throws DateTimeException
-	 * @deprecated
-	 */
-	public function getStreamHome(
-		int $since = 0,
-		int $limit = 5,
-		int $format = Stream::FORMAT_ACTIVITYPUB,
-	): array {
-		return $this->streamRequest->getTimelineHome_dep($since, $limit, $format);
-	}
-
-	/**
 	 * @param ProbeOptions $options
 	 *
 	 * @return Note[]
@@ -610,102 +593,6 @@ class StreamService {
 		$this->linkPreviewService->attachCard($post);
 
 		return $post;
-	}
-
-	/**
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return Note[]
-	 * @throws Exception
-	 * @deprecated
-	 */
-	public function getStreamNotifications(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineNotifications_dep($since, $limit);
-	}
-
-	/**
-	 * @param string $actorId
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return Note[]
-	 * @throws Exception
-	 * @deprecated
-	 */
-	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineAccount_dep($actorId, $since, $limit);
-	}
-
-	/**
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return Note[]
-	 * @throws Exception
-	 * @deprecated
-	 */
-	public function getStreamDirect(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineDirect_dep($since, $limit);
-	}
-
-	/**
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return Note[]
-	 * @throws Exception
-	 * @deprecated
-	 */
-	public function getStreamLocalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineGlobal_dep($since, $limit, true);
-	}
-
-	/**
-	 * @param string $hashtag
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return Note[]
-	 * @throws Exception
-	 */
-	public function getStreamLocalTag(string $hashtag, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineTag($hashtag, $since, $limit);
-	}
-
-	/**
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return Note[]
-	 */
-	public function getStreamInternalTimeline(int $since = 0, int $limit = 5): array {
-		// TODO - admin should be able to provide a list of 'friendly/internal' instance of ActivityPub
-		return [];
-	}
-
-	/**
-	 *
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return Note[]
-	 * @throws Exception
-	 */
-	public function getStreamGlobalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineGlobal_dep($since, $limit, false);
-	}
-
-	/**
-	 *
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return Note[]
-	 * @throws Exception
-	 */
-	public function getStreamLiked(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineLiked($since, $limit);
 	}
 
 	/**
