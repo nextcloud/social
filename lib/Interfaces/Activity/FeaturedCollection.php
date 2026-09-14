@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Activity;
 
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -20,7 +21,10 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\PinService;
+use OCA\Social\Service\SignatureService;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -50,7 +54,107 @@ class FeaturedCollection {
 		private StreamRequest $streamRequest,
 		private ActionsRequest $actionsRequest,
 		private LoggerInterface $logger,
+		private ?CurlService $curlService = null,
 	) {
+	}
+
+	/**
+	 * Reads what the actor has pinned right now, from its `featured`
+	 * collection, and makes our pins match: an `Add`/`Remove` is applied when
+	 * it arrives, but nothing ever asked for the pins an account already had
+	 * when this instance first saw it, so a remote profile showed none until
+	 * the account pinned something new.
+	 *
+	 * The collection embeds the posts (Mastodon does) or names them; a post
+	 * this instance does not hold yet is stored from the embedded object when
+	 * the actor wrote it, and skipped when it is only a name -- the next
+	 * refresh finds it if it has arrived by then. Pins that are no longer in
+	 * the collection are taken down.
+	 *
+	 * @return int how many pins stand afterwards
+	 */
+	public function refresh(Person $actor): int {
+		if ($actor->getFeatured() === '' || $this->curlService === null) {
+			return 0;
+		}
+
+		try {
+			$collection = $this->curlService->retrieveObject($actor->getFeatured());
+			$items = $collection['orderedItems'] ?? $collection['items'] ?? null;
+			if (!is_array($items) && is_string($collection['first'] ?? null)) {
+				// a paged collection: the first page is the newest pins
+				$page = $this->curlService->retrieveObject($collection['first']);
+				$items = $page['orderedItems'] ?? $page['items'] ?? [];
+			}
+		} catch (Exception $e) {
+			$this->logger->debug('could not read a featured collection', ['actor' => $actor->getId(), 'exception' => $e->getMessage()]);
+
+			return -1;
+		}
+		if (!is_array($items)) {
+			return -1;
+		}
+
+		$wanted = [];
+		foreach (array_slice($items, 0, self::MAX_REMOTE_PINS) as $item) {
+			$id = is_string($item) ? $item : (string)($item['id'] ?? '');
+			if ($id === '') {
+				continue;
+			}
+			if ($this->holdOrStore($actor, $id, is_array($item) ? $item : null)) {
+				$wanted[$id] = true;
+			}
+		}
+
+		// the pins that are no longer in the collection come down
+		foreach ($this->actionsRequest->getActionsByActor($actor->getId(), PinService::TYPE) as $pin) {
+			if (!isset($wanted[$pin->getObjectId()])) {
+				$this->actionsRequest->deleteAction($actor->getId(), $pin->getObjectId(), PinService::TYPE);
+			}
+		}
+		foreach (array_keys($wanted) as $postId) {
+			$this->pin($actor, $postId);
+		}
+
+		return count($wanted);
+	}
+
+	/**
+	 * Whether the post is one this instance holds -- storing it first from the
+	 * embedded object when the actor wrote it and it is not here yet.
+	 */
+	private function holdOrStore(Person $actor, string $postId, ?array $embedded): bool {
+		try {
+			$post = $this->streamRequest->getStreamById($postId);
+
+			return $post->getAttributedTo() === $actor->getId();
+		} catch (StreamNotFoundException $e) {
+		}
+
+		if ($embedded === null || ($embedded['type'] ?? '') !== Note::TYPE
+			|| (string)($embedded['attributedTo'] ?? '') !== $actor->getId()) {
+			return false;
+		}
+		// an embedded post claims the actor's host as its origin, and the
+		// origin check every stored object goes through holds it to that
+		if (parse_url($postId, PHP_URL_HOST) !== parse_url($actor->getId(), PHP_URL_HOST)) {
+			return false;
+		}
+
+		try {
+			$object = AP::instance()->getItemFromData($embedded);
+			$object->setOrigin((string)parse_url($postId, PHP_URL_HOST), SignatureService::ORIGIN_REQUEST, time());
+			if ($object->getId() !== $postId || $object->getType() !== Note::TYPE) {
+				return false;
+			}
+			AP::instance()->getInterfaceForItem($object)->save($object);
+
+			return true;
+		} catch (Exception $e) {
+			$this->logger->debug('could not store a pinned post', ['post' => $postId, 'exception' => $e->getMessage()]);
+
+			return false;
+		}
 	}
 
 	/**

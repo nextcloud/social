@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
+use OCA\Social\Interfaces\Activity\FeaturedCollection;
 use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -25,12 +26,14 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\ProfileLinkVerifier;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
 use Psr\Log\NullLogger;
 
 class CacheActorServiceTest extends TestCase {
@@ -332,5 +335,34 @@ class CacheActorServiceTest extends TestCase {
 		$this->cacheActorsRequest->expects($this->once())->method('updateDetails')->with($this->identicalTo($bob));
 
 		$this->assertSame(1, $this->service->manageDetailsRemoteActors());
+	}
+
+	public function testTheDetailsRefreshAlsoReadsThePinsAndChecksTheLinks(): void {
+		$bob = $this->person(self::BOB);
+		$this->cacheActorsRequest->method('getRemoteActorsToUpdateDetails')->willReturn([$bob]);
+		$this->curlService->method('retrieveObject')->willThrowException(new RequestNetworkException('down'));
+		$featured = $this->createMock(FeaturedCollection::class);
+		$featured->expects($this->once())->method('refresh')->with($this->identicalTo($bob));
+		$verifier = $this->createMock(ProfileLinkVerifier::class);
+		$verifier->expects($this->once())->method('verify')->with($this->identicalTo($bob));
+		// resolved through the container at call time, not injected: injecting
+		// FeaturedCollection would close a dependency cycle through StreamRequest
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->willReturnMap([
+			[FeaturedCollection::class, $featured],
+			[ProfileLinkVerifier::class, $verifier],
+		]);
+		$service = new CacheActorService(
+			$this->createMock(IURLGenerator::class),
+			$this->actorsRequest,
+			$this->cacheActorsRequest,
+			$this->curlService,
+			$this->createMock(FediverseService::class),
+			$this->configService,
+			new NullLogger(),
+			$container,
+		);
+
+		$this->assertSame(1, $service->manageDetailsRemoteActors());
 	}
 }

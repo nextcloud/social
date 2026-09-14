@@ -23,7 +23,9 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Add;
 use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -47,6 +49,8 @@ class FeaturedCollectionTest extends ActivityPubTestCase {
 	private $streamRequest;
 	/** @var ActionsRequest&MockObject */
 	private $actionsRequest;
+	/** @var CurlService&MockObject */
+	private $curlService;
 
 	private FeaturedCollection $featured;
 
@@ -57,12 +61,112 @@ class FeaturedCollectionTest extends ActivityPubTestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
 
+		$this->curlService = $this->createMock(CurlService::class);
 		$this->featured = new FeaturedCollection(
 			$this->cacheActorsRequest,
 			$this->streamRequest,
 			$this->actionsRequest,
-			new NullLogger()
+			new NullLogger(),
+			$this->curlService
 		);
+	}
+
+	private function bob(string $featured = self::FEATURED): Person {
+		$actor = new Person();
+		$actor->setId(self::ACTOR);
+		$actor->setFeatured($featured);
+
+		return $actor;
+	}
+
+	/** @param string[] $objectIds what is pinned here right now */
+	private function pinned(array $objectIds): void {
+		$pins = [];
+		foreach ($objectIds as $objectId) {
+			$pin = new Like();
+			$pin->setType(PinService::TYPE);
+			$pin->setActorId(self::ACTOR);
+			$pin->setObjectId($objectId);
+			$pins[] = $pin;
+		}
+		$this->actionsRequest->method('getActionsByActor')->with(self::ACTOR, PinService::TYPE)->willReturn($pins);
+	}
+
+	// refresh(): reading the collection itself
+
+	public function testRefreshPinsWhatTheCollectionNamesAndWeHold(): void {
+		$this->postKnown();
+		$this->actionsRequest->method('getAction')->willThrowException(new ActionDoesNotExistException());
+		$this->pinned([]);
+		$this->curlService->method('retrieveObject')->with(self::FEATURED)
+			->willReturn(['type' => 'OrderedCollection', 'orderedItems' => [self::POST]]);
+		/** @var ACore|null $saved */
+		$saved = null;
+		$this->capture($this->actionsRequest, 'save', $saved);
+
+		$this->assertSame(1, $this->featured->refresh($this->bob()));
+
+		$this->assertNotNull($saved);
+		$this->assertSame(self::POST, $saved->getObjectId());
+	}
+
+	public function testRefreshTakesDownAPinTheCollectionNoLongerHas(): void {
+		$this->postKnown();
+		$this->pinned([self::POST, self::REMOTE_URL . '/users/bob/statuses/old']);
+		$this->actionsRequest->method('getAction')->willReturn(new Like());
+		$this->curlService->method('retrieveObject')
+			->willReturn(['type' => 'OrderedCollection', 'orderedItems' => [self::POST]]);
+		$this->actionsRequest->expects($this->once())->method('deleteAction')
+			->with(self::ACTOR, self::REMOTE_URL . '/users/bob/statuses/old', PinService::TYPE);
+
+		$this->assertSame(1, $this->featured->refresh($this->bob()));
+	}
+
+	public function testRefreshFollowsThePagedCollectionToItsFirstPage(): void {
+		$this->postKnown();
+		$this->actionsRequest->method('getAction')->willThrowException(new ActionDoesNotExistException());
+		$this->pinned([]);
+		$this->curlService->method('retrieveObject')->willReturnMap([
+			[self::FEATURED, true, ['type' => 'OrderedCollection', 'first' => self::FEATURED . '?page=1']],
+			[self::FEATURED . '?page=1', true, ['type' => 'OrderedCollectionPage', 'orderedItems' => [['id' => self::POST, 'type' => 'Note']]]],
+		]);
+
+		$this->assertSame(1, $this->featured->refresh($this->bob()));
+	}
+
+	public function testRefreshLeavesTheStoredPinsAloneWhenTheCollectionCannotBeRead(): void {
+		$this->curlService->method('retrieveObject')->willThrowException(new \RuntimeException('down'));
+		$this->actionsRequest->expects($this->never())->method('deleteAction');
+		$this->actionsRequest->expects($this->never())->method('save');
+
+		$this->assertSame(-1, $this->featured->refresh($this->bob()));
+	}
+
+	public function testRefreshDoesNothingForAnActorWithoutACollection(): void {
+		$this->curlService->expects($this->never())->method('retrieveObject');
+
+		$this->assertSame(0, $this->featured->refresh($this->bob('')));
+	}
+
+	public function testRefreshDoesNotPinAPostWeDoNotHoldAndWasNotEmbedded(): void {
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->pinned([]);
+		$this->curlService->method('retrieveObject')
+			->willReturn(['type' => 'OrderedCollection', 'orderedItems' => [self::POST]]);
+		$this->actionsRequest->expects($this->never())->method('save');
+
+		$this->assertSame(0, $this->featured->refresh($this->bob()));
+	}
+
+	public function testRefreshRefusesAnEmbeddedPostBySomebodyElse(): void {
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->pinned([]);
+		$this->curlService->method('retrieveObject')->willReturn(['type' => 'OrderedCollection', 'orderedItems' => [
+			['id' => self::POST, 'type' => 'Note', 'attributedTo' => self::REMOTE_URL . '/users/carol'],
+		]]);
+		$this->actionsRequest->expects($this->never())->method('save');
+
+		$this->assertSame(0, $this->featured->refresh($this->bob()));
 	}
 
 	private function actorKnown(string $featured = self::FEATURED): void {

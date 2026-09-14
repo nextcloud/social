@@ -18,6 +18,7 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\PollService;
+use OCA\Social\Service\ProfileLinkVerifier;
 use OCA\Social\Service\StreamPruneService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -43,6 +44,7 @@ class CacheTest extends TestCase {
 	private $streamPruneService;
 	private PollService|MockObject $pollService;
 	private GroupListService|MockObject $groupListService;
+	private ProfileLinkVerifier|MockObject $profileLinkVerifier;
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
 	/** @var IJobList&MockObject */
@@ -68,6 +70,7 @@ class CacheTest extends TestCase {
 
 		$this->pollService = $this->createMock(PollService::class);
 		$this->groupListService = $this->createMock(GroupListService::class);
+		$this->profileLinkVerifier = $this->createMock(ProfileLinkVerifier::class);
 
 		$this->job = new Cache(
 			$time,
@@ -80,7 +83,8 @@ class CacheTest extends TestCase {
 			$this->cacheActorsRequest,
 			$this->pollService,
 			$this->logger,
-			$this->groupListService
+			$this->groupListService,
+			$this->profileLinkVerifier
 		);
 	}
 
@@ -105,6 +109,7 @@ class CacheTest extends TestCase {
 		$this->hashtagService->expects($this->once())->method('manageHashtags');
 		// the catch-all behind the group listener runs every pass
 		$this->groupListService->expects($this->once())->method('reconcile');
+		$this->profileLinkVerifier->expects($this->once())->method('verifyLocalActors');
 		$bob = $this->createMock(Person::class);
 		$carol = $this->createMock(Person::class);
 		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')->with(false)->willReturn([$bob, $carol]);
