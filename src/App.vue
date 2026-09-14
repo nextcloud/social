@@ -3,7 +3,15 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcContent v-if="!serverData.setup" appName="social" :class="{public: serverData.public}">
+	<!-- no account yet: the page is the question, not the app. Nothing here
+	     may call the API, which would create the account behind the reader's
+	     back, so the navigation and the timeline stay out until they answer -->
+	<NcContent v-if="!serverData.setup && serverData.needsAccount" appName="social">
+		<NcAppContent>
+			<AccountSetup @created="onAccountCreated" />
+		</NcAppContent>
+	</NcContent>
+	<NcContent v-else-if="!serverData.setup" appName="social" :class="{public: serverData.public}">
 		<Navigation v-if="!serverData.public" @search="search" />
 		<ShortcutHelp :open="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
 		<NcAppContent>
@@ -52,6 +60,7 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -72,9 +81,14 @@ import { useTimelineStore } from './store/timeline.js'
 import { useCurrentUser } from './composables/useCurrentUser.js'
 import { useServerData } from './composables/useServerData.js'
 
+// one page load in an account's life: not worth a place in the entry every
+// other load pays for, so it arrives as its own chunk when it is needed
+const AccountSetup = defineAsyncComponent(() => import(/* webpackChunkName: "account-setup" */'./views/AccountSetup.vue'))
+
 export default {
 	name: 'App',
 	components: {
+		AccountSetup,
 		NcContent,
 		NcAppContent,
 		NcButton,
@@ -148,6 +162,20 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * The account was just made. The page reloads with `welcome`, so the
+		 * server hands it the new account and the first-run introduction shows:
+		 * everything on the page was mounted for somebody without an account.
+		 */
+		onAccountCreated() {
+			this.reloadTo(generateUrl('/apps/social/') + '?welcome=1')
+		},
+
+		/** @param {string} url where to send the browser; a test replaces this */
+		reloadTo(url) {
+			window.location.assign(url)
+		},
+
 		toggleShortcutHelp() {
 			this.shortcutHelpOpen = !this.shortcutHelpOpen
 		},

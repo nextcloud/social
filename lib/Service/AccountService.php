@@ -772,6 +772,85 @@ class AccountService {
 	}
 
 	/**
+	 * Whether a person may take this handle for the account they are about
+	 * to create. Their own user id, or anything the pattern allows that is
+	 * nobody else's: not another Nextcloud user's id (which would let one
+	 * person publish as another), not a handle an actor already holds.
+	 *
+	 * @throws InvalidHandleException
+	 * @throws AccountAlreadyExistsException
+	 */
+	public function assertHandleAvailable(string $userId, string $username): void {
+		$this->checkActorUsername($username);
+		if (strtolower($username) !== strtolower($userId) && $this->userManager->userExists($username)) {
+			throw new InvalidHandleException('that is another person\'s user name on this Nextcloud');
+		}
+		try {
+			$this->actorsRequest->getFromUsername($username);
+		} catch (ActorDoesNotExistException $e) {
+			return;
+		}
+		throw new AccountAlreadyExistsException('that handle is taken');
+	}
+
+	/**
+	 * The fediverse handle a person's Nextcloud profile names, or ''.
+	 *
+	 * Somebody who has had an account on Mastodon for years does not need one
+	 * here; what their colleagues need is to find them, and the profile field
+	 * is where `ColleagueService` looks.
+	 */
+	public function linkedHandle(string $userId): string {
+		$user = $this->userManager->get($userId);
+		if ($user === null) {
+			return '';
+		}
+		try {
+			$value = trim($this->accountManager->getAccount($user)->getProperty(IAccountManager::PROPERTY_FEDIVERSE)->getValue());
+		} catch (Exception $e) {
+			return '';
+		}
+
+		return ltrim($value, '@');
+	}
+
+	/**
+	 * Writes an account elsewhere into the person's Nextcloud profile, as the
+	 * `fediverse` field, and creates nothing here. Returns the handle as stored.
+	 *
+	 * @throws InvalidHandleException
+	 * @throws NoUserException
+	 */
+	public function linkExternalHandle(string $userId, string $handle): string {
+		$handle = ltrim(trim($handle), '@');
+		if (preg_match('/^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,63}@([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/', $handle) !== 1) {
+			throw new InvalidHandleException('a fediverse account is written user@server.example');
+		}
+		try {
+			if (strcasecmp(substr($handle, strpos($handle, '@') + 1), $this->configService->getSocialAddress()) === 0) {
+				throw new InvalidHandleException('that would be an account on this server; create one instead');
+			}
+		} catch (SocialAppConfigException $e) {
+			// no address configured yet: nothing to compare against
+		}
+
+		$user = $this->userManager->get($userId);
+		if ($user === null) {
+			throw new NoUserException();
+		}
+		$account = $this->accountManager->getAccount($user);
+		$property = $account->getProperty(IAccountManager::PROPERTY_FEDIVERSE);
+		$property->setValue($handle);
+		if ($property->getScope() === IAccountManager::SCOPE_PRIVATE || $property->getScope() === IAccountManager::SCOPE_LOCAL) {
+			// the point of naming it is that the people here find it
+			$property->setScope(IAccountManager::SCOPE_LOCAL);
+		}
+		$this->accountManager->updateAccount($account);
+
+		return $handle;
+	}
+
+	/**
 	 * A Fediverse handle is not a Nextcloud user id.
 	 *
 	 * It ends up in `preferredUsername`, in the actor's URL and in the

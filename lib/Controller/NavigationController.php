@@ -11,8 +11,7 @@ namespace OCA\Social\Controller;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\AccountAlreadyExistsException;
-use OCA\Social\Exceptions\NoUserException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -106,6 +105,7 @@ class NavigationController extends Controller {
 		$serverData = [
 			'public' => false,
 			'firstrun' => false,
+			'needsAccount' => false,
 			'setup' => false,
 			'isAdmin' => $this->userId !== null && Server::get(IGroupManager::class)
 				->isAdmin($this->userId),
@@ -161,28 +161,26 @@ class NavigationController extends Controller {
 		}
 
 		/*
-		 * Create social user account if it doesn't exist yet
+		 * A person without an account is asked, not given one. The actor used
+		 * to be created on the first click of the app icon -- an RSA key pair,
+		 * a WebFinger-resolvable identity and a handle derived from the user
+		 * id, with no consent and no choice -- and somebody who already had an
+		 * account on Mastodon could not say so. The page carries what the
+		 * setup screen needs (nextcloud/social#1130, #1624); the account is
+		 * created by `LocalController::accountCreate()` when they ask.
 		 */
 		try {
-			$this->accountService->createActor(
-				$this->userId,
-				$this->accountService->generateHandleFromUserId($this->userId)
-			);
-			$serverData['firstrun'] = true;
-			$this->logger->info('[NavigationController] Created new actor for user', [
-				'userId' => $this->userId
-			]);
-		} catch (AccountAlreadyExistsException $e) {
-			$this->logger->debug('[NavigationController] Actor already exists for user', [
-				'userId' => $this->userId
-			]);
-		} catch (NoUserException $e) {
-			$this->logger->error('[NavigationController] User does not exist', [
-				'userId' => $this->userId,
-				'exception' => $e->getMessage()
-			]);
-		} catch (SocialAppConfigException $e) {
-			$this->logger->error('[NavigationController] Config error while creating actor', [
+			$this->accountService->getActorFromUserId($this->userId);
+		} catch (ActorDoesNotExistException $e) {
+			$serverData['needsAccount'] = true;
+			try {
+				$serverData['suggestedHandle'] = $this->accountService->generateHandleFromUserId($this->userId);
+			} catch (Exception $e) {
+				$serverData['suggestedHandle'] = '';
+			}
+			$serverData['linkedHandle'] = $this->accountService->linkedHandle($this->userId);
+		} catch (Exception $e) {
+			$this->logger->error('[NavigationController] could not look the account up', [
 				'userId' => $this->userId,
 				'exception' => $e->getMessage()
 			]);

@@ -1039,4 +1039,75 @@ class AccountServiceTest extends TestCase {
 		$this->service->createActor('alice', 'alice');
 		$this->addToAssertionCount(1);
 	}
+
+	// assertHandleAvailable() / linkExternalHandle() / linkedHandle(): the setup screen
+
+	public function testAHandleMayBeTheOwnUserIdOrAnythingNobodyElseHolds(): void {
+		$this->userManager->method('userExists')->willReturnCallback(fn (string $uid): bool => in_array($uid, ['alice', 'bob'], true));
+		$this->actorsRequest->method('getFromUsername')->willThrowException(new ActorDoesNotExistException());
+
+		$this->service->assertHandleAvailable('alice', 'alice');
+		$this->service->assertHandleAvailable('alice', 'Alice');
+		$this->service->assertHandleAvailable('alice', 'ali.ce_2');
+		$this->addToAssertionCount(3);
+	}
+
+	public function testAnotherPersonsUserIdIsNotAHandleToTake(): void {
+		// or one person publishes as another
+		$this->userManager->method('userExists')->willReturnCallback(fn (string $uid): bool => $uid === 'bob');
+
+		$this->expectException(InvalidHandleException::class);
+		$this->service->assertHandleAvailable('alice', 'bob');
+	}
+
+	public function testAHandleAnActorAlreadyHoldsIsTaken(): void {
+		$this->userManager->method('userExists')->willReturn(false);
+		$this->actorsRequest->method('getFromUsername')->with('taken')->willReturn(new Person());
+
+		$this->expectException(AccountAlreadyExistsException::class);
+		$this->service->assertHandleAvailable('alice', 'taken');
+	}
+
+	public function testAHandleThatIsNotOneIsRefusedBeforeAnythingIsLookedUp(): void {
+		$this->userManager->expects($this->never())->method('userExists');
+
+		$this->expectException(InvalidHandleException::class);
+		$this->service->assertHandleAvailable('alice', 'not a handle');
+	}
+
+	public function testLinkingAnAccountElsewhereWritesTheProfileFieldAndNothingElse(): void {
+		$this->userManager->method('get')->with('alice')->willReturn($this->user('alice'));
+		$this->fediverseField = ['scope' => IAccountManager::SCOPE_FEDERATED, 'value' => ''];
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->actorsRequest->expects($this->never())->method('create');
+
+		$this->assertSame('alice@mastodon.social', $this->service->linkExternalHandle('alice', ' @alice@mastodon.social '));
+
+		$this->assertSame(['alice@mastodon.social'], $this->fediverseWrites);
+		$this->assertSame(1, $this->accountUpdates);
+	}
+
+	public function testLinkingRefusesWhatIsNotAnAddressOrIsThisServer(): void {
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+
+		foreach (['alice', 'alice@', '@mastodon.social', 'alice@cloud.example', 'a b@x.example'] as $bad) {
+			try {
+				$this->service->linkExternalHandle('alice', $bad);
+				$this->fail($bad . ' was accepted');
+			} catch (InvalidHandleException $e) {
+				$this->addToAssertionCount(1);
+			}
+		}
+		$this->assertSame([], $this->fediverseWrites);
+	}
+
+	public function testTheLinkedHandleIsReadOffTheProfile(): void {
+		$this->userManager->method('get')->with('alice')->willReturn($this->user('alice'));
+		$this->fediverseField = ['scope' => IAccountManager::SCOPE_FEDERATED, 'value' => ' @alice@mastodon.social '];
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+
+		$this->assertSame('alice@mastodon.social', $this->service->linkedHandle('alice'));
+	}
 }

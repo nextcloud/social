@@ -183,6 +183,13 @@ describe('Timeline', () => {
 		expect(wrapper.findComponent(FirstRunStub).exists()).toBe(false)
 	})
 
+	it('shows the introduction after the reload that follows creating the account', () => {
+		// the setup screen reloads with ?welcome=1; the server does not know
+		// this load is the first, since the account existed when it answered
+		const wrapper = mountTimeline({ query: { welcome: '1' } })
+		expect(wrapper.findComponent(FirstRunStub).exists()).toBe(true)
+	})
+
 	describe('on the first run', () => {
 		beforeEach(() => {
 			makeStore({ firstrun: true })

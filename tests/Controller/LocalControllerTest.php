@@ -11,11 +11,13 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\LocalController;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -384,6 +386,62 @@ class LocalControllerTest extends TestCase {
 	}
 
 	// stream*()
+
+	// accountCreate() / accountLink(): the setup screen
+
+	public function testAccountCreateMakesTheActorWithTheChosenHandle(): void {
+		$viewer = $this->createMock(Person::class);
+		$this->accountService->expects($this->once())->method('assertHandleAvailable')->with('alice', 'ali_ce');
+		$this->accountService->expects($this->once())->method('createActor')->with('alice', 'ali_ce');
+		$this->accountService->method('getCachedLocalActor')->with('ali_ce')->willReturn($viewer);
+		$viewer->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+
+		$this->assertSuccess($this->controller()->accountCreate(' ali_ce '), ['account' => $viewer]);
+	}
+
+	public function testAccountCreateFallsBackToTheSuggestedHandle(): void {
+		$this->accountService->method('generateHandleFromUserId')->with('alice')->willReturn('alice');
+		$this->accountService->expects($this->once())->method('createActor')->with('alice', 'alice');
+		$this->accountService->method('getCachedLocalActor')->willReturn($this->createMock(Person::class));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountCreate('')->getStatus());
+	}
+
+	public function testAccountCreateSaysWhyAHandleCannotBeHad(): void {
+		// the one failure whose reason is the answer: which handle to try instead
+		$this->accountService->method('assertHandleAvailable')
+			->willThrowException(new AccountAlreadyExistsException('that handle is taken'));
+		$this->accountService->expects($this->never())->method('createActor');
+
+		$response = $this->controller()->accountCreate('bob');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(['status' => -1, 'error' => 'that handle is taken'], $response->getData());
+	}
+
+	public function testAccountCreateRequiresALoggedInUser(): void {
+		$this->accountService->expects($this->never())->method('createActor');
+
+		$this->assertNotLoggedIn($this->controller(null)->accountCreate('alice'));
+	}
+
+	public function testAccountLinkPutsTheHandleOnTheProfileAndCreatesNothing(): void {
+		$this->accountService->expects($this->once())->method('linkExternalHandle')
+			->with('alice', '@alice@mastodon.social')->willReturn('alice@mastodon.social');
+		$this->accountService->expects($this->never())->method('createActor');
+
+		$this->assertSuccess($this->controller()->accountLink('@alice@mastodon.social'), ['handle' => 'alice@mastodon.social']);
+	}
+
+	public function testAccountLinkSaysWhatAHandleLooksLike(): void {
+		$this->accountService->method('linkExternalHandle')
+			->willThrowException(new InvalidHandleException('a fediverse account is written user@server.example'));
+
+		$response = $this->controller()->accountLink('not a handle');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame('a fediverse account is written user@server.example', $response->getData()['error']);
+	}
 
 	// current* / account* / global*
 

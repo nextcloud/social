@@ -284,7 +284,9 @@ export default {
 		},
 
 		showInfo() {
-			return this.settingsStore.getServerData.firstrun && !this.infoHidden
+			// `firstrun` from the server, or `?welcome=1`, which is what the
+			// setup screen reloads with once the account exists
+			return (this.settingsStore.getServerData.firstrun || this.$route.query?.welcome === '1') && !this.infoHidden
 		},
 
 		/** @return {boolean} whether the first-post celebration is on screen */

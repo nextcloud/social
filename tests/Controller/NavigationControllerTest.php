@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Controller;
 use OCA\Social\Controller\NavigationController;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -144,6 +145,7 @@ class NavigationControllerTest extends TestCase {
 		$this->assertSame([
 			'public' => false,
 			'firstrun' => false,
+			'needsAccount' => false,
 			'setup' => false,
 			'isAdmin' => false,
 			'cliUrl' => 'https://cloud.example/index.php',
@@ -151,20 +153,27 @@ class NavigationControllerTest extends TestCase {
 		], $this->serverData());
 	}
 
-	public function testNavigateCreatesTheActorOnFirstRun(): void {
+	public function testNavigateAsksBeforeCreatingAnAccount(): void {
 		$this->systemValues([]);
 		$this->configuredCloud();
+		$this->accountService->method('getActorFromUserId')->with('alice')
+			->willThrowException(new ActorDoesNotExistException());
 		// the handle is derived from the user id rather than being the user id:
-		// not every Nextcloud user id is a usable Fediverse handle
-		$this->accountService->expects($this->once())
-			->method('generateHandleFromUserId')
-			->with('alice')
-			->willReturn('alice');
-		$this->accountService->expects($this->once())->method('createActor')->with('alice', 'alice');
+		// not every Nextcloud user id is a usable Fediverse handle -- and it is
+		// a suggestion now, not a decision
+		$this->accountService->method('generateHandleFromUserId')->with('alice')->willReturn('alice');
+		$this->accountService->method('linkedHandle')->with('alice')->willReturn('alice@mastodon.social');
+		// an RSA key pair and a WebFinger identity used to appear on the first
+		// click of the app icon, with nobody asked (nextcloud/social#1130)
+		$this->accountService->expects($this->never())->method('createActor');
 
 		$this->controller()->navigate();
 
-		$this->assertTrue($this->serverData()['firstrun']);
+		$data = $this->serverData();
+		$this->assertTrue($data['needsAccount']);
+		$this->assertFalse($data['firstrun'], 'nothing ran for the first time: nothing exists yet');
+		$this->assertSame('alice', $data['suggestedHandle']);
+		$this->assertSame('alice@mastodon.social', $data['linkedHandle']);
 	}
 
 	public function testNavigateAddsChecksForAdmins(): void {
