@@ -58,6 +58,7 @@ class CoreRequestBuilder {
 	public const TABLE_LIST_MEMBERS = 'social_list_member';
 	public const TABLE_COLLECTIONS = 'social_collection';
 	public const TABLE_COLLECTION_ITEMS = 'social_collection_item';
+	public const TABLE_IMPORTED_POSTS = 'social_import_post';
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
@@ -261,6 +262,14 @@ class CoreRequestBuilder {
 			'country',
 			'lat',
 			'lon',
+			'creation'
+		],
+		self::TABLE_IMPORTED_POSTS => [
+			'id',
+			'actor_id_prim',
+			'source_id',
+			'source_id_prim',
+			'stream_id_prim',
 			'creation'
 		],
 		self::TABLE_STORIES => [

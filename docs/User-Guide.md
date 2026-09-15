@@ -356,6 +356,18 @@ for anybody else reading the same post.
   `pixelfed-following.json` — and explains that moving your *followers*
   here is a one-way move that an administrator performs with
   `occ social:account:alias` and `occ social:account:move`.
+- **Bringing your posts.** The fourth section of **Settings → Migration** reads
+  the export from your old server — this app's own archive, Mastodon's or
+  GoToSocial's `outbox.json`, or Pixelfed's `pixelfed-statuses.json` — and
+  writes the posts in it here as yours, dated when you wrote them, with their
+  pictures. Nothing is sent to anybody: none of it is published again, so the
+  people who follow you do not receive years of posts in one afternoon. Boosts
+  and direct messages are left out, and a reply keeps the post it answers when
+  the file holds both. A picture the export names only by its address is
+  fetched from the old server, which has to still be running; the switch above
+  the button turns that off. At most 2000 posts a run — upload the same file
+  again to carry on — and an archive too large for a browser can be imported by
+  an administrator with `occ social:account:import-posts`.
 - **Leaving.** Deleting the Nextcloud user deletes the Social account with
   it: what you posted is dropped and a deletion is sent to the servers that
   saw it.

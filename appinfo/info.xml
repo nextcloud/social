@@ -93,6 +93,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<command>OCA\Social\Command\AccountAlias</command>
 		<command>OCA\Social\Command\AccountMove</command>
 		<command>OCA\Social\Command\AccountImportFollows</command>
+		<command>OCA\Social\Command\AccountImportPosts</command>
 		<command>OCA\Social\Command\Benchmark</command>
 		<command>OCA\Social\Command\CacheRefresh</command>
 		<command>OCA\Social\Command\CheckInstall</command>

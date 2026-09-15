@@ -91,7 +91,7 @@
 				{{ t('social', 'Migration') }}
 			</h3>
 			<p class="settings__section-lede">
-				{{ t('social', 'Your account is yours. Take a copy of it whenever you like, move it to another server, or bring an account here from somewhere else.') }}
+				{{ t('social', 'Your account is yours. Take a copy of it whenever you like, move it to another server, or bring one here from somewhere else — including the posts you wrote there, with their pictures.') }}
 			</p>
 			<MigrationSettings />
 		</section>

@@ -278,8 +278,19 @@ and **the pictures and videos come with it**, copied into the archive in the lay
 Mastodon's own export uses, with each attachment pointing at the copy rather than at
 the server you are leaving. Import reads one back, including an archive from
 `occ user:export`. A third section brings your follows over from Mastodon, Pixelfed,
-GoToSocial or Akkoma via their `following_accounts.csv`. Your private key is
-deliberately not in the archive.
+GoToSocial or Akkoma via their `following_accounts.csv` or `pixelfed-following.json`.
+Your private key is deliberately not in the archive.
+
+**And a fourth brings the posts** — the one thing moving between Fediverse servers has
+never carried. Upload the export from your old server (this app's archive, Mastodon's
+or GoToSocial's `outbox.json`, or Pixelfed's `pixelfed-statuses.json`) and the posts in
+it are written here as yours, dated when you wrote them, with their pictures: out of
+the archive where it holds the files, and off the old server where the export only
+lists their addresses. **Nothing is published again** — not one delivery is queued, so
+your followers do not get years of posts in an afternoon — boosts and direct messages
+are left out, a reply keeps the post it answers where the file holds both, and
+importing the same file twice changes nothing the second time. An archive too large
+for a browser goes through `occ social:account:import-posts`.
 
 ## 📱 On a phone, and in the dark
 

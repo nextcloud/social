@@ -16,6 +16,7 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Db\RequestQueueRequest;
@@ -65,6 +66,7 @@ class ModerationServiceTest extends TestCase {
 	private MuteExpiryRequest|MockObject $muteExpiryRequest;
 	private CollectionsRequest|MockObject $collectionsRequest;
 	private StoriesRequest|MockObject $storiesRequest;
+	private ImportedPostsRequest|MockObject $importedPostsRequest;
 	private StrikeService|MockObject $strikeService;
 	private AuditService|MockObject $auditService;
 
@@ -78,6 +80,7 @@ class ModerationServiceTest extends TestCase {
 		$this->muteExpiryRequest = $this->createMock(MuteExpiryRequest::class);
 		$this->collectionsRequest = $this->createMock(CollectionsRequest::class);
 		$this->storiesRequest = $this->createMock(StoriesRequest::class);
+		$this->importedPostsRequest = $this->createMock(ImportedPostsRequest::class);
 		$this->moderationRequest = $this->createMock(ModerationRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
@@ -117,6 +120,7 @@ class ModerationServiceTest extends TestCase {
 			$this->strikeService,
 			$this->collectionsRequest,
 			$this->storiesRequest,
+			$this->importedPostsRequest,
 			$this->auditService
 		);
 	}
@@ -219,6 +223,7 @@ class ModerationServiceTest extends TestCase {
 			$this->strikeService,
 			$this->collectionsRequest,
 			$this->storiesRequest,
+			$this->importedPostsRequest,
 			$this->auditService
 		);
 
@@ -336,7 +341,7 @@ class ModerationServiceTest extends TestCase {
 			$this->requestQueueRequest, $this->createMock(StreamService::class),
 			$this->actorsRequest, $this->accountService, $logger,
 			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest,
-			$this->strikeService, $this->collectionsRequest, $this->storiesRequest,
+			$this->strikeService, $this->collectionsRequest, $this->storiesRequest, $this->importedPostsRequest,
 			$this->auditService
 		);
 
