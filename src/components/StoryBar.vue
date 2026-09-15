@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<section v-if="currentAccount" class="story-bar" :aria-label="t('social', 'Stories')">
+	<section v-if="viewer" class="story-bar" :aria-label="t('social', 'Stories')">
 		<ul class="story-bar__list">
 			<!-- the reader's own place is always there, with or without a
 			     story in it: it is where a story is added from -->
@@ -16,7 +16,7 @@
 					@click="ownGroup ? open(0) : (composing = true)">
 					<span class="story-bar__ring">
 						<ActorAvatar
-							:actor="currentAccount"
+							:actor="viewer"
 							:size="52"
 							:link="false"
 							:hoverCard="false" />
@@ -71,6 +71,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { getCurrentUser } from '@nextcloud/auth'
 import { n, t } from '@nextcloud/l10n'
 import { defineAsyncComponent } from 'vue'
 import { mapStores } from 'pinia'
@@ -120,9 +121,39 @@ export default {
 	computed: {
 		...mapStores(useAccountStore),
 
-		/** @return {object|undefined} the signed-in account */
-		currentAccount() {
-			return this.accountStore.currentAccount
+		/**
+		 * The reader, as something to draw a face from.
+		 *
+		 * The account store's copy where it has arrived, and the Nextcloud
+		 * user otherwise — the store is filled by a request that may not have
+		 * come back yet, and a bar that waits for it is missing on the first
+		 * paint and, where that request fails, for good.
+		 *
+		 * @return {object|null}
+		 */
+		viewer() {
+			const account = this.accountStore.currentAccount
+			if (account) {
+				return account
+			}
+
+			const user = getCurrentUser()
+			if (!user) {
+				return null
+			}
+
+			return {
+				id: user.uid,
+				acct: user.uid,
+				username: user.uid,
+				display_name: user.displayName || user.uid,
+				avatar: generateUrl('/avatar/{uid}/64', { uid: user.uid }),
+			}
+		},
+
+		/** @return {string} the reader's handle, for telling their own stories apart */
+		viewerAcct() {
+			return this.accountStore.currentAccount?.acct ?? getCurrentUser()?.uid ?? ''
 		},
 
 		/** @return {object|undefined} the reader's own stories, grouped */
@@ -177,7 +208,7 @@ export default {
 						account,
 						stories: [],
 						seen: true,
-						own: account.acct === this.currentAccount?.acct,
+						own: this.viewerAcct !== '' && account.acct === this.viewerAcct,
 					})
 				}
 				const group = groups.get(account.id)
@@ -254,8 +285,8 @@ export default {
 			const own = this.ownGroup
 			if (own) {
 				own.stories.push({ ...story, seen: true })
-			} else if (this.currentAccount) {
-				this.groups = [{ account: story.account ?? this.currentAccount, stories: [{ ...story, seen: true }], seen: true, own: true }, ...this.groups]
+			} else if (this.viewer) {
+				this.groups = [{ account: story.account ?? this.viewer, stories: [{ ...story, seen: true }], seen: true, own: true }, ...this.groups]
 			}
 		},
 	},

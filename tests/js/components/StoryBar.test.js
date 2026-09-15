@@ -12,6 +12,11 @@ import { useAccountStore } from '../../../src/store/account.js'
 const { get } = vi.hoisted(() => ({ get: vi.fn() }))
 vi.mock('@nextcloud/axios', () => ({ default: { get } }))
 vi.mock('../../../src/services/logger.js', () => ({ default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+// @nextcloud/auth reads the user from <head>, which the harness does not set
+vi.mock('@nextcloud/auth', async (importOriginal) => ({
+	...(await importOriginal()),
+	getCurrentUser: () => ({ uid: 'alice', displayName: 'Alice', isAdmin: false }),
+}))
 
 const alice = { id: '7', url: 'https://cloud.example.org/@alice', acct: 'alice', username: 'alice', display_name: 'Alice', avatar: '' }
 const bob = { id: '9', url: 'https://remote.example/users/bob', acct: 'bob@remote.example', username: 'bob', display_name: 'Bob', avatar: '' }
@@ -96,6 +101,22 @@ describe('StoryBar', () => {
 		await flushPromises()
 
 		expect(wrapper.findAll('.story-bar__tile')[0].classes()).not.toContain('story-bar__tile--empty')
+	})
+
+	it('draws the reader\'s own place before the account store has caught up', async () => {
+		get.mockResolvedValue({ data: [story('2', bob)] })
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		// no account in the store at all: the request that fills it may not
+		// have come back, and the bar must not wait for it
+		const wrapper = mount(StoryBar, {
+			global: { plugins: [pinia], stubs: { StoryViewer: StoryViewerStub, StoryComposerDialog: StoryComposerStub, ActorAvatar: true } },
+		})
+		await flushPromises()
+
+		const tiles = wrapper.findAll('.story-bar__tile')
+		expect(tiles).toHaveLength(2)
+		expect(tiles[0].text()).toBe('Your story')
 	})
 
 	it('draws nothing when the carousel could not be loaded, rather than a toast over the feed', async () => {
