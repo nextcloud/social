@@ -37,6 +37,7 @@ class CollectionService {
 		private CollectionsRequest $collectionsRequest,
 		private StreamRequest $streamRequest,
 		private FollowService $followService,
+		private CacheActorService $cacheActorService,
 	) {
 	}
 
@@ -210,6 +211,14 @@ class CollectionService {
 		$preview = $this->posts($collection, self::PREVIEW_SIZE);
 		foreach ($preview as $post) {
 			$post->setExportFormat(ACore::FORMAT_LOCAL);
+		}
+
+		try {
+			$collection->setAccount($this->cacheActorService->getFromId($collection->getOwnerId()));
+		} catch (\Exception $e) {
+			// a collection whose owner this server cannot name any more is
+			// still a collection; the page just has nobody to head it with
+			$collection->setAccount(null);
 		}
 
 		return $collection->setPreview($preview);

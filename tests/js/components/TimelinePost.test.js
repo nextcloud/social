@@ -141,6 +141,7 @@ function mountPost({
 				NcActionButton: NcActionButtonStub,
 				NcActionLink: NcActionLinkStub,
 				NcDialog: NcDialogStub,
+				CollectionPickerDialog: { name: 'CollectionPickerDialog', props: ['open', 'status'], template: '<div class="collection-picker-stub" />' },
 				PostAttachment: true,
 				RouterLink: RouterLinkStub,
 			},
@@ -1148,6 +1149,24 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost({ currentAccount: null })
 			expect(menuItem(wrapper, 'Edit')).toBeUndefined()
 			expect(menuItem(wrapper, 'Delete')).toBeUndefined()
+		})
+
+		it('offers Add to a collection only for an own post that has a picture in it', () => {
+			expect(menuItem(mountPost({ item: makeItem({ media_attachments: [photo()] }) }).wrapper, 'Add to a collection')).toBeDefined()
+			// a collection holds only its owner's own media posts
+			expect(menuItem(mountPost({ item: makeItem() }).wrapper, 'Add to a collection')).toBeUndefined()
+			expect(menuItem(mountPost({ item: makeItem({ account: bob, media_attachments: [photo()] }) }).wrapper, 'Add to a collection')).toBeUndefined()
+			expect(menuItem(mountPost({ item: makeItem({ local: false, media_attachments: [photo()] }) }).wrapper, 'Add to a collection')).toBeUndefined()
+		})
+
+		it('opens the collection picker for the post', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ media_attachments: [photo()] }) })
+
+			await menuItem(wrapper, 'Add to a collection').trigger('click')
+
+			const picker = wrapper.findComponent({ name: 'CollectionPickerDialog' })
+			expect(picker.exists()).toBe(true)
+			expect(picker.props('status').id).toBe('101')
 		})
 
 		it('offers Pin to profile for an own post and pins it', async () => {

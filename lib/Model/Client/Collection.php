@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
@@ -60,6 +62,9 @@ class Collection implements IQueryRow, JsonSerializable {
 
 	/** @var Stream[] the first few, for a cover; not every item */
 	private array $preview = [];
+
+	/** the owner, as a client sees them; attached on the way out, never stored */
+	private ?Person $account = null;
 
 	public function getId(): int {
 		return $this->id;
@@ -175,8 +180,20 @@ class Collection implements IQueryRow, JsonSerializable {
 		$this->setSize($this->getInt('size', $data));
 	}
 
+	public function getAccount(): ?Person {
+		return $this->account;
+	}
+
+	public function setAccount(?Person $account): self {
+		$this->account = $account;
+
+		return $this;
+	}
+
 	#[\Override]
 	public function jsonSerialize(): array {
+		$this->account?->setExportFormat(ACore::FORMAT_LOCAL);
+
 		return [
 			'id' => (string)$this->getId(),
 			'title' => $this->getTitle(),
@@ -185,6 +202,9 @@ class Collection implements IQueryRow, JsonSerializable {
 			'created_at' => date('c', $this->getCreation()),
 			'updated_at' => date('c', ($this->getUpdated() === 0) ? $this->getCreation() : $this->getUpdated()),
 			'size' => $this->getSize(),
+			// whose it is: a page for a collection needs somebody to head it
+			// and somebody to say whether the reader may manage it
+			'account' => $this->account,
 			// exported in the client format, as every other post a client is
 			// handed by this API is
 			'posts' => array_map(static fn (Stream $post): array => $post->jsonSerialize(), $this->getPreview()),

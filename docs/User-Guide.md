@@ -207,6 +207,20 @@ same announcement.
 
 Administrators post and remove announcements in **Administration → Social**.
 
+### Collections
+
+A profile has a fourth tab beside Posts, Photos and Videos: **Collections**, the
+account's albums. Each is a page of the posts the owner gathered into it, drawn
+as the same grid of squares the Photos tab uses, with a lock on the ones that
+are for followers only.
+
+Your own shelf has a **New collection** field at the top. To put a post into
+one, open the post's menu (**…**) and choose **Add to a collection**; only your
+own posts with a picture or a video in them offer it, because that is all a
+collection may hold. On a collection's page you can **Edit** its title,
+description and audience, **Remove posts** from their own squares, or
+**Delete** it — the posts stay where they are.
+
 ## Filtering out words
 
 Some words are not worth reading. **Settings → Filtered words** is where you say

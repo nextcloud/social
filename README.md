@@ -190,6 +190,12 @@ own unified search. No external search engine to run.
   an empty box, and your profile links straight there.
 - **Highlights** — a twelve-week posting chart and the tags somebody keeps coming back
   to.
+- **Collections** — Pixelfed's albums, as the fourth tab of a profile: a shelf of the
+  account's collections, each a page of its posts drawn as the profile grid. You make
+  one on your own shelf, put a post into it from the post's menu (**… → Add to a
+  collection**), and edit, empty or delete it on its page. A collection holds only
+  its owner's own posts with a picture or a video in them, and a followers-only one
+  is shown to followers and nobody else.
 - **Pinned posts**, up to five, published in the actor's `featured` collection. Remote
   accounts' pins arrive too.
 - **A grid or a timeline**, whichever you last chose, cropped to each picture's focal

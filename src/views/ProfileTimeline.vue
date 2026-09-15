@@ -30,9 +30,6 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
-import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
-import IconTextBoxMultiple from 'vue-material-design-icons/TextBoxMultiple.vue'
 import TimelineEntry from './../components/TimelineEntry.vue'
 import TimelineList from './../components/TimelineList.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
@@ -40,6 +37,7 @@ import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 import { mapStores } from 'pinia'
 import { useTimelineStore } from '../store/timeline.js'
+import { profileKinds } from '../composables/useProfileKinds.js'
 
 export default {
 	name: 'ProfileTimeline',
@@ -96,17 +94,7 @@ export default {
 		 * @return {object[]} the three tabs, for the switcher
 		 */
 		kinds() {
-			const to = (media) => ({
-				name: 'profile',
-				params: { account: this.$route.params.account },
-				query: media === '' ? {} : { media },
-			})
-
-			return [
-				{ value: '', label: t('social', 'Posts'), icon: IconTextBoxMultiple, to: to('') },
-				{ value: 'image', label: t('social', 'Photos'), icon: IconImageMultiple, to: to('image') },
-				{ value: 'video', label: t('social', 'Videos'), icon: IconPlayBoxMultiple, to: to('video') },
-			]
+			return profileKinds(this.$route.params.account)
 		},
 
 		/**

@@ -353,6 +353,16 @@
 						</template>
 						{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
 					</NcActionButton>
+					<!-- an album is made of the reader's own pictures; where the
+					     picture is, is where it is put into one -->
+					<NcActionButton
+						v-if="canCollect"
+						@click="showCollectionDialog = true">
+						<template #icon>
+							<FolderMultiplePlusOutline :size="20" />
+						</template>
+						{{ t('social', 'Add to a collection') }}
+					</NcActionButton>
 					<NcActionButton
 						v-if="canPin"
 						@click="togglePin">
@@ -392,6 +402,10 @@
 			v-if="showMuteDialog"
 			v-model:open="showMuteDialog"
 			:account="item.account" />
+		<CollectionPickerDialog
+			v-if="showCollectionDialog"
+			v-model:open="showCollectionDialog"
+			:status="item" />
 		<NcDialog
 			v-model:open="showBlockDialog"
 			:name="t('social', 'Block {account}?', { account: item.account.acct })"
@@ -487,6 +501,7 @@ import PinOff from 'vue-material-design-icons/PinOff.vue'
 import SendCheck from 'vue-material-design-icons/SendCheck.vue'
 import Translate from 'vue-material-design-icons/Translate.vue'
 import FormatQuoteClose from 'vue-material-design-icons/FormatQuoteClose.vue'
+import FolderMultiplePlusOutline from 'vue-material-design-icons/FolderMultiplePlusOutline.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError, showSuccess } from '../services/toast.js'
@@ -519,11 +534,15 @@ import { defineAsyncComponent } from 'vue'
 // The mute dialog is the same one the profile opens, and it is worth nothing
 // until somebody asks for it: the post menu is on every post on the page.
 const MuteDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./MuteDialog.vue'))
+// fetched with the other dialogs a post rarely opens, for the same reason
+const CollectionPickerDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./CollectionPickerDialog.vue'))
 
 export default {
 	name: 'TimelinePost',
 	components: {
 		Cancel,
+		CollectionPickerDialog,
+		FolderMultiplePlusOutline,
 		MuteDialog,
 		ReactionBar,
 		VolumeOff,
@@ -596,6 +615,7 @@ export default {
 			editSpoiler: '',
 			showReportDialog: false,
 			showMuteDialog: false,
+			showCollectionDialog: false,
 			showBlockDialog: false,
 			showDeleteDialog: false,
 			/** whether the delete on screen is the first half of a re-draft */
@@ -780,6 +800,19 @@ export default {
 			return this.item.account.acct === this.currentAccount?.acct
 				&& this.item.local !== false
 				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
+		},
+
+		/**
+		 * @return {boolean} whether this post can go into one of the reader's
+		 * collections: their own, written here, and with a picture or a video
+		 * in it — a collection holds only its owner's own media posts, so
+		 * offering the action on anything else would be offering a refusal
+		 */
+		canCollect() {
+			return this.item.account.acct === this.currentAccount?.acct
+				&& this.item.local !== false
+				&& Array.isArray(this.item.media_attachments)
+				&& this.item.media_attachments.length > 0
 		},
 
 		/**
