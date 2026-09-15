@@ -364,6 +364,35 @@ Each profile has a **Tagged** tab: the photographs that account is named in,
 whoever took them. If you are named in one and would rather not be, **Remove me**
 under the post takes your name off, and needs nobody's permission.
 
+### Notifications your settings held back
+
+**Filtered notifications** in the sidebar. Your notification settings can hold
+some notifications back rather than show them — from accounts nobody here
+follows, from brand-new accounts, from people you do not follow. They wait on
+that page, one row per sender with how many they have sent and the first words
+of their most recent post.
+
+You decide about the **person**, not about each notification: **Show these**
+settles everything that account has sent and will send, and **Dismiss** stops
+you being asked about them again while leaving what they sent hidden. There are
+buttons for the whole list too. Until this page existed the setting held things
+back with nowhere to see them, which is worse than not having the setting.
+
+### Hiding a whole server
+
+**Settings → Blocked and muted accounts** now has a third list: the servers you
+have hidden. Hiding one hides every account on it and everything they post, and
+takes your follows in both directions with it. It is the answer to being
+bothered by a server rather than by one person — the alternative was blocking
+accounts one at a time as they appeared.
+
+### What a post used to say
+
+A post that has been edited says so under it. That line is a button now: it
+opens every version, oldest first, with the content warning and the pictures
+each one carried. A reader who has been quoted or replied to can see what
+changed rather than being told only that something did.
+
 ## Filtering out words
 
 Some words are not worth reading. **Settings → Filtered words** is where you say

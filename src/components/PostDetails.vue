@@ -13,7 +13,21 @@
 		<time class="post-details__item" :datetime="status.created_at">{{ published }}</time>
 		<span class="post-details__item">{{ visibilityText }}</span>
 		<span v-if="languageName" class="post-details__item">{{ languageName }}</span>
-		<span v-if="edited" class="post-details__item">{{ edited }}</span>
+		<!-- "Edited" told a reader the words are not the words somebody replied
+		     to, and nothing about what changed. The versions have been served
+		     since editing landed; this is the button that opens them. -->
+		<button
+			v-if="edited"
+			type="button"
+			class="post-details__item post-details__edited"
+			@click="showHistory = true">
+			{{ edited }}
+		</button>
+
+		<EditHistoryDialog
+			v-if="showHistory"
+			:nid="status.nid"
+			@close="showHistory = false" />
 		<a
 			v-if="originalUrl"
 			class="post-details__item post-details__original"
@@ -31,10 +45,12 @@ import { getLanguage, translate as t } from '@nextcloud/l10n'
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import visibilities from './Visibility/VisibilitiesInfos.js'
 import { fullDateTime } from '../utils/relativeTime.js'
+import EditHistoryDialog from './EditHistoryDialog.vue'
 
 export default {
 	name: 'PostDetails',
 	components: {
+		EditHistoryDialog,
 		OpenInNew,
 	},
 
@@ -44,6 +60,12 @@ export default {
 			type: Object,
 			required: true,
 		},
+	},
+
+	data() {
+		return {
+			showHistory: false,
+		}
 	},
 
 	computed: {
@@ -141,4 +163,20 @@ export default {
 		color: var(--color-main-text);
 	}
 }
+
+.post-details__edited {
+	border: none;
+	background: none;
+	padding: 0;
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+	text-decoration: underline dotted;
+
+	&:hover,
+	&:focus-visible {
+		text-decoration: underline;
+	}
+}
+
 </style>
