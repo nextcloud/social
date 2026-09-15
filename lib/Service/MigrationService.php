@@ -167,9 +167,10 @@ class MigrationService {
 	}
 
 	/**
-	 * Re-creates the follows of a Mastodon `following_accounts.csv` from this
-	 * user's actor, one handle at a time through the ordinary follow path.
-	 * One handle that fails does not stop the rest.
+	 * Re-creates the follows of an export — Mastodon's `following_accounts.csv`
+	 * or Pixelfed's `pixelfed-following.json` — from this user's actor, one
+	 * account at a time through the ordinary follow path. One that fails does
+	 * not stop the rest.
 	 *
 	 * @return array{followed: int, skipped: int, failed: array<string, string>}
 	 *                                                                           `failed` maps a handle to the reason
@@ -178,14 +179,22 @@ class MigrationService {
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$result = ['followed' => 0, 'skipped' => 0, 'failed' => []];
 
-		foreach (self::parseFollowsCsv($csv) as $handle) {
-			if (strcasecmp($handle, $actor->getAccount()) === 0) {
+		foreach (self::parseFollows($csv) as $handle) {
+			if (strcasecmp($handle, $actor->getAccount()) === 0 || strcasecmp($handle, $actor->getId()) === 0) {
 				$result['skipped']++;
 				continue;
 			}
 
 			try {
-				$this->followService->followAccount($actor, $handle);
+				if (self::isActorUrl($handle)) {
+					// Pixelfed's export names actors by URL rather than by
+					// handle: fetch the actor by it, then follow what came back
+					$this->followService->followActor(
+						$actor, $this->cacheActorService->getFromId($handle, true)
+					);
+				} else {
+					$this->followService->followAccount($actor, $handle);
+				}
 				$result['followed']++;
 			} catch (FollowSameAccountException $e) {
 				$result['skipped']++;
@@ -198,6 +207,86 @@ class MigrationService {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * The accounts a follows export names, whichever network wrote it.
+	 *
+	 * Mastodon, GoToSocial and Akkoma hand out `following_accounts.csv`;
+	 * Pixelfed hands out `pixelfed-following.json`, a JSON array of actor
+	 * URLs — and the Migration page told Pixelfed users to fetch a CSV that
+	 * Pixelfed does not offer, then read their JSON as a one-line CSV with no
+	 * handle in it, so the import quietly followed nobody. A file is read as
+	 * JSON when it parses as JSON, and as CSV otherwise.
+	 *
+	 * @return string[] `name@host` handles and actor URLs, deduplicated, in file order
+	 */
+	public static function parseFollows(string $file): array {
+		$trimmed = trim($file);
+		if ($trimmed !== '' && ($trimmed[0] === '[' || $trimmed[0] === '{')) {
+			$decoded = json_decode($trimmed, true);
+			if (is_array($decoded)) {
+				return self::parseFollowsJson($decoded);
+			}
+		}
+
+		return self::parseFollowsCsv($file);
+	}
+
+	/**
+	 * Whether a follows entry names an actor by URL rather than by handle.
+	 */
+	public static function isActorUrl(string $entry): bool {
+		return preg_match('#^https?://[^\s/]+/\S+$#i', $entry) === 1;
+	}
+
+	/**
+	 * The entries of a JSON follows export.
+	 *
+	 * Pixelfed writes a bare array of actor URLs. Read generously beyond that,
+	 * because an export is the one file its author cannot fix: an entry may be
+	 * a handle instead of a URL, an object naming the account under `url`,
+	 * `acct`, `account` or `id`, and the array may sit under `following` or
+	 * `orderedItems` rather than at the root.
+	 *
+	 * @param array<mixed> $decoded
+	 * @return string[]
+	 */
+	private static function parseFollowsJson(array $decoded): array {
+		foreach (['following', 'orderedItems', 'items', 'accounts'] as $key) {
+			if (isset($decoded[$key]) && is_array($decoded[$key])) {
+				$decoded = $decoded[$key];
+				break;
+			}
+		}
+
+		$entries = [];
+		$seen = [];
+		foreach ($decoded as $entry) {
+			if (is_array($entry)) {
+				$entry = $entry['url'] ?? $entry['acct'] ?? $entry['account'] ?? $entry['id'] ?? '';
+			}
+			if (!is_string($entry)) {
+				continue;
+			}
+
+			$entry = ltrim(trim($entry), '@');
+			if (self::isActorUrl($entry)) {
+				$entry = rtrim($entry, '/');
+			} elseif (preg_match('/^[^@\s]+@[^@\s]+$/', $entry) !== 1) {
+				continue;
+			}
+
+			$key = strtolower($entry);
+			if (isset($seen[$key])) {
+				continue;
+			}
+
+			$seen[$key] = true;
+			$entries[] = $entry;
+		}
+
+		return $entries;
 	}
 
 	/**

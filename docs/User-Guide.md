@@ -67,7 +67,8 @@ skipped, and once closed it does not come back.
   it into your home feed. It is not a relationship with anybody, and the tags
   you follow are listed above any hashtag timeline.
 - **Coming from another server?** Every Mastodon-like server exports the
-  people you follow as `following_accounts.csv`. Upload it in the first-run
+  people you follow as `following_accounts.csv`, and Pixelfed as
+  `pixelfed-following.json`. Upload it in the first-run
   introduction or under **Settings → Migration** and each account is followed
   again from here.
 
@@ -308,7 +309,8 @@ for anybody else reading the same post.
   deliberately not in it. **Import** reads such an archive (or a Nextcloud
   account export) back in without deleting anything; posts in it are listed,
   not published again. The third section imports the follows from another
-  network's `following_accounts.csv`, and explains that moving your *followers*
+  network's export — a `following_accounts.csv`, or Pixelfed's
+  `pixelfed-following.json` — and explains that moving your *followers*
   here is a one-way move that an administrator performs with
   `occ social:account:alias` and `occ social:account:move`.
 - **Leaving.** Deleting the Nextcloud user deletes the Social account with

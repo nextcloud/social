@@ -160,6 +160,23 @@ class FollowService {
 			'remoteNid' => $remoteActor->getNid(),
 		]);
 
+		$this->followActor($actor, $remoteActor);
+	}
+
+	/**
+	 * Follows an account that has already been resolved.
+	 *
+	 * The half of `followAccount()` after the WebFinger lookup, on its own so
+	 * that a caller holding the actor already — an import that was handed
+	 * actor URLs rather than handles — does not resolve it a second time.
+	 *
+	 * @throws FollowSameAccountException
+	 * @throws SocialAppConfigException
+	 * @throws Throwable
+	 */
+	public function followActor(Person $actor, Person $remoteActor): void {
+		$this->moderationService->assertNotSuspended($actor->getId());
+
 		if ($remoteActor->getId() === $actor->getId()) {
 			$this->logger->warning('FollowService::followAccount - same account');
 			throw new FollowSameAccountException("Don't follow yourself, be your own lead");

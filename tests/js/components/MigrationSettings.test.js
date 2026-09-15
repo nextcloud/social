@@ -139,6 +139,18 @@ describe('Migration', () => {
 		expect(wrapper.find('.migration__result').text()).toContain('1')
 	})
 
+	it('takes Pixelfed\'s JSON export too, since that is the only follows file Pixelfed writes', async () => {
+		axios.post.mockResolvedValue({ data: { followed: 3, skipped: 0, failed: {} } })
+
+		const wrapper = mountPage()
+		expect(wrapper.find('input[ref="follows"], input[accept*="json"]').exists()).toBe(true)
+		await choose(wrapper, 'follows', 'pixelfed-following.json')
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/migration/follows`, expect.any(FormData))
+		expect(wrapper.find('.migration__result').text()).toContain('3')
+		expect(wrapper.text()).toContain('pixelfed-following.json')
+	})
+
 	it('says so when the follows cannot be read', async () => {
 		axios.post.mockRejectedValue({ response: { data: { error: 'that is not a CSV' } } })
 

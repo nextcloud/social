@@ -74,12 +74,12 @@
 
 			<h5>{{ t('social', 'Bring your follows with you') }}</h5>
 			<p>
-				{{ t('social', 'Every one of those servers exports the people you follow as a following_accounts.csv. Upload that file and each account is followed again from here. A follow is an agreement between two servers, so it has to be asked for again — it cannot be copied out of a file.') }}
+				{{ t('social', 'Every one of those servers exports the people you follow — most as a following_accounts.csv, Pixelfed as pixelfed-following.json. Upload that file and each account is followed again from here. A follow is an agreement between two servers, so it has to be asked for again — it cannot be copied out of a file.') }}
 			</p>
 			<input
 				ref="follows"
 				type="file"
-				accept=".csv,text/csv"
+				accept=".csv,text/csv,.json,application/json"
 				class="hidden-visually"
 				@change="importFollows">
 			<NcButton :disabled="followsBusy" @click="$refs.follows.click()">
@@ -87,7 +87,7 @@
 					<NcLoadingIcon v-if="followsBusy" :size="20" />
 					<IconAccountMultiplePlus v-else :size="20" />
 				</template>
-				{{ followsBusy ? t('social', 'Following …') : t('social', 'Import follows from a CSV') }}
+				{{ followsBusy ? t('social', 'Following …') : t('social', 'Import follows from a file') }}
 			</NcButton>
 			<p v-if="followsResult" class="migration__result">
 				{{ followsResult }}
@@ -101,7 +101,7 @@
 				</li>
 				<li>
 					<strong>{{ t('social', 'Pixelfed') }}</strong>
-					{{ t('social', '— Settings → Data export → Following. Photos come across as posts once you follow the accounts again.') }}
+					{{ t('social', '— Settings → Data export → Following (JSON), which writes pixelfed-following.json: a list of account addresses rather than a CSV, and read here all the same. Photos come across as posts once you follow the accounts again.') }}
 				</li>
 				<li>
 					<strong>{{ t('social', 'GoToSocial and Akkoma') }}</strong>

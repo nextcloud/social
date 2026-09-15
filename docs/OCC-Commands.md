@@ -151,8 +151,9 @@ followers, not the content.
 
 ### `social:account:import-follows`
 
-Follow every account of a Mastodon `following_accounts.csv` export from a local
-account: the other half of moving an account **to** this server.
+Follow every account of a follows export — Mastodon's `following_accounts.csv`
+or Pixelfed's `pixelfed-following.json` — from a local account: the other half
+of moving an account **to** this server.
 
 ```
 php occ social:account:import-follows <userId> <csv>
@@ -161,12 +162,13 @@ php occ social:account:import-follows <userId> <csv>
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `userId` | Yes | Nextcloud user whose actor follows the accounts |
-| `csv` | Yes | Path to the export. The current Mastodon format with the header `Account address,Show boosts,Notify on new posts,Languages` is read by its `Account address` column wherever it is; the older format — one handle per line, no header — works too. |
+| `csv` | Yes | Path to the export. The current Mastodon format with the header `Account address,Show boosts,Notify on new posts,Languages` is read by its `Account address` column wherever it is; the older format — one handle per line, no header — works too. A file that parses as JSON is read as Pixelfed's export: an array of actor URLs (or handles, or objects naming one), each URL fetched and followed as the actor it resolves to. |
 
-Each handle goes through the same path as `social:account:following`: the
-account is resolved (WebFinger), a `Follow` is queued, and a handle already
-followed is left alone. A leading `@` is dropped, repeats are followed once, and
-a line that is not a `user@host` handle is ignored. The other columns (boosts,
+Each entry goes through the same path as `social:account:following`: the
+account is resolved (WebFinger for a handle, an actor fetch for a URL), a
+`Follow` is queued, and an account already followed is left alone. A leading
+`@` is dropped, repeats are followed once, and an entry that is neither a
+`user@host` handle nor an actor URL is ignored. The other columns (boosts,
 notifications, languages) are not imported.
 
 One handle that fails — an unreachable instance, an account that no longer
