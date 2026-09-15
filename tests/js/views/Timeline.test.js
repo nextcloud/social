@@ -35,6 +35,7 @@ const ComposerStub = {
 const OnThisDayStub = { name: 'OnThisDay', template: '<div class="on-this-day-stub" />' }
 const AnnouncementsStub = { name: 'Announcements', template: '<div class="announcements-stub" />' }
 const WeeklyRecapStub = { name: 'WeeklyRecap', template: '<div class="weekly-recap-stub" />' }
+const StoryBarStub = { name: 'StoryBar', template: '<div class="story-bar-stub" />' }
 const TimelineListStub = {
 	name: 'TimelineList',
 	props: ['type', 'showParents', 'reverseOrder', 'display'],
@@ -74,7 +75,7 @@ function mountTimeline(route = {}) {
 			// Announcements what the instance is telling everybody; each is its
 			// own request with its own tests, and left real they would answer
 			// after these tests have finished
-			stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub },
+			stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, StoryBar: StoryBarStub },
 		},
 	})
 }

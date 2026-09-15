@@ -54,6 +54,10 @@
 		<!-- what the reader wrote on this day in years gone by, and how their
 		     week went if they asked to be told; only over their own home feed,
 		     which is the one page that is about them -->
+		<!-- whose stories are up: a row of faces above the reader's own
+		     feed, and only there — a story is for the people who follow -->
+		<StoryBar v-if="isHome" />
+
 		<WeeklyRecap v-if="isHome" />
 		<OnThisDay v-if="isHome" />
 
@@ -83,6 +87,7 @@ import Announcements from './../components/Announcements.vue'
 import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import OnThisDay from './../components/OnThisDay.vue'
+import StoryBar from './../components/StoryBar.vue'
 import WeeklyRecap from './../components/WeeklyRecap.vue'
 import { tagStyle } from '../utils/tagColour.js'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
@@ -107,6 +112,7 @@ export default {
 		HashtagFollowButton,
 		HashtagFollowedList,
 		OnThisDay,
+		StoryBar,
 		WeeklyRecap,
 		TimelineList,
 		TimelineSwitcher,

@@ -207,6 +207,23 @@ same announcement.
 
 Administrators post and remove announcements in **Administration → Social**.
 
+### Stories
+
+Above your own feed is a row of faces: whose stories are up. A story is one
+picture or video that the people who follow the account can see for a day,
+and then it is gone. A face with a coloured ring around it still holds
+something you have not seen; tap it and the stories play one after another,
+each for the seconds its poster gave it, and the ring goes grey. Hold the
+picture to pause it, tap the left or right of it to go back or forward, and
+use the arrows at the sides to move to the next account.
+
+Your own place is always first in the row, with a **+** on it. It opens a
+small dialog: choose a picture or a video, add a caption if you like, and
+say how many seconds a picture should show for. The picture goes up the way
+every attachment does — stripped of the camera's metadata — and your story
+is up for a day, to your followers and nobody else. While it is up, you can
+see how many people watched it and take it down early from the same player.
+
 ### Collections
 
 A profile has a fourth tab beside Posts, Photos and Videos: **Collections**, the

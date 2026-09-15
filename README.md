@@ -79,6 +79,11 @@ you follow, of this instance and of the whole Fediverse are one click apart.
 
 <img src="img/readme/post-actions.gif" alt="Hovering a post opens its actions" width="680">
 
+- **Stories** — a row of faces above your feed: whose stories are up. One picture or
+  video, for followers, gone after a day; a ring on the face while there is something
+  you have not seen, a player that runs them one after another, and your own place
+  first in the row with a **+** on it to add one. The poster sees how many people
+  watched and can take it down early; nobody else sees either.
 - **Photos and Videos are timelines of their own**, drawn as grids and asked of the
   server rather than filtered out of a page you already have.
 ![Videos, including federated PeerTube channels](img/readme/videos.jpg)
