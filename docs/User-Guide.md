@@ -396,6 +396,16 @@ for anybody else reading the same post.
   the button turns that off. At most 2000 posts a run — upload the same file
   again to carry on — and an archive too large for a browser can be imported by
   an administrator with `occ social:account:import-posts`.
+- **Coming from Instagram.** The same button reads an Instagram archive. Ask
+  Instagram to download your information and **choose JSON**: the HTML download
+  is a set of web pages with the posts taken out, and this says so rather than
+  failing quietly. Your posts and reels arrive with their pictures, their
+  captions and the hashtags you wrote in them. Two things are worth knowing
+  before you press it. An Instagram post does not record who could see it, so
+  every one of them is posted here with **your own default visibility** — set
+  that first, in **Settings → Your account**, if you would rather they were not
+  public. And your **stories, your archived posts and anything you deleted are
+  not imported**: you put those away on purpose.
 - **Leaving.** Deleting the Nextcloud user deletes the Social account with
   it: what you posted is dropped and a deletion is sent to the servers that
   saw it.

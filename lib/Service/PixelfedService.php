@@ -306,6 +306,100 @@ class PixelfedService {
 		return ['active' => false];
 	}
 
+	/**
+	 * The preferences the Pixelfed app keeps on its server rather than on the
+	 * phone, so that a person who reinstalls it finds their app as they left
+	 * it.
+	 *
+	 * Eight switches, and not one of them is a setting of this app's: they
+	 * decide what *that client* draws. They are stored as one blob per account
+	 * under this app's user config and handed back unread, which is what
+	 * Pixelfed does with them too — the server's part is to remember, not to
+	 * interpret.
+	 *
+	 * The defaults are Pixelfed's own, so an app talking to this server behaves
+	 * on first run the way it does against the server it was written for.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function appSettings(Person $viewer): array {
+		$stored = (string)$this->configService->getValueForUser(
+			$viewer->getUserId(), ConfigService::APP_SETTINGS
+		);
+		$decoded = ($stored === '') ? null : json_decode($stored, true);
+
+		return [
+			'id' => (string)$viewer->getNid(),
+			'username' => $viewer->getPreferredUsername(),
+			// null until the account has saved them once, which is how the app
+			// tells "never set" from "set to the defaults"
+			'updated_at' => is_array($decoded) ? ($decoded['updated_at'] ?? null) : null,
+			'common' => is_array($decoded) ? ($decoded['common'] ?? self::appSettingsDefault())
+				: self::appSettingsDefault(),
+		];
+	}
+
+	/**
+	 * Stores them, keeping only the switches that are Pixelfed's.
+	 *
+	 * Anything else a client sends is dropped rather than stored: this is a
+	 * blob written by a client and handed back to a client, and one that kept
+	 * whatever it was given would be a place to park arbitrary content under
+	 * somebody's account — the same rule `ScheduledStatus::setParams()` keeps.
+	 *
+	 * @param array<string, mixed> $common what the client sent
+	 * @return array<string, mixed>
+	 */
+	public function saveAppSettings(Person $viewer, array $common): array {
+		$kept = [];
+		foreach (self::appSettingsDefault() as $group => $switches) {
+			foreach ($switches as $name => $fallback) {
+				$value = $common[$group][$name] ?? $fallback;
+				$kept[$group][$name] = ($group === 'appearance' && $name === 'theme')
+					? (in_array($value, ['light', 'dark', 'system'], true) ? $value : $fallback)
+					: (bool)$value;
+			}
+		}
+
+		$updated = gmdate('Y-m-d\TH:i:s') . '.000Z';
+		$this->configService->setValueForUser(
+			$viewer->getUserId(),
+			ConfigService::APP_SETTINGS,
+			(string)json_encode(['updated_at' => $updated, 'common' => $kept])
+		);
+
+		return [
+			'id' => (string)$viewer->getNid(),
+			'username' => $viewer->getPreferredUsername(),
+			'updated_at' => $updated,
+			'common' => $kept,
+		];
+	}
+
+	/**
+	 * Pixelfed's own defaults, in Pixelfed's own order.
+	 *
+	 * @return array<string, array<string, bool|string>>
+	 */
+	private static function appSettingsDefault(): array {
+		return [
+			'timelines' => [
+				'show_public' => false,
+				'show_network' => false,
+				'hide_likes_shares' => false,
+			],
+			'media' => [
+				'hide_public_behind_cw' => true,
+				'always_show_cw' => false,
+				'show_alt_text' => false,
+			],
+			'appearance' => [
+				'links_use_in_app_browser' => true,
+				'theme' => 'system',
+			],
+		];
+	}
+
 	/** How many messages one page of a thread holds. */
 	public const THREAD_PAGE = 20;
 

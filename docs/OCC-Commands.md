@@ -162,7 +162,7 @@ php occ social:account:import-posts [--no-media] [--limit LIMIT] <userId> <archi
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `userId` | Yes | Nextcloud user whose account the posts are written as |
-| `archive` | Yes | Path to the export: a zip with an `outbox.json` (this app's, under `social/`; Mastodon's and GoToSocial's, at the root) or a JSON export — an `outbox.json` on its own, or Pixelfed's `pixelfed-statuses.json` |
+| `archive` | Yes | Path to the export: a zip with an `outbox.json` (this app's, under `social/`; Mastodon's and GoToSocial's, at the root), an **Instagram** archive (the JSON one — `content/posts_*.json` and the reels beside them, with the pictures under `media/`), or a JSON export on its own — an `outbox.json`, or Pixelfed's `pixelfed-statuses.json` |
 
 | Option | Value | Description |
 |--------|-------|-------------|

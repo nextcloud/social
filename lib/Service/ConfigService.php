@@ -123,6 +123,14 @@ class ConfigService {
 	 */
 	public const SOCIAL_AUTOSPAM = 'autospam';
 
+	/**
+	 * Per account, not per instance: the Pixelfed app's own switches, kept
+	 * here because that app keeps them on its server so a reinstall finds the
+	 * app as it was left. Written and read by `PixelfedService`, and
+	 * interpreted by nothing here.
+	 */
+	public const APP_SETTINGS = 'app_settings';
+
 	/** The long form of what this instance is, for `instance/extended_description`. */
 	public const SOCIAL_EXTENDED_DESCRIPTION = 'extended_description';
 

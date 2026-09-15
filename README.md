@@ -294,6 +294,14 @@ are left out, a reply keeps the post it answers where the file holds both, and
 importing the same file twice changes nothing the second time. An archive too large
 for a browser goes through `occ social:account:import-posts`.
 
+  **Instagram's archive is read too** — the way most people arrive at Pixelfed. Ask
+  Instagram for your information *in JSON* (the HTML download holds the pages and not
+  the posts, and says so if you try it), and the posts, reels and their pictures come
+  across with their captions and the hashtags written in them. Instagram's archive says
+  nothing about who could see a post, so they are posted with **your own default
+  visibility**; stories, archived posts and deleted ones are deliberately left where
+  they are.
+
 ## 📱 On a phone, and in the dark
 
 <p align="center">

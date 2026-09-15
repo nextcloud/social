@@ -124,6 +124,9 @@
 			<p class="migration__note">
 				{{ t('social', 'At most 2000 posts at a time; run it again to carry on. An archive too large for a browser to upload can be imported by an administrator with occ social:account:import-posts.') }}
 			</p>
+			<p class="migration__note">
+				{{ t('social', 'Coming from Instagram? The same button reads its archive — ask Instagram for your information in JSON, not HTML. Your posts and reels arrive with their pictures and captions. An Instagram post does not record who could see it, so each one is posted with your own default visibility; your stories, archived posts and deleted ones are left where they are.') }}
+			</p>
 
 			<h5>{{ t('social', 'Where to find that file') }}</h5>
 			<ul class="migration__list">
@@ -134,6 +137,10 @@
 				<li>
 					<strong>{{ t('social', 'Pixelfed') }}</strong>
 					{{ t('social', '— Settings → Data export → Following (JSON), which writes pixelfed-following.json: a list of account addresses rather than a CSV, and read here all the same. Photos come across as posts once you follow the accounts again.') }}
+				</li>
+				<li>
+					<strong>{{ t('social', 'Instagram') }}</strong>
+					{{ t('social', '— Settings → Accounts Centre → Your information and permissions → Download your information, and choose JSON. The HTML download holds the pages and not the posts. It has no follow list to import; the posts and reels in it can be brought over with the button above.') }}
 				</li>
 				<li>
 					<strong>{{ t('social', 'GoToSocial and Akkoma') }}</strong>

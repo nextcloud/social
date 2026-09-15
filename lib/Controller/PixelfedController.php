@@ -105,6 +105,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/discover/accounts/popular')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/discover/accounts/popular', postfix: 'pf')]
 	public function popularAccounts(int $limit = self::LIMIT): DataResponse {
 		try {
 			$this->initViewer(['read']);
@@ -168,6 +169,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/discover/posts/hashtags')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/discover/posts/hashtags', postfix: 'pf')]
 	public function discoverHashtags(
 		int $limit = self::LIMIT,
 		string $period = HashtagService::PERIOD_DEFAULT,
@@ -200,6 +202,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/discover/posts/trending')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/discover/posts/trending', postfix: 'pf')]
 	public function discoverPostsTrending(string $range = '', int $limit = self::LIMIT, int $offset = 0): DataResponse {
 		return $this->discoverPosts($limit, $offset, $this->periodFor($range));
 	}
@@ -214,6 +217,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.2/stories/carousel')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/stories/carousel', postfix: 'pf')]
 	public function storiesCarousel(): DataResponse {
 		try {
 			$this->initViewer(['read:stories']);
@@ -228,6 +232,7 @@ class PixelfedController extends ClientApiController {
 	#[PublicPage]
 	#[UserRateLimit(limit: 300, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/stories/seen')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/stories/seen', postfix: 'pf')]
 	public function storiesSeen(int $id = 0): DataResponse {
 		try {
 			$this->initViewer(['write:stories']);
@@ -242,6 +247,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/stories/self-expire/{id}', requirements: ['id' => '\\d+'])]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/stories/self-expire/{id}', requirements: ['id' => '\\d+'], postfix: 'pf')]
 	public function storiesSelfExpire(int $id): DataResponse {
 		try {
 			$this->initViewer(['write:stories']);
@@ -256,6 +262,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.2/stories/viewers')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/stories/viewers', postfix: 'pf')]
 	public function storiesViewers(int $sid = 0): DataResponse {
 		try {
 			$this->initViewer(['read:stories']);
@@ -282,6 +289,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/collections/self')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/collections/self', postfix: 'pf')]
 	public function collectionsSelf(): DataResponse {
 		try {
 			$this->initViewer(['read:collections']);
@@ -323,6 +331,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1.1/accounts/avatar')]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/pixelfed/v1/accounts/avatar', postfix: 'pf')]
 	public function accountAvatarDelete(): DataResponse {
 		try {
 			$this->initViewer(['write:accounts']);
@@ -337,6 +346,7 @@ class PixelfedController extends ClientApiController {
 	#[PublicPage]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/report')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/report', postfix: 'pf')]
 	public function report(
 		string $report_type = '',
 		string $object_id = '',
@@ -356,11 +366,40 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/compose/settings')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/compose/settings', postfix: 'pf')]
 	public function composeSettings(): DataResponse {
 		try {
 			$this->initViewer(['read']);
 
 			return new DataResponse($this->pixelfedService->composeSettings($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The app's own switches, kept on the server so a reinstall finds the app
+	 * as it was left.
+	 *
+	 * GET and POST on one method because the app uses one URL for both, and
+	 * a POST with no `common` is a read — which is what the app sends when it
+	 * wants to know what is stored without changing it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/app/settings')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/app/settings', postfix: 'store')]
+	public function appSettings(): DataResponse {
+		try {
+			$this->initViewer(['read']);
+			$common = $this->request->getParam('common');
+
+			return new DataResponse(
+				is_array($common)
+					? $this->pixelfedService->saveAppSettings($this->viewer(), $common)
+					: $this->pixelfedService->appSettings($this->viewer()),
+				Http::STATUS_OK
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -422,6 +461,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/direct/thread')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/direct/thread', postfix: 'pf')]
 	public function directThread(string $pid = '', int $max_id = 0, int $min_id = 0): DataResponse {
 		try {
 			$this->initViewer(['read:statuses']);
@@ -439,6 +479,7 @@ class PixelfedController extends ClientApiController {
 	#[PublicPage]
 	#[UserRateLimit(limit: 60, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/direct/thread/send')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/direct/thread/send', postfix: 'pf')]
 	public function directThreadSend(string $to_id = '', string $message = '', string $type = 'text'): DataResponse {
 		try {
 			$this->initViewer(['write:statuses']);
@@ -455,6 +496,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1.1/direct/thread/message')]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/pixelfed/v1/direct/thread/message', postfix: 'pf')]
 	public function directThreadDelete(int $id = 0): DataResponse {
 		try {
 			$this->initViewer(['write:statuses']);

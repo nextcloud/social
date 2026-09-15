@@ -58,7 +58,11 @@ class PixelfedServiceTest extends TestCase {
 	private FollowsRequest|MockObject $followsRequest;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private PostService|MockObject $postService;
+	private ConfigService|MockObject $configService;
 	private PixelfedService $service;
+
+	/** @var array<string, string> what setValueForUser() was given */
+	private array $userConfig = [];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -79,8 +83,16 @@ class PixelfedServiceTest extends TestCase {
 		$this->instanceService->method('supportedMimeTypes')->willReturn(['image/jpeg', 'video/mp4']);
 		$this->instanceService->method('maxUploadSize')->willReturn(10 * 1024 * 1024);
 
-		$configService = $this->createMock(ConfigService::class);
-		$configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
+		// a user config that remembers, so what is written can be read back
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
+		$this->configService->method('setValueForUser')
+			->willReturnCallback(function (string $user, string $key, string $value): void {
+				$this->userConfig[$user . '|' . $key] = $value;
+			});
+		$this->configService->method('getValueForUser')
+			->willReturnCallback(fn (string $user, string $key): string
+				=> $this->userConfig[$user . '|' . $key] ?? '');
 
 		$this->cacheActorService->method('getFromId')->willReturnCallback(fn (string $id): Person => $this->person($id));
 
@@ -96,7 +108,7 @@ class PixelfedServiceTest extends TestCase {
 			$this->createMock(AvatarService::class),
 			$this->createMock(AccountService::class),
 			$this->instanceService,
-			$configService,
+			$this->configService,
 			$this->streamRequest,
 			$this->followsRequest,
 			$this->cacheActorsRequest,
@@ -345,5 +357,84 @@ class PixelfedServiceTest extends TestCase {
 		$mutuals = $this->service->composeMutuals($this->person(self::ALICE));
 
 		$this->assertSame([self::CAROL], array_map(static fn (Person $p): string => $p->getId(), $mutuals));
+	}
+
+	// app/settings
+
+	private function alice(): Person {
+		$person = $this->person(self::ALICE);
+		$person->setUserId('alice');
+
+		return $person;
+	}
+
+	/**
+	 * Pixelfed's own defaults, so an app talking to this server behaves on
+	 * first run the way it does against the server it was written for.
+	 */
+	public function testTheAppSettingsStartAtPixelfedsOwnDefaults(): void {
+		$settings = $this->service->appSettings($this->alice());
+
+		$this->assertSame('alice', $settings['username']);
+		// null, not a date: how the app tells "never set" from "set to the
+		// defaults"
+		$this->assertNull($settings['updated_at']);
+		$this->assertFalse($settings['common']['timelines']['show_public']);
+		$this->assertTrue($settings['common']['media']['hide_public_behind_cw']);
+		$this->assertSame('system', $settings['common']['appearance']['theme']);
+	}
+
+	public function testWhatTheAppSavesIsWhatItReadsBack(): void {
+		$this->service->saveAppSettings($this->alice(), [
+			'timelines' => ['show_public' => true, 'show_network' => true, 'hide_likes_shares' => false],
+			'media' => ['hide_public_behind_cw' => false, 'always_show_cw' => true, 'show_alt_text' => true],
+			'appearance' => ['links_use_in_app_browser' => false, 'theme' => 'dark'],
+		]);
+
+		$settings = $this->service->appSettings($this->alice());
+
+		$this->assertTrue($settings['common']['timelines']['show_public']);
+		$this->assertTrue($settings['common']['media']['show_alt_text']);
+		$this->assertSame('dark', $settings['common']['appearance']['theme']);
+		$this->assertNotNull($settings['updated_at']);
+	}
+
+	/**
+	 * A blob written by a client and handed back to a client that kept
+	 * whatever it was given would be a place to park arbitrary content under
+	 * somebody's account.
+	 */
+	public function testNothingButTheEightSwitchesIsKept(): void {
+		$saved = $this->service->saveAppSettings($this->alice(), [
+			'timelines' => ['show_public' => true, 'smuggled' => str_repeat('x', 100)],
+			'anything' => ['at' => 'all'],
+		]);
+
+		$this->assertSame(['timelines', 'media', 'appearance'], array_keys($saved['common']));
+		$this->assertArrayNotHasKey('smuggled', $saved['common']['timelines']);
+		$this->assertArrayNotHasKey('anything', $saved['common']);
+		// and what the client did not send keeps the default rather than
+		// becoming false
+		$this->assertTrue($saved['common']['media']['hide_public_behind_cw']);
+	}
+
+	/** A theme the app does not have is the default, not whatever was sent. */
+	public function testAThemeThatIsNotOneOfTheThreeIsRefused(): void {
+		$saved = $this->service->saveAppSettings($this->alice(), [
+			'appearance' => ['theme' => 'neon'],
+		]);
+
+		$this->assertSame('system', $saved['common']['appearance']['theme']);
+	}
+
+	/** One account's switches are not another's. */
+	public function testTheSwitchesAreKeptPerAccount(): void {
+		$bob = $this->person(self::BOB);
+		$bob->setUserId('bob');
+
+		$this->service->saveAppSettings($this->alice(), ['appearance' => ['theme' => 'dark']]);
+
+		$this->assertSame('dark', $this->service->appSettings($this->alice())['common']['appearance']['theme']);
+		$this->assertSame('system', $this->service->appSettings($bob)['common']['appearance']['theme']);
 	}
 }

@@ -62,16 +62,77 @@ use ZipArchive;
  *  - Pixelfed's `pixelfed-statuses.json`, which is its API's shape and carries
  *    **URLs rather than files**: those pictures are fetched from the old
  *    server, which therefore has to still be running.
+ *
+ * And a fifth that is not a Fediverse export at all: **Instagram's** "Download
+ * your information" archive, which is the way most people arrive at Pixelfed.
+ * It is read from `content/posts_*.json` and the reels beside them, with the
+ * pictures out of the archive's own `media/` folder — nothing is fetched,
+ * because there is no server left that would answer us for them.
+ *
+ * Instagram's archive is missing three things every other export has, and each
+ * is answered rather than guessed at:
+ *
+ *  - **No ids.** One is derived from the file a post carries and the moment it
+ *    was posted, so a second run of the same archive is still a no-op.
+ *  - **No visibility.** An Instagram post was visible to whoever could see the
+ *    account, which is not a sentence this app can translate. The importing
+ *    account's **own default** is used — what their next post would get — and
+ *    the person is told that is what happened.
+ *  - **No hashtags as data.** They are words in the caption, so they are read
+ *    out of it, which is what makes them findable here.
+ *
+ * Only the JSON export can be read. Instagram also offers HTML, which is a
+ * rendering of the same data with the data taken out.
  */
 class PostImportService {
 	/** How many posts one run writes at most. */
 	public const MAX_POSTS = 2000;
 
+	/** The two kinds of export, which are parsed by two different readers. */
+	private const FORMAT_ACTIVITYPUB = 'activitypub';
+	private const FORMAT_INSTAGRAM = 'instagram';
+
 	/** Where an archive keeps the posts, ours first. */
 	private const OUTBOX_PATHS = ['social/outbox.json', 'outbox.json'];
 
+	/**
+	 * Where Instagram keeps them.
+	 *
+	 * Two layouts, because Instagram moved the folder and did not move the
+	 * archives people already had: the files sit under
+	 * `your_instagram_activity/content/` in an archive taken since 2023 and
+	 * under `content/` in one taken before that. The export splits at a size
+	 * rather than at a date, so `posts_1.json`, `posts_2.json` and the rest are
+	 * all read.
+	 */
+	private const INSTAGRAM_DIRS = ['your_instagram_activity/content/', 'content/'];
+
+	/**
+	 * The files in those folders that hold posts, and the key each wraps them
+	 * in — `posts_*.json` is a bare array, the others an object with one key.
+	 *
+	 * Deliberately not here: `stories.json`, which is a day of somebody's life
+	 * that was meant to end; `archived_posts.json`, which is what they took
+	 * down on purpose; and `recently_deleted_content.json`, which they deleted.
+	 * An importer that quietly republished any of the three would be worse than
+	 * one that imported nothing.
+	 */
+	private const INSTAGRAM_FILES = [
+		'reels.json' => 'ig_reels_media',
+		'igtv_videos.json' => 'ig_igtv_media',
+		'other_content.json' => 'ig_other_media',
+	];
+
 	/** How large a file inside an archive may be before it is left alone. */
 	private const MAX_FILE = 200 * 1024 * 1024;
+
+	/**
+	 * Every file in the archive being read, built the first time an attachment
+	 * cannot be found where the export said it would be. Null until then.
+	 *
+	 * @var string[]|null
+	 */
+	private ?array $archiveIndex = null;
 
 	public function __construct(
 		private ImportedPostsRequest $importedPostsRequest,
@@ -102,15 +163,29 @@ class PostImportService {
 		$zip = $this->openArchive($path);
 
 		try {
-			$items = $this->items($path, $zip);
+			$read = $this->items($path, $zip);
+			$items = $read['items'];
 			$tally = [
 				'imported' => 0, 'skipped' => 0, 'already' => 0,
 				'media' => 0, 'failed' => 0, 'total' => count($items), 'capped' => false,
 			];
 
+			// an Instagram post carries no audience, so one is decided once, for
+			// the whole run: the account's own default, which is what their next
+			// post would be posted with
+			$instagram = ($read['format'] === self::FORMAT_INSTAGRAM);
+			$visibility = $instagram
+				? $this->accountService->getDefaultPrivacy($actor->getUserId()) : '';
+
 			$parsed = [];
 			foreach ($items as $item) {
-				$post = is_array($item) ? $this->parse($item) : null;
+				if (!is_array($item)) {
+					$tally['skipped']++;
+					continue;
+				}
+
+				$post = $instagram
+					? $this->parseInstagram($item, $visibility) : $this->parse($item);
 				if ($post === null) {
 					$tally['skipped']++;
 					continue;
@@ -180,9 +255,11 @@ class PostImportService {
 	}
 
 	/**
-	 * The posts an export names, whichever of the four shapes it is in.
+	 * The posts an export names, whichever shape it is in, and which shape that
+	 * was — the Instagram entries are not activities and are read by their own
+	 * parser.
 	 *
-	 * @return array<int, mixed>
+	 * @return array{format: string, items: array<int, mixed>}
 	 * @throws InvalidResourceException
 	 */
 	private function items(string $path, ?ZipArchive $zip): array {
@@ -198,9 +275,13 @@ class PostImportService {
 			}
 
 			if ($contents === null) {
-				throw new InvalidResourceException(
-					'this archive has no outbox.json — it is not an export of an account\'s posts'
-				);
+				// not a Fediverse export; it may still be an Instagram one
+				$instagram = $this->instagramItems($zip);
+				if ($instagram !== []) {
+					return ['format' => self::FORMAT_INSTAGRAM, 'items' => $instagram];
+				}
+
+				throw new InvalidResourceException($this->whyNotAnExport($zip));
 			}
 		} else {
 			$contents = file_get_contents($path);
@@ -220,7 +301,98 @@ class PostImportService {
 			throw new InvalidResourceException('this export names no posts');
 		}
 
-		return array_values($items);
+		return ['format' => self::FORMAT_ACTIVITYPUB, 'items' => array_values($items)];
+	}
+
+	/**
+	 * Everything an Instagram archive holds that is a post.
+	 *
+	 * Read whole rather than by a known list of names: the export splits
+	 * `posts_1.json`, `posts_2.json` … at a size nobody can predict, and an
+	 * archive of ten years has a dozen of them. The entries of the reels and
+	 * IGTV files are the same shape and go in the same list.
+	 *
+	 * @return array<int, mixed>
+	 */
+	private function instagramItems(ZipArchive $zip): array {
+		$items = [];
+
+		for ($i = 0; $i < $zip->numFiles; $i++) {
+			$name = (string)$zip->getNameIndex($i);
+			$wrapper = $this->instagramWrapper($name);
+			if ($wrapper === false) {
+				continue;
+			}
+
+			$contents = $zip->getFromIndex($i);
+			if ($contents === false) {
+				continue;
+			}
+
+			$decoded = json_decode($contents, true);
+			if (!is_array($decoded)) {
+				continue;
+			}
+
+			// `posts_*.json` is a bare array; the others wrap theirs in one key
+			$entries = ($wrapper === null) ? $decoded : ($decoded[$wrapper] ?? []);
+			if (is_array($entries)) {
+				foreach ($entries as $entry) {
+					$items[] = $entry;
+				}
+			}
+		}
+
+		return $items;
+	}
+
+	/**
+	 * Whether a path inside the archive is one of Instagram's post files, and
+	 * the key its entries are under — `null` for the bare arrays, `false` when
+	 * the file is not one of them at all.
+	 */
+	private function instagramWrapper(string $name): string|null|false {
+		foreach (self::INSTAGRAM_DIRS as $dir) {
+			// at the root, or under the folder a browser unpacked the archive
+			// into — which is named for the account and the day and is
+			// therefore not something that can be listed here
+			$at = str_starts_with($name, $dir) ? 0 : strpos($name, '/' . $dir);
+			if ($at === false) {
+				continue;
+			}
+
+			$file = substr($name, (($at === 0) ? 0 : $at + 1) + strlen($dir));
+			if (str_starts_with($file, 'posts_') && str_ends_with($file, '.json')) {
+				return null;
+			}
+
+			if (array_key_exists($file, self::INSTAGRAM_FILES)) {
+				return self::INSTAGRAM_FILES[$file];
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Why an archive with no outbox and no Instagram posts in it is not an
+	 * export this can read.
+	 *
+	 * Instagram's HTML download has the same folders and the same file names
+	 * with `.html` on the end, and it is the option people pick because it is
+	 * the one they can open. Being told "ask for JSON" is the difference
+	 * between a two-minute fix and giving up.
+	 */
+	private function whyNotAnExport(ZipArchive $zip): string {
+		for ($i = 0; $i < $zip->numFiles; $i++) {
+			$name = (string)$zip->getNameIndex($i);
+			if (str_contains($name, 'content/posts_') && str_ends_with($name, '.html')) {
+				return 'this is Instagram\'s HTML download, which holds the pages and not the posts'
+					. ' — ask Instagram for the same export in JSON and import that';
+			}
+		}
+
+		return 'this archive has no outbox.json — it is not an export of an account\'s posts';
 	}
 
 	/**
@@ -354,6 +526,156 @@ class PostImportService {
 			static fn ($entry): string => is_string($entry) ? $entry : '',
 			$value
 		)));
+	}
+
+	/**
+	 * One entry of an Instagram archive, as the same post every other reader
+	 * here produces.
+	 *
+	 * The caption is in one of two places and the archive does not say which:
+	 * a post of several pictures carries it at the top, a post of one carries
+	 * it on the picture. Both are read, the top one first, because a carousel
+	 * whose first picture happens to have a title would otherwise be published
+	 * under the wrong words.
+	 *
+	 * @param array<string, mixed> $item
+	 * @param string $visibility the importing account's own default
+	 * @return array<string, mixed>|null
+	 */
+	private function parseInstagram(array $item, string $visibility): ?array {
+		$media = $this->listOf($item, 'media');
+		$attachments = [];
+		$oldest = 0;
+
+		foreach ($media as $one) {
+			if (!is_array($one)) {
+				continue;
+			}
+
+			$uri = trim((string)($one['uri'] ?? ''));
+			if ($uri === '') {
+				continue;
+			}
+
+			$taken = (int)($one['creation_timestamp'] ?? 0);
+			if ($taken > 0 && ($oldest === 0 || $taken < $oldest)) {
+				$oldest = $taken;
+			}
+
+			$attachments[] = [
+				'url' => $uri,
+				// Instagram has no alt text of its own in the export; the
+				// title on a single-picture post is the caption, not a
+				// description of the picture, so nothing is claimed here
+				'name' => '',
+			];
+
+			if (count($attachments) >= Stream::MAX_ATTACHMENTS) {
+				break;
+			}
+		}
+
+		$caption = $this->instagramText((string)($item['title'] ?? ''));
+		if ($caption === '' && count($media) === 1 && is_array($media[0])) {
+			$caption = $this->instagramText((string)($media[0]['title'] ?? ''));
+		}
+
+		if ($attachments === [] && $caption === '') {
+			return null;
+		}
+
+		$published = (int)($item['creation_timestamp'] ?? 0);
+		if ($published <= 0) {
+			$published = $oldest;
+		}
+
+		return [
+			'source' => $this->instagramId($attachments, $caption, $published),
+			'text' => mb_substr($caption, 0, InstanceService::MAX_CHARACTERS),
+			'published' => ($published > 0) ? $published : time(),
+			'visibility' => $visibility,
+			'sensitive' => false,
+			'spoiler' => '',
+			'language' => '',
+			'replyTo' => '',
+			'attachments' => $attachments,
+			'hashtags' => $this->hashtagsIn($caption),
+		];
+	}
+
+	/**
+	 * An id for a post that has none.
+	 *
+	 * It has to be the same on a second run of the same archive — that is what
+	 * stops a re-import writing everything twice — and different for two posts
+	 * that happen to share a caption. The file a post carries is what
+	 * distinguishes it; a caption-only post has only its words and the second
+	 * it was posted, which together are enough.
+	 *
+	 * Not a URL, and deliberately not one: nothing resolves it, and an id that
+	 * looked like an address would invite something to try.
+	 *
+	 * @param array<int, array{url: string, name: string}> $attachments
+	 */
+	private function instagramId(array $attachments, string $caption, int $published): string {
+		$seed = ($attachments === [])
+			? $caption . '|' . $published : implode('|', array_column($attachments, 'url'));
+
+		return 'instagram:' . hash('sha256', $seed);
+	}
+
+	/**
+	 * Instagram's text, in the encoding it was written in.
+	 *
+	 * Every caption in the archive is mojibake: the exporter writes UTF-8 and
+	 * escapes each **byte** as if it were a character, so `né` arrives as
+	 * `nÃ©` and an emoji as four accented letters. Reading each character back
+	 * as the byte it stood for undoes it exactly.
+	 *
+	 * Only when the result is valid UTF-8 and the input was the kind of string
+	 * that can be one: a caption somebody genuinely wrote with a `Ã` in it is
+	 * left alone, because converting it would be the same bug pointed the
+	 * other way.
+	 */
+	private function instagramText(string $text): string {
+		$text = trim($text);
+		if ($text === '' || !preg_match('/[\x{0080}-\x{00FF}]/u', $text)) {
+			return $text;
+		}
+
+		$bytes = @mb_convert_encoding($text, 'ISO-8859-1', 'UTF-8');
+		if (!is_string($bytes) || $bytes === '' || !mb_check_encoding($bytes, 'UTF-8')) {
+			return $text;
+		}
+
+		// the conversion is only right if it turned something: a string of
+		// plain letters converts to itself, and one that was already correct
+		// UTF-8 comes back as bytes that are not
+		return ($bytes === $text || mb_strlen($bytes, 'UTF-8') === 0) ? $text : $bytes;
+	}
+
+	/**
+	 * The hashtags a caption spells.
+	 *
+	 * On Instagram a hashtag is a word in the text and nothing else, so unless
+	 * they are read out of it an imported post is not findable by any of the
+	 * tags its author chose. The same set the linkifier would find, so the
+	 * stored tags and the rendered links agree.
+	 *
+	 * @return string[]
+	 */
+	private function hashtagsIn(string $text): array {
+		$names = [];
+		if (preg_match_all('/(?:^|[^\w\/&])#([\w\x{00C0}-\x{024F}]{1,100})/u', $text, $matches) > 0) {
+			foreach ($matches[1] as $name) {
+				// a tag of digits alone is a number somebody wrote after a hash
+				if ($name !== '' && !ctype_digit($name)) {
+					$names[mb_strtolower($name)] = $name;
+				}
+			}
+		}
+
+		return array_values($names);
 	}
 
 	/**
@@ -500,6 +822,35 @@ class PostImportService {
 	}
 
 	/**
+	 * The entry of the archive whose path ends with this one, or null.
+	 *
+	 * The index is walked rather than guessed at because the prefix is
+	 * whatever folder the archive was packed under, and it is built once per
+	 * import: an archive of ten years of pictures is a few thousand entries
+	 * and this would otherwise be a scan per attachment.
+	 */
+	private function endingWith(ZipArchive $zip, string $path): ?string {
+		if ($this->archiveIndex === null) {
+			$this->archiveIndex = [];
+			for ($i = 0; $i < $zip->numFiles; $i++) {
+				$name = (string)$zip->getNameIndex($i);
+				if ($name !== '' && !str_ends_with($name, '/')) {
+					$this->archiveIndex[] = $name;
+				}
+			}
+		}
+
+		$needle = '/' . ltrim($path, '/');
+		foreach ($this->archiveIndex as $name) {
+			if (str_ends_with($name, $needle)) {
+				return $name;
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * The post an imported id names, as this app's own id.
 	 */
 	private function streamIdOf(string $prim): string {
@@ -614,7 +965,17 @@ class PostImportService {
 	 * small file and expands to a large one is the oldest trick there is.
 	 */
 	private function fromArchive(ZipArchive $zip, string $path): ?string {
-		foreach ([$path, 'social/' . $path, ltrim($path, '/')] as $candidate) {
+		$candidates = [$path, 'social/' . $path, ltrim($path, '/')];
+
+		// an archive unpacked into a folder of its own — which is how a
+		// browser saves Instagram's, under the account name and the date —
+		// names every file below it, and nothing above would match
+		$nested = $this->endingWith($zip, $path);
+		if ($nested !== null) {
+			$candidates[] = $nested;
+		}
+
+		foreach ($candidates as $candidate) {
 			$stat = $zip->statName($candidate);
 			if ($stat === false) {
 				continue;
