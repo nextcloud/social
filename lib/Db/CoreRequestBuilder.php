@@ -72,6 +72,7 @@ class CoreRequestBuilder {
 	public const TABLE_STORY_VIEWS = 'social_story_view';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
+	public const TABLE_STREAM_VIEWS = 'social_stream_view';
 	public const TABLE_STREAM_CARDS = 'social_stream_card';
 	public const TABLE_STREAM_DEST = 'social_stream_dest';
 	public const TABLE_STRIKES = 'social_strike';
@@ -526,6 +527,12 @@ class CoreRequestBuilder {
 			'quote',
 			'quote_authorization',
 			'place_id'
+		],
+		self::TABLE_STREAM_VIEWS => [
+			'id',
+			'stream_id_prim',
+			'actor_id_prim',
+			'creation'
 		],
 		self::TABLE_STREAM_ACTIONS => [
 			'id',

@@ -104,6 +104,10 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   it** — a two-hour talk is not something to mirror onto somebody's Nextcloud — and is
   proxied, so nobody's IP address reaches a server they never chose to talk to. Posts
   that are one video go out as an ActivityPub `Video`, the only shape PeerTube ingests.
+- **How many people read it** — on your own posts and nobody else's, counted when
+  somebody opens the post rather than scrolls past it, and never sent to another
+  server. Three likes means something different out of five readers than out of four
+  hundred, and until now there was no way to know which.
 - **Blurhash placeholders**, so a timeline never jumps as pictures load, and blurred
   previews for anything marked sensitive.
 - **An ALT badge on every described picture**, wherever it is drawn, that shows the

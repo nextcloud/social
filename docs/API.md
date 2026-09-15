@@ -112,7 +112,9 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 
 ### Accounts
 
-A Status entity carries **`archived`**, which is true only on the author's own archived posts — nobody else is ever handed one, because no list this server builds contains one.
+A Status entity carries **`view_count`** — how many accounts here have opened that post's own page — on the **author's own copy only**, and `null` on everybody else's: how many people read a post is the author's business. What is counted is narrow on purpose: a post's own page (`GET /api/v1/statuses/{nid}`), opened by a signed-in account that is not the author, one row per (post, viewer). Not an impression in a timeline, because a post scrolled past has not been read and counting it would both make the number meaningless and write a row for every post on every page of every timeline. It is never federated: a count that arrived from another server would be that server's readers added to this one's, meaning neither.
+
+A Status entity also carries **`archived`**, which is true only on the author's own archived posts — nobody else is ever handed one, because no list this server builds contains one.
 
 **Two of the four profile fields are also sent as their own keys.** An Account
 entity carries `pronouns` and `support_link` beside `fields`. Neither is a

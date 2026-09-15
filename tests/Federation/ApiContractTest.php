@@ -80,7 +80,7 @@ class ApiContractTest extends TestCase {
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote',
 			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
-			'tags', 'uri', 'url', 'visibility',
+			'tags', 'uri', 'url', 'view_count', 'visibility',
 		];
 		sort($expected);
 

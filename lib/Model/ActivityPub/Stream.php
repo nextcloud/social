@@ -201,6 +201,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private bool $sensitive = false;
 
 	/**
+	 * How many accounts have opened this post's own page.
+	 *
+	 * Not stored on the row and not federated: it is counted from
+	 * `social_stream_view` and put here for the author alone — see
+	 * `ViewCountService`. `null` on everybody else's copy, which is how the
+	 * client entity tells "nobody has read it" from "this is not yours to
+	 * know".
+	 */
+	private ?int $viewCount = null;
+
+	/**
 	 * Whether the author has put this post away.
 	 *
 	 * Local and never federated: an archived post is still on every server
@@ -669,6 +680,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Stream
 	 */
+	public function getViewCount(): ?int {
+		return $this->viewCount;
+	}
+
+	public function setViewCount(?int $viewCount): self {
+		$this->viewCount = $viewCount;
+
+		return $this;
+	}
+
 	public function isArchived(): bool {
 		return $this->archived;
 	}
@@ -1260,6 +1281,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// the author's own; nobody else is ever handed an archived post,
 			// because no list this server builds contains one
 			'archived' => $this->isArchived(),
+			// null on everybody else's copy: how many people read a post is
+			// the author's business
+			'view_count' => $this->getViewCount(),
 			'content' => $this->getContent(),
 			'sensitive' => $this->isSensitive(),
 			'spoiler_text' => $this->getSpoilerText(),

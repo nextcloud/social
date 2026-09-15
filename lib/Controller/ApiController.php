@@ -89,6 +89,7 @@ use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\VideoThumbnailService;
+use OCA\Social\Service\ViewCountService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
@@ -198,6 +199,7 @@ class ApiController extends Controller {
 		private AccountRelationService $accountRelationService,
 		private ScheduledStatusService $scheduledStatusService,
 		private PostReviewService $postReviewService,
+		private ViewCountService $viewCountService,
 		private EmojiService $emojiService,
 		private IAppManager $appManager,
 		private FediverseService $fediverseService,
@@ -1979,6 +1981,10 @@ class ApiController extends Controller {
 
 			$item = $this->streamService->attachCard($this->streamService->getStreamByNid($nid));
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
+			// opening a post's own page is the one thing this app counts as
+			// having read it: not an impression in a timeline, which is a post
+			// scrolled past rather than read
+			$this->viewCountService->seen($item, $this->viewer);
 
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Throwable $e) {

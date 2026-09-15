@@ -2148,6 +2148,9 @@ class StreamRequest extends StreamRequestBuilder {
 			// and its place in any album its author put it in: a collection
 			// entry pointing at a post that is gone would draw a gap
 			[self::TABLE_COLLECTION_ITEMS, 'stream_id_prim'],
+			// and who opened it, which is a row about a post that no longer
+			// exists and that nothing will ever read again
+			[self::TABLE_STREAM_VIEWS, 'stream_id_prim'],
 		] as [$table, $field]) {
 			$qb = $this->getQueryBuilder();
 			$qb->delete($table)

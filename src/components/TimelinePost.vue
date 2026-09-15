@@ -290,6 +290,16 @@
 							</NcButton>
 							<RollingCount :count="item.favourites_count || 0" />
 						</div>
+						<!-- only ever on the author's own copy: the server sends
+						     `view_count` as null on everybody else's, because how
+						     many people read a post is the author's business -->
+						<div
+							v-if="item.view_count !== null && item.view_count !== undefined"
+							class="post-action post-action--views"
+							:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
+							<IconEyeOutline :size="20" />
+							<RollingCount :count="item.view_count" />
+						</div>
 					</div>
 				</div>
 				<!-- the menu opens in a portal, so the pointer leaving the card
@@ -520,6 +530,7 @@ import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
 import IconArchiveOutline from 'vue-material-design-icons/ArchiveOutline.vue'
+import IconEyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import PencilBoxOutline from 'vue-material-design-icons/PencilBoxOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
@@ -567,6 +578,7 @@ export default {
 	name: 'TimelinePost',
 	components: {
 		IconArchiveOutline,
+		IconEyeOutline,
 		Cancel,
 		CollectionPickerDialog,
 		FolderMultiplePlusOutline,
