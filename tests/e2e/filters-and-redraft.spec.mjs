@@ -30,16 +30,24 @@ test.describe('filters, and writing a post again', () => {
 		await section.getByRole('button', { name: 'Add a filter' }).click()
 		await section.getByLabel('Name of the filter').fill(word)
 		await section.getByLabel('Word or phrase').first().fill(word)
-		// a new filter applies nowhere until somewhere is ticked, and the form
-		// says so rather than letting it be saved
-		await section.getByText('My Feed', { exact: true }).click()
+		// A new filter applies nowhere until somewhere is ticked, and the form
+		// refuses to save until it does.
+		//
+		// Ticked by clicking the label rather than the input, which is what a
+		// person does and the only thing that works: the input is under its
+		// own label, so a click aimed at the input never reaches it. And the
+		// label is matched by a prefix because each one carries a sentence of
+		// explanation after the name.
+		await section.getByText(/^My Feed/).first().click()
 		await section.getByRole('button', { name: 'Create filter' }).click()
 
 		const row = section.locator('.filters__item', { hasText: word })
 		await expect(row).toBeVisible()
 
-		// and take it away again, so the box is left as it was found
-		await row.getByRole('button', { name: `More actions for ${word}` }).click()
+		// and take it away again, so the box is left as it was found. The menu
+		// is opened by its toggle rather than by the label on the NcActions
+		// around it, which is not the button's own accessible name
+		await row.locator('button.action-item__menutoggle').first().click()
 		await page.getByRole('menuitem', { name: 'Delete' }).click()
 		await page.getByRole('button', { name: 'Delete', exact: true }).last().click()
 		await expect(section.locator('.filters__item', { hasText: word })).toHaveCount(0)
