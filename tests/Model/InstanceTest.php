@@ -79,7 +79,7 @@ class InstanceTest extends TestCase {
 			'title' => 'Nextcloud Social',
 			// Pleroma-style: clients gate features on the advertised version,
 			// so the claim has to be one this app can honour
-			'version' => '4.2.0 (compatible; Nextcloud Social 0.7.0)',
+			'version' => '4.3.0 (compatible; Nextcloud Social 0.7.0)',
 			'short_description' => 'short',
 			'description' => 'long',
 			'email' => 'admin@cloud.example.org',
@@ -117,7 +117,7 @@ class InstanceTest extends TestCase {
 
 		$this->assertSame('cloud.example.org', $v2->domain);
 		$this->assertSame('Nextcloud Social', $v2->title);
-		$this->assertSame('4.2.0 (compatible; Nextcloud Social 0.7.0)', $v2->version);
+		$this->assertSame('4.3.0 (compatible; Nextcloud Social 0.7.0)', $v2->version);
 		$this->assertSame('short', $v2->description);
 		$this->assertSame('https://cloud.example.org/thumb.png', $v2->thumbnail->url);
 		$this->assertSame(3, $v2->usage->users->active_month);
@@ -136,7 +136,19 @@ class InstanceTest extends TestCase {
 	 * it said 3.5.0.
 	 */
 	public function testTheAdvertisedVersionIsOneTheAppCanHonour(): void {
-		$this->assertSame('4.2.0', Instance::COMPAT_VERSION);
+		$this->assertSame('4.3.0', Instance::COMPAT_VERSION);
+	}
+
+	/**
+	 * A client that knows about `api_versions` reads it *instead of* parsing
+	 * the version string — which is the right thing to do against a fork,
+	 * whose own version number says nothing about which Mastodon API it
+	 * implements.
+	 */
+	public function testTheV2EntityNamesTheApiGenerationRatherThanOnlyAVersionString(): void {
+		$v2 = json_decode((string)json_encode($this->populated()->asV2()), false);
+
+		$this->assertSame(3, $v2->api_versions->mastodon, 'the generation 4.3 reports');
 	}
 
 	/**

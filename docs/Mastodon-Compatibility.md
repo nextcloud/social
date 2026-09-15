@@ -187,7 +187,11 @@ private as the post.
 
 ### 3.5 The version string
 
-`Instance::COMPAT_VERSION = '4.2.0'`. It said `3.5.0` until #2126, which was
+`Instance::COMPAT_VERSION = '4.3.0'`. It said `3.5.0` until #2126 and `4.2.0` until
+the 4.3 surface was whole, which is what it announces now — with `api_versions`
+(`{"mastodon": 3}`) beside it, which is what a 4.3 client reads *instead of*
+parsing a string that, on a fork, says nothing about which Mastodon API is
+implemented. This was
 right when it was written and had stopped being: clients gate features on this
 string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
@@ -709,10 +713,9 @@ answer — a client reads it as "this server is broken".
 `/api/v1/emails/confirmations`, `/api/v1/notifications/requests`,
 `/api/v2/notifications/policy`, `/api/v1/annual_reports` and
 `/api/v1/terms_of_service`. The first belongs to a sign-up this app does not
-own (see 16). The rest arrived in Mastodon 4.3, and this app announces `4.2.0`
-in `Instance::COMPAT_VERSION` — a client that reads the version before it asks
-will not ask, and raising that number is a decision to make once the 4.3
-surface is there rather than before.
+own (see 16). `/api/v1/annual_reports` and `/api/v1/terms_of_service` arrived in
+Mastodon 4.3; the rest of that release's surface is served and the version now
+says `4.3.0`, so a client that reads it before it asks will ask.
 
 ### Where to start
 

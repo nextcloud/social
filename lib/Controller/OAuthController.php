@@ -443,4 +443,102 @@ class OAuthController extends Controller {
 
 		return new DataResponse([], Http::STATUS_OK);
 	}
+
+	/**
+	 * Every scope this server understands, in the order Mastodon lists them.
+	 *
+	 * The narrow ones are what the routes actually ask for; the three broad
+	 * ones are what `checkTokenScope()` accepts in their place, so a client
+	 * that asks for `read` gets every `read:*` route. Published so a client can
+	 * ask for what it needs rather than for everything, which is the whole
+	 * point of the discovery document.
+	 */
+	public const SCOPES = [
+		'read', 'write', 'follow',
+		'read:accounts', 'read:blocks', 'read:collections', 'read:filters',
+		'read:notifications', 'read:statuses', 'read:stories',
+		'write:accounts', 'write:blocks', 'write:collections',
+		'write:conversations', 'write:favourites', 'write:filters',
+		'write:follows', 'write:lists', 'write:notifications',
+		'write:reports', 'write:statuses', 'write:stories',
+	];
+
+	/**
+	 * RFC 8414: where the OAuth endpoints are, and what they take.
+	 *
+	 * A Mastodon 4.3 client asks for this before it registers an app, and a
+	 * server that answers it saves a round of guessing — the client learns the
+	 * authorization and token endpoints, the scopes it may ask for and the
+	 * response types that work, instead of assuming Mastodon's own paths.
+	 *
+	 * The addresses are this app's real ones, under `/apps/social/`. That is
+	 * the honest answer and it is also the useful one: a client that reads
+	 * this document is told where the endpoints *are*, which is the one way a
+	 * client can reach them without the domain-root rewrite. A client that
+	 * does not read it looks at the root, finds nothing, and is no worse off.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/.well-known/oauth-authorization-server')]
+	public function oauthMetadata(): DataResponse {
+		// the app's own base, which is where the endpoints really are
+		$base = rtrim($this->configService->getSocialUrl(), '/');
+
+		return new DataResponse([
+			'issuer' => $base . '/',
+			'authorization_endpoint' => $base . '/oauth/authorize',
+			'token_endpoint' => $base . '/oauth/token',
+			'revocation_endpoint' => $base . '/oauth/revoke',
+			'userinfo_endpoint' => $base . '/oauth/userinfo',
+			'app_registration_endpoint' => $base . '/api/v1/apps',
+			'scopes_supported' => self::SCOPES,
+			'response_types_supported' => ['code'],
+			'grant_types_supported' => ['authorization_code', 'client_credentials'],
+			'token_endpoint_auth_methods_supported' => ['client_secret_post', 'client_secret_basic'],
+			'code_challenge_methods_supported' => ['S256'],
+			'service_documentation' => self::REPOSITORY,
+		], Http::STATUS_OK);
+	}
+
+	/**
+	 * Who the token belongs to, in OpenID Connect's shape.
+	 *
+	 * Mastodon 4.3 added this so a client can show "signed in as …" without
+	 * spending a `read:accounts` call on `verify_credentials`. It answers from
+	 * the token alone and needs no scope beyond having one, which is what
+	 * OpenID Connect expects of it.
+	 *
+	 * The claims are the four Mastodon sends. `sub` is the actor's ActivityPub
+	 * id rather than the Nextcloud user id: it is the identifier that means
+	 * the same thing to everybody, and handing out an internal user id to
+	 * every client that asks is not something to do by accident.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/oauth/userinfo')]
+	public function userinfo(): DataResponse {
+		try {
+			$client = $this->clientService->getFromToken($this->bearerToken());
+			$actor = $this->accountService->getActorFromUserId($client->getAuthUserId(), true);
+		} catch (Exception $e) {
+			return new DataResponse(
+				['error' => 'The access token is invalid'], Http::STATUS_UNAUTHORIZED
+			);
+		}
+
+		return new DataResponse([
+			'sub' => $actor->getId(),
+			'name' => ($actor->getName() !== '') ? $actor->getName() : $actor->getPreferredUsername(),
+			'preferred_username' => $actor->getPreferredUsername(),
+			'profile' => $actor->getId(),
+			'picture' => $actor->getAvatar(),
+		], Http::STATUS_OK);
+	}
+
+	/** The bearer token on this request, or '' when there is none. */
+	private function bearerToken(): string {
+		$header = $this->request->getHeader('Authorization');
+
+		return str_starts_with($header, 'Bearer ') ? substr($header, 7) : '';
+	}
 }
