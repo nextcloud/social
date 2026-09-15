@@ -137,6 +137,18 @@ deletion is sent to every server that received it — this cannot be undone),
 status**, which says which servers received the post, which are still being
 tried and which gave up.
 
+### Where it was taken
+
+The pin in the composer's toolbar says where a post was taken. It offers the
+places people on this server have already posted from as you type; a name
+nobody here has used yet becomes a place the moment your post goes out, with
+a country if you add one. **Nothing is looked up on a map service** — the app
+never sends your location anywhere to work out what it is, which is the same
+promise it keeps by stripping the camera's location from your pictures. The
+place shows as a small marker under the post, and tapping it opens the page
+of everything public that was taken there. Release the pin and the post has
+no place.
+
 ## Reading
 
 The sidebar is the map:

@@ -15,6 +15,7 @@ const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/P
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers.vue')
 const ProfileCollections = () => import(/* webpackChunkName: "profile" */'./views/ProfileCollections.vue')
 const CollectionPage = () => import(/* webpackChunkName: "profile" */'./views/CollectionPage.vue')
+const PlacePage = () => import(/* webpackChunkName: "profile" */'./views/PlacePage.vue')
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
 const Discover = () => import('./views/Discover.vue')
@@ -221,6 +222,14 @@ const router = createRouter({
 			},
 			props: true,
 			name: 'collection',
+		},
+		{
+			path: '/places/:id',
+			components: {
+				default: PlacePage,
+			},
+			props: true,
+			name: 'place',
 		},
 		{
 			path: '/discover',

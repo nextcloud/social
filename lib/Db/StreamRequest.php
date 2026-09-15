@@ -1705,6 +1705,39 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * The public posts taken at one place, newest first.
+	 *
+	 * Public only, whoever asks: a place page is a public page, and a
+	 * followers-only post's location is as private as the post. Keyset by
+	 * `nid`, like every other list here.
+	 *
+	 * @return Stream[]
+	 */
+	public function getPublicByPlace(int $placeId, int $limit = 20, int $maxId = 0): array {
+		if ($placeId < 1 || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+		$qb->limitToStatusTypes();
+		$expr = $qb->expr();
+		$qb->andWhere($expr->eq('s.place_id', $qb->createNamedParameter($placeId, IQueryBuilder::PARAM_INT)));
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		// a reply is a fragment of somebody else's thread, not a picture of the place
+		$qb->limitToDBFieldEmpty('in_reply_to');
+		if ($maxId > 0) {
+			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
 	 * The direct messages between the viewer and one other account, as one
 	 * thread.
 	 *

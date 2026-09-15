@@ -2180,6 +2180,41 @@ describe('Composer', () => {
 			expect(submitButton(wrapper).text()).toBe('Schedule')
 		})
 
+		it('sends where the post was taken, by id for a known place and by name for a new one', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'The pier')
+			await wrapper.find('button.place-toggle').trigger('click')
+			const picker = wrapper.findComponent({ name: 'PlacePicker' })
+			expect(picker.exists()).toBe(true)
+
+			picker.vm.$emit('update:place', { id: '4', name: 'Berlin', country: 'Germany' })
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+			expect(postedStatus(store)).toMatchObject({ place_id: '4' })
+			expect(postedStatus(store)).not.toHaveProperty('place_name')
+
+			const again = mountComposer()
+			await setContent(again.wrapper, 'The cove')
+			await again.wrapper.find('button.place-toggle').trigger('click')
+			again.wrapper.findComponent({ name: 'PlacePicker' }).vm.$emit('update:place', { name: 'Tiny Cove', country: 'Ireland' })
+			await submitButton(again.wrapper).trigger('click')
+			await flushPromises()
+			expect(postedStatus(again.store)).toMatchObject({ place_name: 'Tiny Cove', place_country: 'Ireland' })
+		})
+
+		it('releasing the pin drops the place, so an unpressed pin means what it says', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'Nowhere in particular')
+			await wrapper.find('button.place-toggle').trigger('click')
+			wrapper.findComponent({ name: 'PlacePicker' }).vm.$emit('update:place', { id: '4', name: 'Berlin', country: '' })
+			await wrapper.find('button.place-toggle').trigger('click')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus(store)).not.toHaveProperty('place_id')
+		})
+
 		it('sends the time the post is to go out, in UTC', async () => {
 			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'The release notes')

@@ -18,6 +18,7 @@ vi.mock('../../src/views/ProfileFollowers.vue', () => ({ default: { name: 'Profi
 vi.mock('../../src/views/BlockedAccounts.vue', () => ({ default: { name: 'BlockedAccounts', render: () => null } }))
 vi.mock('../../src/views/ProfileCollections.vue', () => ({ default: { name: 'ProfileCollections', render: () => null } }))
 vi.mock('../../src/views/CollectionPage.vue', () => ({ default: { name: 'CollectionPage', render: () => null } }))
+vi.mock('../../src/views/PlacePage.vue', () => ({ default: { name: 'PlacePage', render: () => null } }))
 
 describe('router', () => {
 	it('is served under the app path and uses the "active" link class', () => {
@@ -86,6 +87,12 @@ describe('router', () => {
 		const collection = router.resolve({ name: 'collection', params: { id: '9' } })
 		expect(collection.fullPath).toBe('/collections/9')
 		expect(collection.params.id).toBe('9')
+	})
+
+	it('routes a place to its own page', () => {
+		const place = router.resolve({ name: 'place', params: { id: '4' } })
+		expect(place.fullPath).toBe('/places/4')
+		expect(router.resolve('/places/4').name).toBe('place')
 	})
 
 	it('keeps remote handles intact in the account param', () => {

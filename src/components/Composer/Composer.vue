@@ -321,6 +321,18 @@
 					</template>
 				</NcButton>
 
+				<NcButton
+					:title="placing ? t('social', 'No place') : t('social', 'Say where this was taken')"
+					variant="tertiary"
+					class="place-toggle"
+					:aria-label="placing ? t('social', 'No place') : t('social', 'Say where this was taken')"
+					:aria-pressed="placing"
+					@click.prevent="togglePlace">
+					<template #icon>
+						<MapMarkerOutline :size="22" decorative title="" />
+					</template>
+				</NcButton>
+
 				<!-- The picker carries the whole emoji set — 130 KB over the wire
 				     — and it was a static import, so every reader downloaded it
 				     to have a composer. Until the button is pressed there is a
@@ -361,6 +373,11 @@
 					</NcButton>
 				</div>
 
+				<PlacePicker
+					v-if="placing"
+					:place="place"
+					@update:place="place = $event" />
+
 				<span v-if="undescribed > 0" class="composer-alt-warning" role="status">
 					{{ undescribedWarning }}
 				</span>
@@ -395,6 +412,7 @@
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
 import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
+import MapMarkerOutline from 'vue-material-design-icons/MapMarkerOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import FolderImage from 'vue-material-design-icons/FolderImage.vue'
 import FileGifBox from 'vue-material-design-icons/FileGifBox.vue'
@@ -406,6 +424,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
 import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
+import PlacePicker from './PlacePicker.vue'
 import { defineAsyncComponent } from 'vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { showError, showSuccess } from '../../services/toast.js'
@@ -579,6 +598,8 @@ export default {
 		Paperclip,
 		EmoticonOutline,
 		ClockOutline,
+		MapMarkerOutline,
+		PlacePicker,
 		Close,
 		FolderImage,
 		AlertOutline,
@@ -695,6 +716,10 @@ export default {
 			scheduledAt: null,
 			/** whether the clock is pressed: the picker is shown, Post reads Schedule */
 			scheduling: false,
+			/** whether the pin is pressed: the place picker is shown */
+			placing: false,
+			/** where the post was taken: `{id}` for a known place, `{name, country}` for a new one, or null */
+			place: null,
 			/** whether the date picker has been fetched */
 			schedulePickerLoaded: false,
 			/** whether that fetch is in flight */
@@ -1990,6 +2015,17 @@ export default {
 				language: this.language,
 			}
 
+			// where it was taken, only ever as the poster said: a known place
+			// by its id, a new one by its name
+			if (this.place?.id) {
+				statusData.place_id = this.place.id
+			} else if (this.place?.name) {
+				statusData.place_name = this.place.name
+				if (this.place.country) {
+					statusData.place_country = this.place.country
+				}
+			}
+
 			// ISO 8601 in UTC, which is what `scheduled_at` takes; the picker
 			// works in the reader's zone and the Date carries the conversion
 			if (this.scheduling && this.scheduledAt instanceof Date) {
@@ -2049,6 +2085,8 @@ export default {
 			this.spoilerText = ''
 			this.scheduling = false
 			this.scheduledAt = null
+			this.placing = false
+			this.place = null
 			clearDraft()
 			this.updateStatusContent()
 			// the sidebar's modal has no other way of knowing: it cleared the
@@ -2076,6 +2114,18 @@ export default {
 		 * proposes an hour from now, rounded to the picker's step, so there is
 		 * a time to move rather than a blank to fill.
 		 */
+		/**
+		 * Presses or releases the pin. Releasing it drops the place as well:
+		 * a pin that is not pressed says the post has no place, and it should
+		 * mean it.
+		 */
+		togglePlace() {
+			this.placing = !this.placing
+			if (!this.placing) {
+				this.place = null
+			}
+		},
+
 		async toggleSchedule() {
 			if (this.scheduling) {
 				this.scheduling = false

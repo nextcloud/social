@@ -32,6 +32,10 @@ make it somebody's only Fediverse client.
 
 One box, and everything a post can carry.
 
+- **A place on a post** — the pin in the composer names where a picture was taken,
+  from the places people here have already posted from or a name you type; the
+  marker under the post opens a page of everything public taken there. Nothing is ever
+  sent to a map service to work a location out.
 - **Say who sees it.** Public, unlisted, followers-only or direct, chosen per post from
   the default you set once. A reply inherits the audience of the post it answers, and
   starts addressed to everyone in the conversation rather than to one person.

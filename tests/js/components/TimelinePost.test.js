@@ -1151,6 +1151,16 @@ describe('TimelinePost', () => {
 			expect(menuItem(wrapper, 'Delete')).toBeUndefined()
 		})
 
+		it('says where a post was taken, and only when the poster said', () => {
+			const { wrapper } = mountPost({ item: makeItem({ place: { id: '4', name: 'Berlin', country: 'Germany' } }) })
+			const chip = wrapper.find('.post-place')
+
+			expect(chip.exists()).toBe(true)
+			expect(chip.text()).toContain('Berlin, Germany')
+			expect(wrapper.findComponent('.post-place').props('to')).toEqual({ name: 'place', params: { id: '4' } })
+			expect(mountPost({ item: makeItem({ place: null }) }).wrapper.find('.post-place').exists()).toBe(false)
+		})
+
 		it('offers Add to a collection only for an own post that has a picture in it', () => {
 			expect(menuItem(mountPost({ item: makeItem({ media_attachments: [photo()] }) }).wrapper, 'Add to a collection')).toBeDefined()
 			// a collection holds only its owner's own media posts
