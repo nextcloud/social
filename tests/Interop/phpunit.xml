@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<!--
+  - The interop suite: this app talking to a real Mastodon over the wire.
+  -
+  - It boots the same real Nextcloud the integration suite does, because what is
+  - being tested is the delivery path as it actually runs — the models, the
+  - signer and the queue — and not a test's idea of it. Every test skips when
+  - MASTODON_BASE_URL and MASTODON_TOKEN are unset, so running the suite on a
+  - machine with no Mastodon is a pass with a reason rather than a failure.
+  -->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+	bootstrap="../Integration/bootstrap.php"
+	colors="true"
+	cacheResult="false">
+	<testsuites>
+		<testsuite name="interop">
+			<directory suffix="Test.php">.</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>

@@ -54,7 +54,8 @@
 		"psalm:clear": "psalm --clear-cache && psalm --clear-global-cache",
 		"psalm:fix": "psalm --alter --issues=InvalidReturnType,InvalidNullableReturnType,MissingParamType,InvalidFalsableReturnType",
 		"test:unit": "@php -d memory_limit=512M vendor/bin/phpunit -c tests/phpunit.xml",
-		"test:integration": "vendor/bin/phpunit -c tests/Integration/phpunit.xml"
+		"test:integration": "vendor/bin/phpunit -c tests/Integration/phpunit.xml",
+		"test:interop": "vendor/bin/phpunit -c tests/Interop/phpunit.xml"
 	},
 	"repositories": [
 		{

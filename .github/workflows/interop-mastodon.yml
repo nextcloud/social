@@ -1,0 +1,207 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Interop: this app's activities delivered to a real Mastodon, read back out of
+# Mastodon's own API. See tests/Interop/README.md for why, and for what this
+# cannot prove.
+#
+# Deliberately NOT on `pull_request`. It stands up four containers and depends
+# on a third-party image whose startup this repository does not control, so a
+# bad day for that image would block every pull request on a failure that says
+# nothing about the change under review. Run it by hand from the Actions tab,
+# or leave the weekly run to find drift; make it required once it has been
+# green for a while.
+
+name: Interop against Mastodon
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays, early: a week is the right cadence for "has the other end moved"
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interop-mastodon-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  interop:
+    runs-on: ubuntu-latest
+    name: Nextcloud Social ↔ Mastodon
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mastodon
+          POSTGRES_PASSWORD: mastodon
+          POSTGRES_DB: mastodon_production
+        options: >-
+          --health-cmd "pg_isready -U mastodon"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 6379:6379
+
+    env:
+      APP_NAME: social
+      # Both sides talk to each other over the runner's own loopback, so both
+      # have to be willing to. Mastodon refuses private addresses unless it is
+      # told otherwise, and Nextcloud's HTTP client refuses localhost unless it
+      # is told otherwise; each gets exactly that one permission and nothing
+      # else, because it is a throwaway runner and not a real deployment.
+      MASTODON_HOST: localhost:3000
+      MASTODON_BASE_URL: http://localhost:3000
+      NEXTCLOUD_URL: http://localhost:8080
+
+    steps:
+      - name: Checkout server
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: true
+          repository: nextcloud/server
+          ref: stable35
+
+      - name: Checkout app
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          path: apps/social
+
+      - name: Set up php
+        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231 # v2.31.1
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          coverage: none
+          ini-file: development
+
+      - name: Set up the app's PHP dependencies
+        working-directory: apps/social
+        run: composer i
+
+      - name: Set up Nextcloud
+        run: |
+          mkdir data
+          ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud \
+            --admin-user admin --admin-pass admin
+          ./occ app:enable --force social
+          ./occ config:system:set trusted_domains 1 --value localhost:8080
+          ./occ config:system:set overwrite.cli.url --value "$NEXTCLOUD_URL"
+          ./occ config:app:set social cloud_url --value "$NEXTCLOUD_URL"
+          ./occ config:app:set social social_url --value "$NEXTCLOUD_URL/index.php/apps/social/"
+          # the two instances are on the same host, so both HTTP clients have to
+          # be willing to talk to a private address
+          ./occ config:system:set allow_local_remote_servers --value true --type boolean
+
+      - name: Run Nextcloud
+        # several workers: rendering or fetching anything makes the server ask
+        # itself over HTTP, and a single-worker built-in server deadlocks on that
+        run: PHP_CLI_SERVER_WORKERS=8 php -S localhost:8080 &
+
+      - name: Start Mastodon
+        run: |
+          set -euo pipefail
+          # the keys Mastodon refuses to boot without. Generated here and thrown
+          # away with the runner: they protect nothing, because there is nothing
+          # in this instance that outlives the job.
+          SECRET_KEY_BASE=$(openssl rand -hex 64)
+          OTP_SECRET=$(openssl rand -hex 64)
+          AR_KEYS="ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=$(openssl rand -hex 16)"
+          AR_KEYS="$AR_KEYS,ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=$(openssl rand -hex 16)"
+          AR_KEYS="$AR_KEYS,ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=$(openssl rand -hex 16)"
+
+          cat > /tmp/mastodon.env <<ENV
+          LOCAL_DOMAIN=${MASTODON_HOST}
+          LOCAL_HTTPS=false
+          SECRET_KEY_BASE=${SECRET_KEY_BASE}
+          OTP_SECRET=${OTP_SECRET}
+          $(echo "$AR_KEYS" | tr ',' '\n')
+          DB_HOST=172.17.0.1
+          DB_PORT=5432
+          DB_NAME=mastodon_production
+          DB_USER=mastodon
+          DB_PASS=mastodon
+          REDIS_HOST=172.17.0.1
+          REDIS_PORT=6379
+          RAILS_ENV=production
+          RAILS_SERVE_STATIC_FILES=true
+          # the whole point: Mastodon has to be allowed to fetch from, and
+          # deliver to, the Nextcloud on this same runner
+          ALLOWED_PRIVATE_ADDRESSES=127.0.0.1,::1,172.17.0.1
+          ENV
+
+          docker network create interop || true
+          docker run -d --name mastodon-setup --network host --env-file /tmp/mastodon.env \
+            ghcr.io/mastodon/mastodon:v4.3 \
+            bundle exec rails db:setup
+          docker wait mastodon-setup
+          docker logs mastodon-setup | tail -20
+
+          docker run -d --name mastodon-web --network host --env-file /tmp/mastodon.env \
+            ghcr.io/mastodon/mastodon:v4.3 \
+            bundle exec puma -C config/puma.rb
+          docker run -d --name mastodon-sidekiq --network host --env-file /tmp/mastodon.env \
+            ghcr.io/mastodon/mastodon:v4.3 \
+            bundle exec sidekiq
+
+      - name: Wait for Mastodon
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -sf "$MASTODON_BASE_URL/api/v1/instance" > /dev/null; then
+              echo "Mastodon is up"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Mastodon never came up"
+          docker logs mastodon-web | tail -50
+          exit 1
+
+      - name: Make a Mastodon account and a token for it
+        run: |
+          set -euo pipefail
+          docker exec mastodon-web bin/tootctl accounts create interop \
+            --email interop@example.com --confirmed --role Owner > /tmp/account.txt
+          cat /tmp/account.txt
+          # an application with the scopes the suite needs, and a token for it
+          TOKEN=$(docker exec mastodon-web bin/rails runner '
+            app = Doorkeeper::Application.create!(
+              name: "interop", redirect_uri: "urn:ietf:wg:oauth:2.0:oob",
+              scopes: "read write follow"
+            )
+            account = Account.find_by(username: "interop")
+            token = Doorkeeper::AccessToken.create!(
+              application: app, resource_owner_id: account.user.id,
+              scopes: app.scopes, expires_in: nil
+            )
+            puts token.token
+          ' | tail -1)
+          echo "MASTODON_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Interop tests
+        working-directory: apps/social
+        run: composer run test:interop
+
+      - name: What each side saw, when it went wrong
+        if: failure()
+        run: |
+          echo '--- Nextcloud ---'
+          tail -100 ../../data/nextcloud.log || true
+          echo '--- Mastodon web ---'
+          docker logs mastodon-web 2>&1 | tail -100 || true
+          echo '--- Mastodon sidekiq ---'
+          docker logs mastodon-sidekiq 2>&1 | tail -100 || true
