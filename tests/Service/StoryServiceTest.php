@@ -13,6 +13,7 @@ use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\Client\Story;
@@ -61,6 +62,28 @@ class StoryServiceTest extends TestCase {
 	}
 
 	/** Who watched is told to the poster and to nobody else, like the view count. */
+	/**
+	 * A carousel draws a face, a name and a handle; an actor in ActivityPub
+	 * shape has none of the three.
+	 */
+	public function testTheAuthorIsHandedToAClientInTheClientFormat(): void {
+		$this->storiesRequest->method('getLiveByActor')->willReturn([$this->story(self::ALICE, 3)]);
+		$this->storiesRequest->method('seenAmong')->willReturn([]);
+		$cacheActorService = $this->createMock(CacheActorService::class);
+		$cacheActorService->method('getFromId')->willReturn($this->person(self::ALICE));
+		$service = new StoryService(
+			$this->storiesRequest,
+			$this->documentService,
+			$this->followService,
+			$cacheActorService,
+			$this->createMock(IURLGenerator::class)
+		);
+
+		$author = $service->forAccount($this->person(self::ALICE), $this->person(self::ALICE))[0]->getAuthor();
+
+		$this->assertSame(ACore::FORMAT_LOCAL, $author?->getExportFormat());
+	}
+
 	public function testOnlyTheOwnerIsToldWhoWatchedAStory(): void {
 		$this->storiesRequest->method('getLiveById')->willReturn($this->story(self::ALICE, 7));
 		$this->storiesRequest->expects($this->never())->method('viewersOf');

@@ -208,7 +208,7 @@ class PixelfedServiceTest extends TestCase {
 	}
 
 	public function testNobodyReportsThemselves(): void {
-		$this->cacheActorService->method('getFromNids')->willReturn([$this->person(self::ALICE)]);
+		$this->cacheActorService->method('resolve')->willReturn($this->person(self::ALICE));
 		$this->reportService->expects($this->never())->method('reportFromLocal');
 
 		$this->expectException(InvalidResourceException::class);
@@ -217,7 +217,7 @@ class PixelfedServiceTest extends TestCase {
 
 	/** Pixelfed's mutuals are Mastodon's familiar followers. */
 	public function testMutualsAreTheFamiliarFollowers(): void {
-		$this->cacheActorService->method('getFromNids')->with([7])->willReturn([$this->person(self::BOB, 7)]);
+		$this->cacheActorService->method('resolve')->willReturn($this->person(self::BOB, 7));
 		$this->followService->expects($this->once())->method('familiarFollowers')
 			->with($this->anything(), $this->callback(fn (Person $t): bool => $t->getId() === self::BOB), PixelfedService::ACCOUNTS_LIMIT)
 			->willReturn([$this->person(self::CAROL)]);
@@ -250,13 +250,13 @@ class PixelfedServiceTest extends TestCase {
 		$this->assertFalse($settings['media_descriptions']);
 	}
 
-	public function testAnAccountIsResolvedByWhateverTheAppNamedItWith(): void {
-		$this->cacheActorService->method('getFromNids')->with([7])->willReturn([$this->person(self::BOB, 7)]);
-		$this->cacheActorService->method('getFromAccount')->with('carol@remote.example', false)->willReturn($this->person(self::CAROL));
+	public function testAnAccountIsResolvedThroughTheOneResolver(): void {
+		$this->cacheActorService->expects($this->once())
+			->method('resolve')
+			->with('@carol@remote.example')
+			->willReturn($this->person(self::CAROL));
 
-		$this->assertSame(self::BOB, $this->service->resolveAccount('7')->getId());
 		$this->assertSame(self::CAROL, $this->service->resolveAccount('@carol@remote.example')->getId());
-		$this->assertSame(self::CAROL, $this->service->resolveAccount(self::CAROL)->getId());
 	}
 	private function directPost(int $nid, string $author, string $html, int $published): Note {
 		$post = new Note();
@@ -273,7 +273,7 @@ class PixelfedServiceTest extends TestCase {
 	public function testAThreadIsTheDirectPostsBetweenTwoAccountsOldestFirst(): void {
 		$bob = $this->person(self::BOB, 7);
 		$bob->setLocal(true);
-		$this->cacheActorService->method('getFromNids')->with([7])->willReturn([$bob]);
+		$this->cacheActorService->method('resolve')->willReturn($bob);
 		$this->streamRequest->method('directBetween')
 			->with($this->anything(), self::BOB, PixelfedService::THREAD_PAGE, 0, 0)
 			->willReturn([
@@ -297,7 +297,7 @@ class PixelfedServiceTest extends TestCase {
 
 	/** A message is a direct post to the account, sent the way the composer sends one. */
 	public function testSendingAMessageIsADirectPostNamingTheRecipient(): void {
-		$this->cacheActorService->method('getFromNids')->with([7])->willReturn([$this->person(self::BOB, 7)]);
+		$this->cacheActorService->method('resolve')->willReturn($this->person(self::BOB, 7));
 		$sent = null;
 		$this->postService->expects($this->once())->method('createPost')
 			->willReturnCallback(function (Post $post) use (&$sent): Note {

@@ -155,28 +155,20 @@ export default {
 		},
 
 		/**
-		 * The account the profile is about, once the store has it. Profile.vue
-		 * only renders this view after the lookup came back, so it is there.
-		 *
-		 * @return {object|undefined}
+		 * @return {boolean} whether these are the reader's own albums. The
+		 * handle in the route is what the server was asked about, so it is
+		 * what the reader's own handle is compared with — no lookup, and
+		 * nothing to wait for
 		 */
-		accountInfo() {
-			return this.accountStore.getAccount(this.account)
-				?? Object.values(this.accountStore.accounts ?? {}).find((account) => account?.acct === this.account)
-		},
-
-		/** @return {boolean} whether these are the reader's own albums */
 		isOwn() {
-			const current = this.accountStore.currentAccount
-			const info = this.accountInfo
+			const current = this.accountStore.currentAccount?.acct
 
-			return Boolean(current && info && current.acct === info.acct)
+			return Boolean(current && this.account && current === this.account)
 		},
 	},
 
 	watch: {
-		'$route.params.account': 'load',
-		'accountInfo.id': 'load',
+		account: 'load',
 	},
 
 	mounted() {
@@ -189,15 +181,21 @@ export default {
 
 		/** @return {Promise<void>} */
 		async load() {
-			const id = this.accountInfo?.id
-			if (!id) {
+			// the handle from the route, which the server resolves as happily
+			// as a numeric id or an actor URL: the page has no reason to wait
+			// for the account store to be filled, and on the first paint it is
+			// not
+			const account = this.account
+			if (!account) {
+				this.loading = false
+
 				return
 			}
 
 			this.loading = true
 			this.error = ''
 			try {
-				const { data } = await axios.get(generateUrl(`apps/social/api/v1/accounts/${id}/collections`))
+				const { data } = await axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(account)}/collections`))
 				this.collections = Array.isArray(data) ? data : []
 			} catch (error) {
 				logger.error('could not load the collections', { error })

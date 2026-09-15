@@ -163,30 +163,7 @@ class PixelfedService {
 	 * @throws CacheActorDoesNotExistException
 	 */
 	public function resolveAccount(string $reference): Person {
-		$reference = ltrim(trim($reference), '@');
-		if ($reference === '') {
-			throw new CacheActorDoesNotExistException('unknown account');
-		}
-
-		if (is_numeric($reference)) {
-			if ((int)$reference < 1) {
-				throw new CacheActorDoesNotExistException('unknown account');
-			}
-			$actors = $this->cacheActorService->getFromNids([(int)$reference]);
-			if ($actors === []) {
-				throw new CacheActorDoesNotExistException('unknown account');
-			}
-
-			return $actors[0];
-		}
-
-		if (str_starts_with($reference, 'http://') || str_starts_with($reference, 'https://')) {
-			return $this->cacheActorService->getFromId($reference);
-		}
-
-		// only what this server already knows: a profile screen is not the
-		// place to start fetching strangers from
-		return $this->cacheActorService->getFromAccount($reference, false);
+		return $this->cacheActorService->resolve($reference);
 	}
 
 	/**

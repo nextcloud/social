@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\Story;
 use OCP\IURLGenerator;
@@ -228,7 +229,13 @@ class StoryService {
 
 	private function attachAuthor(Story $story): void {
 		try {
-			$story->setAuthor($this->cacheActorService->getFromId($story->getOwnerId()));
+			$author = $this->cacheActorService->getFromId($story->getOwnerId());
+			// the client format, as every other account this API hands a
+			// client is: an actor in ActivityPub shape has no `acct`, no
+			// `display_name` and no `avatar`, which is everything a story
+			// carousel draws
+			$author->setExportFormat(ACore::FORMAT_LOCAL);
+			$story->setAuthor($author);
 		} catch (\Exception $e) {
 			$story->setAuthor(null);
 		}

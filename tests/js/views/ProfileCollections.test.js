@@ -64,7 +64,9 @@ describe('ProfileCollections', () => {
 		const wrapper = mountView('bob@remote.example')
 		await flushPromises()
 
-		expect(get.mock.calls[0][0]).toContain('/apps/social/api/v1/accounts/9/collections')
+		// by the handle the route carries: the server resolves an account by
+		// its id, its handle or its actor URL, so the page waits for nothing
+		expect(get.mock.calls[0][0]).toContain('/apps/social/api/v1/accounts/bob%40remote.example/collections')
 		const cards = wrapper.findAll('.collections__card')
 		expect(cards).toHaveLength(2)
 		expect(cards[0].text()).toContain('Coast')
@@ -105,6 +107,23 @@ describe('ProfileCollections', () => {
 		expect(post).toHaveBeenCalledWith(expect.stringContaining('/apps/social/api/v1/collections'), { title: 'Mountains', visibility: 'public' })
 		expect(mine.findAll('.collections__card')[0].text()).toContain('Mountains')
 		expect(showSuccess).toHaveBeenCalled()
+	})
+
+	it('asks by the handle while the account store is still empty, rather than sitting on a spinner', async () => {
+		get.mockResolvedValue({ data: [] })
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		const wrapper = mount(ProfileCollections, {
+			global: {
+				plugins: [pinia],
+				mocks: { $route: { name: 'profile.collections', params: { account: 'bob@remote.example' } } },
+				stubs: { RouterLink: RouterLinkStub, NcEmptyContent: { template: '<div class="empty-stub" />', props: ['name', 'description'] } },
+			},
+		})
+		await flushPromises()
+
+		expect(get.mock.calls[0][0]).toContain('/accounts/bob%40remote.example/collections')
+		expect(wrapper.find('.collections__loading').exists()).toBe(false)
 	})
 
 	it('says so when the list could not be loaded, rather than showing an empty shelf', async () => {
