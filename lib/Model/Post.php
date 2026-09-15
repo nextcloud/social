@@ -33,6 +33,8 @@ class Post implements JsonSerializable {
 	 * `PostService::createPost()` resolves the one into the other.
 	 */
 	private string $quotedId = '';
+	/** who may quote this post: '', 'public', 'followers' or 'nobody' */
+	private string $quotePolicy = '';
 	private string $content = '';
 	private string $type = '';
 	private array $hashtags = [];
@@ -123,6 +125,16 @@ class Post implements JsonSerializable {
 
 	public function setQuotedId(string $quotedId): Post {
 		$this->quotedId = trim($quotedId);
+
+		return $this;
+	}
+
+	public function getQuotePolicy(): string {
+		return $this->quotePolicy;
+	}
+
+	public function setQuotePolicy(string $quotePolicy): Post {
+		$this->quotePolicy = $quotePolicy;
 
 		return $this;
 	}

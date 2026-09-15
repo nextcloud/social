@@ -75,6 +75,9 @@ class ApiContractTest extends TestCase {
 		// are counted here from the EmojiReact activities received, and a peer
 		// counts the ones it received itself, so it is local and derived and
 		// never goes out on the wire.
+		// 'quote_approval' is Mastodon 4.5's "who may quote this", and null on
+		// everybody else's post: their server decides who may quote theirs,
+		// and what it decided rides on their document as `interactionPolicy`.
 		// 'tagged_people' is Pixelfed's key for the people named in a
 		// photograph. Empty unless a page read filled it in; on the wire the
 		// same fact is carried as `Mention` tags, which is where a peer looks.
@@ -82,6 +85,7 @@ class ApiContractTest extends TestCase {
 			'archived', 'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote',
+			'quote_approval',
 			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
 			'tagged_people', 'tags', 'uri', 'url', 'view_count', 'visibility',
 		];

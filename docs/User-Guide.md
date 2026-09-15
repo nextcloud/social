@@ -498,6 +498,13 @@ hand, it is picked up as one.
 - **Reporting.** **Report** in a post's menu sends the post, with an optional
   note, to the moderators of this instance. From the web client it is never
   sent to the reported account or their server.
+- **Who may quote your post.** A post's menu has **Quotes of this post** on
+  your own posts. The top half is who may quote it from now on — anybody, the
+  people who follow you, or nobody but you — and the bottom half is who already
+  has, with a button that detaches one. The two are separate on purpose:
+  changing the setting does not take back a quote somebody has already posted
+  and other people have read. Detaching tells the other server, which then
+  shows the quote as withdrawn; the post itself is theirs and stays where it is.
 - **Authorized apps.** **Settings → Authorized apps** lists every app you have
   signed in to with this account — a phone client, a cross-poster, anything
   that asked — with what it may do, when you granted it and when it was last

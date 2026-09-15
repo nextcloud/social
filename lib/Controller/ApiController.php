@@ -80,6 +80,7 @@ use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\QuoteService;
 use OCA\Social\Service\ReactionService;
 use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\RelationshipService;
@@ -213,6 +214,7 @@ class ApiController extends Controller {
 		private NotificationService $notificationService,
 		private TranslationService $translationService,
 		private NotificationPolicyService $notificationPolicyService,
+		private QuoteService $quoteService,
 		private IFactory $l10nFactory,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -1270,6 +1272,7 @@ class ApiController extends Controller {
 			}
 
 			$post->setQuotedId($status->getQuotedId());
+			$post->setQuotePolicy($status->getQuotePolicy());
 
 			// Before anything is written: a post a rule holds is stored as a
 			// request and never reaches `social_stream`, so there is no row for
@@ -2439,6 +2442,100 @@ class ApiController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/favourited_by')]
 	public function statusFavouritedBy(int $nid, int $limit = 40): DataResponse {
 		return $this->reactedBy($nid, Like::TYPE, $limit);
+	}
+
+	/**
+	 * The posts that quote one status, newest first — Mastodon 4.5's
+	 * `GET /api/v1/statuses/{id}/quotes`.
+	 *
+	 * The posts this server *holds*: a local quote, and a remote one that
+	 * reached somebody here. A quote written on a server nobody here follows
+	 * was approved and is real and is not in this list, because there is no
+	 * status entity to put in it — Mastodon's own answer has the same edge.
+	 * Read as the viewer, so a quote inside somebody's followers-only post is
+	 * not handed to a reader by a list about their own post.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/quotes')]
+	public function statusQuotes(int $nid, int $limit = 20, int $max_id = 0): DataResponse {
+		try {
+			$this->initViewer(false);
+			$post = $this->streamService->getStreamByNid($nid);
+
+			$quotes = $this->quoteService->quotesOf($post, $limit, $max_id);
+			foreach ($quotes as $quote) {
+				$quote->setExportFormat(ACore::FORMAT_LOCAL);
+			}
+
+			return new DataResponse($quotes, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Who may quote one of the caller's own posts — Mastodon 4.5's
+	 * `PUT /api/v1/statuses/{id}/interaction_policy`.
+	 *
+	 * `quote_approval_policy` is `public`, `followers` or `nobody`. It decides
+	 * what happens to requests that arrive **from now on**; it does not reach
+	 * back and withdraw the permissions already given, because a quote that
+	 * has been published and read is not undone by a switch being flipped.
+	 * Taking one back is the route below, which says so and tells the other
+	 * server.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 60, period: 3600)]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/statuses/{nid}/interaction_policy')]
+	public function statusInteractionPolicy(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$status = new Status();
+			$status->import($this->convertInput((string)file_get_contents('php://input')));
+
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$item = $this->quoteService->setPolicy($nid, $actor, $status->getQuotePolicy());
+			$item->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($item, Http::STATUS_OK);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Takes one quote of one of the caller's own posts back — Mastodon 4.5's
+	 * `POST /api/v1/statuses/{id}/quotes/{quoting}/revoke`.
+	 *
+	 * A `Reject` naming the request that was accepted goes to the quoting
+	 * server, which is how FEP-044f withdraws a permission; the quote then
+	 * shows there as revoked rather than refused. A local quote is withdrawn
+	 * here directly, because there is nobody to tell.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 60, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/quotes/{quoting}/revoke')]
+	public function statusQuoteRevoke(int $nid, int $quoting): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			if (!$this->quoteService->revoke($nid, $actor, $quoting)) {
+				return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
+			}
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
 	}
 
 	/** The accounts that boosted a status, newest first. Mastodon's `reblogged_by`. */

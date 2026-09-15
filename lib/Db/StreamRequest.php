@@ -480,6 +480,42 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * The posts this instance holds that quote one post, newest first.
+	 *
+	 * What `GET /api/v1/statuses/{id}/quotes` answers. It is the posts this
+	 * server *has*: a local quote, and a remote one that reached somebody here.
+	 * A quote written on a server nobody here follows was approved and is real
+	 * and is not in this list, because there is no status entity to put in it —
+	 * Mastodon's own answer has the same edge.
+	 *
+	 * Read as the viewer, so a quote in a followers-only post of somebody the
+	 * reader does not follow is not handed to them by a list about their own
+	 * post.
+	 *
+	 * @return Stream[]
+	 */
+	public function getQuotesOf(string $objectId, int $limit = 20, int $maxId = 0): array {
+		if ($objectId === '') {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+		$qb->andWhere($qb->expr()->eq('s.quote', $qb->createNamedParameter($objectId)));
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		$qb->leftJoinStreamAction('sa');
+
+		if ($maxId > 0) {
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults(max(1, min($limit, 40)));
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
 	 * @param string $idPrim
 	 *
 	 * @return Stream
@@ -2230,7 +2266,7 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * The five fields that used to live only inside the stored wire object,
+	 * The fields that used to live only inside the stored wire object,
 	 * written to the columns Version1000Date20260912000007 added.
 	 *
 	 * One helper for both write paths on purpose: an insert and an edit have to
@@ -2248,6 +2284,7 @@ class StreamRequest extends StreamRequestBuilder {
 			'language' => [$stream->getLanguage(), IQueryBuilder::PARAM_STR],
 			'quote' => [$stream->getQuote(), IQueryBuilder::PARAM_STR],
 			'quote_authorization' => [$stream->getQuoteAuthorization(), IQueryBuilder::PARAM_STR],
+			'quote_policy' => [$stream->getQuotePolicy(), IQueryBuilder::PARAM_STR],
 			'updated' => [$this->updatedAsDate($stream->getUpdated()), IQueryBuilder::PARAM_DATE],
 		];
 

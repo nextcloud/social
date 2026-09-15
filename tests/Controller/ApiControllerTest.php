@@ -17,6 +17,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TranslationUnavailableException;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -65,6 +66,7 @@ use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\QuoteService;
 use OCA\Social\Service\ReactionService;
 use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\RelationshipService;
@@ -163,6 +165,7 @@ class ApiControllerTest extends TestCase {
 	private TranslationService|MockObject $translationService;
 	private NotificationPolicyService|MockObject $notificationPolicyService;
 	private IFactory|MockObject $l10nFactory;
+	private QuoteService|MockObject $quoteService;
 	private IAppManager|MockObject $appManager;
 	private FediverseService|MockObject $fediverseService;
 
@@ -281,6 +284,7 @@ class ApiControllerTest extends TestCase {
 			->willReturnCallback(static fn (Person $viewer, array $page): array
 				=> ['shown' => $page, 'held' => []]);
 		$this->l10nFactory = $this->createMock(IFactory::class);
+		$this->quoteService = $this->createMock(QuoteService::class);
 		$this->appManager = $this->createMock(IAppManager::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->fediverseService->method('getAccessType')->willReturnCallback(fn (): string => $this->accessType);
@@ -382,6 +386,7 @@ class ApiControllerTest extends TestCase {
 			$this->notificationService,
 			$this->translationService,
 			$this->notificationPolicyService,
+			$this->quoteService,
 			$this->l10nFactory
 		);
 	}
@@ -1888,6 +1893,66 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(
 			Http::STATUS_NOT_FOUND, $this->controller()->statusFavouritedBy(9)->getStatus()
+		);
+	}
+
+	// quotes: who has quoted a post, who may, and taking one back
+
+	public function testTheQuotesOfAPostAreWhatTheServiceHolds(): void {
+		$this->loggedInAs();
+		$post = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->with(9)->willReturn($post);
+		$quote = $this->createMock(Stream::class);
+		$quote->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+		$this->quoteService->expects($this->once())->method('quotesOf')
+			->with($this->identicalTo($post), 20, 0)->willReturn([$quote]);
+
+		$response = $this->controller()->statusQuotes(9);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([$quote], $response->getData());
+	}
+
+	/** A post the reader may not see has no list of quotes either. */
+	public function testTheQuotesOfAPostTheReaderMayNotSeeAreA404(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')
+			->willThrowException(new StreamNotFoundException());
+		$this->quoteService->expects($this->never())->method('quotesOf');
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->statusQuotes(9)->getStatus());
+	}
+
+	/**
+	 * Somebody else's post is a 404 rather than a 403: the pair of answers
+	 * together would say whose post an id belongs to.
+	 */
+	public function testSettingThePolicyOnSomebodyElsesPostIsNotFound(): void {
+		$this->loggedInAs();
+		$this->quoteService->method('setPolicy')
+			->willThrowException(new InvalidResourceException('no such post'));
+
+		$response = $this->controller()->statusInteractionPolicy(9);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+	}
+
+	public function testRevokingAQuoteThatIsNotThereIsNotFound(): void {
+		$this->loggedInAs();
+		$this->quoteService->method('revoke')->willReturn(false);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND, $this->controller()->statusQuoteRevoke(9, 11)->getStatus()
+		);
+	}
+
+	public function testRevokingAQuoteAnswersPlainlyWhenItWorked(): void {
+		$this->loggedInAs();
+		$this->quoteService->expects($this->once())->method('revoke')
+			->with(9, $this->anything(), 11)->willReturn(true);
+
+		$this->assertSame(
+			Http::STATUS_OK, $this->controller()->statusQuoteRevoke(9, 11)->getStatus()
 		);
 	}
 

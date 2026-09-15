@@ -356,6 +356,18 @@
 						</template>
 						{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
 					</NcActionButton>
+					<!-- who may quote it, and who already has. The two are
+					     deliberately one dialog: the reason to let people quote
+					     you is the same reason to be able to stop one of them -->
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+						closeAfterClick
+						@click="managingQuotes = true">
+						<template #icon>
+							<FormatQuoteClose :size="20" />
+						</template>
+						{{ t('social', 'Quotes of this post') }}
+					</NcActionButton>
 					<!-- who is in the picture, which only the author may say:
 					     anybody able to write a name onto anybody's photograph
 					     could put a post in front of an audience that did not
@@ -484,6 +496,11 @@
 			:people="taggedPeople"
 			@close="taggingPeople = false"
 			@tagged="onTagged" />
+		<QuoteControlDialog
+			v-if="managingQuotes"
+			:nid="item.nid"
+			:approval="item.quote_approval"
+			@close="managingQuotes = false" />
 		<NcDialog
 			v-model:open="showBlockDialog"
 			:name="t('social', 'Block {account}?', { account: item.account.acct })"
@@ -621,11 +638,15 @@ const CollectionPickerDialog = defineAsyncComponent(() => import(/* webpackChunk
 // and the same for naming the people in a photograph, which is a thing an
 // author does once per post and no reader ever does
 const TagPeopleDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./TagPeopleDialog.vue'))
+// same chunk, and for the same reason: a dialog nobody opens until they ask for
+// it, which brings framework form controls with it
+const QuoteControlDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./QuoteControlDialog.vue'))
 
 export default {
 	name: 'TimelinePost',
 	components: {
 		IconAccountBoxMultiple,
+		QuoteControlDialog,
 		TagPeopleDialog,
 		IconArchiveOutline,
 		IconEyeOutline,
@@ -711,6 +732,7 @@ export default {
 			archiving: false,
 			untagging: false,
 			taggingPeople: false,
+			managingQuotes: false,
 			/** whether the delete on screen is the first half of a re-draft */
 			deleteToRedraft: false,
 			/** the Translation entity once it has arrived, null before */

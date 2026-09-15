@@ -14,6 +14,7 @@ use DateTimeZone;
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
@@ -71,6 +72,25 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const QUOTE_PENDING = 'pending';
 	public const QUOTE_REJECTED = 'rejected';
 	public const QUOTE_REVOKED = 'revoked';
+
+	/**
+	 * Who the author has said may quote this post, as Mastodon 4.5 names the
+	 * three choices its composer offers.
+	 *
+	 * `''` is the fourth state and the one almost every stored post is in:
+	 * nobody was ever asked, so the answer is the one this app gave before the
+	 * question existed — the visibility rule, public and unlisted posts being
+	 * quotable and nothing else.
+	 */
+	public const QUOTE_POLICY_PUBLIC = 'public';
+	public const QUOTE_POLICY_FOLLOWERS = 'followers';
+	public const QUOTE_POLICY_NOBODY = 'nobody';
+
+	public const QUOTE_POLICIES = [
+		self::QUOTE_POLICY_PUBLIC,
+		self::QUOTE_POLICY_FOLLOWERS,
+		self::QUOTE_POLICY_NOBODY,
+	];
 
 	/**
 	 * Where a quote state that cannot be read off the wire object is kept.
@@ -209,6 +229,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $quote = '';
 	/** FEP-044f: the quoted author's stamp of approval, once one has been granted */
 	private string $quoteAuthorization = '';
+	/** who the author said may quote this post; '' means the visibility rule decides */
+	private string $quotePolicy = '';
 	private array $attachments = [];
 	private array $mentions = [];
 	private array $emojis = [];
@@ -293,6 +315,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @var array<string, ?array>
 	 */
 	private static array $quotedStatuses = [];
+
+	/** @var array<string, bool> whether the reader follows an author, for this request */
+	private static array $followChecks = [];
 
 	/**
 	 * How deep the export currently is inside a chain of quotes. A quote of a
@@ -550,6 +575,39 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->quoteAuthorization = $quoteAuthorization;
 
 		return $this;
+	}
+
+	/**
+	 * Who may quote this post — one of QUOTE_POLICIES, or '' where the author
+	 * never said and the visibility rule decides.
+	 *
+	 * Only meaningful on a post of ours: somebody else's server says who may
+	 * quote theirs, and what it says arrives as `interactionPolicy` on their
+	 * document rather than here.
+	 */
+	public function getQuotePolicy(): string {
+		return $this->quotePolicy;
+	}
+
+	public function setQuotePolicy(string $quotePolicy): self {
+		$this->quotePolicy = in_array($quotePolicy, self::QUOTE_POLICIES, true) ? $quotePolicy : '';
+
+		return $this;
+	}
+
+	/**
+	 * The policy as it stands, with the default filled in.
+	 *
+	 * A post nobody was asked about keeps the answer this app gave before the
+	 * question existed: quotable if it was addressed to the public collection,
+	 * and not otherwise.
+	 */
+	public function effectiveQuotePolicy(): string {
+		if ($this->quotePolicy !== '') {
+			return $this->quotePolicy;
+		}
+
+		return $this->isQuotable() ? self::QUOTE_POLICY_PUBLIC : self::QUOTE_POLICY_NOBODY;
 	}
 
 	/**
@@ -1056,6 +1114,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		// wire object, rewritten whenever the wire object is
 		$this->setQuote($this->validate(self::AS_ID, 'quote', $data, ''));
 		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quote_authorization', $data, ''));
+		$this->setQuotePolicy($this->get('quote_policy', $data, ''));
 
 		$source = $this->get('source', $data, '');
 		if ($source !== '') {
@@ -1337,6 +1396,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'in_reply_to_id' => $inReplyToId,
 			'in_reply_to_account_id' => $inReplyToAccountId,
 			'quote' => $this->exportQuoteAsLocal(),
+			// who may quote this one. Only on our own posts: somebody else's
+			// server decides who may quote theirs, and what it decided rides
+			// on their document as `interactionPolicy` rather than here
+			'quote_approval' => $this->isLocal() ? $this->exportQuoteApproval() : null,
 			'mentions' => $this->exportMentionsAsLocal(),
 			'emojis' => $this->getEmojis(),
 			'tags' => $this->exportTagsAsLocal(),
@@ -1503,11 +1566,125 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			return [];
 		}
 
-		$allowed = $this->isQuotable()
-			? [self::CONTEXT_PUBLIC]
-			: array_filter([$this->getAttributedTo()]);
+		$author = array_filter([$this->getAttributedTo()]);
+		$allowed = match ($this->effectiveQuotePolicy()) {
+			// the author is always allowed; naming them beside the collection
+			// is what lets a peer see that without special-casing it
+			self::QUOTE_POLICY_PUBLIC => array_merge([self::CONTEXT_PUBLIC], $author),
+			// the followers collection, which is the address FEP-044f expects
+			// here and the one a peer can dereference to check itself.
+			// Derived from the author's id rather than read off a hydrated
+			// actor — `ActorsRequestBuilder` mints it the same way, and a post
+			// read out of the database carries no actor object at all
+			self::QUOTE_POLICY_FOLLOWERS => array_merge(
+				array_filter([$this->followersOfAuthor()]), $author
+			),
+			default => $author,
+		};
 
 		return ['interactionPolicy' => ['canQuote' => ['automaticApproval' => $allowed]]];
+	}
+
+	/** The author's followers collection, as every local actor publishes it. */
+	private function followersOfAuthor(): string {
+		$author = $this->getAttributedTo();
+
+		return ($author === '') ? '' : $author . '/followers';
+	}
+
+	/**
+	 * Mastodon's `quote_approval` on a status of ours: who is approved
+	 * automatically, who would have to be asked, and where the reader stands.
+	 *
+	 * `manual` is always empty, and honestly so: this app answers a
+	 * `QuoteRequest` in the moment it arrives and has no queue for an author to
+	 * work through, so every quote is either allowed or refused and none of
+	 * them waits. Saying otherwise would put a "requested" state in a client
+	 * that nothing here would ever resolve.
+	 *
+	 * @param string $viewerId the reader's actor id, or '' for nobody
+	 * @param bool $viewerFollows whether that reader follows the author
+	 *
+	 * @return array{automatic: string[], manual: string[], current_user: string}
+	 */
+	public function exportQuoteApproval(?string $viewerId = null, ?bool $viewerFollows = null): array {
+		$policy = $this->effectiveQuotePolicy();
+		$automatic = ($policy === self::QUOTE_POLICY_NOBODY) ? [] : [$policy];
+
+		$viewerId ??= self::currentViewerId();
+		// the follow is only looked up where the answer turns on it, which is
+		// the `followers` policy and nothing else: a timeline of forty posts
+		// must not cost forty queries to say who may quote them
+		$viewerFollows ??= ($policy === self::QUOTE_POLICY_FOLLOWERS)
+			&& self::viewerFollows($viewerId, $this->getAttributedTo());
+
+		return [
+			'automatic' => $automatic,
+			'manual' => [],
+			'current_user' => $this->mayBeQuotedBy($viewerId, $viewerFollows) ? 'automatic' : 'denied',
+		];
+	}
+
+	/**
+	 * Who is reading, as the stream reads were scoped for — or '' where there
+	 * is nobody, which is also what a context with no container is (a model
+	 * exported in a unit test, or by a command that never opened one).
+	 */
+	private static function currentViewerId(): string {
+		try {
+			return Server::get(StreamRequest::class)->getViewerId();
+		} catch (\Throwable $e) {
+			return '';
+		}
+	}
+
+	/**
+	 * Whether the reader follows an author, memoised for the request.
+	 *
+	 * One timeline is one author repeated, so without the memo a page of
+	 * somebody's followers-only posts would ask the same question forty times.
+	 */
+	private static function viewerFollows(string $viewerId, string $authorId): bool {
+		if ($viewerId === '' || $authorId === '' || $viewerId === $authorId) {
+			return false;
+		}
+
+		$key = $viewerId . "\0" . $authorId;
+		if (array_key_exists($key, self::$followChecks)) {
+			return self::$followChecks[$key];
+		}
+
+		try {
+			$follow = Server::get(FollowsRequest::class)->getByPersons($viewerId, $authorId);
+			self::$followChecks[$key] = $follow->isAccepted();
+		} catch (\Throwable $e) {
+			self::$followChecks[$key] = false;
+		}
+
+		return self::$followChecks[$key];
+	}
+
+	/**
+	 * Whether one account may quote this post without being asked.
+	 *
+	 * The author always may — quoting your own post is how a thread is picked
+	 * up later — and beyond that it is the policy: anybody, the people who
+	 * follow the author, or nobody.
+	 *
+	 * This is the rule `QuoteRequestInterface` applies when it answers, so a
+	 * client that reads `quote_approval.current_user` and a peer that sends a
+	 * `QuoteRequest` are told the same thing.
+	 */
+	public function mayBeQuotedBy(string $askerId, bool $askerFollows = false): bool {
+		if ($askerId !== '' && $askerId === $this->getAttributedTo()) {
+			return true;
+		}
+
+		return match ($this->effectiveQuotePolicy()) {
+			self::QUOTE_POLICY_PUBLIC => true,
+			self::QUOTE_POLICY_FOLLOWERS => $askerFollows,
+			default => false,
+		};
 	}
 
 	/**

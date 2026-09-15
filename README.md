@@ -231,6 +231,10 @@ own unified search. No external search engine to run.
   Pixelfed, moderatable, with its own followers. The membership is the group,
   asked live, so leaving it takes the account away with it. Who wrote each post
   is recorded and shown to the team and to moderators, and to nobody else.
+- **Quote controls** — who may quote each of your posts (anybody, your
+  followers, nobody), who already has, and a button that detaches one and tells
+  their server. Mastodon 4.5's `quote_approval_policy`, its quote list and its
+  revoke, over FEP-044f.
 - **Relays** — subscribe to one and a new server's federated timeline stops
   being empty: a relay rebroadcasts the public posts of every server on it, and
   carries this server's public posts out to all of them. Public posts only, and

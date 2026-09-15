@@ -9,6 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Activity;
 
+use Exception;
+use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\QuoteGrantRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -19,6 +22,7 @@ use OCA\Social\Model\ActivityPub\Activity\QuoteRequest;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\QuoteGrant;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use Psr\Log\LoggerInterface;
@@ -48,6 +52,8 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 		private StreamRequest $streamRequest,
 		private CacheActorService $cacheActorService,
 		private ActivityService $activityService,
+		private QuoteGrantRequest $quoteGrantRequest,
+		private FollowsRequest $followsRequest,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -99,7 +105,7 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 			return;
 		}
 
-		if ($quoted->isQuotable()) {
+		if ($quoted->mayBeQuotedBy($item->getActorId(), $this->follows($item->getActorId(), $quoted))) {
 			$this->accept($item, $quoted);
 		} else {
 			$this->reject($item, $quoted);
@@ -111,6 +117,17 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 	 * `result` is the authorization the quoting post then carries.
 	 */
 	private function accept(QuoteRequest $request, Stream $quoted): void {
+		// written down before it is sent: taking the quote back later means
+		// sending a Reject that names *this* request, and without a row there
+		// is nothing to name
+		$grant = new QuoteGrant();
+		$grant->setTargetId($quoted->getId())
+			->setQuotingId($request->getInstrument())
+			->setActorId($request->getActorId())
+			->setRequestId($request->getId())
+			->setAuthorization($this->authorizationId($request, $quoted));
+		$this->quoteGrantRequest->save($grant);
+
 		$accept = new Accept();
 		$accept->generateUniqueIdFromActor($quoted->getAttributedTo(), 'accept/quote-requests');
 		$accept->setActorId($quoted->getAttributedTo());
@@ -121,6 +138,26 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 		$accept->addEntry('result', $this->authorizationId($request, $quoted));
 
 		$this->send($accept, $request);
+	}
+
+	/**
+	 * Whether the asker follows the quoted post's author — the question the
+	 * `followers` policy turns on.
+	 *
+	 * A follow that has not been accepted yet does not count here, unlike in a
+	 * list: this decides who may carry the post into their own audience, and
+	 * an unanswered request is not yet permission for anything.
+	 */
+	private function follows(string $askerId, Stream $quoted): bool {
+		if ($askerId === '' || $quoted->getAttributedTo() === '') {
+			return false;
+		}
+
+		try {
+			return $this->followsRequest->getByPersons($askerId, $quoted->getAttributedTo())->isAccepted();
+		} catch (Exception $e) {
+			return false;
+		}
 	}
 
 	private function reject(QuoteRequest $request, Stream $quoted): void {
