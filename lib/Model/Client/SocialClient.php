@@ -39,6 +39,12 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	private int $lastUpdate = -1;
 	private string $token = '';
 	private int $creation = -1;
+	/**
+	 * When *this account* authorized the app, which is a different date from
+	 * when the app registered itself on the instance. 0 where the row did not
+	 * come from `social_client_auth` at all.
+	 */
+	private int $authCreation = 0;
 
 	//	/** @var array */
 	//	private $tokenScopes = [];
@@ -345,6 +351,17 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		$this->creation = $creation;
 	}
 
+	/** When this account authorized the app, not when the app registered. */
+	public function getAuthCreation(): int {
+		return $this->authCreation;
+	}
+
+	public function setAuthCreation(int $authCreation): self {
+		$this->authCreation = $authCreation;
+
+		return $this;
+	}
+
 	/**
 	 * @param string $scopes
 	 *
@@ -384,14 +401,24 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		// '2026-09-10 11:22:33'. Casting that to an int gave 2026 — a timestamp
 		// in January 1970 — which is what OAuth's token response reported as
 		// `created_at`.
-		$creation = $this->get('creation', $data, '');
-		try {
-			$this->setCreation(($creation === '') ? 0 : (new DateTime($creation))->getTimestamp());
-		} catch (Exception $e) {
-			$this->setCreation(0);
-		}
+		$this->setCreation($this->timestamp($this->get('creation', $data, '')));
+		// the authorization's own date, where the read joined one in
+		$this->setAuthCreation($this->timestamp($this->get('auth_creation', $data, '')));
 
 		return $this;
+	}
+
+	/** A DATE column as a timestamp, and 0 for anything that is not one. */
+	private function timestamp(string $date): int {
+		if ($date === '') {
+			return 0;
+		}
+
+		try {
+			return (new DateTime($date))->getTimestamp();
+		} catch (Exception $e) {
+			return 0;
+		}
 	}
 
 	/**

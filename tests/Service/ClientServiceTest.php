@@ -317,4 +317,30 @@ class ClientServiceTest extends TestCase {
 		$this->expectException(ClientException::class);
 		$this->service->revokeToken($caller, 'tok');
 	}
+
+	// taking one authorization back
+
+	public function testRevokingOneOfTheAccountsOwnAuthorizationsTakesItBack(): void {
+		$mine = new SocialClient();
+		$mine->setAuthId(4)->setAppName('Tusky');
+		$this->clientAuthRequest->method('getByUser')->with('alice')->willReturn([$mine]);
+		$this->clientAuthRequest->expects($this->once())->method('revoke')->with(4);
+
+		$this->assertTrue($this->service->revokeAuthorizationOf('alice', 4));
+	}
+
+	/**
+	 * The id is a number a caller can count upwards, so the authorization is
+	 * looked up among the account's own rather than deleted by the id it was
+	 * handed: signing a stranger's phone out has to be impossible rather than
+	 * unlikely.
+	 */
+	public function testRevokingAnAuthorizationThatIsNotTheAccountsDoesNothing(): void {
+		$mine = new SocialClient();
+		$mine->setAuthId(4);
+		$this->clientAuthRequest->method('getByUser')->with('alice')->willReturn([$mine]);
+		$this->clientAuthRequest->expects($this->never())->method('revoke');
+
+		$this->assertFalse($this->service->revokeAuthorizationOf('alice', 5));
+	}
 }

@@ -498,6 +498,13 @@ hand, it is picked up as one.
 - **Reporting.** **Report** in a post's menu sends the post, with an optional
   note, to the moderators of this instance. From the web client it is never
   sent to the reported account or their server.
+- **Authorized apps.** **Settings → Authorized apps** lists every app you have
+  signed in to with this account — a phone client, a cross-poster, anything
+  that asked — with what it may do, when you granted it and when it was last
+  used. **Sign this app out** takes the key back, and the app asks you to sign
+  in again the next time you open it. It is the page to open after losing a
+  phone, and the only page where signing an app out does not depend on still
+  having the app.
 - **Export and migration.** **Settings → Migration** has three sections.
   **Export** downloads a zip of your profile, follows, followers, blocks,
   mutes, bookmarks, likes and every post you wrote — your private key is

@@ -231,6 +231,9 @@ own unified search. No external search engine to run.
   Pixelfed, moderatable, with its own followers. The membership is the group,
   asked live, so leaving it takes the account away with it. Who wrote each post
   is recorded and shown to the team and to moderators, and to nobody else.
+- **Authorized apps** — every app holding a key to your account, with what it
+  may do and when it was last used, and a button that signs one out. The page
+  to open after losing a phone.
 - **Filtered notifications** — the senders your notification policy is holding,
   one row each, with Show these and Dismiss. The policy has been in the API since
   4.3; this is the page that makes it usable.

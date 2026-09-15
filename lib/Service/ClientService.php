@@ -121,6 +121,28 @@ class ClientService {
 	}
 
 	/**
+	 * Takes one of an account's own authorizations back.
+	 *
+	 * Scoped to that account by looking it up among theirs rather than by
+	 * deleting the id it was handed: the id is a number a caller can count
+	 * upwards, and revoking somebody else's token — signing a stranger's
+	 * phone out — has to be impossible rather than unlikely.
+	 *
+	 * @return bool whether there was one to take back
+	 */
+	public function revokeAuthorizationOf(string $userId, int $authId): bool {
+		foreach ($this->getAuthorizationsOf($userId) as $authorization) {
+			if ($authorization->getAuthId() === $authId) {
+				$this->clientAuthRequest->revoke($authId);
+
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * @param string $clientId
 	 *
 	 * @return SocialClient

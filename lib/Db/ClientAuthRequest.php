@@ -245,6 +245,9 @@ class ClientAuthRequest extends ClientRequestBuilder {
 			->selectAlias('a.code', 'auth_code')
 			->selectAlias('a.token', 'token')
 			->selectAlias('a.last_update', 'last_update')
+			// the authorization's own date, beside the app registration's: the
+			// Authorized apps page wants to say when *this account* granted it
+			->selectAlias('a.creation', 'auth_creation')
 			->from(self::TABLE_CLIENT_AUTH, 'a')
 			->innerJoin('a', self::TABLE_CLIENT, 'cl', $qb->expr()->eq('a.client_id', 'cl.id'));
 

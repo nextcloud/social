@@ -535,6 +535,73 @@ class OAuthController extends Controller {
 		], Http::STATUS_OK);
 	}
 
+	/**
+	 * The apps this account has signed in to, newest first.
+	 *
+	 * Mastodon keeps this under Account → Authorized apps, and it is the first
+	 * place somebody looks after losing a phone. Every authorization has been
+	 * recorded in `social_client_auth` since the table was split out; nothing
+	 * showed it and nothing could take one back short of the app doing it
+	 * itself, which is no use at all when the app is the thing you have lost.
+	 *
+	 * A **session** route rather than a client-API one: a token must not be
+	 * able to read the list of tokens, and it certainly must not be able to
+	 * revoke its neighbours. What comes back never carries the token itself —
+	 * it is stored hashed, and there is nothing a client needs it for here.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/authorized_apps')]
+	public function authorizedApps(): DataResponse {
+		$userId = $this->userSession->getUser()?->getUID();
+		if ($userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		$apps = [];
+		foreach ($this->clientService->getAuthorizationsOf($userId) as $client) {
+			$apps[] = [
+				'id' => $client->getAuthId(),
+				'name' => $client->getAppName(),
+				'website' => $client->getAppWebsite(),
+				'scopes' => $client->getAuthScopes(),
+				// when *this account* granted it, not when the app registered
+				// itself on the instance — the second is the same date for
+				// everybody and says nothing about whose phone this is
+				'created_at' => $client->getAuthCreation(),
+				'last_used_at' => $client->getLastUpdate(),
+				// an authorization whose code was never exchanged: the browser
+				// came back and the app never asked for its token. Worth
+				// showing, because taking it back is still the right thing to
+				// do with it, and worth marking, because it is not a sign-in
+				'signed_in' => $client->getToken() !== '',
+			];
+		}
+
+		return new DataResponse($apps, Http::STATUS_OK);
+	}
+
+	/**
+	 * Takes one of them back. The app is signed out at once: the token is the
+	 * row, and the row is gone.
+	 *
+	 * An id that is not one of this account's own is a **404** and never a
+	 * 403 — the two answers together would say which ids exist.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/authorized_apps/{id}')]
+	public function revokeAuthorizedApp(int $id): DataResponse {
+		$userId = $this->userSession->getUser()?->getUID();
+		if ($userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		if (!$this->clientService->revokeAuthorizationOf($userId, $id)) {
+			return new DataResponse(['error' => 'no such authorization'], Http::STATUS_NOT_FOUND);
+		}
+
+		return new DataResponse([], Http::STATUS_OK);
+	}
+
 	/** The bearer token on this request, or '' when there is none. */
 	private function bearerToken(): string {
 		$header = $this->request->getHeader('Authorization');

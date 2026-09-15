@@ -116,6 +116,16 @@
 			<RecapSettings />
 		</section>
 
+		<section id="apps" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Authorized apps') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'The apps you have signed in to with this account — a phone client, a cross-poster, anything that asked. Each one holds a key to your account until you take it back, so this is the page to open after losing a phone.') }}
+			</p>
+			<AuthorizedApps />
+		</section>
+
 		<section class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Migration') }}
@@ -130,6 +140,7 @@
 
 <script>
 import ArchivedPosts from '../components/ArchivedPosts.vue'
+import AuthorizedApps from '../components/AuthorizedApps.vue'
 import HeldPosts from '../components/HeldPosts.vue'
 import MigrationSettings from '../components/MigrationSettings.vue'
 import PortfolioSettings from '../components/PortfolioSettings.vue'
@@ -166,6 +177,7 @@ export default {
 	components: {
 		AccountSettings,
 		ArchivedPosts,
+		AuthorizedApps,
 		FeaturedTagsSettings,
 		FiltersSettings,
 		HeldPosts,
