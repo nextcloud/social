@@ -321,6 +321,32 @@ class StoryServiceTest extends TestCase {
 		$this->assertFalse($json['can_react']);
 	}
 
+	/**
+	 * A story looked up by its address — which is what the fetch route does,
+	 * and what a capability leads to — has no picture on it yet: only the
+	 * timeline paths hydrate. Serialised without one it is not a story, and
+	 * the receiver that followed the capability has nothing to show.
+	 */
+	public function testAStoryReadOffItsRowIsStillServedWithItsPicture(): void {
+		$story = $this->story(self::ALICE, 7)
+			->setSourceId('https://cloud.example/apps/social/@alice/stories/7')
+			->setDocumentId('https://cloud.example/documents/4');
+		$this->assertNull($story->getMedia(), 'the row itself carries none');
+
+		$document = new Document();
+		$document->setId('https://cloud.example/documents/4');
+		$document->setUrl('https://cloud.example/media/4.jpg');
+		$document->setMediaType('image/jpeg');
+		$this->documentService->method('getDocumentById')
+			->with('https://cloud.example/documents/4')->willReturn($document);
+
+		$json = $this->service->asActivityPub($this->person(self::ALICE), $story)->jsonSerialize();
+
+		// the picture the row named, typed the way Pixelfed requires
+		$this->assertSame('image/jpeg', $json['attachment']['mediaType']);
+		$this->assertSame('Image', $json['attachment']['type']);
+	}
+
 	/** A video story is a `Video`; Pixelfed takes those two types and no others. */
 	public function testAVideoStoryIsTypedAsOne(): void {
 		$story = $this->story(self::ALICE, 7)->setSourceId('https://cloud.example/apps/social/@alice/stories/7');

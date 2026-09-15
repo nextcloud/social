@@ -194,6 +194,16 @@ class StoryService {
 	 * One story as the wire carries it.
 	 */
 	public function asActivityPub(Person $owner, Story $story): ApStory {
+		// A story read straight off its row has no picture on it yet: the
+		// timeline paths hydrate before they hand one over and the fetch route
+		// does not, because it looks a story up by its address. A story
+		// serialised without its picture is not a story — the receiver has
+		// nothing to show and Pixelfed discards it — so the picture is put back
+		// here rather than depended on.
+		if ($story->getMedia() === null) {
+			$this->attachMedia($story);
+		}
+
 		$object = new ApStory();
 		$object->setId($story->getSourceId());
 		$object->setBearcap($this->bearcapOf($story->getSourceId()));
