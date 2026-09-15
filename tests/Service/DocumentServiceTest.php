@@ -33,6 +33,7 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
+use OCP\IAvatarManager;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -68,6 +69,7 @@ class DocumentServiceTest extends TestCase {
 			$this->cacheService,
 			$this->configService,
 			$this->miscService,
+			$this->createMock(IAvatarManager::class),
 		);
 	}
 

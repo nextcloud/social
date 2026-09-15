@@ -15,13 +15,16 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PixelfedConfigService;
+use OCA\Social\Service\PixelfedService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -65,6 +68,8 @@ class PixelfedController extends ClientApiController {
 		private HashtagService $hashtagService,
 		private LinkPreviewService $linkPreviewService,
 		private PlaceService $placeService,
+		private PixelfedService $pixelfedService,
+		private StoryService $storyService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -174,6 +179,242 @@ class PixelfedController extends ClientApiController {
 				$this->hashtagService->getTrending(max(1, min($limit, self::LIMIT)), $period),
 				Http::STATUS_OK
 			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+	/**
+	 * How the app names a trend window, as this app counts one.
+	 *
+	 * Pixelfed's `range` is daily, monthly or yearly; the trend counters here
+	 * run to ten days, which is where both longer ranges land.
+	 */
+	private function periodFor(string $range): string {
+		return match (strtolower(trim($range))) {
+			'daily' => '1d',
+			'monthly', 'yearly' => '10d',
+			default => HashtagService::PERIOD_DEFAULT,
+		};
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/discover/posts/trending')]
+	public function discoverPostsTrending(string $range = '', int $limit = self::LIMIT, int $offset = 0): DataResponse {
+		return $this->discoverPosts($limit, $offset, $this->periodFor($range));
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/discover/posts/network/trending')]
+	public function discoverNetworkTrending(string $range = '', int $limit = self::LIMIT, int $offset = 0): DataResponse {
+		return $this->discoverPosts($limit, $offset, $this->periodFor($range));
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.2/stories/carousel')]
+	public function storiesCarousel(): DataResponse {
+		try {
+			$this->initViewer(['read:stories']);
+
+			return new DataResponse($this->pixelfedService->carousel($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/stories/seen')]
+	public function storiesSeen(int $id = 0): DataResponse {
+		try {
+			$this->initViewer(['write:stories']);
+			$this->storyService->markSeen($this->viewer(), $id);
+
+			return new DataResponse(['code' => 200], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/stories/self-expire/{id}', requirements: ['id' => '\\d+'])]
+	public function storiesSelfExpire(int $id): DataResponse {
+		try {
+			$this->initViewer(['write:stories']);
+			$this->storyService->delete($this->viewer(), $id);
+
+			return new DataResponse(['code' => 200, 'msg' => 'Successfully deleted'], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.2/stories/viewers')]
+	public function storiesViewers(int $sid = 0): DataResponse {
+		try {
+			$this->initViewer(['read:stories']);
+
+			return new DataResponse($this->pixelfedService->storyViewers($this->viewer(), $sid), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.2/stories/mention-autocomplete')]
+	public function storiesMentionAutocomplete(string $q = ''): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			return new DataResponse($this->pixelfedService->mentionAutocomplete($q), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/collections/self')]
+	public function collectionsSelf(): DataResponse {
+		try {
+			$this->initViewer(['read:collections']);
+
+			return new DataResponse($this->pixelfedService->collections($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/accounts/username/{username}')]
+	public function accountByUsername(string $username): DataResponse {
+		try {
+			$this->optionalViewer(['read']);
+			$account = $this->pixelfedService->resolveAccount($username);
+			$account->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($account, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/accounts/mutuals/{id}')]
+	public function accountMutuals(string $id): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			return new DataResponse($this->pixelfedService->mutuals($this->viewer(), $id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1.1/accounts/avatar')]
+	public function accountAvatarDelete(): DataResponse {
+		try {
+			$this->initViewer(['write:accounts']);
+
+			return new DataResponse($this->pixelfedService->removeAvatar($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 30, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/report')]
+	public function report(
+		string $report_type = '',
+		string $object_id = '',
+		string $object_type = '',
+		string $message = '',
+	): DataResponse {
+		try {
+			$this->initViewer(['write:reports']);
+			$this->pixelfedService->report($this->viewer(), $report_type, $object_id, $object_type, $message);
+
+			return new DataResponse(['msg' => 'Successfully sent report', 'code' => 200], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/compose/settings')]
+	public function composeSettings(): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			return new DataResponse($this->pixelfedService->composeSettings($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/nag/state')]
+	public function nagState(): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			return new DataResponse($this->pixelfedService->nagState(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/push/state')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/push/disable', postfix: 'disable')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/push/update', postfix: 'update')]
+	public function pushState(): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			return new DataResponse($this->pixelfedService->pushState($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/push/compare')]
+	public function pushCompare(): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			return new DataResponse($this->pixelfedService->pushCompare($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/tags/{hashtag}/related')]
+	public function tagRelated(string $hashtag, int $limit = self::LIMIT): DataResponse {
+		try {
+			$this->optionalViewer(['read']);
+
+			return new DataResponse($this->hashtagService->related($hashtag, $limit), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

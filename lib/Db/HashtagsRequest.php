@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -223,6 +224,53 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	 *
 	 * @return array
 	 */
+	/**
+	 * The hashtags that travel with one: those on the same public posts,
+	 * most often first.
+	 *
+	 * Counted from `social_stream_tag` joined to itself on the post, and to
+	 * the post for its visibility: a tag on a followers-only post is not
+	 * public knowledge, so it does not count here, however often it recurs.
+	 *
+	 * @return array<string, int> hashtag => how many public posts carry both
+	 */
+	public function related(string $hashtag, int $limit = 20): array {
+		$hashtag = strtolower(trim(ltrim($hashtag, '#')));
+		if ($hashtag === '' || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+
+		$qb->select('other.hashtag')
+			->selectAlias($qb->func()->count('*'), 'total')
+			->from(self::TABLE_STREAM_TAGS, 'st')
+			->innerJoin('st', self::TABLE_STREAM_TAGS, 'other', $expr->andX(
+				$expr->eq('other.stream_id', 'st.stream_id'),
+				$expr->neq('other.hashtag', 'st.hashtag')
+			))
+			->innerJoin('st', self::TABLE_STREAM, 's', $expr->eq('s.id_prim', 'st.stream_id'))
+			->where($expr->eq('st.hashtag', $qb->createNamedParameter($hashtag)))
+			->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)))
+			->groupBy('other.hashtag')
+			->orderBy('total', 'desc')
+			->addOrderBy('other.hashtag', 'asc')
+			->setMaxResults($limit);
+
+		$related = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$name = (string)$data['hashtag'];
+			if ($name !== '') {
+				$related[$name] = (int)$data['total'];
+			}
+		}
+		$cursor->closeCursor();
+
+		return $related;
+	}
+
 	public function searchHashtags(string $hashtag, bool $all): array {
 		$qb = $this->getHashtagsSelectSql();
 		$qb->searchInHashtag($hashtag, $all);

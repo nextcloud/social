@@ -50,6 +50,19 @@ class PixelfedConfigServiceTest extends TestCase {
 	}
 
 	/** The ceiling a picker enforces has to be the one the server enforces. */
+	/**
+	 * Nothing uploaded here is recompressed — metadata is stripped losslessly
+	 * and a picture is re-encoded only to rotate it. A client that reads
+	 * `optimize_image: true` may skip its own compression on the strength of
+	 * a promise the server does not keep.
+	 */
+	public function testTheUploaderDoesNotClaimAnOptimisationItDoesNotDo(): void {
+		$config = $this->service->config();
+
+		$this->assertFalse($config['uploader']['optimize_image']);
+		$this->assertSame(100, $config['uploader']['image_quality']);
+	}
+
 	public function testTheAlbumLimitIsTheOneTheServerKeeps(): void {
 		$config = $this->service->config();
 

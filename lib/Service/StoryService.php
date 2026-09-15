@@ -141,6 +141,35 @@ class StoryService {
 	}
 
 	/** Deletes what has expired. Called from cron. */
+	/**
+	 * Who watched one of the owner's own stories.
+	 *
+	 * Owner only, and the same 404 as an unknown id for anybody else: who
+	 * watched is told to the poster and to nobody else, the way the view count
+	 * is.
+	 *
+	 * @return list<Person>
+	 * @throws ItemNotFoundException
+	 */
+	public function viewers(Person $owner, int $id): array {
+		$story = $this->storiesRequest->getLiveById($id);
+		if ($story->getOwnerId() !== $owner->getId()) {
+			throw new ItemNotFoundException('unknown story');
+		}
+
+		$viewers = [];
+		foreach ($this->storiesRequest->viewersOf($id) as $actorId) {
+			try {
+				$viewers[] = $this->cacheActorService->getFromId($actorId);
+			} catch (\Exception $e) {
+				// a viewer this server cannot name any more is left out rather
+				// than drawn as a blank
+			}
+		}
+
+		return $viewers;
+	}
+
 	public function purgeExpired(int $limit = 500): int {
 		return $this->storiesRequest->deleteExpired($limit);
 	}

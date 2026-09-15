@@ -43,7 +43,7 @@ class PixelfedConfigService {
 	private const MAX_CAPTION_LENGTH = InstanceService::MAX_CHARACTERS;
 
 	/** What an alt text may be, matching the column the API writes it to. */
-	private const MAX_ALTTEXT_LENGTH = 1500;
+	public const MAX_ALTTEXT_LENGTH = 1500;
 
 	/** What a bio may be. */
 	private const MAX_BIO_LENGTH = 500;
@@ -76,8 +76,12 @@ class PixelfedConfigService {
 				'max_caption_length' => self::MAX_CAPTION_LENGTH,
 				'max_altext_length' => self::MAX_ALTTEXT_LENGTH,
 				'album_limit' => Stream::MAX_ATTACHMENTS,
-				'image_quality' => 80,
-				'optimize_image' => true,
+				// nothing here is recompressed: metadata is stripped losslessly
+				// and a picture is re-encoded only when it has to be rotated.
+				// It said `optimize_image: true, image_quality: 80` — a claim
+				// a client may act on by skipping its own compression
+				'image_quality' => 100,
+				'optimize_image' => false,
 				'optimize_video' => false,
 				'media_types' => implode(',', $this->instanceService->supportedMimeTypes()),
 				'max_collection_length' => CollectionsRequest::MAX_ITEMS,

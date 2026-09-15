@@ -289,6 +289,34 @@ class StoriesRequest extends CoreRequestBuilder {
 	}
 
 	/** @param int[] $storyIds */
+	/**
+	 * Who watched one story, newest viewer first.
+	 *
+	 * The view rows hold only the viewer's id hash, so the cached actors are
+	 * joined to get an id a caller can resolve; a viewer this server no longer
+	 * caches is simply not in the answer.
+	 *
+	 * @return string[] actor ids
+	 */
+	public function viewersOf(int $storyId, int $limit = 200): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('ca.id')
+			->from(self::TABLE_STORY_VIEWS, 'sv')
+			->innerJoin('sv', self::TABLE_CACHE_ACTORS, 'ca', $qb->expr()->eq('ca.id_prim', 'sv.actor_id_prim'))
+			->where($qb->expr()->eq('sv.story_id', $qb->createNamedParameter($storyId, IQueryBuilder::PARAM_INT)))
+			->orderBy('sv.creation', 'desc')
+			->setMaxResults(max(1, $limit));
+
+		$viewers = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$viewers[] = (string)$data['id'];
+		}
+		$cursor->closeCursor();
+
+		return $viewers;
+	}
+
 	private function deleteViewsOf(array $storyIds): void {
 		if ($storyIds === []) {
 			return;

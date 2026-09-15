@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\StoriesRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -57,6 +58,39 @@ class StoryServiceTest extends TestCase {
 	private function story(string $owner, int $id = 1): Story {
 		return (new Story())->setId($id)->setOwnerId($owner)
 			->setExpiresAt(time() + Story::LIFETIME);
+	}
+
+	/** Who watched is told to the poster and to nobody else, like the view count. */
+	public function testOnlyTheOwnerIsToldWhoWatchedAStory(): void {
+		$this->storiesRequest->method('getLiveById')->willReturn($this->story(self::ALICE, 7));
+		$this->storiesRequest->expects($this->never())->method('viewersOf');
+
+		$this->expectException(ItemNotFoundException::class);
+		$this->service->viewers($this->person(self::BOB), 7);
+	}
+
+	public function testTheOwnerGetsTheViewersThisServerCanStillName(): void {
+		$this->storiesRequest->method('getLiveById')->willReturn($this->story(self::ALICE, 7));
+		$this->storiesRequest->method('viewersOf')->with(7)->willReturn([self::BOB, 'https://gone.example/users/x']);
+		$cacheActorService = $this->createMock(CacheActorService::class);
+		$cacheActorService->method('getFromId')->willReturnCallback(function (string $id): Person {
+			if ($id === self::BOB) {
+				return $this->person(self::BOB);
+			}
+			throw new CacheActorDoesNotExistException();
+		});
+		$service = new StoryService(
+			$this->storiesRequest,
+			$this->documentService,
+			$this->followService,
+			$cacheActorService,
+			$this->createMock(IURLGenerator::class)
+		);
+
+		$viewers = $service->viewers($this->person(self::ALICE), 7);
+
+		$this->assertCount(1, $viewers);
+		$this->assertSame(self::BOB, $viewers[0]->getId());
 	}
 
 	public function testPostingSomebodyElsesUploadIsRefused(): void {
