@@ -40,6 +40,13 @@ class VideoTranscodingWorker {
 	/** How many candidates are read to find one worth converting. */
 	private const PAGE = 20;
 
+	/**
+	 * How many pages one call will walk past before giving the run back.
+	 * A thousand rows of bookkeeping is a second; the point of the ceiling is
+	 * that a cron worker always returns.
+	 */
+	private const MAX_PAGES = 50;
+
 	public function __construct(
 		private CacheDocumentsRequest $cacheDocumentsRequest,
 		private CacheDocumentService $cacheDocumentService,
@@ -56,16 +63,39 @@ class VideoTranscodingWorker {
 	 * is passed over, which is what stops the same page being read on every
 	 * run for ever.
 	 *
+	 * It **pages** rather than looking at one page and giving up. An instance
+	 * whose first twenty videos are all MP4s already — which is the ordinary
+	 * case, because MP4 is what most things upload — would otherwise report
+	 * that there was nothing to do while a `.mov` sat behind them. Found on
+	 * devel: the run said "nothing was waiting" with a `video/quicktime`
+	 * plainly in the table.
+	 *
+	 * Bounded all the same: each page either converts something and returns,
+	 * or marks every row on it, so the walk moves forward and a library of
+	 * MP4s is passed over once in the life of the instance rather than on
+	 * every run.
+	 *
 	 * @return bool whether a video was actually converted
 	 */
 	public function convertNext(): bool {
-		foreach ($this->cacheDocumentsRequest->getVideosToTranscode(self::PAGE) as $document) {
-			if (!$this->videoTranscodeService->shouldConvert($document->getMediaType())) {
-				$this->cacheDocumentsRequest->setTranscoded($document->getNid(), self::NOT_NEEDED);
-				continue;
+		$after = 0;
+
+		for ($page = 0; $page < self::MAX_PAGES; $page++) {
+			$documents = $this->cacheDocumentsRequest->getVideosToTranscode(self::PAGE, $after);
+			if ($documents === []) {
+				return false;
 			}
 
-			return $this->convert($document);
+			foreach ($documents as $document) {
+				$after = max($after, $document->getNid());
+
+				if (!$this->videoTranscodeService->shouldConvert($document->getMediaType())) {
+					$this->cacheDocumentsRequest->setTranscoded($document->getNid(), self::NOT_NEEDED);
+					continue;
+				}
+
+				return $this->convert($document);
+			}
 		}
 
 		return false;

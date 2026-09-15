@@ -94,8 +94,10 @@ class VideoTranscodingWorkerTest extends TestCase {
 	 * and nothing behind them would ever be converted.
 	 */
 	public function testAVideoAlreadyInTheTargetFormatIsMarkedAndPassedOver(): void {
-		$mp4 = $this->document(1, 'video/mp4');
-		$this->cacheDocumentsRequest->method('getVideosToTranscode')->willReturn([$mp4]);
+		$page = [$this->document(1, 'video/mp4')];
+		$this->cacheDocumentsRequest->method('getVideosToTranscode')->willReturnCallback(
+			static fn (int $limit, int $after = 0): array => ($after === 0) ? $page : []
+		);
 		$this->videoTranscodeService->method('shouldConvert')->willReturn(false);
 
 		$this->cacheDocumentsRequest->expects($this->once())->method('setTranscoded')
@@ -183,6 +185,50 @@ class VideoTranscodingWorkerTest extends TestCase {
 	/** Nothing to do is not a failure. */
 	public function testAnEmptyQueueConvertsNothingAndSaysSo(): void {
 		$this->cacheDocumentsRequest->method('getVideosToTranscode')->willReturn([]);
+
+		$this->assertFalse($this->worker->convertNext());
+	}
+
+	/**
+	 * Found on devel: a run reported "nothing was waiting" with a
+	 * `video/quicktime` plainly in the table, because the first page it read
+	 * was twenty MP4s and it gave up there. MP4 is what most things upload, so
+	 * that is the ordinary case rather than an edge one.
+	 */
+	public function testItWalksPastAWholePageOfMp4sToReachTheVideoBehindThem(): void {
+		$mp4s = [];
+		for ($nid = 1; $nid <= 20; $nid++) {
+			$mp4s[] = $this->document($nid, 'video/mp4');
+		}
+		$mov = $this->document(21, 'video/quicktime');
+
+		$this->cacheDocumentsRequest->method('getVideosToTranscode')->willReturnCallback(
+			static fn (int $limit, int $after = 0): array => ($after === 0) ? $mp4s : [$mov]
+		);
+		$this->videoTranscodeService->method('shouldConvert')->willReturnCallback(
+			static fn (string $type): bool => $type === 'video/quicktime'
+		);
+
+		$this->cacheDocumentService->method('getContentFromCache')->willReturn($this->storedFile());
+		$converted = tempnam(sys_get_temp_dir(), 'out');
+		file_put_contents($converted, 'converted');
+		$this->temporary[] = $converted;
+		$this->videoTranscodeService->method('convert')->willReturn($converted);
+		$this->cacheDocumentService->method('storeFile')->willReturn('new-uuid');
+
+		$this->cacheDocumentsRequest->expects($this->once())->method('replaceVideo')
+			->with(21, 'new-uuid', VideoTranscodeService::TARGET_TYPE);
+
+		$this->assertTrue($this->worker->convertNext());
+	}
+
+	/** And it stops when the walk runs out, rather than asking for ever. */
+	public function testAWholeLibraryOfMp4sEndsTheWalkRatherThanLoopingForever(): void {
+		$page = [$this->document(1, 'video/mp4')];
+		$this->cacheDocumentsRequest->method('getVideosToTranscode')->willReturnCallback(
+			static fn (int $limit, int $after = 0): array => ($after === 0) ? $page : []
+		);
+		$this->videoTranscodeService->method('shouldConvert')->willReturn(false);
 
 		$this->assertFalse($this->worker->convertNext());
 	}
