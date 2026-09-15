@@ -148,6 +148,18 @@ class StoriesRequest extends CoreRequestBuilder {
 	 * somebody else's story is the one thing this row must never honour.
 	 */
 	public function deleteBySourceId(string $sourceId, string $actorId): void {
+		// read first, so that what hangs off the row can be deleted with it:
+		// a story withdrawn by its author used to leave its views behind
+		try {
+			$story = $this->getBySourceId($sourceId);
+			if ($story->getOwnerId() === $actorId) {
+				$this->deleteRelatedTo([$story->getId()]);
+			}
+		} catch (ItemNotFoundException $e) {
+			// nothing here under that address, which is what a `Delete` for a
+			// story this instance never kept looks like
+		}
+
 		$qb = $this->getStoriesDeleteSql();
 		$qb->where($qb->expr()->eq('source_id_prim', $qb->createNamedParameter(md5($sourceId))))
 			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
@@ -229,7 +241,7 @@ class StoriesRequest extends CoreRequestBuilder {
 
 	/** Removes one story of one owner, and the record of who saw it. */
 	public function delete(string $actorId, int $id): void {
-		$this->deleteViewsOf([$id]);
+		$this->deleteRelatedTo([$id]);
 
 		$qb = $this->getStoriesDeleteSql();
 		$qb->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
@@ -244,10 +256,17 @@ class StoriesRequest extends CoreRequestBuilder {
 		foreach ($this->getLiveByActor($actorId) as $story) {
 			$ids[] = $story->getId();
 		}
-		$this->deleteViewsOf($ids);
+		$this->deleteRelatedTo($ids);
 
 		$qb = $this->getStoriesDeleteSql();
 		$qb->where($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter(md5($actorId))));
+		$qb->executeStatement();
+
+		// and what this account said about anybody else's story, which the
+		// stories it owns do not cover
+		$qb = $this->getQueryBuilder();
+		$qb->delete(self::TABLE_STORY_REACTS)
+			->where($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter(md5($actorId))));
 		$qb->executeStatement();
 	}
 
@@ -273,7 +292,7 @@ class StoriesRequest extends CoreRequestBuilder {
 			return 0;
 		}
 
-		$this->deleteViewsOf($ids);
+		$this->deleteRelatedTo($ids);
 
 		$qb = $this->getStoriesDeleteSql();
 		$qb->where($qb->expr()->in('id', $qb->createNamedParameter($ids, IQueryBuilder::PARAM_INT_ARRAY)));
@@ -379,15 +398,17 @@ class StoriesRequest extends CoreRequestBuilder {
 		return $viewers;
 	}
 
-	private function deleteViewsOf(array $storyIds): void {
+	private function deleteRelatedTo(array $storyIds): void {
 		if ($storyIds === []) {
 			return;
 		}
 
-		$qb = $this->getQueryBuilder();
-		$qb->delete(self::TABLE_STORY_VIEWS)
-			->where($qb->expr()->in('story_id', $qb->createNamedParameter($storyIds, IQueryBuilder::PARAM_INT_ARRAY)));
-		$qb->executeStatement();
+		foreach ([self::TABLE_STORY_VIEWS, self::TABLE_STORY_REACTS] as $table) {
+			$qb = $this->getQueryBuilder();
+			$qb->delete($table)
+				->where($qb->expr()->in('story_id', $qb->createNamedParameter($storyIds, IQueryBuilder::PARAM_INT_ARRAY)));
+			$qb->executeStatement();
+		}
 	}
 
 	/** The filter every read carries: a story whose day is up is not there. */

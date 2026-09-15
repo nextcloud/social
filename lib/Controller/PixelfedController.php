@@ -11,6 +11,7 @@ namespace OCA\Social\Controller;
 
 use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\Client\StoryInteraction;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ArchiveService;
 use OCA\Social\Service\ClientService;
@@ -19,6 +20,7 @@ use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PixelfedConfigService;
 use OCA\Social\Service\PixelfedService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
@@ -72,6 +74,7 @@ class PixelfedController extends ClientApiController {
 		private PlaceService $placeService,
 		private PixelfedService $pixelfedService,
 		private StoryService $storyService,
+		private StoryInteractionService $storyInteractionService,
 		private ArchiveService $archiveService,
 		private DiscoverCategoriesRequest $discoverCategoriesRequest,
 	) {
@@ -272,6 +275,78 @@ class PixelfedController extends ClientApiController {
 			$this->initViewer(['read:stories']);
 
 			return new DataResponse($this->pixelfedService->storyViewers($this->viewer(), $sid), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * An emoji sent back to whoever posted a story.
+	 *
+	 * Pixelfed's own spelling of the route, down to `sid` for the story. A
+	 * story the viewer may not see and one that does not exist are the same
+	 * 404: whether an account has a story up is told to its followers alone.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.2/stories/react')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/stories/react', postfix: 'pf')]
+	public function storiesReact(int $sid = 0, string $reaction = ''): DataResponse {
+		try {
+			$this->initViewer(['write:stories']);
+
+			return new DataResponse(
+				$this->storyInteractionService->answer(
+					$this->viewer(), $sid, StoryInteraction::TYPE_REACTION, $reaction
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * A sentence sent back to whoever posted a story.
+	 *
+	 * Pixelfed calls this a comment and turns it into a direct message. Here it
+	 * stays beside the story: it is a private answer to something that is gone
+	 * tomorrow, and a post would outlive what it was about.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.2/stories/comment')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/stories/comment', postfix: 'pf')]
+	public function storiesComment(int $sid = 0, string $caption = ''): DataResponse {
+		try {
+			$this->initViewer(['write:stories']);
+
+			return new DataResponse(
+				$this->storyInteractionService->answer(
+					$this->viewer(), $sid, StoryInteraction::TYPE_REPLY, $caption
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** What has been said about one of the viewer's own stories. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.2/stories/reactions')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/stories/reactions', postfix: 'pf')]
+	public function storiesReactions(int $sid = 0): DataResponse {
+		try {
+			$this->initViewer(['read:stories']);
+
+			return new DataResponse(
+				['reactions' => $this->storyInteractionService->forStory($this->viewer(), $sid)],
+				Http::STATUS_OK
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

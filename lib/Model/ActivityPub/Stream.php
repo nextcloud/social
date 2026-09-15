@@ -169,6 +169,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const SUBTYPE_WARNING = 'ModerationWarning';
 	public const SUBTYPE_SEVERED = 'SeveredRelationships';
 
+	/**
+	 * Somebody answered one of your stories. Pixelfed's own two names, because
+	 * these arrive from Pixelfed and a client that knows them already draws
+	 * them the way their sender meant.
+	 */
+	public const SUBTYPE_STORY_REACT = 'StoryReaction';
+	public const SUBTYPE_STORY_REPLY = 'StoryReply';
+
 	private const NOTIFICATION_TYPES = [
 		Like::TYPE => 'favourite',
 		Announce::TYPE => 'reblog',
@@ -180,6 +188,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		self::SUBTYPE_STATUS => 'status',
 		self::SUBTYPE_WARNING => 'moderation_warning',
 		self::SUBTYPE_SEVERED => 'severed_relationships',
+		self::SUBTYPE_STORY_REACT => 'story:react',
+		self::SUBTYPE_STORY_REPLY => 'story:comment',
 	];
 
 	private string $activityId = '';

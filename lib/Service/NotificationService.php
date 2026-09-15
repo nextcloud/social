@@ -30,6 +30,8 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Client\Story;
+use OCA\Social\Model\Client\StoryInteraction;
 use OCA\Social\Reference\PostReferenceProvider;
 use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
@@ -304,6 +306,47 @@ class NotificationService {
 			$interface->save($item);
 		} catch (Exception $e) {
 			$this->logger->warning('could not store a moderation notification', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Tells the poster of a story that somebody has answered it.
+	 *
+	 * The poster and nobody else, whoever the answer came from and wherever it
+	 * came from: a reaction to a story is not a public fact about the story,
+	 * it is a message to one person. The notification carries the text, because
+	 * a reply lives with the story and a story lives a day — there is nowhere
+	 * to go and read it later.
+	 */
+	public function onStoryInteraction(Story $story, StoryInteraction $interaction): void {
+		if (!$this->isLocal($story->getOwnerId()) || $story->getOwnerId() === $interaction->getActorId()) {
+			return;
+		}
+
+		try {
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
+
+			/** @var SocialAppNotification $item */
+			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+			$item->addDetail('story_id', (string)$story->getId());
+			$item->addDetail('content', $interaction->getContent());
+			$item->setAttributedTo($story->getOwnerId())
+				->setSubType(
+					($interaction->getType() === StoryInteraction::TYPE_REPLY)
+						? Stream::SUBTYPE_STORY_REPLY : Stream::SUBTYPE_STORY_REACT
+				)
+				->setActorId($interaction->getActorId())
+				->setId($story->getOwnerId() . '/notification+story/' . md5($interaction->getSourceId()))
+				->setSummary(
+					($interaction->getType() === StoryInteraction::TYPE_REPLY)
+						? 'Somebody replied to your story' : 'Somebody reacted to your story'
+				)
+				->setTo($story->getOwnerId())
+				->setLocal(true);
+
+			$interface->save($item);
+		} catch (Exception $e) {
+			$this->logger->warning('could not store a story notification', ['exception' => $e]);
 		}
 	}
 

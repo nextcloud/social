@@ -71,6 +71,7 @@ class CoreRequestBuilder {
 	public const TABLE_PLACES = 'social_place';
 	public const TABLE_STORIES = 'social_story';
 	public const TABLE_STORY_VIEWS = 'social_story_view';
+	public const TABLE_STORY_REACTS = 'social_story_react';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -294,6 +295,17 @@ class CoreRequestBuilder {
 			'id',
 			'story_id',
 			'actor_id_prim',
+			'creation'
+		],
+		self::TABLE_STORY_REACTS => [
+			'id',
+			'story_id',
+			'actor_id',
+			'actor_id_prim',
+			'type',
+			'content',
+			'source_id',
+			'source_id_prim',
 			'creation'
 		],
 		self::TABLE_CONVERSATION_STATE => [

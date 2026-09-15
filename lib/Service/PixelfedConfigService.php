@@ -122,7 +122,7 @@ class PixelfedConfigService {
 				'direct_messages' => true,
 				'live_streaming' => false,
 				'push_notifications' => false,
-				'stories_reactions' => false,
+				'stories_reactions' => true,
 			],
 			'limits' => [
 				'max_album_length' => Stream::MAX_ATTACHMENTS,

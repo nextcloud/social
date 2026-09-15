@@ -88,6 +88,51 @@
 				{{ story.caption }}
 			</p>
 
+			<!-- what somebody says back: emoji for a reaction, a line for a
+			     reply. Above the tap halves in the stacking order, or tapping
+			     a control would also turn the page. -->
+			<div v-if="!isOwn" class="story-viewer__answer">
+				<ul class="story-viewer__reactions">
+					<li v-for="emoji in REACTIONS" :key="emoji">
+						<button
+							type="button"
+							class="story-viewer__reaction"
+							:disabled="answering"
+							:aria-label="t('social', 'React with {emoji}', { emoji })"
+							@click="react(emoji)">
+							{{ emoji }}
+						</button>
+					</li>
+				</ul>
+				<form class="story-viewer__reply" @submit.prevent="reply">
+					<input
+						v-model="replyDraft"
+						type="text"
+						class="story-viewer__reply-field"
+						:placeholder="t('social', 'Reply to this story…')"
+						:disabled="answering"
+						:maxlength="REPLY_MAX"
+						@focus="pause"
+						@blur="resume">
+					<NcButton
+						variant="tertiary"
+						type="submit"
+						:disabled="answering || replyDraft.trim() === ''"
+						:ariaLabel="t('social', 'Send')">
+						<template #icon>
+							<IconSend :size="20" />
+						</template>
+					</NcButton>
+				</form>
+			</div>
+
+			<div v-else-if="answers.length > 0" class="story-viewer__answers">
+				<p v-for="said in answers" :key="said.id" class="story-viewer__answers-one">
+					<strong>{{ said.account?.display_name || said.account?.username || t('social', 'Somebody') }}</strong>
+					{{ said.content }}
+				</p>
+			</div>
+
 			<!-- the two halves of the stage: back and forward, as every story
 			     player has them, without a control drawn over the picture -->
 			<button
@@ -113,6 +158,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import IconDelete from 'vue-material-design-icons/Delete.vue'
 import IconEye from 'vue-material-design-icons/Eye.vue'
+import IconSend from 'vue-material-design-icons/Send.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
@@ -120,6 +166,17 @@ import { useAccountStore } from '../store/account.js'
 
 /** how often the progress bar moves, in ms */
 const TICK = 100
+
+/**
+ * The emoji offered for a reaction.
+ *
+ * A short row rather than a picker: a reaction to a story is a tap, and
+ * anything longer is a reply, which is the field beside it.
+ */
+const REACTIONS = ['❤️', '🔥', '😂', '😮', '👏', '😢']
+
+/** As long as the server will take, so the field stops where the server does. */
+const REPLY_MAX = 500
 
 /**
  * Plays the stories of one account after another, full screen.
@@ -138,6 +195,7 @@ export default {
 		ActorAvatar,
 		IconDelete,
 		IconEye,
+		IconSend,
 		NcButton,
 		NcModal,
 	},
@@ -167,6 +225,12 @@ export default {
 			timer: null,
 			paused: false,
 			deleting: false,
+			answering: false,
+			replyDraft: '',
+			/** what has been said about the reader's own story on screen */
+			answers: [],
+			REACTIONS,
+			REPLY_MAX,
 		}
 	},
 
@@ -223,6 +287,8 @@ export default {
 			}
 
 			this.markSeen(this.story)
+			this.replyDraft = ''
+			this.loadAnswers()
 
 			// a video runs for as long as it runs; a picture for the seconds
 			// its poster chose
@@ -356,6 +422,77 @@ export default {
 				showError(t('social', 'Could not delete the story'))
 			} finally {
 				this.deleting = false
+			}
+		},
+
+		/**
+		 * @param {string} emoji the one that was tapped
+		 * @return {Promise<void>}
+		 */
+		async react(emoji) {
+			await this.answer('react', { sid: this.story.id, reaction: emoji })
+		},
+
+		/** @return {Promise<void>} */
+		async reply() {
+			const caption = this.replyDraft.trim()
+			if (caption === '') {
+				return
+			}
+			if (await this.answer('comment', { sid: this.story.id, caption })) {
+				this.replyDraft = ''
+			}
+		},
+
+		/**
+		 * @param {string} route `react` or `comment`
+		 * @param {object} body what to send
+		 * @return {Promise<boolean>} whether it went
+		 */
+		async answer(route, body) {
+			if (!this.story || this.answering) {
+				return false
+			}
+
+			this.answering = true
+			try {
+				await axios.post(generateUrl(`apps/social/api/v1.2/stories/${route}`), body)
+				showSuccess(t('social', 'Sent'))
+
+				return true
+			} catch (error) {
+				logger.debug('could not answer the story', { error })
+				showError(error.response?.data?.error ?? t('social', 'Could not send that'))
+
+				return false
+			} finally {
+				this.answering = false
+			}
+		},
+
+		/**
+		 * What has been said about the reader's own story.
+		 *
+		 * Only for their own: somebody else's answers are not theirs to read,
+		 * and the server says the same with a 404.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async loadAnswers() {
+			this.answers = []
+			if (!this.story || !this.isOwn) {
+				return
+			}
+
+			try {
+				const { data } = await axios.get(
+					generateUrl('apps/social/api/v1.2/stories/reactions'),
+					{ params: { sid: this.story.id } },
+				)
+				this.answers = data.reactions ?? []
+			} catch (error) {
+				// a story without its answers is still a story
+				logger.debug('could not load what was said about the story', { error })
 			}
 		},
 
@@ -507,5 +644,71 @@ export default {
 		outline: 2px solid #fff;
 		outline-offset: -4px;
 	}
+}
+
+.story-viewer__answer {
+	position: relative;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px 12px 12px;
+}
+
+.story-viewer__reactions {
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.story-viewer__reaction {
+	border: none;
+	border-radius: var(--border-radius-pill);
+	background: rgba(255, 255, 255, 0.15);
+	color: inherit;
+	font-size: 22px;
+	line-height: 1;
+	padding: 6px 10px;
+	cursor: pointer;
+
+	&:hover,
+	&:focus-visible {
+		background: rgba(255, 255, 255, 0.3);
+	}
+}
+
+.story-viewer__reply {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.story-viewer__reply-field {
+	flex: 1 1 auto;
+	min-width: 0;
+	border: 1px solid rgba(255, 255, 255, 0.4);
+	border-radius: var(--border-radius-pill);
+	background: rgba(0, 0, 0, 0.4);
+	color: #fff;
+	padding: 6px 12px;
+
+	&::placeholder {
+		color: rgba(255, 255, 255, 0.7);
+	}
+}
+
+.story-viewer__answers {
+	position: relative;
+	z-index: 2;
+	max-height: 25vh;
+	overflow-y: auto;
+	padding: 8px 12px 12px;
+}
+
+.story-viewer__answers-one {
+	margin: 0 0 4px;
 }
 </style>
