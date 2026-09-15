@@ -16,6 +16,7 @@ the English strings of the web client.
 - [Finding and following people](#finding-and-following-people)
 - [Writing a post](#writing-a-post)
 - [Reading](#reading)
+- [Filtering out words](#filtering-out-words)
 - [Managing your account](#managing-your-account)
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [What the web client does not do yet](#what-the-web-client-does-not-do-yet)
@@ -118,6 +119,11 @@ network hiccup.
 - **Emoji.** The smiley opens a Unicode emoji picker. A custom emoji this
   instance publishes is written by its shortcode, `:name:`, and renders here
   and on other servers.
+- **Send it later.** The clock button turns **Post** into **Schedule**: pick a
+  time at least five minutes from now and the post waits on the server until
+  then. What is waiting is listed under **Settings → Scheduled posts**, where
+  one can be cancelled; to move a post to another time, cancel it and write it
+  again.
 - **Replying and quoting.** **Reply** under a post opens the composer
   addressed to its author; **Quote** in a post's menu embeds it in yours. Only
   public and unlisted posts held by this server can be quoted, and the quoted
@@ -149,8 +155,9 @@ The sidebar is the map:
   composer already set to direct.
 - **Lists** — each list you have is a timeline of its own. Every Nextcloud
   group you belong to (up to 500 members) is a list automatically, kept in
-  step with the group. Other lists are made through the API or a Mastodon
-  client; the sidebar shows them all.
+  step with the group. Your own lists are made in **Settings → Lists**, which is
+  also where one is renamed, deleted, or has somebody added to or taken out of
+  it; the sidebar shows them all.
 - **Liked posts** and **Bookmarks** — what you favourited, and what you saved
   with **Bookmark** in a post's menu. Bookmarks are private and never leave
   this server.
@@ -194,6 +201,52 @@ plus on it to choose another; you may put up to eight different emoji on the
 same announcement.
 
 Administrators post and remove announcements in **Administration → Social**.
+
+## Filtering out words
+
+Some words are not worth reading. **Settings → Filtered words** is where you say
+so, and it is the same list a Mastodon app on your phone writes to — a filter you
+made there has been applying here all along, and this is the first page that shows
+it.
+
+A filter is four things:
+
+- **A name.** Whatever reminds you later what it was for.
+- **The words.** One or more; a post matches if *any* of them appears in its text,
+  its content warning, the description of one of its pictures, or an option of a
+  poll. Upper and lower case never matter, and a boost is read as the post it
+  boosts, so nothing escapes a filter by being boosted. Each word can be marked
+  **whole word only**, which is the difference between filtering "cat" and also
+  filtering every "catalogue".
+- **Where it applies.** **My Feed**, **Activities** (your notifications), the
+  **Local, Global and hashtag** timelines, **Conversations** (the replies above and
+  below an opened post), and **Profiles**. Somewhere you did not tick, a matching
+  post arrives as usual. Ticking nothing is refused: a filter with no place applies
+  nowhere. Two exceptions worth knowing: **list timelines are never filtered**, even
+  with My Feed ticked, and in **Activities** only taking a post out has an effect —
+  a notification is never folded.
+- **What happens to a matching post.** Either it is **folded away** — the post keeps
+  its place in the timeline, with the name of the filter where its text would be and
+  a **Show anyway** button; nothing of the post is on the page until you press it, so
+  the words you filtered cannot be read on the way past. In the Photos and Videos
+  grids the same post shows a covered tile with no picture. Or it is **taken out of
+  the timeline**, and never reaches this app at all. Either way nothing is deleted
+  and nobody is told; lift the filter and the post is back as it was.
+
+  A post that carries a content warning of its own is still warned about after you
+  press Show anyway: the author's cover is not yours to lift.
+
+A filter can also be given an expiry — thirty minutes up to a week — after which it
+simply stops applying. It stays in the list, marked **Expired**, and saving it again
+starts it over. Editing a filter that is still counting down leaves its expiry alone
+unless you change it.
+
+Because a filter that removes posts is easy to forget and looks exactly like a
+conversation with a hole in it, the page says at the top which of your filters are
+taking posts away right now, and where.
+
+Filters are private: they are never sent to another server, and they change nothing
+for anybody else reading the same post.
 
 ## Managing your account
 
@@ -239,9 +292,9 @@ Administrators post and remove announcements in **Administration → Social**.
   in the sidebar, lists both with unblock and unmute inline.
 - **Follow requests.** When your account is locked, people asking to follow
   you appear under **Follow requests** in the sidebar — **Accept** or
-  **Reject** — and on the Nextcloud bell. Locking the account itself is done
-  through the API (`locked` on `PATCH /api/v1/accounts/update_credentials`)
-  or a Mastodon client; the web client has no switch for it yet.
+  **Reject** — and on the Nextcloud bell. Locking the account itself is the
+  **Approve who follows you** switch under **Settings → Your account**, which
+  is `locked` on `PATCH /api/v1/accounts/update_credentials` underneath.
 - **Reporting.** **Report** in a post's menu sends the post, with an optional
   note, to the moderators of this instance. From the web client it is never
   sent to the reported account or their server.
@@ -282,10 +335,13 @@ applies where nothing else claims the key.
 ## What the web client does not do yet
 
 These exist in the server and are reachable through the Mastodon-compatible
-API, but the web client has no page for them: creating and editing **lists**,
-**locking** your account, **scheduled posts**, **collections**, **stories** and
-**places**. Third-party Mastodon clients cannot connect to this server yet,
-because the API is served under the app's own path rather than at the domain
-root (see [Mastodon-Compatibility.md](Mastodon-Compatibility.md)); until that
-changes, the web client is the client. There is no post translation and no
-streaming API.
+API, but the web client has no page for them: **collections**, **stories** and
+**places** — each has a controller in `lib/Controller/` and nothing in the
+sidebar, the router or Settings. Third-party Mastodon clients cannot connect to
+this server yet, because the API is served under the app's own path rather than
+at the domain root (see
+[Mastodon-Compatibility.md](Mastodon-Compatibility.md)); until that changes, the
+web client is the client. There is no post translation — `ActionService`'s
+`translate` hands the post back unchanged — and no streaming API, so the page
+polls.
+

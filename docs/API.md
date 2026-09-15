@@ -337,6 +337,10 @@ A filter matches on everything of a status a reader reads: the content warning, 
 
 A filter stops applying the moment its `expires_at` passes: the expiry is a predicate of every read, not a row something deletes, so an instance with no working cron behaves like one that has.
 
+Where each context is applied, since a filter that names a timeline nothing reads it in is a filter its owner believes is working: `home` on `/api/v1/timelines/home`, `public` on `/api/v1/timelines/public` and `/api/v1/timelines/tag/{hashtag}`, `account` on `/api/v1/accounts/{account}/statuses`, `thread` on `/api/v1/statuses/{nid}/context`, and `notifications` on `/api/v1/notifications`. `/api/v1/favourites/`, `/api/v1/bookmarks` and the direct timeline are read in no context — their statuses carry an empty `filtered`, because its absence is an answer of its own — and so is `/api/v1/statuses/{nid}`, which is one status a client asked for by id rather than a timeline. **`/api/v1/timelines/list/{id}` applies no filter at all**, though `home` is documented by Mastodon as covering lists: the route is `ListController`'s and never reaches `FilterService`, so a `home` filter narrows the home timeline and not the list timelines drawn from it.
+
+The web client edits these through the v2 routes only (`src/components/FiltersSettings.vue`); v1 is left for clients that have not moved. It also *draws* `filtered`: a status carrying one is folded behind the names of the filters that matched (`TimelinePost.vue`, `.post-filtered`) and its body is not rendered at all until the reader presses "Show anyway", the same treatment a content warning gets. Two places a `warn` filter therefore does nothing visible, both because the key never arrives rather than because the client ignores it: `/api/v1/timelines/list/{id}`, which applies no filter, and `/api/v1/notifications`, where `Stream::exportAsNotification()` serialises the nested status without `filtered` — there a `hide` filter drops the notification and a `warn` filter is inert.
+
 ### Discovery, trends and relationships
 
 | Method | Route | Auth | Parameters | Description |

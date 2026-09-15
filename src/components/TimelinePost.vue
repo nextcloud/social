@@ -98,6 +98,31 @@
 			</div>
 		</div>
 		<!--
+		  A filter the reader wrote themselves matched this post. Same shape as
+		  the content warning below, and for the same reason: the body is not in
+		  the page until it is asked for, so a word somebody filtered cannot be
+		  read by accident on the way past.
+
+		  Only `warn` filters reach this. A `hide` filter is applied by the
+		  server, which never sends the status at all.
+
+		  Lifting it falls through to the branches below rather than rendering
+		  the body here, so a post carrying both a filter and a content warning
+		  is still covered by the warning afterwards — the author's cover is not
+		  the reader's to lift.
+		-->
+		<div v-else-if="filterCovers" class="post-filtered">
+			<p class="post-filtered__reason">
+				{{ filterLabel }}
+			</p>
+			<NcButton variant="secondary" @click="filterLifted = true">
+				<template #icon>
+					<EyeOff :size="20" />
+				</template>
+				{{ t('social', 'Show anyway') }}
+			</NcButton>
+		</div>
+		<!--
 		  A content warning covers the post, not only its text: the pictures,
 		  the poll and the link preview used to be siblings rendered
 		  unconditionally, so the one thing the feature exists to prevent
@@ -145,7 +170,7 @@
 		<div v-else-if="item.content" class="post-message">
 			<MessageContent :item="item" />
 		</div>
-		<template v-if="mediaRevealed">
+		<template v-if="mediaRevealed && !filterCovers">
 			<QuotedPost v-if="item.quote" :quote="item.quote" />
 			<Poll v-if="localPoll" :poll="localPoll" @update:poll="updatePoll" />
 			<PostAttachment
@@ -160,7 +185,7 @@
 		     control is gone the moment it would have to say "true". And not
 		     when the media leads, which shows this same reveal in the place
 		     the pictures will take. -->
-		<div v-else-if="!hasSpoiler && !mediaLeads" class="post-sensitive">
+		<div v-else-if="!hasSpoiler && !mediaLeads && !filterCovers" class="post-sensitive">
 			<NcButton
 				variant="secondary"
 				@click="warningLifted = true">
@@ -434,6 +459,7 @@ import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { onTick } from '../services/clock.js'
 import { originOf } from '../utils/instanceIdentity.js'
+import { filterCoverLabel, matchedFilters } from '../utils/filters.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
 import QuotedPost from './QuotedPost.vue'
@@ -521,6 +547,8 @@ export default {
 			menuOpen: false,
 			/** a warned post stays closed until the reader opens it */
 			warningLifted: false,
+			/** and so does one the reader's own keyword filters matched */
+			filterLifted: false,
 			editContent: '',
 			editSpoiler: '',
 			showReportDialog: false,
@@ -599,6 +627,21 @@ export default {
 		/** @return {object|null} where a press on the media goes */
 		mediaRoute() {
 			return this.postRoute
+		},
+
+		/**
+		 * @return {boolean} whether a keyword filter of the reader's own covers
+		 * the post. Only `warn` filters reach a client — a status a `hide`
+		 * filter matched is never sent — so anything matched is covered here
+		 * rather than dropped.
+		 */
+		filterCovers() {
+			return !this.filterLifted && matchedFilters(this.item).length > 0
+		},
+
+		/** @return {string} what the cover says, which is where to go to change it */
+		filterLabel() {
+			return filterCoverLabel(this.item)
 		},
 
 		/** @return {boolean} the author asked for the post to be covered */
@@ -1757,6 +1800,33 @@ function nodeToPlainText(node) {
 	margin-top: 10px;
 	padding-top: 10px;
 	border-top: 1px solid var(--color-border);
+}
+
+/**
+ * A post one of the reader's own keyword filters matched. Boxed rather than
+ * written as plain text like a content warning: this cover is the reader's own
+ * doing and not the author's, and the two should not be mistaken for each
+ * other. Nothing of the post is behind it — the body is not rendered at all
+ * until the button is pressed.
+ */
+.post-filtered {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin: 10px 0;
+	padding: 12px 16px;
+	border: 1px dashed var(--color-border-dark);
+	border-radius: 12px;
+	background: var(--color-background-dark);
+
+	&__reason {
+		margin: 0;
+		font-weight: 600;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
 }
 
 /**

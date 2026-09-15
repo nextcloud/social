@@ -56,6 +56,22 @@ describe('timeline store state changes', () => {
 		expect(store.timeline).toEqual([])
 	})
 
+	/**
+	 * A boost carries no text of its own, so the server matches the keyword
+	 * filters against the post it boosts and marks both copies. The card draws
+	 * the boosted post *out of the store*, so the cover only lands on the right
+	 * thing while the indexed copy keeps what the server put on it.
+	 */
+	it('keeps the filter results the server put on a boosted post', () => {
+		const matched = [{ filter: { id: '1', title: 'Politics', filter_action: 'warn' }, keyword_matches: ['election'], status_matches: [] }]
+		const inner = makeStatus('1', { filtered: matched })
+		const wrapper = makeStatus('2', { reblog: inner, content: '', filtered: matched })
+
+		store.addToStatuses(wrapper)
+
+		expect(store.getStatus('1').filtered).toEqual(matched)
+	})
+
 	it('addToTimeline appends ids in the order given and indexes every status', () => {
 		const [a, b, c] = [makeStatus('1'), makeStatus('2'), makeStatus('3')]
 

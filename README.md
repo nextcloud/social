@@ -39,6 +39,11 @@ One box, and everything a post can carry.
   off an iPhone** (transcoded on the way in), MP4, WebM and QuickTime, MP3, AAC, Opus,
   WAV and FLAC. Video is never re-encoded and is streamed to storage a chunk at a time,
   so it gets a **2 GB** ceiling rather than the 10 MB a picture is held to.
+- **And the files people actually have.** PDF, text, Markdown, CSV, ZIP, EPUB, ODF
+  and the Office formats ride on a post too (`DOCUMENT_MIME_TYPES` in
+  `lib/Service/CacheDocumentService.php`), stored as they are and drawn as a card you
+  press to download. On the wire they are an ActivityPub `Document` carrying its mime
+  type, which Mastodon shows as a link and another Nextcloud shows as a file.
 - **Every picture is stripped of its metadata** before it is stored or sent — Exif,
   XMP, IPTC, and the GPS coordinates a phone quietly attaches. Done on the container
   rather than by re-encoding, so nothing loses a generation of quality, and the colour
@@ -90,6 +95,13 @@ you follow, of this instance and of the whole Fediverse are one click apart.
 - **Lists**, made and filled in Settings or from anybody's profile — and **every
   Nextcloud group you are in is already a list**, built and maintained by nobody.
 - **Follow a hashtag** and it reads exactly like following a person.
+- **Filter out words you would rather not read** — **Settings → Filtered words**. A
+  filter is a handful of words, the timelines it applies in, and whether a matching
+  post is **folded away behind the filter's name**, with a *Show anyway*, or taken out
+  of the timeline altogether; it can be set to expire on its own. A folded post is not
+  in the page at all until you ask for it, so nothing is read by accident. Nobody is
+  told, nothing is deleted, and what is currently being taken away is said at the top
+  of the page rather than left to be noticed as gaps in a conversation.
 - **Bookmarks and favourites**, each with a page of their own.
 - **Announcements from your administrators** at the top of the timeline, above the
   composer. An unread one interrupts; **Got it** marks it read for your account on
@@ -250,7 +262,10 @@ the same app, not a second design.
   rather than as the person who filed it, because they would otherwise be handing their
   handle to the very instance they are complaining about.
 - **Locked accounts**, so follows must be approved, with a Follow requests page.
-- **Per-user domain blocks**, keyword filters, and conversation mute through the API.
+- **Keyword filters**, written and read in **Settings → Filtered words**: they are
+  yours alone, they apply to every timeline this app draws, and a filter set months ago
+  from a phone is finally visible from here.
+- **Per-user domain blocks** and conversation mute, through the API.
 - **Nothing is sent to a third party.** No geocoder — a place on a post is one this
   instance has seen or one you name yourself, because sending somebody's location to a
   stranger at the moment they are deciding whether to publish it is exactly the failure
@@ -334,14 +349,10 @@ These are absent from the code today, not merely rough edges:
 
 - **No status translation.** The `translate` action returns the post unchanged
   (`lib/Service/ActionService.php`).
-- **No document or file attachments.** Images, video and audio only — anything else is
-  refused by `filterMimeTypes()` (`lib/Service/CacheDocumentService.php`).
 - **No streaming API and no push subscriptions.** Third-party clients poll. (The web
   client does get live timelines when
   [notify_push](https://github.com/nextcloud/notify_push) is installed — that is a
   Nextcloud channel, not a Mastodon one.)
-- **No web editor for keyword filters.** They are set through the API or a Mastodon
-  client; this app has no page for them.
 
 ## 📦 Quickstart (install & develop)
 

@@ -384,6 +384,121 @@ describe('TimelinePost', () => {
 		})
 	})
 
+	describe('keyword filters', () => {
+		/**
+		 * `filtered` as the server sends it: Mastodon FilterResult entities,
+		 * one per filter that matched. `keyword_matches` is the text of the
+		 * post, not of the filter.
+		 *
+		 * @param {string[]} titles the names of the filters that matched
+		 * @param {object} overrides anything else about the post
+		 */
+		function filteredPost(titles = ['Politics'], overrides = {}) {
+			return makeItem({
+				content: '<p>the filtered part</p>',
+				filtered: titles.map((title, index) => ({
+					filter: {
+						id: String(index + 1),
+						title,
+						context: ['home'],
+						expires_at: null,
+						filter_action: 'warn',
+					},
+					keyword_matches: ['Election Day'],
+					status_matches: [],
+				})),
+				...overrides,
+			})
+		}
+
+		const cover = (wrapper) => wrapper.find('.post-filtered')
+		const showAnyway = (wrapper) => wrapper.findAll('button').find((button) => button.text() === 'Show anyway')
+
+		it('folds a post a filter matched, and keeps the body out of the page', () => {
+			const { wrapper } = mountPost({ item: filteredPost() })
+
+			expect(cover(wrapper).text()).toContain('Filtered: Politics')
+			// not merely hidden with css: what somebody filtered should not be
+			// sitting in the markup to be read on the way past
+			expect(wrapper.text()).not.toContain('the filtered part')
+			expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(false)
+		})
+
+		it('shows it on request', async () => {
+			const { wrapper } = mountPost({ item: filteredPost() })
+
+			await showAnyway(wrapper).trigger('click')
+
+			expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(true)
+			expect(cover(wrapper).exists()).toBe(false)
+		})
+
+		it('leaves a post nothing matched exactly as it was', () => {
+			const { wrapper } = mountPost({ item: makeItem({ filtered: [] }) })
+
+			expect(cover(wrapper).exists()).toBe(false)
+			expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(true)
+		})
+
+		it('names every filter that matched, each once', () => {
+			const { wrapper } = mountPost({
+				item: filteredPost(['Politics', 'Football', 'Politics']),
+			})
+
+			expect(cover(wrapper).text()).toContain('Filtered: Politics, Football')
+		})
+
+		/**
+		 * `keyword_matches` is what the *post* said — "Election Day", as the
+		 * post cased it. Printing it on the cover would put exactly the words
+		 * somebody filtered back in front of them.
+		 */
+		it('says which filter, never what the post said to match it', () => {
+			const { wrapper } = mountPost({ item: filteredPost() })
+
+			expect(wrapper.text()).not.toContain('Election Day')
+		})
+
+		it('still says it is filtered when the filter has no name to give', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({ filtered: [{ filter: { id: '1' }, keyword_matches: [], status_matches: [] }] }),
+			})
+
+			expect(cover(wrapper).text()).toContain('Filtered')
+		})
+
+		it('covers the pictures, the poll and the link preview too', () => {
+			const { wrapper } = mountPost({
+				item: filteredPost(['Politics'], {
+					media_attachments: [{ id: 'm1', url: 'https://cloud.example.org/m1.jpg' }],
+					poll: { id: 'p1', options: [{ title: 'yes', votes_count: 0 }], votes_count: 0, own_votes: [] },
+					card: { title: 'A headline', url: 'https://example.org' },
+				}),
+			})
+
+			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(false)
+			expect(wrapper.findComponent({ name: 'Poll' }).exists()).toBe(false)
+			expect(wrapper.text()).not.toContain('A headline')
+			// one control for one reveal, as the content warning has
+			expect(wrapper.find('.post-sensitive').exists()).toBe(false)
+		})
+
+		/**
+		 * The author's cover is not the reader's to lift: a post carrying both
+		 * is still warned about once the filter has been shown through.
+		 */
+		it('hands a warned post back to its content warning rather than opening it', async () => {
+			const { wrapper } = mountPost({
+				item: filteredPost(['Politics'], { spoiler_text: 'an election' }),
+			})
+
+			await showAnyway(wrapper).trigger('click')
+
+			expect(wrapper.find('.post-warning__text').text()).toBe('an election')
+			expect(wrapper.text()).not.toContain('the filtered part')
+		})
+	})
+
 	describe('content warnings', () => {
 		const warned = () => makeItem({ spoiler_text: 'politics', content: '<p>the hidden part</p>' })
 
