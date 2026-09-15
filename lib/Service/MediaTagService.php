@@ -110,6 +110,10 @@ class MediaTagService {
 				continue;
 			}
 
+			// the shape a client reads. Resolved actors come back in the
+			// ActivityPub format, which has no `acct`, no `display_name` and
+			// no `avatar` — everything a name under a photograph draws
+			$person->setExportFormat(ACore::FORMAT_LOCAL);
 			$people[$person->getId()] = $person;
 		}
 

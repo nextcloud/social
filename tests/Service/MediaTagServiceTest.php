@@ -250,4 +250,22 @@ class MediaTagServiceTest extends TestCase {
 
 		$this->service->untag($this->person(self::ALICE), 7, self::BOB);
 	}
+
+	/**
+	 * Found on devel: the route answered with actors in the ActivityPub
+	 * format, which has no `acct`, no `display_name` and no `avatar` — which
+	 * is everything a name under a photograph draws.
+	 */
+	public function testTheNamesComeBackInTheShapeAClientReads(): void {
+		$bob = $this->person(self::BOB, 'bob@cloud.example');
+		$this->resolving(['bob@cloud.example' => $bob]);
+		$this->streamService->method('getStreamByNid')->willReturn($this->post());
+		$this->mediaTagsRequest->method('forStreams')->willReturn([]);
+		$this->mediaTagsRequest->method('tag')->willReturn(true);
+
+		$named = $this->service->tag($this->person(self::ALICE), 7, ['bob@cloud.example']);
+
+		$this->assertArrayHasKey('acct', $named[0]->exportAsLocal());
+		$this->assertArrayNotHasKey('@context', (array)json_decode((string)json_encode($named[0]), true));
+	}
 }
