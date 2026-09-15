@@ -220,16 +220,22 @@ export default {
 		/**
 		 * Whether this is the reader's own feed.
 		 *
-		 * That is the route with no `type` at all — see `scopes()`: the local
-		 * and global feeds are `timeline` and `federated`, and home is the one
-		 * with nothing. The memories belong here and nowhere else; on a tag
-		 * page or a profile they would be an interruption from another
-		 * subject.
+		 * The memories, the recap and the story bar belong here and nowhere
+		 * else; on a tag page or a profile they would be an interruption from
+		 * another subject.
+		 *
+		 * The *route* of the home feed carries no `type` — see `scopes()`: the
+		 * local and global feeds are `timeline` and `federated`, and home is
+		 * the one with nothing. This compared against that empty route
+		 * parameter, but `type` above never answers with it: a route without
+		 * one is reported as `'home'`, which is the word the rest of this view
+		 * uses. So `isHome` was false on every page including the home feed,
+		 * and the three cards it guards had never once been drawn.
 		 *
 		 * @return {boolean}
 		 */
 		isHome() {
-			return (this.type ?? '') === ''
+			return this.type === 'home'
 		},
 
 		/**

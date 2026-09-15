@@ -89,6 +89,42 @@ describe('Timeline', () => {
 		vi.restoreAllMocks()
 	})
 
+	// The three cards that belong to the reader's own feed and to no other
+	// page. `isHome` used to compare `type` against the empty route parameter,
+	// which the computed never answers with — so none of them had ever been
+	// drawn on any page.
+	describe('the reader\'s own feed', () => {
+		const cards = (wrapper) => ({
+			stories: wrapper.find('.story-bar-stub').exists(),
+			recap: wrapper.find('.weekly-recap-stub').exists(),
+			memories: wrapper.find('.on-this-day-stub').exists(),
+		})
+
+		it('draws the story bar, the recap and the memories on the home feed', () => {
+			const wrapper = mountTimeline({ name: 'timeline', params: {} })
+
+			expect(cards(wrapper)).toEqual({ stories: true, recap: true, memories: true })
+		})
+
+		it.each([
+			['timeline'],
+			['federated'],
+			['notifications'],
+			['direct'],
+			['photos'],
+		])('draws none of them on %s', (type) => {
+			const wrapper = mountTimeline({ name: 'timeline', params: { type } })
+
+			expect(cards(wrapper)).toEqual({ stories: false, recap: false, memories: false })
+		})
+
+		it('draws none of them on a hashtag page', () => {
+			const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
+
+			expect(cards(wrapper)).toEqual({ stories: false, recap: false, memories: false })
+		})
+	})
+
 	it('switches the store to the home timeline when no type is in the route', () => {
 		const wrapper = mountTimeline()
 		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type: 'home', params: {} })
