@@ -91,7 +91,7 @@ class PortfoliosRequest extends CoreRequestBuilder {
 			->setValue('actor_id', $qb->createNamedParameter($portfolio->getActorId()))
 			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($portfolio->getActorId())))
 			->setValue('creation', $qb->createNamedParameter($now, IQueryBuilder::PARAM_DATE));
-		$this->setFields($qb, $portfolio);
+		$this->setFields($qb, $portfolio, true);
 
 		$qb->executeStatement();
 
@@ -102,7 +102,7 @@ class PortfoliosRequest extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_PORTFOLIOS)
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($portfolio->getId(), IQueryBuilder::PARAM_INT)));
-		$this->setFields($qb, $portfolio);
+		$this->setFields($qb, $portfolio, false);
 
 		$qb->executeStatement();
 	}
@@ -112,8 +112,13 @@ class PortfoliosRequest extends CoreRequestBuilder {
 	 *
 	 * Apart they would drift, and the way that drift shows is a setting that
 	 * saves the first time and is ignored afterwards.
+	 *
+	 * Which of the two it is comes in as an argument rather than being asked of
+	 * the query: `IQueryBuilder::INSERT` is not a constant the OCP interface
+	 * declares, and reading it is a fatal on the server rather than anything
+	 * static analysis here catches.
 	 */
-	private function setFields(SocialQueryBuilder $qb, Portfolio $portfolio): void {
+	private function setFields(SocialQueryBuilder $qb, Portfolio $portfolio, bool $insert): void {
 		$fields = [
 			'active' => [$portfolio->isActive(), IQueryBuilder::PARAM_BOOL],
 			'title' => [$portfolio->getTitle(), IQueryBuilder::PARAM_STR],
@@ -127,7 +132,6 @@ class PortfoliosRequest extends CoreRequestBuilder {
 			'show_avatar' => [$portfolio->showsAvatar(), IQueryBuilder::PARAM_BOOL],
 		];
 
-		$insert = ($qb->getType() === IQueryBuilder::INSERT);
 		foreach ($fields as $field => [$value, $type]) {
 			$parameter = $qb->createNamedParameter($value, $type);
 			$insert ? $qb->setValue($field, $parameter) : $qb->set($field, $parameter);
