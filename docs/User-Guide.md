@@ -498,6 +498,13 @@ hand, it is picked up as one.
 - **Reporting.** **Report** in a post's menu sends the post, with an optional
   note, to the moderators of this instance. From the web client it is never
   sent to the reported account or their server.
+- **Your year.** `GET /api/v1/annual_reports` serves what Mastodon calls
+  `#Wrapstodon`: one report per year you wrote anything in, with twelve months
+  of what you posted and who arrived, the hashtags you used most, your three
+  posts that travelled furthest, and a word for how you use the account. It is
+  worked out from the posts already here whenever it is asked for, so there is
+  nothing to wait for and nothing to go stale. The web client has no page for
+  it yet; a phone client that has the feature shows it.
 - **Who may quote your post.** A post's menu has **Quotes of this post** on
   your own posts. The top half is who may quote it from now on — anybody, the
   people who follow you, or nobody but you — and the bottom half is who already

@@ -231,6 +231,11 @@ own unified search. No external search engine to run.
   Pixelfed, moderatable, with its own followers. The membership is the group,
   asked live, so leaving it takes the account away with it. Who wrote each post
   is recorded and shown to the team and to moderators, and to nobody else.
+- **Your year, as a report** — Mastodon's `#Wrapstodon`: twelve months of what
+  you posted and who arrived, the hashtags you used, the three posts that
+  travelled furthest, and a one-word description of how you use the account.
+  Computed from the posts already here, so it cannot go stale and needs no job
+  to run.
 - **Quote controls** — who may quote each of your posts (anybody, your
   followers, nobody), who already has, and a button that detaches one and tells
   their server. Mastodon 4.5's `quote_approval_policy`, its quote list and its
