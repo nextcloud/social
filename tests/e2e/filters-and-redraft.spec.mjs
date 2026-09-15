@@ -44,11 +44,11 @@ test.describe('filters, and writing a post again', () => {
 		const row = section.locator('.filters__item', { hasText: word })
 		await expect(row).toBeVisible()
 
-		// and take it away again, so the box is left as it was found. The menu
-		// is opened by its toggle rather than by the label on the NcActions
-		// around it, which is not the button's own accessible name
-		await row.locator('button.action-item__menutoggle').first().click()
-		await page.getByRole('menuitem', { name: 'Delete' }).click()
+		// And take it away again, so the box is left as it was found. Delete is
+		// a button on the row rather than an entry in a menu: an NcActions
+		// holding one action renders it inline, with no toggle to open. The
+		// confirmation's Delete is the last one on the page.
+		await row.getByRole('button', { name: 'Delete', exact: true }).click()
 		await page.getByRole('button', { name: 'Delete', exact: true }).last().click()
 		await expect(section.locator('.filters__item', { hasText: word })).toHaveCount(0)
 	})
