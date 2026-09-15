@@ -264,7 +264,7 @@ can still be set with `occ`; the page validates the ranges given here.
 | `silenced_list` | `[]` | Instances whose accounts are kept out of the public and global timelines but stay readable for whoever follows them. The middle tier a block does not have. |
 | `retention_days` | `0` | Remote statuses older than this that no local user interacted with, follows the author of, or replied below are deleted, with their cached attachments. `0` disables it. Local content is never touched. |
 | `federate_blocks` | `1` | Whether a user's own blocks are federated to the blocked account's instance. `0` keeps them local. |
-| `publish_video_objects` | `1` | Whether a post that is a video is federated as an ActivityPub `Video` rather than a `Note` with an attachment. |
+| `publish_video_objects` | `0` | Whether a post that is a video is federated as an ActivityPub `Video` (PeerTube's shape) rather than a `Note` with an attachment. Off by default: Pixelfed's inbox handles only `Note`s and silently drops a `Video`, so with this on no video posted here reaches a Pixelfed follower. Mastodon draws both shapes; PeerTube draws only the `Video`. Turn it on for an instance whose audience is on PeerTube. |
 | `rules` | *(empty)* | The instance rules shown by `/api/v1/instance/rules`, one per line. |
 
 ### System configuration

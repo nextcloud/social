@@ -63,6 +63,16 @@ class ConfigServiceTest extends TestCase {
 		$this->assertSame('20', $this->service->getAppValue(ConfigService::SOCIAL_MAX_SIZE));
 	}
 
+	/**
+	 * Pixelfed's inbox handles a `Create` only for a `Note`; a `Video` is
+	 * dropped without a word. Publishing videos in PeerTube's shape is
+	 * therefore something an administrator turns on knowing who reads it,
+	 * not something every instance does to every follower.
+	 */
+	public function testVideosGoOutAsNotesUnlessAnAdministratorDecidesOtherwise(): void {
+		$this->assertSame('0', $this->service->defaults[ConfigService::SOCIAL_PUBLISH_VIDEO]);
+	}
+
 	public function testGetAppValueHasAnEmptyDefaultForUnknownKey(): void {
 		// IAppConfig is typed, so a key with no default of its own asks for ''
 		// where the old untyped IConfig call passed null and could hand one back

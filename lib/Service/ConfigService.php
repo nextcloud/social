@@ -119,7 +119,7 @@ class ConfigService {
 		self::SOCIAL_SERVICE => 1,
 		self::SOCIAL_MAX_SIZE => 10,
 		self::SOCIAL_MAX_VIDEO_SIZE => 2048,
-		self::SOCIAL_PUBLISH_VIDEO => '1',
+		self::SOCIAL_PUBLISH_VIDEO => '0',
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
 		self::SOCIAL_ACCESS_LIST => '[]',
 		self::SOCIAL_SELF_SIGNED => '0',
