@@ -29,6 +29,7 @@ use OCA\Social\Service\PortfolioService;
 use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
+use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -162,6 +163,7 @@ class PixelfedControllerTest extends TestCase {
 			$this->storyInteractionService,
 			$this->mediaTagService,
 			$this->createMock(PortfolioService::class),
+			$this->createMock(TeamService::class),
 			$this->createMock(CacheActorService::class),
 			$this->archiveService,
 			$this->createMock(DiscoverCategoriesRequest::class)

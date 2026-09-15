@@ -381,6 +381,21 @@
 				<span v-if="undescribed > 0" class="composer-alt-warning" role="status">
 					{{ undescribedWarning }}
 				</span>
+				<!-- who is speaking, when the writer is in a team that has an
+				     account. Absent on every instance that has none, which is
+				     most of them, rather than a control that always says "me" -->
+				<select
+					v-if="teams.length"
+					v-model="postAs"
+					class="composer-post-as"
+					:aria-label="t('social', 'Post as')">
+					<option value="">
+						{{ t('social', 'As myself') }}
+					</option>
+					<option v-for="team in teams" :key="team.acct" :value="team.acct">
+						{{ team.display_name || team.username }}
+					</option>
+				</select>
 				<LanguageSelect :language="language" @update:language="language = $event" />
 				<VisibilitySelect :visibility="visibility" @update:visibility="chooseVisibility" />
 				<div class="emptySpace" />
@@ -712,6 +727,16 @@ export default {
 			// the server would guess the same, but a guess the poster can see
 			// is one they can correct
 			language: rememberedLanguage() || defaultLanguage(),
+			/**
+			 * The team accounts this account may post as, and which of them
+			 * this post is being written as ('' for themselves).
+			 *
+			 * Empty on every instance with no team accounts, which is most of
+			 * them, and the control is absent rather than a picker that only
+			 * ever says "me".
+			 */
+			teams: [],
+			postAs: '',
 			/** when the post is to go out, or null for now */
 			scheduledAt: null,
 			/** whether the clock is pressed: the picker is shown, Post reads Schedule */
@@ -1111,6 +1136,7 @@ export default {
 		// the counter and the attachment ceiling are the server's numbers;
 		// answered from the first call on this page, whoever made it
 		this.instanceStore.load()
+		this.loadTeams()
 
 		// tributejs is a plain DOM library, not a component: it attaches to the
 		// contenteditable and appends its menu to the body, which the unscoped
@@ -1375,12 +1401,35 @@ export default {
 			return he.decode(nodeToPlainText(element).trim())
 		},
 
+		/**
+		 * The team accounts this account may post as.
+		 *
+		 * Asked of the server rather than remembered: membership of a group is
+		 * a live fact, and a composer that offered a team somebody had left
+		 * would be offering a post the server is about to refuse.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async loadTeams() {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1.1/teams'))
+				this.teams = data.teams ?? []
+			} catch (error) {
+				// an instance with none answers this too; a composer without
+				// the control is the composer it has always been
+				logger.debug('could not load the team accounts', { error })
+			}
+		},
+
 		/** Keeps what is in the box, so a failed post or a reload cannot eat it. */
 		rememberDraft() {
 			saveDraft({
 				text: this.statusText,
 				spoilerText: this.showWarning ? this.spoilerText : '',
 				visibility: this.visibility,
+				// who it was being written as, so a reload does not quietly
+				// turn a team post back into a personal one
+				postAs: this.postAs,
 			})
 		},
 
@@ -1407,6 +1456,12 @@ export default {
 			if (isKnownVisibility(draft.visibility) && this.defaultVisibility === undefined) {
 				this.visibility = draft.visibility
 				this.visibilityChosen = true
+			}
+			// only a team this account is actually in: a draft can outlive
+			// leaving one, and a handle the server would refuse is worse than
+			// a draft that opens as yourself
+			if (this.teams.some((team) => team.acct === draft.postAs)) {
+				this.postAs = draft.postAs
 			}
 			this.updateStatusContent()
 
@@ -2010,6 +2065,10 @@ export default {
 				in_reply_to_id: this.replyTo?.id,
 				quote_id: this.quoteOf?.id,
 				visibility: this.visibility,
+				// the team this is written as, when it is written as one. Left
+				// out entirely otherwise, so a post as yourself is the request
+				// it always was.
+				...(this.postAs === '' ? {} : { post_as: this.postAs }),
 				// always, so the post is never without one: the server would
 				// fill in the same default, but what the poster saw is what goes
 				language: this.language,
@@ -3011,4 +3070,11 @@ $composer-duration: 220ms;
 		color: var(--color-main-text);
 	}
 }
+
+.composer-post-as {
+	max-width: 180px;
+	height: 34px;
+	margin-inline-end: 4px;
+}
+
 </style>

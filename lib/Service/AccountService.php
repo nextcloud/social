@@ -252,9 +252,17 @@ class AccountService {
 	 * @throws UrlCloudException
 	 */
 	public function createActor(string $userId, string $username) {
-		$this->confirmUserId($userId);
+		// A team account belongs to a group rather than to a person, and is
+		// stored under a reserved `team/<group>` id that no Nextcloud user can
+		// have: there is nobody to confirm and no address to check the domain
+		// of. Everything after this is the same actor every account gets — the
+		// key pair, the cache row, the loopback follow — which is what makes a
+		// team followable from Mastodon without any of it being written twice.
+		if (!str_starts_with($userId, 'team/')) {
+			$this->confirmUserId($userId);
+			$this->assertEmailDomainIsAllowed($userId);
+		}
 		$this->checkActorUsername($username);
-		$this->assertEmailDomainIsAllowed($userId);
 
 		try {
 			$actor = $this->actorsRequest->getFromUsername($username);

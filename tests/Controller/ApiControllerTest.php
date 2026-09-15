@@ -72,6 +72,7 @@ use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\ViewCountService;
 use OCP\App\IAppManager;
@@ -151,6 +152,7 @@ class ApiControllerTest extends TestCase {
 	private ScheduledStatusService|MockObject $scheduledStatusService;
 	private PostReviewService|MockObject $postReviewService;
 	private ViewCountService|MockObject $viewCountService;
+	private TeamService|MockObject $teamService;
 	private EmojiService|MockObject $emojiService;
 	private PlaceService|MockObject $placeService;
 	private DeliveryService|MockObject $deliveryService;
@@ -265,6 +267,7 @@ class ApiControllerTest extends TestCase {
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
 		$this->postReviewService = $this->createMock(PostReviewService::class);
 		$this->viewCountService = $this->createMock(ViewCountService::class);
+		$this->teamService = $this->createMock(TeamService::class);
 		$this->emojiService = $this->createMock(EmojiService::class);
 		$this->placeService = $this->createMock(PlaceService::class);
 		$this->deliveryService = $this->createMock(DeliveryService::class);
@@ -367,6 +370,7 @@ class ApiControllerTest extends TestCase {
 			$this->scheduledStatusService,
 			$this->postReviewService,
 			$this->viewCountService,
+			$this->teamService,
 			$this->emojiService,
 			$this->appManager,
 			$this->fediverseService,

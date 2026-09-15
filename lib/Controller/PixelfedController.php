@@ -26,6 +26,7 @@ use OCA\Social\Service\PortfolioService;
 use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
+use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -80,6 +81,7 @@ class PixelfedController extends ClientApiController {
 		private StoryInteractionService $storyInteractionService,
 		private MediaTagService $mediaTagService,
 		private PortfolioService $portfolioService,
+		private TeamService $teamService,
 		private CacheActorService $cacheActorService,
 		private ArchiveService $archiveService,
 		private DiscoverCategoriesRequest $discoverCategoriesRequest,
@@ -498,6 +500,30 @@ class PixelfedController extends ClientApiController {
 		try {
 			return new DataResponse(
 				$this->portfolioService->published($handle), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The team accounts the viewer may post as, right now.
+	 *
+	 * Asked of the group manager rather than of a stored membership: somebody
+	 * who left the group this morning may not post as it this afternoon, and
+	 * the only way to be sure of that is to ask. An empty list is the ordinary
+	 * answer on an instance that has no team accounts, which is most of them.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/teams')]
+	public function teams(): DataResponse {
+		try {
+			$this->initViewer(['read:accounts']);
+
+			return new DataResponse(
+				['teams' => $this->teamService->forUser($this->viewer()->getUserId())],
+				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);

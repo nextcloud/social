@@ -87,6 +87,7 @@ use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Service\ViewCountService;
@@ -200,6 +201,7 @@ class ApiController extends Controller {
 		private ScheduledStatusService $scheduledStatusService,
 		private PostReviewService $postReviewService,
 		private ViewCountService $viewCountService,
+		private TeamService $teamService,
 		private EmojiService $emojiService,
 		private IAppManager $appManager,
 		private FediverseService $fediverseService,
@@ -1203,7 +1205,24 @@ class ApiController extends Controller {
 			}
 
 			// Use the viewer that was already initialized
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$author = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			// A post written as a team is attributed to the team's account and
+			// signed with its key: the team speaks, not the person at the
+			// keyboard. Who that person was is recorded below rather than
+			// published — outside the team, one voice is the point of having a
+			// team account; inside it, and to a moderator, the trail is.
+			//
+			// A handle that is not a team account of this instance, and one
+			// whose group this account is not in, are the same 404: which
+			// groups exist and what they post as is not a thing to confirm to
+			// somebody outside them.
+			$actor = $author;
+			$postAs = $status->getPostAs();
+			if ($postAs !== '') {
+				$actor = $this->teamService->assertMayPostAs($this->currentSession(), $postAs);
+			}
+
 			$post = new Post($actor);
 			$post->setContent($status->getStatus());
 			$post->setPoll($status->getPoll());
@@ -1222,6 +1241,10 @@ class ApiController extends Controller {
 			);
 
 			if (!empty($status->getMediaIds())) {
+				// the uploader's own media, not the team's: an upload belongs
+				// to the person who made it whatever account the post ends up
+				// attributed to, and looking it up as the team would find
+				// nothing
 				$documents = $this->documentService->getMediaFromArray(
 					$status->getMediaIds(),
 					$this->viewer->getPreferredUsername()
@@ -1254,12 +1277,15 @@ class ApiController extends Controller {
 			// vocabulary Mastodon's API has — `held_for_review` beside it is
 			// what this app's own composer reads to say something better than
 			// "failed".
+			// assessed against the person who wrote it, not the team: first-post
+			// review is about an account nobody has vouched for yet, and a team
+			// account exists because an administrator made it
 			$reason = $this->postReviewService->assess(
-				$actor, $post->getContent(), $post->getType()
+				$author, $post->getContent(), $post->getType()
 			);
 			if ($reason !== '') {
 				$held = $this->postReviewService->hold(
-					$actor, $this->postReviewService->paramsOf($status, $post->getType()), $reason
+					$author, $this->postReviewService->paramsOf($status, $post->getType()), $reason
 				);
 
 				return new DataResponse([
@@ -1272,6 +1298,10 @@ class ApiController extends Controller {
 			}
 
 			$activity = $this->postService->createPost($post);
+
+			if ($postAs !== '') {
+				$this->teamService->recordAuthor($activity->getObjectId(), $author);
+			}
 
 			$item = $this->streamService->getStreamById(
 				$activity->getObjectId(),

@@ -303,6 +303,23 @@ collection may hold. On a collection's page you can **Edit** its title,
 description and audience, **Remove posts** from their own squares, or
 **Delete** it — the posts stay where they are.
 
+### Posting as a team
+
+If an administrator has given one of your Nextcloud groups an account, a small
+picker appears in the composer beside the language and the audience: **As
+myself**, or the team. Choose the team and the post goes out from the team's
+account — its name, its picture, its followers — rather than from yours.
+
+Everybody in the group can post as it, and the list is checked at the moment
+you press post: leaving the group takes the account away with it, with nothing
+to remember to undo.
+
+Who actually wrote each post is recorded. The team can see it, and so can a
+moderator looking at a report; nobody else can. Outside the team, the team
+speaks with one voice, which is the point of having a team account.
+
+An administrator makes one with `occ social:team <group> <username>`.
+
 ### A page of your work
 
 **Settings → Portfolio** makes a page with its own address, to put on a CV.

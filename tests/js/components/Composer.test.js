@@ -36,6 +36,11 @@ vi.mock('../../../src/services/toast.js', () => ({
 	showSuccess: vi.fn(),
 }))
 
+// the composer asks the server which team accounts this account may post as,
+// and the mention/hashtag pickers reach for the same client
+const { get } = vi.hoisted(() => ({ get: vi.fn() }))
+vi.mock('@nextcloud/axios', () => ({ default: { get } }))
+
 // The date picker is a date library and its locales, fetched when the clock
 // is pressed. What the composer does with it is hand it a time and take one
 // back, so a stub that does exactly that stands in for the calendar.
@@ -285,6 +290,7 @@ describe('Composer', () => {
 	})
 
 	beforeEach(() => {
+		get.mockReset().mockResolvedValue({ data: { teams: [] } })
 		localStorage.clear()
 		setLanguage('en')
 		// module mocks, which restoreAllMocks() does not touch
@@ -2370,6 +2376,54 @@ describe('Composer', () => {
 			await flushPromises()
 
 			expect(input(wrapper).element.innerText).toBe('something else')
+		})
+	})
+
+	describe('posting as a team', () => {
+		const press = { acct: 'press', username: 'press', display_name: 'The press office' }
+
+		it('offers nothing at all on a server with no team accounts', async () => {
+			const { wrapper } = mountComposer()
+			await flushPromises()
+
+			expect(wrapper.find('.composer-post-as').exists()).toBe(false)
+		})
+
+		it('offers the teams this account is in, and itself', async () => {
+			get.mockResolvedValue({ data: { teams: [press] } })
+
+			const { wrapper } = mountComposer()
+			await flushPromises()
+
+			const picker = wrapper.find('.composer-post-as')
+			expect(picker.exists()).toBe(true)
+			expect(picker.findAll('option').map((one) => one.text()))
+				.toEqual(['As myself', 'The press office'])
+		})
+
+		it('sends nothing extra when the post is written as yourself', async () => {
+			get.mockResolvedValue({ data: { teams: [press] } })
+
+			const { wrapper, store } = mountComposer()
+			await flushPromises()
+			await setContent(wrapper, 'hello')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(store.post).toHaveBeenCalledWith(expect.not.objectContaining({ post_as: expect.anything() }))
+		})
+
+		it('names the team when the post is written as one', async () => {
+			get.mockResolvedValue({ data: { teams: [press] } })
+
+			const { wrapper, store } = mountComposer()
+			await flushPromises()
+			await wrapper.find('.composer-post-as').setValue('press')
+			await setContent(wrapper, 'hello')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(store.post).toHaveBeenCalledWith(expect.objectContaining({ post_as: 'press' }))
 		})
 	})
 })

@@ -225,6 +225,12 @@ own unified search. No external search engine to run.
   collection**), and edit, empty or delete it on its page. A collection holds only
   its owner's own posts with a picture or a video in them, and a followers-only one
   is shown to followers and nobody else.
+- **Team accounts** — an administrator can give a Nextcloud group an account to
+  post from, and everybody in the group finds it in the composer beside the
+  audience picker. It is an actor like any other: followable from Mastodon and
+  Pixelfed, moderatable, with its own followers. The membership is the group,
+  asked live, so leaving it takes the account away with it. Who wrote each post
+  is recorded and shown to the team and to moderators, and to nobody else.
 - **A portfolio** — a page of your work with its own public address, to put on a
   CV. A title, a sentence, a grid or one picture at a time, and the pictures
   chosen from your recent public photos or one of your collections. A draft until
