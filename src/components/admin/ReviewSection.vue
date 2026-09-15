@@ -31,6 +31,15 @@
 
 		<div v-else class="review__scroll">
 			<table class="review__table">
+				<!-- fixed layout takes its widths from the first row, so they
+				     live here rather than on the cells, where they are ignored -->
+				<colgroup>
+					<col class="review__col-account">
+					<col class="review__col-text">
+					<col class="review__col-reason">
+					<col class="review__col-since">
+					<col class="review__col-actions">
+				</colgroup>
 				<thead>
 					<tr>
 						<th>{{ t('social', 'Account') }}</th>
@@ -332,27 +341,40 @@ export default {
 		padding: 8px 12px 8px 0;
 		text-align: start;
 		vertical-align: top;
+		// every column holds something somebody else wrote; none of it may
+		// spill over the column beside it
+		overflow-wrap: break-word;
 		border-block-end: 1px solid var(--color-border);
 	}
 }
 
-.review__account {
+.review__col-account {
 	width: 18%;
+}
+
+.review__col-text {
+	width: 34%;
+}
+
+.review__col-reason {
+	width: 17%;
+}
+
+.review__col-since {
+	width: 15%;
+}
+
+.review__col-actions {
+	width: 16%;
+}
+
+.review__account {
 	overflow-wrap: anywhere;
 }
 
 .review__text {
-	width: 40%;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
-}
-
-.review__reason {
-	width: 18%;
-}
-
-.review__since {
-	width: 14%;
 }
 
 .review__warning {
@@ -370,6 +392,12 @@ export default {
 .review__actions {
 	display: flex;
 	gap: 8px;
+	flex-wrap: wrap;
 	justify-content: flex-end;
+
+	// the labels are two short words; truncating them to "Publ…" helps nobody
+	:deep(.button-vue__text) {
+		white-space: nowrap;
+	}
 }
 </style>
