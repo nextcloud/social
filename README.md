@@ -83,6 +83,8 @@ you follow, of this instance and of the whole Fediverse are one click apart.
 
 <img src="img/readme/post-actions.gif" alt="Hovering a post opens its actions" width="680">
 
+![Stories](img/readme/stories.png)
+
 - **Stories** — a row of faces above your feed: whose stories are up. One picture or
   video, for followers, gone after a day; a ring on the face while there is something
   you have not seen, a player that runs them one after another, and your own place
@@ -199,6 +201,8 @@ own unified search. No external search engine to run.
   an empty box, and your profile links straight there.
 - **Highlights** — a twelve-week posting chart and the tags somebody keeps coming back
   to.
+![Collections](img/readme/collections.png)
+
 - **Collections** — Pixelfed's albums, as the fourth tab of a profile: a shelf of the
   account's collections, each a page of its posts drawn as the profile grid. You make
   one on your own shelf, put a post into it from the post's menu (**… → Add to a
