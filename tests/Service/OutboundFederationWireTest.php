@@ -21,6 +21,7 @@ use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\BlurService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Db\MediaBlocksRequest;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
@@ -654,6 +655,8 @@ class OutboundFederationWireTest extends TestCase {
 			$this->createMock(ImageConversionService::class),
 			$this->createMock(VideoThumbnailService::class),
 			$this->createMock(ITempManager::class),
+			$this->createMock(MediaBlocksRequest::class),
+			new NullLogger(),
 		);
 
 		$service->retrieveContent('https://' . self::REMOTE . '/media/1.png?sig=abc');

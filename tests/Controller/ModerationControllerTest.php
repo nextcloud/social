@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\ModerationController;
+use OCA\Social\Db\MediaBlocksRequest;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\AdminAccount;
@@ -36,6 +37,8 @@ class ModerationControllerTest extends TestCase {
 	private ModerationService|MockObject $moderationService;
 	private AdminApiService|MockObject $adminApiService;
 	private PostReviewService|MockObject $postReviewService;
+	private MediaBlocksRequest|MockObject $mediaBlocksRequest;
+	private \OCP\IUserSession|MockObject $userSession;
 	private AccountService|MockObject $accountService;
 	private ModerationController $controller;
 
@@ -55,6 +58,11 @@ class ModerationControllerTest extends TestCase {
 		$this->moderationService = $this->createMock(ModerationService::class);
 		$this->adminApiService = $this->createMock(AdminApiService::class);
 		$this->postReviewService = $this->createMock(PostReviewService::class);
+		$this->mediaBlocksRequest = $this->createMock(MediaBlocksRequest::class);
+		$user = $this->createMock(\OCP\IUser::class);
+		$user->method('getUID')->willReturn('alice');
+		$this->userSession = $this->createMock(\OCP\IUserSession::class);
+		$this->userSession->method('getUser')->willReturn($user);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->controller = new ModerationController(
 			$this->createMock(IRequest::class),
@@ -64,7 +72,9 @@ class ModerationControllerTest extends TestCase {
 			$this->moderationService,
 			$this->adminApiService,
 			$this->postReviewService,
-			$this->accountService
+			$this->accountService,
+			$this->mediaBlocksRequest,
+			$this->userSession
 		);
 
 		$this->adminApiService->method('accountPage')->willReturnCallback(
@@ -457,5 +467,51 @@ class ModerationControllerTest extends TestCase {
 			->method('lift')->with('https://spam.example/users/spammer', 'appealed');
 
 		$this->controller->accountModerate('https://spam.example/users/spammer', '', 'appealed');
+	}
+
+	// media blocklist and forced sensitivity
+
+	/**
+	 * Every other tool here acts on an account, and none of them stops a file
+	 * coming back — the account is suspended and the picture is posted again
+	 * by the next one.
+	 */
+	public function testAPictureIsBlockedByItsHash(): void {
+		$hash = str_repeat('a1', 32);
+		$this->mediaBlocksRequest->expects($this->once())->method('block')
+			->with($hash, 'the same image for the third time', 'alice');
+		$this->mediaBlocksRequest->method('getAll')->willReturn([]);
+
+		$this->assertSame(
+			Http::STATUS_OK,
+			$this->controller->mediaBlockAdd($hash, 'the same image for the third time')->getStatus()
+		);
+	}
+
+	/** A row that can never match a file is a row nobody can explain later. */
+	public function testSomethingThatIsNotAHashIsRefused(): void {
+		$this->mediaBlocksRequest->expects($this->never())->method('block');
+
+		$response = $this->controller->mediaBlockAdd('not-a-hash');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+	}
+
+	public function testForcingSensitiveIsRecordedAgainstTheAccount(): void {
+		$this->moderationService->expects($this->once())->method('forceSensitive')
+			->with('https://remote.example/users/x', true);
+
+		$response = $this->controller->accountForceSensitive('https://remote.example/users/x');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertTrue($response->getData()['sensitive']);
+	}
+
+	public function testForcingSensitiveNeedsAnAccount(): void {
+		$this->moderationService->expects($this->never())->method('forceSensitive');
+
+		$this->assertSame(
+			Http::STATUS_BAD_REQUEST, $this->controller->accountForceSensitive('  ')->getStatus()
+		);
 	}
 }

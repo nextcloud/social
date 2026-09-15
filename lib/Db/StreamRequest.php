@@ -45,6 +45,14 @@ use Psr\Log\LoggerInterface;
  */
 class StreamRequest extends StreamRequestBuilder {
 	/**
+	 * The accounts every post of which a moderator has marked sensitive, read
+	 * once per request. Null until something is saved.
+	 *
+	 * @var string[]|null
+	 */
+	private ?array $forcedSensitive = null;
+
+	/**
 	 * The width of the random half of a nid.
 	 *
 	 * A nid is `published_time * NID_LIMIT + random`, which keeps it sortable by
@@ -94,6 +102,8 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	public function save(Stream $stream): void {
+		$this->applyForcedSensitive($stream);
+
 		for ($attempt = 1; ; $attempt++) {
 			$qb = $this->saveStream($stream);
 			if ($stream->getType() === Note::TYPE) {
@@ -628,6 +638,30 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		return $this->getInt('count', $data, 0);
+	}
+
+	/**
+	 * A moderator's decision that every post by an account is sensitive.
+	 *
+	 * Applied here, at the one place a post is written, rather than at each of
+	 * the paths that reach it: a local post, a post that arrived in the inbox
+	 * and a post restored by the importer are the same row, and a rule that
+	 * held for one of them and not the others would be a rule nobody could
+	 * explain.
+	 *
+	 * The set is read once per request and is empty on nearly every instance,
+	 * so the common case is one query that returns nothing and a comparison
+	 * against an empty array.
+	 */
+	private function applyForcedSensitive(Stream $stream): void {
+		if ($stream->isSensitive() || $stream->getAttributedTo() === '') {
+			return;
+		}
+
+		$this->forcedSensitive ??= $this->moderationRequest->forcedSensitive();
+		if (in_array($stream->getAttributedTo(), $this->forcedSensitive, true)) {
+			$stream->setSensitive(true);
+		}
 	}
 
 	/**

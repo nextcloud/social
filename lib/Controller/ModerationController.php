@@ -11,6 +11,7 @@ namespace OCA\Social\Controller;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\MediaBlocksRequest;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Report;
@@ -29,6 +30,7 @@ use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
+use OCP\IUserSession;
 
 /**
  * Moderation actions behind the Social section of the admin settings. Every
@@ -58,8 +60,15 @@ class ModerationController extends Controller {
 		private AdminApiService $adminApiService,
 		private PostReviewService $postReviewService,
 		private AccountService $accountService,
+		private MediaBlocksRequest $mediaBlocksRequest,
+		private IUserSession $userSession,
 	) {
 		parent::__construct(Application::APP_ID, $request);
+	}
+
+	/** Who decided, for a list nobody dares remove anything from a year later. */
+	private function moderatorName(): string {
+		return $this->userSession->getUser()?->getUID() ?? '';
 	}
 
 	/**
@@ -336,6 +345,66 @@ class ModerationController extends Controller {
 			'reviewFirstPost' => $this->postReviewService->reviewsFirstPost(),
 			'autospam' => $this->postReviewService->autospam(),
 		]);
+	}
+
+	/**
+	 * Marks everything an account posts sensitive, or stops.
+	 *
+	 * The step between doing nothing and silencing: an account can be asked to
+	 * put a content warning on its pictures without being taken out of the
+	 * timelines. It applies from the next post — rewriting somebody's old
+	 * posts is a different and much larger decision.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/accounts/sensitive')]
+	public function accountForceSensitive(string $actorId, bool $sensitive = true): DataResponse {
+		$actorId = trim($actorId);
+		if ($actorId === '') {
+			return new DataResponse(['error' => 'no account given'], Http::STATUS_BAD_REQUEST);
+		}
+
+		$this->moderationService->forceSensitive($actorId, $sensitive);
+
+		return new DataResponse(['actorId' => $actorId, 'sensitive' => $sensitive]);
+	}
+
+	/**
+	 * The pictures this instance refuses, by what is in them.
+	 *
+	 * Every other tool here acts on an account, and none of them stops a file
+	 * coming back: the account is suspended, the picture is posted again by
+	 * the next one, and a moderator is deleting the same image for the third
+	 * time.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/media/blocks')]
+	public function mediaBlocks(): DataResponse {
+		return new DataResponse(['blocks' => $this->mediaBlocksRequest->getAll()]);
+	}
+
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/media/blocks')]
+	public function mediaBlockAdd(string $hash, string $reason = ''): DataResponse {
+		$hash = strtolower(trim($hash));
+		// sha256, hex, as the upload path computes it — anything else would be
+		// a row that can never match a file
+		if (preg_match('/^[a-f0-9]{64}$/', $hash) !== 1) {
+			return new DataResponse(
+				['error' => 'that is not a sha256 hash'], Http::STATUS_UNPROCESSABLE_ENTITY
+			);
+		}
+
+		$this->mediaBlocksRequest->block($hash, trim($reason), $this->moderatorName());
+
+		return new DataResponse(['blocks' => $this->mediaBlocksRequest->getAll()]);
+	}
+
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/moderation/media/blocks')]
+	public function mediaBlockRemove(string $hash): DataResponse {
+		$this->mediaBlocksRequest->unblock(strtolower(trim($hash)));
+
+		return new DataResponse(['blocks' => $this->mediaBlocksRequest->getAll()]);
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]

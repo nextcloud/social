@@ -60,6 +60,7 @@ class CoreRequestBuilder {
 	public const TABLE_COLLECTION_ITEMS = 'social_collection_item';
 	public const TABLE_IMPORTED_POSTS = 'social_import_post';
 	public const TABLE_INSTANCE = 'social_instance';
+	public const TABLE_MEDIA_BLOCKS = 'social_media_block';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REACTIONS = 'social_reaction';
@@ -395,11 +396,20 @@ class CoreRequestBuilder {
 			'account_prim',
 			'creation'
 		],
+		self::TABLE_MEDIA_BLOCKS => [
+			'id',
+			'hash',
+			'reason',
+			'moderator',
+			'blocked',
+			'creation'
+		],
 		self::TABLE_MODERATION => [
 			'actor_id_prim',
 			'actor_id',
 			'level',
 			'comment',
+			'force_sensitive',
 			'creation'
 		],
 		self::TABLE_CLIENT_AUTH => [

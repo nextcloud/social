@@ -16,6 +16,7 @@
 			:reviewFirstPost="state.reviewFirstPost"
 			:autospam="state.autospam" />
 		<AccountsSection />
+		<MediaBlocksSection />
 		<RetentionSection :days="state.retentionDays" />
 		<FederationSection :federation="state.federation" />
 		<AccessSection :accessType="state.accessType" :addresses="state.accessList" />
@@ -33,6 +34,7 @@ import ActivitySection from './ActivitySection.vue'
 import AccountsSection from './AccountsSection.vue'
 import AnnouncementsSection from './AnnouncementsSection.vue'
 import FederationSection from './FederationSection.vue'
+import MediaBlocksSection from './MediaBlocksSection.vue'
 import ReportsSection from './ReportsSection.vue'
 import RetentionSection from './RetentionSection.vue'
 import ReviewSection from './ReviewSection.vue'
@@ -69,7 +71,7 @@ const NOTHING = {
 }
 
 /**
- * The nine sections of Administration → Social.
+ * The ten sections of Administration → Social.
  *
  * Nothing here uses `v-html`, and nothing below it does either. Half of what
  * these tables draw — a handle, an instance name, the comment on a report — is
@@ -85,6 +87,7 @@ export default {
 		AccountsSection,
 		AnnouncementsSection,
 		FederationSection,
+		MediaBlocksSection,
 		ReportsSection,
 		RetentionSection,
 		ReviewSection,

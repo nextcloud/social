@@ -110,6 +110,48 @@ class ModerationRequest extends CoreRequestBuilder {
 	}
 
 	/** @return string the level, or '' when the instance has decided nothing */
+	/**
+	 * Whether every post by this account is to be marked sensitive.
+	 *
+	 * A decision of its own rather than a level: an account can be asked to
+	 * put a content warning on its pictures without being taken out of the
+	 * timelines, which is precisely the case the silence tier is too heavy
+	 * for. Mastodon's moderators have it and Pixelfed calls it `cw`.
+	 */
+	public function setForceSensitive(string $actorId, bool $sensitive): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_MODERATION)
+			->set('force_sensitive', $qb->createNamedParameter($sensitive, IQueryBuilder::PARAM_BOOL))
+			->where($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * The accounts every post of which is marked sensitive.
+	 *
+	 * Read as a set rather than one account at a time: it is consulted while
+	 * a post is being stored, it is empty on almost every instance, and a
+	 * query per post for a list of nothing is a query per post.
+	 *
+	 * @return string[] actor ids
+	 */
+	public function forcedSensitive(): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('actor_id')
+			->from(self::TABLE_MODERATION)
+			->where($qb->expr()->eq('force_sensitive', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)));
+
+		$ids = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$ids[] = (string)$row['actor_id'];
+		}
+		$cursor->closeCursor();
+
+		return $ids;
+	}
+
 	public function levelOf(string $actorId): string {
 		$qb = $this->getQueryBuilder();
 		$qb->select('level')

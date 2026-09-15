@@ -158,7 +158,7 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Nine sections:
+**Administration → Social.** Ten sections:
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
@@ -177,6 +177,10 @@ when each was last tried.
 - **Accounts** — every account this instance knows, whether or not anybody has
   complained. Search by username, by handle or by instance, filter by origin
   and by what stands against them, and act on any of them.
+- **Refused pictures** — files this instance will not store, named by their
+  sha256. The one thing the account-level tools do not do is stop a *file*
+  coming back; a refused one is turned away wherever it arrives, an upload here
+  or an attachment fetched from another server.
 - **Retention** — how long remote statuses nobody here cares about are kept.
 - **Federation health** — what the outbound queue is doing.
 - **Fediverse access** — the block list or the allow list, the same one `occ
@@ -205,11 +209,12 @@ client, and a peer instance sending `POST /api/v1/reports` about one of its
 own users' complaints. Both land in the same table, and the administrators (and
 the delegated group) are notified.
 
-There are four things a moderator can do, in order of weight:
+There are five things a moderator can do to an account, in order of weight:
 
 | Action | What it costs | Reversible |
 |--------|---------------|------------|
 | **Warn** | Nothing. The account is told there is a problem and everything else stays as it is. | n/a |
+| **Mark everything sensitive** | Every post the account makes from now on is marked sensitive, whatever it said. It stays in the timelines and its followers still see it — behind a click. | yes, completely |
 | **Silence** | The account leaves the public and global timelines. Whoever deliberately follows it still sees it. | yes, completely |
 | **Take down** | One post is deleted. A local post is deleted everywhere it reached; a remote one only here. | no |
 | **Suspend** | Everything the account posted here is deleted, its cached actor is dropped, its follows in both directions go, and everything it sends afterwards is refused. A **local** account's suspension is federated as a `Delete`. | the refusal stops; nothing deleted comes back |
