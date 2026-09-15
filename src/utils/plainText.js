@@ -47,7 +47,9 @@ function nodeToPlainText(node) {
 			continue
 		}
 
-		const element = child
+		// a ChildNode is not an Element until the node type says so, which the
+		// guard above has just established
+		const element = /** @type {Element} */ (child)
 		if (element.tagName === 'BR') {
 			text += '\n'
 			continue

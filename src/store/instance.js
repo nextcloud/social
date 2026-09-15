@@ -20,7 +20,15 @@ export const useInstanceStore = defineStore('instance', {
 		maxCharacters: DEFAULT_LIMITS.maxCharacters,
 		/** @type {number} */
 		maxAttachments: DEFAULT_LIMITS.maxAttachments,
-		/** whether this Nextcloud can translate a post at all */
+		/**
+		 * Whether this Nextcloud can translate a post at all.
+		 *
+		 * Typed rather than inferred: `DEFAULT_LIMITS` is frozen, so the
+		 * inferred type of this field would be the literal `false` and the
+		 * server's answer could never be written into it.
+		 *
+		 * @type {boolean}
+		 */
 		translation: DEFAULT_LIMITS.translation,
 		/** whether the server has been asked on this page */
 		loaded: false,
