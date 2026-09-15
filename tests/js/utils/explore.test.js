@@ -139,25 +139,52 @@ describe('shareOut', () => {
 })
 
 describe('chooseEntries', () => {
-	it('puts the hashtags first, then the lists', () => {
-		const entries = chooseEntries(tags(2), lists(2), 12)
+	const trends = (n) => Array.from({ length: n }, (_, i) => ({ name: `trend${i}` }))
 
-		expect(entries.map((e) => e.kind)).toEqual(['tag', 'tag', 'list', 'list'])
+	it('puts the hashtags first, then the lists, then what is trending', () => {
+		const entries = chooseEntries(tags(2), lists(2), trends(2), 12)
+
+		expect(entries.map((e) => e.kind)).toEqual(['tag', 'tag', 'list', 'list', 'trend', 'trend'])
 	})
 
 	it('carries the thing itself, so the sidebar can draw it', () => {
-		const [first] = chooseEntries(tags(1), [], 12)
+		const [first] = chooseEntries(tags(1), [], [], 12)
 
 		expect(first.tag.name).toBe('tag0')
 	})
 
 	it('never returns more than the room allows', () => {
-		expect(chooseEntries(tags(30), lists(30), 12)).toHaveLength(12)
-		expect(chooseEntries(tags(30), lists(30), 4)).toHaveLength(4)
+		expect(chooseEntries(tags(30), lists(30), trends(30), 12)).toHaveLength(12)
+		expect(chooseEntries(tags(30), lists(30), trends(30), 4)).toHaveLength(4)
+	})
+
+	/**
+	 * The reader chose the tags they follow and the lists they made; nobody
+	 * chose what is trending. So trending fills what is left and never takes a
+	 * place from either — otherwise a busy day on the instance would push
+	 * somebody's own follows out of their own sidebar.
+	 */
+	it('gives trending only the room the chosen things leave', () => {
+		const entries = chooseEntries(tags(6), lists(6), trends(10), 12)
+
+		expect(entries.filter((e) => e.kind === 'trend')).toHaveLength(0)
+	})
+
+	it('fills the rest with trending when there is room', () => {
+		const entries = chooseEntries(tags(1), lists(1), trends(10), 6)
+
+		expect(entries.map((e) => e.kind)).toEqual(['tag', 'list', 'trend', 'trend', 'trend', 'trend'])
+	})
+
+	/** The same tag twice, once as a follow and once as a trend, reads as a bug. */
+	it('never offers a trending tag the reader already follows', () => {
+		const entries = chooseEntries([{ name: 'design' }], [], [{ name: 'Design' }, { name: 'berlin' }], 12)
+
+		expect(entries.map((e) => `${e.kind}:${e.tag.name}`)).toEqual(['tag:design', 'trend:berlin'])
 	})
 
 	it('answers for nothing rather than throwing', () => {
-		expect(chooseEntries(undefined, undefined, 12)).toEqual([])
-		expect(chooseEntries([], [], 12)).toEqual([])
+		expect(chooseEntries(undefined, undefined, undefined, 12)).toEqual([])
+		expect(chooseEntries([], [], [], 12)).toEqual([])
 	})
 })

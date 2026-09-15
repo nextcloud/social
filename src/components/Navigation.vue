@@ -69,35 +69,18 @@
 
 			<NcAppNavigationSpacer />
 
-			<NcAppNavigationCaption v-if="trending.length > 0" :name="t('social', 'Trending')" />
-			<NcAppNavigationItem
-				v-for="tag in trending"
-				:key="`trend-${tag.name}`"
-				class="navigation__trend"
-				:name="`#${tag.name}`"
-				:href="hrefFor({ name: 'tags', params: { tag: tag.name } })"
-				:active="isTagActive(tag)"
-				@click="navigate({ name: 'tags', params: { tag: tag.name } }, $event)">
-				<template #icon>
-					<IconPound :size="20" />
-				</template>
-				<template #extra>
-					<span class="navigation__subname">
-						{{ n('social', '%n post', '%n posts', usesOf(tag)) }}
-					</span>
-				</template>
-			</NcAppNavigationItem>
+			<!-- One entry for everything there is to look at besides your own
+			     feed: the hashtags you follow, your lists, and what this
+			     instance is talking about — in one collapsible row rather than
+			     three captions that each grow without limit.
 
-			<NcAppNavigationSpacer v-if="trending.length > 0" />
-
-			<!-- One entry for everything the reader keeps an eye on: the
-			     hashtags they follow and their lists, in one collapsible row
-			     rather than two captions that each grow without limit.
+			     Trending used to be a section of its own above this one. It is
+			     in here now, last and only in the room the other two leave, so
+			     that what somebody chose to follow can never be pushed out of
+			     their own sidebar by what happens to be busy today.
 
 			     No icon of its own, so the chevron is the only thing before
-			     the word and the children line up under it. The count is what
-			     is inside, all of it — when the rail has room for fewer than
-			     there are, the count is how the reader knows the rest exist. -->
+			     the word and the children line up under it. -->
 			<NcAppNavigationItem
 				v-if="exploreTotal > 0"
 				ref="exploreItem"
@@ -108,17 +91,26 @@
 				@update:open="onExploreToggle">
 				<NcAppNavigationItem
 					v-for="entry in exploreEntries"
-					:key="entry.kind === 'tag' ? `tag-${entry.tag.name}` : `list-${entry.list.id}`"
-					:class="entry.kind === 'tag' ? 'navigation__trend' : 'navigation__list'"
-					:name="entry.kind === 'tag' ? `#${entry.tag.name}` : entry.list.title"
+					:key="keyFor(entry)"
+					:class="entry.kind === 'list' ? 'navigation__list' : 'navigation__trend'"
+					:name="entry.kind === 'list' ? entry.list.title : `#${entry.tag.name}`"
 					:title="titleFor(entry)"
 					:href="hrefFor(routeFor(entry))"
 					:active="isExploreActive(entry)"
 					@click="navigate(routeFor(entry), $event)">
 					<template #icon>
-						<IconPound v-if="entry.kind === 'tag'" :size="20" />
-						<IconAccountGroup v-else-if="entry.list.nextcloud_group" :size="20" />
-						<IconFormatListBulleted v-else :size="20" />
+						<IconAccountGroup v-if="entry.kind === 'list' && entry.list.nextcloud_group" :size="20" />
+						<IconFormatListBulleted v-else-if="entry.kind === 'list'" :size="20" />
+						<IconTrendingUp v-else-if="entry.kind === 'trend'" :size="20" />
+						<IconPound v-else :size="20" />
+					</template>
+					<!-- how busy it is, which is the whole reason a trending
+					     tag is worth a row: a followed one is there because it
+					     was chosen, not because of a number -->
+					<template v-if="entry.kind === 'trend'" #extra>
+						<span class="navigation__subname">
+							{{ n('social', '%n post', '%n posts', usesOf(entry.tag)) }}
+						</span>
 					</template>
 				</NcAppNavigationItem>
 
@@ -267,6 +259,7 @@ import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
 import IconPound from 'vue-material-design-icons/Pound.vue'
+import IconTrendingUp from 'vue-material-design-icons/TrendingUp.vue'
 import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
@@ -331,6 +324,7 @@ export default {
 		IconPlus,
 		IconBookmark,
 		IconPound,
+		IconTrendingUp,
 		IconAccountGroup,
 		IconFormatListBulleted,
 		IconCancel,
@@ -383,7 +377,7 @@ export default {
 		 * @return {number} how many hashtags and lists there are in all
 		 */
 		exploreTotal() {
-			return this.followedTags.length + this.lists.length
+			return this.followedTags.length + this.lists.length + this.trendingToShow.length
 		},
 
 		/**
@@ -402,7 +396,21 @@ export default {
 		 * @return {Array<object>}
 		 */
 		exploreEntries() {
-			return chooseEntries(this.followedTags, this.lists, this.exploreCap)
+			return chooseEntries(this.followedTags, this.lists, this.trendingToShow, this.exploreCap)
+		},
+
+		/**
+		 * The trending tags worth a row: the ones this reader does not already
+		 * follow. A followed tag is in the list above under the same name, and
+		 * counting it here as well would make Explore claim to hold more than
+		 * it can show.
+		 *
+		 * @return {Array<object>}
+		 */
+		trendingToShow() {
+			const followed = new Set(this.followedTags.map((tag) => String(tag.name).toLowerCase()))
+
+			return this.trending.filter((tag) => !followed.has(String(tag.name).toLowerCase()))
 		},
 
 		hasErrors() {
@@ -728,10 +736,18 @@ export default {
 		 * @param {object} entry one Explore entry
 		 * @return {object} where pressing it goes
 		 */
+		/**
+		 * @param {object} entry one of the Explore children
+		 * @return {string} something stable to key it by
+		 */
+		keyFor(entry) {
+			return entry.kind === 'list' ? `list-${entry.list.id}` : `${entry.kind}-${entry.tag.name}`
+		},
+
 		routeFor(entry) {
-			return entry.kind === 'tag'
-				? { name: 'tags', params: { tag: entry.tag.name } }
-				: { name: 'list', params: { id: entry.list.id } }
+			return entry.kind === 'list'
+				? { name: 'list', params: { id: entry.list.id } }
+				: { name: 'tags', params: { tag: entry.tag.name } }
 		},
 
 		/**
@@ -748,6 +764,13 @@ export default {
 				)
 			}
 
+			// the two kinds of hashtag row look alike and mean different
+			// things: one is a choice this reader made, the other is what the
+			// instance happens to be busy with
+			if (entry.kind === 'trend') {
+				return translate('social', 'Being posted about on this server right now')
+			}
+
 			return undefined
 		},
 
@@ -756,7 +779,7 @@ export default {
 		 * @return {boolean} whether its timeline is the one being shown
 		 */
 		isExploreActive(entry) {
-			return entry.kind === 'tag' ? this.isTagActive(entry.tag) : this.isListActive(entry.list)
+			return entry.kind === 'list' ? this.isListActive(entry.list) : this.isTagActive(entry.tag)
 		},
 
 		/**
@@ -775,8 +798,8 @@ export default {
 
 		/**
 		 * Re-measures whenever the rail changes shape, not only when the
-		 * window does: the Trending section arriving, an error entry
-		 * appearing, a zoom, a theme with taller rows.
+		 * window does: an error entry appearing, a zoom, a theme with taller
+		 * rows.
 		 */
 		watchRail() {
 			if (typeof ResizeObserver !== 'function') {
@@ -809,9 +832,9 @@ export default {
 		 * How many entries the rail actually has room for, right now.
 		 *
 		 * Measured rather than worked out from the window, because the rail
-		 * holds things that come and go — the Trending section when the
-		 * instance has trends, an error entry when something breaks — and
-		 * because browser zoom and a denser theme change every height at once.
+		 * holds things that come and go — an error entry when something
+		 * breaks — and because browser zoom and a denser theme change every
+		 * height at once.
 		 * A constant for "everything that is not an Explore child" was wrong
 		 * the first time it was written and would go wrong again.
 		 *

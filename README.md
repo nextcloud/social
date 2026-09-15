@@ -159,6 +159,12 @@ four ways:
   relabelled.
 - **Trending pictures and videos.**
 
+The sidebar has its own way in: **Explore**, one collapsible entry holding the
+hashtags you follow, your lists, and what this server is busy with right now — in that
+order, because the first two are things you chose and the third is not. It shows as
+much as the rail has room for, and what you follow is never pushed out by what happens
+to be trending.
+
 ![Search](img/readme/search.png)
 
 Search covers people, hashtags and the **full text of every post you are allowed to

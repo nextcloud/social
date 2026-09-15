@@ -6,10 +6,15 @@
 /**
  * What goes inside the sidebar's Explore entry, and how much of it fits.
  *
- * The rail holds the hashtags the reader follows and the lists they have. Both
- * grow without limit — somebody who follows forty tags would otherwise push
- * their own feed off a laptop screen — so the entry shows as much as there is
- * room for and says how many there are in all.
+ * The rail holds three things: the hashtags the reader follows, the lists they
+ * have, and what this instance is talking about. The first two grow without
+ * limit — somebody who follows forty tags would otherwise push their own feed
+ * off a laptop screen — so the entry shows as much as there is room for.
+ *
+ * The three are not equal. A followed tag and a list were *chosen*; a trending
+ * tag is merely popular, and it fills what is left after the chosen ones have
+ * their places. What somebody follows can therefore never be pushed out of
+ * their own sidebar by what happens to be busy today.
  */
 
 /** A navigation row, as Nextcloud sizes one, when nothing has been measured. */
@@ -20,10 +25,10 @@ export const ROW_HEIGHT = 44
  * when the rail cannot be measured.
  *
  * The real figure is taken from the DOM — see `capacityFrom()` — because the
- * parts are not all rows and they come and go: the Trending section appears
- * when the instance has trends, an error entry appears when something breaks,
- * and browser zoom changes every height at once. This is the answer for the
- * first paint, before there is anything to measure, and for jsdom.
+ * parts are not all rows and they come and go: an error entry appears when
+ * something breaks, and browser zoom changes every height at once. This is the
+ * answer for the first paint, before there is anything to measure, and for
+ * jsdom.
  */
 const RESERVED_HEIGHT = 544
 
@@ -139,20 +144,39 @@ export function shareOut(tags, lists, cap) {
 }
 
 /**
- * The entries the Explore item shows, hashtags first.
+ * The entries the Explore item shows: what the reader follows, then their
+ * lists, then what the instance is talking about.
+ *
+ * Trending takes only the room the first two leave, and never a tag the reader
+ * already follows — that tag is in the list above under the same name, and two
+ * identical rows one after the other read as a bug rather than as two
+ * meanings.
  *
  * @param {Array<{name: string}>} tags the hashtags the reader follows
  * @param {Array<{id: string, title: string}>} lists the reader's lists
+ * @param {Array<{name: string}>} trending what the instance is talking about
  * @param {number} cap how many there is room for
  * @return {Array<object>} what to draw, each carrying the `kind` it came from
  */
-export function chooseEntries(tags, lists, cap) {
+export function chooseEntries(tags, lists, trending, cap) {
 	const safeTags = Array.isArray(tags) ? tags : []
 	const safeLists = Array.isArray(lists) ? lists : []
-	const share = shareOut(safeTags.length, safeLists.length, cap)
+	const safeTrending = Array.isArray(trending) ? trending : []
+	const room = Math.max(0, Math.floor(Number(cap) || 0))
+	const share = shareOut(safeTags.length, safeLists.length, room)
 
-	return [
+	const chosen = [
 		...safeTags.slice(0, share.tags).map((tag) => ({ kind: 'tag', tag })),
 		...safeLists.slice(0, share.lists).map((list) => ({ kind: 'list', list })),
+	]
+
+	const followed = new Set(safeTags.map((tag) => String(tag.name).toLowerCase()))
+
+	return [
+		...chosen,
+		...safeTrending
+			.filter((tag) => !followed.has(String(tag.name).toLowerCase()))
+			.slice(0, Math.max(0, room - chosen.length))
+			.map((tag) => ({ kind: 'trend', tag })),
 	]
 }

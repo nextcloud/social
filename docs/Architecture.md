@@ -441,6 +441,26 @@ It chooses between whatever it is given rather than between three timelines it k
 
 **New post.** The one thing in the sidebar that is not a place to go, so it is not a row among rows: an `NcButton` in the primary colour across the width of the sidebar, above the places. It carries the app's resting elevation, lifts on hover, presses in, gives its `+` a disc that kicks the way the switcher's icons do, and lets one band of light cross it on the way in — all of it inside `prefers-reduced-motion: reduce`, which switches every bit of it off. It was an `NcAppNavigationItem` with no `to`, which renders `href="#"` and needed a `.prevent` to stop the bare fragment becoming a history entry; a button has nowhere to go by construction. `NcButton` rather than a bare `<button>` because the server's own rules for bare buttons all exclude `.button-vue`: a hand-rolled one has to win an argument with them in every state, and loses the pressed one — Nextcloud's `button:not(.button-vue, [class^="vs__"]):not(:disabled, .primary):not(.app-navigation-entry-button):active` sets the background back to the page colour, and outspecifies anything a single class can say. Its class is `navigation__compose` rather than `new-post`, which the composer card already is.
 
+**Explore.** One `NcAppNavigationItem` with `allowCollapse` holding three
+kinds of child: the hashtags the reader follows, their lists, and what the
+instance is trending. It replaced two captions that each grew without limit —
+somebody who follows forty tags pushed their own feed off a laptop screen —
+and, since 0.19.99, the trending section that used to sit above it as a caption
+of its own. The three are not equal and the order says so: a followed tag and a
+list were *chosen*, a trending tag is merely popular, so trending fills what is
+left after the chosen ones have their places (`chooseEntries()` in
+`src/utils/explore.js`) and never takes a place from them. A trending tag the
+reader already follows is dropped rather than drawn twice under the same name.
+How many children fit is measured from the rail rather than assumed:
+`measureRail()` reads the space between where the children start and where the
+rail ends, takes the row pitch from two consecutive rows (`offsetHeight` misses
+the margins), and re-measures on a `ResizeObserver` — so it copes with browser
+zoom, a denser theme and an error entry appearing. `entriesThatFit()` is the
+answer for the first paint and for jsdom, before there is anything to measure.
+The open/closed state is a `localStorage` key, and the entry carries no icon of
+its own so that the chevron is the only thing before the word and the children
+line up under it.
+
 **The account at the bottom.** The way out of every app in Nextcloud is the thing at the foot of the sidebar with your face on it, so the Social sidebar ends the same way: the **More** menu hangs off the reader's own account — their portrait, and the name they publish under — rather than off the word "More" next to a cog. `NcAppNavigationSettings` renders that cog from a hard-coded path and offers no slot to replace it, so the picture is handed to the stylesheet as `--social-face` and set as the icon box's background with the glyph hidden inside it. The picture comes from the server's own avatar endpoint rather than from the account's `avatar` field, because that endpoint answers for every account — generated initials when nobody has uploaded anything — so the button is never a blank circle, and it is the same face the rest of Nextcloud shows.
 
 The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice; what took its place is **My profile**, first in the menu behind that face. Moving the button without putting the link back would have left the reader's own profile reachable from nowhere.
