@@ -69,6 +69,31 @@
 				<span class="post-place__name">{{ placeLabel }}</span>
 			</router-link>
 		</div>
+
+		<!-- who is in the picture, when the poster named anybody. Names rather
+		     than boxes drawn over the image: what is stored is a fact about the
+		     post, and a rectangle is a thing no client of this network draws -->
+		<p v-if="taggedPeople.length" class="post-tagged">
+			<IconAccountBoxMultiple :size="14" />
+			<span class="post-tagged__with">{{ t('social', 'With') }}</span>
+			<router-link
+				v-for="(person, index) in taggedPeople"
+				:key="person.acct"
+				class="post-tagged__person"
+				:to="{ name: 'profile', params: { account: person.acct } }">
+				{{ person.display_name || person.username }}<span v-if="index < taggedPeople.length - 1">,</span>
+			</router-link>
+			<!-- the whole remedy for being in somebody else's photograph:
+			     leaving it, which needs nobody's permission -->
+			<NcButton
+				v-if="isTagged"
+				variant="tertiary-no-background"
+				class="post-tagged__leave"
+				:disabled="untagging"
+				@click="untagMe">
+				{{ t('social', 'Remove me') }}
+			</NcButton>
+		</p>
 		<div v-if="isEditing" class="post-edit-inline">
 			<input
 				v-model="editSpoiler"
@@ -331,6 +356,19 @@
 						</template>
 						{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
 					</NcActionButton>
+					<!-- who is in the picture, which only the author may say:
+					     anybody able to write a name onto anybody's photograph
+					     could put a post in front of an audience that did not
+					     ask for it -->
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct && hasPictures"
+						closeAfterClick
+						@click="taggingPeople = true">
+						<template #icon>
+							<IconAccountBoxMultiple :size="20" />
+						</template>
+						{{ t('social', 'Tag people') }}
+					</NcActionButton>
 					<NcActionButton
 						v-if="item.account.acct === currentAccount?.acct"
 						icon="icon-delete"
@@ -440,6 +478,12 @@
 			v-if="showCollectionDialog"
 			v-model:open="showCollectionDialog"
 			:status="item" />
+		<TagPeopleDialog
+			v-if="taggingPeople"
+			:nid="item.nid"
+			:people="taggedPeople"
+			@close="taggingPeople = false"
+			@tagged="onTagged" />
 		<NcDialog
 			v-model:open="showBlockDialog"
 			:name="t('social', 'Block {account}?', { account: item.account.acct })"
@@ -529,6 +573,7 @@ import Cancel from 'vue-material-design-icons/Cancel.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
+import IconAccountBoxMultiple from 'vue-material-design-icons/AccountBoxMultiple.vue'
 import IconArchiveOutline from 'vue-material-design-icons/ArchiveOutline.vue'
 import IconEyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import PencilBoxOutline from 'vue-material-design-icons/PencilBoxOutline.vue'
@@ -573,10 +618,15 @@ import { defineAsyncComponent } from 'vue'
 const MuteDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./MuteDialog.vue'))
 // fetched with the other dialogs a post rarely opens, for the same reason
 const CollectionPickerDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./CollectionPickerDialog.vue'))
+// and the same for naming the people in a photograph, which is a thing an
+// author does once per post and no reader ever does
+const TagPeopleDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./TagPeopleDialog.vue'))
 
 export default {
 	name: 'TimelinePost',
 	components: {
+		IconAccountBoxMultiple,
+		TagPeopleDialog,
 		IconArchiveOutline,
 		IconEyeOutline,
 		Cancel,
@@ -659,6 +709,8 @@ export default {
 			showBlockDialog: false,
 			showDeleteDialog: false,
 			archiving: false,
+			untagging: false,
+			taggingPeople: false,
 			/** whether the delete on screen is the first half of a re-draft */
 			deleteToRedraft: false,
 			/** the Translation entity once it has arrived, null before */
@@ -841,6 +893,22 @@ export default {
 			return this.item.account.acct === this.currentAccount?.acct
 				&& this.item.local !== false
 				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
+		},
+
+		/** @return {boolean} whether there is a picture to name anybody in */
+		hasPictures() {
+			return (this.item.media_attachments ?? []).length > 0
+		},
+
+		/** @return {Array} the people the poster named in this post's pictures */
+		taggedPeople() {
+			return this.item.tagged_people ?? []
+		},
+
+		/** @return {boolean} whether the reader is one of them */
+		isTagged() {
+			const me = this.currentAccount?.acct
+			return Boolean(me) && this.taggedPeople.some((person) => person.acct === me)
 		},
 
 		/** @return {string} the place, with its country where one was given */
@@ -1138,6 +1206,39 @@ export default {
 		 *
 		 * @return {Promise<void>}
 		 */
+		/**
+		 * @param {Array} people who the post names now, as the server says
+		 */
+		onTagged(people) {
+			this.timelineStore.updateStatusTagged({ statusId: this.item.id, taggedPeople: people })
+		},
+
+		/**
+		 * Takes the reader's own name off this photograph.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async untagMe() {
+			if (this.untagging) {
+				return
+			}
+
+			this.untagging = true
+			try {
+				const url = generateUrl('apps/social/api/v1.1/compose/tag/untagme')
+				await axios.post(url, { status_id: this.item.nid })
+				const me = this.currentAccount?.acct
+				const left = this.taggedPeople.filter((person) => person.acct !== me)
+				this.timelineStore.updateStatusTagged({ statusId: this.item.id, taggedPeople: left })
+				showSuccess(t('social', 'Your name is off this photo.'))
+			} catch (error) {
+				logger.error('could not take a name off a photo', { error })
+				showError(t('social', 'Could not remove your name'))
+			} finally {
+				this.untagging = false
+			}
+		},
+
 		async toggleArchive() {
 			if (this.archiving) {
 				return
@@ -1652,6 +1753,25 @@ export default {
 			max-width: 40%;
 			color: var(--color-text-maxcontrast);
 			font-size: 12px;
+
+			&:hover,
+			&:focus-visible {
+				text-decoration: underline;
+			}
+		}
+
+		.post-tagged {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 4px;
+			margin-block: 4px 0;
+			color: var(--color-text-maxcontrast);
+			font-size: 90%;
+		}
+
+		.post-tagged__person {
+			color: var(--color-main-text);
 
 			&:hover,
 			&:focus-visible {

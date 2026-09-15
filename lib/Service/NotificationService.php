@@ -350,6 +350,39 @@ class NotificationService {
 	}
 
 	/**
+	 * Tells somebody they have been named in a photograph.
+	 *
+	 * Local accounts only: a remote one is told by its own server, which
+	 * learns the name from the `Mention` the tag writes onto the post. Sending
+	 * this as well would be telling them twice through one of the two channels
+	 * they have.
+	 */
+	public function onPhotoTag(Stream $post, Person $author, Person $tagged): void {
+		if (!$this->isLocal($tagged->getId()) || $tagged->getId() === $author->getId()) {
+			return;
+		}
+
+		try {
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
+
+			/** @var SocialAppNotification $item */
+			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+			$item->addDetail('account', $this->accountOf($author->getId()));
+			$item->setAttributedTo($author->getId())
+				->setSubType(Stream::SUBTYPE_PHOTO_TAG)
+				->setId($post->getId() . '/notification+tagged/' . md5($tagged->getId()))
+				->setSummary('{account} named you in a photo')
+				->setObjectId($post->getId())
+				->setTo($tagged->getId())
+				->setLocal(true);
+
+			$interface->save($item);
+		} catch (Exception $e) {
+			$this->logger->warning('could not store a photo-tag notification', ['exception' => $e]);
+		}
+	}
+
+	/**
 	 * Tells a local account that a block has cut its follows.
 	 *
 	 * Blocking a domain deletes the follows in both directions, and until this

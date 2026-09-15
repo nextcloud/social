@@ -72,6 +72,7 @@ class CoreRequestBuilder {
 	public const TABLE_STORIES = 'social_story';
 	public const TABLE_STORY_VIEWS = 'social_story_view';
 	public const TABLE_STORY_REACTS = 'social_story_react';
+	public const TABLE_MEDIA_TAGS = 'social_media_tag';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -306,6 +307,15 @@ class CoreRequestBuilder {
 			'content',
 			'source_id',
 			'source_id_prim',
+			'creation'
+		],
+		self::TABLE_MEDIA_TAGS => [
+			'id',
+			'stream_id',
+			'stream_id_prim',
+			'actor_id',
+			'actor_id_prim',
+			'tagger_id_prim',
 			'creation'
 		],
 		self::TABLE_CONVERSATION_STATE => [

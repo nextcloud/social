@@ -268,6 +268,16 @@ every attachment does — stripped of the camera's metadata — and your story
 is up for a day, to your followers and nobody else. While it is up, you can
 see how many people watched it and take it down early from the same player.
 
+Somebody watching a story can answer it: a row of emoji under the picture for a
+reaction, and a box beside them for a line of text. Either one goes to the
+person who posted it and to nobody else — a reply to a story is a message, not a
+comment on a page — and only somebody who follows them can send one, which is
+the same condition as being able to see the story at all. Five answers to one
+story is the limit, because without one what a story hands somebody is a
+private channel to its poster that the poster cannot close. What was said shows
+under your own story while it is up, and goes with it when it expires: a reply
+is not a post, and nothing keeps it after the thing it was about has gone.
+
 Stories travel. Yours go to the people who follow you on other servers that
 have stories — Pixelfed is the one that does. Stories from a Pixelfed account
 do not come the other way, and that is Pixelfed's decision rather than this
@@ -275,11 +285,13 @@ server's: it sends them only to servers it recognises as Pixelfed. Taking
 yours down early takes it down there too. What another server does with its copy after the day is up is that
 server's business, which is why a story that arrives here is kept for a day
 at the most, whatever the sender says, and one that has already expired is
-not kept at all.
+not kept at all. Watching a story from another server sends a receipt to its
+author so that their own server can count it, and reactions and replies travel
+the same way in both directions, in the shape Pixelfed's own inbox reads.
 
 ### Collections
 
-A profile has a fourth tab beside Posts, Photos and Videos: **Collections**, the
+A profile has a **Collections** tab beside Posts, Photos, Videos and Tagged: the
 account's albums. Each is a page of the posts the owner gathered into it, drawn
 as the same grid of squares the Photos tab uses, with a lock on the ones that
 are for followers only.
@@ -290,6 +302,27 @@ own posts with a picture or a video in them offer it, because that is all a
 collection may hold. On a collection's page you can **Edit** its title,
 description and audience, **Remove posts** from their own squares, or
 **Delete** it — the posts stay where they are.
+
+### Who is in the photo
+
+Open one of your own posts with a picture in it, choose **Tag people** from its
+menu (**…**), and type the handles of the people in it, separated by commas.
+Their names appear under the post, linked to their profiles, and each of them is
+told — including somebody on another server, because the name is written onto
+the post as a mention and the post is sent out again.
+
+The field holds the whole list rather than only what you are adding, so taking
+somebody out of the photo is deleting their handle. Only the person who posted a
+photo can name anybody in it: if anybody could, writing your own name onto
+somebody else's picture would put their post in front of an audience that never
+asked for it.
+
+Naming somebody does **not** change who may see the post. A followers-only
+photograph stays followers-only.
+
+Each profile has a **Tagged** tab: the photographs that account is named in,
+whoever took them. If you are named in one and would rather not be, **Remove me**
+under the post takes your name off, and needs nobody's permission.
 
 ## Filtering out words
 

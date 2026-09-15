@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -94,7 +95,8 @@ class BoostServiceTest extends TestCase {
 			$this->createMock(EmojiService::class),
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
-			$this->createMock(ReactionSummaryService::class)
+			$this->createMock(ReactionSummaryService::class),
+			$this->createMock(MediaTagsRequest::class)
 		);
 
 		$this->service = new BoostService(

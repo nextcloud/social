@@ -17,9 +17,11 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Suggestion;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ArchiveService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\MediaTagService;
 use OCA\Social\Service\PixelfedConfigService;
 use OCA\Social\Service\PixelfedService;
 use OCA\Social\Service\PlaceService;
@@ -60,6 +62,7 @@ class PixelfedControllerTest extends TestCase {
 	private PixelfedService|MockObject $pixelfedService;
 	private StoryService|MockObject $storyService;
 	private StoryInteractionService|MockObject $storyInteractionService;
+	private MediaTagService|MockObject $mediaTagService;
 	private ArchiveService|MockObject|null $archiveService = null;
 
 	private bool $hasSession = true;
@@ -113,6 +116,7 @@ class PixelfedControllerTest extends TestCase {
 		$this->pixelfedService = $this->createMock(PixelfedService::class);
 		$this->storyService = $this->createMock(StoryService::class);
 		$this->storyInteractionService = $this->createMock(StoryInteractionService::class);
+		$this->mediaTagService = $this->createMock(MediaTagService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->hashtagService->method('getTrending')
 			->willReturnCallback(function (int $limit, string $period): array {
@@ -155,6 +159,8 @@ class PixelfedControllerTest extends TestCase {
 			$this->pixelfedService,
 			$this->storyService,
 			$this->storyInteractionService,
+			$this->mediaTagService,
+			$this->createMock(CacheActorService::class),
 			$this->archiveService,
 			$this->createMock(DiscoverCategoriesRequest::class)
 		);

@@ -177,6 +177,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const SUBTYPE_STORY_REACT = 'StoryReaction';
 	public const SUBTYPE_STORY_REPLY = 'StoryReply';
 
+	/** Somebody named you in a photograph. */
+	public const SUBTYPE_PHOTO_TAG = 'PhotoTag';
+
 	private const NOTIFICATION_TYPES = [
 		Like::TYPE => 'favourite',
 		Announce::TYPE => 'reblog',
@@ -190,6 +193,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		self::SUBTYPE_SEVERED => 'severed_relationships',
 		self::SUBTYPE_STORY_REACT => 'story:react',
 		self::SUBTYPE_STORY_REPLY => 'story:comment',
+		self::SUBTYPE_PHOTO_TAG => 'tagged',
 	];
 
 	private string $activityId = '';
@@ -220,6 +224,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * know".
 	 */
 	private ?int $viewCount = null;
+
+	/**
+	 * The people named in this post's pictures.
+	 *
+	 * Filled in by `MediaTagService` where a post is read for a client, and
+	 * empty otherwise — a post read for the wire carries its names as
+	 * `Mention` tags, which is where a peer looks for them.
+	 *
+	 * @var Person[]
+	 */
+	private array $taggedPeople = [];
 
 	/**
 	 * Whether the author has put this post away.
@@ -692,6 +707,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function getViewCount(): ?int {
 		return $this->viewCount;
+	}
+
+	/** @return Person[] */
+	public function getTaggedPeople(): array {
+		return $this->taggedPeople;
+	}
+
+	/** @param Person[] $taggedPeople */
+	public function setTaggedPeople(array $taggedPeople): self {
+		$this->taggedPeople = $taggedPeople;
+
+		return $this;
 	}
 
 	public function setViewCount(?int $viewCount): self {
@@ -1294,6 +1321,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// null on everybody else's copy: how many people read a post is
 			// the author's business
 			'view_count' => $this->getViewCount(),
+			// who is in the picture. Pixelfed's `tagged_people`, and the same
+			// key, because its own app reads it
+			'tagged_people' => $this->getTaggedPeople(),
 			'content' => $this->getContent(),
 			'sensitive' => $this->isSensitive(),
 			'spoiler_text' => $this->getSpoilerText(),

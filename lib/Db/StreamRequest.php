@@ -2151,6 +2151,8 @@ class StreamRequest extends StreamRequestBuilder {
 			// and who opened it, which is a row about a post that no longer
 			// exists and that nothing will ever read again
 			[self::TABLE_STREAM_VIEWS, 'stream_id_prim'],
+			// and the people named in its pictures
+			[self::TABLE_MEDIA_TAGS, 'stream_id_prim'],
 		] as [$table, $field]) {
 			$qb = $this->getQueryBuilder();
 			$qb->delete($table)

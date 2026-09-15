@@ -93,7 +93,9 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   Pixelfed, in the shape Pixelfed actually reads — an `Add` carrying a capability its
   inbox fetches the story with, measured field by field against Pixelfed's own source
   rather than against the specification. One that arrives is held no longer than a day
-  here whatever the sender says. The other direction is not ours to fix: Pixelfed sends
+  here whatever the sender says. You can answer one with an emoji or a line of text,
+  and the poster is told and sees what was said; watching one posted elsewhere sends a
+  receipt to its author, so their own server can count it. The other direction is not ours to fix: Pixelfed sends
   stories only to instances it has identified as Pixelfed.
 - **Photos and Videos are timelines of their own**, drawn as grids and asked of the
   server rather than filtered out of a page you already have.
@@ -217,12 +219,18 @@ own unified search. No external search engine to run.
   to.
 ![Collections](img/readme/collections.png)
 
-- **Collections** — Pixelfed's albums, as the fourth tab of a profile: a shelf of the
+- **Collections** — Pixelfed's albums, as a tab of a profile: a shelf of the
   account's collections, each a page of its posts drawn as the profile grid. You make
   one on your own shelf, put a post into it from the post's menu (**… → Add to a
   collection**), and edit, empty or delete it on its page. A collection holds only
   its owner's own posts with a picture or a video in them, and a followers-only one
   is shown to followers and nobody else.
+- **Tag people in a photo** — name the people in one of your own pictures from the
+  post's menu (**… → Tag people**), and their names show up under it, linked to their
+  profiles. Everybody named is told, and the photo appears under **Tagged** on their
+  own profile — including on another server, because each name is written onto the
+  post as a mention and the post is sent again. It does not change who may see the
+  post. Anybody named can take their own name off, which needs nobody's permission.
 - **Pinned posts**, up to five, published in the actor's `featured` collection. Remote
   accounts' pins arrive too.
 - **A grid or a timeline**, whichever you last chose, cropped to each picture's focal

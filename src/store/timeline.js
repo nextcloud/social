@@ -386,6 +386,23 @@ export const useTimelineStore = defineStore('timeline', {
 				this.statuses[statusId] = { ...known, archived }
 			}
 		},
+		/**
+		 * The people named in a post's pictures, after somebody changed them.
+		 *
+		 * In the store for the same reason as the archive flag: one post is
+		 * often drawn twice, and a card that edited its own copy would leave
+		 * the other one still carrying a name that has been taken off.
+		 *
+		 * @param {object} root0 the post and its new list
+		 * @param {string} root0.statusId the post
+		 * @param {Array} root0.taggedPeople who it names now
+		 */
+		updateStatusTagged({ statusId, taggedPeople }) {
+			const known = this.statuses[statusId]
+			if (known !== undefined) {
+				this.statuses[statusId] = { ...known, tagged_people: taggedPeople }
+			}
+		},
 		updateStatusPoll({ statusId, poll }) {
 			const known = this.statuses[statusId]
 			if (known !== undefined) {

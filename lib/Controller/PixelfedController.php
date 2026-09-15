@@ -14,9 +14,11 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Client\StoryInteraction;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ArchiveService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\MediaTagService;
 use OCA\Social\Service\PixelfedConfigService;
 use OCA\Social\Service\PixelfedService;
 use OCA\Social\Service\PlaceService;
@@ -75,6 +77,8 @@ class PixelfedController extends ClientApiController {
 		private PixelfedService $pixelfedService,
 		private StoryService $storyService,
 		private StoryInteractionService $storyInteractionService,
+		private MediaTagService $mediaTagService,
+		private CacheActorService $cacheActorService,
 		private ArchiveService $archiveService,
 		private DiscoverCategoriesRequest $discoverCategoriesRequest,
 	) {
@@ -327,6 +331,82 @@ class PixelfedController extends ClientApiController {
 				$this->storyInteractionService->answer(
 					$this->viewer(), $sid, StoryInteraction::TYPE_REPLY, $caption
 				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Names the people in one of the viewer's own photographs.
+	 *
+	 * `accounts` is the whole list the post should end up naming, not what to
+	 * add: anybody dropped from it is untagged, which is what makes a client
+	 * that sends its list again on every edit a no-op rather than a growing
+	 * pile. Only the post's author may name anybody in it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/compose/tag')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/compose/tag', postfix: 'pf')]
+	public function composeTag(int $status_id = 0, array $accounts = []): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+
+			return new DataResponse(
+				['tagged_people' => $this->mediaTagService->tag($this->viewer(), $status_id, $accounts)],
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Takes the viewer's own name off a photograph.
+	 *
+	 * Pixelfed's route, and its whole remedy for being named in somebody
+	 * else's picture: being in one is not something to need their permission
+	 * to leave.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/compose/tag/untagme')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/compose/tag/untagme', postfix: 'pf')]
+	public function composeUntagMe(int $status_id = 0): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+
+			return new DataResponse(
+				['untagged' => $this->mediaTagService->untag($this->viewer(), $status_id)],
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The photographs somebody is named in — "photos of you", for anybody.
+	 *
+	 * Which of them the reader may see is not decided here: the ids come out
+	 * of the tag table and each post is read the way any other post is read
+	 * for this reader, so one they may not see is simply not among them.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/accounts/{account_id}/tagged')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/accounts/{account_id}/tagged', postfix: 'pf')]
+	public function accountTagged(string $account_id, int $limit = 20, int $max_id = 0): DataResponse {
+		try {
+			$this->initViewer(['read:statuses']);
+			$subject = $this->cacheActorService->resolve($account_id);
+
+			return new DataResponse(
+				$this->mediaTagService->photosOf($this->viewer(), $subject->getId(), $limit, $max_id),
 				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
