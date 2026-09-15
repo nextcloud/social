@@ -342,8 +342,6 @@ class AdminApiController extends AdminApiControllerBase {
 		}
 	}
 
-	#[NoCSRFRequired]
-	#[PublicPage]
 	/**
 	 * Changes what a report says it is about.
 	 *
@@ -373,6 +371,8 @@ class AdminApiController extends AdminApiControllerBase {
 		}
 	}
 
+	#[NoCSRFRequired]
+	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/reports/{id}/resolve')]
 	public function reportResolve(int $id): DataResponse {
 		try {
