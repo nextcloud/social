@@ -47,6 +47,8 @@ class RateLimitedController extends Controller {
  */
 class RateLimitHeadersMiddlewareTest extends TestCase {
 	private IUserSession|MockObject $userSession;
+	private ICacheFactory|MockObject $cacheFactory;
+	private IRequest|MockObject $request;
 	private array $store = [];
 	private RateLimitHeadersMiddleware $middleware;
 	private RateLimitedController $controller;
@@ -76,14 +78,17 @@ class RateLimitHeadersMiddlewareTest extends TestCase {
 			}
 		);
 
-		$cacheFactory = $this->createMock(ICacheFactory::class);
-		$cacheFactory->method('createDistributed')->willReturn($cache);
+		$this->cacheFactory = $this->createMock(ICacheFactory::class);
+		$this->cacheFactory->method('createDistributed')->willReturn($cache);
+		$this->cacheFactory->method('createLocal')->willReturn($cache);
+		$this->cacheFactory->method('isAvailable')->willReturn(true);
 
 		$this->userSession = $this->createMock(IUserSession::class);
 		$this->controller = new RateLimitedController('social', $request);
 
+		$this->request = $request;
 		$this->middleware = new RateLimitHeadersMiddleware(
-			$request, $this->userSession, $cacheFactory
+			$request, $this->userSession, $this->cacheFactory
 		);
 	}
 
@@ -197,5 +202,59 @@ class RateLimitHeadersMiddlewareTest extends TestCase {
 		}
 
 		$this->assertSame('0', $headers['X-RateLimit-Remaining']);
+	}
+
+	/**
+	 * Found on devel, which has no memcache: `createDistributed()` hands back
+	 * a cache that stores nothing, so the count came back 1 on every request
+	 * and two posts in a row both reported 29 left.
+	 *
+	 * A number that was never measured is worse than no number. The budget is
+	 * still published — a client reading `Limit` without `Remaining` knows
+	 * what it has and counts its own requests, which is what it did before
+	 * these headers existed.
+	 */
+	public function testAnInstanceWithNoCacheIsToldTheBudgetAndNotTheSpending(): void {
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$cacheFactory->method('isLocalCacheAvailable')->willReturn(false);
+		$cacheFactory->expects($this->never())->method('createDistributed');
+
+		$middleware = new RateLimitHeadersMiddleware(
+			$this->request, $this->userSession, $cacheFactory
+		);
+		$this->signedInAs('alice');
+
+		$headers = $middleware
+			->afterController($this->controller, 'limited', new DataResponse([]))
+			->getHeaders();
+
+		$this->assertSame('60', $headers['X-RateLimit-Limit']);
+		$this->assertArrayNotHasKey('X-RateLimit-Remaining', $headers);
+		$this->assertArrayNotHasKey('X-RateLimit-Reset', $headers);
+	}
+
+	/**
+	 * A local cache is the honest second best: the count is per web server, so
+	 * a client behind a load balancer sees a budget that looks larger than it
+	 * is — which errs towards pacing rather than towards being refused.
+	 */
+	public function testWithoutADistributedCacheItFallsBackToTheLocalOne(): void {
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$cacheFactory->method('isLocalCacheAvailable')->willReturn(true);
+		$cacheFactory->expects($this->once())->method('createLocal')
+			->willReturn($this->createMock(ICache::class));
+
+		$middleware = new RateLimitHeadersMiddleware(
+			$this->request, $this->userSession, $cacheFactory
+		);
+		$this->signedInAs('alice');
+
+		$headers = $middleware
+			->afterController($this->controller, 'limited', new DataResponse([]))
+			->getHeaders();
+
+		$this->assertArrayHasKey('X-RateLimit-Remaining', $headers);
 	}
 }

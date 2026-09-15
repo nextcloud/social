@@ -14,6 +14,7 @@ use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Middleware;
+use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -42,7 +43,9 @@ use Throwable;
  *
  * A route with no rate-limit attribute gets no headers, rather than a made-up
  * budget: "unlimited" and "I did not measure" are different answers and a
- * client should be able to tell them apart.
+ * client should be able to tell them apart. The same rule decides what happens
+ * on an instance with no memcache, where there is nowhere to keep a counter:
+ * the budget is published and the spending is not.
  */
 class RateLimitHeadersMiddleware extends Middleware {
 	/** The cache the counters live in; distinct from anything else the app caches. */
@@ -69,9 +72,26 @@ class RateLimitHeadersMiddleware extends Middleware {
 			}
 
 			[$limit, $period] = $budget;
-			$used = $this->countThisRequest($controller, $methodName, $period);
-
 			$response->addHeader('X-RateLimit-Limit', (string)$limit);
+
+			// An instance with no memcache configured has nowhere to keep a
+			// counter, and `createDistributed()` hands back a cache that
+			// stores nothing — so the count would come back 1 on every request
+			// and the header would report "29 left" for ever. Found on devel,
+			// which has no memcache: two posts in a row both said 29.
+			//
+			// A number that was never measured is worse than no number, so the
+			// budget is still published and the spending is not. A client
+			// reading `Limit` without `Remaining` knows what the budget is and
+			// paces itself by counting its own requests, which is what it did
+			// before any of these headers existed.
+			$cache = $this->counter();
+			if ($cache === null) {
+				return $response;
+			}
+
+			$used = $this->countThisRequest($cache, $controller, $methodName, $period);
+
 			$response->addHeader('X-RateLimit-Remaining', (string)max(0, $limit - $used));
 			// seconds since the epoch, as Mastodon sends it: the moment the
 			// window this request fell in runs out
@@ -119,9 +139,9 @@ class RateLimitHeadersMiddleware extends Middleware {
 	 * client told "0 remaining, resets in 4 seconds" and refused for another
 	 * minute would have been told something untrue.
 	 */
-	private function countThisRequest(Controller $controller, string $methodName, int $period): int {
-		$cache = $this->cacheFactory->createDistributed(self::CACHE_PREFIX);
-
+	private function countThisRequest(
+		ICache $cache, Controller $controller, string $methodName, int $period,
+	): int {
 		$key = implode('/', [
 			$this->identity(),
 			$controller::class,
@@ -135,6 +155,31 @@ class RateLimitHeadersMiddleware extends Middleware {
 		$cache->set($key, $used, $period);
 
 		return $used;
+	}
+
+	/**
+	 * Somewhere to keep the count, or null when there is nowhere.
+	 *
+	 * Distributed first, because a budget is per account and not per web
+	 * server: two requests that land on different servers are two requests
+	 * against one budget. A local cache is the honest second best — the count
+	 * is then per server, so a client behind a load balancer sees a budget
+	 * that looks larger than it is, which is the direction that errs towards
+	 * pacing rather than being refused.
+	 *
+	 * Null when Nextcloud has no memcache at all, which is the default on a
+	 * small install: there is no counter to read and no number worth printing.
+	 */
+	private function counter(): ?ICache {
+		if ($this->cacheFactory->isAvailable()) {
+			return $this->cacheFactory->createDistributed(self::CACHE_PREFIX);
+		}
+
+		if ($this->cacheFactory->isLocalCacheAvailable()) {
+			return $this->cacheFactory->createLocal(self::CACHE_PREFIX);
+		}
+
+		return null;
 	}
 
 	/** Who the budget belongs to: the signed-in account, else the address. */
