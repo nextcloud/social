@@ -14,6 +14,7 @@ use DateTimeZone;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\FilterKeyword;
+use OCA\Social\Model\Client\FilterStatus;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -95,6 +96,11 @@ class FiltersRequest extends FiltersRequestBuilder {
 		$filter = $this->parseFiltersSelectSql($data)->setActorId($actorId);
 		$keywords = $this->keywordsOf([$filter->getId()]);
 		$filter->setKeywords($keywords[$filter->getId()] ?? []);
+		// both halves, as `withKeywords()` fills them for a list: a filter read
+		// on its own carried no statuses, so the route that lists them answered
+		// an empty list for a filter that had some
+		$statuses = $this->statusesOf([$filter->getId()]);
+		$filter->setStatuses($statuses[$filter->getId()] ?? []);
 
 		return $filter;
 	}
@@ -147,6 +153,7 @@ class FiltersRequest extends FiltersRequestBuilder {
 		}
 
 		$this->deleteKeywordsOfFilter($id);
+		$this->deleteStatusesOfFilter($id);
 	}
 
 	/**
@@ -156,6 +163,7 @@ class FiltersRequest extends FiltersRequestBuilder {
 	public function deleteRelatedId(string $actorId): void {
 		foreach ($this->selectIdsByActor($actorId) as $id) {
 			$this->deleteKeywordsOfFilter($id);
+			$this->deleteStatusesOfFilter($id);
 		}
 
 		$qb = $this->getFiltersDeleteSql();
@@ -253,6 +261,91 @@ class FiltersRequest extends FiltersRequestBuilder {
 		return $keywords;
 	}
 
+	/**
+	 * Adds one post to a filter.
+	 *
+	 * The caller has already checked that the filter is the account's; the id
+	 * of the row is what a client deletes the entry by afterwards.
+	 */
+	public function saveStatus(FilterStatus $status): int {
+		$qb = $this->getStatusesInsertSql();
+		$qb->setValue('filter_id', $qb->createNamedParameter($status->getFilterId(), IQueryBuilder::PARAM_INT))
+			->setValue('status_id', $qb->createNamedParameter($status->getStatusId(), IQueryBuilder::PARAM_INT))
+			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+
+		$qb->executeStatement();
+		$id = $qb->getLastInsertId();
+		$status->setId($id);
+
+		return $id;
+	}
+
+	/**
+	 * @throws ItemNotFoundException no such entry on any filter of this account
+	 */
+	public function getStatusById(int $id, string $actorId): FilterStatus {
+		$qb = $this->getOwnedStatusSelectSql($actorId);
+		$qb->andWhere($qb->expr()->eq('fs.id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new ItemNotFoundException('filter status not found');
+		}
+
+		return $this->parseStatusesSelectSql($data);
+	}
+
+	public function deleteStatus(int $id, string $actorId): void {
+		// as with a keyword: the ownership is the filter's, a DELETE cannot
+		// join, so the row is read under the join first
+		$status = $this->getStatusById($id, $actorId);
+
+		$qb = $this->getStatusesDeleteSql();
+		$qb->where($qb->expr()->eq('id', $qb->createNamedParameter($status->getId(), IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	public function deleteStatusesOfFilter(int $filterId): void {
+		$qb = $this->getStatusesDeleteSql();
+		$qb->where($qb->expr()->eq('filter_id', $qb->createNamedParameter($filterId, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * The posts a set of filters covers, in one query rather than one per
+	 * filter: a timeline read asks for every filter of the viewer at once.
+	 *
+	 * @param int[] $filterIds
+	 *
+	 * @return array<int, FilterStatus[]> filter id => the posts it covers
+	 */
+	public function statusesOf(array $filterIds): array {
+		if ($filterIds === []) {
+			return [];
+		}
+
+		$qb = $this->getStatusesSelectSql();
+		$qb->andWhere(
+			$qb->expr()->in('fs.filter_id', $qb->createNamedParameter($filterIds, IQueryBuilder::PARAM_INT_ARRAY))
+		);
+		$qb->orderBy('fs.id', 'asc');
+
+		$statuses = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$status = $this->parseStatusesSelectSql($data);
+			$statuses[$status->getFilterId()][] = $status;
+		}
+		$cursor->closeCursor();
+
+		return $statuses;
+	}
+
 	private function selectByActor(string $actorId): SocialQueryBuilder {
 		$qb = $this->getFiltersSelectSql();
 		$qb->andWhere($qb->expr()->eq('f.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
@@ -292,8 +385,10 @@ class FiltersRequest extends FiltersRequestBuilder {
 		}
 
 		$keywords = $this->keywordsOf(array_keys($filters));
+		$statuses = $this->statusesOf(array_keys($filters));
 		foreach ($filters as $id => $filter) {
 			$filter->setKeywords($keywords[$id] ?? []);
+			$filter->setStatuses($statuses[$id] ?? []);
 		}
 
 		return array_values($filters);

@@ -705,4 +705,42 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		// do not exist yet
 		DomainBlocksRequestBuilder::filterDomainBlocked($this);
 	}
+
+	/**
+	 * Drops the boosts of accounts whose boosts this viewer has turned off.
+	 *
+	 * Mastodon's `reblogs: false` on a follow: "I want to read you, not what
+	 * you pass on." Only the boost rows go — the account's own posts are why
+	 * the viewer follows them, and hiding those would be a mute under another
+	 * name.
+	 *
+	 * The type predicate is in the ON clause rather than the WHERE for the
+	 * reason the mute expiry is: in the WHERE it would apply to every row, and
+	 * a post that is not a boost would be dropped whenever the viewer had a
+	 * row of this type about its author.
+	 */
+	public function filterHiddenBoosts(): void {
+		if (!$this->hasViewer()) {
+			return;
+		}
+
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->leftJoin(
+			$pf, CoreRequestBuilder::TABLE_ACTOR_RELATION, 'hb_r',
+			$expr->andX(
+				$expr->eq(
+					'hb_r.actor_id_prim',
+					$this->createNamedParameter($this->prim($this->getViewer()->getId()))
+				),
+				$expr->eq(
+					'hb_r.type', $this->createNamedParameter(ActorRelation::TYPE_HIDE_REBLOGS)
+				),
+				$expr->eq('hb_r.object_id_prim', $pf . '.attributed_to_prim'),
+				$expr->eq($pf . '.type', $this->createNamedParameter(Announce::TYPE))
+			)
+		);
+		$this->andWhere($expr->isNull('hb_r.id'));
+	}
 }

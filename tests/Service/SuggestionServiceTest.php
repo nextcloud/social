@@ -14,6 +14,7 @@ use OCA\Social\Db\DiscoveryRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Suggestion;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\ColleagueService;
 use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\SuggestionService;
@@ -149,7 +150,7 @@ class SuggestionServiceTest extends TestCase {
 	}
 
 	/** All three directions of `social_actor_relation` are asked for. */
-	public function testBlocksMutesAndBeingBlockedAreAllAskedFor(): void {
+	public function testBlocksMutesBeingBlockedAndDismissalsAreAllAskedFor(): void {
 		$asked = null;
 		$this->discoveryRequest = $this->createMock(DiscoveryRequest::class);
 		$this->discoveryRequest->method('relatedPrims')
@@ -169,7 +170,12 @@ class SuggestionServiceTest extends TestCase {
 		))->suggestions(self::VIEWER, SuggestionService::LIMIT);
 
 		$this->assertSame(
-			[ActorRelation::TYPE_BLOCK, ActorRelation::TYPE_MUTE, ActorRelation::TYPE_BLOCKED_BY],
+			[
+				ActorRelation::TYPE_BLOCK,
+				ActorRelation::TYPE_MUTE,
+				ActorRelation::TYPE_BLOCKED_BY,
+				AccountRelationService::TYPE_SUGGESTION_DISMISSED,
+			],
 			$asked
 		);
 	}

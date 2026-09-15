@@ -139,11 +139,20 @@ class FilterService {
 
 	/**
 	 * What matched, as Mastodon's `FilterResult` entities — one per filter that
-	 * matched, naming the filter and the text that matched it.
+	 * matched, naming the filter and what matched it.
 	 *
-	 * `status_matches` is always empty: those are Mastodon's per-status
-	 * filters, which this app does not have. The key is still sent, because a
-	 * client that declares it non-optional cannot decode a status without it.
+	 * Two things can match. A keyword matches the words of the status, and is
+	 * reported in `keyword_matches`. A filter may also name the status itself
+	 * — Mastodon's per-status filters, a client's "filter this post" — and
+	 * that is reported in `status_matches`, which carries the status id rather
+	 * than any text because there is no text to report: the filter matched the
+	 * post, not something in it.
+	 *
+	 * A status filter is matched against the boost's own id as well as the
+	 * boosted post's. Filtering a post the reader chose to be rid of and then
+	 * showing it again the moment somebody boosts it would be a filter that
+	 * does not work, and a boost carries no words of its own for a keyword to
+	 * catch.
 	 *
 	 * @param array $status a status entity
 	 * @param Filter[] $filters
@@ -155,33 +164,60 @@ class FilterService {
 			return [];
 		}
 
+		$ids = $this->matchableIds($status);
 		$text = $this->searchableText($status);
-		if ($text === '') {
-			return [];
-		}
 
 		$results = [];
 		foreach ($filters as $filter) {
 			$matches = [];
-			foreach ($filter->getKeywords() as $keyword) {
-				$matched = $this->match($keyword, $text);
-				if ($matched !== '') {
-					$matches[] = $matched;
+			if ($text !== '') {
+				foreach ($filter->getKeywords() as $keyword) {
+					$matched = $this->match($keyword, $text);
+					if ($matched !== '') {
+						$matches[] = $matched;
+					}
 				}
 			}
 
-			if ($matches !== []) {
+			$covered = [];
+			foreach ($ids as $id) {
+				if ($filter->covers($id)) {
+					$covered[] = (string)$id;
+				}
+			}
+
+			if ($matches !== [] || $covered !== []) {
 				$results[] = [
 					'filter' => $filter->exportAsResultFilter(),
 					// the text that matched, as Mastodon reports it: what the
 					// keyword found, not the keyword
 					'keyword_matches' => array_values(array_unique($matches)),
-					'status_matches' => [],
+					'status_matches' => $covered,
 				];
 			}
 		}
 
 		return $results;
+	}
+
+	/**
+	 * The status ids a per-status filter may name: the entity's own, and the
+	 * boosted post's where this is a boost.
+	 *
+	 * @param array $status a status entity
+	 *
+	 * @return int[]
+	 */
+	private function matchableIds(array $status): array {
+		$ids = [];
+		foreach ([$status, $status['reblog'] ?? null] as $entity) {
+			$id = is_array($entity) ? (int)($entity['id'] ?? 0) : 0;
+			if ($id > 0) {
+				$ids[$id] = true;
+			}
+		}
+
+		return array_keys($ids);
 	}
 
 	/** @param array<array{filter: array, ...}> $results */

@@ -23,10 +23,13 @@ import { generateUrl } from '@nextcloud/router'
 export const DEFAULT_LIMITS = Object.freeze({
 	maxCharacters: 500,
 	maxAttachments: 10,
+	// off until the server says otherwise: a translate button that does
+	// nothing is worse than no button
+	translation: false,
 })
 
 /** the answer so far: the defaults until the server has said otherwise */
-/** @type {{maxCharacters: number, maxAttachments: number}} */
+/** @type {{maxCharacters: number, maxAttachments: number, translation: boolean}} */
 let known = DEFAULT_LIMITS
 /** the request in flight, or done; there is never more than one */
 let pending = null
@@ -46,7 +49,7 @@ function positive(value, fallback) {
  * The limits an instance entity carries.
  *
  * @param {object|null} instance a `GET /api/v1/instance` answer
- * @return {{maxCharacters: number, maxAttachments: number}}
+ * @return {{maxCharacters: number, maxAttachments: number, translation: boolean}}
  */
 export function limitsFrom(instance) {
 	const statuses = instance?.configuration?.statuses ?? {}
@@ -54,12 +57,14 @@ export function limitsFrom(instance) {
 	return {
 		maxCharacters: positive(statuses.max_characters, DEFAULT_LIMITS.maxCharacters),
 		maxAttachments: positive(statuses.max_media_attachments, DEFAULT_LIMITS.maxAttachments),
+		// whether this Nextcloud has a translation provider at all
+		translation: instance?.configuration?.translation?.enabled === true,
 	}
 }
 
 /**
- * @return {{maxCharacters: number, maxAttachments: number}} the best answer
- *         available right now, without waiting for one
+ * @return {{maxCharacters: number, maxAttachments: number, translation: boolean}}
+ *         the best answer available right now, without waiting for one
  */
 export function knownLimits() {
 	return known
@@ -72,7 +77,7 @@ export function knownLimits() {
  * way, and a composer that says 500 when the server takes 1000 is a smaller
  * wrong than one that never opens.
  *
- * @return {Promise<{maxCharacters: number, maxAttachments: number}>}
+ * @return {Promise<{maxCharacters: number, maxAttachments: number, translation: boolean}>}
  */
 export function loadLimits() {
 	if (pending === null) {

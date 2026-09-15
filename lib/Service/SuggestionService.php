@@ -35,7 +35,7 @@ use OCA\Social\Model\Client\Suggestion;
  * Four kinds of account are never suggested, and the exclusions are applied
  * after both halves are gathered rather than inside either: somebody the
  * viewer follows, somebody they have blocked or muted, somebody who has
- * blocked them, and the viewer themselves. Missing one of these is the failure
+ * blocked them, somebody they have dismissed, and the viewer themselves. Missing one of these is the failure
  * mode that matters — a suggestion to follow an account you blocked is the
  * instance overruling the one decision the user made about it.
  */
@@ -133,6 +133,11 @@ class SuggestionService {
 				ActorRelation::TYPE_BLOCK,
 				ActorRelation::TYPE_MUTE,
 				ActorRelation::TYPE_BLOCKED_BY,
+				// and everybody this viewer has already said no to: a panel
+				// that offers a dismissed account again is a panel people stop
+				// reading, and the ranking would put it back at the top for
+				// exactly the reasons it put it there the first time
+				AccountRelationService::TYPE_SUGGESTION_DISMISSED,
 			])
 		);
 

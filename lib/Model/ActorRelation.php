@@ -19,6 +19,21 @@ class ActorRelation implements JsonSerializable {
 	public const TYPE_MUTE = 'mute';
 	public const TYPE_BLOCKED_BY = 'blocked_by';
 
+	/**
+	 * "Do not show me this account's boosts" — Mastodon's `reblogs` on the
+	 * follow, reported back as `showing_reblogs`.
+	 *
+	 * Here rather than beside the endorsement and the bell in
+	 * `AccountRelationService`, because unlike those two the timeline reads
+	 * it: a boost by an account with a row of this type is not in the home
+	 * timeline, and the query that decides that is in `Db`.
+	 *
+	 * A row only ever means *no*. The default is to show boosts, and a table
+	 * holding everybody who wants the ordinary thing would have to be written
+	 * on every follow.
+	 */
+	public const TYPE_HIDE_REBLOGS = 'hide_boosts';
+
 	private int $id = 0;
 	private string $actorIdPrim = '';
 	private string $objectId = '';

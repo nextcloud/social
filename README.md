@@ -129,6 +129,19 @@ what it has as the whole conversation.
 **Four things you can do to a post**: reply, boost, favourite, and **react with an
 emoji** — which federates as `EmojiReact` and shows who reacted with what.
 
+**And two to your own.** Edit it, or **delete and write it again** — the correction
+people actually make. The post goes everywhere it reached, and its words, content
+warning, audience, language and pictures come back in the composer; the pictures by
+reference, so nothing is uploaded twice. What you post next is a new post, and the
+dialog says so before anything happens: the boosts, likes and replies the old one
+collected stay with it and are gone.
+
+**A post in another language offers to be translated**, where this Nextcloud has a
+translation provider — the same one Talk, Mail and the assistant use. The translation
+appears in place of the post and says which provider produced it, because a reader is
+entitled to know they are reading a machine. A server without a provider draws no
+button at all rather than handing back the original text.
+
 ## 🧭 Discover
 
 ![Discover](img/readme/discover.png)
@@ -189,6 +202,16 @@ quoted twelve times.
 
 It marks itself read after it has been in front of you for two seconds, not the instant
 it renders — so it stops clearing the badge on your phone for things nobody saw.
+
+**Who may reach you.** Five questions about whoever is writing to you — do I follow
+them, do they follow me, are they new here, is this a private mention, has this server
+limited them — each answered *accept*, *hold* or *drop*. What is held waits in a
+requests inbox, gathered one row per account, so you decide about the account once
+instead of about each notification in turn. Nothing is held unless you ask for it, and
+nothing held is ever deleted: a policy you loosen next week can still show what it
+caught this week. Clients read it as Mastodon 4.3's notification policy, and read the
+same notifications grouped — "eight people favourited your post" rather than eight
+rows.
 
 **Nextcloud's own bell rings too.** Mentions, favourites, boosts, new followers, follow
 requests, edits of posts you boosted and polls you voted in all reach Nextcloud
@@ -265,6 +288,10 @@ the same app, not a second design.
 - **Keyword filters**, written and read in **Settings → Filtered words**: they are
   yours alone, they apply to every timeline this app draws, and a filter set months ago
   from a phone is finally visible from here.
+- **What you see from an account you follow**, on its profile: the bell that says
+  "tell me when they post", and its opposite number — **hide their boosts**, which
+  keeps what somebody passes on out of your timelines while leaving everything they
+  write themselves.
 - **Per-user domain blocks** and conversation mute, through the API.
 - **Nothing is sent to a third party.** No geocoder — a place on a post is one this
   instance has seen or one you name yourself, because sending somebody's location to a
@@ -322,8 +349,10 @@ else's.
 
 - **The Mastodon client API**, core surface plus OAuth 2: every timeline, posting with
   media and polls, follows, favourites, boosts, bookmarks, search, follow requests,
-  reports, filters, conversations, markers, announcements, edit history and the admin
-  API. See [docs/API.md](docs/API.md) for exactly which routes exist.
+  reports, filters (both halves — keywords and per-status), conversations, markers,
+  announcements, edit history, translation, Mastodon 4.3's grouped notifications with
+  their policy and requests inbox, and the admin API. See
+  [docs/API.md](docs/API.md) for exactly which routes exist.
 - **Pixelfed's own routes** — the `/api/v2/config` bootstrap its app reads on launch
   and the `v1.1` discover namespace. Every limit in the config is derived from the one
   the server actually enforces.
@@ -347,8 +376,6 @@ else's.
 
 These are absent from the code today, not merely rough edges:
 
-- **No status translation.** The `translate` action returns the post unchanged
-  (`lib/Service/ActionService.php`).
 - **No streaming API and no push subscriptions.** Third-party clients poll. (The web
   client does get live timelines when
   [notify_push](https://github.com/nextcloud/notify_push) is installed — that is a
@@ -473,7 +500,8 @@ See `tests/Integration/README.md` for what it covers.
 `tests/e2e/` drives a real Nextcloud with the app installed, in Chromium,
 through [Playwright](https://playwright.dev): sign in, open the app, write a
 post and see it in the feed, walk the Discover page, switch scopes, open a
-group list. Nothing is mocked, and the bundle under test is the committed one
+group list, add and remove a keyword filter, and check that a post of your own
+offers to be deleted and written again. Nothing is mocked, and the bundle under test is the committed one
 in `js/`. `.github/workflows/e2e.yml` sets up a throwaway server for every pull
 request; against an instance of your own:
 

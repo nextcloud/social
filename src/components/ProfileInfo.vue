@@ -133,6 +133,35 @@
 						</template>
 						{{ t('social', 'Unmute') }}
 					</NcActionButton>
+					<!-- both of these ride along with the follow, which is the
+					     only route Mastodon has for either, so they are offered
+					     only to somebody who is already following -->
+					<NcActionButton
+						v-if="relationship.following"
+						:disabled="relationshipLoading"
+						closeAfterClick
+						@click="toggleNotify">
+						<template #icon>
+							<BellRing v-if="relationship.notifying" :size="20" />
+							<BellOutline v-else :size="20" />
+						</template>
+						{{ relationship.notifying
+							? t('social', 'Stop notifying me about their posts')
+							: t('social', 'Notify me when they post') }}
+					</NcActionButton>
+					<NcActionButton
+						v-if="relationship.following"
+						:disabled="relationshipLoading"
+						closeAfterClick
+						@click="toggleReblogs">
+						<template #icon>
+							<Repeat v-if="relationship.showing_reblogs === false" :size="20" />
+							<RepeatOff v-else :size="20" />
+						</template>
+						{{ relationship.showing_reblogs === false
+							? t('social', 'Show their boosts')
+							: t('social', 'Hide their boosts') }}
+					</NcActionButton>
 					<NcActionButton closeAfterClick @click="showListDialog = true">
 						<template #icon>
 							<IconFormatListBulleted :size="20" />
@@ -338,12 +367,16 @@
 </template>
 
 <script>
+import BellOutline from 'vue-material-design-icons/BellOutline.vue'
+import BellRing from 'vue-material-design-icons/BellRing.vue'
 import Cancel from 'vue-material-design-icons/Cancel.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
+import Repeat from 'vue-material-design-icons/Repeat.vue'
+import RepeatOff from 'vue-material-design-icons/RepeatOff.vue'
 import TableEdit from 'vue-material-design-icons/TableEdit.vue'
 import VolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
@@ -399,6 +432,10 @@ function normalizeBio(bio) {
 export default {
 	name: 'ProfileInfo',
 	components: {
+		BellOutline,
+		BellRing,
+		Repeat,
+		RepeatOff,
 		Cancel,
 		Check,
 		Close,
@@ -697,6 +734,42 @@ export default {
 			try {
 				const action = this.relationship.blocking ? 'unblockAccount' : 'blockAccount'
 				await this.accountStore[action]({ id: this.relationship.id })
+			} finally {
+				this.relationshipLoading = false
+			}
+		},
+
+		/**
+		 * Rings or silences the bell: "tell me when this account posts".
+		 *
+		 * Sent as a follow with `notify`, which is the only route Mastodon has
+		 * for it. Nothing else about the follow changes — the server leaves
+		 * every switch the request does not name exactly as it was.
+		 */
+		async toggleNotify() {
+			this.relationshipLoading = true
+			try {
+				await this.accountStore.setFollowOptions({
+					id: this.relationship.id,
+					notify: !this.relationship.notifying,
+				})
+			} finally {
+				this.relationshipLoading = false
+			}
+		},
+
+		/**
+		 * Keeps this account's boosts out of your timelines, or puts them
+		 * back. Their own posts stay either way — that is the difference
+		 * between this and a mute.
+		 */
+		async toggleReblogs() {
+			this.relationshipLoading = true
+			try {
+				await this.accountStore.setFollowOptions({
+					id: this.relationship.id,
+					reblogs: this.relationship.showing_reblogs === false,
+				})
 			} finally {
 				this.relationshipLoading = false
 			}

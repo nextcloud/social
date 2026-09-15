@@ -19,6 +19,7 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\FilterKeyword;
+use OCA\Social\Model\Client\FilterStatus;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
@@ -540,6 +541,93 @@ class FilterController extends Controller {
 			// route's 404 rather than a delete that silently matched no row
 			$keyword = $this->filtersRequest->getKeywordById($id, $this->viewer->getId());
 			$this->filtersRequest->deleteKeyword($keyword->getId(), $this->viewer->getId());
+
+			return new DataResponse(new stdClass(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** The posts one of the viewer's filters covers by name. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/filters/{id}/statuses', requirements: ['id' => '\\d+'])]
+	public function statuses(int $id): DataResponse {
+		try {
+			$this->initViewer(['read:filters', 'read']);
+
+			$statuses = [];
+			foreach ($this->filter($id)->getStatuses() as $status) {
+				$statuses[] = $status->jsonSerialize();
+			}
+
+			return new DataResponse($statuses, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Adds one post to a filter: a client's "filter this post".
+	 *
+	 * The post is named by the id the client API hands out. It is not looked
+	 * up: a filter is the reader's own list and may name a post this server
+	 * has since deleted or has never held — the entry simply never matches
+	 * anything. A lookup here would refuse to filter a post the reader can see
+	 * on their own screen in a thread whose rows arrived from somewhere else.
+	 *
+	 * Adding the same post twice makes a second entry, as it does on Mastodon:
+	 * each has its own id, and deleting one leaves the other.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v2/filters/{id}/statuses', requirements: ['id' => '\\d+'])]
+	public function addStatus(int $id, string $status_id = ''): DataResponse {
+		try {
+			$this->initViewer(['write:filters', 'write']);
+			$filter = $this->filter($id);
+
+			$statusId = (int)trim($status_id);
+			if ($statusId < 1) {
+				throw new InvalidResourceException('status_id is required');
+			}
+
+			$entry = (new FilterStatus())
+				->setFilterId($filter->getId())
+				->setStatusId($statusId);
+			$this->filtersRequest->saveStatus($entry);
+
+			return new DataResponse($entry->jsonSerialize(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** One entry, of one of the viewer's filters. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/filters/statuses/{id}', requirements: ['id' => '\\d+'])]
+	public function getStatus(int $id): DataResponse {
+		try {
+			$this->initViewer(['read:filters', 'read']);
+
+			return new DataResponse(
+				$this->filtersRequest->getStatusById($id, $this->viewer->getId())->jsonSerialize(),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Stops a filter covering that post; the filter itself stays. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v2/filters/statuses/{id}', requirements: ['id' => '\\d+'])]
+	public function deleteStatus(int $id): DataResponse {
+		try {
+			$this->initViewer(['write:filters', 'write']);
+			$this->filtersRequest->deleteStatus($id, $this->viewer->getId());
 
 			return new DataResponse(new stdClass(), Http::STATUS_OK);
 		} catch (Throwable $e) {

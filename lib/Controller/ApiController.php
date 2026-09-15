@@ -34,6 +34,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TooManyRequestsException;
+use OCA\Social\Exceptions\TranslationUnavailableException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -72,6 +73,7 @@ use OCA\Social\Service\GifService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
+use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
@@ -84,6 +86,7 @@ use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -110,6 +113,7 @@ use OCP\IRequest;
 use OCP\ITempManager;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
+use OCP\L10N\IFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -201,6 +205,9 @@ class ApiController extends Controller {
 		private ReactionSummaryService $reactionSummaryService,
 		private GifService $gifService,
 		private NotificationService $notificationService,
+		private TranslationService $translationService,
+		private NotificationPolicyService $notificationPolicyService,
+		private IFactory $l10nFactory,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -386,16 +393,74 @@ class ApiController extends Controller {
 
 			if ($changed) {
 				// refresh the viewer so the returned entity carries the change
-				$this->viewer = $this->cacheActorService->getFromLocalAccount(
-					$this->viewer->getPreferredUsername()
-				);
-				$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);
+				$this->viewer = $this->refreshedViewer();
 			}
 
 			return new DataResponse($this->accountEntity($this->viewer), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/**
+	 * Removes the account's avatar, leaving Nextcloud's generated initials.
+	 *
+	 * Mastodon's `DELETE /api/v1/profile/avatar`. `update_credentials` can
+	 * only replace a picture with another one — multipart has no way to send
+	 * "none" — so without this route a client can offer "change picture" and
+	 * not "remove picture", and an account that wanted none was stuck with
+	 * whatever it uploaded last.
+	 *
+	 * The avatar is the Nextcloud account's, shown by the whole server rather
+	 * than only here, which is why a backend that owns it (LDAP, SAML) refuses
+	 * this with a 422 instead of answering 200 over an unchanged picture.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/profile/avatar')]
+	public function profileAvatarDelete(): DataResponse {
+		try {
+			$this->initViewer(true);
+			$this->avatarService->remove($this->currentSession());
+
+			return new DataResponse($this->accountEntity($this->refreshedViewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Removes the account's banner, and tells the servers that hold a copy.
+	 *
+	 * Mastodon's `DELETE /api/v1/profile/header`. The banner is part of the
+	 * actor document, so taking it off this instance and not federating the
+	 * change would leave the profile with a banner everywhere else.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/profile/header')]
+	public function profileHeaderDelete(): DataResponse {
+		try {
+			$this->initViewer(true);
+			$this->bannerService->remove($this->currentSession());
+
+			return new DataResponse($this->accountEntity($this->refreshedViewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The viewer read again, so that an entity built after a change carries
+	 * the change rather than what was cached when the request began.
+	 */
+	private function refreshedViewer(): Person {
+		$viewer = $this->cacheActorService->getFromLocalAccount(
+			$this->viewer->getPreferredUsername()
+		);
+		$viewer->setExportFormat(ACore::FORMAT_LOCAL);
+
+		return $viewer;
 	}
 
 	/**
@@ -954,6 +1019,122 @@ class ApiController extends Controller {
 			'updated_at' => gmdate('Y-m-d\TH:i:s') . '.000Z',
 			'content' => $text === '' ? $instance->getDescription() : $text,
 		], Http::STATUS_OK);
+	}
+
+	/**
+	 * The server's privacy policy.
+	 *
+	 * Nextcloud's own, from Theming, rather than one kept by this app: a
+	 * server has one privacy policy, and a second one here would be a second
+	 * answer to the same question. A server that has published none answers
+	 * **404**, as Mastodon does — an empty document would read as a policy
+	 * that says nothing.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/privacy_policy')]
+	public function instancePrivacyPolicy(): DataResponse {
+		$policy = $this->instanceService->privacyPolicy();
+		if ($policy === null) {
+			return new DataResponse(
+				['error' => 'this server has published no privacy policy'], Http::STATUS_NOT_FOUND
+			);
+		}
+
+		return new DataResponse($policy, Http::STATUS_OK);
+	}
+
+	/** The server's terms of service — Nextcloud's legal notice. See above. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/terms_of_service')]
+	public function instanceTermsOfService(): DataResponse {
+		$terms = $this->instanceService->termsOfService();
+		if ($terms === null) {
+			return new DataResponse(
+				['error' => 'this server has published no terms of service'], Http::STATUS_NOT_FOUND
+			);
+		}
+
+		return new DataResponse($terms, Http::STATUS_OK);
+	}
+
+	/**
+	 * oEmbed for one of this server's own public posts.
+	 *
+	 * What it is for: a site that is handed the link to a post asks this to
+	 * find out who wrote it and where, instead of scraping the page. Mastodon
+	 * serves the same route.
+	 *
+	 * `type` is `link`, not Mastodon's `rich`. A rich response is an `<iframe>`
+	 * and this app has no embed page to put in one — every post URL here opens
+	 * the whole app. A consumer handed `link` shows an attributed link, which
+	 * is true; one handed `rich` with a frame that renders an application
+	 * would embed something nobody meant to publish.
+	 *
+	 * Public posts only, and only this server's: an unlisted or followers-only
+	 * post is not something to hand to whoever asks, and a post of somebody
+	 * else's is theirs to describe.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/oembed')]
+	public function oembed(string $url = '', string $format = 'json'): DataResponse {
+		try {
+			if ($format !== '' && strtolower($format) !== 'json') {
+				// the only format this serves; oEmbed says to answer 501 for
+				// one it does not, rather than to answer JSON anyway
+				return new DataResponse(
+					['error' => 'only the json format is served'], Http::STATUS_NOT_IMPLEMENTED
+				);
+			}
+
+			$post = $this->streamService->getStreamById(trim($url));
+			if (!$post->isLocal() || $post->getVisibility() !== Stream::TYPE_PUBLIC) {
+				throw new StreamNotFoundException('Stream not found');
+			}
+
+			$author = $this->cacheActorService->getFromId($post->getAttributedTo());
+			$instance = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
+
+			return new DataResponse([
+				'type' => 'link',
+				'version' => '1.0',
+				'author_name' => ($author->getDisplayName() !== '')
+					? $author->getDisplayName() : $author->getPreferredUsername(),
+				'author_url' => $author->getId(),
+				'provider_name' => $instance->getTitle(),
+				'provider_url' => $this->configService->getCloudUrl(),
+				'cache_age' => 86400,
+				'url' => $post->getId(),
+			], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Which languages this server can translate between: for each language it
+	 * translates from, the ones it translates to.
+	 *
+	 * Read from the translation provider rather than declared here, so it is
+	 * the truth about this Nextcloud. An instance with no provider answers an
+	 * empty object, which is the same thing `translation.enabled: false` says
+	 * in `/api/v2/instance` — a client that reads either one stops offering
+	 * the button.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/translation_languages')]
+	public function instanceTranslationLanguages(): DataResponse {
+		try {
+			return new DataResponse(
+				(object)$this->translationService->languages(), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
 	}
 
 	/**
@@ -2033,6 +2214,51 @@ class ApiController extends Controller {
 	}
 
 	/**
+	 * One status, in the reader's language.
+	 *
+	 * Declared before `statusAction()`, which routes
+	 * `/api/v1/statuses/{nid}/{act}` and would otherwise match this path
+	 * first: within a controller the order the methods are written in is the
+	 * order the routes are tried in.
+	 *
+	 * Answers Mastodon's Translation entity — not a Status. The two are
+	 * different things on purpose: a translation has no id, no author and no
+	 * counters, and a client shows it under the post rather than in place of
+	 * it.
+	 *
+	 * What translates it is whatever translation provider this Nextcloud has;
+	 * an instance with none says so in `configuration.translation.enabled` and
+	 * answers this with a 503, which is what Mastodon answers when its own
+	 * provider is unavailable. It never answers with the original text: that
+	 * is what this route used to do, and a reader could not tell.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/translate')]
+	public function statusTranslate(int $nid, string $lang = ''): DataResponse {
+		try {
+			$this->initViewer(true);
+			$post = $this->streamService->getStreamByNid($nid);
+
+			// the language asked for, else the one this reader reads Nextcloud
+			// in: a client that offers "translate" without a language picker
+			// means "into mine"
+			$target = ($lang !== '')
+				? $lang
+				: $this->l10nFactory->getUserLanguage($this->userSession->getUser());
+
+			return new DataResponse(
+				$this->translationService->translateStatus(
+					$post, $target, $this->userSession->getUser()?->getUID()
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
 	 *
 	 * @param int $nid
 	 * @param string $action
@@ -2362,7 +2588,9 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/accounts/{id}/follow', requirements: ['id' => '.+'])]
-	public function accountFollow(string $id, ?bool $notify = null): DataResponse {
+	public function accountFollow(
+		string $id, ?bool $notify = null, ?bool $reblogs = null,
+	): DataResponse {
 		try {
 			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
@@ -2375,6 +2603,13 @@ class ApiController extends Controller {
 			// nothing else must not silently turn the bell off
 			if ($notify !== null) {
 				$this->accountRelationService->setNotify($this->viewer, $target, $notify);
+			}
+
+			// and the other switch Mastodon sends with a follow: whether this
+			// account's boosts belong in the reader's timelines. Absent means
+			// the same thing it means for the bell
+			if ($reblogs !== null) {
+				$this->accountRelationService->setShowReblogs($this->viewer, $target, $reblogs);
 			}
 
 			return new DataResponse(
@@ -3143,8 +3378,16 @@ class ApiController extends Controller {
 			// filter: a page shortened here says nothing about whether older
 			// notifications exist, and a client that pages on the `Link` header
 			// stopped there with the rest of the list still in the database.
+			// and then what the notification policy holds back — Mastodon
+			// 4.3's `filter` and `drop`, which are about the *sender* rather
+			// than about the notification. An account that has not touched the
+			// policy pays nothing for this: partition() answers at once when
+			// every one of the five questions is `accept`.
 			return $this->paged(
-				$this->filterService->applyToNotifications($posts, $this->viewer),
+				$this->filterService->applyToNotifications(
+					$this->notificationPolicyService->partition($this->viewer, $posts)['shown'],
+					$this->viewer
+				),
 				$options->getLimit(),
 				$page
 			);
@@ -3496,6 +3739,10 @@ class ApiController extends Controller {
 		// allowed to ask, not allowed to have
 		[UnauthorizedFediverseException::class, Http::STATUS_FORBIDDEN],
 		[TooManyRequestsException::class, Http::STATUS_TOO_MANY_REQUESTS],
+		// this server could do it, and cannot right now: Mastodon answers a
+		// translation it has no provider for with exactly this, and a client
+		// reads it as "later", not as "never"
+		[TranslationUnavailableException::class, Http::STATUS_SERVICE_UNAVAILABLE],
 		// somebody else's server let us down
 		[RequestContentException::class, Http::STATUS_NOT_FOUND],
 		[RequestNetworkException::class, Http::STATUS_BAD_GATEWAY],

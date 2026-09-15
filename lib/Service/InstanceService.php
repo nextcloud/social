@@ -89,6 +89,7 @@ class InstanceService {
 		private IUserManager $userManager,
 		private CacheDocumentService $cacheDocumentService,
 		private InstanceStatsRequest $instanceStatsRequest,
+		private TranslationService $translationService,
 	) {
 	}
 
@@ -155,6 +156,9 @@ class InstanceService {
 			->setStats($this->stats())
 			->setUsage($this->usage())
 			->setConfiguration($this->configuration())
+			// whether this Nextcloud has a translation provider at all; a
+			// client reads it to decide whether to draw the button
+			->setTranslationEnabled($this->translationService->isAvailable())
 			->setRules($this->rules());
 	}
 
@@ -315,6 +319,14 @@ class InstanceService {
 			'accounts' => [
 				'max_featured_tags' => FeaturedTagService::MAX_FEATURED_TAGS,
 			],
+			// Mastodon carries this in the v2 entity only. It is in both here,
+			// because this app's own web client reads the v1 entity for the
+			// limits and would otherwise need a second request to find out
+			// whether to draw a translate button; a client that does not know
+			// the key ignores it.
+			'translation' => [
+				'enabled' => $this->translationService->isAvailable(),
+			],
 		];
 	}
 
@@ -396,6 +408,60 @@ class InstanceService {
 		}
 
 		return $rules;
+	}
+
+	/**
+	 * The server's privacy policy, as Mastodon's entity carries it.
+	 *
+	 * Read from Nextcloud's own setting — Administration → Theming, "Privacy
+	 * policy link" — rather than from a policy of this app's own. A Nextcloud
+	 * has one privacy policy, and it covers everything on the server including
+	 * this app; a second one kept here would be a second answer to the same
+	 * question, and the two would disagree the first time one of them was
+	 * edited.
+	 *
+	 * Nextcloud stores a link where Mastodon's entity carries text, so the
+	 * text is the link. `null` where the administrator has set none: the
+	 * caller answers 404, which is what Mastodon answers for a policy that
+	 * does not exist, and is a better answer than inventing one.
+	 *
+	 * @return array{updated_at: string, content: string}|null
+	 */
+	public function privacyPolicy(): ?array {
+		return $this->legalDocument('privacyUrl', 'Privacy policy');
+	}
+
+	/**
+	 * The server's terms of service, from Nextcloud's "Legal notice link" —
+	 * the same reasoning as the privacy policy, and the same `null`.
+	 *
+	 * @return array{updated_at: string, content: string}|null
+	 */
+	public function termsOfService(): ?array {
+		return $this->legalDocument('imprintUrl', 'Legal notice');
+	}
+
+	/**
+	 * @return array{updated_at: string, content: string}|null
+	 */
+	private function legalDocument(string $key, string $label): ?array {
+		$url = trim($this->appConfig->getValueString('theming', $key, ''));
+		if ($url === '') {
+			return null;
+		}
+
+		$escaped = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+
+		return [
+			// no date is stored for either, and Mastodon's field is not
+			// optional: today is the honest answer to "when was this last
+			// changed" only in the sense that this is when it was last read,
+			// which is what a client uses it for -- deciding whether to show
+			// the document again
+			'updated_at' => gmdate('Y-m-d\TH:i:s') . '.000Z',
+			'content' => '<p>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8')
+				. ': <a href="' . $escaped . '">' . $escaped . '</a></p>',
+		];
 	}
 
 	private function defaultLanguage(): string {

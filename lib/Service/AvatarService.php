@@ -75,6 +75,49 @@ class AvatarService {
 	}
 
 	/**
+	 * Takes the account's own picture away, leaving the generated initials.
+	 *
+	 * Mastodon's `DELETE /api/v1/profile/avatar`, which is how a client offers
+	 * "remove picture" — without it a client can only replace one picture with
+	 * another, and an account that wanted none was stuck with whatever it last
+	 * uploaded.
+	 *
+	 * Removing a picture that was never set is not an error: the account ends
+	 * up in the state that was asked for either way, and a client that retries
+	 * a failed delete must not be told the second attempt was wrong.
+	 *
+	 * @throws InvalidActionException the backend owns the avatar
+	 */
+	public function remove(string $userId): void {
+		$user = $this->userManager->get($userId);
+		if ($user === null) {
+			throw new InvalidActionException('unknown account');
+		}
+
+		if (!$user->canChangeAvatar()) {
+			throw new InvalidActionException(
+				'the avatar of this account is managed outside Nextcloud and cannot be changed here'
+			);
+		}
+
+		try {
+			$this->avatarManager->getAvatar($userId)->remove();
+		} catch (\Throwable $e) {
+			$this->logger->warning('could not remove an avatar', [
+				'userId' => $userId, 'exception' => $e,
+			]);
+
+			throw new InvalidActionException('the avatar could not be removed');
+		}
+
+		// the same catch-up the upload path does: the actor's icon is a copy of
+		// the account's, and nothing refreshes it on its own
+		$this->accountService->cacheLocalActorByUsername(
+			$this->accountService->getActorFromUserId($userId)->getPreferredUsername()
+		);
+	}
+
+	/**
 	 * The picture an export archive carried, put back — but never over one the
 	 * account already has.
 	 *

@@ -12,7 +12,6 @@ namespace OCA\Social\Service;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Exceptions\InvalidActionException;
-use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -22,7 +21,6 @@ use OCA\Social\Tools\Traits\TStringTools;
 class ActionService {
 	use TStringTools;
 
-	private const TRANSLATE = 'translate';
 	private const FAVOURITE = 'favourite';
 	private const UNFAVOURITE = 'unfavourite';
 	private const REBLOG = 'reblog';
@@ -35,7 +33,6 @@ class ActionService {
 	private const UNPIN = 'unpin';
 
 	private static array $availableStatusAction = [
-		self::TRANSLATE,
 		self::FAVOURITE,
 		self::UNFAVOURITE,
 		self::REBLOG,
@@ -123,8 +120,6 @@ class ActionService {
 		$post = $this->streamService->getStreamByNid($nid);
 
 		switch ($action) {
-			case self::TRANSLATE:
-				return $this->translate($nid);
 			case self::FAVOURITE:
 				$this->favourite($actor, $post->getId());
 				break;
@@ -163,16 +158,14 @@ class ActionService {
 	}
 
 	/**
-	 * TODO: returns a translated version of the Status
+	 * `translate` is not here.
 	 *
-	 * @param int $nid
-	 *
-	 * @return Stream
-	 * @throws StreamNotFoundException
+	 * It used to be, and it returned the post unchanged — which a client
+	 * cannot tell from a translation, so the button worked and did nothing.
+	 * It is `ApiController::statusTranslate()` now, because what it answers
+	 * with is a Translation entity rather than a Status, and because it needs
+	 * a translation provider that this service has no business holding.
 	 */
-	private function translate(int $nid): Stream {
-		return $this->streamService->getStreamByNid($nid);
-	}
 
 	private function favourite(Person $actor, string $postId, bool $enabled = true): void {
 		if ($enabled) {

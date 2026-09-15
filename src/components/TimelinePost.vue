@@ -139,7 +139,7 @@
 				{{ warningLifted ? t('social', 'Show less') : t('social', 'Show more') }}
 			</NcButton>
 			<div v-if="warningLifted" class="post-message post-message--behind-warning">
-				<MessageContent v-if="item.content" :item="item" />
+				<MessageContent v-if="item.content" :item="displayedItem" />
 			</div>
 		</div>
 		<!--
@@ -164,12 +164,24 @@
 				</NcButton>
 			</div>
 			<div v-if="item.content" class="post-message post-message--caption">
-				<MessageContent :item="item" />
+				<MessageContent :item="displayedItem" />
 			</div>
 		</template>
 		<div v-else-if="item.content" class="post-message">
-			<MessageContent :item="item" />
+			<MessageContent :item="displayedItem" />
 		</div>
+		<!-- a translation is somebody else's words put through a machine, and
+		     a reader is entitled to know that is what they are reading. Not
+		     under a post a filter is covering: there is no body there to have
+		     been translated -->
+		<p v-if="translation !== null && !filterCovers" class="post-translated">
+			{{ translatedFrom === ''
+				? t('social', 'Translated by {provider}', { provider: translation.provider || t('social', 'this server') })
+				: t('social', 'Translated from {language} by {provider}', {
+					language: translatedFrom,
+					provider: translation.provider || t('social', 'this server'),
+				}) }}
+		</p>
 		<template v-if="mediaRevealed && !filterCovers">
 			<QuotedPost v-if="item.quote" :quote="item.quote" />
 			<Poll v-if="localPoll" :poll="localPoll" @update:poll="updatePoll" />
@@ -288,8 +300,31 @@
 					<NcActionButton
 						v-if="item.account.acct === currentAccount?.acct"
 						icon="icon-delete"
-						@click="showDeleteDialog = true">
+						@click="askToDelete(false)">
 						{{ t('social', 'Delete') }}
+					</NcActionButton>
+					<!-- the correction people actually make: the post goes and
+					     its words come back in the composer, to be posted again
+					     as a new post -->
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct"
+						@click="askToDelete(true)">
+						<template #icon>
+							<PencilBoxOutline :size="20" />
+						</template>
+						{{ t('social', 'Delete & re-draft') }}
+					</NcActionButton>
+					<NcActionButton
+						v-if="canTranslate"
+						:disabled="translating"
+						closeAfterClick
+						@click="toggleTranslation">
+						<template #icon>
+							<Translate :size="20" />
+						</template>
+						{{ translation === null
+							? t('social', 'Translate')
+							: t('social', 'Show original') }}
 					</NcActionButton>
 					<!-- where the post got to: the queue knows, and this asks it
 					     for the author, who is the only one it is answered for -->
@@ -413,10 +448,12 @@
 		     do on the first click of a menu item sitting under "Edit" -->
 		<NcDialog
 			v-model:open="showDeleteDialog"
-			:name="t('social', 'Delete this post?')"
+			:name="deleteToRedraft ? t('social', 'Delete and write it again?') : t('social', 'Delete this post?')"
 			:buttons="deleteButtons">
 			<p class="delete-hint">
-				{{ t('social', 'The post is removed from this server and a deletion is sent to every server that received it. This cannot be undone.') }}
+				{{ deleteToRedraft
+					? t('social', 'The post is removed everywhere it reached, and its words, pictures and content warning are put back in the composer. What you post next is a new post: the boosts, likes and replies this one collected stay with it and are gone.')
+					: t('social', 'The post is removed from this server and a deletion is sent to every server that received it. This cannot be undone.') }}
 			</p>
 		</NcDialog>
 	</article>
@@ -444,9 +481,11 @@ import Cancel from 'vue-material-design-icons/Cancel.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
+import PencilBoxOutline from 'vue-material-design-icons/PencilBoxOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
 import SendCheck from 'vue-material-design-icons/SendCheck.vue'
+import Translate from 'vue-material-design-icons/Translate.vue'
 import FormatQuoteClose from 'vue-material-design-icons/FormatQuoteClose.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -468,6 +507,8 @@ import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 import { mapStores } from 'pinia'
+import { htmlToPlainText } from '../utils/plainText.js'
+import { defaultLanguage, languageName } from '../utils/postLanguage.js'
 import { useAccountStore } from '../store/account.js'
 import { useInstanceStore } from '../store/instance.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -499,8 +540,10 @@ export default {
 		NcButton,
 		Bookmark,
 		BookmarkOutline,
+		PencilBoxOutline,
 		Pin,
 		PinOff,
+		Translate,
 		FormatQuoteClose,
 		Repeat,
 		Reply,
@@ -555,6 +598,12 @@ export default {
 			showMuteDialog: false,
 			showBlockDialog: false,
 			showDeleteDialog: false,
+			/** whether the delete on screen is the first half of a re-draft */
+			deleteToRedraft: false,
+			/** the Translation entity once it has arrived, null before */
+			translation: null,
+			/** whether the provider is working on it right now */
+			translating: false,
 			showDeliveryDialog: false,
 			/** the answer of /statuses/{nid}/delivery, or null before it came */
 			delivery: null,
@@ -830,6 +879,54 @@ export default {
 			return t('social', 'Of {total}: {parts}.', { total: n('social', '%n delivery', '%n deliveries', d.total), parts: parts.join(', ') })
 		},
 
+		/**
+		 * The post as it is shown: the translation when one has been asked for
+		 * and arrived, the post itself otherwise.
+		 *
+		 * A copy rather than a write into the store's object: the translation
+		 * belongs to this reader looking at this card, and writing it into the
+		 * status would put it on every other card showing the same post and
+		 * leave it there after a refresh.
+		 *
+		 * @return {object}
+		 */
+		displayedItem() {
+			if (this.translation === null) {
+				return this.item
+			}
+
+			return {
+				...this.item,
+				content: this.translation.content || this.item.content,
+				spoiler_text: this.translation.spoiler_text || this.item.spoiler_text,
+			}
+		},
+
+		/**
+		 * Whether to offer a translation: only where the server has a provider,
+		 * and only for a post written in another language than the reader's.
+		 *
+		 * A post with no language is not offered either. The server stores what
+		 * the author declared and nothing else — guessing here would offer to
+		 * translate English into English for every post that arrived without a
+		 * `contentMap`.
+		 *
+		 * @return {boolean}
+		 */
+		canTranslate() {
+			return this.instanceStore.translation
+				&& Boolean(this.item.content)
+				&& Boolean(this.item.language)
+				&& this.item.language !== defaultLanguage()
+		},
+
+		/** @return {string} what the translation says it was translated from */
+		translatedFrom() {
+			const code = this.translation?.detected_source_language || this.item.language || ''
+
+			return code === '' || code === 'und' ? '' : languageName(code)
+		},
+
 		deleteButtons() {
 			return [
 				{
@@ -839,7 +936,7 @@ export default {
 					},
 				},
 				{
-					label: t('social', 'Delete'),
+					label: this.deleteToRedraft ? t('social', 'Delete & re-draft') : t('social', 'Delete'),
 					variant: 'error',
 					callback: () => this.remove(),
 				},
@@ -1147,9 +1244,76 @@ export default {
 			this.editSpoiler = ''
 		},
 
-		remove() {
+		/**
+		 * Opens the confirmation. Deleting federates and cannot be undone, so
+		 * neither half of this happens on the first click of a menu item.
+		 *
+		 * @param {boolean} redraft whether the words come back in the composer
+		 */
+		askToDelete(redraft) {
+			this.deleteToRedraft = redraft
+			this.showDeleteDialog = true
+		},
+
+		/**
+		 * Deletes the post, and — for a re-draft — hands its words, pictures
+		 * and warning to the composer.
+		 *
+		 * The composer is filled *after* the delete rather than before: a
+		 * delete the server refuses leaves the post where it is, and a
+		 * composer already holding its words would invite somebody to post it
+		 * twice.
+		 */
+		async remove() {
 			this.showDeleteDialog = false
-			this.timelineStore.postDelete(this.item)
+			const redraft = this.deleteToRedraft
+			this.deleteToRedraft = false
+
+			// the post as it stands, kept before the store forgets it
+			const draft = redraft ? this.item : null
+
+			await this.timelineStore.postDelete(this.item)
+
+			if (draft !== null) {
+				this.timelineStore.setComposerDisplayStatus(true)
+				eventBus.emit('composer-redraft', draft)
+			}
+		},
+
+		/**
+		 * Asks the server to translate the post, or puts the original back.
+		 *
+		 * Asked once per card: the answer is kept here, so pressing "Show
+		 * original" and then "Translate" again costs nothing and does not send
+		 * the same text through a provider twice.
+		 */
+		async toggleTranslation() {
+			if (this.translation !== null) {
+				this.translation = null
+
+				return
+			}
+
+			if (this.translating) {
+				return
+			}
+
+			this.translating = true
+			try {
+				const { data } = await axios.post(generateUrl('/apps/social/api/v1/statuses/{id}/translate', { id: this.item.id }))
+				this.translation = data
+			} catch (error) {
+				// 503 is the server saying it has no translation provider,
+				// which is a different thing from the request failing
+				if (error?.response?.status === 503) {
+					showError(t('social', 'This server cannot translate posts yet'))
+				} else {
+					showError(t('social', 'Could not translate this post'))
+					logger.error('Failed to translate a post', { error })
+				}
+			} finally {
+				this.translating = false
+			}
 		},
 
 		/**
@@ -1253,51 +1417,6 @@ export default {
 	},
 }
 
-/**
- *
- * @param html
- */
-function htmlToPlainText(html) {
-	const parser = new DOMParser()
-	const dom = parser.parseFromString(`<div id="rootwrapper">${html}</div>`, 'text/html')
-	const root = dom.getElementById('rootwrapper')
-	if (!root) {
-		return ''
-	}
-
-	return nodeToPlainText(root).trim()
-}
-
-/**
- *
- * @param node
- */
-function nodeToPlainText(node) {
-	let text = ''
-	for (const child of Array.from(node.childNodes)) {
-		if (child.nodeType === Node.TEXT_NODE) {
-			text += child.textContent || ''
-			continue
-		}
-
-		if (child.nodeType !== Node.ELEMENT_NODE) {
-			continue
-		}
-
-		const element = child
-		if (element.tagName === 'BR') {
-			text += '\n'
-			continue
-		}
-
-		text += nodeToPlainText(element)
-		if (['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE'].includes(element.tagName)) {
-			text += '\n'
-		}
-	}
-
-	return text
-}
 </script>
 
 <style scoped lang="scss">

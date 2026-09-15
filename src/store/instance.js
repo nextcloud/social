@@ -20,6 +20,8 @@ export const useInstanceStore = defineStore('instance', {
 		maxCharacters: DEFAULT_LIMITS.maxCharacters,
 		/** @type {number} */
 		maxAttachments: DEFAULT_LIMITS.maxAttachments,
+		/** whether this Nextcloud can translate a post at all */
+		translation: DEFAULT_LIMITS.translation,
 		/** whether the server has been asked on this page */
 		loaded: false,
 	}),
@@ -44,6 +46,7 @@ export const useInstanceStore = defineStore('instance', {
 				const limits = await loadLimits()
 				this.maxCharacters = limits.maxCharacters
 				this.maxAttachments = limits.maxAttachments
+				this.translation = limits.translation
 			})
 		},
 	},

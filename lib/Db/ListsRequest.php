@@ -436,6 +436,9 @@ class ListsRequest extends ListsRequestBuilder {
 			$page->limitToMedia();
 		}
 		$page->limitToViewer('sd', 'f', false);
+		// as on the home timeline: an account whose boosts the reader turned
+		// off is here to be read, not to be a relay
+		$page->filterHiddenBoosts();
 		// a filter, not a join: it constrains on the follow's type. The actor's
 		// columns are left out, as on every page-selection query — this one
 		// projects nids.

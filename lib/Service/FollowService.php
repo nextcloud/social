@@ -540,6 +540,11 @@ class FollowService {
 				// for something this loop just read
 				$relationship->setEndorsed(true);
 				break;
+			case ActorRelation::TYPE_HIDE_REBLOGS:
+				// `showing_reblogs` was always true, so a client that had
+				// turned the boosts off was told they were on
+				$relationship->setShowingReblogs(false);
+				break;
 			case AccountRelationService::TYPE_NOTIFY:
 				// `notifying` was always false, so a client that had turned the
 				// bell on was told it was off and drew it that way

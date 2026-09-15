@@ -37,6 +37,7 @@ class Instance implements IQueryRow, JsonSerializable {
 	private bool $registrations = false;
 	private bool $approvalRequired = false;
 	private bool $invitesEnabled = false;
+	private bool $translationEnabled = false;
 	private ?Person $contactAccount = null;
 	private ?string $accountPrim = null;
 	private array $configuration = [];
@@ -105,6 +106,24 @@ class Instance implements IQueryRow, JsonSerializable {
 
 	public function getCompatVersion(): string {
 		return self::COMPAT_VERSION . ' (compatible; Nextcloud Social ' . $this->version . ')';
+	}
+
+	/**
+	 * Whether a client should offer the translate button.
+	 *
+	 * True when this Nextcloud has a translation provider — see
+	 * `TranslationService`. It was hard-coded `false` for as long as
+	 * `POST /statuses/{id}/translate` returned the post unchanged, which was
+	 * the honest answer then and is the wrong one now.
+	 */
+	public function setTranslationEnabled(bool $translationEnabled): self {
+		$this->translationEnabled = $translationEnabled;
+
+		return $this;
+	}
+
+	public function isTranslationEnabled(): bool {
+		return $this->translationEnabled;
 	}
 
 	public function setVersion(string $version): self {
@@ -372,7 +391,10 @@ class Instance implements IQueryRow, JsonSerializable {
 				$configuration,
 				[
 					'urls' => (object)$this->getUrls(),
-					'translation' => (object)['enabled' => false],
+					// an object, as Mastodon's is; `configuration()` fills in
+					// whether there is a provider
+					'translation' => (object)($configuration['translation']
+						?? ['enabled' => $this->isTranslationEnabled()]),
 				]
 			),
 			'registrations' => (object)[

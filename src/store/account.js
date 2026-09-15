@@ -619,6 +619,42 @@ export const useAccountStore = defineStore('account', {
 				logger.error('Failed to unmute the account', { error })
 			}
 		},
+		/**
+		 * The two switches that ride along with a follow: the bell, and
+		 * whether this account's boosts belong in your timelines.
+		 *
+		 * Sent as a follow, which is what Mastodon's API offers — there is no
+		 * route for either on its own, and re-following somebody you already
+		 * follow changes nothing else. Only the switch named is sent: the
+		 * server leaves the other alone, so setting one cannot silently reset
+		 * the other.
+		 *
+		 * @param {object} options which switch, and which way
+		 * @param {string} options.id the account's numeric id
+		 * @param {boolean} [options.notify] ring the bell when they post
+		 * @param {boolean} [options.reblogs] show their boosts
+		 */
+		async setFollowOptions({ id, notify, reblogs }) {
+			const body = {}
+			if (notify !== undefined) {
+				body.notify = notify
+			}
+			if (reblogs !== undefined) {
+				body.reblogs = reblogs
+			}
+
+			try {
+				const response = await axios.post(generateUrl(`apps/social/api/v1/accounts/${id}/follow`), body)
+				if (response.data?.id) {
+					this.addRelationship({ actorId: response.data.id, data: response.data })
+				}
+				return response.data
+			} catch (error) {
+				showError(t('social', 'Could not change what you see from this account'))
+				logger.error('Failed to change the follow options', { error })
+			}
+		},
+
 		/** @param {{account?: string, maxId?: string}} options */
 		async fetchAccountFollowers({ account, maxId } = {}) {
 			const key = keyFor(this, account)
