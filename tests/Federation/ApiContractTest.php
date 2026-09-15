@@ -210,11 +210,17 @@ class ApiContractTest extends TestCase {
 
 		$account = $person->exportAsLocal();
 
+		// `pronouns` and `support_link` are this app's own addition: two of the
+		// four `fields`, sent again under their own names so a client can draw
+		// them beside the name and as a button without knowing the dozen
+		// spellings people write them in. They are always present, `''` when
+		// nothing was written, because a key that comes and goes is worse for
+		// a client than an empty one
 		$expected = [
 			'acct', 'avatar', 'avatar_static', 'bot', 'created_at', 'discoverable',
 			'display_name', 'emojis', 'fields', 'followers_count', 'following_count',
 			'group', 'header', 'header_static', 'id', 'indexable', 'last_status_at', 'locked',
-			'nid', 'note', 'statuses_count', 'url', 'username',
+			'nid', 'note', 'pronouns', 'statuses_count', 'support_link', 'url', 'username',
 		];
 		$actual = array_keys($account);
 		sort($expected);

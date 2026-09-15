@@ -327,6 +327,15 @@ for anybody else reading the same post.
 
 ## Managing your account
 
+**Pronouns and a support link.** Two of the four profile fields on **Edit
+profile** have boxes of their own, because this app draws them differently: the
+pronouns appear beside your name rather than in the table at the bottom, and a
+support address (`https://…`) becomes a button on your profile. They are still
+ordinary profile fields underneath, so Mastodon and the rest show them in their
+table as they always did — and if you already wrote a row called "Pronouns" by
+hand, it is picked up as one.
+
+
 - **Profile.** **My profile** (behind your portrait at the bottom of the
   sidebar) → **Edit profile**: a banner (upload one or give the address of
   one), a bio, and up to four name/value fields shown under it — your website,
@@ -382,9 +391,15 @@ for anybody else reading the same post.
   account export) back in without deleting anything; posts in it are listed,
   not published again. The third section imports the follows from another
   network's export — a `following_accounts.csv`, or Pixelfed's
-  `pixelfed-following.json` — and explains that moving your *followers*
-  here is a one-way move that an administrator performs with
-  `occ social:account:alias` and `occ social:account:move`.
+  `pixelfed-following.json`.
+- **Naming your old account.** Your old server will not send your followers
+  here until this account says it is also you. **Settings → Migration →
+  Accounts you also answer to** is where you say it: paste the old account's
+  own address (`https://pixelfed.social/users/you`, not the handle) and press
+  Add. Nothing is sent to anybody — it is a note this server keeps about an
+  account it owns — and you can take it off again whenever you like. Moving
+  the followers themselves is the half that cannot be undone, and stays with
+  an administrator (`occ social:account:move` on the old server).
 - **Bringing your posts.** The fourth section of **Settings → Migration** reads
   the export from your old server — this app's own archive, Mastodon's or
   GoToSocial's `outbox.json`, or Pixelfed's `pixelfed-statuses.json` — and

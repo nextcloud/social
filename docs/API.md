@@ -112,6 +112,19 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 
 ### Accounts
 
+**Two of the four profile fields are also sent as their own keys.** An Account
+entity carries `pronouns` and `support_link` beside `fields`. Neither is a
+field of its own and deliberately so: a pronoun row is what people already
+write, it federates as a `PropertyValue` that every other network shows, and a
+property only this app understood would be a pronoun nobody else could read.
+What this app adds is *recognising* the row — matched case-insensitively
+against the spellings people use (`Pronouns`, `Pronomen`, `pronoms`, … and
+`Support`, `Donate`, `Sponsor`, …) — so that a client can draw the pronouns
+beside the name and the support address as a button without knowing any of
+them. `pronouns` is `''` when the value is longer than 40 characters (a
+sentence in the wrong row), and `support_link` is `''` unless the value is an
+`https://` URL, because it is drawn as a button.
+
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
 | GET | `/api/v1/accounts/verify_credentials` | public, no-csrf | — | The viewer's `Person` actor serialised in local format. 401 `{"error": ...}` when unauthenticated. |
@@ -662,6 +675,12 @@ The Migration page's three buttons: take a copy of the account's Social data, pu
 | POST | `/api/v1/migration/import` | user | `file` (multipart, `$_FILES['file']`, ≤ 100 MB) | Reads such an archive back into the signed-in account: the profile, the follows, the blocks, the mutes, the bookmarks and the favourites. **Additive** — nothing is deleted, and the posts in `outbox.json` are reported rather than re-published. An archive with no `social/actor.json` is a **400** that says so. Returns `{"imported": true, "log": [...]}`, the migrator's own account of what it did. Rate-limited to 6 an hour. |
 | POST | `/api/v1/migration/follows` | user | `file` (multipart, `$_FILES['file']`) | A follows export — Mastodon's, GoToSocial's or Akkoma's `following_accounts.csv`, **Pixelfed's `pixelfed-following.json`** (a JSON array of actor URLs; Pixelfed offers no CSV), or the archive above — re-followed one account at a time through the ordinary follow path. A file that parses as JSON is read as JSON, anything else as CSV; a JSON entry may be a URL, a handle, or an object naming one under `url`/`acct`/`account`/`id`, and the array may sit under `following` or `orderedItems`. An actor URL is fetched and followed as the actor it resolves to. A follow is a relationship two servers have to agree on, so it cannot be carried in a file and is requested again from here. Returns `{"followed", "skipped", "failed"}`, where `failed` maps a handle to the reason. Rate-limited to 4 an hour. |
 | POST | `/api/v1/migration/posts` | user | `file` (multipart, `$_FILES['file']`), `fetch_media` (`1`) | **An account's own posts, brought over from the server it wrote them on** — the one thing a `Move` has never carried. Reads this app's own archive (`social/outbox.json` in the zip, with the files under `media_attachments/`), Mastodon's and GoToSocial's (`outbox.json` at the root, the layout ours copied), an `outbox.json` on its own, Pixelfed's `pixelfed-statuses.json`, or **Instagram's** "Download your information" archive — `content/posts_*.json` (both the current `your_instagram_activity/content/` layout and the older one) plus `reels.json`, `igtv_videos.json` and `other_content.json`, with the pictures out of the archive's own `media/` folder. An Instagram post has no id, no visibility and no hashtags as data: an id is derived from the file it carries and the moment it was posted (so a second run is still a no-op), the **importing account's own default visibility** is used, and the hashtags are read out of the caption. Its captions are mojibake by construction — the exporter escapes each UTF-8 byte as a character — and are converted back. `stories.json`, `archived_posts.json` and `recently_deleted_content.json` are deliberately not read. Instagram's **HTML** download is refused with the sentence that says to ask for JSON. Each post is written as a **new local post of the importing account**, dated when it was written, with its pictures — from inside the archive where it has them, and from the old server (which therefore has to still be up) where the export named only their addresses, unless `fetch_media` is `0`. **Nothing is federated**: not one delivery is queued, because re-publishing somebody's five years of posts would put five years of posts into every follower's timeline in one afternoon. Boosts and direct messages are skipped — the first is somebody else's post, the second is addressed to accounts on a server that is not this one. A reply keeps its parent where the export holds both. Answers `{"imported", "skipped", "already", "media", "failed", "total", "capped"}`; a repeat of the same file imports nothing, because `social_import_post` remembers what each post became. At most 2000 posts a run — `capped` says the run stopped there and another will carry on — and 2 runs an hour. A bigger archive than a browser will upload goes through `occ social:account:import-posts`. |
+
+| GET | `/api/v1/migration/aliases` | user | — | The accounts this one also answers to — its `alsoKnownAs`. `{"aliases": [...]}`. |
+| POST | `/api/v1/migration/aliases` | user | `alias` (required, an actor id) | Adds one. **This federates nothing**: it is a statement this server makes about an account it owns, and it is what the *old* server demands before it will accept a `Move` pointing here — so it is the person's own to make rather than an administrator's. Idempotent. An address that is not an actor id (a handle, a hostname, this account's own id, an actor on this server) is a **422** naming the reason. 30 an hour. |
+| DELETE | `/api/v1/migration/aliases` | user | `alias` (required) | Stops answering to it. Idempotent, and answers with the list as it now stands. 30 an hour. |
+
+The dangerous direction is deliberately not here. `Move` tells every server that knows you to follow somebody else instead, cannot be taken back, and stays `occ social:account:move`.
 
 ### Posts held for review
 

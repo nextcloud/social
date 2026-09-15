@@ -76,6 +76,8 @@ failure; the rest let the exception surface.
 
 ### `social:account:alias`
 
+Since 0.20.6 an account's own aliases are also settable by its owner, in **Settings → Migration → Accounts you also answer to** (`/api/v1/migration/aliases`) — setting one federates nothing. This command stays for an administrator acting on somebody else's account, and for scripting a migration.
+
 Manage the `alsoKnownAs` list of a local account: the actor ids it also answers
 to. Setting one is the first step of moving an account **to** this server — a
 Mastodon (or other) server refuses to start a Move towards an account that does

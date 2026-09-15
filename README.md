@@ -284,7 +284,10 @@ Mastodon's own export uses, with each attachment pointing at the copy rather tha
 the server you are leaving. Import reads one back, including an archive from
 `occ user:export`. A third section brings your follows over from Mastodon, Pixelfed,
 GoToSocial or Akkoma via their `following_accounts.csv` or `pixelfed-following.json`.
-Your private key is deliberately not in the archive.
+Your private key is deliberately not in the archive. Naming the account you are
+moving from — the `alsoKnownAs` the old server insists on before it will hand over
+your followers — is a field in the same page rather than an `occ` command, because
+it federates nothing and is yours to set.
 
 **And a fourth brings the posts** — the one thing moving between Fediverse servers has
 never carried. Upload the export from your old server (this app's archive, Mastodon's
