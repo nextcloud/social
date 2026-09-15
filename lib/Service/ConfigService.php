@@ -103,14 +103,16 @@ class ConfigService {
 
 	/**
 	 * Whether the first post of an account that has published nothing here yet
-	 * waits for a moderator.
+	 * is held for a moderator.
 	 *
-	 * On by default. Accounts here are Nextcloud users, so a spammer has to be
-	 * given an account by this server before they can post at all — and when
-	 * that happens, the cheapest thing that can be done about it is that the
-	 * first thing they write is seen by a person before it reaches anybody
-	 * else. An instance whose accounts are all colleagues turns it off and
-	 * loses nothing.
+	 * **Off by default**, and it was on until it was clear what that meant: an
+	 * account on this server is a Nextcloud account that an administrator
+	 * provisioned, and holding its first post made every new person's first
+	 * five minutes look broken — the composer closed, the post did not appear,
+	 * and the only place it existed was a panel their administrator had not
+	 * opened yet. The end-to-end suite failed on exactly that, twice per run,
+	 * on a clean install. An instance that hands out accounts to strangers
+	 * turns it on; the spam rules (`autospam`) stay on for everybody.
 	 */
 	public const SOCIAL_REVIEW_FIRST_POST = 'review_first_post';
 
@@ -225,7 +227,7 @@ class ConfigService {
 		self::SOCIAL_SILENCED_LIST => '[]',
 		self::SOCIAL_SECURE_MODE => '0',
 		self::SOCIAL_PUBLISH_BLOCKS => '0',
-		self::SOCIAL_REVIEW_FIRST_POST => '1',
+		self::SOCIAL_REVIEW_FIRST_POST => '0',
 		self::SOCIAL_AUTOSPAM => '1',
 		self::SOCIAL_REVIEW_POSTS => '1',
 		self::SOCIAL_IMAGE_MAX_EDGE => '0',

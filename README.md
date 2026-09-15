@@ -416,7 +416,8 @@ the administration settings:
   client sent and is written to no timeline at all, so there is no read path that
   could leak one; its author is told at once, can see it in their own settings, and
   can take it back. Publishing sends it as an ordinary post; refusing deletes it and
-  tells them. Both rules are switches, both on by default, and a **direct message is
+  tells them. Both rules are switches — the spam rules on by default, first-post review off
+  until an administrator with open registration turns it on — and a **direct message is
   never held**.
 - **An account browser** over every account this instance knows, with the standing
   decision and the strike history against each one.
