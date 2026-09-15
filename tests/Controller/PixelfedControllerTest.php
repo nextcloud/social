@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Suggestion;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ArchiveService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
@@ -56,6 +57,7 @@ class PixelfedControllerTest extends TestCase {
 	private HashtagService|MockObject $hashtagService;
 	private PixelfedService|MockObject $pixelfedService;
 	private StoryService|MockObject $storyService;
+	private ArchiveService|MockObject|null $archiveService = null;
 
 	private bool $hasSession = true;
 	private bool $csrf = true;
@@ -132,6 +134,8 @@ class PixelfedControllerTest extends TestCase {
 	}
 
 	private function controller(): PixelfedController {
+		$this->archiveService ??= $this->createMock(ArchiveService::class);
+
 		return new PixelfedController(
 			$this->request,
 			$this->userSession,
@@ -145,7 +149,8 @@ class PixelfedControllerTest extends TestCase {
 			$this->createMock(LinkPreviewService::class),
 			$this->createMock(PlaceService::class),
 			$this->pixelfedService,
-			$this->storyService
+			$this->storyService,
+			$this->archiveService
 		);
 	}
 

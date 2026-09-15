@@ -145,7 +145,12 @@ what it has as the whole conversation.
 **Four things you can do to a post**: reply, boost, favourite, and **react with an
 emoji** — which federates as `EmojiReact` and shows who reacted with what.
 
-**And two to your own.** Edit it, or **delete and write it again** — the correction
+**Archive it** — off your profile and out of every timeline, hashtag page and search
+on this server, with nothing sent to anybody and a way back from Settings. It is the
+answer to "this no longer belongs on my profile" that is not destroying it: other
+servers keep what they already have, which is what deleting is for.
+
+**And two more to your own.** Edit it, or **delete and write it again** — the correction
 people actually make. The post goes everywhere it reached, and its words, content
 warning, audience, language and pictures come back in the composer; the pictures by
 reference, so nothing is uploaded twice. What you post next is a new post, and the

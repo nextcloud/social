@@ -20,6 +20,7 @@ use OCA\Social\Model\InstancePath;
 use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
 use OCA\Social\Tools\Exceptions\RowNotFoundException;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Class StreamRequestBuilder
@@ -60,7 +61,10 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamSelectSql(int $format = Stream::FORMAT_ACTIVITYPUB): SocialQueryBuilder {
+	protected function getStreamSelectSql(
+		int $format = Stream::FORMAT_ACTIVITYPUB,
+		bool $withArchived = false,
+	): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->setFormat($format);
 
@@ -74,8 +78,33 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		$qb->setDefaultSelectAlias('s');
+		$this->hideArchived($qb, $withArchived);
 
 		return $qb;
+	}
+
+	/**
+	 * A post its author has put away is out of every list this server builds,
+	 * and the filter is here rather than in each of them.
+	 *
+	 * Fail-closed on purpose: a read that should show archived posts — the
+	 * author's own list of them, and a single post fetched by its address —
+	 * asks for them, and a read written later shows none until somebody
+	 * decides it should. The other way round, every list written from now on
+	 * would leak one until somebody noticed.
+	 */
+	protected function hideArchived(SocialQueryBuilder $qb, bool $withArchived): void {
+		if ($withArchived) {
+			return;
+		}
+
+		$qb->andWhere(
+			$qb->expr()->orX(
+				$qb->expr()->eq('s.archived', $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL)),
+				// rows written before the column existed
+				$qb->expr()->isNull('s.archived')
+			)
+		);
 	}
 
 	/**
@@ -108,7 +137,10 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * for the same twenty rows, with no duplicates among them. So it is asked
 	 * for where it is needed rather than always.
 	 */
-	protected function getStreamNidsSelectSql(bool $distinct = true): SocialQueryBuilder {
+	protected function getStreamNidsSelectSql(
+		bool $distinct = true,
+		bool $withArchived = false,
+	): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		if ($distinct) {
 			$qb->selectDistinct('s.nid');
@@ -117,6 +149,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 		$qb->from(self::TABLE_STREAM, 's');
 		$qb->setDefaultSelectAlias('s');
+		$this->hideArchived($qb, $withArchived);
 
 		return $qb;
 	}

@@ -137,6 +137,18 @@ deletion is sent to every server that received it — this cannot be undone),
 status**, which says which servers received the post, which are still being
 tried and which gave up.
 
+### Putting a post away
+
+A post you no longer want on your profile does not have to be deleted. **Archive**,
+in the post's own `…` menu, takes it off your profile and out of every timeline,
+search and hashtag page on this server, and leaves it exactly where it is
+otherwise: nobody is told, nothing is sent anywhere, and you can put it back at
+any time from **Settings → Archived posts**.
+
+What archiving is not is a way to take a post back from the fediverse. Other
+servers that received it still have it, and somebody who kept the link still
+opens it — that is what **Delete** is for, and deleting cannot be undone.
+
 ### If your post is kept back
 
 Your server may show some posts to a moderator before they go out. There are

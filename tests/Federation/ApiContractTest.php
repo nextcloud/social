@@ -76,7 +76,7 @@ class ApiContractTest extends TestCase {
 		// counts the ones it received itself, so it is local and derived and
 		// never goes out on the wire.
 		$expected = [
-			'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
+			'archived', 'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote',
 			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',

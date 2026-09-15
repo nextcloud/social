@@ -307,6 +307,20 @@
 						@click="editPost">
 						{{ t('social', 'Edit') }}
 					</NcActionButton>
+					<!-- the answer to "this no longer belongs on my profile" that
+					     is not destroying it. Nothing federates: the post stays on
+					     every server that received it, which is what deleting is
+					     for -->
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+						:disabled="archiving"
+						closeAfterClick
+						@click="toggleArchive">
+						<template #icon>
+							<IconArchiveOutline :size="20" />
+						</template>
+						{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
+					</NcActionButton>
 					<NcActionButton
 						v-if="item.account.acct === currentAccount?.acct"
 						icon="icon-delete"
@@ -505,6 +519,7 @@ import Cancel from 'vue-material-design-icons/Cancel.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
+import IconArchiveOutline from 'vue-material-design-icons/ArchiveOutline.vue'
 import PencilBoxOutline from 'vue-material-design-icons/PencilBoxOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
@@ -551,6 +566,7 @@ const CollectionPickerDialog = defineAsyncComponent(() => import(/* webpackChunk
 export default {
 	name: 'TimelinePost',
 	components: {
+		IconArchiveOutline,
 		Cancel,
 		CollectionPickerDialog,
 		FolderMultiplePlusOutline,
@@ -630,6 +646,7 @@ export default {
 			showCollectionDialog: false,
 			showBlockDialog: false,
 			showDeleteDialog: false,
+			archiving: false,
 			/** whether the delete on screen is the first half of a re-draft */
 			deleteToRedraft: false,
 			/** the Translation entity once it has arrived, null before */
@@ -1100,6 +1117,39 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Puts the post away, or brings it back.
+		 *
+		 * The row leaves the timeline it is in as soon as the server agrees:
+		 * the post is out of every list this server builds, and the list the
+		 * reader is looking at is one of them.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async toggleArchive() {
+			if (this.archiving) {
+				return
+			}
+
+			this.archiving = true
+			const archived = this.item.archived === true
+			try {
+				await axios.post(generateUrl('apps/social/api/pixelfed/v1/archive/' + (archived ? 'remove' : 'add') + '/' + this.item.id))
+				if (archived) {
+					this.timelineStore.updateStatusArchived({ statusId: this.item.id, archived: false })
+					showSuccess(t('social', 'The post is back on your profile'))
+				} else {
+					this.timelineStore.removeStatus(this.item)
+					showSuccess(t('social', 'Archived. It is off your profile and out of the timelines; nobody else was told.'))
+				}
+			} catch (error) {
+				logger.error('Failed to archive a post', { error })
+				showError(t('social', 'Could not archive the post'))
+			} finally {
+				this.archiving = false
+			}
+		},
+
 		/**
 		 * The reaction bar came back from the server after a press. It goes to
 		 * the store rather than onto this card, so the same post shown twice —

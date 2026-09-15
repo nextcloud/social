@@ -201,6 +201,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private bool $sensitive = false;
 
 	/**
+	 * Whether the author has put this post away.
+	 *
+	 * Local and never federated: an archived post is still on every server
+	 * that received it, because taking it back from them is what `Delete` is
+	 * for and is a different decision. What archiving says is "not on my
+	 * profile here any more".
+	 */
+	private bool $archived = false;
+
+	/**
 	 * Where the post was taken, when its author said so. Zero is "nowhere",
 	 * which is what almost every post is: a place is never inferred.
 	 */
@@ -659,6 +669,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Stream
 	 */
+	public function isArchived(): bool {
+		return $this->archived;
+	}
+
+	public function setArchived(bool $archived): self {
+		$this->archived = $archived;
+
+		return $this;
+	}
+
 	public function setSensitive(bool $sensitive): Stream {
 		$this->sensitive = $sensitive;
 
@@ -950,6 +970,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
 		$this->setContent($this->validate(self::AS_CONTENT, 'content', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
+		$this->setArchived($this->getBool('archived', $data, false));
 		$this->setPlaceId($this->getInt('place_id', $data, 0));
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
@@ -1236,6 +1257,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$result = [
 			'local' => $this->isLocal(),
+			// the author's own; nobody else is ever handed an archived post,
+			// because no list this server builds contains one
+			'archived' => $this->isArchived(),
 			'content' => $this->getContent(),
 			'sensitive' => $this->isSensitive(),
 			'spoiler_text' => $this->getSpoilerText(),

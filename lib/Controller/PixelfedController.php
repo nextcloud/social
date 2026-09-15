@@ -11,6 +11,7 @@ namespace OCA\Social\Controller;
 
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ArchiveService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
@@ -70,6 +71,7 @@ class PixelfedController extends ClientApiController {
 		private PlaceService $placeService,
 		private PixelfedService $pixelfedService,
 		private StoryService $storyService,
+		private ArchiveService $archiveService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -400,6 +402,58 @@ class PixelfedController extends ClientApiController {
 					: $this->pixelfedService->appSettings($this->viewer()),
 				Http::STATUS_OK
 			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Putting one of your own posts away, and getting it back.
+	 *
+	 * Pixelfed's three screens, at Pixelfed's own paths. Nothing federates: an
+	 * archived post is still on every server that received it, and taking it
+	 * back from them is what deleting is for.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/archive/add/{id}', requirements: ['id' => '\\d+'])]
+	public function archiveAdd(int $id): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+			$this->archiveService->archive($this->viewer(), $id);
+
+			return new DataResponse(['code' => 200], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/archive/remove/{id}', requirements: ['id' => '\\d+'])]
+	public function archiveRemove(int $id): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+			$this->archiveService->restore($this->viewer(), $id);
+
+			return new DataResponse(['code' => 200], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/archive/list')]
+	public function archiveList(int $limit = ArchiveService::PAGE, int $max_id = 0): DataResponse {
+		try {
+			$this->initViewer(['read:statuses']);
+			$posts = $this->archiveService->forActor($this->viewer(), $limit, $max_id);
+			foreach ($posts as $post) {
+				$post->setExportFormat(ACore::FORMAT_LOCAL);
+			}
+
+			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

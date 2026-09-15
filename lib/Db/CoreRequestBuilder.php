@@ -483,6 +483,7 @@ class CoreRequestBuilder {
 			'id_prim',
 			'visibility',
 			'sensitive',
+			'archived',
 			'type',
 			'subtype',
 			'to',

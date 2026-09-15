@@ -631,6 +631,68 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * Puts one of the author's own posts away, or brings it back.
+	 *
+	 * The author is in the statement rather than checked beforehand: a request
+	 * naming somebody else's post changes no row, which is the same guarantee
+	 * every other per-account write here makes and one that cannot be
+	 * forgotten by a caller.
+	 *
+	 * Local posts only. Archiving is about what this account shows on its own
+	 * profile; a post somebody else wrote is theirs, and the answer to not
+	 * wanting to see it is a mute or a block.
+	 *
+	 * @return bool whether a row changed
+	 */
+	public function setArchived(int $nid, string $actorId, bool $archived): bool {
+		$qb = $this->getStreamUpdateSql();
+		$qb->set('archived', $qb->createNamedParameter($archived, IQueryBuilder::PARAM_BOOL));
+		$qb->where(
+			$qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)),
+			$qb->expr()->eq('attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))),
+			$qb->expr()->eq('local', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL))
+		);
+
+		return $qb->executeStatement() > 0;
+	}
+
+	/**
+	 * The posts this account has put away, newest first.
+	 *
+	 * The one read that asks for archived posts, and the only one: everything
+	 * else is fail-closed (`hideArchived()`).
+	 *
+	 * @return Stream[]
+	 */
+	public function getArchivedByActor(string $actorId, int $limit = 50, int $maxId = 0): array {
+		$qb = $this->getStreamSelectSql(Stream::FORMAT_LOCAL, true);
+		$qb->andWhere($qb->expr()->eq('s.attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))));
+		$qb->andWhere($qb->expr()->eq('s.archived', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)));
+		if ($maxId > 0) {
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/** How many posts this account has put away. */
+	public function countArchivedByActor(string $actorId): int {
+		$qb = $this->getQueryBuilder();
+		$qb->selectAlias($qb->func()->count('*'), 'total')
+			->from(self::TABLE_STREAM, 's')
+			->where($qb->expr()->eq('s.attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->eq('s.archived', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)));
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return (int)($data['total'] ?? 0);
+	}
+
+	/**
 	 * What this instance's own people have been writing, for the two numbers
 	 * an administrator asks for first: how busy is it, and how many of the
 	 * accounts are actually used.
