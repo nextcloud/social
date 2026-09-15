@@ -153,6 +153,16 @@ class ConfigService {
 	public const SOCIAL_IMAGE_QUALITY = 'image_quality';
 
 	/**
+	 * The last measurement of how much disk this app is using, as JSON, with
+	 * the moment it was taken.
+	 *
+	 * Bookkeeping rather than a setting: the walk is a `stat` per file and
+	 * belongs in the cron, so the administration page reads what the cron left
+	 * here and says when it was measured. See `MediaUsageService`.
+	 */
+	public const SOCIAL_MEDIA_USAGE = 'media_usage';
+
+	/**
 	 * The secret a story's fetch capability is derived from, generated the
 	 * first time a story is published. See `getStorySecret()`.
 	 */

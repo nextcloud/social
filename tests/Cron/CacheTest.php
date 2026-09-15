@@ -297,7 +297,7 @@ class CacheTest extends TestCase {
 			'nothing after the step that ran out of time may run'
 		);
 		$this->assertCount(1, $this->warnings);
-		$this->assertStringContainsString('11 step(s) skipped', $this->warnings[0]['message']);
+		$this->assertStringContainsString('12 step(s) skipped', $this->warnings[0]['message']);
 		$this->assertStringContainsString('manageCacheLocalActors', $this->warnings[0]['message']);
 	}
 

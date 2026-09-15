@@ -14,6 +14,7 @@ use OCA\Social\Model\Report;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\MediaUsageService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
@@ -62,6 +63,7 @@ class AdminSettings implements IDelegatedSettings {
 		private ModerationService $moderationService,
 		private PostReviewService $postReviewService,
 		private StreamRequest $streamRequest,
+		private MediaUsageService $mediaUsageService,
 		private FederationHealthService $federationHealthService,
 		private IL10N $l10n,
 		private ServerSettingsService $serverSettingsService,
@@ -107,6 +109,9 @@ class AdminSettings implements IDelegatedSettings {
 			// what this instance's own people have been doing: the two numbers
 			// an administrator asks for first, and the page had neither
 			'activity' => $this->activity(),
+			// what is on disk, as the cron last measured it: adding it up is a
+			// `stat` per stored file and has no business in a page load
+			'storage' => $this->mediaUsageService->lastMeasured(),
 			// the first page of the review queue, in the shape
 			// `ModerationController::review()` answers in
 			'review' => $this->postReviewService->pending(),

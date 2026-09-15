@@ -158,7 +158,7 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Ten sections:
+**Administration → Social.** Eleven sections:
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
@@ -182,6 +182,11 @@ when each was last tried.
   coming back; a refused one is turned away wherever it arrives, an upload here
   or an attachment fetched from another server.
 - **Retention** — how long remote statuses nobody here cares about are kept.
+- **Storage** — what is on disk, split into what was posted here (somebody's
+  own work, not going anywhere) and what is cached from other servers (what
+  Retention removes). Added up by the background job once a day, because
+  counting it is one file lookup per stored file; the page says when it was
+  measured. `occ social:media:usage` measures it on demand.
 - **Federation health** — what the outbound queue is doing.
 - **Fediverse access** — the block list or the allow list, the same one `occ
   social:fediverse` manages.
@@ -314,6 +319,7 @@ the moderation routes accept.
 | `social_address` | *(empty)* | The hostname accounts are federated under, when it is not the host of `cloud_url`. Only set this if the fediverse address genuinely differs from the Nextcloud host, and only before the first account exists. |
 | `service` | `1` | Unused; a leftover of the original installer. |
 | `installed_version` | | Written by the upgrade machinery. |
+| `media_usage` | *(written by the job)* | The last measurement of what is on disk, as JSON with the moment it was taken. Bookkeeping, not a setting: the walk is a `stat` per stored file and belongs in the cron, so the administration page reads this rather than counting on page load. |
 | `polls_swept` | `0` | How far the closed-poll sweep has got, as a timestamp. |
 | `story_secret` | *(generated)* | The secret a story's fetch capability is derived from, made the first time a story is published. Changing it invalidates every outstanding capability at once, which is the only revocation it needs: a story lives a day. Never set this by hand. |
 

@@ -18,6 +18,7 @@
 		<AccountsSection />
 		<MediaBlocksSection />
 		<RetentionSection :days="state.retentionDays" />
+		<StorageSection :storage="state.storage" />
 		<FederationSection :federation="state.federation" />
 		<AccessSection :accessType="state.accessType" :addresses="state.accessList" />
 		<AnnouncementsSection />
@@ -39,6 +40,7 @@ import ReportsSection from './ReportsSection.vue'
 import RetentionSection from './RetentionSection.vue'
 import ReviewSection from './ReviewSection.vue'
 import ServerSection from './ServerSection.vue'
+import StorageSection from './StorageSection.vue'
 
 /** What `AdminSettings::getForm()` provides when it provides nothing. */
 const NOTHING = {
@@ -55,6 +57,7 @@ const NOTHING = {
 	accessType: 'all_but',
 	accessList: [],
 	retentionDays: 0,
+	storage: null,
 	federation: {
 		waiting: 0,
 		running: 0,
@@ -71,7 +74,7 @@ const NOTHING = {
 }
 
 /**
- * The ten sections of Administration → Social.
+ * The eleven sections of Administration → Social.
  *
  * Nothing here uses `v-html`, and nothing below it does either. Half of what
  * these tables draw — a handle, an instance name, the comment on a report — is
@@ -92,6 +95,7 @@ export default {
 		RetentionSection,
 		ReviewSection,
 		ServerSection,
+		StorageSection,
 	},
 
 	data() {
