@@ -225,6 +225,11 @@ own unified search. No external search engine to run.
   collection**), and edit, empty or delete it on its page. A collection holds only
   its owner's own posts with a picture or a video in them, and a followers-only one
   is shown to followers and nobody else.
+- **A portfolio** — a page of your work with its own public address, to put on a
+  CV. A title, a sentence, a grid or one picture at a time, and the pictures
+  chosen from your recent public photos or one of your collections. A draft until
+  you publish it; readable without signing in once you do, and built only out of
+  public posts whatever else is set.
 - **Videos that play elsewhere** — an administrator can turn on a background job
   that converts stored videos to H.264 in an MP4, which is the one format the rest
   of the network plays: Pixelfed's default accepts `video/mp4` and nothing else, so

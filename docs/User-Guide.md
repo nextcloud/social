@@ -303,6 +303,26 @@ collection may hold. On a collection's page you can **Edit** its title,
 description and audience, **Remove posts** from their own squares, or
 **Delete** it — the posts stay where they are.
 
+### A page of your work
+
+**Settings → Portfolio** makes a page with its own address, to put on a CV.
+A profile is a feed: everything you posted, newest first, with the follow
+button and the boosts and the replies around it. A portfolio is the opposite —
+a title, a sentence, the pictures you chose, and nothing else on it.
+
+Give it a title and a line about the work, choose a grid of squares or one
+picture at a time, and say where the pictures come from: your most recent
+public photos, or one of your collections. Then decide what goes under each
+one — the caption, where it was taken, the year — and whether your own picture
+is at the top.
+
+Until you turn **Publish my portfolio** on, the page is a draft only you can
+see. Once it is on, the address appears under the switch and anybody with it
+can read the page without signing in, which is the whole point. **Only your
+public photos are ever on it**, whatever the rest of the settings say: the page
+is built by asking for your posts as an anonymous reader, so a followers-only
+photograph cannot reach it.
+
 ### Who is in the photo
 
 Open one of your own posts with a picture in it, choose **Tag people** from its

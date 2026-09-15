@@ -76,6 +76,16 @@
 			<ScheduledPosts />
 		</section>
 
+		<section id="portfolio" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Portfolio') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'A page of your work with its own address, to put on a CV. A profile is a feed — everything you posted, newest first, with the follow button and the boosts around it. This is the opposite: a title, a sentence, the pictures you chose, and nothing else. Anybody can read it without signing in, so only your public photos are ever on it.') }}
+			</p>
+			<PortfolioSettings />
+		</section>
+
 		<section id="archive" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Archived posts') }}
@@ -122,6 +132,7 @@
 import ArchivedPosts from '../components/ArchivedPosts.vue'
 import HeldPosts from '../components/HeldPosts.vue'
 import MigrationSettings from '../components/MigrationSettings.vue'
+import PortfolioSettings from '../components/PortfolioSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
 import { defineAsyncComponent } from 'vue'
@@ -160,6 +171,7 @@ export default {
 		HeldPosts,
 		ListsSettings,
 		MigrationSettings,
+		PortfolioSettings,
 		RecapSettings,
 		ScheduledPosts,
 		ShortcutList,

@@ -73,6 +73,7 @@ class CoreRequestBuilder {
 	public const TABLE_STORY_VIEWS = 'social_story_view';
 	public const TABLE_STORY_REACTS = 'social_story_react';
 	public const TABLE_MEDIA_TAGS = 'social_media_tag';
+	public const TABLE_PORTFOLIOS = 'social_portfolio';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -317,6 +318,22 @@ class CoreRequestBuilder {
 			'actor_id',
 			'actor_id_prim',
 			'tagger_id_prim',
+			'creation'
+		],
+		self::TABLE_PORTFOLIOS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'active',
+			'title',
+			'intro',
+			'layout',
+			'source',
+			'collection_id',
+			'show_captions',
+			'show_places',
+			'show_dates',
+			'show_avatar',
 			'creation'
 		],
 		self::TABLE_CONVERSATION_STATE => [
@@ -737,6 +754,19 @@ class CoreRequestBuilder {
 	 */
 	public function setViewer(Person $viewer) {
 		$this->viewer = $viewer;
+	}
+
+	/**
+	 * Reads what follows for nobody in particular.
+	 *
+	 * The request object outlives one read — it is a service — so a reader set
+	 * for an earlier query is still set for the next one. A path that has to
+	 * answer as the anonymous internet does (the portfolio page, which is
+	 * public and must only ever show public posts) says so rather than hoping
+	 * nothing before it set a viewer.
+	 */
+	public function resetViewer(): void {
+		$this->viewer = null;
 	}
 
 	/**
