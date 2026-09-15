@@ -513,20 +513,18 @@ export default {
 /*
  * Seven options where the switcher was drawn for three.
  *
- * The track is as wide as its labels and its options do not wrap, so at the
- * switcher's own padding seven of them run past the column. They are given
- * less of it here, and below the width where even that stops fitting the
- * labels give way to the icons they sit beside -- staying in the
- * accessibility tree, because the label is the option's name. The switcher
- * does the same thing itself at 500px; this only brings the point forward for
- * a row that is twice as long as the ones it was built for.
+ * They used to be squeezed here — half the switcher's own padding — because
+ * every option was as wide as the widest of them, and seven of those ran past
+ * the column. An option is as wide as its own words now and the pill is
+ * measured rather than assumed, so the squeeze is gone and the row keeps the
+ * spacing every other switcher has.
+ *
+ * What is still needed is the point where even that stops fitting: below this
+ * width the labels give way to the icons they sit beside, staying in the
+ * accessibility tree because the label is the option's name. The switcher does
+ * the same thing itself further down; this only brings the point forward for a
+ * row twice as long as the ones it was built for.
  */
-.notifications-filter {
-	:deep(.switcher__option) {
-		padding: 0 12px;
-	}
-}
-
 @media (max-width: 800px) {
 	.notifications-filter :deep(.switcher__label) {
 		position: absolute;
