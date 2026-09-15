@@ -236,6 +236,14 @@ every attachment does — stripped of the camera's metadata — and your story
 is up for a day, to your followers and nobody else. While it is up, you can
 see how many people watched it and take it down early from the same player.
 
+Stories travel. Yours go to the people who follow you on other servers that
+have stories — Pixelfed is the one that does — and theirs appear in your row
+beside stories from this server. Taking yours down early takes it down there
+too. What another server does with its copy after the day is up is that
+server's business, which is why a story that arrives here is kept for a day
+at the most, whatever the sender says, and one that has already expired is
+not kept at all.
+
 ### Collections
 
 A profile has a fourth tab beside Posts, Photos and Videos: **Collections**, the
@@ -395,12 +403,8 @@ applies where nothing else claims the key.
 
 ## What the web client does not do yet
 
-These exist in the server and are reachable through the Mastodon-compatible
-API, but the web client has no page for them: **collections**, **stories** and
-**places** — each has a controller in `lib/Controller/` and nothing in the
-sidebar, the router or Settings. Third-party Mastodon clients cannot connect to
-this server yet, because the API is served under the app's own path rather than
-at the domain root (see
+Third-party Mastodon clients cannot connect to this server yet, because the
+API is served under the app's own path rather than at the domain root (see
 [Mastodon-Compatibility.md](Mastodon-Compatibility.md)); until that changes, the
 web client is the client. There is no post translation — `ActionService`'s
 `translate` hands the post back unchanged — and no streaming API, so the page

@@ -35,6 +35,7 @@ use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Interfaces\Object\StoryInterface;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\PeerTubeService;
 use OCP\IURLGenerator;
@@ -74,6 +75,7 @@ trait TActivityPubMocks {
 			ImageInterface::class,
 			LikeInterface::class,
 			EmojiReactInterface::class,
+			StoryInterface::class,
 			MoveInterface::class,
 			NoteInterface::class,
 			SocialAppNotificationInterface::class,
@@ -125,7 +127,7 @@ trait TActivityPubMocks {
 	}
 
 	/**
-	 * @param class-string $class one of the 23 interface classes
+	 * @param class-string $class one of the 26 interface classes
 	 */
 	protected function apInterface(string $class): MockObject {
 		return $this->apInterfaces[$class];

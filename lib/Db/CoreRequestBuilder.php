@@ -281,7 +281,10 @@ class CoreRequestBuilder {
 			'caption',
 			'duration',
 			'creation',
-			'expires_at'
+			'expires_at',
+			'source_id',
+			'source_id_prim',
+			'local'
 		],
 		self::TABLE_STORY_VIEWS => [
 			'id',

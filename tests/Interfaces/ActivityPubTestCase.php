@@ -36,6 +36,7 @@ use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Interfaces\Object\StoryInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -89,6 +90,8 @@ abstract class ActivityPubTestCase extends TestCase {
 	protected $likeInterface;
 	/** @var EmojiReactInterface&MockObject */
 	protected $emojiReactInterface;
+	/** @var StoryInterface&MockObject */
+	protected $storyInterface;
 	/** @var MoveInterface&MockObject */
 	protected $moveInterface;
 	/** @var NoteInterface&MockObject */
@@ -131,6 +134,7 @@ abstract class ActivityPubTestCase extends TestCase {
 		$this->imageInterface = $this->createMock(ImageInterface::class);
 		$this->likeInterface = $this->createMock(LikeInterface::class);
 		$this->emojiReactInterface = $this->createMock(EmojiReactInterface::class);
+		$this->storyInterface = $this->createMock(StoryInterface::class);
 		$this->moveInterface = $this->createMock(MoveInterface::class);
 		$this->noteInterface = $this->createMock(NoteInterface::class);
 		$this->notificationInterface = $this->createMock(SocialAppNotificationInterface::class);
@@ -163,6 +167,7 @@ abstract class ActivityPubTestCase extends TestCase {
 			$this->imageInterface,
 			$this->likeInterface,
 			$this->emojiReactInterface,
+			$this->storyInterface,
 			$this->moveInterface,
 			$this->noteInterface,
 			$this->notificationInterface,

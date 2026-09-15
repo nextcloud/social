@@ -37,6 +37,7 @@ use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Interfaces\Object\StoryInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Add;
@@ -64,6 +65,7 @@ use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
+use OCA\Social\Model\ActivityPub\Object\Story;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -124,6 +126,7 @@ class AP {
 		public ImageInterface $imageInterface,
 		public LikeInterface $likeInterface,
 		public EmojiReactInterface $emojiReactInterface,
+		public StoryInterface $storyInterface,
 		public MoveInterface $moveInterface,
 		public NoteInterface $noteInterface,
 		public SocialAppNotificationInterface $notificationInterface,
@@ -377,6 +380,10 @@ class AP {
 				$item = new Note();
 				break;
 
+			case Story::TYPE:
+				$item = new Story();
+				break;
+
 			case Question::TYPE:
 				$item = new Question();
 				break;
@@ -488,6 +495,8 @@ class AP {
 			case Note::TYPE:
 			case Question::TYPE:
 				return $this->noteInterface;
+			case Story::TYPE:
+				return $this->storyInterface;
 			case SocialAppNotification::TYPE:
 				return $this->notificationInterface;
 			case Person::TYPE:

@@ -9,9 +9,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Activity;
 
+use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Story;
 
 class AddInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	public function __construct(
@@ -27,6 +29,20 @@ class AddInterface extends AbstractActivityPubInterface implements IActivityPubI
 	 */
 	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
+		// Pixelfed publishes a story with `Add`, addressed to the author's
+		// followers; Mastodon adds a post to a `featured` collection with it,
+		// which is a pin. What the activity carries tells them apart: a story
+		// arrives as the object itself, a pin as an id and a target.
+		if ($item->hasObject() && $item->getObject() instanceof Story) {
+			$story = $item->getObject();
+			// checked against the activity's own origin, which is what stops
+			// one server publishing a story onto another's account
+			$story->setOrigin($item->getOrigin(), $item->getOriginSource(), $item->getOriginCreationTime());
+			AP::instance()->getInterfaceFromType(Story::TYPE)->save($story);
+
+			return;
+		}
+
 		$this->featuredCollection->toggle($item, true);
 	}
 }

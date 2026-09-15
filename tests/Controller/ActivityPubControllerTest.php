@@ -27,6 +27,7 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\InstanceActor;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\QuoteAuthorization;
@@ -44,6 +45,9 @@ use OCA\Social\Service\InboxLimiter;
 use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Model\ActivityPub\Object\Story as ApStory;
+use OCA\Social\Model\Client\Story as ClientStory;
+use OCA\Social\Service\StoryService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
@@ -102,6 +106,8 @@ class ActivityPubControllerTest extends TestCase {
 	/** @var InstanceActorService&MockObject */
 	private $instanceActorService;
 	private $authorizedFetchService;
+	/** @var StoryService|\PHPUnit\Framework\MockObject\MockObject */
+	private $storyService;
 
 	/** The remote account a signed GET resolved to, if a test says so. */
 	private ?Person $signedReader = null;
@@ -141,6 +147,8 @@ class ActivityPubControllerTest extends TestCase {
 		// Response::getHeaders() stamps X-Request-Id from the container's request
 		\OC::$server->register(IRequest::class, $this->request);
 
+		$this->storyService = $this->createMock(StoryService::class);
+
 		$this->authorizedFetchService = $this->createMock(AuthorizedFetchService::class);
 		$this->authorizedFetchService->method('reader')->willReturnCallback(
 			fn (): ?Person => $this->signedReader
@@ -169,6 +177,7 @@ class ActivityPubControllerTest extends TestCase {
 			$this->pinService,
 			$this->instanceActorService,
 			$this->authorizedFetchService,
+			$this->storyService,
 			$this->configService,
 			$this->initialState,
 			$this->logger
@@ -1297,5 +1306,87 @@ class ActivityPubControllerTest extends TestCase {
 			->willReturn(new \OCP\AppFramework\Http\TemplateResponse('social', 'main'));
 
 		$this->assertNotSame(Http::STATUS_UNAUTHORIZED, $this->controller->actor('alice')->getStatus());
+	}
+
+	// story()
+
+	public function testStoryIsServedToAReaderWhoFollowsTheAuthor(): void {
+		$this->acceptHeader('application/activity+json');
+		$author = new Person();
+		$author->setId('https://cloud.example/@alice');
+		$this->localActor('alice', $author);
+		$this->signedReader = $this->createMock(Person::class);
+
+		$story = new ClientStory();
+		$this->storyService->method('idOf')->with($author, 7)
+			->willReturn('https://cloud.example/@alice/stories/7');
+		$this->storyService->method('bySourceId')->with('https://cloud.example/@alice/stories/7')
+			->willReturn($story);
+		$this->storyService->method('mayRead')->with($story, $this->signedReader)->willReturn(true);
+
+		$published = new ApStory();
+		$published->setId('https://cloud.example/@alice/stories/7');
+		$this->storyService->method('asActivityPub')->with($author, $story)->willReturn($published);
+
+		$this->assertActivityPubResponse($this->controller->story('alice', 7), $published);
+	}
+
+	public function testStoryOfSomebodyTheReaderDoesNotFollowIsANotFound(): void {
+		$this->acceptHeader('application/activity+json');
+		$author = new Person();
+		$author->setId('https://cloud.example/@alice');
+		$this->localActor('alice', $author);
+		$this->signedReader = $this->createMock(Person::class);
+
+		$this->storyService->method('idOf')->willReturn('https://cloud.example/@alice/stories/7');
+		$this->storyService->method('bySourceId')->willReturn(new ClientStory());
+		$this->storyService->method('mayRead')->willReturn(false);
+		$this->storyService->expects($this->never())->method('asActivityPub');
+
+		// the same answer as a story that does not exist: whether an account
+		// has one up is told to its followers and to nobody else
+		$this->assertFailure(
+			$this->controller->story('alice', 7), ItemNotFoundException::class, Http::STATUS_NOT_FOUND
+		);
+	}
+
+	public function testStoryIsANotFoundWhenNothingSignedTheFetch(): void {
+		$this->acceptHeader('application/activity+json');
+		$author = new Person();
+		$author->setId('https://cloud.example/@alice');
+		$this->localActor('alice', $author);
+		$this->signedReader = null;
+
+		$this->storyService->method('idOf')->willReturn('https://cloud.example/@alice/stories/7');
+		$this->storyService->method('bySourceId')->willReturn(new ClientStory());
+		$this->storyService->expects($this->never())->method('mayRead');
+
+		$this->assertFailure(
+			$this->controller->story('alice', 7), ItemNotFoundException::class, Http::STATUS_NOT_FOUND
+		);
+	}
+
+	public function testStoryThatHasExpiredIsANotFound(): void {
+		$this->acceptHeader('application/activity+json');
+		$this->localActor('alice');
+		$this->storyService->method('idOf')->willReturn('https://cloud.example/@alice/stories/7');
+		$this->storyService->method('bySourceId')
+			->willThrowException(new ItemNotFoundException('gone'));
+
+		$this->assertFailure(
+			$this->controller->story('alice', 7), ItemNotFoundException::class, Http::STATUS_NOT_FOUND
+		);
+	}
+
+	public function testStoryAsksTheAppForABrowser(): void {
+		// a browser has nothing to be shown here: the story is in the app,
+		// behind the reader's own carousel
+		$this->acceptHeader('text/html');
+		$page = new \OCP\AppFramework\Http\TemplateResponse('social', 'main');
+		$this->socialPubController->expects($this->once())->method('actor')->with('alice')
+			->willReturn($page);
+		$this->storyService->expects($this->never())->method('bySourceId');
+
+		$this->assertSame($page, $this->controller->story('alice', 7));
 	}
 }

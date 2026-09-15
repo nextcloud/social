@@ -17,6 +17,7 @@ use OCA\Social\Exceptions\ActivityPubFormatException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RealTokenException;
 use OCA\Social\Exceptions\SignatureException;
@@ -45,6 +46,7 @@ use OCA\Social\Service\InboxLimiter;
 use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Service\StoryService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
@@ -104,6 +106,7 @@ class ActivityPubController extends Controller {
 		private PinService $pinService,
 		private InstanceActorService $instanceActorService,
 		private AuthorizedFetchService $authorizedFetchService,
+		private StoryService $storyService,
 		ConfigService $configService,
 		IInitialState $initialState,
 		LoggerInterface $logger,
@@ -769,18 +772,64 @@ class ActivityPubController extends Controller {
 	}
 
 	/**
-	 * A post: as ActivityPub for a client that asks for it, as a page for a
-	 * browser.
+	 * One story, for a peer that would rather fetch it than trust the copy it
+	 * was handed.
 	 *
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
+	 * A story is published to followers, so it is served to them: the author,
+	 * or whoever signed the fetch and follows the author — the same rule the
+	 * API keeps and the same follow rows the local timelines are built from.
+	 * Anybody else gets the **404** a story that is not theirs to see has
+	 * always been, here as in the client API: whether an account even has one
+	 * up is told to its followers and to nobody else.
+	 *
+	 * Only while it is alive. An expired story is gone, and gone is a 404.
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/stories/{id}', requirements: ['id' => '\\d+'])]
+	public function story(string $username, int $id): Response {
+		if (!$this->checkSourceActivityStreams()) {
+			// a browser has nothing to be shown here: the story is in the app,
+			// behind the reader's own carousel
+			return $this->socialPubController->actor($username);
+		}
+
+		try {
+			$this->assertReadable();
+		} catch (SignatureException $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			$author = $this->cacheActorService->getFromLocalAccount($username);
+			$story = $this->storyService->bySourceId(
+				$this->storyService->idOf($author, $id)
+			);
+
+			$reader = $this->reader();
+			if ($reader === null || !$this->storyService->mayRead($story, $reader)) {
+				throw new ItemNotFoundException('unknown story');
+			}
+
+			return $this->activityPubSuccess($this->storyService->asActivityPub($author, $story));
+		} catch (Exception $e) {
+			return $this->fail($e, ['story' => $id], Http::STATUS_NOT_FOUND, false);
+		}
+	}
+
 	#[NoCSRFRequired]
 	#[PublicPage]
 	// `{token}` is one segment, so this url also matches `/@{username}/inbox`,
 	// `/outbox`, `/followers` and `/following`. Attributes of one class are read
 	// in method-declaration order, which is why this method is declared after
 	// all four: moving it up the file would swallow them.
+	/**
+	 * A post: as ActivityPub for a client that asks for it, as a page for a
+	 * browser.
+	 *
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 */
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}')]
 	public function displayPost(string $username, string $token): Response {
 		try {
