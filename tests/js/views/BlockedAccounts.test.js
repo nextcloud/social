@@ -206,7 +206,9 @@ describe('BlockedAccounts', () => {
 
 		it('brings the empty state in through a transition once the last one is gone', async () => {
 			const { wrapper } = await mountView({
-				blocked: [bob], muted: [carol], domains: ['noisy.example'],
+				blocked: [bob],
+				muted: [carol],
+				domains: ['noisy.example'],
 			})
 			expect(wrapper.findAll('.empty-content')).toHaveLength(0)
 

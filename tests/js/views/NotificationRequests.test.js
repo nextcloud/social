@@ -38,8 +38,9 @@ function mountView() {
 }
 
 const rows = (wrapper) => wrapper.findAll('.request')
-const buttonByText = (scope, text) =>
-	scope.findAll('button').find((button) => button.text() === text)
+function buttonByText(scope, text) {
+	return scope.findAll('button').find((button) => button.text() === text)
+}
 
 describe('the filtered notifications page', () => {
 	beforeEach(() => {
@@ -57,9 +58,7 @@ describe('the filtered notifications page', () => {
 		mountView()
 		await flushPromises()
 
-		expect(get).toHaveBeenCalledWith(
-			expect.stringContaining('/api/v1/notifications/requests'),
-		)
+		expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/v1/notifications/requests'))
 	})
 
 	it('says so plainly when nothing is waiting', async () => {
@@ -102,9 +101,7 @@ describe('the filtered notifications page', () => {
 		await buttonByText(rows(wrapper)[0], 'Show these').trigger('click')
 		await flushPromises()
 
-		expect(post).toHaveBeenCalledWith(
-			expect.stringContaining('/api/v1/notifications/requests/22/accept'),
-		)
+		expect(post).toHaveBeenCalledWith(expect.stringContaining('/api/v1/notifications/requests/22/accept'))
 		expect(rows(wrapper)).toHaveLength(1)
 	})
 
@@ -116,9 +113,7 @@ describe('the filtered notifications page', () => {
 		await buttonByText(rows(wrapper)[0], 'Dismiss').trigger('click')
 		await flushPromises()
 
-		expect(post).toHaveBeenCalledWith(
-			expect.stringContaining('/api/v1/notifications/requests/22/dismiss'),
-		)
+		expect(post).toHaveBeenCalledWith(expect.stringContaining('/api/v1/notifications/requests/22/dismiss'))
 	})
 
 	/**

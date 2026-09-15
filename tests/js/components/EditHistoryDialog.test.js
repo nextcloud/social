@@ -45,9 +45,7 @@ describe('the edit history', () => {
 		mountDialog()
 		await flushPromises()
 
-		expect(get).toHaveBeenCalledWith(
-			expect.stringContaining('/api/v1/statuses/101/history'),
-		)
+		expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/v1/statuses/101/history'))
 	})
 
 	it('draws one entry per version, oldest first', async () => {
