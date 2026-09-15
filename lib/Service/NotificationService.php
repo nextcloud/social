@@ -328,19 +328,18 @@ class NotificationService {
 
 			/** @var SocialAppNotification $item */
 			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+			$reply = ($interaction->getType() === StoryInteraction::TYPE_REPLY);
+
 			$item->addDetail('story_id', (string)$story->getId());
 			$item->addDetail('content', $interaction->getContent());
-			$item->setAttributedTo($story->getOwnerId())
-				->setSubType(
-					($interaction->getType() === StoryInteraction::TYPE_REPLY)
-						? Stream::SUBTYPE_STORY_REPLY : Stream::SUBTYPE_STORY_REACT
-				)
-				->setActorId($interaction->getActorId())
+			$item->addDetail('account', $this->accountOf($interaction->getActorId()));
+			// attributedTo is who the notification is *about*, which is what a
+			// client draws as its account — the person who answered, not the
+			// person being told
+			$item->setAttributedTo($interaction->getActorId())
+				->setSubType($reply ? Stream::SUBTYPE_STORY_REPLY : Stream::SUBTYPE_STORY_REACT)
 				->setId($story->getOwnerId() . '/notification+story/' . md5($interaction->getSourceId()))
-				->setSummary(
-					($interaction->getType() === StoryInteraction::TYPE_REPLY)
-						? 'Somebody replied to your story' : 'Somebody reacted to your story'
-				)
+				->setSummary($reply ? '{account} replied to your story' : '{account} reacted to your story')
 				->setTo($story->getOwnerId())
 				->setLocal(true);
 
