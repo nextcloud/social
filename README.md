@@ -231,6 +231,11 @@ own unified search. No external search engine to run.
   Pixelfed, moderatable, with its own followers. The membership is the group,
   asked live, so leaving it takes the account away with it. Who wrote each post
   is recorded and shown to the team and to moderators, and to nobody else.
+- **Filtered notifications** — the senders your notification policy is holding,
+  one row each, with Show these and Dismiss. The policy has been in the API since
+  4.3; this is the page that makes it usable.
+- **Hide a whole server** from yourself, beside the blocked and muted accounts.
+- **Edit history** — the "Edited" line under a post opens every version of it.
 - **A portfolio** — a page of your work with its own public address, to put on a
   CV. A title, a sentence, a grid or one picture at a time, and the pictures
   chosen from your recent public photos or one of your collections. A draft until
