@@ -352,6 +352,57 @@ class NotificationService {
 	}
 
 	/**
+	 * A page of the viewer's notifications, newest first, as
+	 * `/api/v1/notifications` serves them.
+	 *
+	 * Public because the v2 routes read the same list: grouping, the requests
+	 * inbox and the ungrouped list are three shapes of one query, and a second
+	 * query built somewhere else would be a second answer to "what are this
+	 * account's notifications".
+	 *
+	 * Notifications whose sub-type Mastodon has no name for are dropped here
+	 * rather than by each caller: they serialise as `"type": ""`, which a
+	 * client with a closed enum cannot decode, and one undecodable entry
+	 * loses the whole page.
+	 *
+	 * @param string[] $types
+	 * @param string[] $excludeTypes
+	 *
+	 * @return Stream[]
+	 */
+	public function timeline(
+		Person $viewer,
+		int $limit,
+		int $maxId = 0,
+		int $minId = 0,
+		int $sinceId = 0,
+		array $types = [],
+		array $excludeTypes = [],
+		string $accountId = '',
+	): array {
+		$options = new ProbeOptions();
+		$options->setFormat(ACore::FORMAT_LOCAL);
+		$options->setProbe(ProbeOptions::NOTIFICATIONS)
+			->setLimit($limit)
+			->setMaxId($maxId)
+			->setMinId($minId)
+			->setSince($sinceId)
+			->setTypes($types)
+			->setExcludeTypes($excludeTypes)
+			->setAccountId($accountId);
+
+		$this->streamService->setViewer($viewer);
+
+		return array_values(
+			array_filter(
+				$this->streamService->getTimeline($options),
+				static fn (Stream $post): bool
+					=> Stream::notificationTypeOfSubType($post->getSubType()) !== ''
+			)
+		);
+	}
+
+	/**
 	 * Dismisses one notification.
 	 *
 	 * The row is deleted, not marked: Mastodon's dismiss is final — the

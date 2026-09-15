@@ -10,6 +10,7 @@ import eventBus from '../../../src/services/eventBus.js'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
+import { useInstanceStore } from '../../../src/store/instance.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 import axios from '@nextcloud/axios'
 
@@ -1562,5 +1563,143 @@ describe('TimelinePost', () => {
 
 			expect(wrapper.findComponent({ name: 'ReactionBar' }).props('canReact')).toBe(false)
 		})
+	})
+
+	// deleting and writing it again
+
+	/**
+	 * The words come back in the composer only after the post is actually
+	 * gone: a delete the server refuses leaves the post where it is, and a
+	 * composer already holding its words would invite posting it twice.
+	 */
+	it('hands the post to the composer after it has been deleted', async () => {
+		const item = makeItem({
+			content: '<p>Hello <strong>world</strong></p>',
+			spoiler_text: 'spoilers',
+			visibility: 'followers',
+			language: 'de',
+		})
+		const { wrapper, store } = mountPost({ item })
+		const redrafted = vi.fn()
+		eventBus.on('composer-redraft', redrafted)
+
+		const redraft = wrapper.findAll('.post-menu__item')
+			.find((button) => button.text() === 'Delete & re-draft')
+		await redraft.trigger('click')
+		await wrapper.find('.nc-dialog__button--1').trigger('click')
+		await flushPromises()
+
+		expect(store.postDelete).toHaveBeenCalled()
+		expect(redrafted).toHaveBeenCalledWith(item)
+		eventBus.off('composer-redraft', redrafted)
+	})
+
+	it('says what a re-draft will cost before doing it', async () => {
+		const { wrapper } = mountPost()
+
+		const redraft = wrapper.findAll('.post-menu__item')
+			.find((button) => button.text() === 'Delete & re-draft')
+		await redraft.trigger('click')
+
+		expect(wrapper.find('.nc-dialog__name').text()).toBe('Delete and write it again?')
+		expect(wrapper.find('.delete-hint').text()).toContain('a new post')
+	})
+
+	/** An ordinary delete is still an ordinary delete. */
+	it('does not open the composer for a plain delete', async () => {
+		const { wrapper, store } = mountPost()
+		const redrafted = vi.fn()
+		eventBus.on('composer-redraft', redrafted)
+
+		const remove = wrapper.findAll('.post-menu__item')
+			.find((button) => button.text() === 'Delete')
+		await remove.trigger('click')
+		await wrapper.find('.nc-dialog__button--1').trigger('click')
+		await flushPromises()
+
+		expect(store.postDelete).toHaveBeenCalled()
+		expect(redrafted).not.toHaveBeenCalled()
+		eventBus.off('composer-redraft', redrafted)
+	})
+
+	// translating
+
+	/** Offered only where the server has a provider, and only across languages. */
+	it('offers no translation when the server cannot translate', async () => {
+		const { wrapper } = mountPost({ item: makeItem({ language: 'de' }) })
+
+		expect(wrapper.findAll('.post-menu__item').map((button) => button.text()))
+			.not.toContain('Translate')
+	})
+
+	it('offers a translation of a post written in another language', async () => {
+		const { wrapper } = mountPost({ item: makeItem({ language: 'de' }) })
+		useInstanceStore().translation = true
+		await wrapper.vm.$nextTick()
+
+		expect(wrapper.findAll('.post-menu__item').map((button) => button.text()))
+			.toContain('Translate')
+	})
+
+	it('offers none for a post already in the reader\'s language', async () => {
+		const { wrapper } = mountPost({ item: makeItem({ language: 'en' }) })
+		useInstanceStore().translation = true
+		await wrapper.vm.$nextTick()
+
+		expect(wrapper.findAll('.post-menu__item').map((button) => button.text()))
+			.not.toContain('Translate')
+	})
+
+	/**
+	 * The translation is shown in place of the post and says where it came
+	 * from: a reader is entitled to know they are reading a machine.
+	 */
+	it('shows the translation in place of the post, and says so', async () => {
+		const { wrapper } = mountPost({
+			item: makeItem({ content: '<p>Guten Morgen</p>', language: 'de' }),
+		})
+		useInstanceStore().translation = true
+		await wrapper.vm.$nextTick()
+		axios.post.mockResolvedValue({
+			data: {
+				content: '<p>Good morning</p>',
+				spoiler_text: '',
+				detected_source_language: 'de',
+				provider: 'DeepL',
+			},
+		})
+
+		await wrapper.findAll('.post-menu__item')
+			.find((button) => button.text() === 'Translate')
+			.trigger('click')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/101/translate')
+		expect(wrapper.find('.post-message').text()).toContain('Good morning')
+		expect(wrapper.find('.post-translated').text()).toContain('DeepL')
+	})
+
+	it('puts the original back', async () => {
+		const { wrapper } = mountPost({
+			item: makeItem({ content: '<p>Guten Morgen</p>', language: 'de' }),
+		})
+		useInstanceStore().translation = true
+		await wrapper.vm.$nextTick()
+		axios.post.mockResolvedValue({
+			data: { content: '<p>Good morning</p>', provider: 'DeepL', detected_source_language: 'de' },
+		})
+
+		const translate = () => wrapper.findAll('.post-menu__item')
+			.find((button) => ['Translate', 'Show original'].includes(button.text()))
+		await translate().trigger('click')
+		await flushPromises()
+		await translate().trigger('click')
+		await flushPromises()
+
+		expect(wrapper.find('.post-message').text()).toContain('Guten Morgen')
+		expect(wrapper.find('.post-translated').exists()).toBe(false)
+		// asked once: the answer is kept, so toggling does not spend a
+		// provider call every time
+		expect(axios.post).toHaveBeenCalledTimes(1)
 	})
 })

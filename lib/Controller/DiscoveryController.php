@@ -20,6 +20,7 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -43,6 +44,7 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
+use stdClass;
 use Throwable;
 
 /**
@@ -88,6 +90,7 @@ class DiscoveryController extends Controller {
 		private PlaceService $placeService,
 		private StarterPackService $starterPackService,
 		private ProfileHighlightsService $profileHighlightsService,
+		private AccountRelationService $accountRelationService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -184,6 +187,35 @@ class DiscoveryController extends Controller {
 			}
 
 			return new DataResponse($accounts, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * "Stop suggesting this account."
+	 *
+	 * Mastodon's `DELETE /api/v1/suggestions/{account_id}`, and the reason the
+	 * panel is usable at all: without it the same handful of accounts comes
+	 * back on every visit, including the ones the reader has already decided
+	 * about. The dismissal is permanent — see
+	 * `AccountRelationService::TYPE_SUGGESTION_DISMISSED`.
+	 *
+	 * Mastodon answers an empty object, and does so whether or not the account
+	 * was ever suggested: the client asked for a state, and that state is what
+	 * it gets.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/suggestions/{id}')]
+	public function suggestionDismiss(string $id): DataResponse {
+		try {
+			$this->initViewer(['write']);
+			$target = $this->resolveAccount($id);
+
+			$this->accountRelationService->dismissSuggestion($this->viewer, $target);
+
+			return new DataResponse(new stdClass(), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

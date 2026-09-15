@@ -125,10 +125,17 @@ class ActionServiceTest extends TestCase {
 		$this->assertNull($this->service->action($this->actor, 42, 'unreblog'));
 	}
 
-	public function testTranslateReturnsThePostItself(): void {
-		$this->streamService->method('getStreamByNid')->with(42)->willReturn($this->post);
+	/**
+	 * `translate` used to be one of these, and returned the post unchanged —
+	 * which a client cannot tell from a translation. It is a route of its own
+	 * now (`ApiController::statusTranslate()`), answering a Translation
+	 * entity from a real provider, so asking for it here is asking for an
+	 * action that does not exist.
+	 */
+	public function testTranslateIsNotAStatusAction(): void {
+		$this->expectException(InvalidActionException::class);
 
-		$this->assertSame($this->post, $this->service->action($this->actor, 42, 'translate'));
+		$this->service->action($this->actor, 42, 'translate');
 	}
 
 	/** @return array<string, array{string, bool}> */

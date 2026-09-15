@@ -75,6 +75,33 @@ class BannerService {
 	}
 
 	/**
+	 * Takes the banner away and tells the servers that have it.
+	 *
+	 * Mastodon's `DELETE /api/v1/profile/header`. The cached document is left
+	 * where it is rather than deleted: the actor no longer points at it, the
+	 * document sweep collects it like any other unreferenced picture, and a
+	 * delete here would race every reader that is mid-request on the old URL.
+	 *
+	 * Removing a banner nobody set is not an error — the profile ends up
+	 * without one either way.
+	 */
+	public function remove(string $userId): void {
+		$actor = $this->accountService->getActorFromUserId($userId);
+
+		$cached = $this->cacheActorService->getFromId($actor->getId());
+		if ($cached->getHeader() === '') {
+			return;
+		}
+
+		$cached->setHeader('');
+		$this->actorService->cacheLocalActor($cached);
+
+		// an actor whose header is gone here but not on the servers that follow
+		// it is a profile that still has a banner everywhere else
+		$this->announce($cached);
+	}
+
+	/**
 	 * A banner nobody is told about is a banner only this instance can see, so
 	 * the failure is worth a line in the log — but not worth losing the banner
 	 * over: it is stored either way, and a remote server picks it up the next

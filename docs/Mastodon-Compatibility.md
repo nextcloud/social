@@ -5,20 +5,23 @@ whether Mastodon's clients work against it, whether other fediverse servers can
 tell the difference, and whether an existing Mastodon instance could move onto
 it. Written for whoever has to decide what to build next.
 
-**Verified against:** app version 0.19.12, `master`, 2026-09-13 — every status
-re-checked against the code, and the federation claims re-checked against a
-running instance rather than against the unit tests, which is how §4's
-attachment finding turned up. What was written against 0.17.3 "plus PR #2136"
-is now simply master: that wave, and #2134, #2135, #2126 and #2110 before it,
-are merged.
+**Verified against:** app version 0.19.95, `master`, 2026-09-15 — every status
+re-checked against the code, and the client-facing claims re-checked against a
+running instance rather than against the unit tests.
 
 **What changed in this revision**, for a reader who knew the document before:
-`docs/Mastodon-Roadmap.md` has been folded into §9 rather than kept beside it;
-the whole of tier 2b is done; conversation mute, the three `instance`
-sub-routes, the link timeline and the standalone card have moved out of
-"missing"; `redirect_uri` is on the Application entity; and one claim has gone
-the other way — attachments are **not** served as ActivityPub documents, which
-§4 now records as the one thing a peer currently gets wrong.
+a walk of Mastodon's documented client routes found 23 genuinely unserved (the
+raw diff said 45; 22 of those were false positives — `statuses/{nid}/{act}`,
+`timelines/{timeline}` and the `accounts/{id}` route in `appinfo/routes.php`
+are catch-alls a path-by-path comparison cannot see). Of the 23, **everything
+that is not Web Push, streaming or a sign-up this app does not own is now
+served**: translation, grouped notifications, the notification policy and its
+requests inbox, per-status filters, `profile/avatar|header`,
+`suggestions/{id}`, `instance/privacy_policy|terms_of_service|translation_languages`
+and `oembed`. `translate` no longer returns the post unchanged, and
+`showing_reblogs` is no longer hardcoded. The web client gained the three
+things a Mastodon user meets on day one and could not do here: filters,
+delete-and-redraft, and the per-account bell and hide-boosts switches.
 
 This document supersedes the parity reviews written against 0.11.51 and 0.11.63,
 and the "what can be improved" assessment written against 0.11.49: every item in
@@ -34,15 +37,15 @@ of work.
 
 ## 1. The answer in one paragraph
 
-Social 0.19.12 is a capable, standards-correct ActivityPub server with a broad
-and largely genuine Mastodon client API. The last walk of Mastodon's 109
-documented client routes against `appinfo/routes.php` — done at 0.17.3 — found
-ten unanswered. Six of those have been implemented since, each re-checked here
-against the route table and the handler behind it, and **three** are left:
-`push/subscription` and `streaming`, the two known weeks-long items, both
-announced as absent so a client stops asking rather than hanging, and
-`emails/confirmations`, which belongs to a sign-up this app does not own.
-Everything else exists, and §3.3 says which of them is a stub.
+Social 0.19.95 is a capable, standards-correct ActivityPub server with a broad
+and largely genuine Mastodon client API. A walk of Mastodon's 145 documented
+client routes against the route table found 23 genuinely unserved — the raw
+path diff said 45, and 22 of those were catch-alls a textual comparison cannot
+see. Of the 23, **three** are left: `push/subscription` and `streaming`, the
+two known weeks-long items, both announced as absent so a client stops asking
+rather than hanging, and `emails/confirmations`, which belongs to a sign-up
+this app does not own. Everything else exists, and §3.3 says which of them is a
+stub.
 
 It is **not** a drop-in replacement for Mastodon, and two things stand between
 it and that goal. One is small, mechanical and still open: the API is not
@@ -144,6 +147,8 @@ three standalone `instance` sub-routes, `/api/v1/timelines/link` and
 
 ### 3.4 Genuinely missing endpoints
 
+Three, and only three:
+
 - **Web Push (`/api/v1/push/*`)** — absent. `lib/Service/PushService.php` is
   unrelated; it pokes the `notify_push` app so the *web* client refreshes.
   Third-party mobile apps get no push from this server.
@@ -153,6 +158,19 @@ three standalone `instance` sub-routes, `/api/v1/timelines/link` and
 - **`/api/v1/emails/confirmations`** — part of a sign-up this app does not own;
   see §9 item 16. `/api/v1/admin/canonical_email_blocks` is absent for the same
   reason, though it belongs to the admin API rather than to this count.
+
+What used to be on this list and is not any more: `POST /statuses/{id}/translate`
+(a real translation through Nextcloud's own provider, answering a Translation
+entity, with `instance/translation_languages` beside it and a 503 where the
+server has no provider); the Mastodon 4.3 notification routes
+(`/api/v2/notifications` and its four, `/api/v1/notifications/policy`, and
+`/api/v1/notifications/requests` with its accept and dismiss, single and bulk);
+the status half of v2 filters (`/api/v2/filters/{id}/statuses` and
+`/api/v2/filters/statuses/{id}`); `DELETE /api/v1/profile/avatar` and `/header`;
+`DELETE /api/v1/suggestions/{id}`; `/api/v1/instance/privacy_policy` and
+`/terms_of_service`, from Nextcloud's own Theming settings; and `/api/oembed`,
+answered as `type: link` because there is no embed page here and framing the
+whole app would publish something nobody meant to.
 
 Everything else that was on this list is answered now. Conversation mute is
 handled (`ActionService::muteConversation()`); `/api/v1/timelines/link`,
@@ -175,11 +193,14 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The 4.x features still missing are announced rather than left to fail.
-`configuration.translation.enabled` is `false`; `urls` is an empty object, which
-is how a client learns there is no streaming endpoint; and `vapid_key` is an
-empty string, so a client decides against offering Web Push before it asks for
-it — which is what it does against any server with no VAPID key.
+The 4.x features still missing are announced rather than left to fail. `urls`
+is an empty object, which is how a client learns there is no streaming
+endpoint, and `vapid_key` is an empty string, so a client decides against
+offering Web Push before it asks for it — which is what it does against any
+server with no VAPID key. `configuration.translation.enabled` is no longer
+always `false`: it is `true` where this Nextcloud has a translation provider,
+and the languages that provider offers are at
+`/api/v1/instance/translation_languages`.
 
 ### 3.6 Entity shapes
 
@@ -206,10 +227,11 @@ Two remain:
   when the actor has no cached icon, and that is the stored value, which may be
   empty. Mastodon declares the field a URL, and a client that decodes it as one
   fails on the whole account.
-- `showing_reblogs` is hardcoded `true` and `reblogs` is not accepted by the
-  follow route, so that toggle reports state the server never stored.
-  `notifying` is no longer among them: `POST /accounts/{id}/follow` takes
-  `notify` and writes a per-account subscription.
+`showing_reblogs` is no longer among them either: `POST /accounts/{id}/follow`
+takes `reblogs` as well as `notify`, a "no" is stored as a row in
+`social_actor_relation`, and the home and list timelines drop that account's
+boosts as a predicate of the query rather than by filtering a page after it was
+read.
 
 ### 3.7 Profile editing
 
@@ -534,8 +556,8 @@ the same items were described twice and drifted apart — the table below said
 both tier-1 blockers were open while §3.2, four screens up, said one of them
 was fixed. It is one list now.
 
-Thirty-nine items in six tiers, each with a rough size, what it actually fixes,
-and whether it is done. Query and scalability work has its own list in
+Fifty items in eight tiers, each with a rough size, what it actually fixes, and
+whether it is done. Query and scalability work has its own list in
 [Performance.md](Performance.md) and structural debt in
 [Technical-Debt.md](Technical-Debt.md); nothing here repeats those.
 
@@ -575,6 +597,34 @@ missing. All of them have since landed.
 | 36 | **The three `instance` sub-routes** — `/rules`, `/domain_blocks`, `/extended_description` | Hours | The rules were served only *inside* the instance entity; the standalone routes 404ed | done |
 | 37 | **`/api/v1/timelines/link`** | Days | The posts behind a trending link, whose links were already at `/api/v1/trends/links` | done |
 | 38 | **`/api/v1/statuses/{id}/card`** | Hours | A 405, because the path matched the POST-only action route | done |
+
+### Tier 2c — the 2026-09-15 walk, against Mastodon's 145 documented routes
+
+The 23 the walk found unserved, once the catch-alls were discounted. Everything
+that is not Web Push, streaming or a sign-up this app does not own is done.
+
+| # | Work | Effort | What it fixes | Status |
+|---|---|---|---|---|
+| 40 | **`POST /api/v1/statuses/{id}/translate`** — a real translation | Days | It used to return the post *unchanged*, which a client cannot tell from a translation: the button worked and did nothing. Now answered by whatever translation provider this Nextcloud has, as a Translation entity, with `instance/translation_languages` beside it and a 503 where there is no provider | done |
+| 41 | **Grouped notifications** — `/api/v2/notifications` and its four routes | Days | "Eight people favourited your post" instead of eight rows. A client cannot group for itself: it would have to fetch every page to know how many there were | done |
+| 42 | **The notification policy and requests inbox** — `/api/v1/notifications/policy`, `/requests*` | Days | An account that strangers write to could either read every notification or turn notifications off. Five questions about the sender; what is held waits per account, so the reader decides about the account once | done |
+| 43 | **The status half of v2 filters** — `/api/v2/filters/{id}/statuses`, `/statuses/{id}` | Days | A client's "filter this post". The filter entity's `statuses` was hard-coded `[]` | done |
+| 44 | **`DELETE /api/v1/profile/avatar` and `/header`** | Hours | Multipart has no way to send "none", so a client could offer "change picture" and not "remove picture" | done |
+| 45 | **`DELETE /api/v1/suggestions/{id}`** | Hours | Without it the "who to follow" panel offers the same accounts on every visit, the ones already decided about included | done |
+| 46 | **`instance/privacy_policy`, `/terms_of_service`, `/oembed`** | Hours | From Nextcloud's own Theming settings; oEmbed as `type: link`, since there is no embed page here to frame | done |
+| 47 | **`reblogs` on the follow, and `showing_reblogs`** | Days | The flag was hardcoded `true` and nothing wrote it. Now a row in `social_actor_relation`, applied as a predicate of the home and list queries | done |
+
+### Tier 2d — the web client, where most people read this app
+
+A Mastodon user who switches keeps the web experience and loses their phone
+app until tier 1 lands, so what the web client cannot do is what they actually
+meet. These three were it.
+
+| # | Work | Effort | What it fixes | Status |
+|---|---|---|---|---|
+| 48 | **Filters in Settings** | Days | The API had filters and this app's own client had no page for them, so the people most likely to be reading Social in a browser could not filter a word at all | done |
+| 49 | **Delete & re-draft** | Days | The correction people actually make. Words, warning, audience, language and pictures come back in the composer; the pictures by id, since deleting a post does not delete the uploads | done |
+| 50 | **The bell and hide-boosts on a profile** | Hours | Both relationship flags existed and neither had a control | done |
 
 ### Tier 3 — what a peer would still notice
 
@@ -703,3 +753,16 @@ not a behaviour. **A federation claim is only worth what the assertion behind
 it exercises.** The way this one was actually found was fetching a status from
 a running instance with `Accept: application/activity+json` and reading what
 came back, which is what the next pass over §4 should do again.
+
+A third pass, 2026-09-15, found three more of the first kind — prose that had
+gone stale under working code — and all three were in `README.md`: it listed
+status translation and the instance's own custom emoji under "Not implemented
+yet" when both work, and it carried two "Lists" bullets, the second of which
+said the web client had no list editor months after Settings → Lists shipped.
+It also carried three pairs of near-duplicate bullets that had been added twice
+and edited once.
+
+The lesson each time is the same and is worth stating once: **a feature list is
+a claim, and a claim nothing tests goes stale in the direction that flatters
+nobody.** The way these were found was reading the README against the code
+rather than against the last revision of the README.

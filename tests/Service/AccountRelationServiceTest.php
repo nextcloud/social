@@ -17,6 +17,7 @@ use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Relationship;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\DomainBlockService;
@@ -85,6 +86,21 @@ class AccountRelationServiceTest extends TestCase {
 			->willReturnCallback(function (string $actorId, string $objectId, string $type): void {
 				$this->writes[] = ['relation-delete', $actorId, $objectId, $type];
 				unset($this->relations[$actorId . '|' . $objectId . '|' . $type]);
+			});
+		$this->actorRelationRequest->method('getByActor')
+			->willReturnCallback(function (string $actorId, string $type, int $limit = 40): array {
+				$found = [];
+				foreach (array_keys($this->relations) as $key) {
+					[$actor, $object, $storedType] = explode('|', $key);
+					if ($actor === $actorId && $storedType === $type) {
+						$found[] = (new ActorRelation())
+							->setActorIdPrim(md5($actor))
+							->setObjectId($object)
+							->setType($storedType);
+					}
+				}
+
+				return array_slice($found, 0, $limit);
 			});
 		$this->actorRelationRequest->method('exists')
 			->willReturnCallback(fn (string $actorId, string $objectId, string $type): bool
@@ -503,4 +519,80 @@ class AccountRelationServiceTest extends TestCase {
 			static fn (array $write): bool => $write[0] === 'relation'
 		));
 	}
+
+	// "show me this account, not what they pass on"
+
+	public function testBoostsAreShownUntilSomebodySaysOtherwise(): void {
+		$this->assertTrue($this->service()->isShowingReblogs(self::ALICE, self::BOB));
+	}
+
+	public function testTurningBoostsOffStoresARow(): void {
+		$service = $this->service();
+		$service->setShowReblogs($this->person(self::ALICE), $this->person(self::BOB), false);
+
+		$this->assertFalse($service->isShowingReblogs(self::ALICE, self::BOB));
+	}
+
+	/** Only a "no" is stored: the default costs no row on every follow. */
+	public function testTurningBoostsOnAgainRemovesTheRow(): void {
+		$service = $this->service();
+		$alice = $this->person(self::ALICE);
+		$bob = $this->person(self::BOB);
+
+		$service->setShowReblogs($alice, $bob, false);
+		$service->setShowReblogs($alice, $bob, true);
+
+		$this->assertTrue($service->isShowingReblogs(self::ALICE, self::BOB));
+	}
+
+	public function testAnAccountCannotHideItsOwnBoosts(): void {
+		$service = $this->service();
+		$alice = $this->person(self::ALICE);
+
+		$service->setShowReblogs($alice, $alice, false);
+
+		$this->assertTrue($service->isShowingReblogs(self::ALICE, self::ALICE));
+	}
+
+	// deciding about a sender the notification policy is holding
+
+	public function testAcceptingASenderRemovesAnEarlierDismissal(): void {
+		$service = $this->service();
+		$alice = $this->person(self::ALICE);
+		$bob = $this->person(self::BOB);
+
+		$service->dismissNotifications($alice, $bob);
+		$service->acceptNotifications($alice, $bob);
+
+		$decisions = $service->notificationDecisions(self::ALICE, [self::BOB]);
+
+		$this->assertSame([self::BOB => true], $decisions['accepted']);
+		$this->assertSame([], $decisions['dismissed']);
+	}
+
+	public function testDismissingASenderRemovesAnEarlierAcceptance(): void {
+		$service = $this->service();
+		$alice = $this->person(self::ALICE);
+		$bob = $this->person(self::BOB);
+
+		$service->acceptNotifications($alice, $bob);
+		$service->dismissNotifications($alice, $bob);
+
+		$decisions = $service->notificationDecisions(self::ALICE, [self::BOB]);
+
+		$this->assertSame([], $decisions['accepted']);
+		$this->assertSame([self::BOB => true], $decisions['dismissed']);
+	}
+
+	/** Only the senders that were asked about come back. */
+	public function testDecisionsAreScopedToTheSendersAskedAbout(): void {
+		$service = $this->service();
+		$service->acceptNotifications($this->person(self::ALICE), $this->person(self::BOB));
+
+		$this->assertSame(
+			['accepted' => [], 'dismissed' => []],
+			$service->notificationDecisions(self::ALICE, [self::CAROL])
+		);
+	}
+
 }

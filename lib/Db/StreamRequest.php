@@ -1002,6 +1002,8 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->paginate($options);
 		$this->filterMedia($qb, $options);
 		$qb->limitToViewer('sd', 'f', false);
+		// "show me this account, not what they pass on"
+		$qb->filterHiddenBoosts();
 		// a filter, not a join: it constrains on the follow's type
 		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f', $select);
 		$qb->filterDuplicate();

@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\FilterKeyword;
+use OCA\Social\Model\Client\FilterStatus;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
@@ -61,6 +62,7 @@ class FilterControllerTest extends TestCase {
 	private array $filters = [];
 	private int $nextFilterId = 1;
 	private int $nextKeywordId = 1;
+	private int $nextStatusId = 1;
 
 	protected function setUp(): void {
 		$this->request = $this->createMock(IRequest::class);
@@ -189,6 +191,51 @@ class FilterControllerTest extends TestCase {
 				}
 			});
 
+		$this->filtersRequest->method('saveStatus')
+			->willReturnCallback(function (FilterStatus $status): int {
+				$status->setId($this->nextStatusId++);
+				$this->filters[$status->getFilterId()]->addStatus($this->copyStatus($status));
+
+				return $status->getId();
+			});
+
+		$this->filtersRequest->method('getStatusById')
+			->willReturnCallback(function (int $id, string $actorId): FilterStatus {
+				foreach ($this->filters as $filter) {
+					if ($filter->getActorId() !== $actorId) {
+						continue;
+					}
+					foreach ($filter->getStatuses() as $status) {
+						if ($status->getId() === $id) {
+							return $this->copyStatus($status);
+						}
+					}
+				}
+
+				throw new ItemNotFoundException('filter status not found');
+			});
+
+		$this->filtersRequest->method('deleteStatus')
+			->willReturnCallback(function (int $id, string $actorId): void {
+				$found = false;
+				foreach ($this->filters as $filter) {
+					if ($filter->getActorId() !== $actorId) {
+						continue;
+					}
+
+					$kept = array_filter(
+						$filter->getStatuses(),
+						static fn (FilterStatus $status): bool => $status->getId() !== $id
+					);
+					$found = $found || count($kept) !== count($filter->getStatuses());
+					$filter->setStatuses($kept);
+				}
+
+				if (!$found) {
+					throw new ItemNotFoundException('filter status not found');
+				}
+			});
+
 		$this->filtersRequest->method('deleteKeyword')
 			->willReturnCallback(function (int $id, string $actorId): void {
 				foreach ($this->filters as $filter) {
@@ -219,7 +266,18 @@ class FilterControllerTest extends TestCase {
 			$copy->addKeyword($this->copyKeyword($keyword));
 		}
 
+		foreach ($filter->getStatuses() as $status) {
+			$copy->addStatus($this->copyStatus($status));
+		}
+
 		return $copy;
+	}
+
+	private function copyStatus(FilterStatus $status): FilterStatus {
+		return (new FilterStatus())
+			->setId($status->getId())
+			->setFilterId($status->getFilterId())
+			->setStatusId($status->getStatusId());
 	}
 
 	private function copyKeyword(FilterKeyword $keyword): FilterKeyword {
@@ -624,4 +682,81 @@ class FilterControllerTest extends TestCase {
 			Http::STATUS_OK, $this->controller('Bearer readonly')->index()->getStatus()
 		);
 	}
+
+	// the other half of a v2 filter: the posts it covers by name
+
+	/**
+	 * A client's "filter this post". The entry gets an id of its own, which is
+	 * what the post is later taken off the filter by — the post's own id would
+	 * not do, since the same post may be on two filters.
+	 */
+	public function testAPostCanBeAddedToAFilter(): void {
+		$filter = $this->stored(self::ALICE);
+
+		$response = $this->controller()->addStatus($filter->getId(), '4242');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['id' => '1', 'status_id' => '4242'], $response->getData());
+	}
+
+	/** The post is not looked up: a filter may name one this server never held. */
+	public function testAnUnknownPostIsStillFiltered(): void {
+		$filter = $this->stored(self::ALICE);
+
+		$this->controller()->addStatus($filter->getId(), '999999999');
+
+		$this->assertSame(
+			[['id' => '1', 'status_id' => '999999999']],
+			$this->controller()->statuses($filter->getId())->getData()
+		);
+	}
+
+	public function testAStatusIdIsRequired(): void {
+		$filter = $this->stored(self::ALICE);
+
+		$this->assertSame(
+			Http::STATUS_UNPROCESSABLE_ENTITY,
+			$this->controller()->addStatus($filter->getId(), '')->getStatus()
+		);
+	}
+
+	public function testAddingToSomebodyElsesFilterIsNotFound(): void {
+		$filter = $this->stored(self::BOB);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND,
+			$this->controller()->addStatus($filter->getId(), '42')->getStatus()
+		);
+	}
+
+	public function testTheEntryIsInTheFilterItself(): void {
+		$filter = $this->stored(self::ALICE);
+		$this->controller()->addStatus($filter->getId(), '42');
+
+		$this->assertSame(
+			[['id' => '1', 'status_id' => '42']],
+			$this->controller()->get($filter->getId())->getData()['statuses']
+		);
+	}
+
+	public function testAnEntryIsRemovedByItsOwnId(): void {
+		$filter = $this->stored(self::ALICE);
+		$this->controller()->addStatus($filter->getId(), '42');
+
+		$response = $this->controller()->deleteStatus(1);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $this->controller()->statuses($filter->getId())->getData());
+	}
+
+	public function testSomebodyElsesEntryIsNotFound(): void {
+		$filter = $this->stored(self::BOB);
+		$this->viewerId = self::BOB;
+		$this->controller()->addStatus($filter->getId(), '42');
+		$this->viewerId = self::ALICE;
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->getStatus(1)->getStatus());
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->deleteStatus(1)->getStatus());
+	}
+
 }

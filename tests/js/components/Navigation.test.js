@@ -199,10 +199,18 @@ describe('Navigation', () => {
 		const list = (id, title, group = null) => ({ id: String(id), title, replies_policy: 'list', exclusive: false, nextcloud_group: group })
 		const tag = (name) => ({ name, url: `https://cloud.example.org/tags/${name}`, following: true })
 
+		const trend = (name, uses = 1) => ({
+			name,
+			url: `https://cloud.example.org/timeline/tags/${name}`,
+			history: [{ day: '1757280000', uses: String(uses), accounts: '0' }],
+		})
+
 		/** Keyed on the URL rather than on call order: three reads fire here. */
-		const withExplore = ({ tags = [], lists = [] } = {}) => {
+		const withExplore = ({ tags = [], lists = [], trending = [] } = {}) => {
 			axios.get.mockImplementation((url) => Promise.resolve({
-				data: url.endsWith('/followed_tags') ? tags : (url.endsWith('/lists') ? lists : []),
+				data: url.endsWith('/followed_tags')
+					? tags
+					: (url.endsWith('/lists') ? lists : (url.endsWith('/trends/tags') ? trending : [])),
 			}))
 		}
 
@@ -254,6 +262,64 @@ describe('Navigation', () => {
 			await flushPromises()
 
 			expect(explore(wrapper).find('.nc-counter').exists()).toBe(false)
+		})
+
+		// Trending used to be a section of its own above Explore
+
+		it('holds what the instance is talking about, after what the reader chose', async () => {
+			withExplore({
+				tags: [tag('a11y')],
+				lists: [list(1, 'Friends')],
+				trending: [trend('nextcloud', 12)],
+			})
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			const names = explore(wrapper).findAll('.nav-item').map((e) => e.attributes('data-name'))
+			expect(names).toEqual(['#a11y', 'Friends', '#nextcloud'])
+		})
+
+		// what somebody follows cannot be pushed out of their own sidebar by
+		// what happens to be busy today
+		it('gives trending only the room the chosen things leave', async () => {
+			withExplore({
+				tags: Array.from({ length: 8 }, (_, i) => tag(`t${i}`)),
+				lists: Array.from({ length: 8 }, (_, i) => list(i, `L${i}`)),
+				trending: [trend('nextcloud', 12)],
+			})
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			const names = explore(wrapper).findAll('.nav-item').map((e) => e.attributes('data-name'))
+			expect(names).not.toContain('#nextcloud')
+			expect(names).toHaveLength(12)
+		})
+
+		it('does not offer a trending tag the reader already follows', async () => {
+			withExplore({ tags: [tag('design')], trending: [trend('Design', 9), trend('berlin', 4)] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			const names = explore(wrapper).findAll('.nav-item').map((e) => e.attributes('data-name'))
+			expect(names).toEqual(['#design', '#berlin'])
+		})
+
+		it('says how busy a trending tag is, and says nothing of the kind about a followed one', async () => {
+			withExplore({ tags: [tag('a11y')], trending: [trend('nextcloud', 12)] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			const rows = explore(wrapper).findAll('.nav-item')
+			expect(rows[0].text()).not.toContain('post')
+			expect(rows[1].text()).toContain('12')
+		})
+
+		it('opens for a quiet reader on a busy instance', async () => {
+			withExplore({ trending: [trend('nextcloud', 12)] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(explore(wrapper)).not.toBeUndefined()
 		})
 
 		it('shows what it has room for out of everything there is', async () => {
@@ -666,6 +732,8 @@ describe('Navigation', () => {
 		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
 	})
 
+	// these rows live inside the Explore entry; that they do, and what they may
+	// displace, is covered in the "explore" block above
 	describe('what the instance is talking about', () => {
 		const tag = (name, uses) => ({
 			name,
@@ -673,7 +741,7 @@ describe('Navigation', () => {
 			history: [{ day: '1757280000', uses: String(uses), accounts: '0' }],
 		})
 
-		it('lists the trending hashtags with how often they were used', async () => {
+		it('lists the trending hashtags with how often they were used, inside Explore', async () => {
 			axios.get.mockResolvedValueOnce({ data: [tag('nextcloud', 12), tag('fediverse', 3)] })
 			const wrapper = mountNavigation()
 			await flushPromises()
@@ -699,7 +767,7 @@ describe('Navigation', () => {
 			expect(item(wrapper, '#nextcloud').attributes('data-href')).toBe(router.resolve(to).href)
 		})
 
-		it('leaves the section out on a quiet instance', async () => {
+		it('offers no trending row on a quiet instance', async () => {
 			axios.get.mockResolvedValueOnce({ data: [] })
 			const wrapper = mountNavigation()
 			await flushPromises()

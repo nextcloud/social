@@ -16,6 +16,7 @@ use OCA\Social\Db\MuteExpiryRequest;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Relationship;
 
 /**
@@ -46,6 +47,28 @@ class AccountRelationService {
 	 * `POST /accounts/{id}/follow` carries `notify` for exactly that.
 	 */
 	public const TYPE_NOTIFY = 'notify';
+
+	/**
+	 * A suggestion the viewer said no to.
+	 *
+	 * Mastodon's `DELETE /api/v1/suggestions/{id}`, and the reason it exists:
+	 * a "who to follow" panel that offers the same account again after it was
+	 * dismissed is a panel people stop reading. Kept as a relation rather than
+	 * a decision with a lifetime — an account dismissed once stays dismissed,
+	 * because the next suggestion run would otherwise rank it back to the top
+	 * for the same reasons it ranked it there before.
+	 */
+	public const TYPE_SUGGESTION_DISMISSED = 'suggest_no';
+
+	/**
+	 * "Show me this account's notifications after all" — the answer to a
+	 * notification request, stored against the sender so that it settles
+	 * everything they have sent and will send.
+	 */
+	public const TYPE_NOTIFICATIONS_ACCEPTED = 'notif_ok';
+
+	/** "Stop asking me about this account." The other answer. */
+	public const TYPE_NOTIFICATIONS_DISMISSED = 'notif_no';
 
 	/** What Mastodon caps a note at. */
 	public const MAX_NOTE = 2000;
@@ -164,6 +187,138 @@ class AccountRelationService {
 		}
 
 		$this->actorRelationRequest->delete($viewer->getId(), $target->getId(), self::TYPE_NOTIFY);
+	}
+
+	/**
+	 * Stops suggesting an account to this viewer.
+	 *
+	 * Dismissing the same account twice is not an error — the table's unique
+	 * index makes the second write the first one again, and a client that
+	 * retries a dropped request must not be told it was wrong.
+	 */
+	public function dismissSuggestion(Person $viewer, Person $target): void {
+		if ($viewer->getId() === $target->getId()) {
+			return;
+		}
+
+		$this->actorRelationRequest->save(
+			$viewer->getId(), $target->getId(), self::TYPE_SUGGESTION_DISMISSED
+		);
+	}
+
+	/**
+	 * Answers a notification request with yes. Any previous "no" about the
+	 * same account goes: the two are one decision with two values, and a row
+	 * of each would leave which one applies to the reading of the table.
+	 */
+	public function acceptNotifications(Person $viewer, Person $sender): void {
+		if ($viewer->getId() === $sender->getId()) {
+			return;
+		}
+
+		$this->actorRelationRequest->delete(
+			$viewer->getId(), $sender->getId(), self::TYPE_NOTIFICATIONS_DISMISSED
+		);
+		$this->actorRelationRequest->save(
+			$viewer->getId(), $sender->getId(), self::TYPE_NOTIFICATIONS_ACCEPTED
+		);
+	}
+
+	/** Answers a notification request with no. */
+	public function dismissNotifications(Person $viewer, Person $sender): void {
+		if ($viewer->getId() === $sender->getId()) {
+			return;
+		}
+
+		$this->actorRelationRequest->delete(
+			$viewer->getId(), $sender->getId(), self::TYPE_NOTIFICATIONS_ACCEPTED
+		);
+		$this->actorRelationRequest->save(
+			$viewer->getId(), $sender->getId(), self::TYPE_NOTIFICATIONS_DISMISSED
+		);
+	}
+
+	/**
+	 * What this reader has already decided about a set of senders.
+	 *
+	 * One query for the whole set: a page of notifications comes from a
+	 * handful of accounts, and asking per account would be a query per row for
+	 * an answer that does not change inside one page.
+	 *
+	 * @param string[] $senders actor ids
+	 *
+	 * @return array{accepted: array<string, bool>, dismissed: array<string, bool>}
+	 */
+	public function notificationDecisions(string $viewerId, array $senders): array {
+		$decisions = ['accepted' => [], 'dismissed' => []];
+		if ($senders === []) {
+			return $decisions;
+		}
+
+		$wanted = array_fill_keys($senders, true);
+		foreach ($this->actorRelationRequest->getByActor(
+			$viewerId, self::TYPE_NOTIFICATIONS_ACCEPTED, 5000
+		) as $relation) {
+			if (isset($wanted[$relation->getObjectId()])) {
+				$decisions['accepted'][$relation->getObjectId()] = true;
+			}
+		}
+
+		foreach ($this->actorRelationRequest->getByActor(
+			$viewerId, self::TYPE_NOTIFICATIONS_DISMISSED, 5000
+		) as $relation) {
+			if (isset($wanted[$relation->getObjectId()])) {
+				$decisions['dismissed'][$relation->getObjectId()] = true;
+			}
+		}
+
+		return $decisions;
+	}
+
+	/**
+	 * Whether this viewer wants to see the account's boosts. Nothing stored
+	 * means yes, which is what an account that never touched the setting
+	 * expects.
+	 */
+	public function isShowingReblogs(string $viewerId, string $targetId): bool {
+		return !$this->actorRelationRequest->exists($viewerId, $targetId, ActorRelation::TYPE_HIDE_REBLOGS);
+	}
+
+	/**
+	 * Turns this account's boosts on or off in the viewer's timelines.
+	 *
+	 * Like the bell, it needs no follow first: Mastodon sends `reblogs` *with*
+	 * the follow, and demanding an accepted follow would refuse the one call
+	 * that ever sets it.
+	 */
+	public function setShowReblogs(Person $viewer, Person $target, bool $show): void {
+		if ($viewer->getId() === $target->getId()) {
+			return;
+		}
+
+		if ($show) {
+			$this->actorRelationRequest->delete(
+				$viewer->getId(), $target->getId(), ActorRelation::TYPE_HIDE_REBLOGS
+			);
+
+			return;
+		}
+
+		$this->actorRelationRequest->save(
+			$viewer->getId(), $target->getId(), ActorRelation::TYPE_HIDE_REBLOGS
+		);
+	}
+
+	/**
+	 * The accounts whose boosts this viewer has turned off.
+	 *
+	 * @return string[] actor ids
+	 */
+	public function hiddenBoosters(string $viewerId): array {
+		return array_map(
+			static fn (ActorRelation $relation): string => $relation->getObjectId(),
+			$this->actorRelationRequest->getByActor($viewerId, ActorRelation::TYPE_HIDE_REBLOGS, 5000)
+		);
 	}
 
 	/** Whether the viewer has asked to be told when this account posts. */

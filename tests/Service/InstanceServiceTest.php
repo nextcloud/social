@@ -21,6 +21,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\TranslationService;
 use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IURLGenerator;
@@ -31,6 +32,7 @@ use PHPUnit\Framework\TestCase;
 class InstanceServiceTest extends TestCase {
 	private InstancesRequest|MockObject $instancesRequest;
 	private InstanceStatsRequest|MockObject $statsRequest;
+	private TranslationService|MockObject $translationService;
 	private ConfigService|MockObject $configService;
 	private IAppConfig|MockObject $appConfig;
 	private IConfig|MockObject $config;
@@ -47,6 +49,7 @@ class InstanceServiceTest extends TestCase {
 		$this->userManager->method('countUsers')->willReturn(['Database' => 3]);
 		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
 		$this->statsRequest = $this->createMock(InstanceStatsRequest::class);
+		$this->translationService = $this->createMock(TranslationService::class);
 
 		$urlGenerator = $this->createMock(IURLGenerator::class);
 		$urlGenerator->method('imagePath')->willReturn('/apps/social/img/social.svg');
@@ -63,6 +66,7 @@ class InstanceServiceTest extends TestCase {
 			$this->userManager,
 			$this->cacheDocumentService,
 			$this->statsRequest,
+			$this->translationService,
 		);
 	}
 

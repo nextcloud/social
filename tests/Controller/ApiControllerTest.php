@@ -18,16 +18,19 @@ use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Exceptions\TranslationUnavailableException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\ScheduledStatus;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Model\Client\Translation;
 use OCA\Social\Model\CustomEmoji;
 use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
@@ -54,6 +57,7 @@ use OCA\Social\Service\GifService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
+use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
@@ -66,6 +70,7 @@ use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TranslationService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -82,11 +87,13 @@ use OCP\ITempManager;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
+use OCP\L10N\IFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use stdClass;
 
 class ApiControllerTest extends TestCase {
 	private const REVOKED = 'the access_token was revoked';
@@ -146,6 +153,9 @@ class ApiControllerTest extends TestCase {
 	private ReactionSummaryService|MockObject $reactionSummaryService;
 	private GifService|MockObject $gifService;
 	private NotificationService|MockObject $notificationService;
+	private TranslationService|MockObject $translationService;
+	private NotificationPolicyService|MockObject $notificationPolicyService;
+	private IFactory|MockObject $l10nFactory;
 	private IAppManager|MockObject $appManager;
 	private FediverseService|MockObject $fediverseService;
 
@@ -255,6 +265,12 @@ class ApiControllerTest extends TestCase {
 		$this->reactionSummaryService = $this->createMock(ReactionSummaryService::class);
 		$this->gifService = $this->createMock(GifService::class);
 		$this->notificationService = $this->createMock(NotificationService::class);
+		$this->translationService = $this->createMock(TranslationService::class);
+		$this->notificationPolicyService = $this->createMock(NotificationPolicyService::class);
+		$this->notificationPolicyService->method('partition')
+			->willReturnCallback(static fn (Person $viewer, array $page): array
+				=> ['shown' => $page, 'held' => []]);
+		$this->l10nFactory = $this->createMock(IFactory::class);
 		$this->appManager = $this->createMock(IAppManager::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->fediverseService->method('getAccessType')->willReturnCallback(fn (): string => $this->accessType);
@@ -350,7 +366,10 @@ class ApiControllerTest extends TestCase {
 			$this->reactionService,
 			$this->reactionSummaryService,
 			$this->gifService,
-			$this->notificationService
+			$this->notificationService,
+			$this->translationService,
+			$this->notificationPolicyService,
+			$this->l10nFactory
 		);
 	}
 
@@ -3700,4 +3719,198 @@ class ApiControllerTest extends TestCase {
 			$this->controller()->instanceExtendedDescription()->getData()['content']
 		);
 	}
+
+	// removing the pictures: the half update_credentials cannot express
+
+	public function testTheAvatarCanBeRemoved(): void {
+		$this->loggedInAs();
+		$this->avatarService->expects($this->once())->method('remove')->with('alice');
+
+		$this->assertSame(
+			Http::STATUS_OK, $this->controller()->profileAvatarDelete()->getStatus()
+		);
+	}
+
+	/** A backend that owns the picture refuses, rather than answering 200 over an unchanged one. */
+	public function testRemovingAManagedAvatarIsRefused(): void {
+		$this->loggedInAs();
+		$this->avatarService->method('remove')
+			->willThrowException(new InvalidActionException('the avatar of this account is managed outside Nextcloud'));
+
+		$this->assertSame(
+			Http::STATUS_UNPROCESSABLE_ENTITY,
+			$this->controller()->profileAvatarDelete()->getStatus()
+		);
+	}
+
+	public function testTheBannerCanBeRemoved(): void {
+		$this->loggedInAs();
+		$this->bannerService->expects($this->once())->method('remove')->with('alice');
+
+		$this->assertSame(
+			Http::STATUS_OK, $this->controller()->profileHeaderDelete()->getStatus()
+		);
+	}
+
+	public function testRemovingAPictureNeedsAViewer(): void {
+		$this->assertUnauthorized($this->controller()->profileAvatarDelete());
+		$this->assertUnauthorized($this->controller()->profileHeaderDelete());
+	}
+
+	// oEmbed
+
+	private function publicPost(string $id = 'https://cloud.example/apps/social/@alice/1'): Note {
+		$post = new Note();
+		$post->setId($id);
+		$post->setLocal(true);
+		$post->setVisibility(Stream::TYPE_PUBLIC);
+		$post->setAttributedTo('https://cloud.example/apps/social/@alice');
+
+		return $post;
+	}
+
+	public function testOembedDescribesAPublicPostOfThisServer(): void {
+		$post = $this->publicPost();
+		$this->streamService->method('getStreamById')->willReturn($post);
+		$author = new Person();
+		$author->setId('https://cloud.example/apps/social/@alice');
+		$author->setPreferredUsername('alice');
+		$this->cacheActorService->method('getFromId')->willReturn($author);
+		$this->instanceService->method('getLocal')->willReturn((new Instance())->setTitle('Example'));
+
+		$data = $this->controller()->oembed($post->getId())->getData();
+
+		$this->assertSame('link', $data['type']);
+		$this->assertSame('alice', $data['author_name']);
+		$this->assertSame($post->getId(), $data['url']);
+	}
+
+	/** Not `rich`: there is no embed page here, and framing the whole app is not one. */
+	public function testOembedIsNeverRich(): void {
+		$this->streamService->method('getStreamById')->willReturn($this->publicPost());
+		$this->cacheActorService->method('getFromId')->willReturn(new Person());
+		$this->instanceService->method('getLocal')->willReturn(new Instance());
+
+		$this->assertArrayNotHasKey('html', $this->controller()->oembed('https://cloud.example/x')->getData());
+	}
+
+	public function testOembedRefusesAPostThatIsNotPublic(): void {
+		$post = $this->publicPost();
+		$post->setVisibility(Stream::TYPE_FOLLOWERS);
+		$this->streamService->method('getStreamById')->willReturn($post);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND,
+			$this->controller()->oembed('https://cloud.example/x')->getStatus()
+		);
+	}
+
+	public function testOembedRefusesSomebodyElsesPost(): void {
+		$post = $this->publicPost('https://elsewhere.example/@bob/1');
+		$post->setLocal(false);
+		$this->streamService->method('getStreamById')->willReturn($post);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND,
+			$this->controller()->oembed('https://elsewhere.example/@bob/1')->getStatus()
+		);
+	}
+
+	public function testOembedServesOnlyJson(): void {
+		$this->assertSame(
+			Http::STATUS_NOT_IMPLEMENTED,
+			$this->controller()->oembed('https://cloud.example/x', 'xml')->getStatus()
+		);
+	}
+
+	// the legal documents, and the languages
+
+	public function testThePrivacyPolicyIsNextcloudsOwn(): void {
+		$this->instanceService->method('privacyPolicy')
+			->willReturn(['updated_at' => '2026-09-15T00:00:00.000Z', 'content' => '<p>here</p>']);
+
+		$response = $this->controller()->instancePrivacyPolicy();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('<p>here</p>', $response->getData()['content']);
+	}
+
+	public function testAServerWithNoPrivacyPolicySaysSo(): void {
+		$this->instanceService->method('privacyPolicy')->willReturn(null);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND, $this->controller()->instancePrivacyPolicy()->getStatus()
+		);
+	}
+
+	public function testAServerWithNoTermsSaysSo(): void {
+		$this->instanceService->method('termsOfService')->willReturn(null);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND, $this->controller()->instanceTermsOfService()->getStatus()
+		);
+	}
+
+	public function testTheTranslationLanguagesAreTheProvidersOwn(): void {
+		$this->translationService->method('languages')->willReturn(['de' => ['en']]);
+
+		$this->assertSame(
+			['de' => ['en']], (array)$this->controller()->instanceTranslationLanguages()->getData()
+		);
+	}
+
+	/** An empty map, not `[]`: a client reads an object there. */
+	public function testNoProviderIsAnEmptyObject(): void {
+		$this->translationService->method('languages')->willReturn([]);
+
+		$this->assertEquals(
+			new stdClass(), $this->controller()->instanceTranslationLanguages()->getData()
+		);
+	}
+
+	// translating a status
+
+	public function testTranslateAnswersATranslationEntity(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')->willReturn($this->publicPost());
+		$this->l10nFactory->method('getUserLanguage')->willReturn('en');
+		$this->translationService->method('translateStatus')
+			->willReturn((new Translation())->setContent('<p>good morning</p>'));
+
+		$data = $this->controller()->statusTranslate(42)->getData()->jsonSerialize();
+
+		$this->assertSame('<p>good morning</p>', $data['content']);
+		// a Translation, not a Status: no id, no author, no counters
+		$this->assertArrayNotHasKey('id', $data);
+		$this->assertArrayNotHasKey('account', $data);
+	}
+
+	/** The language asked for beats the reader's own. */
+	public function testTranslateHonoursTheLanguageAsked(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')->willReturn($this->publicPost());
+		$this->translationService->expects($this->once())
+			->method('translateStatus')
+			->with($this->anything(), 'fr', 'alice')
+			->willReturn(new Translation());
+
+		$this->controller()->statusTranslate(42, 'fr');
+	}
+
+	/**
+	 * A server with no provider says so, rather than answering with the
+	 * original text — which is what this route used to do.
+	 */
+	public function testTranslateWithoutAProviderIsUnavailable(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')->willReturn($this->publicPost());
+		$this->l10nFactory->method('getUserLanguage')->willReturn('en');
+		$this->translationService->method('translateStatus')
+			->willThrowException(new TranslationUnavailableException('no translation provider is configured'));
+
+		$this->assertSame(
+			Http::STATUS_SERVICE_UNAVAILABLE, $this->controller()->statusTranslate(42)->getStatus()
+		);
+	}
+
 }

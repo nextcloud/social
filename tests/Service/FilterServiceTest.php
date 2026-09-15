@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\FilterKeyword;
+use OCA\Social\Model\Client\FilterStatus;
 use OCA\Social\Service\FilterService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -475,4 +476,73 @@ class FilterServiceTest extends TestCase {
 		$this->assertSame('/cat/iu', FilterService::keywordRegex($plain));
 		$this->assertSame('/\bcat\b/iu', FilterService::keywordRegex($whole));
 	}
+
+	// the other half of a filter: a post it covers by name
+
+	private function covering(string $actorId, int $statusId, string $action = Filter::ACTION_WARN): Filter {
+		$filter = (new Filter())
+			->setId(9)
+			->setActorId($actorId)
+			->setTitle('that thread')
+			->setContexts(Filter::CONTEXTS)
+			->setAction($action)
+			->addStatus((new FilterStatus())->setId(1)->setFilterId(9)->setStatusId($statusId));
+
+		$this->stored[$actorId] = [$filter];
+
+		return $filter;
+	}
+
+	/**
+	 * A filter may name one post and no words at all. What it reports is the
+	 * status id in `status_matches`, because there is no text to report: the
+	 * filter matched the post, not something in it.
+	 */
+	public function testAPostAFilterNamesIsFiltered(): void {
+		$this->covering(self::ALICE, 42);
+
+		$results = $this->service->results(['id' => '42', 'content' => 'nothing to match'], $this->stored[self::ALICE]);
+
+		$this->assertCount(1, $results);
+		$this->assertSame(['42'], $results[0]['status_matches']);
+		$this->assertSame([], $results[0]['keyword_matches']);
+	}
+
+	public function testAnotherPostIsNotFiltered(): void {
+		$this->covering(self::ALICE, 42);
+
+		$this->assertSame(
+			[], $this->service->results(['id' => '43', 'content' => 'hello'], $this->stored[self::ALICE])
+		);
+	}
+
+	/**
+	 * A post covered by a `hide` filter goes, exactly as a keyword match on
+	 * the same filter would.
+	 */
+	public function testAHidingFilterTakesTheNamedPostOut(): void {
+		$this->covering(self::ALICE, 42, Filter::ACTION_HIDE);
+
+		$this->assertTrue(
+			$this->service->isHidden(
+				$this->service->results(['id' => '42'], $this->stored[self::ALICE])
+			)
+		);
+	}
+
+	/**
+	 * Boosting a filtered post must not bring it back: the boost carries no
+	 * words of its own, so nothing else would catch it.
+	 */
+	public function testABoostOfAFilteredPostIsFilteredToo(): void {
+		$this->covering(self::ALICE, 42);
+
+		$results = $this->service->results(
+			['id' => '77', 'reblog' => ['id' => '42', 'content' => 'the post']],
+			$this->stored[self::ALICE]
+		);
+
+		$this->assertSame(['42'], $results[0]['status_matches']);
+	}
+
 }

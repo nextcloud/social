@@ -153,11 +153,15 @@ The sidebar is the map:
   accepted or declined from the bell itself.
 - **Direct messages** — the posts addressed to you and nobody else, with the
   composer already set to direct.
-- **Lists** — each list you have is a timeline of its own. Every Nextcloud
-  group you belong to (up to 500 members) is a list automatically, kept in
-  step with the group. Your own lists are made in **Settings → Lists**, which is
-  also where one is renamed, deleted, or has somebody added to or taken out of
-  it; the sidebar shows them all.
+- **Explore** — one collapsible entry holding everything there is to look at
+  besides your own feed: the hashtags you follow, your **lists**, and the tags
+  this server is busy with right now, in that order. Each list is a timeline of
+  its own; every Nextcloud group you belong to (up to 500 members) is a list
+  automatically, kept in step with the group, and your own are made in
+  **Settings → Lists**. Explore shows as much as the sidebar has room for and
+  no more — make the window taller and more appears. What you follow is never
+  pushed out by what happens to be trending: the trending tags take only the
+  room the rest leave, and a tag you already follow is not offered twice.
 - **Liked posts** and **Bookmarks** — what you favourited, and what you saved
   with **Bookmark** in a post's menu. Bookmarks are private and never leave
   this server.

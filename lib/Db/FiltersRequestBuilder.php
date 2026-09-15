@@ -11,6 +11,7 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\FilterKeyword;
+use OCA\Social\Model\Client\FilterStatus;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
@@ -92,6 +93,57 @@ class FiltersRequestBuilder extends CoreRequestBuilder {
 		$qb->delete(self::TABLE_FILTER_KEYWORDS);
 
 		return $qb;
+	}
+
+	protected function getStatusesInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->insert(self::TABLE_FILTER_STATUSES);
+
+		return $qb;
+	}
+
+	protected function getStatusesSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->select('fs.id', 'fs.filter_id', 'fs.status_id', 'fs.creation')
+			->from(self::TABLE_FILTER_STATUSES, 'fs');
+
+		$this->defaultSelectAlias = 'fs';
+		$qb->setDefaultSelectAlias('fs');
+
+		return $qb;
+	}
+
+	protected function getStatusesDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->delete(self::TABLE_FILTER_STATUSES);
+
+		return $qb;
+	}
+
+	/**
+	 * A filtered status is owned by whoever owns its filter — the same join,
+	 * for the same reason, as `getOwnedKeywordSelectSql()`.
+	 */
+	protected function getOwnedStatusSelectSql(string $actorId): SocialQueryBuilder {
+		$qb = $this->getStatusesSelectSql();
+		$qb->innerJoin(
+			'fs',
+			self::TABLE_FILTERS,
+			'f',
+			$qb->expr()->andX(
+				$qb->expr()->eq('fs.filter_id', 'f.id'),
+				$qb->expr()->eq('f.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
+			)
+		);
+
+		return $qb;
+	}
+
+	protected function parseStatusesSelectSql(array $data): FilterStatus {
+		return (new FilterStatus())
+			->setId($this->getInt('id', $data))
+			->setFilterId($this->getInt('filter_id', $data))
+			->setStatusId($this->getInt('status_id', $data));
 	}
 
 	/**

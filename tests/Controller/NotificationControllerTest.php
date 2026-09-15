@@ -10,14 +10,25 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\NotificationController;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
+use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\NotificationPolicy;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\FilterService;
+use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\NotificationGroupService;
+use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\NotificationService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -44,6 +55,9 @@ class NotificationControllerTest extends TestCase {
 	private AccountService|MockObject $accountService;
 	private ClientService|MockObject $clientService;
 	private NotificationService|MockObject $notificationService;
+	private NotificationPolicyService|MockObject $notificationPolicyService;
+	private FilterService|MockObject $filterService;
+	private CacheActorService|MockObject $cacheActorService;
 	private IUserSession|MockObject $userSession;
 
 	/** @var array<string, string> the request headers the controller will see */
@@ -73,6 +87,9 @@ class NotificationControllerTest extends TestCase {
 			function (): Person {
 				$viewer = new Person();
 				$viewer->setId(self::VIEWER);
+				// the policy is stored per Nextcloud user, so the viewer has
+				// to carry one
+				$viewer->setUserId('alice');
 
 				return $viewer;
 			}
@@ -102,6 +119,19 @@ class NotificationControllerTest extends TestCase {
 				return 3;
 			});
 
+		$this->notificationPolicyService = $this->createMock(NotificationPolicyService::class);
+		// nothing is held unless a test says so: an account that has not
+		// touched the policy is the case every other test is about
+		$this->notificationPolicyService->method('partition')
+			->willReturnCallback(static fn (Person $viewer, array $page): array
+				=> ['shown' => $page, 'held' => []]);
+		$this->notificationPolicyService->method('of')->willReturn(new NotificationPolicy());
+		$this->notificationPolicyService->method('decisionsAbout')
+			->willReturn(['accepted' => [], 'dismissed' => []]);
+		$this->filterService = $this->createMock(FilterService::class);
+		$this->filterService->method('applyToNotifications')->willReturnArgument(0);
+		$this->cacheActorService = $this->createMock(CacheActorService::class);
+
 		// Response::getHeaders() asks the container for the request
 		\OC::$server->register(IRequest::class, $this->request);
 	}
@@ -122,7 +152,11 @@ class NotificationControllerTest extends TestCase {
 			new NullLogger(),
 			$this->accountService,
 			$this->clientService,
-			$this->notificationService
+			$this->notificationService,
+			new NotificationGroupService(),
+			$this->notificationPolicyService,
+			$this->filterService,
+			$this->cacheActorService
 		);
 	}
 
@@ -273,4 +307,178 @@ class NotificationControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 	}
+
+	// Mastodon 4.3: grouping, the policy, and the requests inbox
+
+	/** A page of notifications the stubbed service will serve. */
+	private function timeline(array $notifications): void {
+		$this->notificationService->method('timeline')->willReturn($notifications);
+	}
+
+	private function favourite(int $nid, int $senderNid, int $postNid): Stream {
+		$sender = new Person();
+		$sender->setNid($senderNid);
+		$sender->setId('https://cloud.example/users/' . $senderNid);
+
+		$post = new Note();
+		$post->setNid($postNid);
+		$post->setId('https://cloud.example/@alice/' . $postNid);
+
+		$notification = new Stream();
+		$notification->setNid($nid);
+		$notification->setSubType(Like::TYPE);
+		$notification->setPublishedTime(1_700_000_000 + $nid);
+		$notification->setActor($sender);
+		$notification->setObject($post);
+
+		return $notification;
+	}
+
+	public function testTheGroupedListGroupsFavouritesOfOnePost(): void {
+		$this->timeline([$this->favourite(2, 200, 10), $this->favourite(1, 100, 10)]);
+
+		$data = $this->controller()->indexV2()->getData();
+
+		$this->assertCount(1, $data['notification_groups']);
+		$this->assertSame('favourite-10', $data['notification_groups'][0]['group_key']);
+		$this->assertCount(2, $data['accounts']);
+		$this->assertCount(1, $data['statuses']);
+	}
+
+	public function testTheUnreadCountCountsGroupsRatherThanRows(): void {
+		$this->timeline([$this->favourite(2, 200, 10), $this->favourite(1, 100, 10)]);
+
+		$this->assertSame(['count' => 1], $this->controller()->unreadCountV2()->getData());
+	}
+
+	public function testOneGroupCanBeFetched(): void {
+		$this->timeline([$this->favourite(2, 200, 10), $this->favourite(1, 100, 11)]);
+
+		$data = $this->controller()->group('favourite-10')->getData();
+
+		$this->assertCount(1, $data['notification_groups']);
+		$this->assertSame(1, $data['notification_groups'][0]['notifications_count']);
+	}
+
+	public function testAGroupNobodyIsInIsNotFound(): void {
+		$this->timeline([]);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND, $this->controller()->group('favourite-99')->getStatus()
+		);
+	}
+
+	public function testTheAccountsOfAGroupAreEverybodyInIt(): void {
+		$this->timeline([$this->favourite(2, 200, 10), $this->favourite(1, 100, 10)]);
+
+		$this->assertCount(2, $this->controller()->groupAccounts('favourite-10')->getData());
+	}
+
+	/** Dismissing a group dismisses the rows behind it, not only the newest. */
+	public function testDismissingAGroupDismissesEveryNotificationInIt(): void {
+		$this->own = [1, 2];
+		$this->timeline([$this->favourite(2, 200, 10), $this->favourite(1, 100, 10)]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->groupDismiss('favourite-10')->getStatus());
+		$this->assertSame([['dismiss', 2], ['dismiss', 1]], $this->writes);
+	}
+
+	public function testThePolicyIsAnsweredWithItsSummary(): void {
+		$this->timeline([]);
+
+		$data = $this->controller()->policy()->getData()->jsonSerialize();
+
+		$this->assertSame(NotificationPolicy::ACCEPT, $data[NotificationPolicy::NOT_FOLLOWING]);
+		$this->assertSame(
+			['pending_requests_count' => 0, 'pending_notifications_count' => 0], $data['summary']
+		);
+	}
+
+	public function testChangingThePolicyWritesOnlyWhatWasNamed(): void {
+		$this->timeline([]);
+		$this->notificationPolicyService->expects($this->once())
+			->method('save')
+			->with('alice', [NotificationPolicy::NOT_FOLLOWING => NotificationPolicy::FILTER])
+			->willReturn(new NotificationPolicy());
+
+		$this->request = $this->createMock(IRequest::class);
+		$this->request->method('getId')->willReturn('test');
+		$this->request->method('getHeader')
+			->willReturnCallback(fn (string $name): string => $this->headers[$name] ?? '');
+		$this->request->method('passesCSRFCheck')->willReturn(true);
+		$this->request->method('getParam')->willReturn('');
+		$this->request->method('getParams')
+			->willReturn([NotificationPolicy::NOT_FOLLOWING => NotificationPolicy::FILTER]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->policyUpdate()->getStatus());
+	}
+
+	public function testTheRequestsInboxIsOneRowPerHeldSender(): void {
+		$held = [$this->favourite(2, 200, 10), $this->favourite(1, 200, 11)];
+		$this->notificationService->method('timeline')->willReturn($held);
+		$this->notificationPolicyService = $this->createMock(NotificationPolicyService::class);
+		$this->notificationPolicyService->method('partition')
+			->willReturn(['shown' => [], 'held' => $held]);
+		$this->notificationPolicyService->method('decisionsAbout')
+			->willReturn(['accepted' => [], 'dismissed' => []]);
+		$this->notificationPolicyService->method('requestsFrom')
+			->willReturnCallback(
+				fn (array $rows, array $dismissed = []): array => (new NotificationPolicyService(
+					$this->createMock(ConfigService::class),
+					$this->createMock(FollowsRequest::class),
+					$this->createMock(ModerationService::class),
+					$this->createMock(AccountRelationService::class)
+				))->requestsFrom($rows, $dismissed)
+			);
+
+		$data = $this->controller()->requests()->getData();
+
+		$this->assertCount(1, $data);
+		$this->assertSame(2, $data[0]->getCount());
+	}
+
+	public function testAcceptingARequestDecidesAboutTheAccount(): void {
+		$account = new Person();
+		$account->setId('https://cloud.example/users/200');
+		$this->cacheActorService->method('getFromNids')->willReturn([$account]);
+		$this->notificationPolicyService->expects($this->once())
+			->method('accept')
+			->with($this->anything(), $this->identicalTo($account));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->requestAccept(200)->getStatus());
+	}
+
+	public function testDismissingARequestDecidesAboutTheAccount(): void {
+		$account = new Person();
+		$this->cacheActorService->method('getFromNids')->willReturn([$account]);
+		$this->notificationPolicyService->expects($this->once())->method('dismiss');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->requestDismiss(200)->getStatus());
+	}
+
+	/** One stale id in a bulk decision must not lose the rest. */
+	public function testAnUnknownAccountInABulkDecisionIsSkipped(): void {
+		$account = new Person();
+		$this->cacheActorService->method('getFromNids')
+			->willReturnCallback(static fn (array $nids): array => ($nids === [200]) ? [new Person()] : []);
+		$this->notificationPolicyService->expects($this->once())->method('accept');
+
+		$this->assertSame(
+			Http::STATUS_OK, $this->controller()->requestsAccept(['999', '200'])->getStatus()
+		);
+	}
+
+	public function testNothingIsEverInFlight(): void {
+		$this->assertSame(['merged' => true], $this->controller()->requestsMerged()->getData());
+	}
+
+	public function testTheGroupedRoutesNeedCredentials(): void {
+		$this->withoutCredentials();
+		$this->timeline([]);
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller()->indexV2()->getStatus());
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller()->policy()->getStatus());
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller()->requests()->getStatus());
+	}
+
 }

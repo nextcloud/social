@@ -1005,4 +1005,75 @@ describe('ProfileInfo', () => {
 			expect(buttonByText(wrapper.find('.modal-stub'), 'Apply').attributes('disabled')).toBeUndefined()
 		})
 	})
+
+	describe('what you see from an account you follow', () => {
+		const following = (extra = {}) => ({
+			id: '42',
+			following: true,
+			blocking: false,
+			muting: false,
+			notifying: false,
+			showing_reblogs: true,
+			note: '',
+			...extra,
+		})
+
+		const menuLabels = (wrapper) => wrapper.findAll('button').map((button) => button.text())
+
+		/** Both ride along with the follow, so neither is offered to a stranger. */
+		it('offers neither switch to somebody you do not follow', () => {
+			accountStore.addRelationship({ actorId: bob.id, data: following({ following: false }) })
+
+			const labels = menuLabels(mountProfile('bob@remote.example'))
+
+			expect(labels).not.toContain('Notify me when they post')
+			expect(labels).not.toContain('Hide their boosts')
+		})
+
+		it('offers the bell and the boosts to somebody you follow', () => {
+			accountStore.addRelationship({ actorId: bob.id, data: following() })
+
+			const labels = menuLabels(mountProfile('bob@remote.example'))
+
+			expect(labels).toContain('Notify me when they post')
+			expect(labels).toContain('Hide their boosts')
+		})
+
+		it('says the other thing once each is on', () => {
+			accountStore.addRelationship({
+				actorId: bob.id,
+				data: following({ notifying: true, showing_reblogs: false }),
+			})
+
+			const labels = menuLabels(mountProfile('bob@remote.example'))
+
+			expect(labels).toContain('Stop notifying me about their posts')
+			expect(labels).toContain('Show their boosts')
+		})
+
+		it('rings the bell through the follow, which is the route there is', async () => {
+			accountStore.addRelationship({ actorId: bob.id, data: following() })
+			const setFollowOptions = vi.fn().mockResolvedValue(following({ notifying: true }))
+			vi.spyOn(accountStore, 'setFollowOptions').mockImplementation(setFollowOptions)
+			const wrapper = mountProfile('bob@remote.example')
+
+			await buttonByText(wrapper, 'Notify me when they post').trigger('click')
+			await flushPromises()
+
+			expect(setFollowOptions).toHaveBeenCalledWith({ id: '42', notify: true })
+		})
+
+		/** Only the switch that was pressed is sent; the server leaves the rest. */
+		it('turns the boosts off without touching the bell', async () => {
+			accountStore.addRelationship({ actorId: bob.id, data: following({ notifying: true }) })
+			const setFollowOptions = vi.fn().mockResolvedValue(following({ showing_reblogs: false }))
+			vi.spyOn(accountStore, 'setFollowOptions').mockImplementation(setFollowOptions)
+			const wrapper = mountProfile('bob@remote.example')
+
+			await buttonByText(wrapper, 'Hide their boosts').trigger('click')
+			await flushPromises()
+
+			expect(setFollowOptions).toHaveBeenCalledWith({ id: '42', reblogs: false })
+		})
+	})
 })

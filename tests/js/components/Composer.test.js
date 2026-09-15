@@ -2270,4 +2270,71 @@ describe('Composer', () => {
 			expect(() => eventBus.emit('composer-reply', replyTo(bob))).not.toThrow()
 		})
 	})
+
+	describe('writing a deleted post again', () => {
+		const deleted = (extra = {}) => ({
+			id: '101',
+			content: '<p>Hello <strong>world</strong></p>',
+			spoiler_text: '',
+			visibility: 'followers',
+			language: 'de',
+			media_attachments: [],
+			account: bob,
+			...extra,
+		})
+
+		it('brings the words back as they were typed', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-redraft', deleted())
+			await flushPromises()
+
+			expect(input(wrapper).element.innerText).toBe('Hello world')
+		})
+
+		it('brings the content warning and the audience with them', async () => {
+			const { wrapper } = mountComposer()
+
+			eventBus.emit('composer-redraft', deleted({ spoiler_text: 'spoilers' }))
+			await flushPromises()
+
+			expect(wrapper.find('input.content-warning').element.value).toBe('spoilers')
+			expect(currentVisibility(wrapper)).toBe('followers')
+		})
+
+		/**
+		 * The pictures are the uploads the server still holds: deleting a post
+		 * removes the post, not the media rows behind it, so they go back on
+		 * by id rather than being uploaded again.
+		 */
+		it('puts the pictures back by id, without uploading anything', async () => {
+			const { wrapper, store } = mountComposer()
+
+			eventBus.emit('composer-redraft', deleted({
+				media_attachments: [{ id: 'm-7', description: 'a dog', url: 'https://cloud.example.org/m/7' }],
+			}))
+			await flushPromises()
+			await setContent(wrapper, 'again')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(store.createMedia).not.toHaveBeenCalled()
+			expect(postedStatus(store).media_ids).toEqual(['m-7'])
+		})
+
+		/**
+		 * A re-draft arrives from a menu two clicks away. Overwriting
+		 * half-written words with an old post is not a correction anybody
+		 * asked for.
+		 */
+		it('leaves what is already being written alone', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'something else')
+
+			eventBus.emit('composer-redraft', deleted())
+			await flushPromises()
+
+			expect(input(wrapper).element.innerText).toBe('something else')
+		})
+	})
 })

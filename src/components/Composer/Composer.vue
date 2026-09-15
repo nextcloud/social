@@ -432,7 +432,8 @@ import { useAccountStore } from '../../store/account.js'
 import { useTimelineStore } from '../../store/timeline.js'
 import { applyFilterToFile } from '../../utils/imageFilters.js'
 import { focusParam, isFocalPoint } from '../../utils/focalPoint.js'
-import { defaultLanguage, rememberedLanguage } from '../../utils/postLanguage.js'
+import { htmlToPlainText } from '../../utils/plainText.js'
+import { defaultLanguage, isLanguageCode, rememberedLanguage } from '../../utils/postLanguage.js'
 import { fullDateTime } from '../../utils/relativeTime.js'
 import { useCurrentUser } from '../../composables/useCurrentUser.js'
 import { useServerData } from '../../composables/useServerData.js'
@@ -1120,6 +1121,10 @@ export default {
 		}
 		eventBus.on('composer-quote', this.onComposerQuote)
 
+		// a post that was just deleted, coming back to be written again
+		this.onComposerRedraft = (post) => this.redraft(post)
+		eventBus.on('composer-redraft', this.onComposerRedraft)
+
 		// the shortcuts help offers "n" to write a post; this is what answers it
 		this.onComposerFocus = () => this.focusInput()
 		eventBus.on('shortcut:compose', this.onComposerFocus)
@@ -1157,6 +1162,7 @@ export default {
 		}
 		eventBus.off('composer-reply', this.onComposerReply)
 		eventBus.off('composer-quote', this.onComposerQuote)
+		eventBus.off('composer-redraft', this.onComposerRedraft)
 		eventBus.off('shortcut:compose', this.onComposerFocus)
 	},
 
@@ -1380,6 +1386,74 @@ export default {
 			this.updateStatusContent()
 
 			return true
+		},
+
+		/**
+		 * Fills the composer from a post that has just been deleted.
+		 *
+		 * Everything the post carried that this box can hold: the words, the
+		 * content warning, the audience, the language and the pictures. The
+		 * pictures are the uploads the server still holds — deleting a post
+		 * removes the post, not the media rows behind it — so they are put
+		 * back by id rather than uploaded again, which is what makes this
+		 * different from copying the text out by hand.
+		 *
+		 * A poll is not carried. Its votes belong to the post that was
+		 * deleted, and a new poll with the old options and no votes is a
+		 * different thing wearing its clothes; whoever wants one adds it here.
+		 *
+		 * Whatever is already in the box wins. A re-draft arrives from a menu
+		 * two clicks away, and overwriting half-written words with an old post
+		 * is not a correction anybody asked for.
+		 *
+		 * @param {object} post the post as the timeline held it
+		 */
+		redraft(post) {
+			this.expand()
+
+			if (this.statusIsEmpty && this.$refs.composerInput !== undefined) {
+				this.$refs.composerInput.innerText = htmlToPlainText(post.content || '')
+				this.updateStatusContent()
+			}
+
+			const warning = (post.spoiler_text || '').trim()
+			if (warning !== '') {
+				this.showWarning = true
+				this.spoilerText = warning
+			}
+
+			if (isKnownVisibility(post.visibility)) {
+				this.visibility = post.visibility
+				this.visibilityChosen = true
+			}
+
+			if (isLanguageCode(post.language || '')) {
+				this.language = post.language
+			}
+
+			const attachments = { ...this.attachments }
+			for (const media of post.media_attachments ?? []) {
+				if (media?.id === undefined || Object.keys(attachments).length >= this.maxAttachments) {
+					continue
+				}
+
+				// the same shape an upload leaves behind, with the server's
+				// answer already in hand: `data.id` is what goes out as
+				// `media_ids`, and `saved` is the description as the server
+				// already holds it, so it is not written again unless it is
+				// changed
+				attachments[`redraft:${++this.pickCount}:${media.id}`] = {
+					file: null,
+					path: media.description || media.url || String(media.id),
+					data: media,
+					failed: false,
+					description: media.description || '',
+					saved: media.description || '',
+				}
+			}
+			this.attachments = attachments
+
+			this.focusInput()
 		},
 
 		/**

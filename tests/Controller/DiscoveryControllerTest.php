@@ -21,6 +21,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Suggestion;
 use OCA\Social\Model\Client\TrendingLink;
 use OCA\Social\Model\StreamCard;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -41,6 +42,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use RuntimeException;
+use stdClass;
 
 /**
  * The discovery routes.
@@ -72,6 +74,7 @@ class DiscoveryControllerTest extends TestCase {
 	private LinkPreviewService|MockObject $linkPreviewService;
 	private StarterPackService|MockObject $starterPackService;
 	private ProfileHighlightsService|MockObject $profileHighlightsService;
+	private AccountRelationService|MockObject $accountRelationService;
 	private IUserSession|MockObject $userSession;
 
 	/** @var array<string, string> the request headers the controller will see */
@@ -207,6 +210,8 @@ class DiscoveryControllerTest extends TestCase {
 
 		$this->profileHighlightsService = $this->createMock(ProfileHighlightsService::class);
 
+		$this->accountRelationService = $this->createMock(AccountRelationService::class);
+
 		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 		$this->linkPreviewService->method('attachCards')
 			->willReturnCallback(function (): void {
@@ -236,7 +241,8 @@ class DiscoveryControllerTest extends TestCase {
 			$this->linkPreviewService,
 			$this->createMock(PlaceService::class),
 			$this->starterPackService,
-			$this->profileHighlightsService
+			$this->profileHighlightsService,
+			$this->accountRelationService
 		);
 	}
 
@@ -550,4 +556,44 @@ class DiscoveryControllerTest extends TestCase {
 			Http::STATUS_OK, $this->controller()->linkTimeline('https://example.org/a')->getStatus()
 		);
 	}
+
+	// dismissing a suggestion
+
+	public function testASuggestionCanBeDismissed(): void {
+		$this->accountRelationService->expects($this->once())
+			->method('dismissSuggestion')
+			->with(
+				$this->callback(static fn (Person $viewer): bool => $viewer->getId() === self::VIEWER),
+				$this->callback(static fn (Person $target): bool => $target->getId() === self::OTHER)
+			);
+
+		$response = $this->controller()->suggestionDismiss('2');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertEquals(new stdClass(), $response->getData());
+	}
+
+	public function testDismissingASuggestionNeedsAViewer(): void {
+		$this->anonymous();
+
+		$this->assertSame(
+			Http::STATUS_UNAUTHORIZED, $this->controller()->suggestionDismiss('2')->getStatus()
+		);
+	}
+
+	public function testDismissingAnUnknownAccountIsNotFound(): void {
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND, $this->controller()->suggestionDismiss('999')->getStatus()
+		);
+	}
+
+	/** An account may be named by handle, as everywhere else it may. */
+	public function testASuggestionMayBeDismissedByHandle(): void {
+		$this->accountRelationService->expects($this->once())->method('dismissSuggestion');
+
+		$this->assertSame(
+			Http::STATUS_OK, $this->controller()->suggestionDismiss('bob@cloud.example')->getStatus()
+		);
+	}
+
 }

@@ -43,6 +43,7 @@ class CoreRequestBuilder {
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_FILTERS = 'social_filter';
 	public const TABLE_FILTER_KEYWORDS = 'social_filter_kw';
+	public const TABLE_FILTER_STATUSES = 'social_filter_st';
 	public const TABLE_ANNOUNCEMENTS = 'social_announcement';
 	public const TABLE_ANNOUNCEMENT_READS = 'social_announce_read';
 	public const TABLE_ANNOUNCEMENT_REACTIONS = 'social_announce_react';
@@ -211,6 +212,12 @@ class CoreRequestBuilder {
 			'filter_id',
 			'keyword',
 			'whole_word',
+			'creation'
+		],
+		self::TABLE_FILTER_STATUSES => [
+			'id',
+			'filter_id',
+			'status_id',
 			'creation'
 		],
 		self::TABLE_LISTS => [

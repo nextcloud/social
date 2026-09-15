@@ -72,6 +72,8 @@ class Filter implements JsonSerializable {
 	private int $creation = 0;
 	/** @var FilterKeyword[] */
 	private array $keywords = [];
+	/** @var FilterStatus[] the posts this filter covers by name */
+	private array $statuses = [];
 
 	public function setId(int $id): self {
 		$this->id = $id;
@@ -176,6 +178,49 @@ class Filter implements JsonSerializable {
 	}
 
 	/**
+	 * @param FilterStatus[] $statuses
+	 */
+	public function setStatuses(array $statuses): self {
+		$this->statuses = array_values($statuses);
+
+		return $this;
+	}
+
+	public function addStatus(FilterStatus $status): self {
+		$this->statuses[] = $status;
+
+		return $this;
+	}
+
+	/**
+	 * @return FilterStatus[]
+	 */
+	public function getStatuses(): array {
+		return $this->statuses;
+	}
+
+	/**
+	 * Whether this filter covers that post by name.
+	 *
+	 * The post is named by its `nid`, which is the id the client API hands out
+	 * and the id a client sends back — see the `social_filter_st` migration
+	 * for why the URI is not what is stored.
+	 */
+	public function covers(int $statusId): bool {
+		if ($statusId < 1) {
+			return false;
+		}
+
+		foreach ($this->statuses as $status) {
+			if ($status->getStatusId() === $statusId) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * An expired filter stops applying on its own, with nothing run to make it
 	 * happen: no cleanup job exists, and one that failed to run would otherwise
 	 * silently keep hiding statuses the account expected back.
@@ -259,10 +304,6 @@ class Filter implements JsonSerializable {
 		];
 	}
 
-	/**
-	 * `statuses` is always empty: this app has no per-status filters, and the
-	 * key is not optional for a client that declares it.
-	 */
 	#[\Override]
 	public function jsonSerialize(): array {
 		$keywords = [];
@@ -270,11 +311,16 @@ class Filter implements JsonSerializable {
 			$keywords[] = $keyword->jsonSerialize();
 		}
 
+		$statuses = [];
+		foreach ($this->statuses as $status) {
+			$statuses[] = $status->jsonSerialize();
+		}
+
 		return array_merge(
 			$this->exportAsResultFilter(),
 			[
 				'keywords' => $keywords,
-				'statuses' => [],
+				'statuses' => $statuses,
 			]
 		);
 	}
