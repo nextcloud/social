@@ -9,11 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Model\ActivityPub\Object\Document;
-use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MediaUsageService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -45,16 +43,8 @@ class MediaUsage extends SocialCommand {
 	/** Rows read per query; the work is a file lookup per row, not the read. */
 	private const PAGE = 500;
 
-	/**
-	 * The three ids this app gives its own documents. A cached copy of a
-	 * remote Social instance's picture carries the same shape — hence the
-	 * cloud url, which is what actually decides it.
-	 */
-	private const LOCAL_MARKERS = ['/documents/local/', '/documents/avatar/', '/documents/header/'];
-
 	public function __construct(
-		private CacheDocumentsRequest $cacheDocumentsRequest,
-		private CacheDocumentService $cacheDocumentService,
+		private MediaUsageService $mediaUsageService,
 		private ConfigService $configService,
 	) {
 		parent::__construct();
@@ -80,7 +70,7 @@ class MediaUsage extends SocialCommand {
 			return 1;
 		}
 
-		$usage = $this->collect($cloudUrl);
+		$usage = $this->mediaUsageService->measureAndStore();
 
 		if ($input->getOption('output') !== self::OUTPUT_FORMAT_PLAIN) {
 			$this->writeArrayInOutputFormat($input, $output, $usage, '');
@@ -103,98 +93,6 @@ class MediaUsage extends SocialCommand {
 	 *     files: int, bytes: int
 	 * }
 	 */
-	private function collect(string $cloudUrl): array {
-		$empty = ['attachments' => ['files' => 0, 'bytes' => 0], 'avatars' => ['files' => 0, 'bytes' => 0]];
-		$usage = [
-			'local' => $empty,
-			'remote' => $empty,
-			'rows' => 0,
-			'streamed' => 0,
-			'missing' => 0,
-			'elsewhere' => 0,
-			'files' => 0,
-			'bytes' => 0,
-		];
-
-		$after = 0;
-		while (true) {
-			$rows = $this->cacheDocumentsRequest->getUsagePage(self::PAGE, $after);
-			if ($rows === []) {
-				break;
-			}
-
-			foreach ($rows as $row) {
-				$after = max($after, $row['nid']);
-				$usage['rows']++;
-
-				$side = str_starts_with($row['id'], $cloudUrl) && $this->looksLocal($row['id'])
-					? 'local' : 'remote';
-				// the parent being a cached actor is what makes a document that
-				// actor's picture; a local avatar has no parent at all, and is
-				// recognised by the id this app gave it
-				$kind = ($row['actor_local'] !== null || $this->looksLikeAvatar($row['id']))
-					? 'avatars' : 'attachments';
-
-				foreach ([$row['local_copy'], $row['resized_copy']] as $copy) {
-					$this->addCopy($usage, $side, $kind, $copy);
-				}
-			}
-		}
-
-		return $usage;
-	}
-
-	/**
-	 * One stored copy, added to the right bucket — or to one of the three
-	 * counts of copies that are not bytes of ours.
-	 *
-	 * @param array<string, mixed> $usage
-	 */
-	private function addCopy(array &$usage, string $side, string $kind, string $copy): void {
-		if ($copy === '') {
-			return;
-		}
-
-		if ($copy === Document::COPY_STREAMED) {
-			// a pointer at a file on the server that hosts it; no bytes here
-			$usage['streamed']++;
-
-			return;
-		}
-
-		if ($copy === 'avatar' || $copy === 'header') {
-			// served straight out of Nextcloud's own avatar store, never copied
-			$usage['elsewhere']++;
-
-			return;
-		}
-
-		$size = $this->cacheDocumentService->cachedFileSize($copy);
-		if ($size === null) {
-			$usage['missing']++;
-
-			return;
-		}
-
-		$usage[$side][$kind]['files']++;
-		$usage[$side][$kind]['bytes'] += $size;
-		$usage['files']++;
-		$usage['bytes'] += $size;
-	}
-
-	private function looksLocal(string $id): bool {
-		foreach (self::LOCAL_MARKERS as $marker) {
-			if (str_contains($id, $marker)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	private function looksLikeAvatar(string $id): bool {
-		return str_contains($id, '/documents/avatar/') || str_contains($id, '/documents/header/');
-	}
 
 	/**
 	 * @param array<string, mixed> $usage

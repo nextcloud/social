@@ -137,6 +137,18 @@ deletion is sent to every server that received it — this cannot be undone),
 status**, which says which servers received the post, which are still being
 tried and which gave up.
 
+### Putting a post away
+
+A post you no longer want on your profile does not have to be deleted. **Archive**,
+in the post's own `…` menu, takes it off your profile and out of every timeline,
+search and hashtag page on this server, and leaves it exactly where it is
+otherwise: nobody is told, nothing is sent anywhere, and you can put it back at
+any time from **Settings → Archived posts**.
+
+What archiving is not is a way to take a post back from the fediverse. Other
+servers that received it still have it, and somebody who kept the link still
+opens it — that is what **Delete** is for, and deleting cannot be undone.
+
 ### If your post is kept back
 
 Your server may show some posts to a moderator before they go out. There are
@@ -144,7 +156,9 @@ two reasons it does: the **first post** of an account that has not published
 anything here yet, and a post that tripped one of the server's spam rules — a
 lot of links, or a lot of mentions from an account nobody follows yet. Your
 administrator can turn either off, and neither applies to a **direct
-message**: nobody reads those but the people you wrote to.
+message**: nobody reads those but the people you wrote to. If you are an
+administrator of this server, nothing of yours is ever held — you are the
+person the queue is waiting for.
 
 When it happens the app says so at once, and your writing is kept — there is
 no need to write it again, and writing it again only finds the copy already
@@ -256,6 +270,16 @@ every attachment does — stripped of the camera's metadata — and your story
 is up for a day, to your followers and nobody else. While it is up, you can
 see how many people watched it and take it down early from the same player.
 
+Somebody watching a story can answer it: a row of emoji under the picture for a
+reaction, and a box beside them for a line of text. Either one goes to the
+person who posted it and to nobody else — a reply to a story is a message, not a
+comment on a page — and only somebody who follows them can send one, which is
+the same condition as being able to see the story at all. Five answers to one
+story is the limit, because without one what a story hands somebody is a
+private channel to its poster that the poster cannot close. What was said shows
+under your own story while it is up, and goes with it when it expires: a reply
+is not a post, and nothing keeps it after the thing it was about has gone.
+
 Stories travel. Yours go to the people who follow you on other servers that
 have stories — Pixelfed is the one that does. Stories from a Pixelfed account
 do not come the other way, and that is Pixelfed's decision rather than this
@@ -263,11 +287,13 @@ server's: it sends them only to servers it recognises as Pixelfed. Taking
 yours down early takes it down there too. What another server does with its copy after the day is up is that
 server's business, which is why a story that arrives here is kept for a day
 at the most, whatever the sender says, and one that has already expired is
-not kept at all.
+not kept at all. Watching a story from another server sends a receipt to its
+author so that their own server can count it, and reactions and replies travel
+the same way in both directions, in the shape Pixelfed's own inbox reads.
 
 ### Collections
 
-A profile has a fourth tab beside Posts, Photos and Videos: **Collections**, the
+A profile has a **Collections** tab beside Posts, Photos, Videos and Tagged: the
 account's albums. Each is a page of the posts the owner gathered into it, drawn
 as the same grid of squares the Photos tab uses, with a lock on the ones that
 are for followers only.
@@ -278,6 +304,65 @@ own posts with a picture or a video in them offer it, because that is all a
 collection may hold. On a collection's page you can **Edit** its title,
 description and audience, **Remove posts** from their own squares, or
 **Delete** it — the posts stay where they are.
+
+### Posting as a team
+
+If an administrator has given one of your Nextcloud groups an account, a small
+picker appears in the composer beside the language and the audience: **As
+myself**, or the team. Choose the team and the post goes out from the team's
+account — its name, its picture, its followers — rather than from yours.
+
+Everybody in the group can post as it, and the list is checked at the moment
+you press post: leaving the group takes the account away with it, with nothing
+to remember to undo.
+
+Who actually wrote each post is recorded. The team can see it, and so can a
+moderator looking at a report; nobody else can. Outside the team, the team
+speaks with one voice, which is the point of having a team account.
+
+An administrator makes one with `occ social:team <group> <username>`.
+
+### A page of your work
+
+**Settings → Portfolio** makes a page with its own address, to put on a CV.
+A profile is a feed: everything you posted, newest first, with the follow
+button and the boosts and the replies around it. A portfolio is the opposite —
+a title, a sentence, the pictures you chose, and nothing else on it.
+
+Give it a title and a line about the work, choose a grid of squares or one
+picture at a time, and say where the pictures come from: your most recent
+public photos, or one of your collections. Then decide what goes under each
+one — the caption, where it was taken, the year — and whether your own picture
+is at the top.
+
+Until you turn **Publish my portfolio** on, the page is a draft only you can
+see. Once it is on, the address appears under the switch and anybody with it
+can read the page without signing in, which is the whole point. **Only your
+public photos are ever on it**, whatever the rest of the settings say: the page
+is built by asking for your posts as an anonymous reader, so a followers-only
+photograph cannot reach it. The draft shows you exactly what will be published,
+which is why a followers-only photo is missing from it too.
+
+### Who is in the photo
+
+Open one of your own posts with a picture in it, choose **Tag people** from its
+menu (**…**), and type the handles of the people in it, separated by commas.
+Their names appear under the post, linked to their profiles, and each of them is
+told — including somebody on another server, because the name is written onto
+the post as a mention and the post is sent out again.
+
+The field holds the whole list rather than only what you are adding, so taking
+somebody out of the photo is deleting their handle. Only the person who posted a
+photo can name anybody in it: if anybody could, writing your own name onto
+somebody else's picture would put their post in front of an audience that never
+asked for it.
+
+Naming somebody does **not** change who may see the post. A followers-only
+photograph stays followers-only.
+
+Each profile has a **Tagged** tab: the photographs that account is named in,
+whoever took them. If you are named in one and would rather not be, **Remove me**
+under the post takes your name off, and needs nobody's permission.
 
 ## Filtering out words
 
@@ -326,6 +411,15 @@ Filters are private: they are never sent to another server, and they change noth
 for anybody else reading the same post.
 
 ## Managing your account
+
+**Pronouns and a support link.** Two of the four profile fields on **Edit
+profile** have boxes of their own, because this app draws them differently: the
+pronouns appear beside your name rather than in the table at the bottom, and a
+support address (`https://…`) becomes a button on your profile. They are still
+ordinary profile fields underneath, so Mastodon and the rest show them in their
+table as they always did — and if you already wrote a row called "Pronouns" by
+hand, it is picked up as one.
+
 
 - **Profile.** **My profile** (behind your portrait at the bottom of the
   sidebar) → **Edit profile**: a banner (upload one or give the address of
@@ -382,9 +476,15 @@ for anybody else reading the same post.
   account export) back in without deleting anything; posts in it are listed,
   not published again. The third section imports the follows from another
   network's export — a `following_accounts.csv`, or Pixelfed's
-  `pixelfed-following.json` — and explains that moving your *followers*
-  here is a one-way move that an administrator performs with
-  `occ social:account:alias` and `occ social:account:move`.
+  `pixelfed-following.json`.
+- **Naming your old account.** Your old server will not send your followers
+  here until this account says it is also you. **Settings → Migration →
+  Accounts you also answer to** is where you say it: paste the old account's
+  own address (`https://pixelfed.social/users/you`, not the handle) and press
+  Add. Nothing is sent to anybody — it is a note this server keeps about an
+  account it owns — and you can take it off again whenever you like. Moving
+  the followers themselves is the half that cannot be undone, and stays with
+  an administrator (`occ social:account:move` on the old server).
 - **Bringing your posts.** The fourth section of **Settings → Migration** reads
   the export from your old server — this app's own archive, Mastodon's or
   GoToSocial's `outbox.json`, or Pixelfed's `pixelfed-statuses.json` — and

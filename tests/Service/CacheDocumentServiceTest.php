@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\MediaBlocksRequest;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
@@ -31,6 +32,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\WithoutErrorHandler;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 class CacheDocumentServiceTest extends TestCase {
 	private const UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
@@ -41,6 +43,7 @@ class CacheDocumentServiceTest extends TestCase {
 	private ImageConversionService|MockObject $imageConversionService;
 	private VideoThumbnailService|MockObject $videoThumbnailService;
 	private ITempManager|MockObject $tempManager;
+	private MediaBlocksRequest|MockObject $mediaBlocksRequest;
 	/** @var string[] */
 	private array $tempFiles = [];
 	private CacheDocumentService $service;
@@ -78,6 +81,8 @@ class CacheDocumentServiceTest extends TestCase {
 				return $path;
 			}
 		);
+		$this->mediaBlocksRequest = $this->createMock(MediaBlocksRequest::class);
+
 		$this->service = new CacheDocumentService(
 			$this->appData,
 			$this->curlService,
@@ -86,6 +91,8 @@ class CacheDocumentServiceTest extends TestCase {
 			$this->imageConversionService,
 			$this->videoThumbnailService,
 			$this->tempManager,
+			$this->mediaBlocksRequest,
+			new NullLogger(),
 		);
 	}
 

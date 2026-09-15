@@ -54,6 +54,10 @@ class ServerSettingsServiceTest extends TestCase {
 			'extendedDescription' => 'a friendly place',
 			'maxSize' => 20,
 			'maxVideoSize' => 4096,
+			'imageMaxEdge' => 0,
+			'imageQuality' => 85,
+			'videoTranscode' => false,
+			'videoMaxHeight' => 1080,
 			'inboxThrottle' => 300,
 			'secureMode' => false,
 			'publishBlocks' => false,
@@ -71,6 +75,10 @@ class ServerSettingsServiceTest extends TestCase {
 			'extended_description' => 'a friendly place',
 			'max_size' => 20,
 			'max_video_size' => 4096,
+			'image_max_edge' => 0,
+			'image_quality' => 85,
+			'video_transcode' => false,
+			'video_max_height' => 1080,
 			'inbox_throttle' => 300,
 			'secure_mode' => true,
 			'publish_blocks' => false,
@@ -153,5 +161,34 @@ class ServerSettingsServiceTest extends TestCase {
 			array_values(array_intersect(ServerSettingsService::KEYS, array_keys($this->stored)))
 		);
 		$this->assertCount(count(ServerSettingsService::KEYS), $this->stored);
+	}
+
+	/**
+	 * `0` is "store every upload exactly as it arrived", which is the default
+	 * and the only value that loses nothing.
+	 */
+	public function testShrinkingIsOffUntilAnAdministratorAsksForIt(): void {
+		$saved = $this->save();
+
+		$this->assertSame(0, $saved['image_max_edge']);
+	}
+
+	public function testACeilingTooSmallToBeAPhotographIsRefused(): void {
+		$this->expectException(\InvalidArgumentException::class);
+		$this->expectExceptionMessageMatches('/image_max_edge/');
+		$this->save(['imageMaxEdge' => 64]);
+	}
+
+	public function testAQualityNobodyWouldWantIsRefused(): void {
+		$this->expectException(\InvalidArgumentException::class);
+		$this->expectExceptionMessageMatches('/image_quality/');
+		$this->save(['imageQuality' => 5]);
+	}
+
+	public function testASensibleCeilingIsKept(): void {
+		$saved = $this->save(['imageMaxEdge' => 2560, 'imageQuality' => 82]);
+
+		$this->assertSame(2560, $saved['image_max_edge']);
+		$this->assertSame(82, $saved['image_quality']);
 	}
 }

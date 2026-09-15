@@ -77,7 +77,7 @@ describe('ProfileCollections', () => {
 		expect(cards[0].findComponent(RouterLinkStub).props('to')).toEqual({ name: 'collection', params: { id: '3' } })
 	})
 
-	it('puts Collections on the profile switcher as the fourth tab', async () => {
+	it('puts Collections on the profile switcher as the last tab', async () => {
 		get.mockResolvedValue({ data: [] })
 
 		const wrapper = mountView('bob@remote.example')
@@ -85,7 +85,7 @@ describe('ProfileCollections', () => {
 
 		const switcher = wrapper.findComponent(TimelineSwitcher)
 		expect(switcher.props('value')).toBe('collections')
-		expect(switcher.props('options').map((option) => option.label)).toEqual(['Posts', 'Photos', 'Videos', 'Collections'])
+		expect(switcher.props('options').map((option) => option.label)).toEqual(['Posts', 'Photos', 'Videos', 'Tagged', 'Collections'])
 	})
 
 	it('lets the owner make a new one where the others are, and nobody else', async () => {

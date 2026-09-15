@@ -71,6 +71,61 @@ class MigrationControllerTest extends TestCase {
 		);
 	}
 
+	// alsoKnownAs
+
+	/**
+	 * Naming the old account is a statement this server makes about an account
+	 * it owns: it federates nothing and is the person's own to make. It used
+	 * to need `occ social:account:alias`, so arriving from Pixelfed needed an
+	 * administrator for a field the arriver could have filled in themselves.
+	 */
+	public function testTheAliasesAreTheCallersOwnToReadAndChange(): void {
+		$this->migrationService->method('listAliases')->with('alice')
+			->willReturn(['https://old.example/users/me']);
+
+		$response = $this->controller()->aliases();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['https://old.example/users/me'], $response->getData()['aliases']);
+	}
+
+	public function testAddingAnAliasAnswersWithTheListAsItNowStands(): void {
+		$this->migrationService->expects($this->once())->method('addAlias')
+			->with('alice', 'https://old.example/users/me')
+			->willReturn(['https://old.example/users/me']);
+
+		$response = $this->controller()->aliasAdd('https://old.example/users/me');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['https://old.example/users/me'], $response->getData()['aliases']);
+	}
+
+	public function testRemovingAnAliasAnswersWithWhatIsLeft(): void {
+		$this->migrationService->expects($this->once())->method('removeAlias')
+			->with('alice', 'https://old.example/users/me')->willReturn([]);
+
+		$this->assertSame([], $this->controller()->aliasRemove('https://old.example/users/me')->getData()['aliases']);
+	}
+
+	/** An address that is not an account's own is refused, and the reason is the whole of the help there is. */
+	public function testAnAddressThatIsNotAnActorIsRefusedWithItsReason(): void {
+		$this->migrationService->method('addAlias')
+			->willThrowException(new \OCA\Social\Exceptions\InvalidResourceException('that is not an actor id'));
+
+		$response = $this->controller()->aliasAdd('pixelfed.social');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame('that is not an actor id', $response->getData()['error']);
+	}
+
+	public function testNobodyWithoutASessionReadsOrChangesAnAlias(): void {
+		$this->migrationService->expects($this->never())->method('listAliases');
+		$this->migrationService->expects($this->never())->method('addAlias');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->aliases()->getStatus());
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->aliasAdd('x')->getStatus());
+	}
+
 	/** A request that answers the parameters the post import reads. */
 	private function request(): IRequest {
 		$request = $this->createMock(IRequest::class);

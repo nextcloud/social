@@ -69,6 +69,31 @@
 				<span class="post-place__name">{{ placeLabel }}</span>
 			</router-link>
 		</div>
+
+		<!-- who is in the picture, when the poster named anybody. Names rather
+		     than boxes drawn over the image: what is stored is a fact about the
+		     post, and a rectangle is a thing no client of this network draws -->
+		<p v-if="taggedPeople.length" class="post-tagged">
+			<IconAccountBoxMultiple :size="14" />
+			<span class="post-tagged__with">{{ t('social', 'With') }}</span>
+			<router-link
+				v-for="(person, index) in taggedPeople"
+				:key="person.acct"
+				class="post-tagged__person"
+				:to="{ name: 'profile', params: { account: person.acct } }">
+				{{ person.display_name || person.username }}<span v-if="index < taggedPeople.length - 1">,</span>
+			</router-link>
+			<!-- the whole remedy for being in somebody else's photograph:
+			     leaving it, which needs nobody's permission -->
+			<NcButton
+				v-if="isTagged"
+				variant="tertiary-no-background"
+				class="post-tagged__leave"
+				:disabled="untagging"
+				@click="untagMe">
+				{{ t('social', 'Remove me') }}
+			</NcButton>
+		</p>
 		<div v-if="isEditing" class="post-edit-inline">
 			<input
 				v-model="editSpoiler"
@@ -290,6 +315,16 @@
 							</NcButton>
 							<RollingCount :count="item.favourites_count || 0" />
 						</div>
+						<!-- only ever on the author's own copy: the server sends
+						     `view_count` as null on everybody else's, because how
+						     many people read a post is the author's business -->
+						<div
+							v-if="item.view_count !== null && item.view_count !== undefined"
+							class="post-action post-action--views"
+							:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
+							<IconEyeOutline :size="20" />
+							<RollingCount :count="item.view_count" />
+						</div>
 					</div>
 				</div>
 				<!-- the menu opens in a portal, so the pointer leaving the card
@@ -306,6 +341,33 @@
 						icon="icon-rename"
 						@click="editPost">
 						{{ t('social', 'Edit') }}
+					</NcActionButton>
+					<!-- the answer to "this no longer belongs on my profile" that
+					     is not destroying it. Nothing federates: the post stays on
+					     every server that received it, which is what deleting is
+					     for -->
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+						:disabled="archiving"
+						closeAfterClick
+						@click="toggleArchive">
+						<template #icon>
+							<IconArchiveOutline :size="20" />
+						</template>
+						{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
+					</NcActionButton>
+					<!-- who is in the picture, which only the author may say:
+					     anybody able to write a name onto anybody's photograph
+					     could put a post in front of an audience that did not
+					     ask for it -->
+					<NcActionButton
+						v-if="item.account.acct === currentAccount?.acct && hasPictures"
+						closeAfterClick
+						@click="taggingPeople = true">
+						<template #icon>
+							<IconAccountBoxMultiple :size="20" />
+						</template>
+						{{ t('social', 'Tag people') }}
 					</NcActionButton>
 					<NcActionButton
 						v-if="item.account.acct === currentAccount?.acct"
@@ -416,6 +478,12 @@
 			v-if="showCollectionDialog"
 			v-model:open="showCollectionDialog"
 			:status="item" />
+		<TagPeopleDialog
+			v-if="taggingPeople"
+			:nid="item.nid"
+			:people="taggedPeople"
+			@close="taggingPeople = false"
+			@tagged="onTagged" />
 		<NcDialog
 			v-model:open="showBlockDialog"
 			:name="t('social', 'Block {account}?', { account: item.account.acct })"
@@ -505,6 +573,9 @@ import Cancel from 'vue-material-design-icons/Cancel.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
+import IconAccountBoxMultiple from 'vue-material-design-icons/AccountBoxMultiple.vue'
+import IconArchiveOutline from 'vue-material-design-icons/ArchiveOutline.vue'
+import IconEyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import PencilBoxOutline from 'vue-material-design-icons/PencilBoxOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
@@ -547,10 +618,17 @@ import { defineAsyncComponent } from 'vue'
 const MuteDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./MuteDialog.vue'))
 // fetched with the other dialogs a post rarely opens, for the same reason
 const CollectionPickerDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./CollectionPickerDialog.vue'))
+// and the same for naming the people in a photograph, which is a thing an
+// author does once per post and no reader ever does
+const TagPeopleDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./TagPeopleDialog.vue'))
 
 export default {
 	name: 'TimelinePost',
 	components: {
+		IconAccountBoxMultiple,
+		TagPeopleDialog,
+		IconArchiveOutline,
+		IconEyeOutline,
 		Cancel,
 		CollectionPickerDialog,
 		FolderMultiplePlusOutline,
@@ -630,6 +708,9 @@ export default {
 			showCollectionDialog: false,
 			showBlockDialog: false,
 			showDeleteDialog: false,
+			archiving: false,
+			untagging: false,
+			taggingPeople: false,
 			/** whether the delete on screen is the first half of a re-draft */
 			deleteToRedraft: false,
 			/** the Translation entity once it has arrived, null before */
@@ -812,6 +893,22 @@ export default {
 			return this.item.account.acct === this.currentAccount?.acct
 				&& this.item.local !== false
 				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
+		},
+
+		/** @return {boolean} whether there is a picture to name anybody in */
+		hasPictures() {
+			return (this.item.media_attachments ?? []).length > 0
+		},
+
+		/** @return {Array} the people the poster named in this post's pictures */
+		taggedPeople() {
+			return this.item.tagged_people ?? []
+		},
+
+		/** @return {boolean} whether the reader is one of them */
+		isTagged() {
+			const me = this.currentAccount?.acct
+			return Boolean(me) && this.taggedPeople.some((person) => person.acct === me)
 		},
 
 		/** @return {string} the place, with its country where one was given */
@@ -1100,6 +1197,72 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Puts the post away, or brings it back.
+		 *
+		 * The row leaves the timeline it is in as soon as the server agrees:
+		 * the post is out of every list this server builds, and the list the
+		 * reader is looking at is one of them.
+		 *
+		 * @return {Promise<void>}
+		 */
+		/**
+		 * @param {Array} people who the post names now, as the server says
+		 */
+		onTagged(people) {
+			this.timelineStore.updateStatusTagged({ statusId: this.item.id, taggedPeople: people })
+		},
+
+		/**
+		 * Takes the reader's own name off this photograph.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async untagMe() {
+			if (this.untagging) {
+				return
+			}
+
+			this.untagging = true
+			try {
+				const url = generateUrl('apps/social/api/v1.1/compose/tag/untagme')
+				await axios.post(url, { status_id: this.item.nid })
+				const me = this.currentAccount?.acct
+				const left = this.taggedPeople.filter((person) => person.acct !== me)
+				this.timelineStore.updateStatusTagged({ statusId: this.item.id, taggedPeople: left })
+				showSuccess(t('social', 'Your name is off this photo.'))
+			} catch (error) {
+				logger.error('could not take a name off a photo', { error })
+				showError(t('social', 'Could not remove your name'))
+			} finally {
+				this.untagging = false
+			}
+		},
+
+		async toggleArchive() {
+			if (this.archiving) {
+				return
+			}
+
+			this.archiving = true
+			const archived = this.item.archived === true
+			try {
+				await axios.post(generateUrl('apps/social/api/pixelfed/v1/archive/' + (archived ? 'remove' : 'add') + '/' + this.item.id))
+				if (archived) {
+					this.timelineStore.updateStatusArchived({ statusId: this.item.id, archived: false })
+					showSuccess(t('social', 'The post is back on your profile'))
+				} else {
+					this.timelineStore.removeStatus(this.item)
+					showSuccess(t('social', 'Archived. It is off your profile and out of the timelines; nobody else was told.'))
+				}
+			} catch (error) {
+				logger.error('Failed to archive a post', { error })
+				showError(t('social', 'Could not archive the post'))
+			} finally {
+				this.archiving = false
+			}
+		},
+
 		/**
 		 * The reaction bar came back from the server after a press. It goes to
 		 * the store rather than onto this card, so the same post shown twice —
@@ -1590,6 +1753,25 @@ export default {
 			max-width: 40%;
 			color: var(--color-text-maxcontrast);
 			font-size: 12px;
+
+			&:hover,
+			&:focus-visible {
+				text-decoration: underline;
+			}
+		}
+
+		.post-tagged {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 4px;
+			margin-block: 4px 0;
+			color: var(--color-text-maxcontrast);
+			font-size: 90%;
+		}
+
+		.post-tagged__person {
+			color: var(--color-main-text);
 
 			&:hover,
 			&:focus-visible {

@@ -26,6 +26,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -37,6 +38,7 @@ class StoryServiceTest extends TestCase {
 	private const BOB = 'https://cloud.example.org/users/bob';
 
 	private StoriesRequest|MockObject $storiesRequest;
+	private StoryInteractionService|MockObject $storyInteractionService;
 	private DocumentService|MockObject $documentService;
 	private FollowService|MockObject $followService;
 	private StoryService $service;
@@ -47,6 +49,7 @@ class StoryServiceTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		$this->storiesRequest = $this->createMock(StoriesRequest::class);
+		$this->storyInteractionService = $this->createMock(StoryInteractionService::class);
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->followService = $this->createMock(FollowService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
@@ -70,6 +73,7 @@ class StoryServiceTest extends TestCase {
 			$this->activityService,
 			$configService,
 			$this->createMock(DocumentInterface::class),
+			$this->storyInteractionService,
 			new NullLogger(),
 		);
 	}
@@ -89,6 +93,7 @@ class StoryServiceTest extends TestCase {
 			$this->activityService,
 			$configService,
 			$this->createMock(DocumentInterface::class),
+			$this->storyInteractionService,
 			new NullLogger(),
 		);
 	}

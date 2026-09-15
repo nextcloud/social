@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Notification;
 
-use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Model\Strike;
@@ -20,6 +19,7 @@ use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
 use OCP\Notification\INotification;
 use OCP\Notification\INotifier;
+use OCP\Notification\UnknownNotificationException;
 
 /**
  * Class Notifier
@@ -63,12 +63,18 @@ class Notifier implements INotifier {
 	 * @param string $languageCode The code of the language that should be used to prepare the notification
 	 *
 	 * @return INotification
-	 * @throws InvalidArgumentException
+	 * @throws UnknownNotificationException a notification this app does not own
 	 */
 	#[\Override]
 	public function prepare(INotification $notification, string $languageCode): INotification {
 		if ($notification->getApp() !== Application::APP_ID) {
-			throw new InvalidArgumentException();
+			// `UnknownNotificationException` and not the `InvalidArgumentException`
+			// it extends: the server asks every notifier about every
+			// notification, so "not mine" is the ordinary answer and is given
+			// hundreds of times a day. Answered with the general exception it
+			// is a deprecation warning each time — 31 000 lines in a
+			// development instance's log, drowning anything real in it.
+			throw new UnknownNotificationException();
 		}
 
 		$l10n = $this->factory->get(Application::APP_ID, $languageCode);
@@ -180,7 +186,9 @@ class Notifier implements INotifier {
 				break;
 
 			default:
-				throw new InvalidArgumentException();
+				// a subject this app does not know: the same answer, for the
+				// same reason
+				throw new UnknownNotificationException();
 		}
 
 		return $notification;

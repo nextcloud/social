@@ -10,18 +10,32 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ImageConversionService;
 use OCA\Social\Service\ImageMetadataService;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 class ImageConversionServiceTest extends TestCase {
 	private ImageConversionService $service;
+	private ConfigService|MockObject $configService;
+
+	/** @var array<string, int> the instance's own settings */
+	private array $settings = [];
 
 	protected function setUp(): void {
 		parent::setUp();
+		// off by default, as on an instance nobody has configured: everything
+		// below is about storing an upload correctly rather than smaller
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getAppValueInt')->willReturnCallback(
+			fn (string $key): int => $this->settings[$key] ?? 0
+		);
+
 		$this->service = new ImageConversionService(
 			new ImageMetadataService(),
+			$this->configService,
 			$this->createMock(LoggerInterface::class)
 		);
 	}
@@ -170,5 +184,62 @@ class ImageConversionServiceTest extends TestCase {
 
 		$this->assertSame('image/png', $mime);
 		$this->assertNotFalse(@imagecreatefromstring($content));
+	}
+
+	// the optional shrink
+
+	/**
+	 * Off unless an administrator asks: this app's promise has been that
+	 * nothing loses a generation of quality.
+	 */
+	public function testAPictureIsStoredAtItsOwnSizeByDefault(): void {
+		$jpeg = $this->jpeg(400, 300);
+
+		[$content] = $this->service->prepareForStorage($jpeg, 'image/jpeg');
+		$size = getimagesizefromstring($content);
+
+		$this->assertSame(400, $size[0]);
+	}
+
+	public function testPastTheCeilingItIsBroughtDownToIt(): void {
+		$this->settings[ConfigService::SOCIAL_IMAGE_MAX_EDGE] = 100;
+		$this->settings[ConfigService::SOCIAL_IMAGE_QUALITY] = 85;
+		$jpeg = $this->jpeg(400, 300);
+
+		[$content, $mime] = $this->service->prepareForStorage($jpeg, 'image/jpeg');
+		$size = getimagesizefromstring($content);
+
+		$this->assertSame(100, $size[0]);
+		$this->assertSame(75, $size[1], 'the shape is kept');
+		$this->assertSame('image/jpeg', $mime);
+	}
+
+	/**
+	 * Shrinking nothing and losing a generation anyway is the worst of both,
+	 * so a picture already inside the ceiling is not re-encoded.
+	 */
+	public function testAPictureInsideTheCeilingIsNotTouched(): void {
+		$this->settings[ConfigService::SOCIAL_IMAGE_MAX_EDGE] = 1000;
+		$jpeg = $this->jpeg(400, 300);
+
+		[$content] = $this->service->prepareForStorage($jpeg, 'image/jpeg');
+
+		$this->assertSame(
+			strlen($this->service->prepareForStorage($jpeg, 'image/jpeg')[0]), strlen($content)
+		);
+	}
+
+	/** A GIF may be animated, and would come back as one frame of it. */
+	public function testAnAnimationIsLeftAlone(): void {
+		$this->settings[ConfigService::SOCIAL_IMAGE_MAX_EDGE] = 10;
+		$image = imagecreatetruecolor(400, 300);
+		ob_start();
+		imagegif($image);
+		$gif = (string)ob_get_clean();
+
+		[$content] = $this->service->prepareForStorage($gif, 'image/gif');
+		$size = getimagesizefromstring($content);
+
+		$this->assertSame(400, $size[0]);
 	}
 }

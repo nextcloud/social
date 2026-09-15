@@ -28,6 +28,8 @@ class Status implements \JsonSerializable {
 	 * whatever post happens to have that id.
 	 */
 	private string $quotedId = '';
+	/** the handle of a team account this post is written as, or '' */
+	private string $postAs = '';
 	private string $status = '';
 	/** BCP 47 as the client sent it, normalised; empty for "whatever the poster's default is" */
 	private string $language = '';
@@ -124,6 +126,23 @@ class Status implements \JsonSerializable {
 	}
 
 	/**
+	 * The team account this post is written as, when it is one.
+	 *
+	 * This app's own, not Mastodon's: Mastodon has no team accounts and a
+	 * client that has never heard of them sends nothing, which is what an
+	 * ordinary post is.
+	 */
+	public function setPostAs(string $postAs): self {
+		$this->postAs = ltrim(trim($postAs), '@');
+
+		return $this;
+	}
+
+	public function getPostAs(): string {
+		return $this->postAs;
+	}
+
+	/**
 	 * Validated loosely rather than against a list: an unusable value is
 	 * dropped so the poster's default language applies, see
 	 * `Stream::normalizeLanguage()`.
@@ -168,6 +187,7 @@ class Status implements \JsonSerializable {
 		$this->setQuotedId(is_scalar($quotedId) ? (string)$quotedId : '');
 		$this->setStatus($this->get('status', $data));
 		$this->setLanguage($this->get('language', $data));
+		$this->setPostAs($this->get('post_as', $data));
 
 		// Where the post was taken, if the client said. Either an id it got
 		// from /api/v1/places/search, or a name it already had.

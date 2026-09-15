@@ -33,6 +33,8 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Client\Story as ClientStory;
+use OCA\Social\Model\Client\StoryInteraction as ClientStoryInteraction;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\StreamService;
@@ -716,5 +718,49 @@ class NotificationServiceTest extends TestCase {
 		$action->setObjectId(self::POST);
 
 		return $action;
+	}
+
+	/**
+	 * Who a notification is *about* is who answered, not who is being told.
+	 *
+	 * Written after devel showed the bell drawing the story's own poster as
+	 * the account beside "reacted to your story": `attributedTo` is what a
+	 * client renders as the account, and it had been set to the recipient.
+	 */
+	public function testAStoryAnswerIsAttributedToWhoeverAnsweredIt(): void {
+		$this->installActivityPub();
+		$this->captureStoredRows();
+
+		$story = (new ClientStory())->setId(7)->setOwnerId(self::ALICE);
+		$answer = (new ClientStoryInteraction())
+			->setStoryId(7)
+			->setActorId(self::BOB)
+			->setType(ClientStoryInteraction::TYPE_REPLY)
+			->setContent('lovely light')
+			->setSourceId('https://remote.example/p/bob/1');
+
+		$this->service->onStoryInteraction($story, $answer);
+
+		$this->assertCount(1, $this->stored);
+		$this->assertSame(self::BOB, $this->stored[0]->getAttributedTo(), 'the one who answered');
+		$this->assertSame(self::ALICE, $this->stored[0]->getTo(), 'the one being told');
+		$this->assertSame(Stream::SUBTYPE_STORY_REPLY, $this->stored[0]->getSubType());
+	}
+
+	/** Answering your own story is not something to be told about. */
+	public function testThePosterIsNotToldAboutTheirOwnAnswer(): void {
+		$this->installActivityPub();
+		$this->captureStoredRows();
+
+		$story = (new ClientStory())->setId(7)->setOwnerId(self::ALICE);
+		$answer = (new ClientStoryInteraction())
+			->setStoryId(7)
+			->setActorId(self::ALICE)
+			->setContent('🔥')
+			->setSourceId('https://cloud.example/@alice/story-reaction/1');
+
+		$this->service->onStoryInteraction($story, $answer);
+
+		$this->assertSame([], $this->stored);
 	}
 }

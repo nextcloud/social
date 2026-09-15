@@ -66,6 +66,24 @@ prints each with its severity and exits `1` if any of them reports an error, so
 a deployment script can run it. `--offline` leaves out the WebFinger probe, the
 only one that goes out on the network.
 
+**Social: upload size.** Whether PHP will accept the uploads this app promises
+to. Social's `max_size` is in `/api/v1/instance` and in the composer's refusal
+message; PHP's `upload_max_filesize` and `post_max_size` are enforced before a
+byte reaches this app's code. When the app's number is the larger one, an
+upload between the two is refused with **nothing in the log** — the request
+never reaches PHP — and the person is told nothing useful. Raise both PHP
+values, or lower the app's own in Administration → Social → Server.
+
+**Social: reachable by other servers.** Whether the strict peers will talk to
+this instance at all. Federation does not fail all at once: a plain-HTTP
+instance, or one on a private address, federates happily with a permissive
+server and is refused at the first gate by a strict one. The strictest in
+common use is **Pixelfed**, which is also the network a photo server most wants
+to reach — it refuses any peer that is not HTTPS on a publicly resolvable name,
+before it checks a signature, from its inbox, its delivery and its actor fetch,
+with nothing to configure. This is expected on a development or intranet
+instance and is a warning rather than an error.
+
 ### WebFinger does not answer
 
 Nothing answers `/.well-known/webfinger` for an account of this instance, so no
@@ -140,12 +158,16 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Eight sections:
+**Administration → Social.** Twelve sections:
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
   read a page at a time when the fold is opened. Fifty to a page, server-side,
   with a *Show more* under each.
+- **Activity here** — posts written on this server in the last day and the last
+  week, and how many accounts wrote them. Local posts only: a count that
+  included what arrived would be a number about other servers and about this
+  one's retention setting.
 - **Posts waiting to be looked at** — the review queue: the first post of a
   new account, and posts that tripped one of the spam rules. Each row carries
   the text, because a held post is in no timeline and there is nowhere else to
@@ -155,7 +177,22 @@ when each was last tried.
 - **Accounts** — every account this instance knows, whether or not anybody has
   complained. Search by username, by handle or by instance, filter by origin
   and by what stands against them, and act on any of them.
+- **Refused pictures** — files this instance will not store, named by their
+  sha256. The one thing the account-level tools do not do is stop a *file*
+  coming back; a refused one is turned away wherever it arrives, an upload here
+  or an attachment fetched from another server.
+- **What this server is about** — a few named subjects, each a handful of
+  hashtags, shown at the top of Explore above the trending lists. Trending on
+  a small server is four hashtags and a wedding; this is the part of that page
+  chosen rather than counted, and it is what makes Explore look like somewhere
+  to start. Nothing is named by default and the section of the page is absent
+  until something is.
 - **Retention** — how long remote statuses nobody here cares about are kept.
+- **Storage** — what is on disk, split into what was posted here (somebody's
+  own work, not going anywhere) and what is cached from other servers (what
+  Retention removes). Added up by the background job once a day, because
+  counting it is one file lookup per stored file; the page says when it was
+  measured. `occ social:media:usage` measures it on demand.
 - **Federation health** — what the outbound queue is doing.
 - **Fediverse access** — the block list or the allow list, the same one `occ
   social:fediverse` manages.
@@ -183,11 +220,12 @@ client, and a peer instance sending `POST /api/v1/reports` about one of its
 own users' complaints. Both land in the same table, and the administrators (and
 the delegated group) are notified.
 
-There are four things a moderator can do, in order of weight:
+There are five things a moderator can do to an account, in order of weight:
 
 | Action | What it costs | Reversible |
 |--------|---------------|------------|
 | **Warn** | Nothing. The account is told there is a problem and everything else stays as it is. | n/a |
+| **Mark everything sensitive** | Every post the account makes from now on is marked sensitive, whatever it said. It stays in the timelines and its followers still see it — behind a click. | yes, completely |
 | **Silence** | The account leaves the public and global timelines. Whoever deliberately follows it still sees it. | yes, completely |
 | **Take down** | One post is deleted. A local post is deleted everywhere it reached; a remote one only here. | no |
 | **Suspend** | Everything the account posted here is deleted, its cached actor is dropped, its follows in both directions go, and everything it sends afterwards is refused. A **local** account's suspension is federated as a `Delete`. | the refusal stops; nothing deleted comes back |
@@ -219,6 +257,11 @@ it, both on by default:
   post at all — and when that happens, the cheapest thing that can be done
   about it is that the first thing they write is seen by a person. An instance
   whose accounts are all colleagues turns it off and loses nothing.
+  **An administrator's own posts are never held**: somebody who can empty the
+  queue is not somebody to put in it, and the first post on a brand-new
+  instance is the administrator's — held, it made a fresh install look broken,
+  because the post did not appear and the only place it existed was a panel
+  they had not opened yet.
 - **autospam** (`autospam`) holds a post that trips one of a very short list of
   rules: more than five links in a short post, or more than five mentions from
   an account that nobody follows and that follows nobody. There is no wordlist
@@ -287,6 +330,7 @@ the moderation routes accept.
 | `social_address` | *(empty)* | The hostname accounts are federated under, when it is not the host of `cloud_url`. Only set this if the fediverse address genuinely differs from the Nextcloud host, and only before the first account exists. |
 | `service` | `1` | Unused; a leftover of the original installer. |
 | `installed_version` | | Written by the upgrade machinery. |
+| `media_usage` | *(written by the job)* | The last measurement of what is on disk, as JSON with the moment it was taken. Bookkeeping, not a setting: the walk is a `stat` per stored file and belongs in the cron, so the administration page reads this rather than counting on page load. |
 | `polls_swept` | `0` | How far the closed-poll sweep has got, as a timestamp. |
 | `story_secret` | *(generated)* | The secret a story's fetch capability is derived from, made the first time a story is published. Changing it invalidates every outstanding capability at once, which is the only revocation it needs: a story lives a day. Never set this by hand. |
 
@@ -301,6 +345,10 @@ can still be set with `occ`; the page validates the ranges given here.
 | `extended_description` | *(empty)* | The long form of what this instance is, for `/api/v1/instance/extended_description`. Up to 10000 characters. |
 | `max_size` | `10` | The largest picture or file an upload may be, in MB. 1–10240. |
 | `max_video_size` | `2048` | The largest video, in MB. 1–102400. A peer will refuse a great deal less than the ceiling. |
+| `image_max_edge` | `0` | The longest edge a **stored** picture may have, in pixels. `0` stores every upload exactly as it arrived — the default, and the only setting that loses nothing: this app strips metadata losslessly and re-encodes only a picture it has to rotate. Set it (480–16384) on an instance where storage costs money or whose people post from a 48-megapixel phone. A picture already inside the ceiling is not re-encoded, because shrinking nothing and losing a generation anyway is the worst of both. |
+| `image_quality` | `85` | What a re-encoded picture is stored at, 40–100. Only consulted when `image_max_edge` is set. |
+| `video_transcode` | `0` | Whether stored videos are re-encoded to H.264 in an MP4 by a background job. Off by default, because re-encoding is lossy and it is somebody's file — but there is a concrete reason to turn it on: **Pixelfed's default `media_types` accepts `video/mp4` and nothing else**, so every `video/quicktime` posted from here, which is every video straight off an iPhone, is dropped by its inbox without a word to anybody, and Safari will not play WebM. Needs ffmpeg; nothing happens without it. Never runs during an upload: converting a video is minutes rather than the seconds a poster frame takes, so the upload finishes as it always did and the video plays as it is until the job gets to it. One video every quarter of an hour, or `occ social:media:transcode` to work through a backlog now. |
+| `video_max_height` | `1080` | The tallest a converted video is written, 240–2160. Only smaller, never larger: a 480p video is left at 480p. Only consulted when `video_transcode` is on. |
 | `inbox_throttle` | `300` | Incoming inbox requests allowed per origin host per minute. `0` accepts everything, which is what an instance behind its own rate limiter wants. |
 | `secure_mode` | `0` | Refuse ActivityPub fetches that are not signed. Mastodon's secure mode. Turning it on makes this instance invisible to every peer that does not sign what it asks for, and to every anonymous reader; it is a decision about who to federate with, not a hardening step to apply by default. |
 | `publish_blocks` | `0` | Publish the deny list on `/api/v1/instance/domain_blocks`, the way Mastodon does, so somebody choosing a server can see who it will not talk to. Whether *this* server wants that read by anybody is a disclosure decision. |
@@ -317,7 +365,8 @@ can still be set with `occ`; the page validates the ranges given here.
 | `federate_blocks` | `1` | Whether a user's own blocks are federated to the blocked account's instance. `0` keeps them local. |
 | `publish_video_objects` | `0` | Whether a post that is a video is federated as an ActivityPub `Video` (PeerTube's shape) rather than a `Note` with an attachment. Off by default: Pixelfed's inbox handles only `Note`s and silently drops a `Video`, so with this on no video posted here reaches a Pixelfed follower. Mastodon draws both shapes; PeerTube draws only the `Video`. Turn it on for an instance whose audience is on PeerTube. |
 | `rules` | *(empty)* | The instance rules shown by `/api/v1/instance/rules`, one per line. |
-| `review_first_post` | `1` | Hold the first post of an account that has published nothing here yet, for a moderator to see before it goes out. |
+| `review_first_post` | `1` | Hold the first post of an account that has published nothing here yet, for a moderator to see before it goes out. An administrator's own posts are never held — a moderator waiting on themselves is a circle, and on a new instance the first post is theirs. |
+| `review_posts` | `1` | How many posts an account must have had published before its posts stop being held. `1` is first-post review as it has always meant. An account graduates by having that many posts approved — a person having looked at it that many times, which is the only measure of trust here that is not a guess. Capped at 20. |
 | `autospam` | `1` | Hold a post that trips one of the spam rules — more than five links in a short post, or more than five mentions from an account nobody follows and that follows nobody. Nothing is ever refused by the rules, only shown to a person. |
 
 ### System configuration

@@ -4,6 +4,7 @@
 -->
 <template>
 	<div class="social-admin">
+		<ActivitySection :activity="state.activity" />
 		<ReportsSection
 			:reports="state.reports"
 			:openTotal="state.openReports"
@@ -15,7 +16,10 @@
 			:reviewFirstPost="state.reviewFirstPost"
 			:autospam="state.autospam" />
 		<AccountsSection />
+		<MediaBlocksSection />
+		<DiscoverSection />
 		<RetentionSection :days="state.retentionDays" />
+		<StorageSection :storage="state.storage" />
 		<FederationSection :federation="state.federation" />
 		<AccessSection :accessType="state.accessType" :addresses="state.accessList" />
 		<AnnouncementsSection />
@@ -28,13 +32,17 @@
 <script>
 import { loadState } from '@nextcloud/initial-state'
 import AccessSection from './AccessSection.vue'
+import ActivitySection from './ActivitySection.vue'
 import AccountsSection from './AccountsSection.vue'
 import AnnouncementsSection from './AnnouncementsSection.vue'
+import DiscoverSection from './DiscoverSection.vue'
 import FederationSection from './FederationSection.vue'
+import MediaBlocksSection from './MediaBlocksSection.vue'
 import ReportsSection from './ReportsSection.vue'
 import RetentionSection from './RetentionSection.vue'
 import ReviewSection from './ReviewSection.vue'
 import ServerSection from './ServerSection.vue'
+import StorageSection from './StorageSection.vue'
 
 /** What `AdminSettings::getForm()` provides when it provides nothing. */
 const NOTHING = {
@@ -42,6 +50,7 @@ const NOTHING = {
 	openReports: 0,
 	resolvedReports: 0,
 	reportsPerPage: 50,
+	activity: { day: { posts: 0, authors: 0 }, week: { posts: 0, authors: 0 } },
 	review: [],
 	reviewTotal: 0,
 	reviewFirstPost: true,
@@ -50,6 +59,7 @@ const NOTHING = {
 	accessType: 'all_but',
 	accessList: [],
 	retentionDays: 0,
+	storage: null,
 	federation: {
 		waiting: 0,
 		running: 0,
@@ -66,7 +76,7 @@ const NOTHING = {
 }
 
 /**
- * The eight sections of Administration → Social.
+ * The twelve sections of Administration → Social.
  *
  * Nothing here uses `v-html`, and nothing below it does either. Half of what
  * these tables draw — a handle, an instance name, the comment on a report — is
@@ -78,13 +88,17 @@ export default {
 
 	components: {
 		AccessSection,
+		ActivitySection,
 		AccountsSection,
 		AnnouncementsSection,
+		DiscoverSection,
 		FederationSection,
+		MediaBlocksSection,
 		ReportsSection,
 		RetentionSection,
 		ReviewSection,
 		ServerSection,
+		StorageSection,
 	},
 
 	data() {

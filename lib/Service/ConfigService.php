@@ -124,6 +124,66 @@ class ConfigService {
 	public const SOCIAL_AUTOSPAM = 'autospam';
 
 	/**
+	 * How many posts an account must have published here before its posts stop
+	 * being held.
+	 *
+	 * `1` — hold the first one only — is the default and is what "first-post
+	 * review" means. An instance that has had trouble can ask for more, and an
+	 * account that has had that many posts approved is one a person has
+	 * already looked at that many times.
+	 */
+	public const SOCIAL_REVIEW_POSTS = 'review_posts';
+
+	/**
+	 * The longest edge a stored picture may have, in pixels; 0 keeps every
+	 * upload exactly as it arrived.
+	 *
+	 * Off by default, because this app's promise has been that nothing loses a
+	 * generation of quality: the metadata is stripped losslessly and a picture
+	 * is re-encoded only when it has to be. An instance where storage costs
+	 * money, or whose people post straight from a 48-megapixel phone, wants
+	 * the other trade, and until now had no way to ask for it.
+	 */
+	public const SOCIAL_IMAGE_MAX_EDGE = 'image_max_edge';
+
+	/**
+	 * The JPEG quality a re-encoded picture is stored at. Only consulted when
+	 * `image_max_edge` is set, because otherwise nothing is re-encoded.
+	 */
+	public const SOCIAL_IMAGE_QUALITY = 'image_quality';
+
+	/**
+	 * Whether stored videos are re-encoded to H.264 in an MP4.
+	 *
+	 * Off by default, because re-encoding is lossy and it is somebody's file.
+	 * Turning it on is how an administrator says the other trade is the one
+	 * they want — and there is a concrete reason to: **Pixelfed's default
+	 * `media_types` accepts `video/mp4` and nothing else**, so every
+	 * `video/quicktime` posted from here, which is every video straight off an
+	 * iPhone, is dropped by its inbox without a word to anybody.
+	 *
+	 * The work is done by a background job, never during an upload: converting
+	 * a video is minutes rather than the seconds a poster frame takes.
+	 */
+	public const SOCIAL_VIDEO_TRANSCODE = 'video_transcode';
+
+	/**
+	 * The tallest a converted video is written. Only consulted when
+	 * `video_transcode` is on, because otherwise nothing is re-encoded.
+	 */
+	public const SOCIAL_VIDEO_MAX_HEIGHT = 'video_max_height';
+
+	/**
+	 * The last measurement of how much disk this app is using, as JSON, with
+	 * the moment it was taken.
+	 *
+	 * Bookkeeping rather than a setting: the walk is a `stat` per file and
+	 * belongs in the cron, so the administration page reads what the cron left
+	 * here and says when it was measured. See `MediaUsageService`.
+	 */
+	public const SOCIAL_MEDIA_USAGE = 'media_usage';
+
+	/**
 	 * The secret a story's fetch capability is derived from, generated the
 	 * first time a story is published. See `getStorySecret()`.
 	 */
@@ -167,6 +227,11 @@ class ConfigService {
 		self::SOCIAL_PUBLISH_BLOCKS => '0',
 		self::SOCIAL_REVIEW_FIRST_POST => '1',
 		self::SOCIAL_AUTOSPAM => '1',
+		self::SOCIAL_REVIEW_POSTS => '1',
+		self::SOCIAL_IMAGE_MAX_EDGE => '0',
+		self::SOCIAL_IMAGE_QUALITY => '85',
+		self::SOCIAL_VIDEO_TRANSCODE => '0',
+		self::SOCIAL_VIDEO_MAX_HEIGHT => '1080',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
 		self::CONTACT_EMAIL => '',
 		self::SOCIAL_POLLS_SWEPT => '0'

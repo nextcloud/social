@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\HeldPost;
 use OCA\Social\Model\Strike;
+use OCP\IGroupManager;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -67,6 +68,12 @@ class PostReviewService {
 	 */
 	public const MAX_PENDING_PER_ACTOR = 20;
 
+	/**
+	 * The most posts an account can be asked to have approved before it is
+	 * trusted. Past this it is not a review queue, it is a permission.
+	 */
+	public const MAX_POSTS_BEFORE_TRUSTED = 20;
+
 	/** Links in one post, past which it goes to a person. */
 	public const MAX_LINKS = 5;
 
@@ -86,6 +93,7 @@ class PostReviewService {
 		private StrikeService $strikeService,
 		private AccountService $accountService,
 		private ConfigService $configService,
+		private IGroupManager $groupManager,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -93,6 +101,22 @@ class PostReviewService {
 	/** Whether an administrator has asked for a first post to be looked at. */
 	public function reviewsFirstPost(): bool {
 		return $this->configService->getAppValueBool(ConfigService::SOCIAL_REVIEW_FIRST_POST);
+	}
+
+	/**
+	 * How many posts an account publishes before it stops being held.
+	 *
+	 * An account graduates by having that many posts approved — which is a
+	 * person having looked at it that many times, and is the only measure of
+	 * trust this app has that is not a guess. One by default, which is what
+	 * "first-post review" has always meant; bounded so that a mistyped setting
+	 * cannot hold an account's posts for ever.
+	 */
+	public function postsBeforeTrusted(): int {
+		return max(1, min(
+			self::MAX_POSTS_BEFORE_TRUSTED,
+			$this->configService->getAppValueInt(ConfigService::SOCIAL_REVIEW_POSTS)
+		));
 	}
 
 	/** Whether an administrator has asked for the spam rules to be applied. */
@@ -123,6 +147,16 @@ class PostReviewService {
 			return '';
 		}
 
+		// Somebody who can empty the queue is not somebody to put in it. The
+		// case that made this obvious is the first post on a brand-new
+		// instance: it is the administrator's, it was held for a moderator who
+		// was the same person, and a fresh install looked broken — you wrote
+		// your first post, it did not appear, and the only place it existed was
+		// a panel you had not opened yet.
+		if ($this->mayModerate($actor)) {
+			return '';
+		}
+
 		if ($this->autospam()) {
 			$spam = $this->spamRule($actor, $text);
 			if ($spam !== '') {
@@ -130,11 +164,26 @@ class PostReviewService {
 			}
 		}
 
-		if ($this->reviewsFirstPost() && $this->streamRequest->countPostsBy($actor->getId()) === 0) {
+		if ($this->reviewsFirstPost()
+			&& $this->streamRequest->countPostsBy($actor->getId()) < $this->postsBeforeTrusted()) {
 			return HeldPost::REASON_FIRST_POST;
 		}
 
 		return '';
+	}
+
+	/**
+	 * Whether this account is one of the people the queue is drained by.
+	 *
+	 * Asked of Nextcloud rather than stored: an administrator today is an
+	 * administrator for as long as the group says so, and a copy would drift.
+	 * A team account and any other actor with no Nextcloud user behind it is
+	 * not an administrator, which is what the null check says.
+	 */
+	private function mayModerate(Person $actor): bool {
+		$userId = $actor->getUserId();
+
+		return $userId !== '' && $this->groupManager->isAdmin($userId);
 	}
 
 	/**

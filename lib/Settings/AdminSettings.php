@@ -9,10 +9,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Settings;
 
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\MediaUsageService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
@@ -60,6 +62,8 @@ class AdminSettings implements IDelegatedSettings {
 		private ConfigService $configService,
 		private ModerationService $moderationService,
 		private PostReviewService $postReviewService,
+		private StreamRequest $streamRequest,
+		private MediaUsageService $mediaUsageService,
 		private FederationHealthService $federationHealthService,
 		private IL10N $l10n,
 		private ServerSettingsService $serverSettingsService,
@@ -102,6 +106,12 @@ class AdminSettings implements IDelegatedSettings {
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
 			'federation' => $this->federationHealthService->summary(),
+			// what this instance's own people have been doing: the two numbers
+			// an administrator asks for first, and the page had neither
+			'activity' => $this->activity(),
+			// what is on disk, as the cron last measured it: adding it up is a
+			// `stat` per stored file and has no business in a page load
+			'storage' => $this->mediaUsageService->lastMeasured(),
 			// the first page of the review queue, in the shape
 			// `ModerationController::review()` answers in
 			'review' => $this->postReviewService->pending(),
@@ -111,6 +121,25 @@ class AdminSettings implements IDelegatedSettings {
 		]);
 
 		return new TemplateResponse('social', 'settings/admin');
+	}
+
+	/**
+	 * Posts written here in the last day and the last week, and how many
+	 * accounts wrote them.
+	 *
+	 * Local posts only: a count that included what arrived would be a number
+	 * about everybody else's activity and about this instance's retention
+	 * settings rather than about this instance.
+	 *
+	 * @return array{day: array{posts: int, authors: int}, week: array{posts: int, authors: int}}
+	 */
+	private function activity(): array {
+		$now = time();
+
+		return [
+			'day' => $this->streamRequest->localActivitySince($now - 86400),
+			'week' => $this->streamRequest->localActivitySince($now - 7 * 86400),
+		];
 	}
 
 	/**

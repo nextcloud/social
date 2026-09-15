@@ -76,6 +76,26 @@
 			<ScheduledPosts />
 		</section>
 
+		<section id="portfolio" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Portfolio') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'A page of your work with its own address, to put on a CV. A profile is a feed — everything you posted, newest first, with the follow button and the boosts around it. This is the opposite: a title, a sentence, the pictures you chose, and nothing else. Anybody can read it without signing in, so only your public photos are ever on it.') }}
+			</p>
+			<PortfolioSettings />
+		</section>
+
+		<section id="archive" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Archived posts') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'Posts you have put away. They are off your profile and out of every timeline here, and nobody was told — an archived post is still on the servers that received it, which is what deleting is for. Put one back whenever you like.') }}
+			</p>
+			<ArchivedPosts />
+		</section>
+
 		<section id="review" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Waiting to be looked at') }}
@@ -109,8 +129,10 @@
 </template>
 
 <script>
+import ArchivedPosts from '../components/ArchivedPosts.vue'
 import HeldPosts from '../components/HeldPosts.vue'
 import MigrationSettings from '../components/MigrationSettings.vue'
+import PortfolioSettings from '../components/PortfolioSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
 import { defineAsyncComponent } from 'vue'
@@ -143,11 +165,13 @@ export default {
 
 	components: {
 		AccountSettings,
+		ArchivedPosts,
 		FeaturedTagsSettings,
 		FiltersSettings,
 		HeldPosts,
 		ListsSettings,
 		MigrationSettings,
+		PortfolioSettings,
 		RecapSettings,
 		ScheduledPosts,
 		ShortcutList,

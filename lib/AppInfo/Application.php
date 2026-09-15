@@ -31,6 +31,8 @@ use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
+use OCA\Social\SetupChecks\ReachableByStrictPeers;
+use OCA\Social\SetupChecks\UploadLimitsAgree;
 use OCA\Social\SetupChecks\WebFingerReachable;
 use OCA\Social\UserMigration\SocialMigrator;
 use OCA\Social\WellKnown\WebfingerHandler;
@@ -92,6 +94,8 @@ class Application extends App implements IBootstrap {
 		// silently, in the place an administrator already looks
 		$context->registerSetupCheck(WebFingerReachable::class);
 		$context->registerSetupCheck(CloudAddressMatches::class);
+		$context->registerSetupCheck(ReachableByStrictPeers::class);
+		$context->registerSetupCheck(UploadLimitsAgree::class);
 		$context->registerSetupCheck(CronRanRecently::class);
 		$context->registerSetupCheck(OutboundQueueNotStuck::class);
 	}

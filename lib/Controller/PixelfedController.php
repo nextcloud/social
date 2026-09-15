@@ -9,16 +9,24 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\Client\StoryInteraction;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ArchiveService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\MediaTagService;
 use OCA\Social\Service\PixelfedConfigService;
 use OCA\Social\Service\PixelfedService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PortfolioService;
+use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
+use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -70,6 +78,13 @@ class PixelfedController extends ClientApiController {
 		private PlaceService $placeService,
 		private PixelfedService $pixelfedService,
 		private StoryService $storyService,
+		private StoryInteractionService $storyInteractionService,
+		private MediaTagService $mediaTagService,
+		private PortfolioService $portfolioService,
+		private TeamService $teamService,
+		private CacheActorService $cacheActorService,
+		private ArchiveService $archiveService,
+		private DiscoverCategoriesRequest $discoverCategoriesRequest,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -273,6 +288,266 @@ class PixelfedController extends ClientApiController {
 		}
 	}
 
+	/**
+	 * An emoji sent back to whoever posted a story.
+	 *
+	 * Pixelfed's own spelling of the route, down to `sid` for the story. A
+	 * story the viewer may not see and one that does not exist are the same
+	 * 404: whether an account has a story up is told to its followers alone.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.2/stories/react')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/stories/react', postfix: 'pf')]
+	public function storiesReact(int $sid = 0, string $reaction = ''): DataResponse {
+		try {
+			$this->initViewer(['write:stories']);
+
+			return new DataResponse(
+				$this->storyInteractionService->answer(
+					$this->viewer(), $sid, StoryInteraction::TYPE_REACTION, $reaction
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * A sentence sent back to whoever posted a story.
+	 *
+	 * Pixelfed calls this a comment and turns it into a direct message. Here it
+	 * stays beside the story: it is a private answer to something that is gone
+	 * tomorrow, and a post would outlive what it was about.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.2/stories/comment')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/stories/comment', postfix: 'pf')]
+	public function storiesComment(int $sid = 0, string $caption = ''): DataResponse {
+		try {
+			$this->initViewer(['write:stories']);
+
+			return new DataResponse(
+				$this->storyInteractionService->answer(
+					$this->viewer(), $sid, StoryInteraction::TYPE_REPLY, $caption
+				),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Names the people in one of the viewer's own photographs.
+	 *
+	 * `accounts` is the whole list the post should end up naming, not what to
+	 * add: anybody dropped from it is untagged, which is what makes a client
+	 * that sends its list again on every edit a no-op rather than a growing
+	 * pile. Only the post's author may name anybody in it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/compose/tag')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/compose/tag', postfix: 'pf')]
+	public function composeTag(int $status_id = 0, array $accounts = []): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+
+			return new DataResponse(
+				['tagged_people' => $this->mediaTagService->tag($this->viewer(), $status_id, $accounts)],
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Takes the viewer's own name off a photograph.
+	 *
+	 * Pixelfed's route, and its whole remedy for being named in somebody
+	 * else's picture: being in one is not something to need their permission
+	 * to leave.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/compose/tag/untagme')]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/compose/tag/untagme', postfix: 'pf')]
+	public function composeUntagMe(int $status_id = 0): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+
+			return new DataResponse(
+				['untagged' => $this->mediaTagService->untag($this->viewer(), $status_id)],
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The photographs somebody is named in — "photos of you", for anybody.
+	 *
+	 * Which of them the reader may see is not decided here: the ids come out
+	 * of the tag table and each post is read the way any other post is read
+	 * for this reader, so one they may not see is simply not among them.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/accounts/{account_id}/tagged')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/accounts/{account_id}/tagged', postfix: 'pf')]
+	public function accountTagged(string $account_id, int $limit = 20, int $max_id = 0): DataResponse {
+		try {
+			$this->initViewer(['read:statuses']);
+			$subject = $this->cacheActorService->resolve($account_id);
+
+			return new DataResponse(
+				$this->mediaTagService->photosOf($this->viewer(), $subject->getId(), $limit, $max_id),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The viewer's own page of work, turned on or not.
+	 *
+	 * An account that has never opened the editor gets the defaults rather
+	 * than a 404: there is nothing to find, and this is what lets the editor
+	 * render without a "create it first" step nobody needs.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/portfolio')]
+	public function portfolioOwn(): DataResponse {
+		try {
+			$this->initViewer(['read:accounts']);
+
+			return new DataResponse($this->portfolioService->own($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Writes it.
+	 *
+	 * `active` is the moment its owner decides the internet may read it; a row
+	 * that exists without it is a draft.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/portfolio')]
+	public function portfolioSave(
+		bool $active = false,
+		string $title = '',
+		string $intro = '',
+		string $layout = 'grid',
+		string $source = 'recent',
+		int $collection_id = 0,
+		bool $show_captions = true,
+		bool $show_places = true,
+		bool $show_dates = false,
+		bool $show_avatar = true,
+	): DataResponse {
+		try {
+			$this->initViewer(['write:accounts']);
+
+			return new DataResponse(
+				$this->portfolioService->save($this->viewer(), [
+					'active' => $active,
+					'title' => $title,
+					'intro' => $intro,
+					'layout' => $layout,
+					'source' => $source,
+					'collection_id' => $collection_id,
+					'show_captions' => $show_captions,
+					'show_places' => $show_places,
+					'show_dates' => $show_dates,
+					'show_avatar' => $show_avatar,
+				]),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Somebody's published page, as the internet reads it.
+	 *
+	 * **No viewer is resolved at all**, deliberately: what a portfolio shows
+	 * is what the whole internet may see, whoever happens to be reading it, so
+	 * the posts on it are read as the anonymous internet reads them. A
+	 * followers-only photograph cannot reach this page because nothing on the
+	 * path to it has ever seen one. A page its owner has not turned on is a
+	 * **404**, not an empty page with their name on it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/portfolio/{handle}')]
+	public function portfolioOf(string $handle): DataResponse {
+		try {
+			return new DataResponse(
+				$this->portfolioService->published($handle), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The team accounts the viewer may post as, right now.
+	 *
+	 * Asked of the group manager rather than of a stored membership: somebody
+	 * who left the group this morning may not post as it this afternoon, and
+	 * the only way to be sure of that is to ask. An empty list is the ordinary
+	 * answer on an instance that has no team accounts, which is most of them.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/teams')]
+	public function teams(): DataResponse {
+		try {
+			$this->initViewer(['read:accounts']);
+
+			return new DataResponse(
+				['teams' => $this->teamService->forUser($this->viewer()->getUserId())],
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** What has been said about one of the viewer's own stories. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.2/stories/reactions')]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/stories/reactions', postfix: 'pf')]
+	public function storiesReactions(int $sid = 0): DataResponse {
+		try {
+			$this->initViewer(['read:stories']);
+
+			return new DataResponse(
+				['reactions' => $this->storyInteractionService->forStory($this->viewer(), $sid)],
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.2/stories/mention-autocomplete')]
@@ -399,6 +674,80 @@ class PixelfedController extends ClientApiController {
 					? $this->pixelfedService->saveAppSettings($this->viewer(), $common)
 					: $this->pixelfedService->appSettings($this->viewer()),
 				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Putting one of your own posts away, and getting it back.
+	 *
+	 * Pixelfed's three screens, at Pixelfed's own paths. Nothing federates: an
+	 * archived post is still on every server that received it, and taking it
+	 * back from them is what deleting is for.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/archive/add/{id}', requirements: ['id' => '\\d+'])]
+	public function archiveAdd(int $id): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+			$this->archiveService->archive($this->viewer(), $id);
+
+			return new DataResponse(['code' => 200], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/archive/remove/{id}', requirements: ['id' => '\\d+'])]
+	public function archiveRemove(int $id): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+			$this->archiveService->restore($this->viewer(), $id);
+
+			return new DataResponse(['code' => 200], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/archive/list')]
+	public function archiveList(int $limit = ArchiveService::PAGE, int $max_id = 0): DataResponse {
+		try {
+			$this->initViewer(['read:statuses']);
+			$posts = $this->archiveService->forActor($this->viewer(), $limit, $max_id);
+			foreach ($posts as $post) {
+				$post->setExportFormat(ACore::FORMAT_LOCAL);
+			}
+
+			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * What this instance says it is about: a few named subjects, each a
+	 * handful of hashtags an administrator chose.
+	 *
+	 * Curated rather than computed, which is the point of it. Trending on a
+	 * small instance is four hashtags and a wedding; what the instance would
+	 * *like* to be known for is a decision, and no counter can work it out.
+	 * Public, because it is the page a visitor lands on.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/discover/categories')]
+	public function discoverCategories(): DataResponse {
+		try {
+			return new DataResponse(
+				['categories' => $this->discoverCategoriesRequest->getAll()], Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);

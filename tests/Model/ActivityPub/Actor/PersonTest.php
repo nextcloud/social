@@ -915,4 +915,80 @@ class PersonTest extends TestCase {
 			'a remote bio already is HTML and was sanitized on import; it is never re-rendered'
 		);
 	}
+
+	// the two rows this app draws rather than tabulates
+
+	/**
+	 * Neither is a field of its own, and deliberately so: a pronoun row is
+	 * what people already write, it already federates as a `PropertyValue`,
+	 * and a property only this app understood would be a pronoun nobody else
+	 * could read. What is added is recognising the row it is in.
+	 */
+	public function testThePronounsAreReadOutOfTheRowPeopleWriteThemIn(): void {
+		foreach (['Pronouns', 'pronouns', 'PRONOUNS', 'Pronouns:', ' Pronomen ', 'pronoms'] as $name) {
+			$person = new Person();
+			$person->setFields([['name' => $name, 'value' => 'she/her']]);
+
+			$this->assertSame('she/her', $person->getPronouns(), $name . ' is a pronoun row');
+		}
+	}
+
+	public function testARowThatIsNotAboutPronounsIsNotReadAsOne(): void {
+		$person = new Person();
+		$person->setFields([['name' => 'Website', 'value' => 'https://alice.example']]);
+
+		$this->assertSame('', $person->getPronouns());
+	}
+
+	/**
+	 * A sentence in the wrong row would push the name off its own line, so it
+	 * stays in the table where a sentence belongs.
+	 */
+	public function testASentenceInThePronounRowIsLeftInTheTable(): void {
+		$person = new Person();
+		$person->setFields([[
+			'name' => 'Pronouns',
+			'value' => 'whatever you like, I am really not fussed about it either way',
+		]]);
+
+		$this->assertSame('', $person->getPronouns());
+	}
+
+	/**
+	 * The support row is drawn as a button, and a button is a stronger
+	 * invitation than a row in a table — so only an address a reader would
+	 * expect to be a link is drawn as one.
+	 */
+	public function testOnlyAnHttpsAddressBecomesASupportButton(): void {
+		$cases = [
+			'https://liberapay.com/alice' => 'https://liberapay.com/alice',
+			'http://liberapay.com/alice' => '',
+			'javascript:alert(1)' => '',
+			'liberapay.com/alice' => '',
+			'ask me' => '',
+		];
+
+		foreach ($cases as $value => $expected) {
+			$person = new Person();
+			$person->setFields([['name' => 'Support', 'value' => $value]]);
+
+			$this->assertSame($expected, $person->getSupportLink(), $value);
+		}
+	}
+
+	/** Both travel as ordinary fields as well, because that is what everybody else reads. */
+	public function testBothAreSentBesideTheFieldsRatherThanInsteadOfThem(): void {
+		$person = new Person();
+		$person->setLocal(true);
+		$person->setFields([
+			['name' => 'Pronouns', 'value' => 'they/them'],
+			['name' => 'Donate', 'value' => 'https://liberapay.com/alice'],
+		]);
+
+		$exported = $person->exportAsLocal();
+
+		$this->assertSame('they/them', $exported['pronouns']);
+		$this->assertSame('https://liberapay.com/alice', $exported['support_link']);
+		$this->assertCount(2, $exported['fields'], 'and still in the table every other network reads');
+	}
 }

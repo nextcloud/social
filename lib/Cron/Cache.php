@@ -18,6 +18,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\MediaUsageService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\ProfileLinkVerifier;
 use OCA\Social\Service\StreamPruneService;
@@ -47,6 +48,14 @@ class Cache extends TimedJob {
 	/** Cached remote actors evicted per pass; see CacheActorSweepService. */
 	public const SWEEP_BATCH = 500;
 
+	/**
+	 * How often the disk is added up, in seconds.
+	 *
+	 * Once a day: it is a `stat` per stored file, and a number about disk does
+	 * not change in ways an administrator has to see within the hour.
+	 */
+	public const MEDIA_USAGE_EVERY = 86400;
+
 	public function __construct(
 		ITimeFactory $time,
 		private AccountService $accountService,
@@ -62,6 +71,7 @@ class Cache extends TimedJob {
 		private ?ProfileLinkVerifier $profileLinkVerifier = null,
 		private ?CacheActorSweepService $cacheActorSweepService = null,
 		private ?ConfigService $configService = null,
+		private ?MediaUsageService $mediaUsageService = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60);
@@ -118,12 +128,26 @@ class Cache extends TimedJob {
 				// details refresh
 				$this->profileLinkVerifier?->verifyLocalActors();
 			},
+			'measureMediaUsage' => function (): void {
+				// a `stat` per stored file, which is why it is here and not on
+				// the administration page: the page reads what this left and
+				// says when it was measured. Once a day is enough for a number
+				// about disk.
+				if ($this->time->getTime() - $this->lastMediaMeasurement() >= self::MEDIA_USAGE_EVERY) {
+					$this->mediaUsageService?->measureAndStore();
+				}
+			},
 			'reconcileGroupLists' => function (): void {
 				// the catch-all behind the listener: an account made after its
 				// group's lists were, a change the listener did not see
 				$this->groupListService?->reconcile();
 			},
 		];
+	}
+
+	/** When the disk was last added up, as the stored measurement says. */
+	private function lastMediaMeasurement(): int {
+		return (int)($this->mediaUsageService?->lastMeasured()['measured'] ?? 0);
 	}
 
 	#[\Override]

@@ -9,9 +9,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import StoryViewer from '../../../src/components/StoryViewer.vue'
 import { useAccountStore } from '../../../src/store/account.js'
 
-const { post, del } = vi.hoisted(() => ({ post: vi.fn(), del: vi.fn() }))
+const { post, del, get } = vi.hoisted(() => ({ post: vi.fn(), del: vi.fn(), get: vi.fn() }))
 const { showError, showSuccess } = vi.hoisted(() => ({ showError: vi.fn(), showSuccess: vi.fn() }))
-vi.mock('@nextcloud/axios', () => ({ default: { post, delete: del } }))
+vi.mock('@nextcloud/axios', () => ({ default: { post, delete: del, get } }))
 vi.mock('../../../src/services/toast.js', () => ({ showError, showSuccess }))
 vi.mock('../../../src/services/logger.js', () => ({ default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
@@ -47,6 +47,7 @@ describe('StoryViewer', () => {
 		vi.useFakeTimers()
 		post.mockReset().mockResolvedValue({ data: {} })
 		del.mockReset()
+		get.mockReset().mockResolvedValue({ data: { reactions: [] } })
 		showError.mockReset()
 		showSuccess.mockReset()
 	})
@@ -118,5 +119,66 @@ describe('StoryViewer', () => {
 		expect(del).toHaveBeenCalledWith(expect.stringContaining('/apps/social/api/v1/stories/1'))
 		expect(wrapper.emitted('deleted')[0][0].id).toBe('1')
 		expect(showSuccess).toHaveBeenCalled()
+	})
+
+	it('offers a reaction and a reply on somebody else\'s story, and neither on your own', async () => {
+		const theirs = mountViewer([{ account: bob, own: false, seen: false, stories: [story('2', bob)] }])
+		await flushPromises()
+		expect(theirs.findAll('.story-viewer__reaction').length).toBeGreaterThan(0)
+		expect(theirs.find('.story-viewer__reply-field').exists()).toBe(true)
+
+		// you do not react to your own story; what you get is what was said
+		const mine = mountViewer([{ account: alice, own: true, seen: true, stories: [story('1', alice, { seen: true })] }])
+		await flushPromises()
+		expect(mine.find('.story-viewer__reaction').exists()).toBe(false)
+		expect(mine.find('.story-viewer__reply-field').exists()).toBe(false)
+	})
+
+	it('sends a tapped emoji to the story it is on', async () => {
+		const wrapper = mountViewer([{ account: bob, own: false, seen: false, stories: [story('2', bob)] }])
+		await flushPromises()
+		post.mockClear()
+
+		await wrapper.find('.story-viewer__reaction').trigger('click')
+		await flushPromises()
+
+		expect(post).toHaveBeenCalledWith(
+			expect.stringContaining('/apps/social/api/v1.2/stories/react'),
+			expect.objectContaining({ sid: '2' }),
+		)
+	})
+
+	it('sends a reply and clears the box', async () => {
+		const wrapper = mountViewer([{ account: bob, own: false, seen: false, stories: [story('2', bob)] }])
+		await flushPromises()
+		post.mockClear()
+
+		const field = wrapper.find('.story-viewer__reply-field')
+		await field.setValue('  lovely light  ')
+		await wrapper.find('.story-viewer__reply').trigger('submit')
+		await flushPromises()
+
+		expect(post).toHaveBeenCalledWith(
+			expect.stringContaining('/apps/social/api/v1.2/stories/comment'),
+			{ sid: '2', caption: 'lovely light' },
+		)
+		expect(field.element.value).toBe('')
+	})
+
+	it('shows the poster what was said about their own story, and asks nobody else\'s', async () => {
+		get.mockResolvedValue({ data: { reactions: [{ id: '1', type: 'reply', content: 'lovely light', account: bob }] } })
+
+		const mine = mountViewer([{ account: alice, own: true, seen: true, stories: [story('1', alice, { seen: true })] }])
+		await flushPromises()
+		expect(mine.find('.story-viewer__answers').text()).toContain('lovely light')
+		expect(get).toHaveBeenCalledWith(
+			expect.stringContaining('/apps/social/api/v1.2/stories/reactions'),
+			{ params: { sid: '1' } },
+		)
+
+		get.mockClear()
+		mountViewer([{ account: bob, own: false, seen: false, stories: [story('2', bob)] }])
+		await flushPromises()
+		expect(get).not.toHaveBeenCalled()
 	})
 })

@@ -43,7 +43,13 @@
 				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
-			<h2>{{ displayName }}</h2>
+			<h2>
+				{{ displayName }}
+				<!-- beside the name, which is where a pronoun belongs and where
+				     every other network puts it; it is still a profile field and
+				     still federates as one -->
+				<span v-if="pronouns" class="user-profile__pronouns">{{ pronouns }}</span>
+			</h2>
 			<span v-if="relationship && relationship.blocking" class="user-profile__blocked-hint">
 				{{ t('social', 'Blocked') }}
 			</span>
@@ -225,6 +231,18 @@
 					</dd>
 				</div>
 			</dl>
+			<!-- a row somebody wrote to be pressed, drawn as something pressable.
+			     Only ever an https address of the account's own profile — see
+			     `Person::getSupportLink()` -->
+			<a
+				v-if="supportLink"
+				class="user-profile__support button"
+				:href="supportLink"
+				target="_blank"
+				rel="nofollow noopener noreferrer">
+				<IconHeartOutline :size="20" />
+				{{ t('social', 'Support this account') }}
+			</a>
 			<NcModal
 				v-if="showProfileModal"
 				:name="t('social', 'Edit profile')"
@@ -278,6 +296,25 @@
 						</span>
 					</div>
 					<p>{{ t('social', 'Up to four name/value pairs, shown on your profile and shared with other servers.') }}</p>
+					<!-- Two of those four rows are worth naming, because this app
+					     draws them differently: the pronouns beside your name, and
+					     a support address as a button. Filling either in writes an
+					     ordinary field, so Mastodon and the rest still show them in
+					     their table. -->
+					<div class="user-profile__fields-known">
+						<input
+							v-model="pronounsDraft"
+							type="text"
+							maxlength="40"
+							:aria-label="t('social', 'Your pronouns')"
+							:placeholder="t('social', 'Pronouns, shown beside your name')">
+						<input
+							v-model="supportDraft"
+							type="url"
+							maxlength="500"
+							:aria-label="t('social', 'A link for supporting you')"
+							:placeholder="t('social', 'https://… — shown as a button')">
+					</div>
 					<div v-for="(row, index) in fieldRows" :key="index" class="user-profile__fields-entry">
 						<div class="user-profile__fields-row">
 							<input
@@ -374,6 +411,7 @@ import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
+import IconHeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
 import RepeatOff from 'vue-material-design-icons/RepeatOff.vue'
@@ -432,6 +470,7 @@ function normalizeBio(bio) {
 export default {
 	name: 'ProfileInfo',
 	components: {
+		IconHeartOutline,
 		BellOutline,
 		BellRing,
 		Repeat,
@@ -487,6 +526,9 @@ export default {
 			/** the editor reads the profile before it opens; this is that read */
 			openingProfile: false,
 			fieldRows: [],
+			/** the two rows this app draws rather than tabulates */
+			pronounsDraft: '',
+			supportDraft: '',
 			/**
 			 * When each verified field value was last seen linking back, keyed
 			 * by the value itself, which is how the server keys it: a value
@@ -575,6 +617,22 @@ export default {
 		 */
 		profileFields() {
 			return profileFields(this.accountInfo.fields)
+		},
+
+		/**
+		 * The account's pronouns, from the server, which recognises the row
+		 * they are written in — a client should not have to know which
+		 * spellings of "Pronouns" people use.
+		 *
+		 * @return {string}
+		 */
+		pronouns() {
+			return this.accountInfo.pronouns ?? ''
+		},
+
+		/** @return {string} where to support this account, or '' */
+		supportLink() {
+			return this.accountInfo.support_link ?? ''
 		},
 
 		/** @return {boolean} whether any row names a web page to verify */
@@ -921,9 +979,33 @@ export default {
 			// An unreadable profile leaves both of these empty and equal, which
 			// is what `bioChanged` reads: a bio nobody could load is never one
 			// this editor sends back, so a failure here cannot erase it.
+			// the two named rows come out of the same four, so the editor shows
+			// each of them once: in its own box, and not again in the table
+			this.pronounsDraft = this.accountInfo.pronouns ?? ''
+			this.supportDraft = this.accountInfo.support_link ?? ''
+			this.fieldRows = this.fieldRows.filter((row) => !this.isKnownRow(row, this.pronounsDraft) && !this.isKnownRow(row, this.supportDraft))
+			if (this.fieldRows.length === 0) {
+				this.fieldRows.push({ name: '', value: '' })
+			}
+
 			this.bioStored = normalizeBio(source?.note)
 			this.bioDraft = this.bioStored
 			this.showProfileModal = true
+		},
+
+		/**
+		 * Whether a row of the table is one of the two the boxes above own, so
+		 * that it is not shown twice and not saved twice.
+		 *
+		 * Compared on the value: the server matched the row by its *name* out
+		 * of a dozen spellings, and the value is what came back.
+		 *
+		 * @param {object} row the row in the table
+		 * @param {string} value what one of the boxes holds
+		 * @return {boolean}
+		 */
+		isKnownRow(row, value) {
+			return value !== '' && (row.value ?? '').trim() === value
 		},
 
 		async saveProfile() {
@@ -933,9 +1015,19 @@ export default {
 
 			this.savingProfile = true
 			try {
-				const fields = this.fieldRows
+				const named = []
+				if (this.pronounsDraft.trim() !== '') {
+					named.push({ name: 'Pronouns', value: this.pronounsDraft.trim() })
+				}
+				if (this.supportDraft.trim() !== '') {
+					named.push({ name: 'Support', value: this.supportDraft.trim() })
+				}
+				// the named rows first, so that an account with four rows already
+				// keeps the two it just filled in rather than losing them to the
+				// server's cap
+				const fields = named.concat(this.fieldRows
 					.map((row) => ({ name: row.name.trim(), value: row.value.trim() }))
-					.filter((row) => row.name !== '' && row.value !== '')
+					.filter((row) => row.name !== '' && row.value !== '')).slice(0, 4)
 				await axios.put(generateUrl('apps/social/api/v1/account/fields'), { fields })
 				// an absent `note` leaves the stored bio alone, so it is sent
 				// only when this editor actually changed it
@@ -1151,6 +1243,21 @@ export default {
 		letter-spacing: -.02em;
 	}
 
+	&__pronouns {
+		font-size: 0.6em;
+		font-weight: normal;
+		color: var(--color-text-maxcontrast);
+		white-space: nowrap;
+	}
+
+	&__support {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-block-start: 8px;
+		text-decoration: none;
+	}
+
 	&__blocked-hint {
 		margin-top: 4px;
 		padding: 2px 10px;
@@ -1269,6 +1376,17 @@ export default {
 					text-decoration: underline;
 				}
 			}
+		}
+	}
+
+	&__fields-known {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		margin-block-end: 8px;
+
+		input {
+			flex: 1 1 200px;
 		}
 	}
 
