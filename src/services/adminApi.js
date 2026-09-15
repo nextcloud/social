@@ -43,6 +43,16 @@ export function serverUrl() {
 }
 
 /**
+ * The relays this instance subscribes to.
+ *
+ * @param {string} [path] appended below /apps/social/admin/relays
+ * @return {string} the whole URL
+ */
+export function relaysUrl(path = '') {
+	return generateUrl('/apps/social/admin/relays' + path)
+}
+
+/**
  * What a refused request said, when it said anything.
  *
  * The endpoints of this page answer a 422 with the field they would not take,

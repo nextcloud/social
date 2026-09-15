@@ -14,6 +14,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\RelayRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
@@ -64,6 +65,7 @@ class ActivityService {
 		private CurlService $curlService,
 		private ConfigService $configService,
 		private ActorsRequest $actorsRequest,
+		private RelayRequest $relayRequest,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -332,7 +334,55 @@ class ActivityService {
 			}
 		}
 
+		$instancePaths = array_merge($instancePaths, $this->relayPaths($activity));
+
 		return array_values(array_filter($instancePaths, fn (InstancePath $path): bool => !$this->isOurs($path)));
+	}
+
+	/**
+	 * The relay inboxes a *local, public* activity also goes to.
+	 *
+	 * Subscribing to a relay and sending it nothing is taking without giving:
+	 * the point of a relay is that every instance on it sees the others, and
+	 * an instance that only reads is invisible to all of them. Mastodon
+	 * delivers the same set — a public post and what happens to it afterwards
+	 * — and relays drop anything else.
+	 *
+	 * Local only, because a relay wants what *this* server wrote. Forwarding a
+	 * third party's activity on to a relay would put this instance's name on
+	 * somebody else's post and, where two instances both relay, loop it.
+	 *
+	 * Not public means not sent: a followers-only post has an audience that
+	 * was chosen, and a relay is the opposite of a chosen audience.
+	 *
+	 * @return InstancePath[]
+	 */
+	private function relayPaths(ACore $activity): array {
+		if (!$activity->isPublic() || !$this->isLocalAuthor($this->getAuthorFromItem($activity))) {
+			return [];
+		}
+
+		$paths = [];
+		foreach ($this->relayRequest->acceptedInboxes() as $inbox) {
+			$paths[] = new InstancePath($inbox, InstancePath::TYPE_GLOBAL, InstancePath::PRIORITY_LOW);
+		}
+
+		return $paths;
+	}
+
+	/** Whether an actor id is one this server hosts. */
+	private function isLocalAuthor(string $authorId): bool {
+		if ($authorId === '') {
+			return false;
+		}
+
+		try {
+			$root = $this->configService->getSocialUrl();
+		} catch (SocialAppConfigException $e) {
+			return false;
+		}
+
+		return $root !== '' && str_starts_with($authorId, $root);
 	}
 
 	/**

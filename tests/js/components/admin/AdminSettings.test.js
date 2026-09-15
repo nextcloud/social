@@ -72,7 +72,7 @@ describe('the administration page', () => {
 		axios.get.mockResolvedValue({ data: { accounts: [], cursors: [], announcements: [] } })
 	})
 
-	it('is the fifteen sections, in the order an administrator reads them', async () => {
+	it('is the sixteen sections, in the order an administrator reads them', async () => {
 		const wrapper = await mountPage(STATE)
 		const headings = wrapper.findAll('h2').map((heading) => heading.text())
 
@@ -92,6 +92,7 @@ describe('the administration page', () => {
 			'Fediverse access',
 			'Announcements',
 			'Server',
+			'Relays',
 		])
 	})
 
@@ -103,6 +104,9 @@ describe('the administration page', () => {
 		const wrapper = await mountPage({ ...STATE, server: null })
 
 		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Server')
+		// nor the relays, which change what every federated timeline here
+		// holds and where every public post written here is sent
+		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Relays')
 		// and the fourteen sections a delegate does hold are all still there
 		expect(wrapper.findAll('h2')).toHaveLength(14)
 	})

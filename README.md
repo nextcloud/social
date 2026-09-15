@@ -231,6 +231,10 @@ own unified search. No external search engine to run.
   Pixelfed, moderatable, with its own followers. The membership is the group,
   asked live, so leaving it takes the account away with it. Who wrote each post
   is recorded and shown to the team and to moderators, and to nobody else.
+- **Relays** — subscribe to one and a new server's federated timeline stops
+  being empty: a relay rebroadcasts the public posts of every server on it, and
+  carries this server's public posts out to all of them. Public posts only, and
+  a relayed post arrives as the post it is rather than as a boost by the relay.
 - **Delete your Social account** from Settings, keeping your Nextcloud one —
   the posts, the follows and a `Delete` to every server that knew you. No
   administrator, and no password to type for an account signed in through SSO.

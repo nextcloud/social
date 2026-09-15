@@ -27,8 +27,12 @@
 		<AccessSection :accessType="state.accessType" :addresses="state.accessList" />
 		<AnnouncementsSection />
 		<!-- not for a delegate: the server is administered, not moderated, and
-		     `AdminSettings` sends no server settings to one -->
+		     `AdminSettings` sends no server settings to one. A relay is the
+		     same kind of decision — it changes what every federated timeline
+		     here holds and where every public post written here is sent — so
+		     it is behind the same condition -->
 		<ServerSection v-if="state.server !== null" :settings="state.server" />
+		<RelaysSection v-if="state.server !== null" />
 	</div>
 </template>
 
@@ -42,6 +46,7 @@ import DiscoverSection from './DiscoverSection.vue'
 import EmojiSection from './EmojiSection.vue'
 import FederationSection from './FederationSection.vue'
 import MediaBlocksSection from './MediaBlocksSection.vue'
+import RelaysSection from './RelaysSection.vue'
 import ReportsSection from './ReportsSection.vue'
 import RetentionSection from './RetentionSection.vue'
 import RulesSection from './RulesSection.vue'
@@ -101,6 +106,7 @@ export default {
 		EmojiSection,
 		FederationSection,
 		MediaBlocksSection,
+		RelaysSection,
 		ReportsSection,
 		RetentionSection,
 		RulesSection,

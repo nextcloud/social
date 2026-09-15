@@ -11,6 +11,8 @@ namespace OCA\Social\Controller;
 
 use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Service\RelayService;
 use OCA\Social\Service\ServerSettingsService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -33,6 +35,7 @@ class ServerSettingsController extends Controller {
 	public function __construct(
 		IRequest $request,
 		private ServerSettingsService $serverSettingsService,
+		private RelayService $relayService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -85,5 +88,46 @@ class ServerSettingsController extends Controller {
 		} catch (InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}
+	}
+
+	/**
+	 * The relays this instance subscribes to.
+	 *
+	 * A decision about the server rather than about a report, so it sits here
+	 * with the rest of the Server card and not in `ModerationController`: a
+	 * relay changes what everybody's federated timeline holds and where every
+	 * public post written here is sent.
+	 */
+	#[FrontpageRoute(verb: 'GET', url: '/admin/relays')]
+	public function relays(): DataResponse {
+		return new DataResponse($this->relayService->all(), Http::STATUS_OK);
+	}
+
+	/**
+	 * Subscribes to one, by the address of its actor.
+	 *
+	 * Answers with the row as it now stands, which will say `pending`: the
+	 * `Follow` has gone out and the relay answers in its own time, usually
+	 * seconds and sometimes when a human has looked at it.
+	 */
+	#[FrontpageRoute(verb: 'POST', url: '/admin/relays')]
+	public function relaySubscribe(string $address = ''): DataResponse {
+		try {
+			return new DataResponse($this->relayService->subscribe($address), Http::STATUS_OK);
+		} catch (InvalidResourceException $e) {
+			// the message says what is wrong with the address, which is the
+			// whole of the help there is
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+	}
+
+	/** Unsubscribes and forgets it. */
+	#[FrontpageRoute(verb: 'DELETE', url: '/admin/relays/{id}')]
+	public function relayUnsubscribe(int $id): DataResponse {
+		if (!$this->relayService->unsubscribe($id)) {
+			return new DataResponse(['error' => 'no such relay'], Http::STATUS_NOT_FOUND);
+		}
+
+		return new DataResponse([], Http::STATUS_OK);
 	}
 }

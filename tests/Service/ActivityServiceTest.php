@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\RelayRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
@@ -66,6 +67,7 @@ class ActivityServiceTest extends TestCase {
 	private CurlService|MockObject $curlService;
 	private ConfigService|MockObject $configService;
 	private ActorsRequest|MockObject $actorsRequest;
+	private RelayRequest|MockObject $relayRequest;
 	private NoteInterface|MockObject $noteInterface;
 	private AnnounceInterface|MockObject $announceInterface;
 	private ActivityService $service;
@@ -88,6 +90,7 @@ class ActivityServiceTest extends TestCase {
 		$this->configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
 
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
+		$this->relayRequest = $this->createMock(RelayRequest::class);
 		$this->service = new ActivityService(
 			$this->createMock(StreamRequest::class),
 			$this->followsRequest,
@@ -97,6 +100,7 @@ class ActivityServiceTest extends TestCase {
 			$this->curlService,
 			$this->configService,
 			$this->actorsRequest,
+			$this->relayRequest,
 			new NullLogger()
 		);
 	}
@@ -371,6 +375,75 @@ class ActivityServiceTest extends TestCase {
 
 		$this->assertSame(self::TOKEN, $this->service->request($like));
 		$this->assertSame([$direct], $paths);
+	}
+
+	// --- relays -----------------------------------------------------------
+
+	/**
+	 * Subscribing to a relay and sending it nothing is taking without giving:
+	 * the point of a relay is that every instance on it sees the others, and
+	 * one that only reads is invisible to all of them.
+	 */
+	public function testAPublicLocalPostAlsoGoesToEveryAcceptedRelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = new Note();
+		$note->setId(self::NOTE_ID);
+		$note->setActorId(self::ALICE_ID);
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+
+		$this->service->request($note);
+
+		$this->assertContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	/**
+	 * A followers-only post has an audience that was chosen, and a relay is
+	 * the opposite of a chosen audience.
+	 */
+	public function testAPostThatIsNotPublicNeverReachesARelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = new Note();
+		$note->setId(self::NOTE_ID);
+		$note->setActorId(self::ALICE_ID);
+		$note->addInstancePath(new InstancePath(self::BOB_INBOX, InstancePath::TYPE_INBOX));
+
+		$this->service->request($note);
+
+		$this->assertNotContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	/**
+	 * Forwarding a third party's activity to a relay would put this instance's
+	 * name on somebody else's post, and loop where two instances both relay.
+	 */
+	public function testSomebodyElsesPublicPostIsNotPassedOnToARelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = new Note();
+		$note->setId('https://elsewhere.example/statuses/1');
+		$note->setActorId('https://elsewhere.example/users/carol');
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+
+		$this->service->request($note);
+
+		$this->assertNotContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
 	}
 
 	/**

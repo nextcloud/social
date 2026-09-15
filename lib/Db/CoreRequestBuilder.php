@@ -77,6 +77,7 @@ class CoreRequestBuilder {
 	public const TABLE_TEAMS = 'social_team';
 	public const TABLE_TEAM_POSTS = 'social_team_post';
 	public const TABLE_TREND_REVIEW = 'social_trend_review';
+	public const TABLE_RELAYS = 'social_relay';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -361,6 +362,17 @@ class CoreRequestBuilder {
 			'approved',
 			'moderator',
 			'creation'
+		],
+		self::TABLE_RELAYS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'inbox',
+			'status',
+			'follow_id',
+			'error',
+			'creation',
+			'last_update'
 		],
 		self::TABLE_CONVERSATION_STATE => [
 			'id',

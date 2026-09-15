@@ -216,6 +216,19 @@ when each was last tried.
 - **Announcements** — a notice every account here is shown once.
 - **Server** — the instance-wide settings below, which had no interface at all
   before and could only be set with `occ config:app:set`.
+- **Relays** — the relays this server subscribes to. A new server sees only
+  what the people on it follow, so its federated timeline is empty on the first
+  day and thin for months, and nobody out there has heard of it either. A relay
+  breaks that circle: it rebroadcasts the public posts of every server
+  subscribed to it, and sends this server's public posts on to all of them.
+  Paste the relay's address — relays publish it on their own front page, and it
+  usually ends in `/actor` — and the row will say **Waiting for an answer**
+  until the relay replies, which for some relays means when a human has looked
+  at the request. **Public posts and nothing else** are shared: a
+  followers-only post has an audience that was chosen, and a relay is the
+  opposite of a chosen audience. A relayed post is fetched from the server that
+  wrote it rather than believed from the relay, so it arrives as the post it is
+  and not as "relay.example boosted this".
 
 Each section is one settings card, like everywhere else in the administration
 settings, and the three things that cannot be taken back — suspending an
@@ -224,9 +237,11 @@ says what they will cost before they do it.
 
 The page can be **delegated**: hand the Social section to a group under
 *Administration privileges* and that group can moderate without administering
-the server. The Server section is the exception — it is not rendered for a
-delegate and its endpoint refuses them, because what it holds is a decision
-about the server rather than about a report.
+the server. Server and Relays are the exception — neither is rendered for a
+delegate and their endpoints refuse them, because what they hold is a decision
+about the server rather than about a report: a relay changes what every
+federated timeline here holds and where every public post written here is
+sent.
 
 ---
 

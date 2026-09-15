@@ -13,6 +13,7 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\MediaBlocksRequest;
+use OCA\Social\Db\RelayRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\InstanceActor;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -268,6 +269,7 @@ class OutboundFederationWireTest extends TestCase {
 			$curlService,
 			$this->configService,
 			$this->actorsRequest,
+			$this->createMock(RelayRequest::class),
 			new NullLogger(),
 		);
 		$service->manageInit();
