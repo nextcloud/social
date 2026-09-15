@@ -391,6 +391,10 @@ is the profile, the follows, the relations, the marks, the banner and the files
 of the posts this server still has. The posts themselves are counted and not
 written, and the key pair is deliberately never carried.
 
+The follows *file* is read whichever network wrote it: Mastodon's CSV, or
+Pixelfed's `pixelfed-following.json` — a JSON array of actor URLs, which the
+importer used to read as a CSV with no handle in it and follow nobody.
+
 Follower import is still the other half, and it is still impossible without
 identity continuity: the relationship's other half lives on the follower's
 server pointing at the old id. With identity continuity it becomes easy,
@@ -540,6 +544,21 @@ changed on the API for any of them; what changed is who can set them.
 Of the tier-1 pair, one has moved: per-user OAuth tokens are done. The root
 path has not.
 
+Since then, 0.20.2 went after what a **Pixelfed** user and their app would
+meet. Two silent failures on the wire: every video posted here went out as an
+ActivityPub `Video`, which Pixelfed's inbox drops without a word, so it is a
+`Note` by default now; and Pixelfed's follows export is a JSON array of actor
+URLs that the importer read as an empty CSV, so it reads JSON. The official
+app was read against the route table — forty endpoints of Pixelfed's own, ten
+answered — and thirty-four are answered now, through one façade that reshapes
+data this app already serves: the `v1.2` story carousel, `collections/self`,
+`accounts/username` and `mutuals`, `v1.1/report`, `compose/settings`, the
+direct-message thread routes, `tags/{tag}/related`, `push/*` told the truth
+(off, no token), and Pixelfed's `/api/admin/*` screens behind the same gate as
+Mastodon's admin API. The silence tier reached the Mastodon admin API on the
+way (item 19). And the three Pixelfed-native features that were API-only —
+stories, collections, places — have pages in the web app.
+
 And of this document's own list, five items were done in #2126 — the `source`
 leak, the suspension, the three dropped profile fields, the version string and
 the three missing endpoints — with authorized fetch joining them in #2136 and
@@ -636,6 +655,7 @@ meet. These three were it.
 | 14 | **The WebFinger profile-page link** | Hours | Pointed at the Nextcloud user profile rather than a Social one | done |
 | 15 | **Emoji reactions** | Days | Announcement reactions are stored and served. Reactions to a *status* are a Misskey and Pleroma extension Mastodon does not handle either, and are deliberately not implemented | done (announcements) |
 | 39 | **Serve attachments as ActivityPub `Document`s** | Hours | New, and verified on the wire rather than in a unit test: everything served on request — a single status, the outbox, `featured`, `replies`, and any re-fetch by a peer — carries Mastodon's *client* shape under `attachment` (`"type": "video"`, `preview_url`, `remote_url`, `meta`) instead of `{"type": "Document", "mediaType": "video/mp4", "name": …}`. `MediaAttachment::asDocument()` is correct and `ACore::FORMAT_ACTIVITYPUB` is set on the attachments of a freshly created post, so the original `Create` goes out right; but `StreamRequest::save()` stores `asLocal()` and hydration leaves the objects in the local format, so every later read of the same post is wrong. `WireCompatibilityTest` calls `asDocument()` directly and therefore passes | done — `Stream::jsonSerialize()` maps every attachment through `asDocument()` whatever format it was hydrated in, so a re-read post goes out the same as the original `Create`; `StreamTest::testAHydratedPostServesItsAttachmentsAsDocuments` pins it |
+| 51 | **Publish a video as a `Note`, not a `Video`, by default** | Hours | `Note::asVideoIfItIsOne()` sent a sole-video post in PeerTube's shape, and Pixelfed's `HandlesCreates` processes only a `Note` with a parent or an attachment — a `Video` is dropped without a word, so no video posted here ever reached a Pixelfed follower. Mastodon draws both shapes, PeerTube only the `Video`, Pixelfed only the `Note` | done — `publish_video_objects` defaults to `0`; an instance whose audience is on PeerTube turns it on |
 
 ### Tier 4 — the admin and moderation surface
 

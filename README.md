@@ -388,9 +388,13 @@ else's.
   announcements, edit history, translation, Mastodon 4.3's grouped notifications with
   their policy and requests inbox, and the admin API. See
   [docs/API.md](docs/API.md) for exactly which routes exist.
-- **Pixelfed's own routes** — the `/api/v2/config` bootstrap its app reads on launch
-  and the `v1.1` discover namespace. Every limit in the config is derived from the one
-  the server actually enforces.
+- **Pixelfed's own routes** — the `/api/v2/config` bootstrap its app reads on launch,
+  the `v1.1`/`v1.2` discover, story, collection, account, report and direct-message
+  routes its screens call, its `push/*` routes answered honestly as off, and its
+  `/api/admin/*` screens behind the same gate as Mastodon's admin API. Every limit in
+  the config is derived from the one the server actually enforces. Of the forty
+  Pixelfed-specific calls the official app makes, thirty-four are answered; the rest are
+  Web Push and in-app registration.
 - **Full ActivityPub delivery**: signed HTTP for `Create`, `Update`, `Delete`, `Like`,
   `Announce`, `Follow`, `Accept`, `Undo`, `Block`, `Flag` and `EmojiReact`, an outbound
   queue and a stream queue, both drained by background jobs and by

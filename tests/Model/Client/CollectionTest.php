@@ -87,7 +87,7 @@ class CollectionTest extends TestCase {
 
 	public function testTheEntityCarriesExactlyTheKeysAClientReads(): void {
 		$this->assertSame(
-			['id', 'title', 'description', 'visibility', 'created_at', 'updated_at', 'size', 'posts'],
+			['id', 'title', 'description', 'visibility', 'created_at', 'updated_at', 'size', 'account', 'posts'],
 			array_keys((new Collection())->jsonSerialize())
 		);
 	}

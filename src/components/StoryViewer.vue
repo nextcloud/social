@@ -419,6 +419,12 @@ export default {
 	transition: width 0.1s linear;
 }
 
+@media (prefers-reduced-motion: reduce) {
+	.story-viewer__fill {
+		transition: none;
+	}
+}
+
 .story-viewer__head {
 	position: relative;
 	z-index: 2;
