@@ -352,15 +352,15 @@ export default {
 }
 
 .review__col-account {
-	width: 18%;
+	width: 16%;
 }
 
 .review__col-text {
-	width: 32%;
+	width: 28%;
 }
 
 .review__col-reason {
-	width: 17%;
+	width: 18%;
 }
 
 .review__col-since {
@@ -368,7 +368,9 @@ export default {
 }
 
 .review__col-actions {
-	width: 18%;
+	// wide enough for the two buttons side by side; they wrap below
+	// each other on a narrow screen rather than being cut short
+	width: 24%;
 }
 
 .review__account {
