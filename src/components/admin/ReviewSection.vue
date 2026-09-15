@@ -29,45 +29,51 @@
 			</template>
 		</NcEmptyContent>
 
-		<table v-else class="review__table">
-			<thead>
-				<tr>
-					<th>{{ t('social', 'Account') }}</th>
-					<th>{{ t('social', 'Post') }}</th>
-					<th>{{ t('social', 'Held because') }}</th>
-					<th>{{ t('social', 'Waiting since') }}</th>
-					<th class="review__actions-head">
-						{{ t('social', 'Actions') }}
-					</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr v-for="post in held" :key="post.id">
-					<td class="review__account">
-						{{ post.account_id }}
-					</td>
-					<td class="review__text">
-						<p v-if="post.spoiler_text" class="review__warning">
-							{{ post.spoiler_text }}
-						</p>
-						<p>{{ post.text }}</p>
-						<p v-if="post.media_count > 0" class="review__hint">
-							{{ n('social', '%n attachment', '%n attachments', post.media_count) }}
-						</p>
-					</td>
-					<td>{{ reasonText(post.reason) }}</td>
-					<td>{{ since(post.created_at) }}</td>
-					<td class="review__actions">
-						<NcButton :disabled="busy === post.id" @click="approve(post)">
-							{{ t('social', 'Publish') }}
-						</NcButton>
-						<NcButton :disabled="busy === post.id" @click="askReject(post)">
-							{{ t('social', 'Refuse') }}
-						</NcButton>
-					</td>
-				</tr>
-			</tbody>
-		</table>
+		<div v-else class="review__scroll">
+			<table class="review__table">
+				<thead>
+					<tr>
+						<th>{{ t('social', 'Account') }}</th>
+						<th>{{ t('social', 'Post') }}</th>
+						<th>{{ t('social', 'Held because') }}</th>
+						<th>{{ t('social', 'Waiting since') }}</th>
+						<th class="review__actions-head">
+							{{ t('social', 'Actions') }}
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="post in held" :key="post.id">
+						<td class="review__account" :title="post.account_id">
+							{{ post.username }}
+						</td>
+						<td class="review__text">
+							<p v-if="post.spoiler_text" class="review__warning">
+								{{ post.spoiler_text }}
+							</p>
+							<p>{{ post.text }}</p>
+							<p v-if="post.media_count > 0" class="review__hint">
+								{{ n('social', '%n attachment', '%n attachments', post.media_count) }}
+							</p>
+						</td>
+						<td class="review__reason">
+							{{ reasonText(post.reason) }}
+						</td>
+						<td class="review__since">
+							{{ since(post.created_at) }}
+						</td>
+						<td class="review__actions">
+							<NcButton :disabled="busy === post.id" @click="approve(post)">
+								{{ t('social', 'Publish') }}
+							</NcButton>
+							<NcButton :disabled="busy === post.id" @click="askReject(post)">
+								{{ t('social', 'Refuse') }}
+							</NcButton>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
 
 		<p v-if="hasMore" class="social-admin__actions">
 			<NcButton :disabled="loading" @click="loadMore">
@@ -306,8 +312,19 @@ export default {
 	margin-block-end: 12px;
 }
 
+.review__scroll {
+	// a table is the one thing on this page allowed to be wider than the page:
+	// four columns of prose do not stack
+	overflow-x: auto;
+}
+
 .review__table {
 	width: 100%;
+	// auto layout sizes a column to its widest unbreakable word, and an actor
+	// id is one long word; the columns below are what keeps the text column
+	// readable rather than one word per line
+	table-layout: fixed;
+	min-width: 720px;
 	border-collapse: collapse;
 
 	th,
@@ -320,15 +337,22 @@ export default {
 }
 
 .review__account {
-	// an actor id is a URL and will not break on its own
+	width: 18%;
 	overflow-wrap: anywhere;
-	max-width: 220px;
 }
 
 .review__text {
-	max-width: 520px;
+	width: 40%;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
+}
+
+.review__reason {
+	width: 18%;
+}
+
+.review__since {
+	width: 14%;
 }
 
 .review__warning {

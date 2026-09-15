@@ -19,6 +19,7 @@ const REVIEW = '/index.php/apps/social/moderation/review'
 const HELD = {
 	id: '7',
 	account_id: 'https://cloud.example/@alice',
+	username: 'alice',
 	reason: 'first_post',
 	text: 'hello everybody',
 	spoiler_text: '',
@@ -58,6 +59,19 @@ describe('the review section', () => {
 
 		expect(wrapper.text()).toContain('hello everybody')
 		expect(wrapper.text()).toContain('The first post of a new account')
+	})
+
+	/**
+	 * A column of actor URLs is the same forty characters over and over with
+	 * the name buried at the end — and an unbreakable one takes the table's
+	 * width with it.
+	 */
+	it('names the account by its handle, with the id behind it', () => {
+		const wrapper = mountSection()
+		const cell = wrapper.find('.review__account')
+
+		expect(cell.text()).toBe('alice')
+		expect(cell.attributes('title')).toBe('https://cloud.example/@alice')
 	})
 
 	it('says so when nothing is waiting', () => {

@@ -84,6 +84,7 @@ class PostReviewService {
 		private PostService $postService,
 		private StatusAssemblyService $statusAssemblyService,
 		private StrikeService $strikeService,
+		private AccountService $accountService,
 		private ConfigService $configService,
 		private LoggerInterface $logger,
 	) {
@@ -187,10 +188,20 @@ class PostReviewService {
 	/**
 	 * A page of the queue, for a moderator.
 	 *
+	 * The handle is resolved per row rather than left as the actor id: a
+	 * moderator reading a queue of URLs is reading the same forty characters
+	 * over and over with the name buried at the end. One indexed lookup per
+	 * row, on a page somebody opens by hand.
+	 *
 	 * @return HeldPost[]
 	 */
 	public function pending(int $limit = 50, int $offset = 0): array {
-		return $this->postHoldsRequest->page($limit, $offset);
+		$held = $this->postHoldsRequest->page($limit, $offset);
+		foreach ($held as $one) {
+			$one->setHandle($this->handleOf($one->getActorId()));
+		}
+
+		return $held;
 	}
 
 	public function countPending(): int {
@@ -286,6 +297,15 @@ class PostReviewService {
 	public function withdraw(Person $actor, int $id): void {
 		$held = $this->postHoldsRequest->getByIdForActor($id, $actor->getId());
 		$this->postHoldsRequest->delete($held->getId());
+	}
+
+	/** The handle behind an actor id, or the id when it cannot be resolved. */
+	private function handleOf(string $actorId): string {
+		try {
+			return $this->accountService->getFromId($actorId)->getAccount();
+		} catch (Throwable $e) {
+			return $actorId;
+		}
 	}
 
 	/** Why it is waiting, in a sentence a person reads. */

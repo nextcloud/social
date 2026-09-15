@@ -52,6 +52,8 @@ class HeldPost implements JsonSerializable, StatusParams {
 	private int $id = 0;
 	private string $actorId = '';
 	private string $reason = '';
+	/** Not a column: the handle, hydrated for the screens that show a row. */
+	private string $handle = '';
 	private string $digest = '';
 	private int $creation = 0;
 
@@ -90,6 +92,16 @@ class HeldPost implements JsonSerializable, StatusParams {
 
 	public function getReason(): string {
 		return $this->reason;
+	}
+
+	public function setHandle(string $handle): self {
+		$this->handle = $handle;
+
+		return $this;
+	}
+
+	public function getHandle(): string {
+		return $this->handle;
 	}
 
 	/**
@@ -143,15 +155,16 @@ class HeldPost implements JsonSerializable, StatusParams {
 	 *
 	 * The text is in here, which is the point of the queue: a moderator
 	 * decides on what was written, and an author has to be able to recognise
-	 * which of their posts is waiting. The account is a plain handle rather
-	 * than an Account entity — the queue is a table of rows, not a timeline,
-	 * and hydrating an actor per row to draw an avatar is a query per row.
+	 * which of their posts is waiting. The account is a handle and its id
+	 * rather than an Account entity — the queue is a table of rows, not a
+	 * timeline, and nothing here draws an avatar.
 	 */
 	#[\Override]
 	public function jsonSerialize(): array {
 		return [
 			'id' => (string)$this->getId(),
 			'account_id' => $this->getActorId(),
+			'username' => ($this->handle !== '') ? $this->handle : $this->getActorId(),
 			'reason' => $this->getReason(),
 			'text' => $this->paramText(),
 			'spoiler_text' => $this->paramString('spoiler_text'),

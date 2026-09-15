@@ -263,7 +263,7 @@ class PixelfedAdminService {
 				'id' => (string)$held->getId(),
 				'status_id' => (string)$held->getId(),
 				'account_id' => $held->getActorId(),
-				'username' => $this->handleOf($held->getActorId()),
+				'username' => $held->getHandle(),
 				'content' => $held->paramText(),
 				'is_nsfw' => $held->paramBool('sensitive'),
 				'scope' => $held->paramString('visibility'),
@@ -307,15 +307,6 @@ class PixelfedAdminService {
 		}
 
 		throw new InvalidArgumentException('unknown action: ' . $action);
-	}
-
-	/** The handle behind an actor id, for a screen that shows one. */
-	private function handleOf(string $actorId): string {
-		try {
-			return $this->accountService->getFromId($actorId)->getAccount();
-		} catch (\Exception $e) {
-			return $actorId;
-		}
 	}
 
 	/**

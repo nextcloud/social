@@ -19,6 +19,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\HeldPost;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Strike;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
@@ -47,6 +48,7 @@ class PostReviewServiceTest extends TestCase {
 	private StatusAssemblyService|MockObject $statusAssemblyService;
 	private StrikeService|MockObject $strikeService;
 	private ConfigService|MockObject $configService;
+	private AccountService|MockObject $accountService;
 	private PostReviewService $service;
 
 	/** @var array<string, string> the app settings, as the service reads them */
@@ -63,6 +65,7 @@ class PostReviewServiceTest extends TestCase {
 		$this->postService = $this->createMock(PostService::class);
 		$this->statusAssemblyService = $this->createMock(StatusAssemblyService::class);
 		$this->strikeService = $this->createMock(StrikeService::class);
+		$this->accountService = $this->createMock(AccountService::class);
 
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->configService->method('getAppValueBool')->willReturnCallback(
@@ -77,6 +80,7 @@ class PostReviewServiceTest extends TestCase {
 			$this->postService,
 			$this->statusAssemblyService,
 			$this->strikeService,
+			$this->accountService,
 			$this->configService,
 			new NullLogger()
 		);
@@ -238,6 +242,30 @@ class PostReviewServiceTest extends TestCase {
 			HeldPost::REASON_MENTIONS,
 			$this->service->assess($this->alice(), '@a @b @c @d @e @f now', Stream::TYPE_PUBLIC)
 		);
+	}
+
+	/**
+	 * A moderator reading a column of actor URLs is reading the same forty
+	 * characters over and over with the name buried at the end.
+	 */
+	public function testTheQueueCarriesEachAccountsHandle(): void {
+		$held = (new HeldPost())->setId(7)->setActorId(self::ALICE);
+		$this->postHoldsRequest->method('page')->willReturn([$held]);
+		$author = $this->alice();
+		$author->setAccount('alice@cloud.example');
+		$this->accountService->method('getFromId')->with(self::ALICE)->willReturn($author);
+
+		$this->assertSame('alice@cloud.example', $this->service->pending()[0]->getHandle());
+	}
+
+	/** An actor that cannot be resolved is still a row a moderator must see. */
+	public function testARowWhoseAccountCannotBeResolvedKeepsItsId(): void {
+		$held = (new HeldPost())->setId(7)->setActorId(self::ALICE);
+		$this->postHoldsRequest->method('page')->willReturn([$held]);
+		$this->accountService->method('getFromId')
+			->willThrowException(new \RuntimeException('gone'));
+
+		$this->assertSame(self::ALICE, $this->service->pending()[0]->getHandle());
 	}
 
 	public function testHoldingStoresTheRequestAndNothingElse(): void {
