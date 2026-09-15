@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -55,6 +56,7 @@ class AccountServiceTest extends TestCase {
 	private IUserSession|MockObject $userSession;
 	private IAccountManager|MockObject $accountManager;
 	private ActorsRequest|MockObject $actorsRequest;
+	private ClientAuthRequest|MockObject $clientAuthRequest;
 	private FollowsRequest|MockObject $followsRequest;
 	private StreamRequest|MockObject $streamRequest;
 	private ActorService|MockObject $actorService;
@@ -88,6 +90,7 @@ class AccountServiceTest extends TestCase {
 		// unexpected output. Silence that single known deprecation around construction.
 		$this->errorReporting = error_reporting(E_ALL & ~E_DEPRECATED);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->clientAuthRequest = $this->createMock(ClientAuthRequest::class);
 		$this->accessBlockService = $this->createMock(AccessBlockService::class);
 		$this->accessBlockService->method('isBlockedEmail')->willReturnCallback(
 			fn (string $email): bool => in_array($email, $this->blockedEmails, true)
@@ -98,6 +101,7 @@ class AccountServiceTest extends TestCase {
 			$this->userSession,
 			$this->accountManager,
 			$this->actorsRequest,
+			$this->clientAuthRequest,
 			$this->followsRequest,
 			$this->streamRequest,
 			$this->actorService,
@@ -452,6 +456,22 @@ class AccountServiceTest extends TestCase {
 		$ap->method('getInterfaceFromType')->with(Person::TYPE)->willReturn($personInterface);
 		AP::set($ap);
 		$this->activityService->method('request')->willReturn('token');
+	}
+
+	/**
+	 * A token that outlived the account is a token that would bring it back:
+	 * `verify_credentials` creates an actor for a user who has none, so a
+	 * phone left running would quietly re-make the account under a derived
+	 * handle a minute after it was deleted. Found on devel, where one call to
+	 * `verify_credentials` after a delete answered with `deletetest_2`.
+	 */
+	public function testDeletingAnAccountTakesTheAppsSignedInToItWithIt(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->clientAuthRequest->expects($this->once())->method('deleteRelatedId')->with('alice');
+		$this->deleteThrough($alice);
+
+		$this->service->deleteActor('alice');
 	}
 
 	public function testDeleteActorIgnoresUnknownHandles(): void {

@@ -352,11 +352,13 @@ class MigrationService {
 
 		return match ($kind) {
 			'following' => ['following_accounts.csv', self::exportFollowsCsv($this->handlesOfFollows(
+				$actor,
 				fn (int $offset): array => $this->followsRequest->getFollowingByActorId(
 					$actor->getId(), self::EXPORT_PAGE, $offset
 				)
 			))],
 			'followers' => ['followers.csv', self::exportFollowsCsv($this->handlesOfFollows(
+				$actor,
 				fn (int $offset): array => $this->followsRequest->getFollowersByActorId(
 					$actor->getId(), self::EXPORT_PAGE, $offset
 				)
@@ -512,11 +514,16 @@ class MigrationService {
 	 * writing one into the address column produces a row every reader of the
 	 * format skips anyway.
 	 *
+	 * The account's own handle is left out too. Every local actor holds a
+	 * loopback follow of itself (`FollowsRequest::generateLoopbackAccount()`),
+	 * so both lists name the exporter — and a `following_accounts.csv` naming
+	 * you is a row Mastodon's importer tries to follow you with.
+	 *
 	 * @param callable(int): Follow[] $page
 	 *
 	 * @return string[]
 	 */
-	private function handlesOfFollows(callable $page): array {
+	private function handlesOfFollows(Person $actor, callable $page): array {
 		$handles = [];
 		$offset = 0;
 
@@ -528,7 +535,7 @@ class MigrationService {
 
 			foreach ($follows as $follow) {
 				$account = $follow->hasActor() ? $follow->getActor()?->getAccount() ?? '' : '';
-				if ($account !== '') {
+				if ($account !== '' && strcasecmp($account, $actor->getAccount()) !== 0) {
 					$handles[] = $account;
 				}
 			}

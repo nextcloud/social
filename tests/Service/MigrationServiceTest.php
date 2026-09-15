@@ -737,6 +737,27 @@ class MigrationServiceTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Every local actor holds a loopback follow of itself, so both lists named
+	 * the exporter — and a `following_accounts.csv` naming you is a row
+	 * Mastodon's importer tries to follow you with. Found on devel, where the
+	 * export of a demo account listed the demo account.
+	 */
+	public function testExportCsvLeavesTheAccountOutOfItsOwnFollows(): void {
+		$alice = $this->alice();
+		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$loopback = $this->follow(self::ALICE);
+		$loopback->setActor($this->person(self::ALICE, 'alice@cloud.example', true));
+		$carol = $this->follow(self::CAROL);
+		$carol->setActor($this->person(self::CAROL, 'carol@remote.example'));
+		$this->followsRequest->method('getFollowingByActorId')
+			->willReturnCallback(static fn (string $id, int $limit, int $offset): array => $offset === 0 ? [$loopback, $carol] : []);
+
+		[, $csv] = $this->service->exportCsv('alice', 'following');
+
+		$this->assertSame(['carol@remote.example'], MigrationService::parseFollowsCsv($csv));
+	}
+
 	public function testExportCsvWritesTheBlocksAsABareList(): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->actorRelationRequest->method('getByActor')

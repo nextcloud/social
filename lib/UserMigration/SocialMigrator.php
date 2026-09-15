@@ -351,6 +351,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	): void {
 		try {
 			$following = $this->handlesOfFollows(
+				$actor,
 				fn (int $offset): array => $this->followsRequest->getFollowingByActorId(
 					$actor->getId(), self::PAGE, $offset
 				)
@@ -361,6 +362,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			$output->writeln('Exported ' . count($following) . ' follow(s) to ' . self::PATH_FOLLOWING . '…');
 
 			$followers = $this->handlesOfFollows(
+				$actor,
 				fn (int $offset): array => $this->followsRequest->getFollowersByActorId(
 					$actor->getId(), self::PAGE, $offset
 				)
@@ -384,11 +386,16 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * writing one into the address column would produce a row every reader of
 	 * the format skips anyway.
 	 *
+	 * The account's own handle is left out too: every local actor holds a
+	 * loopback follow of itself (`FollowsRequest::generateLoopbackAccount()`),
+	 * so both lists named the exporter, and a `following_accounts.csv` naming
+	 * you is a row Mastodon's importer tries to follow you with.
+	 *
 	 * @param callable(int):Follow[] $page
 	 *
 	 * @return string[]
 	 */
-	private function handlesOfFollows(callable $page): array {
+	private function handlesOfFollows(Person $actor, callable $page): array {
 		$handles = [];
 		$offset = 0;
 
@@ -400,6 +407,9 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 
 			foreach ($follows as $follow) {
 				$account = $follow->hasActor() ? $follow->getActor()?->getAccount() ?? '' : '';
+				if (strcasecmp($account, $actor->getAccount()) === 0) {
+					continue;
+				}
 				if ($account === '') {
 					$this->logger->debug('a follow has no cached account, leaving it out of the export', [
 						'actor' => $follow->getActorId(), 'object' => $follow->getObjectId(),
