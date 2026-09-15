@@ -66,6 +66,24 @@ prints each with its severity and exits `1` if any of them reports an error, so
 a deployment script can run it. `--offline` leaves out the WebFinger probe, the
 only one that goes out on the network.
 
+**Social: upload size.** Whether PHP will accept the uploads this app promises
+to. Social's `max_size` is in `/api/v1/instance` and in the composer's refusal
+message; PHP's `upload_max_filesize` and `post_max_size` are enforced before a
+byte reaches this app's code. When the app's number is the larger one, an
+upload between the two is refused with **nothing in the log** — the request
+never reaches PHP — and the person is told nothing useful. Raise both PHP
+values, or lower the app's own in Administration → Social → Server.
+
+**Social: reachable by other servers.** Whether the strict peers will talk to
+this instance at all. Federation does not fail all at once: a plain-HTTP
+instance, or one on a private address, federates happily with a permissive
+server and is refused at the first gate by a strict one. The strictest in
+common use is **Pixelfed**, which is also the network a photo server most wants
+to reach — it refuses any peer that is not HTTPS on a publicly resolvable name,
+before it checks a signature, from its inbox, its delivery and its actor fetch,
+with nothing to configure. This is expected on a development or intranet
+instance and is a warning rather than an error.
+
 ### WebFinger does not answer
 
 Nothing answers `/.well-known/webfinger` for an account of this instance, so no
@@ -140,12 +158,16 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Eight sections:
+**Administration → Social.** Nine sections:
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
   read a page at a time when the fold is opened. Fifty to a page, server-side,
   with a *Show more* under each.
+- **Activity here** — posts written on this server in the last day and the last
+  week, and how many accounts wrote them. Local posts only: a count that
+  included what arrived would be a number about other servers and about this
+  one's retention setting.
 - **Posts waiting to be looked at** — the review queue: the first post of a
   new account, and posts that tripped one of the spam rules. Each row carries
   the text, because a held post is in no timeline and there is nowhere else to

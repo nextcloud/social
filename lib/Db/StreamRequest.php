@@ -631,6 +631,47 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * What this instance's own people have been writing, for the two numbers
+	 * an administrator asks for first: how busy is it, and how many of the
+	 * accounts are actually used.
+	 *
+	 * Local posts only. A count that included the fediverse's would say how
+	 * much this server has *received*, which is a number about everybody
+	 * else's activity and about this instance's retention settings.
+	 *
+	 * @param int $since unix time to count from
+	 * @return array{posts: int, authors: int}
+	 */
+	public function localActivitySince(int $since): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+
+		$date = new DateTime();
+		$date->setTimestamp($since);
+
+		$qb->selectAlias($qb->func()->count('s.id'), 'posts')
+			->selectAlias($qb->createFunction('COUNT(DISTINCT s.attributed_to_prim)'), 'authors')
+			->from(self::TABLE_STREAM, 's')
+			->where($expr->eq('s.local', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)))
+			->andWhere($expr->in(
+				's.type',
+				$qb->createNamedParameter([Note::TYPE, Question::TYPE], IQueryBuilder::PARAM_STR_ARRAY)
+			))
+			->andWhere($expr->gte(
+				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
+			));
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return [
+			'posts' => (int)($data['posts'] ?? 0),
+			'authors' => (int)($data['authors'] ?? 0),
+		];
+	}
+
+	/**
 	 * How many posts this account has published here to anybody but one person.
 	 *
 	 * The twin of `countNotesFromActorId()`, which counts only the public ones

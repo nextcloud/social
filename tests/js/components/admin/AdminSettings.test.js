@@ -22,6 +22,7 @@ const STATE = {
 	openReports: 0,
 	resolvedReports: 0,
 	reportsPerPage: 50,
+	activity: { day: { posts: 3, authors: 2 }, week: { posts: 11, authors: 4 } },
 	server: {
 		contact_email: '',
 		extended_description: '',
@@ -71,11 +72,12 @@ describe('the administration page', () => {
 		axios.get.mockResolvedValue({ data: { accounts: [], cursors: [], announcements: [] } })
 	})
 
-	it('is the eight sections, in the order an administrator reads them', async () => {
+	it('is the nine sections, in the order an administrator reads them', async () => {
 		const wrapper = await mountPage(STATE)
 		const headings = wrapper.findAll('h2').map((heading) => heading.text())
 
 		expect(headings).toEqual([
+			'Activity here',
 			'Reports',
 			'Posts waiting to be looked at',
 			'Accounts',
@@ -95,8 +97,8 @@ describe('the administration page', () => {
 		const wrapper = await mountPage({ ...STATE, server: null })
 
 		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Server')
-		// and the seven sections a delegate does hold are all still there
-		expect(wrapper.findAll('h2')).toHaveLength(7)
+		// and the eight sections a delegate does hold are all still there
+		expect(wrapper.findAll('h2')).toHaveLength(8)
 	})
 
 	it('draws a page the server told nothing about without breaking', async () => {

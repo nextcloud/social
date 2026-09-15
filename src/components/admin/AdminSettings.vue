@@ -4,6 +4,7 @@
 -->
 <template>
 	<div class="social-admin">
+		<ActivitySection :activity="state.activity" />
 		<ReportsSection
 			:reports="state.reports"
 			:openTotal="state.openReports"
@@ -28,6 +29,7 @@
 <script>
 import { loadState } from '@nextcloud/initial-state'
 import AccessSection from './AccessSection.vue'
+import ActivitySection from './ActivitySection.vue'
 import AccountsSection from './AccountsSection.vue'
 import AnnouncementsSection from './AnnouncementsSection.vue'
 import FederationSection from './FederationSection.vue'
@@ -42,6 +44,7 @@ const NOTHING = {
 	openReports: 0,
 	resolvedReports: 0,
 	reportsPerPage: 50,
+	activity: { day: { posts: 0, authors: 0 }, week: { posts: 0, authors: 0 } },
 	review: [],
 	reviewTotal: 0,
 	reviewFirstPost: true,
@@ -66,7 +69,7 @@ const NOTHING = {
 }
 
 /**
- * The eight sections of Administration → Social.
+ * The nine sections of Administration → Social.
  *
  * Nothing here uses `v-html`, and nothing below it does either. Half of what
  * these tables draw — a handle, an instance name, the comment on a report — is
@@ -78,6 +81,7 @@ export default {
 
 	components: {
 		AccessSection,
+		ActivitySection,
 		AccountsSection,
 		AnnouncementsSection,
 		FederationSection,

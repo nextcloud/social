@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Settings;
 
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
@@ -43,6 +44,7 @@ class AdminSettingsTest extends TestCase {
 	private FederationHealthService|MockObject $federationHealthService;
 	private ModerationService|MockObject $moderationService;
 	private PostReviewService|MockObject $postReviewService;
+	private StreamRequest|MockObject $streamRequest;
 	private ReportService|MockObject $reportService;
 	private ServerSettingsService|MockObject $serverSettingsService;
 	private IInitialState|MockObject $initialState;
@@ -93,6 +95,8 @@ class AdminSettingsTest extends TestCase {
 		$groupManager->method('isAdmin')->willReturn($administrator);
 
 		$this->postReviewService = $this->createMock(PostReviewService::class);
+		$this->streamRequest = $this->createMock(StreamRequest::class);
+		$this->streamRequest->method('localActivitySince')->willReturn(['posts' => 0, 'authors' => 0]);
 
 		$fediverseService = $this->createMock(FediverseService::class);
 		$fediverseService->method('getAccessType')->willReturn('all_but');
@@ -104,6 +108,7 @@ class AdminSettingsTest extends TestCase {
 			$this->createMock(ConfigService::class),
 			$this->moderationService,
 			$this->postReviewService,
+			$this->streamRequest,
 			$this->federationHealthService,
 			$this->l10n(),
 			$this->serverSettingsService,

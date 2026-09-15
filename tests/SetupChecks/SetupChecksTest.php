@@ -13,11 +13,14 @@ use OCA\Social\Cron\Queue;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CheckService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\Docs;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
+use OCA\Social\SetupChecks\ReachableByStrictPeers;
+use OCA\Social\SetupChecks\UploadLimitsAgree;
 use OCA\Social\SetupChecks\WebFingerReachable;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJob;
@@ -28,7 +31,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The four checks Administration → Overview shows.
+ * The six checks Administration → Overview shows.
  *
  * Each of them is the only thing that says a particular kind of breakage has
  * happened: an administrator who never opens Social used to find out that
@@ -275,5 +278,80 @@ class SetupChecksTest extends TestCase {
 				))),
 			$matches[1]
 		);
+	}
+
+	// Social: upload size
+
+	private function uploadCheck(int $megabytes): UploadLimitsAgree {
+		$config = $this->createMock(ConfigService::class);
+		$config->method('getAppValueInt')->willReturn($megabytes);
+
+		return new UploadLimitsAgree($this->l10n, $config);
+	}
+
+	/**
+	 * The app's own ceiling is in `/api/v1/instance` and in the composer's
+	 * refusal; PHP's is enforced before a byte reaches this app's code. When
+	 * the app's is the larger one, an upload between them is refused with
+	 * nothing in the log and nothing useful said to the person.
+	 */
+	public function testAnUploadCeilingPhpWillNotHonourIsAWarning(): void {
+		$php = $this->bytes((string)ini_get('upload_max_filesize'));
+		$this->assertGreaterThan(0, $php, 'this test needs PHP to have a limit at all');
+
+		$result = $this->uploadCheck((int)ceil($php / 1024 / 1024) + 64)->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('refused before this app can say why', $result->getDescription());
+	}
+
+	public function testAgreeingLimitsAreQuiet(): void {
+		$result = $this->uploadCheck(1)->run();
+
+		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	private function bytes(string $value): int {
+		$number = (int)$value;
+
+		return match (strtolower(substr(trim($value), -1))) {
+			'g' => $number * 1024 * 1024 * 1024,
+			'm' => $number * 1024 * 1024,
+			'k' => $number * 1024,
+			default => $number,
+		};
+	}
+
+	// Social: reachable by other servers
+
+	private function reachCheck(string $socialUrl): ReachableByStrictPeers {
+		$config = $this->createMock(ConfigService::class);
+		$config->method('getAppValue')->willReturn($socialUrl);
+
+		return new ReachableByStrictPeers($this->l10n, $config);
+	}
+
+	/**
+	 * Federation does not fail all at once: a plain-HTTP instance federates
+	 * with a permissive peer and is refused at the first gate by Pixelfed,
+	 * which is the network a photo server most wants to reach.
+	 */
+	public function testPlainHttpIsAWarningThatNamesWhoRefusesIt(): void {
+		$result = $this->reachCheck('http://cloud.example.org/apps/social/')->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('plain HTTP', $result->getDescription());
+		$this->assertStringContainsString('Pixelfed', $result->getDescription());
+	}
+
+	public function testAPrivateAddressIsAWarningToo(): void {
+		$result = $this->reachCheck('https://192.168.1.10/apps/social/')->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('private address', $result->getDescription());
+	}
+
+	public function testAnInstanceThatHasNotBeenSetUpIsNotToldItIsBroken(): void {
+		$this->assertSame(SetupResult::INFO, $this->reachCheck('')->run()->getSeverity());
 	}
 }
