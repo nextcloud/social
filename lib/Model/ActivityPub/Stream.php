@@ -701,9 +701,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * @param bool $sensitive
+	 * How many people opened this post's own page.
 	 *
-	 * @return Stream
+	 * `null` on everybody else's copy: how many people read a post is the
+	 * author's business.
 	 */
 	public function getViewCount(): ?int {
 		return $this->viewCount;

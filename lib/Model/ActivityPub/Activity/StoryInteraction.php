@@ -28,6 +28,16 @@ use OCA\Social\Model\ActivityPub\ACore;
  * in.
  */
 abstract class StoryInteraction extends ACore implements JsonSerializable {
+	/**
+	 * The wire type, which every subclass replaces.
+	 *
+	 * Declared here because the constructor reads `static::TYPE`: without it
+	 * the base class refers to a constant it does not have, which happens to
+	 * work at runtime — nothing constructs the abstract — and is a hole in the
+	 * type all the same.
+	 */
+	public const TYPE = '';
+
 	/** The story this answers, by its address. */
 	private string $storyId = '';
 	private string $content = '';

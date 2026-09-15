@@ -270,8 +270,10 @@ class CacheDocumentService {
 	 *                                       caller had to catch
 	 */
 	private function filterBlockedMedia(string $tmpPath): void {
+		// false when the file cannot be read; a successful hash is always the
+		// full 64 characters, so there is no empty case to test for
 		$hash = @hash_file('sha256', $tmpPath);
-		if (!is_string($hash) || $hash === '') {
+		if (!is_string($hash)) {
 			return;
 		}
 

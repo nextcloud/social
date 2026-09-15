@@ -207,7 +207,11 @@ class MediaTagService {
 		$this->mediaTagsRequest->deleteByActor($actorId);
 	}
 
-	/** @return string[] */
+	/**
+	 * The people a post names now, resolved.
+	 *
+	 * @return Person[]
+	 */
 	private function peopleIn(int $nid): array {
 		$ids = $this->mediaTagsRequest->forStreams([$nid])[$nid] ?? [];
 

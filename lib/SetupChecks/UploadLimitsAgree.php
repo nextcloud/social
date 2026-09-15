@@ -104,7 +104,14 @@ class UploadLimitsAgree implements ISetupCheck {
 	}
 
 	private function human(int $bytes): string {
+		// the division is written in floats and the result cast back: `round()`
+		// gives 2.0, and "2 MB" rather than "2.0 MB" is what somebody reading a
+		// setup check wants. Mixing an int and a float in one expression is
+		// what strict operand mode refuses, so neither side is left implicit.
+		$mb = 1024.0 * 1024.0;
+
 		return ($bytes >= 1024 * 1024)
-			? round($bytes / 1024 / 1024) . ' MB' : round($bytes / 1024) . ' KB';
+			? (int)round((float)$bytes / $mb) . ' MB'
+			: (int)round((float)$bytes / 1024.0) . ' KB';
 	}
 }

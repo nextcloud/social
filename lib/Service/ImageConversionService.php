@@ -166,7 +166,7 @@ class ImageConversionService {
 			return [$content, $mime];
 		}
 
-		return (is_string($smaller) && $smaller !== '') ? [$smaller, $mime] : [$content, $mime];
+		return ($smaller !== '') ? [$smaller, $mime] : [$content, $mime];
 	}
 
 	/** Whether this installation can read the formats a phone camera produces. */

@@ -26,6 +26,7 @@ use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\StatusAssemblyService;
 use OCA\Social\Service\StrikeService;
+use OCP\IGroupManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -48,6 +49,7 @@ class PostReviewServiceTest extends TestCase {
 	private StatusAssemblyService|MockObject $statusAssemblyService;
 	private StrikeService|MockObject $strikeService;
 	private ConfigService|MockObject $configService;
+	private IGroupManager|MockObject $groupManager;
 	private AccountService|MockObject $accountService;
 	private PostReviewService $service;
 
@@ -76,6 +78,8 @@ class PostReviewServiceTest extends TestCase {
 			fn (string $key): int => (int)($this->settings[$key] ?? 1)
 		);
 
+		$this->groupManager = $this->createMock(IGroupManager::class);
+
 		$this->service = new PostReviewService(
 			$this->postHoldsRequest,
 			$this->streamRequest,
@@ -86,6 +90,7 @@ class PostReviewServiceTest extends TestCase {
 			$this->strikeService,
 			$this->accountService,
 			$this->configService,
+			$this->groupManager,
 			new NullLogger()
 		);
 	}
@@ -106,6 +111,37 @@ class PostReviewServiceTest extends TestCase {
 
 	public function testTheFirstPostOfAnAccountThatHasPublishedNothingIsHeld(): void {
 		$this->streamRequest->method('countPostsBy')->with(self::ALICE)->willReturn(0);
+
+		$this->assertSame(
+			HeldPost::REASON_FIRST_POST,
+			$this->service->assess($this->alice(), 'hello everybody', Stream::TYPE_PUBLIC)
+		);
+	}
+
+	/**
+	 * Somebody who can empty the queue is not somebody to put in it.
+	 *
+	 * The case that made this obvious is the first post on a brand-new
+	 * instance: it is the administrator's, it was held for a moderator who was
+	 * the same person, and a fresh install looked broken — the post did not
+	 * appear and the only place it existed was a panel nobody had opened yet.
+	 * The end-to-end suite caught it as "a post written in the dialog shows up
+	 * in My Feed" failing, twice, on a clean install.
+	 */
+	public function testAnAdministratorsOwnFirstPostIsNotHeldForThemToApprove(): void {
+		$this->streamRequest->method('countPostsBy')->willReturn(0);
+		$this->groupManager->method('isAdmin')->willReturn(true);
+
+		$actor = $this->alice();
+		$actor->setUserId('alice');
+
+		$this->assertSame('', $this->service->assess($actor, 'hello everybody', Stream::TYPE_PUBLIC));
+	}
+
+	/** An actor with no Nextcloud user behind it — a team account — is nobody's administrator. */
+	public function testAnActorWithNoUserBehindItIsNotTreatedAsAModerator(): void {
+		$this->streamRequest->method('countPostsBy')->willReturn(0);
+		$this->groupManager->expects($this->never())->method('isAdmin');
 
 		$this->assertSame(
 			HeldPost::REASON_FIRST_POST,

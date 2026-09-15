@@ -241,9 +241,7 @@ class VideoTranscodeService {
 		}
 
 		foreach ($pipes as $pipe) {
-			if (is_resource($pipe)) {
-				fclose($pipe);
-			}
+			fclose($pipe);
 		}
 		proc_close($process);
 

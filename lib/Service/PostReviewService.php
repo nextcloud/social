@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\HeldPost;
 use OCA\Social\Model\Strike;
+use OCP\IGroupManager;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -92,6 +93,7 @@ class PostReviewService {
 		private StrikeService $strikeService,
 		private AccountService $accountService,
 		private ConfigService $configService,
+		private IGroupManager $groupManager,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -145,6 +147,16 @@ class PostReviewService {
 			return '';
 		}
 
+		// Somebody who can empty the queue is not somebody to put in it. The
+		// case that made this obvious is the first post on a brand-new
+		// instance: it is the administrator's, it was held for a moderator who
+		// was the same person, and a fresh install looked broken — you wrote
+		// your first post, it did not appear, and the only place it existed was
+		// a panel you had not opened yet.
+		if ($this->mayModerate($actor)) {
+			return '';
+		}
+
 		if ($this->autospam()) {
 			$spam = $this->spamRule($actor, $text);
 			if ($spam !== '') {
@@ -158,6 +170,20 @@ class PostReviewService {
 		}
 
 		return '';
+	}
+
+	/**
+	 * Whether this account is one of the people the queue is drained by.
+	 *
+	 * Asked of Nextcloud rather than stored: an administrator today is an
+	 * administrator for as long as the group says so, and a copy would drift.
+	 * A team account and any other actor with no Nextcloud user behind it is
+	 * not an administrator, which is what the null check says.
+	 */
+	private function mayModerate(Person $actor): bool {
+		$userId = $actor->getUserId();
+
+		return $userId !== '' && $this->groupManager->isAdmin($userId);
 	}
 
 	/**

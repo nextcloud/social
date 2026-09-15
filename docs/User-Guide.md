@@ -156,7 +156,9 @@ two reasons it does: the **first post** of an account that has not published
 anything here yet, and a post that tripped one of the server's spam rules — a
 lot of links, or a lot of mentions from an account nobody follows yet. Your
 administrator can turn either off, and neither applies to a **direct
-message**: nobody reads those but the people you wrote to.
+message**: nobody reads those but the people you wrote to. If you are an
+administrator of this server, nothing of yours is ever held — you are the
+person the queue is waiting for.
 
 When it happens the app says so at once, and your writing is kept — there is
 no need to write it again, and writing it again only finds the copy already

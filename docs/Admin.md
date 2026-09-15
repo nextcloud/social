@@ -257,6 +257,11 @@ it, both on by default:
   post at all — and when that happens, the cheapest thing that can be done
   about it is that the first thing they write is seen by a person. An instance
   whose accounts are all colleagues turns it off and loses nothing.
+  **An administrator's own posts are never held**: somebody who can empty the
+  queue is not somebody to put in it, and the first post on a brand-new
+  instance is the administrator's — held, it made a fresh install look broken,
+  because the post did not appear and the only place it existed was a panel
+  they had not opened yet.
 - **autospam** (`autospam`) holds a post that trips one of a very short list of
   rules: more than five links in a short post, or more than five mentions from
   an account that nobody follows and that follows nobody. There is no wordlist
@@ -360,7 +365,7 @@ can still be set with `occ`; the page validates the ranges given here.
 | `federate_blocks` | `1` | Whether a user's own blocks are federated to the blocked account's instance. `0` keeps them local. |
 | `publish_video_objects` | `0` | Whether a post that is a video is federated as an ActivityPub `Video` (PeerTube's shape) rather than a `Note` with an attachment. Off by default: Pixelfed's inbox handles only `Note`s and silently drops a `Video`, so with this on no video posted here reaches a Pixelfed follower. Mastodon draws both shapes; PeerTube draws only the `Video`. Turn it on for an instance whose audience is on PeerTube. |
 | `rules` | *(empty)* | The instance rules shown by `/api/v1/instance/rules`, one per line. |
-| `review_first_post` | `1` | Hold the first post of an account that has published nothing here yet, for a moderator to see before it goes out. |
+| `review_first_post` | `1` | Hold the first post of an account that has published nothing here yet, for a moderator to see before it goes out. An administrator's own posts are never held — a moderator waiting on themselves is a circle, and on a new instance the first post is theirs. |
 | `review_posts` | `1` | How many posts an account must have had published before its posts stop being held. `1` is first-post review as it has always meant. An account graduates by having that many posts approved — a person having looked at it that many times, which is the only measure of trust here that is not a guess. Capped at 20. |
 | `autospam` | `1` | Hold a post that trips one of the spam rules — more than five links in a short post, or more than five mentions from an account nobody follows and that follows nobody. Nothing is ever refused by the rules, only shown to a person. |
 
