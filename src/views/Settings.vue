@@ -135,12 +135,23 @@
 			</p>
 			<MigrationSettings />
 		</section>
+
+		<section id="delete" class="settings__section settings__section--danger">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Delete your Social account') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'Your fediverse account, gone, while your Nextcloud account stays exactly as it is. Last, and on its own, because it is the one thing on this page that cannot be undone.') }}
+			</p>
+			<DeleteAccount />
+		</section>
 	</div>
 </template>
 
 <script>
 import ArchivedPosts from '../components/ArchivedPosts.vue'
 import AuthorizedApps from '../components/AuthorizedApps.vue'
+import DeleteAccount from '../components/DeleteAccount.vue'
 import HeldPosts from '../components/HeldPosts.vue'
 import MigrationSettings from '../components/MigrationSettings.vue'
 import PortfolioSettings from '../components/PortfolioSettings.vue'
@@ -178,6 +189,7 @@ export default {
 		AccountSettings,
 		ArchivedPosts,
 		AuthorizedApps,
+		DeleteAccount,
 		FeaturedTagsSettings,
 		FiltersSettings,
 		HeldPosts,
@@ -250,6 +262,12 @@ export default {
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large);
 		background: var(--color-main-background);
+	}
+
+	// the one section on the page whose button cannot be taken back: it is
+	// marked so a reader scrolling past knows before they read the words
+	&__section--danger {
+		border-color: var(--color-error);
 	}
 
 	&__section-heading {

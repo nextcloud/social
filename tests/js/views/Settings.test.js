@@ -92,7 +92,7 @@ describe('Settings', () => {
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Filtered words', 'Keyboard shortcuts', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Migration'])
+			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Filtered words', 'Keyboard shortcuts', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Migration', 'Delete your Social account'])
 	})
 
 	/**

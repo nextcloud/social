@@ -231,6 +231,9 @@ own unified search. No external search engine to run.
   Pixelfed, moderatable, with its own followers. The membership is the group,
   asked live, so leaving it takes the account away with it. Who wrote each post
   is recorded and shown to the team and to moderators, and to nobody else.
+- **Delete your Social account** from Settings, keeping your Nextcloud one —
+  the posts, the follows and a `Delete` to every server that knew you. No
+  administrator, and no password to type for an account signed in through SSO.
 - **Authorized apps** — every app holding a key to your account, with what it
   may do and when it was last used, and a button that signs one out. The page
   to open after losing a phone.

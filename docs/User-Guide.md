@@ -559,9 +559,18 @@ hand, it is picked up as one.
   that first, in **Settings → Your account**, if you would rather they were not
   public. And your **stories, your archived posts and anything you deleted are
   not imported**: you put those away on purpose.
-- **Leaving.** Deleting the Nextcloud user deletes the Social account with
-  it: what you posted is dropped and a deletion is sent to the servers that
-  saw it.
+- **Leaving.** **Settings → Delete your Social account** deletes your fediverse
+  account and keeps your Nextcloud one. Everything you posted goes, your
+  followers and the people you follow are let go, and every server that knew
+  the account is told it is gone — a post already on somebody else's server is
+  deleted by asking that server to delete it, which almost all of them do and
+  none of them can be made to. You are asked to type your handle first, because
+  it cannot be undone; take an archive from **Settings → Migration → Export**
+  first if you might want one. Afterwards you are back at the setup screen and
+  can make a new account straight away, under a different handle: the old one
+  is held for an hour so that nobody can take it the moment you let it go.
+  Deleting the Nextcloud user does the same thing to the Social account along
+  the way.
 
 ## Keyboard shortcuts
 

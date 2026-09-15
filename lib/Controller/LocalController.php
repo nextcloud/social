@@ -458,6 +458,45 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * Deletes the reader's own Social account, keeping their Nextcloud one.
+	 *
+	 * The same deletion `occ social:account:delete` does: the posts go, the
+	 * follows go, and a `Delete` goes out to every server that knew the
+	 * account. Until now it was that command and nothing else, so a person who
+	 * wanted their fediverse presence gone and their Nextcloud account kept had
+	 * to ask an administrator — which means explaining to a colleague why.
+	 *
+	 * `confirm` has to be the handle being deleted, and it is deliberately not
+	 * a password: an account signed in through SSO has none to give, and
+	 * asking for one would have made this an administrator's job again for
+	 * exactly the installations that federate most.
+	 *
+	 * **It cannot be undone.** The handle is held for the retention hour so
+	 * nobody else can take it the moment it is let go; a new account under a
+	 * different handle can be made straight away.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 3, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/account/delete')]
+	public function accountDelete(string $confirm = ''): DataResponse {
+		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
+
+			$this->accountService->deleteOwnAccount($this->userId, $confirm);
+
+			return $this->success(['deleted' => true]);
+		} catch (InvalidResourceException $e) {
+			// the message names the handle to type, which is the whole of the
+			// help there is
+			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/current/follow')]
 	public function actionFollow(string $account): DataResponse {
