@@ -158,7 +158,7 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Eleven sections:
+**Administration → Social.** Twelve sections:
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
@@ -181,6 +181,12 @@ when each was last tried.
   sha256. The one thing the account-level tools do not do is stop a *file*
   coming back; a refused one is turned away wherever it arrives, an upload here
   or an attachment fetched from another server.
+- **What this server is about** — a few named subjects, each a handful of
+  hashtags, shown at the top of Explore above the trending lists. Trending on
+  a small server is four hashtags and a wedding; this is the part of that page
+  chosen rather than counted, and it is what makes Explore look like somewhere
+  to start. Nothing is named by default and the section of the page is absent
+  until something is.
 - **Retention** — how long remote statuses nobody here cares about are kept.
 - **Storage** — what is on disk, split into what was posted here (somebody's
   own work, not going anywhere) and what is cached from other servers (what

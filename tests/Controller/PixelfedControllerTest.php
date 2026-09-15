@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\PixelfedController;
+use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -150,7 +151,8 @@ class PixelfedControllerTest extends TestCase {
 			$this->createMock(PlaceService::class),
 			$this->pixelfedService,
 			$this->storyService,
-			$this->archiveService
+			$this->archiveService,
+			$this->createMock(DiscoverCategoriesRequest::class)
 		);
 	}
 

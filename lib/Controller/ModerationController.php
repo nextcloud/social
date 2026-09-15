@@ -11,6 +11,7 @@ namespace OCA\Social\Controller;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Db\MediaBlocksRequest;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\Client\AdminAccount;
@@ -61,6 +62,7 @@ class ModerationController extends Controller {
 		private PostReviewService $postReviewService,
 		private AccountService $accountService,
 		private MediaBlocksRequest $mediaBlocksRequest,
+		private DiscoverCategoriesRequest $discoverCategoriesRequest,
 		private IUserSession $userSession,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -376,6 +378,65 @@ class ModerationController extends Controller {
 	 * the next one, and a moderator is deleting the same image for the third
 	 * time.
 	 */
+	/**
+	 * The subjects this instance says it is about, as the administration page
+	 * edits them.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/discover/categories')]
+	public function discoverCategories(): DataResponse {
+		return new DataResponse(['categories' => $this->discoverCategoriesRequest->getAll()]);
+	}
+
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/discover/categories')]
+	public function discoverCategoryAdd(string $name, string $hashtags = ''): DataResponse {
+		$name = trim($name);
+		if ($name === '') {
+			return new DataResponse(['error' => 'a category needs a name'], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		if ($this->discoverCategoriesRequest->count() >= DiscoverCategoriesRequest::MAX_CATEGORIES) {
+			return new DataResponse(
+				['error' => 'there are already ' . DiscoverCategoriesRequest::MAX_CATEGORIES . ' categories'],
+				Http::STATUS_UNPROCESSABLE_ENTITY
+			);
+		}
+
+		// written the way somebody writes hashtags: separated by spaces or
+		// commas, with or without the hash
+		$tags = [];
+		foreach (preg_split('/[\s,]+/', $hashtags) ?: [] as $tag) {
+			$tag = ltrim(trim($tag), '#');
+			if ($tag !== '' && preg_match('/^[\w\x{00C0}-\x{024F}]{1,100}$/u', $tag) === 1) {
+				$tags[strtolower($tag)] = $tag;
+			}
+			if (count($tags) >= DiscoverCategoriesRequest::MAX_TAGS) {
+				break;
+			}
+		}
+
+		if ($tags === []) {
+			return new DataResponse(
+				['error' => 'a category is a name and the hashtags it means'], Http::STATUS_UNPROCESSABLE_ENTITY
+			);
+		}
+
+		$this->discoverCategoriesRequest->create(
+			mb_substr($name, 0, 64), array_values($tags), $this->discoverCategoriesRequest->count()
+		);
+
+		return new DataResponse(['categories' => $this->discoverCategoriesRequest->getAll()]);
+	}
+
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/moderation/discover/categories')]
+	public function discoverCategoryRemove(int $id): DataResponse {
+		$this->discoverCategoriesRequest->delete($id);
+
+		return new DataResponse(['categories' => $this->discoverCategoriesRequest->getAll()]);
+	}
+
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	#[FrontpageRoute(verb: 'GET', url: '/moderation/media/blocks')]
 	public function mediaBlocks(): DataResponse {

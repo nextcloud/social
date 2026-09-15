@@ -17,6 +17,10 @@
 			:label="t('social', 'What to discover')"
 			@update:value="select" />
 
+		<!-- above the counted lists, because it is the answer to "what is here"
+		     that a visitor can act on: curated, and saying so -->
+		<DiscoverCategories />
+
 		<div v-if="error" class="discover__error" role="alert">
 			<p>{{ error }}</p>
 			<NcButton variant="primary" :disabled="loading" @click="load(active, true)">
@@ -179,6 +183,7 @@ import PlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import TimelineSwitcher from '../components/TimelineSwitcher.vue'
+import DiscoverCategories from '../components/DiscoverCategories.vue'
 import TrendingHashtags from '../components/TrendingHashtags.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import axios from '@nextcloud/axios'
@@ -218,6 +223,7 @@ export default {
 		NcLoadingIcon,
 		ProfileMediaGrid,
 		TimelineSwitcher,
+		DiscoverCategories,
 		TrendingHashtags,
 		Refresh,
 	},

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ArchiveService;
@@ -72,6 +73,7 @@ class PixelfedController extends ClientApiController {
 		private PixelfedService $pixelfedService,
 		private StoryService $storyService,
 		private ArchiveService $archiveService,
+		private DiscoverCategoriesRequest $discoverCategoriesRequest,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -454,6 +456,28 @@ class PixelfedController extends ClientApiController {
 			}
 
 			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * What this instance says it is about: a few named subjects, each a
+	 * handful of hashtags an administrator chose.
+	 *
+	 * Curated rather than computed, which is the point of it. Trending on a
+	 * small instance is four hashtags and a wedding; what the instance would
+	 * *like* to be known for is a decision, and no counter can work it out.
+	 * Public, because it is the page a visitor lands on.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/discover/categories')]
+	public function discoverCategories(): DataResponse {
+		try {
+			return new DataResponse(
+				['categories' => $this->discoverCategoriesRequest->getAll()], Http::STATUS_OK
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

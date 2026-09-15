@@ -72,7 +72,7 @@ describe('the administration page', () => {
 		axios.get.mockResolvedValue({ data: { accounts: [], cursors: [], announcements: [] } })
 	})
 
-	it('is the eleven sections, in the order an administrator reads them', async () => {
+	it('is the twelve sections, in the order an administrator reads them', async () => {
 		const wrapper = await mountPage(STATE)
 		const headings = wrapper.findAll('h2').map((heading) => heading.text())
 
@@ -82,6 +82,7 @@ describe('the administration page', () => {
 			'Posts waiting to be looked at',
 			'Accounts',
 			'Refused pictures',
+			'What this server is about',
 			'Retention',
 			'Storage',
 			'Federation health',
@@ -99,8 +100,8 @@ describe('the administration page', () => {
 		const wrapper = await mountPage({ ...STATE, server: null })
 
 		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Server')
-		// and the ten sections a delegate does hold are all still there
-		expect(wrapper.findAll('h2')).toHaveLength(10)
+		// and the eleven sections a delegate does hold are all still there
+		expect(wrapper.findAll('h2')).toHaveLength(11)
 	})
 
 	it('draws a page the server told nothing about without breaking', async () => {

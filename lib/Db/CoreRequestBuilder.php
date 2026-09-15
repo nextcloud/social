@@ -60,6 +60,7 @@ class CoreRequestBuilder {
 	public const TABLE_COLLECTION_ITEMS = 'social_collection_item';
 	public const TABLE_IMPORTED_POSTS = 'social_import_post';
 	public const TABLE_INSTANCE = 'social_instance';
+	public const TABLE_DISCOVER_CATS = 'social_discover_cat';
 	public const TABLE_MEDIA_BLOCKS = 'social_media_block';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
@@ -395,6 +396,13 @@ class CoreRequestBuilder {
 			'languages',
 			'contact',
 			'account_prim',
+			'creation'
+		],
+		self::TABLE_DISCOVER_CATS => [
+			'id',
+			'name',
+			'hashtags',
+			'position',
 			'creation'
 		],
 		self::TABLE_MEDIA_BLOCKS => [

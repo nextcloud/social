@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\ModerationController;
+use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Db\MediaBlocksRequest;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -38,6 +39,7 @@ class ModerationControllerTest extends TestCase {
 	private AdminApiService|MockObject $adminApiService;
 	private PostReviewService|MockObject $postReviewService;
 	private MediaBlocksRequest|MockObject $mediaBlocksRequest;
+	private DiscoverCategoriesRequest|MockObject $discoverCategoriesRequest;
 	private \OCP\IUserSession|MockObject $userSession;
 	private AccountService|MockObject $accountService;
 	private ModerationController $controller;
@@ -59,6 +61,7 @@ class ModerationControllerTest extends TestCase {
 		$this->adminApiService = $this->createMock(AdminApiService::class);
 		$this->postReviewService = $this->createMock(PostReviewService::class);
 		$this->mediaBlocksRequest = $this->createMock(MediaBlocksRequest::class);
+		$this->discoverCategoriesRequest = $this->createMock(DiscoverCategoriesRequest::class);
 		$user = $this->createMock(\OCP\IUser::class);
 		$user->method('getUID')->willReturn('alice');
 		$this->userSession = $this->createMock(\OCP\IUserSession::class);
@@ -74,6 +77,7 @@ class ModerationControllerTest extends TestCase {
 			$this->postReviewService,
 			$this->accountService,
 			$this->mediaBlocksRequest,
+			$this->discoverCategoriesRequest,
 			$this->userSession
 		);
 
@@ -512,6 +516,57 @@ class ModerationControllerTest extends TestCase {
 
 		$this->assertSame(
 			Http::STATUS_BAD_REQUEST, $this->controller->accountForceSensitive('  ')->getStatus()
+		);
+	}
+
+	// the curated part of Explore
+
+	/**
+	 * Hashtags are written the way people write them — spaces or commas, with
+	 * or without the hash — because that is what an administrator will paste.
+	 */
+	public function testTheHashtagsAreReadTheWayPeopleWriteThem(): void {
+		$this->discoverCategoriesRequest->method('count')->willReturn(0);
+		$this->discoverCategoriesRequest->method('getAll')->willReturn([]);
+		$this->discoverCategoriesRequest->expects($this->once())->method('create')
+			->with('Architecture', ['brutalism', 'concrete', 'stairwells'], 0);
+
+		$response = $this->controller->discoverCategoryAdd(
+			'Architecture', '#brutalism, concrete   #stairwells'
+		);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	/** A subject with no hashtags means nothing and is refused. */
+	public function testASubjectWithNoHashtagsIsRefused(): void {
+		$this->discoverCategoriesRequest->method('count')->willReturn(0);
+		$this->discoverCategoriesRequest->expects($this->never())->method('create');
+
+		$this->assertSame(
+			Http::STATUS_UNPROCESSABLE_ENTITY,
+			$this->controller->discoverCategoryAdd('Architecture', '  ')->getStatus()
+		);
+	}
+
+	public function testASubjectNeedsAName(): void {
+		$this->discoverCategoriesRequest->expects($this->never())->method('create');
+
+		$this->assertSame(
+			Http::STATUS_UNPROCESSABLE_ENTITY,
+			$this->controller->discoverCategoryAdd(' ', '#concrete')->getStatus()
+		);
+	}
+
+	/** Past the ceiling it is not a shelf, it is a list. */
+	public function testThereIsACeilingOnHowManySubjects(): void {
+		$this->discoverCategoriesRequest->method('count')
+			->willReturn(DiscoverCategoriesRequest::MAX_CATEGORIES);
+		$this->discoverCategoriesRequest->expects($this->never())->method('create');
+
+		$this->assertSame(
+			Http::STATUS_UNPROCESSABLE_ENTITY,
+			$this->controller->discoverCategoryAdd('One more', '#more')->getStatus()
 		);
 	}
 }
