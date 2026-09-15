@@ -219,4 +219,26 @@ class TeamServiceTest extends TestCase {
 			$this->service->authorsFor(['a'], null, true)
 		);
 	}
+
+	/**
+	 * Found on devel: the first post from a team came back "Stream not found".
+	 *
+	 * `cacheLocalActorByUsername()` gave up before caching when there was no
+	 * Nextcloud user to read a display name off — which for a team account is
+	 * always — so the actor was never in the actor cache and every read of it
+	 * 404d. The name of a team is its group's, which is the only name it has.
+	 */
+	public function testATeamAccountIsCachedLikeAnyOther(): void {
+		$this->groupManager->method('groupExists')->willReturn(true);
+		$this->teamsRequest->method('getByGroups')->willReturn([]);
+		$this->accountService->method('getActor')->willReturn($this->person(self::TEAM));
+
+		// the caching is AccountService's, and createActor() is what calls it:
+		// what is asserted here is that a team goes through the same call as
+		// anybody else rather than a path of its own
+		$this->accountService->expects($this->once())->method('createActor')
+			->with('team/press', 'press');
+
+		$this->service->create('press', 'press');
+	}
 }
