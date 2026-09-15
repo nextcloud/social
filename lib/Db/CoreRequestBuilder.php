@@ -180,6 +180,7 @@ class CoreRequestBuilder {
 			'description',
 			'public',
 			'error',
+			'transcoded',
 			'creation',
 			'caching'
 		],

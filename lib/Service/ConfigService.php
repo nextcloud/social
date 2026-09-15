@@ -153,6 +153,27 @@ class ConfigService {
 	public const SOCIAL_IMAGE_QUALITY = 'image_quality';
 
 	/**
+	 * Whether stored videos are re-encoded to H.264 in an MP4.
+	 *
+	 * Off by default, because re-encoding is lossy and it is somebody's file.
+	 * Turning it on is how an administrator says the other trade is the one
+	 * they want — and there is a concrete reason to: **Pixelfed's default
+	 * `media_types` accepts `video/mp4` and nothing else**, so every
+	 * `video/quicktime` posted from here, which is every video straight off an
+	 * iPhone, is dropped by its inbox without a word to anybody.
+	 *
+	 * The work is done by a background job, never during an upload: converting
+	 * a video is minutes rather than the seconds a poster frame takes.
+	 */
+	public const SOCIAL_VIDEO_TRANSCODE = 'video_transcode';
+
+	/**
+	 * The tallest a converted video is written. Only consulted when
+	 * `video_transcode` is on, because otherwise nothing is re-encoded.
+	 */
+	public const SOCIAL_VIDEO_MAX_HEIGHT = 'video_max_height';
+
+	/**
 	 * The last measurement of how much disk this app is using, as JSON, with
 	 * the moment it was taken.
 	 *
@@ -209,6 +230,8 @@ class ConfigService {
 		self::SOCIAL_REVIEW_POSTS => '1',
 		self::SOCIAL_IMAGE_MAX_EDGE => '0',
 		self::SOCIAL_IMAGE_QUALITY => '85',
+		self::SOCIAL_VIDEO_TRANSCODE => '0',
+		self::SOCIAL_VIDEO_MAX_HEIGHT => '1080',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
 		self::CONTACT_EMAIL => '',
 		self::SOCIAL_POLLS_SWEPT => '0'

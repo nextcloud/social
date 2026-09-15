@@ -375,6 +375,23 @@ class CacheDocumentService {
 	 * @throws NotFoundException
 	 * @throws NotPermittedException
 	 */
+	/**
+	 * Puts a file on disk into app storage and says what it was stored under.
+	 *
+	 * The public face of `generateFileFromPath()`, for the transcoder: it has
+	 * a converted video in a temporary file and needs it where the original
+	 * was, and reading the whole thing into a string first is the one thing
+	 * that does not work for a video.
+	 *
+	 * @return string the uuid it was stored under
+	 *
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	public function storeFile(string $path): string {
+		return $this->generateFileFromPath($path);
+	}
+
 	private function generateFileFromPath(string $path): string {
 		$source = fopen($path, 'rb');
 		if ($source === false) {

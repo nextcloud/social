@@ -74,6 +74,8 @@ describe('the server card', () => {
 			maxVideoSize: 4096,
 			imageMaxEdge: 0,
 			imageQuality: 85,
+			videoTranscode: false,
+			videoMaxHeight: 1080,
 			inboxThrottle: 0,
 			secureMode: true,
 			publishBlocks: false,

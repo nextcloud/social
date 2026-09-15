@@ -54,11 +54,17 @@ class ServerSettingsService {
 		ConfigService::SOCIAL_MAX_VIDEO_SIZE,
 		ConfigService::SOCIAL_IMAGE_MAX_EDGE,
 		ConfigService::SOCIAL_IMAGE_QUALITY,
+		ConfigService::SOCIAL_VIDEO_TRANSCODE,
+		ConfigService::SOCIAL_VIDEO_MAX_HEIGHT,
 		ConfigService::SOCIAL_INBOX_THROTTLE,
 		ConfigService::SOCIAL_SECURE_MODE,
 		ConfigService::SOCIAL_PUBLISH_BLOCKS,
 		ConfigService::SOCIAL_SELF_SIGNED,
 	];
+
+	/** 480p is the floor worth converting to; 4K is the ceiling worth storing. */
+	private const MIN_VIDEO_HEIGHT = 240;
+	private const MAX_VIDEO_HEIGHT = 2160;
 
 	public function __construct(
 		private ConfigService $configService,
@@ -75,6 +81,8 @@ class ServerSettingsService {
 	 *     max_video_size: int,
 	 *     image_max_edge: int,
 	 *     image_quality: int,
+	 *     video_transcode: bool,
+	 *     video_max_height: int,
 	 *     inbox_throttle: int,
 	 *     secure_mode: bool,
 	 *     publish_blocks: bool,
@@ -93,6 +101,10 @@ class ServerSettingsService {
 				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_IMAGE_MAX_EDGE),
 			ConfigService::SOCIAL_IMAGE_QUALITY
 				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_IMAGE_QUALITY),
+			ConfigService::SOCIAL_VIDEO_TRANSCODE
+				=> $this->configService->getAppValueBool(ConfigService::SOCIAL_VIDEO_TRANSCODE),
+			ConfigService::SOCIAL_VIDEO_MAX_HEIGHT
+				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_VIDEO_MAX_HEIGHT),
 			ConfigService::SOCIAL_INBOX_THROTTLE
 				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_INBOX_THROTTLE),
 			// the two switches other code reads as `=== '1'`, and the one it
@@ -125,6 +137,8 @@ class ServerSettingsService {
 		int $maxVideoSize,
 		int $imageMaxEdge,
 		int $imageQuality,
+		bool $videoTranscode,
+		int $videoMaxHeight,
 		int $inboxThrottle,
 		bool $secureMode,
 		bool $publishBlocks,
@@ -167,6 +181,13 @@ class ServerSettingsService {
 			);
 		}
 
+		if ($videoMaxHeight < self::MIN_VIDEO_HEIGHT || $videoMaxHeight > self::MAX_VIDEO_HEIGHT) {
+			throw new InvalidArgumentException(
+				'video_max_height must be between ' . self::MIN_VIDEO_HEIGHT
+				. ' and ' . self::MAX_VIDEO_HEIGHT . ' pixels'
+			);
+		}
+
 		if ($inboxThrottle < 0 || $inboxThrottle > self::MAX_INBOX_THROTTLE) {
 			throw new InvalidArgumentException(
 				'inbox_throttle must be between 0 and ' . self::MAX_INBOX_THROTTLE
@@ -179,6 +200,10 @@ class ServerSettingsService {
 		$this->configService->setAppValue(ConfigService::SOCIAL_MAX_VIDEO_SIZE, (string)$maxVideoSize);
 		$this->configService->setAppValue(ConfigService::SOCIAL_IMAGE_MAX_EDGE, (string)$imageMaxEdge);
 		$this->configService->setAppValue(ConfigService::SOCIAL_IMAGE_QUALITY, (string)$imageQuality);
+		$this->configService->setAppValue(
+			ConfigService::SOCIAL_VIDEO_TRANSCODE, $videoTranscode ? '1' : '0'
+		);
+		$this->configService->setAppValue(ConfigService::SOCIAL_VIDEO_MAX_HEIGHT, (string)$videoMaxHeight);
 		$this->configService->setAppValue(ConfigService::SOCIAL_INBOX_THROTTLE, (string)$inboxThrottle);
 		// written as the literal `1`/`0`: AuthorizedFetchService and the
 		// domain-blocks route compare against '1', not against "truthy"

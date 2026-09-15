@@ -562,6 +562,41 @@ It is a command rather than a background job on purpose: it is a one-off after
 an upgrade, it spends a subprocess and a temporary copy of each video, and an
 instance with a large media library should choose when that happens.
 
+### `social:media:transcode`
+
+Convert stored videos to H.264 in an MP4, which is the one format the rest of
+the network plays.
+
+```
+php occ social:media:transcode [--limit LIMIT]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--limit` | required | Stop after this many videos. 25 by default |
+
+**Why it matters:** Pixelfed's default `media_types` accepts `video/mp4` and
+nothing else, so every `video/quicktime` posted from here — which is every video
+straight off an iPhone — is dropped by its inbox without a word to anybody.
+Safari will not play WebM either.
+
+Off unless an administrator turned it on, because re-encoding is lossy and it is
+somebody's file: **Administration → Social → Server → Convert videos to MP4**, or
+`occ config:app:set social video_transcode --value=1`. The command exits 1 and
+changes nothing when it is off, or when the server has no ffmpeg.
+
+The same work runs by itself in the background, one video every quarter of an
+hour, which is about a hundred a day — fast enough that a backlog clears and slow
+enough that a server converting one is never the reason its cron is late. This
+command is for an administrator who has just turned the setting on and would
+rather not wait a week.
+
+The converted file is written before the row is pointed at it and the original is
+deleted last, so a failure anywhere leaves a document pointing at a file that
+exists. A video ffmpeg cannot read is recorded as tried and left alone rather
+than retried for ever, and one that is already an MP4 is passed over without
+being re-encoded into a second generation of loss.
+
 ### `social:media:usage`
 
 Report what the app's media occupies on disk, split into what was uploaded here

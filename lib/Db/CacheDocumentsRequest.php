@@ -443,6 +443,82 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/**
+	 * Local videos that have not been through the transcoder yet.
+	 *
+	 * Narrowed to the ones with bytes here to convert: a streamed document's
+	 * `local_copy` is the marker rather than a uuid, and a video on another
+	 * server is not this instance's to re-encode. Ordered and paged by `nid`
+	 * so that a job which converts one file per run works through them without
+	 * ever reading the same page twice.
+	 *
+	 * @return Document[]
+	 */
+	public function getVideosToTranscode(int $limit = 5, int $after = 0): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$alias = $qb->getDefaultSelectAlias();
+		$expr = $qb->expr();
+
+		$qb->andWhere($expr->like($alias . '.media_type', $qb->createNamedParameter('video/%')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter('')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter(Document::COPY_STREAMED)));
+		// a row written before this column existed is 0, which is the right
+		// answer for both of the things it might be: a video that needs
+		// converting, and one that is already an MP4 and will be marked as not
+		// needing it the first time it is read
+		$qb->andWhere($expr->orX(
+			$expr->eq($alias . '.transcoded', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)),
+			$expr->isNull($alias . '.transcoded')
+		));
+		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)));
+		$qb->orderBy($alias . '.nid', 'asc');
+		$qb->setMaxResults($limit);
+
+		$documents = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
+	/**
+	 * Records what became of one video.
+	 *
+	 * Written whatever the outcome, including "not worth converting" and
+	 * "tried and failed": a job that only recorded its successes would read
+	 * the same unconvertible file on every run for ever.
+	 */
+	public function setTranscoded(int $nid, int $state): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_CACHE_DOCUMENTS)
+			->set('transcoded', $qb->createNamedParameter($state, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * The converted file takes the place of the original.
+	 *
+	 * The three things that change together, in one statement: what the file
+	 * is, where it is, and how big the video now is. Apart they would be a
+	 * window in which a document said `video/quicktime` about an MP4.
+	 */
+	public function replaceVideo(int $nid, string $localCopy, string $mediaType): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_CACHE_DOCUMENTS)
+			->set('local_copy', $qb->createNamedParameter($localCopy))
+			->set('media_type', $qb->createNamedParameter($mediaType))
+			->set('mime_type', $qb->createNamedParameter($mediaType))
+			->set('transcoded', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * @param string $url
 	 */
 	public function deleteByUrl(string $url) {

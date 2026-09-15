@@ -225,6 +225,12 @@ own unified search. No external search engine to run.
   collection**), and edit, empty or delete it on its page. A collection holds only
   its owner's own posts with a picture or a video in them, and a followers-only one
   is shown to followers and nobody else.
+- **Videos that play elsewhere** — an administrator can turn on a background job
+  that converts stored videos to H.264 in an MP4, which is the one format the rest
+  of the network plays: Pixelfed's default accepts `video/mp4` and nothing else, so
+  a `.mov` straight off a phone was being dropped by its inbox without a word.
+  Off by default, because re-encoding is lossy and it is somebody's file, and never
+  during an upload.
 - **Tag people in a photo** — name the people in one of your own pictures from the
   post's menu (**… → Tag people**), and their names show up under it, linked to their
   profiles. Everybody named is told, and the photo appears under **Tagged** on their
