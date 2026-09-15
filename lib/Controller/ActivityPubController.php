@@ -802,19 +802,32 @@ class ActivityPubController extends Controller {
 
 		try {
 			$author = $this->cacheActorService->getFromLocalAccount($username);
-			$story = $this->storyService->bySourceId(
-				$this->storyService->idOf($author, $id)
-			);
+			$storyId = $this->storyService->idOf($author, $id);
+			$story = $this->storyService->bySourceId($storyId);
 
-			$reader = $this->reader();
-			if ($reader === null || !$this->storyService->mayRead($story, $reader)) {
-				throw new ItemNotFoundException('unknown story');
+			// The capability the `Add` carried, presented as a bearer token —
+			// which is how Pixelfed fetches a story: `StoryFetch` follows the
+			// bearcap rather than signing a request, so there is no reader to
+			// check against the followers. The token names this one story and
+			// nothing else, and stops working when the story does.
+			if (!$this->storyService->bearcapMatches($storyId, $this->bearerToken())) {
+				$reader = $this->reader();
+				if ($reader === null || !$this->storyService->mayRead($story, $reader)) {
+					throw new ItemNotFoundException('unknown story');
+				}
 			}
 
 			return $this->activityPubSuccess($this->storyService->asActivityPub($author, $story));
 		} catch (Exception $e) {
 			return $this->fail($e, ['story' => $id], Http::STATUS_NOT_FOUND, false);
 		}
+	}
+
+	/** The bearer token a capability fetch presents, or `''`. */
+	private function bearerToken(): string {
+		$header = trim($this->request->getHeader('Authorization'));
+
+		return (stripos($header, 'bearer ') === 0) ? trim(substr($header, 7)) : '';
 	}
 
 	#[NoCSRFRequired]

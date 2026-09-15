@@ -26,6 +26,20 @@ use OCA\Social\Model\ActivityPub\ACore;
  * is keeping something the author published on the understanding that it goes
  * — so this app stores the date it is given, refuses one that is absent or
  * already past, and holds nothing longer than a day whatever the sender says.
+ *
+ * **The shape is Pixelfed's, down to the field names**, because Pixelfed is the
+ * only network that has stories and a shape it does not read is a story nobody
+ * sees. Two things in here exist only for that and are worth knowing about:
+ *
+ *  - `object` is a **bearcap** (`bear:?t=…&u=…`, FEP-d8c2): a URL and a token
+ *    that fetches this story. Pixelfed's inbox does not read the story out of
+ *    the activity at all — `StoryFetch` validates `object.object` and fetches
+ *    what it names — so an `Add` without one is dropped without a word. The
+ *    fields beside it are still filled in, for this app's own inbox and for
+ *    anything else that would rather read than fetch.
+ *  - `attachment` is **one object, not a list**, and its `type` is `Image` or
+ *    `Video` rather than `Document`. That is what Pixelfed validates
+ *    (`attachment.url`, `attachment.type in:Image,Video`), and a list fails it.
  */
 class Story extends ACore implements JsonSerializable {
 	public const TYPE = 'Story';
@@ -33,10 +47,14 @@ class Story extends ACore implements JsonSerializable {
 	/** No story is held longer than this, whatever `expiresAt` claims. */
 	public const MAX_LIFETIME = 24 * 3600;
 
+	/** The only two attachment types Pixelfed will accept on a story. */
+	private const ATTACHMENT_VIDEO = 'Video';
+
 	private string $attributedTo = '';
 	private string $caption = '';
 	private int $duration = 5;
 	private int $expiresAt = 0;
+	private string $bearcap = '';
 	private ?Document $attachment = null;
 
 	public function __construct($parent = null) {
@@ -86,6 +104,23 @@ class Story extends ACore implements JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * The capability that fetches this story: `bear:?t=<token>&u=<url>`.
+	 *
+	 * Empty on a story that arrived rather than one being sent — this app
+	 * reads the fields beside it and never follows the capability, because
+	 * what it would fetch is what it was already handed.
+	 */
+	public function getBearcap(): string {
+		return $this->bearcap;
+	}
+
+	public function setBearcap(string $bearcap): self {
+		$this->bearcap = $bearcap;
+
+		return $this;
+	}
+
 	public function getAttachment(): ?Document {
 		return $this->attachment;
 	}
@@ -128,6 +163,16 @@ class Story extends ACore implements JsonSerializable {
 		}
 	}
 
+	/**
+	 * `Image` or `Video`, which is the only pair Pixelfed accepts, worked out
+	 * from the file rather than from the ActivityPub class — every attachment
+	 * here is a `Document` and that is not an answer to this question.
+	 */
+	private function attachmentType(Document $attachment): string {
+		return str_starts_with(strtolower($attachment->getMediaType()), 'video/')
+			? self::ATTACHMENT_VIDEO : Image::TYPE;
+	}
+
 	#[\Override]
 	public function jsonSerialize(): array {
 		$attachment = $this->getAttachment();
@@ -141,12 +186,21 @@ class Story extends ACore implements JsonSerializable {
 					'duration' => $this->getDuration(),
 					'expiresAt' => ($this->getExpiresAt() > 0)
 						? gmdate('Y-m-d\TH:i:s\Z', $this->getExpiresAt()) : '',
-					'attachment' => ($attachment === null) ? [] : [[
-						'type' => Document::TYPE,
+					// the capability that fetches this story, for the one
+					// network that reads a story that way; see the class comment
+					'object' => $this->getBearcap(),
+					// neither is possible here, and both are answered rather
+					// than left out: a reader that assumes the default gets the
+					// wrong one
+					'can_reply' => false,
+					'can_react' => false,
+					// one object, not a list — see the class comment
+					'attachment' => ($attachment === null) ? [] : [
+						'type' => $this->attachmentType($attachment),
 						'mediaType' => $attachment->getMediaType(),
 						'url' => $attachment->getUrl(),
 						'name' => ($attachment->getDescription() === '') ? null : $attachment->getDescription(),
-					]],
+					],
 				]
 			),
 			static fn ($value): bool => $value !== '' && $value !== []

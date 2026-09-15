@@ -19,6 +19,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Story as ApStory;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Story;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
@@ -58,6 +59,7 @@ class StoryServiceTest extends TestCase {
 
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
+		$configService->method('getStorySecret')->willReturn('a-secret-of-this-instances-own');
 
 		$this->service = new StoryService(
 			$this->storiesRequest,
@@ -76,6 +78,7 @@ class StoryServiceTest extends TestCase {
 	private function serviceWith(CacheActorService $cacheActorService): StoryService {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
+		$configService->method('getStorySecret')->willReturn('a-secret-of-this-instances-own');
 
 		return new StoryService(
 			$this->storiesRequest,
@@ -271,6 +274,78 @@ class StoryServiceTest extends TestCase {
 		$this->assertSame(self::ALICE, $story->getAttributedTo());
 		$this->assertSame(7, $story->getDuration());
 		$this->assertSame(1_700_086_400, $story->getExpiresAt());
+	}
+
+	/**
+	 * The shape Pixelfed's `StoryFetch` validates, field by field, read off
+	 * its source at `472b4c4`. Every one of these is a gate: it drops the
+	 * activity without a word when any of them is missing, which is what this
+	 * app's stories did before there was a bearcap on them.
+	 */
+	public function testTheWireShapeIsTheOnePixelfedValidates(): void {
+		$story = $this->story(self::ALICE, 7)
+			->setSourceId('https://cloud.example/apps/social/@alice/stories/7')
+			->setCaption('Late shift')
+			->setCreation(1_700_000_000)
+			->setExpiresAt(1_700_086_400);
+		$story->setMedia(
+			(new MediaAttachment())->setUrl('https://cloud.example/media/7.jpg')->setMediaType('image/jpeg')
+		);
+
+		$json = $this->service->asActivityPub($this->person(self::ALICE), $story)->jsonSerialize();
+
+		// `object.object` — required, a string, and the only thing Pixelfed
+		// reads the story out of
+		$this->assertSame(
+			'bear:?t=' . hash_hmac('sha256', $story->getSourceId(), 'a-secret-of-this-instances-own')
+			. '&u=' . $story->getSourceId(),
+			$json['object']
+		);
+		// its decoder splits on `&` without unescaping, so neither half may be
+		// encoded, and the url must be one it can parse
+		$this->assertStringStartsWith('bear:?t=', $json['object']);
+		$this->assertStringNotContainsString('%', $json['object']);
+
+		// `attachment.url` / `.type` / `.mediaType` — one object, not a list,
+		// and a type out of the pair it accepts
+		$this->assertSame('Image', $json['attachment']['type']);
+		$this->assertSame('image/jpeg', $json['attachment']['mediaType']);
+		$this->assertSame('https://cloud.example/media/7.jpg', $json['attachment']['url']);
+
+		// `published` and an `expiresAt` after it, both dates
+		$this->assertNotFalse(strtotime($json['published']));
+		$this->assertGreaterThan(strtotime($json['published']), strtotime($json['expiresAt']));
+
+		// and the two it reads as booleans
+		$this->assertFalse($json['can_reply']);
+		$this->assertFalse($json['can_react']);
+	}
+
+	/** A video story is a `Video`; Pixelfed takes those two types and no others. */
+	public function testAVideoStoryIsTypedAsOne(): void {
+		$story = $this->story(self::ALICE, 7)->setSourceId('https://cloud.example/apps/social/@alice/stories/7');
+		$story->setMedia(
+			(new MediaAttachment())->setUrl('https://cloud.example/media/7.mp4')->setMediaType('video/mp4')
+		);
+
+		$json = $this->service->asActivityPub($this->person(self::ALICE), $story)->jsonSerialize();
+
+		$this->assertSame('Video', $json['attachment']['type']);
+	}
+
+	/**
+	 * The capability names one story. A token for another, or none at all, is
+	 * not a way in — it is the only credential a fetch of somebody's story
+	 * carries, since Pixelfed follows the bearcap rather than signing.
+	 */
+	public function testACapabilityOpensTheStoryItNamesAndNoOther(): void {
+		$mine = 'https://cloud.example/apps/social/@alice/stories/7';
+		$other = 'https://cloud.example/apps/social/@alice/stories/8';
+
+		$this->assertTrue($this->service->bearcapMatches($mine, $this->service->bearcapToken($mine)));
+		$this->assertFalse($this->service->bearcapMatches($mine, $this->service->bearcapToken($other)));
+		$this->assertFalse($this->service->bearcapMatches($mine, ''));
+		$this->assertFalse($this->service->bearcapMatches($mine, 'not-a-token'));
 	}
 
 	public function testDeletingAStoryWithdrawsItFromTheFollowers(): void {

@@ -124,6 +124,12 @@ class ConfigService {
 	public const SOCIAL_AUTOSPAM = 'autospam';
 
 	/**
+	 * The secret a story's fetch capability is derived from, generated the
+	 * first time a story is published. See `getStorySecret()`.
+	 */
+	public const SOCIAL_STORY_SECRET = 'story_secret';
+
+	/**
 	 * Per account, not per instance: the Pixelfed app's own switches, kept
 	 * here because that app keeps them on its server so a reinstall finds the
 	 * app as it was left. Written and read by `PixelfedService`, and
@@ -485,6 +491,25 @@ class ConfigService {
 		}
 
 		return $socialUrl;
+	}
+
+	/**
+	 * The secret the story capabilities are derived from, made the first time
+	 * one is needed.
+	 *
+	 * Generated rather than configured: nobody should have to set this, and an
+	 * instance that has never published a story does not need one. Changing it
+	 * invalidates every capability at once, which is the only revocation this
+	 * needs — a story lives a day.
+	 */
+	public function getStorySecret(): string {
+		$secret = $this->getAppValue(self::SOCIAL_STORY_SECRET);
+		if ($secret === '') {
+			$secret = bin2hex(random_bytes(32));
+			$this->setAppValue(self::SOCIAL_STORY_SECRET, $secret);
+		}
+
+		return $secret;
 	}
 
 	/**

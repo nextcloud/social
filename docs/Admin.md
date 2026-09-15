@@ -288,6 +288,7 @@ the moderation routes accept.
 | `service` | `1` | Unused; a leftover of the original installer. |
 | `installed_version` | | Written by the upgrade machinery. |
 | `polls_swept` | `0` | How far the closed-poll sweep has got, as a timestamp. |
+| `story_secret` | *(generated)* | The secret a story's fetch capability is derived from, made the first time a story is published. Changing it invalidates every outstanding capability at once, which is the only revocation it needs: a story lives a day. Never set this by hand. |
 
 ### The Server card
 

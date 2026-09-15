@@ -257,9 +257,10 @@ is up for a day, to your followers and nobody else. While it is up, you can
 see how many people watched it and take it down early from the same player.
 
 Stories travel. Yours go to the people who follow you on other servers that
-have stories — Pixelfed is the one that does — and theirs appear in your row
-beside stories from this server. Taking yours down early takes it down there
-too. What another server does with its copy after the day is up is that
+have stories — Pixelfed is the one that does. Stories from a Pixelfed account
+do not come the other way, and that is Pixelfed's decision rather than this
+server's: it sends them only to servers it recognises as Pixelfed. Taking
+yours down early takes it down there too. What another server does with its copy after the day is up is that
 server's business, which is why a story that arrives here is kept for a day
 at the most, whatever the sender says, and one that has already expired is
 not kept at all.

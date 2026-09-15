@@ -89,9 +89,12 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   video, for followers, gone after a day; a ring on the face while there is something
   you have not seen, a player that runs them one after another, and your own place
   first in the row with a **+** on it to add one. The poster sees how many people
-  watched and can take it down early; nobody else sees either. Stories federate:
-  yours reach your followers on Pixelfed, theirs appear in your row, and a story
-  that arrives is held no longer than a day here whatever the sender says.
+  watched and can take it down early; nobody else sees either. Stories federate to
+  Pixelfed, in the shape Pixelfed actually reads — an `Add` carrying a capability its
+  inbox fetches the story with, measured field by field against Pixelfed's own source
+  rather than against the specification. One that arrives is held no longer than a day
+  here whatever the sender says. The other direction is not ours to fix: Pixelfed sends
+  stories only to instances it has identified as Pixelfed.
 - **Photos and Videos are timelines of their own**, drawn as grids and asked of the
   server rather than filtered out of a page you already have.
 ![Videos, including federated PeerTube channels](img/readme/videos.jpg)

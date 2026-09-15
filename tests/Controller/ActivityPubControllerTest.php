@@ -188,8 +188,19 @@ class ActivityPubControllerTest extends TestCase {
 		\OC::$server->reset();
 	}
 
-	private function acceptHeader(string $accept): void {
-		$this->request->method('getHeader')->with('Accept')->willReturn($accept);
+	/**
+	 * The request's headers, by name rather than by a single `with('Accept')`:
+	 * the story route also reads `Authorization`, and a mock constrained to
+	 * one header fails the call for any other.
+	 */
+	private function acceptHeader(string $accept, string $authorization = ''): void {
+		$this->request->method('getHeader')->willReturnCallback(
+			static fn (string $name): string => match ($name) {
+				'Accept' => $accept,
+				'Authorization' => $authorization,
+				default => '',
+			}
+		);
 	}
 
 	/** @return Person&MockObject */

@@ -63,6 +63,45 @@ class StoryService {
 	}
 
 	/**
+	 * The capability a story travels with: `bear:?t=<token>&u=<url>`.
+	 *
+	 * Pixelfed's inbox does not read a story out of the activity that carries
+	 * it. `StoryFetch` requires `object.object`, decodes it as a bearcap
+	 * (FEP-d8c2), and fetches what it names with the token — an `Add` without
+	 * one is dropped without a word, which is what this app's stories used to
+	 * be. The field order is Pixelfed's own `Bearcap::encode()`, and its
+	 * decoder splits on `&` without unescaping, so neither half may be
+	 * URL-encoded.
+	 */
+	public function bearcapOf(string $storyId): string {
+		return 'bear:?t=' . $this->bearcapToken($storyId) . '&u=' . $storyId;
+	}
+
+	/**
+	 * The token that fetches one story, and nothing else.
+	 *
+	 * Derived rather than stored: a story lives a day and there would be one
+	 * row per story to write, expire and clean up for a value that can be
+	 * recomputed. Keyed on a secret of this instance's own, so a token cannot
+	 * be worked out from the story's address, and it stops working for every
+	 * story at once if that secret is ever changed.
+	 */
+	public function bearcapToken(string $storyId): string {
+		return hash_hmac('sha256', $storyId, $this->configService->getStorySecret());
+	}
+
+	/**
+	 * Whether a token presented for a story is the one this instance minted.
+	 *
+	 * Compared in constant time: the comparison is against a secret-derived
+	 * value, and a fetch is something anybody may attempt as often as they
+	 * like.
+	 */
+	public function bearcapMatches(string $storyId, string $token): bool {
+		return $token !== '' && hash_equals($this->bearcapToken($storyId), $token);
+	}
+
+	/**
 	 * Posts one of the viewer's own uploads as a story.
 	 *
 	 * @throws InvalidResourceException when the upload is unknown or there are
@@ -157,6 +196,7 @@ class StoryService {
 	public function asActivityPub(Person $owner, Story $story): ApStory {
 		$object = new ApStory();
 		$object->setId($story->getSourceId());
+		$object->setBearcap($this->bearcapOf($story->getSourceId()));
 		$object->setAttributedTo($owner->getId());
 		$object->setPublished(gmdate('Y-m-d\TH:i:s\Z', $story->getCreation()));
 		$object->setTo($owner->getFollowers());
