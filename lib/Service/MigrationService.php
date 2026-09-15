@@ -10,13 +10,17 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ListsRequest;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\InstancePath;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -42,6 +46,21 @@ class MigrationService {
 	/** How many followers of a moved account to re-follow at a time. */
 	private const REFOLLOW_PAGE = 200;
 
+	/** The lists of accounts `exportCsv()` will write, and their names. */
+	public const CSV_KINDS = ['following', 'followers', 'blocks', 'mutes', 'lists'];
+
+	/** How many rows one page of a CSV export reads. */
+	private const EXPORT_PAGE = 200;
+
+	/**
+	 * The most rows one CSV export carries.
+	 *
+	 * A cap rather than a promise of everything: the whole file is built in
+	 * memory and handed to a browser, and it is also what makes the paging
+	 * terminate when a query ignores its offset.
+	 */
+	private const EXPORT_MAX = 5000;
+
 	/**
 	 * The most followers one Move will re-follow.
 	 *
@@ -59,6 +78,9 @@ class MigrationService {
 		private FollowService $followService,
 		private ActivityService $activityService,
 		private SignatureService $signatureService,
+		private ActorRelationRequest $actorRelationRequest,
+		private ListsRequest $listsRequest,
+		private RelationshipService $relationshipService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -207,6 +229,384 @@ class MigrationService {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Re-creates the blocks of an export — Mastodon's `blocked_accounts.csv`,
+	 * which is a bare list of handles.
+	 *
+	 * A block is not a relationship two servers agree on the way a follow is:
+	 * it is this account's own decision, so it is applied here directly. One
+	 * that cannot be applied — an account that does not resolve — is reported
+	 * rather than dropped, because a block that silently did not happen is the
+	 * failure that matters in this file.
+	 *
+	 * @return array{blocked: int, skipped: int, failed: array<string, string>}
+	 *                                                                          `failed` maps a handle to the reason
+	 */
+	public function importBlocks(string $userId, string $csv): array {
+		$result = $this->relate($userId, $csv, function (Person $actor, Person $target): void {
+			$this->relationshipService->block($actor, $target);
+		});
+
+		return ['blocked' => $result['done'], 'skipped' => $result['skipped'], 'failed' => $result['failed']];
+	}
+
+	/**
+	 * Re-creates the mutes of an export — Mastodon's `muted_accounts.csv`,
+	 * which carries `Hide notifications` beside each handle and is the one
+	 * thing a mute stores besides its target.
+	 *
+	 * @return array{muted: int, skipped: int, failed: array<string, string>}
+	 *                                                                        `failed` maps a handle to the reason
+	 */
+	public function importMutes(string $userId, string $csv): array {
+		$hidden = self::parseMuteNotifications($csv);
+
+		$result = $this->relate($userId, $csv, function (Person $actor, Person $target, string $handle) use ($hidden): void {
+			// the column says whether notifications are *hidden*; the relation
+			// stores whether they are shown, so it is read the other way round
+			$this->relationshipService->mute($actor, $target, !($hidden[strtolower($handle)] ?? false));
+		});
+
+		return ['muted' => $result['done'], 'skipped' => $result['skipped'], 'failed' => $result['failed']];
+	}
+
+	/**
+	 * Re-creates the lists of an export — Mastodon's `lists.csv`, one
+	 * `list name,account address` per row.
+	 *
+	 * A list here can only hold accounts this one follows, which is Mastodon's
+	 * rule as well, so an account that is not followed yet is **skipped** and
+	 * not followed on the quiet: this button says it imports lists. Import the
+	 * follows first and run this after — the order the Migration page asks for
+	 * them in, and what the skipped count is telling you when it is not zero.
+	 *
+	 * A list whose title is already there is filled rather than duplicated, so
+	 * importing the same file twice changes nothing the second time. A list
+	 * that follows a Nextcloud group is left alone: its members are the
+	 * group's.
+	 *
+	 * @return array{lists: int, added: int, skipped: int, failed: array<string, string>}
+	 *                                                                                    `failed` maps `list/handle` to the reason
+	 */
+	public function importLists(string $userId, string $csv): array {
+		$actor = $this->accountService->getActorFromUserId($userId);
+		$result = ['lists' => 0, 'added' => 0, 'skipped' => 0, 'failed' => []];
+
+		$existing = [];
+		foreach ($this->listsRequest->getByActor($actor->getId()) as $list) {
+			$existing[mb_strtolower($list->getTitle())] = $list;
+		}
+
+		foreach (self::parseListsCsv($csv) as $title => $handles) {
+			$list = $existing[mb_strtolower($title)] ?? null;
+			if ($list === null) {
+				$list = new MastodonList();
+				$list->setOwnerId($actor->getId())->setTitle($title);
+				$list = $this->listsRequest->create($list);
+				$existing[mb_strtolower($title)] = $list;
+				$result['lists']++;
+			} elseif ($list->getGroupId() !== '') {
+				// a group list's members are the group's; adding to it would be
+				// undone by the next reconcile
+				$result['skipped'] += count($handles);
+				continue;
+			}
+
+			foreach ($handles as $handle) {
+				try {
+					$target = $this->resolveEntry($handle);
+					if ($target->getId() !== $actor->getId() && !$this->follows($actor, $target)) {
+						$result['skipped']++;
+						continue;
+					}
+
+					$this->listsRequest->addMember($list, $target->getId());
+					$result['added']++;
+				} catch (Throwable $e) {
+					$result['failed'][$title . '/' . $handle] = $e->getMessage();
+					$this->logger->notice('cannot put an account in an imported list', [
+						'actor' => $actor->getId(), 'list' => $title, 'handle' => $handle, 'exception' => $e,
+					]);
+				}
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * One of this account's lists of accounts, as the CSV the network it came
+	 * from would have written — so it can be carried on to the next one.
+	 *
+	 * The names are Mastodon's, because a file called `following_accounts.csv`
+	 * is one every other implementation's importer already recognises, and the
+	 * point of writing it is that it is read somewhere else.
+	 *
+	 * @return array{0: string, 1: string} the file name and its contents
+	 * @throws InvalidResourceException when `$kind` is not one of CSV_KINDS
+	 */
+	public function exportCsv(string $userId, string $kind): array {
+		$actor = $this->accountService->getActorFromUserId($userId);
+
+		return match ($kind) {
+			'following' => ['following_accounts.csv', self::exportFollowsCsv($this->handlesOfFollows(
+				fn (int $offset): array => $this->followsRequest->getFollowingByActorId(
+					$actor->getId(), self::EXPORT_PAGE, $offset
+				)
+			))],
+			'followers' => ['followers.csv', self::exportFollowsCsv($this->handlesOfFollows(
+				fn (int $offset): array => $this->followsRequest->getFollowersByActorId(
+					$actor->getId(), self::EXPORT_PAGE, $offset
+				)
+			))],
+			'blocks' => ['blocked_accounts.csv', self::csvOf($this->handlesOfRelations($actor, ActorRelation::TYPE_BLOCK))],
+			'mutes' => ['muted_accounts.csv', $this->exportMutesCsv($actor)],
+			'lists' => ['lists.csv', $this->exportListsCsv($actor)],
+			default => throw new InvalidResourceException(
+				'"' . $kind . '" is not something this account keeps a list of'
+			),
+		};
+	}
+
+	/**
+	 * The handles in a bare or Mastodon-shaped CSV, applied one at a time.
+	 *
+	 * Shared by the block and mute imports, which differ only in what they do
+	 * with each account. One that fails does not stop the rest — an export is
+	 * a file whose author cannot fix it, and half of a block list is better
+	 * than none of it.
+	 *
+	 * @param callable(Person, Person, string): void $apply
+	 *
+	 * @return array{done: int, skipped: int, failed: array<string, string>}
+	 */
+	private function relate(string $userId, string $csv, callable $apply): array {
+		$actor = $this->accountService->getActorFromUserId($userId);
+		$result = ['done' => 0, 'skipped' => 0, 'failed' => []];
+
+		foreach (self::parseFollows($csv) as $handle) {
+			if (strcasecmp($handle, $actor->getAccount()) === 0 || strcasecmp($handle, $actor->getId()) === 0) {
+				$result['skipped']++;
+				continue;
+			}
+
+			try {
+				$apply($actor, $this->resolveEntry($handle), $handle);
+				$result['done']++;
+			} catch (Throwable $e) {
+				$result['failed'][$handle] = $e->getMessage();
+				$this->logger->notice('cannot import a block or a mute', [
+					'actor' => $actor->getId(), 'handle' => $handle, 'exception' => $e,
+				]);
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * The account an export entry names, by handle or by actor URL.
+	 *
+	 * Resolving may fetch the actor — a plain signed GET, which tells that
+	 * server nothing a follow would not have told it — because without an
+	 * actor id there is no row to write.
+	 */
+	private function resolveEntry(string $entry): Person {
+		if (self::isActorUrl($entry)) {
+			return $this->cacheActorService->getFromId($entry, true);
+		}
+
+		return $this->cacheActorService->getFromAccount($entry);
+	}
+
+	/**
+	 * Whether the actor follows the target, a follow that is still waiting for
+	 * an answer included — as `POST /api/v1/lists/{id}/accounts` counts it,
+	 * so a locked account can be put in a list the moment it is asked for.
+	 */
+	private function follows(Person $actor, Person $target): bool {
+		try {
+			$this->followsRequest->getByPersons($actor->getId(), $target->getId());
+
+			return true;
+		} catch (Throwable $e) {
+			return false;
+		}
+	}
+
+	/**
+	 * `list name,account address` per row, which is what Mastodon writes and
+	 * what it reads back. There is no header in the file it exports, so one is
+	 * only skipped where it is there.
+	 *
+	 * @return array<string, string[]> the handles of each list, by title, in file order
+	 */
+	public static function parseListsCsv(string $csv): array {
+		$lists = [];
+		/** @var array<string, string> the spelling of each title the file used first */
+		$titles = [];
+		/** @var array<string, array<string, true>> the handles already in each list */
+		$seen = [];
+
+		foreach (preg_split('/\r\n|\r|\n/', $csv) ?: [] as $index => $line) {
+			if (trim($line) === '') {
+				continue;
+			}
+
+			$cells = str_getcsv($line, ',', '"', '');
+			$title = ListsRequest::normaliseTitle((string)($cells[0] ?? ''));
+			$handle = ltrim(trim((string)($cells[1] ?? '')), '@');
+			if ($index === 0 && strtolower($title) === 'list name') {
+				continue;
+			}
+
+			if ($title === '' || preg_match('/^[^@\s]+@[^@\s]+$/', $handle) !== 1) {
+				continue;
+			}
+
+			// a title that repeats with different capitalisation is one list,
+			// kept under the spelling the file used first
+			$key = mb_strtolower($title);
+			$title = $titles[$key] ??= $title;
+			$lists[$title] ??= [];
+			$seen[$key] ??= [];
+
+			$already = strtolower($handle);
+			if (isset($seen[$key][$already])) {
+				continue;
+			}
+
+			$seen[$key][$already] = true;
+			$lists[$title][] = $handle;
+		}
+
+		return $lists;
+	}
+
+	/**
+	 * Which handles of a `muted_accounts.csv` asked for their notifications to
+	 * be hidden, by lower-cased handle.
+	 *
+	 * @return array<string, bool>
+	 */
+	public static function parseMuteNotifications(string $csv): array {
+		$hidden = [];
+		foreach (preg_split('/\r\n|\r|\n/', $csv) ?: [] as $line) {
+			if (trim($line) === '') {
+				continue;
+			}
+
+			$cells = str_getcsv($line, ',', '"', '');
+			$handle = strtolower(ltrim(trim((string)($cells[0] ?? '')), '@'));
+			$hidden[$handle] = strtolower(trim((string)($cells[1] ?? ''))) === 'true';
+		}
+
+		return $hidden;
+	}
+
+	/**
+	 * The handles of a paged follow query, in order, without the ones whose
+	 * account this server never cached: a bare actor URL is not a handle, and
+	 * writing one into the address column produces a row every reader of the
+	 * format skips anyway.
+	 *
+	 * @param callable(int): Follow[] $page
+	 *
+	 * @return string[]
+	 */
+	private function handlesOfFollows(callable $page): array {
+		$handles = [];
+		$offset = 0;
+
+		while (count($handles) < self::EXPORT_MAX) {
+			$follows = $page($offset);
+			if ($follows === []) {
+				break;
+			}
+
+			foreach ($follows as $follow) {
+				$account = $follow->hasActor() ? $follow->getActor()?->getAccount() ?? '' : '';
+				if ($account !== '') {
+					$handles[] = $account;
+				}
+			}
+
+			$offset += count($follows);
+		}
+
+		return array_slice($handles, 0, self::EXPORT_MAX);
+	}
+
+	/**
+	 * The handles this actor blocks or mutes.
+	 *
+	 * Read in one query — `getByActor()` takes no offset — so it is capped,
+	 * the same cap the account export uses.
+	 *
+	 * @return string[]
+	 */
+	private function handlesOfRelations(Person $actor, string $type): array {
+		$handles = [];
+		foreach ($this->actorRelationRequest->getByActor($actor->getId(), $type, self::EXPORT_MAX) as $relation) {
+			$handle = $this->handleOf($relation->getObjectId());
+			if ($handle !== '') {
+				$handles[] = $handle;
+			}
+		}
+
+		return $handles;
+	}
+
+	private function exportMutesCsv(Person $actor): string {
+		$lines = ['Account address,Hide notifications'];
+		foreach ($this->actorRelationRequest->getByActor($actor->getId(), ActorRelation::TYPE_MUTE, self::EXPORT_MAX) as $mute) {
+			$handle = $this->handleOf($mute->getObjectId());
+			if ($handle !== '') {
+				$lines[] = self::csvCell($handle) . ',' . ($mute->isNotifications() ? 'false' : 'true');
+			}
+		}
+
+		return self::csvOf($lines);
+	}
+
+	/**
+	 * `list name,account address` per row, with no header — the shape
+	 * Mastodon's own `lists.csv` has, which is also what its importer expects.
+	 */
+	private function exportListsCsv(Person $actor): string {
+		$lines = [];
+		foreach ($this->listsRequest->getByActor($actor->getId()) as $list) {
+			foreach ($this->listsRequest->getMemberIds($list) as $memberId) {
+				$handle = $this->handleOf($memberId);
+				if ($handle !== '') {
+					$lines[] = self::csvCell($list->getTitle()) . ',' . self::csvCell($handle);
+				}
+			}
+		}
+
+		return self::csvOf($lines);
+	}
+
+	/** The handle of a cached actor, or '' where this server has never seen it. */
+	private function handleOf(string $actorId): string {
+		try {
+			return $this->cacheActorService->getFromId($actorId)->getAccount();
+		} catch (Throwable $e) {
+			$this->logger->debug('cannot resolve an account for a CSV export, leaving it out', [
+				'actorId' => $actorId, 'exception' => $e,
+			]);
+
+			return '';
+		}
+	}
+
+	/**
+	 * @param string[] $lines
+	 */
+	private static function csvOf(array $lines): string {
+		return $lines === [] ? '' : implode("\n", $lines) . "\n";
 	}
 
 	/**

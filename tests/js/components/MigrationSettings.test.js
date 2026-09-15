@@ -257,6 +257,76 @@ describe('Migration', () => {
 		expect(wrapper.vm.aliasInput).toBe('')
 	})
 
+	// the other three lists, in and out
+
+	it('reads a blocks CSV through its own route and reports what it came to', async () => {
+		axios.post.mockResolvedValue({ data: { blocked: 3, skipped: 1, failed: { 'dave@x.example': 'gone' } } })
+
+		const wrapper = mountPage()
+		await choose(wrapper, 'blocks', 'blocked_accounts.csv')
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/migration/blocks`, expect.any(FormData))
+		expect(wrapper.text()).toContain('3 applied, 1 skipped, 1 could not be reached')
+		expect(showSuccess).toHaveBeenCalled()
+	})
+
+	it('reads a mutes CSV through the mutes route', async () => {
+		axios.post.mockResolvedValue({ data: { muted: 2, skipped: 0, failed: {} } })
+
+		const wrapper = mountPage()
+		await choose(wrapper, 'mutes', 'muted_accounts.csv')
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/migration/mutes`, expect.any(FormData))
+		expect(wrapper.text()).toContain('2 applied, 0 skipped, 0 could not be reached')
+	})
+
+	/**
+	 * A list here can only hold accounts the owner follows, so the count of
+	 * the ones left out has to say why — otherwise a half-filled list looks
+	 * like a failure nobody can act on.
+	 */
+	it('says why the accounts left out of a list were left out', async () => {
+		axios.post.mockResolvedValue({ data: { lists: 2, added: 5, skipped: 4, failed: {} } })
+
+		const wrapper = mountPage()
+		await choose(wrapper, 'lists', 'lists.csv')
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/migration/lists`, expect.any(FormData))
+		expect(wrapper.text()).toContain('2 lists made, 5 accounts added, 4 skipped because you do not follow them')
+	})
+
+	it('shows the server\'s reason when one of those files is refused', async () => {
+		axios.post.mockRejectedValue({ response: { data: { error: 'that is not a CSV' } } })
+
+		const wrapper = mountPage()
+		await choose(wrapper, 'blocks', 'blocked_accounts.csv')
+
+		expect(showError).toHaveBeenCalledWith('that is not a CSV')
+	})
+
+	it('downloads one list at a time under the name the server gave it', async () => {
+		axios.get.mockResolvedValue({
+			data: new Blob(['carol@remote.example\n']),
+			headers: { 'content-disposition': 'attachment; filename="blocked_accounts.csv"' },
+		})
+		let savedAs = ''
+		vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function saved() {
+			savedAs = this.getAttribute('download')
+		})
+		URL.createObjectURL = vi.fn(() => 'blob:csv')
+		URL.revokeObjectURL = vi.fn()
+
+		const wrapper = mountPage()
+		await flushPromises()
+		const button = wrapper.findAll('.migration__csv-buttons button')
+			.find((one) => one.text() === 'Blocks')
+		await button.trigger('click')
+		await flushPromises()
+
+		expect(axios.get).toHaveBeenCalledWith(`${API}/migration/export/blocks`, { responseType: 'blob' })
+		expect(savedAs).toBe('blocked_accounts.csv')
+	})
+
 	/** An address that is not an account's own is refused, and the server says why. */
 	it('shows the reason the server gave for refusing an address', async () => {
 		const wrapper = mountPage()

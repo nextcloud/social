@@ -506,6 +506,22 @@ hand, it is picked up as one.
   not published again. The third section imports the follows from another
   network's export — a `following_accounts.csv`, or Pixelfed's
   `pixelfed-following.json`.
+- **One list at a time, out.** Under the Export button, **Or one list at a
+  time** downloads your follows, your followers, your blocks, your mutes or
+  your lists as a single CSV, each written the way Mastodon writes it. It is
+  the same content as the files inside the zip, for when the other end wants
+  one file rather than an archive. The followers file is a record rather than
+  something an import can re-create: a follower follows you again, or their
+  server is told by the move.
+- **Blocks, mutes and lists, in.** **Bring your blocks, mutes and lists** reads
+  the other three files from the same export. Blocks and mutes are decisions
+  your account makes on its own, so they apply as soon as the file is read —
+  and a block federates, exactly as blocking somebody from here does. Do the
+  follows first and the lists after: a list here can only hold accounts you
+  follow, as on Mastodon, so anybody you have not followed again yet is counted
+  as skipped rather than followed by a button that says lists. A list you
+  already have is filled rather than made a second time, and a list that
+  follows a Nextcloud group is left alone — its members are the group's.
 - **Naming your old account.** Your old server will not send your followers
   here until this account says it is also you. **Settings → Migration →
   Accounts you also answer to** is where you say it: paste the old account's

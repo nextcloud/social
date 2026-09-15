@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\MigrationController;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\MigrationArchiveService;
@@ -24,7 +25,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
 /**
- * The Migration page's three buttons.
+ * The Migration page's buttons.
  *
  * `$_FILES` rather than a parameter, because that is what the framework hands
  * a multipart upload and what the controller reads; the tests set it the way a
@@ -53,7 +54,14 @@ class MigrationControllerTest extends TestCase {
 	/** @var array<string, mixed> what the request carries */
 	private array $params = [];
 
+	/** @var string[] the temporary uploads to clean up */
+	private array $uploaded = [];
+
 	protected function tearDown(): void {
+		foreach ($this->uploaded as $path) {
+			@unlink($path);
+		}
+		$this->uploaded = [];
 		$_FILES = [];
 		\OC::$server->reset();
 		parent::tearDown();
@@ -133,6 +141,14 @@ class MigrationControllerTest extends TestCase {
 			->willReturnCallback(fn (string $key, $default = null) => $this->params[$key] ?? $default);
 
 		return $request;
+	}
+
+	/** An upload carrying `$contents`, cleaned up when the test ends. */
+	private function uploadWith(string $contents): void {
+		$path = tempnam(sys_get_temp_dir(), 'social-csv-test');
+		file_put_contents($path, $contents);
+		$this->uploaded[] = $path;
+		$this->upload(['tmp_name' => $path]);
 	}
 
 	/** @param array<string, mixed> $file */
@@ -254,6 +270,87 @@ class MigrationControllerTest extends TestCase {
 
 	public function testFollowsWithoutAnAccountIsUnauthorized(): void {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->importFollows()->getStatus());
+	}
+
+	// the other three lists another server exported
+
+	public function testBlocksAreReadFromTheUploadedCsv(): void {
+		$this->uploadWith("carol@remote.example\n");
+		$this->migrationService->expects($this->once())->method('importBlocks')
+			->with('alice', "carol@remote.example\n")
+			->willReturn(['blocked' => 1, 'skipped' => 0, 'failed' => []]);
+
+		$response = $this->controller()->importBlocks();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['blocked' => 1, 'skipped' => 0, 'failed' => []], $response->getData());
+	}
+
+	public function testMutesAreReadFromTheUploadedCsv(): void {
+		$this->uploadWith("Account address,Hide notifications\ncarol@remote.example,true\n");
+		$this->migrationService->expects($this->once())->method('importMutes')
+			->willReturn(['muted' => 1, 'skipped' => 0, 'failed' => []]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->importMutes()->getStatus());
+	}
+
+	public function testListsAreReadFromTheUploadedCsv(): void {
+		$this->uploadWith("Friends,carol@remote.example\n");
+		$this->migrationService->expects($this->once())->method('importLists')
+			->willReturn(['lists' => 1, 'added' => 1, 'skipped' => 0, 'failed' => []]);
+
+		$this->assertSame(1, $this->controller()->importLists()->getData()['added']);
+	}
+
+	public function testTheOtherImportsWithNoFileSaySo(): void {
+		foreach ([
+			fn (): object => $this->controller()->importBlocks(),
+			fn (): object => $this->controller()->importMutes(),
+			fn (): object => $this->controller()->importLists(),
+		] as $call) {
+			$response = $call();
+			$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+			$this->assertSame(['error' => 'no file was uploaded'], $response->getData());
+		}
+	}
+
+	public function testTheOtherImportsWithoutAnAccountAreUnauthorized(): void {
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->importBlocks()->getStatus());
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->importMutes()->getStatus());
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->importLists()->getStatus());
+	}
+
+	// one list at a time, back out
+
+	public function testASingleListIsHandedOverAsANamedCsvDownload(): void {
+		$this->migrationService->expects($this->once())->method('exportCsv')
+			->with('alice', 'blocks')
+			->willReturn(['blocked_accounts.csv', "carol@remote.example\n"]);
+
+		$response = $this->controller()->exportCsv('blocks');
+
+		$this->assertInstanceOf(DataDisplayResponse::class, $response);
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame("carol@remote.example\n", $response->render());
+		$this->assertSame(
+			'attachment; filename="blocked_accounts.csv"',
+			$response->getHeaders()['Content-Disposition']
+		);
+		$this->assertStringStartsWith('text/csv', $response->getHeaders()['Content-Type']);
+	}
+
+	/** A kind this account keeps no list of is a 404, not a server error. */
+	public function testAnUnknownKindIsNotFound(): void {
+		$this->migrationService->method('exportCsv')
+			->willThrowException(new InvalidResourceException('"secrets" is not something this account keeps a list of'));
+
+		$response = $this->controller()->exportCsv('secrets');
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+	}
+
+	public function testExportingAListWithoutAnAccountIsUnauthorized(): void {
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->exportCsv('blocks')->getStatus());
 	}
 	public function testImportingPostsHandsTheUploadToTheImporterAndAnswersItsTally(): void {
 		$this->withUpload('outbox.json');

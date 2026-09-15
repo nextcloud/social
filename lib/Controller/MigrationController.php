@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\MigrationArchiveService;
 use OCA\Social\Service\MigrationService;
@@ -28,11 +29,13 @@ use Throwable;
 /**
  * Taking your account's data out, and putting it back.
  *
- * These are the Migration page's three buttons. They are session routes rather
- * than client-API ones on purpose: they are for the person sitting in front of
- * the browser, not for a Mastodon client, and an archive of everything an
- * account ever wrote is not something a third-party token should be able to
- * ask for.
+ * These are the Migration page's buttons: the archive out and back in, the
+ * lists of accounts another network exported as CSV — follows, blocks, mutes
+ * and lists — and the same four written back out one file at a time. They are
+ * session routes rather than client-API ones on purpose: they are for the
+ * person sitting in front of the browser, not for a Mastodon client, and an
+ * archive of everything an account ever wrote is not something a third-party
+ * token should be able to ask for.
  *
  * The work is `MigrationArchiveService`, which drives the same
  * `SocialMigrator` that Nextcloud's whole-account export uses — so what
@@ -152,6 +155,109 @@ class MigrationController extends Controller {
 	#[UserRateLimit(limit: 4, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/follows')]
 	public function importFollows(): DataResponse {
+		return $this->fromUpload(
+			fn (string $userId, string $csv): array => $this->migrationService->importFollows($userId, $csv),
+			'importing follows failed'
+		);
+	}
+
+	/**
+	 * The accounts an export blocks — Mastodon's `blocked_accounts.csv`.
+	 *
+	 * A separate route from the follows one rather than a `kind` on it: the
+	 * two do different things (one asks another server for a relationship, one
+	 * records a decision of this account's own), they carry different rate
+	 * limits, and a client that got the kind wrong would otherwise follow the
+	 * people it meant to block.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 4, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/blocks')]
+	public function importBlocks(): DataResponse {
+		return $this->fromUpload(
+			fn (string $userId, string $csv): array => $this->migrationService->importBlocks($userId, $csv),
+			'importing blocks failed'
+		);
+	}
+
+	/** The accounts an export mutes — Mastodon's `muted_accounts.csv`. */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 4, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/mutes')]
+	public function importMutes(): DataResponse {
+		return $this->fromUpload(
+			fn (string $userId, string $csv): array => $this->migrationService->importMutes($userId, $csv),
+			'importing mutes failed'
+		);
+	}
+
+	/**
+	 * The lists an export names — Mastodon's `lists.csv`.
+	 *
+	 * Run after the follows: a list here holds accounts this one follows, as
+	 * Mastodon's do, and an account not followed yet is counted as skipped
+	 * rather than followed on the quiet by a button that says "lists".
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 4, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/lists')]
+	public function importLists(): DataResponse {
+		return $this->fromUpload(
+			fn (string $userId, string $csv): array => $this->migrationService->importLists($userId, $csv),
+			'importing lists failed'
+		);
+	}
+
+	/**
+	 * One of this account's lists of accounts as a CSV, to carry on elsewhere.
+	 *
+	 * `{kind}` is `following`, `followers`, `blocks`, `mutes` or `lists`, and
+	 * each is written in the shape the network it is named after writes it —
+	 * the archive from the Export button holds the same files, and this is for
+	 * the person who wants one of them without the whole thing.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 3600)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/export/{kind}')]
+	public function exportCsv(string $kind): Response {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			[$name, $csv] = $this->migrationService->exportCsv($this->userId, $kind);
+
+			// `text/csv` with the name spelled out, the way export() hands the
+			// archive over. The name is one of the five the service chooses
+			// from and never anything the caller sent, so there is nothing in
+			// it that could break out of the quotes.
+			$response = new DataDisplayResponse($csv, Http::STATUS_OK, [
+				'Content-Type' => 'text/csv; charset=utf-8',
+			]);
+			$response->addHeader('Content-Disposition', 'attachment; filename="' . $name . '"');
+
+			return $response;
+		} catch (InvalidResourceException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Throwable $e) {
+			$this->logger->error('a CSV export failed', [
+				'userId' => $this->userId, 'kind' => $kind, 'exception' => $e,
+			]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
+	 * The three CSV imports differ by the one call they make: an uploaded
+	 * file, read, handed to the service, and whatever it counted answered
+	 * back. A file that could not be read is the client's problem and says so;
+	 * anything the service throws is reported with its own message, which is
+	 * the whole of the help there is.
+	 *
+	 * @param callable(string, string): array $import
+	 */
+	private function fromUpload(callable $import, string $failure): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
 		}
@@ -167,13 +273,14 @@ class MigrationController extends Controller {
 		}
 
 		try {
-			return new DataResponse($this->migrationService->importFollows($this->userId, $csv), Http::STATUS_OK);
+			return new DataResponse($import($this->userId, $csv), Http::STATUS_OK);
 		} catch (Throwable $e) {
-			$this->logger->warning('importing follows failed', ['userId' => $this->userId, 'exception' => $e]);
+			$this->logger->warning($failure, ['userId' => $this->userId, 'exception' => $e]);
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 	}
+
 	/**
 	 * Brings an account's own posts over from the server it wrote them on.
 	 *

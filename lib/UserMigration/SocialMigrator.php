@@ -1039,18 +1039,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * @return array<string, bool>
 	 */
 	private function hiddenNotifications(string $csv): array {
-		$hidden = [];
-		foreach (preg_split('/\r\n|\r|\n/', $csv) ?: [] as $line) {
-			if (trim($line) === '') {
-				continue;
-			}
-
-			$cells = str_getcsv($line, ',', '"', '');
-			$handle = strtolower(ltrim(trim((string)($cells[0] ?? '')), '@'));
-			$hidden[$handle] = strtolower(trim((string)($cells[1] ?? ''))) === 'true';
-		}
-
-		return $hidden;
+		return MigrationService::parseMuteNotifications($csv);
 	}
 
 	/**
