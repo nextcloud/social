@@ -215,6 +215,19 @@ people who follow them.
 
 ---
 
+### From a Pixelfed admin app
+
+The administration screens of Pixelfed's official app call Pixelfed's own
+`/api/admin/*` routes, and this instance answers them — behind the same gate
+as everything above, and through the same service, so a takedown from the app
+is the same takedown as one from this page. Users, open reports and the
+instances this server federates with are all there; Pixelfed's `unlisted` on
+an instance is the silence tier and its `banned` the deny list. What this
+instance does not have — an autospam queue, per-account "unlisted" or
+"content warning" flags, switches that flip from the app — is answered as
+absent or refused with a reason, never as a 200 that changed nothing. The
+routes and their answers are in [API.md](API.md).
+
 ## Configuration
 
 Everything below is app configuration under `social`, read and written with:

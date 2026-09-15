@@ -119,7 +119,7 @@ class AdminApiControllerTest extends TestCase {
 	private const SERVICE_WORK = [
 		'accountPage', 'account', 'act', 'unsilence', 'unsuspend',
 		'reports', 'report', 'resolveReport', 'reopenReport', 'assignReport',
-		'domainBlocks', 'domainBlock', 'blockDomain', 'unblockDomain', 'assertSeverity',
+		'domainBlocks', 'domainBlock', 'blockDomain', 'unblockDomain', 'updateDomainBlock', 'assertSeverity',
 	];
 
 	protected function setUp(): void {
@@ -481,14 +481,25 @@ class AdminApiControllerTest extends TestCase {
 		$this->assertStringContainsString('allow list', $response->getData()['error']);
 	}
 
-	public function testASeverityThisListCannotExpressIsRefusedBeforeAnythingIsRead(): void {
-		$this->adminApiService->method('assertSeverity')
-			->willThrowException(new \InvalidArgumentException('severity "silence" cannot be applied'));
-		$this->adminApiService->expects($this->never())->method('domainBlock');
+	public function testASeverityThisInstanceDoesNotHaveIsRefused(): void {
+		$this->adminApiService->method('updateDomainBlock')
+			->willThrowException(new \InvalidArgumentException('severity "noop" cannot be applied'));
+
+		$response = $this->controller()->domainBlockUpdate('evil.example', 'noop');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+	}
+
+	public function testAnUpdateMovesTheBlockThroughTheService(): void {
+		$this->adminApiService->expects($this->once())
+			->method('updateDomainBlock')
+			->with('evil.example', 'silence')
+			->willReturn(new AdminDomainBlock('evil.example', AdminDomainBlock::SEVERITY_SILENCE));
 
 		$response = $this->controller()->domainBlockUpdate('evil.example', 'silence');
 
-		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('silence', $response->getData()->getSeverity());
 	}
 
 	public function testABlockIsLiftedByTheEntryItNames(): void {

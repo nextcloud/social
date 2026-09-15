@@ -40,15 +40,30 @@ use JsonSerializable;
  * the list would not be. Routes that take an id accept the domain itself too.
  */
 class AdminDomainBlock implements JsonSerializable {
+	/** The tier an entry on the deny list is: nothing from the domain gets in. */
 	public const SEVERITY = 'suspend';
+
+	/** The middle tier: the domain's accounts stay readable to their followers but leave the public timelines. */
+	public const SEVERITY_SILENCE = 'silence';
+
+	public const SEVERITIES = [self::SEVERITY, self::SEVERITY_SILENCE];
 
 	public function __construct(
 		private string $domain = '',
+		private string $severity = self::SEVERITY,
 	) {
 	}
 
 	public function getDomain(): string {
 		return $this->domain;
+	}
+
+	public function getSeverity(): string {
+		return $this->severity;
+	}
+
+	public function isSilence(): bool {
+		return $this->severity === self::SEVERITY_SILENCE;
 	}
 
 	public function getId(): string {
@@ -73,9 +88,11 @@ class AdminDomainBlock implements JsonSerializable {
 			'id' => $this->getId(),
 			'domain' => $this->domain,
 			'created_at' => gmdate('Y-m-d\TH:i:s', 0) . '.000Z',
-			'severity' => self::SEVERITY,
-			'reject_media' => true,
-			'reject_reports' => true,
+			'severity' => $this->severity,
+			// a suspension refuses everything from the domain, media and
+			// reports included; a silence refuses nothing, it only hides
+			'reject_media' => !$this->isSilence(),
+			'reject_reports' => !$this->isSilence(),
 			'private_comment' => null,
 			'public_comment' => null,
 			'obfuscate' => false,
