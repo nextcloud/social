@@ -15,13 +15,16 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Client\AdminDomainBlock;
+use OCA\Social\Model\HeldPost;
 use OCA\Social\Model\Instance;
 use OCA\Social\Model\Moderation;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PixelfedAdminService;
+use OCA\Social\Service\PostReviewService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -32,6 +35,8 @@ class PixelfedAdminServiceTest extends TestCase {
 	private AdminApiService|MockObject $adminApiService;
 	private FediverseService|MockObject $fediverseService;
 	private InstanceStatsRequest|MockObject $instanceStatsRequest;
+	private PostReviewService|MockObject $postReviewService;
+	private AccountService|MockObject $accountService;
 	private PixelfedAdminService $service;
 	private array $accessList = [];
 	private array $silencedList = [];
@@ -71,12 +76,17 @@ class PixelfedAdminServiceTest extends TestCase {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->accessTypeList = ['BLACKLIST' => 'all_but', 'WHITELIST' => 'none_but'];
 
+		$this->postReviewService = $this->createMock(PostReviewService::class);
+		$this->accountService = $this->createMock(AccountService::class);
+
 		$this->service = new PixelfedAdminService(
 			$this->adminApiService,
 			$this->fediverseService,
 			$instanceService,
 			$this->instanceStatsRequest,
 			$configService,
+			$this->postReviewService,
+			$this->accountService,
 		);
 	}
 
@@ -91,13 +101,15 @@ class PixelfedAdminServiceTest extends TestCase {
 		return AdminAccount::fromPerson($person, $level);
 	}
 
-	public function testTheStatsAreTheInstancesOwnAndTheAutospamCountIsZero(): void {
+	public function testTheStatsAreTheInstancesOwnAndTheAutospamCountIsTheReviewQueue(): void {
+		$this->postReviewService->method('countPending')->willReturn(4);
+
 		$stats = $this->service->stats();
 
 		$this->assertSame(36, $stats['users_count']);
 		$this->assertSame(692, $stats['posts_count']);
 		$this->assertSame(3, $stats['instances_count']);
-		$this->assertSame(0, $stats['autospam_count']);
+		$this->assertSame(4, $stats['autospam_count']);
 	}
 
 	/** The switches describe this instance, and none of them can be flipped from here. */
@@ -154,11 +166,44 @@ class PixelfedAdminServiceTest extends TestCase {
 		$this->service->handleModReport(4, 'unlist', 'alice');
 	}
 
-	public function testThereIsNoAutospamQueueAndItSaysSo(): void {
-		$this->assertSame(['data' => []], $this->service->autospam());
+	/**
+	 * Pixelfed's autospam screen draws this instance's own review queue: the
+	 * posts held because an account is new or a rule tripped.
+	 */
+	public function testTheAutospamQueueIsTheReviewQueue(): void {
+		$held = (new HeldPost())->setId(7)
+			->setActorId('https://cloud.example/@alice')
+			->setReason(HeldPost::REASON_FIRST_POST)
+			->setParams(['text' => 'hello everybody', 'visibility' => 'public']);
+		$this->postReviewService->method('pending')->willReturn([$held]);
+		$this->postReviewService->method('reasonText')->willReturn('the first post of a new account');
+
+		$rows = $this->service->autospam()['data'];
+
+		$this->assertCount(1, $rows);
+		$this->assertSame('7', $rows[0]['id']);
+		$this->assertSame('hello everybody', $rows[0]['content']);
+		// a rule, in both forms: Pixelfed shows a score, and a score is not
+		// something a moderator can act on
+		$this->assertSame(HeldPost::REASON_FIRST_POST, $rows[0]['reason']);
+		$this->assertSame('the first post of a new account', $rows[0]['reason_text']);
+	}
+
+	public function testApprovingFromTheAppPublishesAndDeletingRefuses(): void {
+		$held = (new HeldPost())->setId(7)->setActorId('https://cloud.example/@alice');
+		$this->postReviewService->method('heldPost')->with(7)->willReturn($held);
+		$author = new Person();
+		$author->setId('https://cloud.example/@alice');
+		$this->accountService->method('getFromId')->willReturn($author);
+
+		$this->postReviewService->expects($this->once())->method('approve')->with(7, $author);
+		$this->assertSame(['success' => true], $this->service->handleAutospam(7, 'approve'));
+
+		$this->postReviewService->expects($this->once())->method('reject')->with(7);
+		$this->assertSame(['success' => true], $this->service->handleAutospam(7, 'delete'));
 
 		$this->expectException(InvalidArgumentException::class);
-		$this->service->handleAutospam();
+		$this->service->handleAutospam(7, 'cw');
 	}
 
 	/** Pixelfed's `unlisted` is this app's silence, its `banned` the deny list. */

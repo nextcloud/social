@@ -15,10 +15,12 @@ use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Report;
 use OCA\Social\Model\Strike;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Controller;
@@ -44,6 +46,9 @@ class ModerationController extends Controller {
 	/** What one page of the account browser holds. */
 	private const ACCOUNTS_PER_PAGE = 40;
 
+	/** What one page of the review queue holds. */
+	private const REVIEW_PER_PAGE = 50;
+
 	public function __construct(
 		IRequest $request,
 		private ReportService $reportService,
@@ -51,6 +56,8 @@ class ModerationController extends Controller {
 		private ConfigService $configService,
 		private ModerationService $moderationService,
 		private AdminApiService $adminApiService,
+		private PostReviewService $postReviewService,
+		private AccountService $accountService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -258,6 +265,77 @@ class ModerationController extends Controller {
 		} catch (ReportNotFoundException $e) {
 			return new DataResponse(['error' => 'report not found'], Http::STATUS_NOT_FOUND);
 		}
+	}
+
+	/**
+	 * The posts waiting for somebody to look at them, oldest first.
+	 *
+	 * Text and all: the queue exists to be read, and a row that only said
+	 * "a post by @alice was held" would send a moderator looking for a post
+	 * that is deliberately nowhere to be found.
+	 *
+	 * @param int $page 1-based
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/review')]
+	public function review(int $page = 1): DataResponse {
+		$page = max(1, $page);
+		$perPage = self::REVIEW_PER_PAGE;
+
+		return new DataResponse([
+			'held' => $this->postReviewService->pending($perPage, ($page - 1) * $perPage),
+			'total' => $this->postReviewService->countPending(),
+			'page' => $page,
+			'perPage' => $perPage,
+			'reviewFirstPost' => $this->postReviewService->reviewsFirstPost(),
+			'autospam' => $this->postReviewService->autospam(),
+		]);
+	}
+
+	/**
+	 * Publishes one. It goes out as its author, down the path it would have
+	 * taken, dated now — see `PostReviewService::approve()`.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/review/{id}/approve')]
+	public function reviewApprove(int $id): DataResponse {
+		try {
+			$held = $this->postReviewService->heldPost($id);
+			$author = $this->accountService->getFromId($held->getActorId());
+			$this->postReviewService->approve($id, $author);
+
+			return new DataResponse(['approved' => (string)$id]);
+		} catch (Exception $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		}
+	}
+
+	/** Refuses one, which tells its author and is recorded against them. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/review/{id}/reject')]
+	public function reviewReject(int $id, string $comment = ''): DataResponse {
+		try {
+			$this->postReviewService->reject($id, trim($comment));
+
+			return new DataResponse(['rejected' => (string)$id]);
+		} catch (Exception $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		}
+	}
+
+	/** Turns first-post review and the spam rules on and off. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/review/settings')]
+	public function reviewSettings(bool $reviewFirstPost, bool $autospam): DataResponse {
+		$this->configService->setAppValue(
+			ConfigService::SOCIAL_REVIEW_FIRST_POST, $reviewFirstPost ? '1' : '0'
+		);
+		$this->configService->setAppValue(ConfigService::SOCIAL_AUTOSPAM, $autospam ? '1' : '0');
+
+		return new DataResponse([
+			'reviewFirstPost' => $this->postReviewService->reviewsFirstPost(),
+			'autospam' => $this->postReviewService->autospam(),
+		]);
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]

@@ -4,7 +4,7 @@
  */
 
 import axios from '@nextcloud/axios'
-import { showError } from '../services/toast.js'
+import { showError, showInfo } from '../services/toast.js'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'
@@ -640,6 +640,15 @@ export const useTimelineStore = defineStore('timeline', {
 				logger.info('Post created', data.id)
 				return data
 			} catch (error) {
+				// A post the server held for a moderator is not a failure: it
+				// has been kept, and writing it again would only put a second
+				// copy in the queue. Said as information, and the box is
+				// cleared, because there is nothing left for the author to do.
+				if (error.response?.data?.held_for_review === true) {
+					showInfo(t('social', 'Your post is waiting for a moderator to look at it. It has been kept — there is no need to write it again.'))
+					logger.info('Post held for review')
+					return { held_for_review: true }
+				}
 				showError(t('social', 'Could not send the post'))
 				logger.error('Failed to create a status', { error })
 			}

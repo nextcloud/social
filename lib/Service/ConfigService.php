@@ -101,6 +101,28 @@ class ConfigService {
 	 */
 	public const SOCIAL_POLLS_SWEPT = 'polls_swept';
 
+	/**
+	 * Whether the first post of an account that has published nothing here yet
+	 * waits for a moderator.
+	 *
+	 * On by default. Accounts here are Nextcloud users, so a spammer has to be
+	 * given an account by this server before they can post at all — and when
+	 * that happens, the cheapest thing that can be done about it is that the
+	 * first thing they write is seen by a person before it reaches anybody
+	 * else. An instance whose accounts are all colleagues turns it off and
+	 * loses nothing.
+	 */
+	public const SOCIAL_REVIEW_FIRST_POST = 'review_first_post';
+
+	/**
+	 * Whether a post that trips the spam rules waits for a moderator.
+	 *
+	 * On by default, and a very short list of rules — see `PostReviewService`.
+	 * What this is not is a filter: nothing is ever refused by it, only put in
+	 * front of a person.
+	 */
+	public const SOCIAL_AUTOSPAM = 'autospam';
+
 	/** The long form of what this instance is, for `instance/extended_description`. */
 	public const SOCIAL_EXTENDED_DESCRIPTION = 'extended_description';
 
@@ -129,6 +151,8 @@ class ConfigService {
 		self::SOCIAL_SILENCED_LIST => '[]',
 		self::SOCIAL_SECURE_MODE => '0',
 		self::SOCIAL_PUBLISH_BLOCKS => '0',
+		self::SOCIAL_REVIEW_FIRST_POST => '1',
+		self::SOCIAL_AUTOSPAM => '1',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
 		self::CONTACT_EMAIL => '',
 		self::SOCIAL_POLLS_SWEPT => '0'

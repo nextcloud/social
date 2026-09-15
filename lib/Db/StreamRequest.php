@@ -631,6 +631,26 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * How many posts this account has published here, whoever they were for.
+	 *
+	 * The twin of `countNotesFromActorId()`, which counts only the public ones
+	 * because that is what a profile reports. This one is asked a different
+	 * question — has this account posted here before at all — and a first post
+	 * that went to followers is still not a first post.
+	 */
+	public function countPostsBy(string $actorId): int {
+		$qb = $this->countNotesSelectSql();
+		$qb->limitToAttributedTo($actorId, true);
+		$qb->limitToStatusTypes();
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+	/**
 	 * @param string $actorId
 	 *
 	 * @return int

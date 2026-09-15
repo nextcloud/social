@@ -137,6 +137,26 @@ deletion is sent to every server that received it — this cannot be undone),
 status**, which says which servers received the post, which are still being
 tried and which gave up.
 
+### If your post is kept back
+
+Your server may show some posts to a moderator before they go out. There are
+two reasons it does: the **first post** of an account that has not published
+anything here yet, and a post that tripped one of the server's spam rules — a
+lot of links, or a lot of mentions from an account nobody follows yet. Your
+administrator can turn either off, and neither applies to a **direct
+message**: nobody reads those but the people you wrote to.
+
+When it happens the app says so at once, and your writing is kept — there is
+no need to write it again, and writing it again only finds the copy already
+waiting. Nobody but you and the moderators can see it in the meantime: it is
+in no timeline, not even your own. **Settings → Waiting to be looked at** is
+where yours are, and you can take one back from there, which deletes it and
+tells nobody.
+
+If it is approved, it goes out as an ordinary post, dated the moment it was
+approved rather than when you wrote it. If it is refused, it is deleted and
+you are told.
+
 ### Where it was taken
 
 The pin in the composer's toolbar says where a post was taken. It offers the

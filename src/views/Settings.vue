@@ -76,6 +76,16 @@
 			<ScheduledPosts />
 		</section>
 
+		<section id="review" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Waiting to be looked at') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'Some posts are kept for a moderator to see before they go out — the first post of a new account, and posts that tripped one of this server\'s spam rules. Yours are here until somebody looks at them. You can take one back; nobody is told if you do.') }}
+			</p>
+			<HeldPosts />
+		</section>
+
 		<section id="recap" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Looking back') }}
@@ -99,6 +109,7 @@
 </template>
 
 <script>
+import HeldPosts from '../components/HeldPosts.vue'
 import MigrationSettings from '../components/MigrationSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
@@ -134,6 +145,7 @@ export default {
 		AccountSettings,
 		FeaturedTagsSettings,
 		FiltersSettings,
+		HeldPosts,
 		ListsSettings,
 		MigrationSettings,
 		RecapSettings,

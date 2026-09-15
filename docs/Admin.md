@@ -140,12 +140,18 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Seven sections:
+**Administration → Social.** Eight sections:
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
   read a page at a time when the fold is opened. Fifty to a page, server-side,
   with a *Show more* under each.
+- **Posts waiting to be looked at** — the review queue: the first post of a
+  new account, and posts that tripped one of the spam rules. Each row carries
+  the text, because a held post is in no timeline and there is nowhere else to
+  go and read it. *Publish* sends it out; *Refuse* deletes it and tells its
+  author. Two switches at the top turn first-post review and the spam rules on
+  and off.
 - **Accounts** — every account this instance knows, whether or not anybody has
   complained. Search by username, by handle or by instance, filter by origin
   and by what stands against them, and act on any of them.
@@ -204,6 +210,35 @@ enabled they land in the audit log beside "user X was added to group Y", naming
 the moderator who acted. Without that app nothing listens and nothing is
 written.
 
+**Before anybody sees it.** Two rules hold a post back instead of publishing
+it, both on by default:
+
+- **first-post review** (`review_first_post`) holds the first post of an
+  account that has published nothing here yet. Accounts here are Nextcloud
+  users, so a spammer has to be given an account by this server before they can
+  post at all — and when that happens, the cheapest thing that can be done
+  about it is that the first thing they write is seen by a person. An instance
+  whose accounts are all colleagues turns it off and loses nothing.
+- **autospam** (`autospam`) holds a post that trips one of a very short list of
+  rules: more than five links in a short post, or more than five mentions from
+  an account that nobody follows and that follows nobody. There is no wordlist
+  and no score — "seven links" is something a moderator can agree or disagree
+  with in a second, and "0.82" is not.
+
+A **direct message is never held**, whatever it says: holding one would put
+private correspondence in front of a moderator who was not written to, for a
+machine's reason. Nor is a post by an account a decision already stands
+against — that account is being dealt with by the decision.
+
+Nothing is published, and nothing is deleted, without somebody pressing
+something. A held post is stored as the *request* the client sent, not as a
+post: it is in no timeline, no profile, no outbox and no search, not even its
+author's, and their own copy of it is in **Settings → Waiting to be looked at**,
+where they can take it back. Approving replays the request down the path an
+immediate post takes and dates it now. Refusing deletes it, tells the author,
+and records a takedown strike. One account may have twenty waiting; past that
+its posts are refused outright, because nobody is going to read the fortieth.
+
 **Instances, not accounts.** *Fediverse access* is the instance-wide list.
 In block-list mode (the default, `access_type=all_but`) everything on it is
 refused, including every subdomain, and blocking a domain queues a purge of
@@ -222,10 +257,12 @@ The administration screens of Pixelfed's official app call Pixelfed's own
 as everything above, and through the same service, so a takedown from the app
 is the same takedown as one from this page. Users, open reports and the
 instances this server federates with are all there; Pixelfed's `unlisted` on
-an instance is the silence tier and its `banned` the deny list. What this
-instance does not have — an autospam queue, per-account "unlisted" or
-"content warning" flags, switches that flip from the app — is answered as
-absent or refused with a reason, never as a 200 that changed nothing. The
+an instance is the silence tier and its `banned` the deny list. Its **autospam**
+screen draws this instance's own review queue, with *not spam* publishing a held
+post and *delete* refusing it. What this instance does not have — per-account
+"unlisted" or "content warning" flags, switches that flip from the app — is
+answered as absent or refused with a reason, never as a 200 that changed
+nothing. The
 routes and their answers are in [API.md](API.md).
 
 ## Configuration
@@ -279,6 +316,8 @@ can still be set with `occ`; the page validates the ranges given here.
 | `federate_blocks` | `1` | Whether a user's own blocks are federated to the blocked account's instance. `0` keeps them local. |
 | `publish_video_objects` | `0` | Whether a post that is a video is federated as an ActivityPub `Video` (PeerTube's shape) rather than a `Note` with an attachment. Off by default: Pixelfed's inbox handles only `Note`s and silently drops a `Video`, so with this on no video posted here reaches a Pixelfed follower. Mastodon draws both shapes; PeerTube draws only the `Video`. Turn it on for an instance whose audience is on PeerTube. |
 | `rules` | *(empty)* | The instance rules shown by `/api/v1/instance/rules`, one per line. |
+| `review_first_post` | `1` | Hold the first post of an account that has published nothing here yet, for a moderator to see before it goes out. |
+| `autospam` | `1` | Hold a post that trips one of the spam rules — more than five links in a short post, or more than five mentions from an account nobody follows and that follows nobody. Nothing is ever refused by the rules, only shown to a person. |
 
 ### System configuration
 

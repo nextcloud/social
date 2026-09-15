@@ -64,6 +64,7 @@ class CoreRequestBuilder {
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REACTIONS = 'social_reaction';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
+	public const TABLE_POST_HOLD = 'social_post_hold';
 	public const TABLE_SCHEDULED = 'social_scheduled';
 	public const TABLE_PLACES = 'social_place';
 	public const TABLE_STORIES = 'social_story';
@@ -458,6 +459,15 @@ class CoreRequestBuilder {
 			'status',
 			'tries',
 			'last'
+		],
+		self::TABLE_POST_HOLD => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'params',
+			'reason',
+			'digest',
+			'creation'
 		],
 		self::TABLE_SCHEDULED => [
 			'id',

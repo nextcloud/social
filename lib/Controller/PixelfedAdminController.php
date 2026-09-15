@@ -159,13 +159,20 @@ class PixelfedAdminController extends AdminApiControllerBase {
 		}
 	}
 
+	/**
+	 * @param int $id the held post
+	 * @param string $action `approve` (Pixelfed's "not spam") or `delete`
+	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/admin/autospam/handle')]
-	public function autospamHandle(): DataResponse {
+	public function autospamHandle(int $id = 0, string $action = ''): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
-			$this->pixelfedAdminService->handleAutospam();
+
+			return new DataResponse(
+				$this->pixelfedAdminService->handleAutospam($id, $action), Http::STATUS_OK
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

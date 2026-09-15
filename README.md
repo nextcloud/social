@@ -361,6 +361,15 @@ the administration settings:
 - **Reports** with **Silence**, **Suspend**, **Lift** and take-a-post-down, each
   recorded with the moderator who did it and written to Nextcloud's audit log.
   Suspending deletes what the account posted here, and the confirmation says so.
+- **A review queue before anything goes out.** The first post of an account that has
+  published nothing here yet, and posts that trip a very short list of spam rules —
+  a wall of links, a scatter of mentions from an account nobody follows — wait for a
+  moderator instead of reaching anybody. A held post is stored as the request the
+  client sent and is written to no timeline at all, so there is no read path that
+  could leak one; its author is told at once, can see it in their own settings, and
+  can take it back. Publishing sends it as an ordinary post; refusing deletes it and
+  tells them. Both rules are switches, both on by default, and a **direct message is
+  never held**.
 - **An account browser** over every account this instance knows, with the standing
   decision and the strike history against each one.
 - **Federation health** — how many deliveries are waiting, how many keep failing, which

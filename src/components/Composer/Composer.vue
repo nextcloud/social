@@ -2105,6 +2105,13 @@ export default {
 				return
 			}
 
+			if (created.held_for_review === true) {
+				// there is nothing on any timeline to refresh and nothing to
+				// celebrate: the post is in the review queue, and the store has
+				// already said so
+				return
+			}
+
 			this.timelineStore.refreshTimeline()
 			eventBus.emit('post-published', created)
 		},

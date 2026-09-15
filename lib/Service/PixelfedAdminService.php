@@ -27,9 +27,10 @@ use OCA\Social\Model\Client\AdminReport;
  * the moderation this instance already does: the account browser, the
  * reports queue, the instances it federates with and its two tiers of
  * domain block. What has no equivalent here is answered as absent rather
- * than invented: there is no autospam queue and no per-account "unlisted"
- * or "content warning" flag, so those lists are empty and those actions a
- * 422 that says so.
+ * than invented: there is no per-account "unlisted" or "content warning"
+ * flag, so those lists are empty and those actions a 422 that says so. The
+ * autospam screen is not one of them any more — it draws this instance's own
+ * review queue.
  *
  * Everything here goes through `AdminApiService`, which is where who may
  * moderate is decided and where every moderation decision is recorded, so a
@@ -49,6 +50,8 @@ class PixelfedAdminService {
 		private InstanceService $instanceService,
 		private InstanceStatsRequest $instanceStatsRequest,
 		private ConfigService $configService,
+		private PostReviewService $postReviewService,
+		private AccountService $accountService,
 	) {
 	}
 
@@ -65,8 +68,7 @@ class PixelfedAdminService {
 			'users_count' => (int)($stats['user_count'] ?? 0),
 			'posts_count' => (int)($stats['status_count'] ?? 0),
 			'instances_count' => (int)($stats['domain_count'] ?? 0),
-			// there is no autospam queue here; see autospam()
-			'autospam_count' => 0,
+			'autospam_count' => $this->postReviewService->countPending(),
 		];
 	}
 
@@ -110,9 +112,9 @@ class PixelfedAdminService {
 			],
 			[
 				'name' => 'AutoSpam Detection',
-				'description' => 'There is no automatic spam detection on this instance; reports are read by people.',
+				'description' => 'A post that trips one of a small set of rules, and the first post of a new account, wait for a moderator instead of going out.',
 				'key' => 'pixelfed.bouncer.enabled',
-				'state' => false,
+				'state' => $this->postReviewService->autospam() || $this->postReviewService->reviewsFirstPost(),
 			],
 		];
 	}
@@ -243,20 +245,77 @@ class PixelfedAdminService {
 	}
 
 	/**
-	 * There is no automatic spam detection here, so the queue is empty — and
-	 * said to be, rather than 404ed, so the screen draws an empty list.
+	 * The posts waiting for a moderator, as the app's autospam screen draws
+	 * them.
 	 *
-	 * @return array{data: array{}}
+	 * Pixelfed's screen is a list of posts its bouncer caught, with "not spam"
+	 * and "delete" against each. That is the same queue this instance keeps —
+	 * a first post, or one that tripped a rule — so it is answered from it
+	 * rather than left empty. What differs is the vocabulary: Pixelfed scores,
+	 * this names the rule, and the rule is what the row says.
+	 *
+	 * @return array{data: list<array<string, mixed>>}
 	 */
 	public function autospam(): array {
-		return ['data' => []];
+		$rows = [];
+		foreach ($this->postReviewService->pending(self::PAGE) as $held) {
+			$rows[] = [
+				'id' => (string)$held->getId(),
+				'status_id' => (string)$held->getId(),
+				'account_id' => $held->getActorId(),
+				'username' => $this->handleOf($held->getActorId()),
+				'content' => $held->paramText(),
+				'is_nsfw' => $held->paramBool('sensitive'),
+				'scope' => $held->paramString('visibility'),
+				// Pixelfed shows a number here; a rule is what a moderator can
+				// act on, so the rule is what is sent, in both forms
+				'reason' => $held->getReason(),
+				'reason_text' => $this->postReviewService->reasonText($held->getReason()),
+				'created_at' => gmdate('Y-m-d\TH:i:s', $held->getCreation()) . '.000Z',
+			];
+		}
+
+		return ['data' => $rows];
 	}
 
 	/**
-	 * @throws InvalidArgumentException always
+	 * The two buttons on that screen.
+	 *
+	 * `approve` (Pixelfed calls it "not spam") publishes the post; `delete`
+	 * refuses it, which tells its author and is recorded against them. A held
+	 * post that is neither is left waiting, which is also what happens when
+	 * nobody presses anything.
+	 *
+	 * @return array{success: true}
+	 * @throws InvalidArgumentException
+	 * @throws ItemNotFoundException
 	 */
-	public function handleAutospam(): never {
-		throw new InvalidArgumentException('there is no automatic spam detection on this instance');
+	public function handleAutospam(int $id, string $action): array {
+		$action = strtolower(trim($action));
+
+		if (in_array($action, ['approve', 'not_spam', 'notspam'], true)) {
+			$held = $this->postReviewService->heldPost($id);
+			$this->postReviewService->approve($id, $this->accountService->getFromId($held->getActorId()));
+
+			return ['success' => true];
+		}
+
+		if (in_array($action, ['delete', 'spam'], true)) {
+			$this->postReviewService->reject($id);
+
+			return ['success' => true];
+		}
+
+		throw new InvalidArgumentException('unknown action: ' . $action);
+	}
+
+	/** The handle behind an actor id, for a screen that shows one. */
+	private function handleOf(string $actorId): string {
+		try {
+			return $this->accountService->getFromId($actorId)->getAccount();
+		} catch (\Exception $e) {
+			return $actorId;
+		}
 	}
 
 	/**

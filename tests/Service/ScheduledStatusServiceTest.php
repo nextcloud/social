@@ -27,6 +27,7 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\ScheduledStatusService;
+use OCA\Social\Service\StatusAssemblyService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IURLGenerator;
@@ -70,13 +71,24 @@ class ScheduledStatusServiceTest extends TestCase {
 
 		$this->accountService->method('getDefaultPrivacy')->willReturn(Stream::TYPE_PUBLIC);
 
+		// the real assembler over the same mocks: what a waiting request turns
+		// back into is half of what this service does, and a mock of it would
+		// assert that the service called something rather than that the post
+		// came out right
+		$assembly = new StatusAssemblyService(
+			$this->documentService,
+			$this->streamService,
+			$this->cacheDocumentsRequest,
+			$this->createMock(IURLGenerator::class),
+			new NullLogger()
+		);
+
 		$this->service = new ScheduledStatusService(
 			$this->scheduledRequest,
 			$this->accountService,
 			$this->documentService,
-			$this->streamService,
 			$this->postService,
-			$this->cacheDocumentsRequest,
+			$assembly,
 			$this->createMock(IURLGenerator::class),
 			$time,
 			new NullLogger()
