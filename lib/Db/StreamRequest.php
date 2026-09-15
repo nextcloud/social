@@ -1705,6 +1705,64 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * Who boosted each of these posts.
+	 *
+	 * One query for the whole set rather than one per post: the statistics
+	 * page asks about a month of posts at once, and a round trip per post to
+	 * fill in one column is a page that gets slower the more an account posts.
+	 *
+	 * The same account boosting the same post twice is one audience, so the
+	 * actors come back deduplicated per post.
+	 *
+	 * @param string[] $ids the posts, by id
+	 * @param int $limit how many Announce rows to read at most
+	 * @return array<string, list<string>> post id => the actors that boosted it
+	 */
+	public function boostersOf(array $ids, int $limit = 5000): array {
+		if ($ids === [] || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+
+		$byPrim = [];
+		foreach ($ids as $id) {
+			$prim = $qb->prim($id);
+			if ($prim !== '') {
+				$byPrim[$prim] = $id;
+			}
+		}
+
+		if ($byPrim === []) {
+			return [];
+		}
+
+		$expr = $qb->expr();
+		$qb->select('s.object_id_prim', 's.attributed_to')
+			->from(self::TABLE_STREAM, 's')
+			->where($expr->eq('s.type', $qb->createNamedParameter(Announce::TYPE)))
+			->andWhere($expr->in(
+				's.object_id_prim',
+				$qb->createNamedParameter(array_keys($byPrim), IQueryBuilder::PARAM_STR_ARRAY)
+			))
+			->setMaxResults($limit);
+
+		$boosters = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$id = $byPrim[(string)$data['object_id_prim']] ?? '';
+			$actor = (string)$data['attributed_to'];
+			if ($id === '' || $actor === '') {
+				continue;
+			}
+			$boosters[$id][$actor] = $actor;
+		}
+		$cursor->closeCursor();
+
+		return array_map(static fn (array $actors): array => array_values($actors), $boosters);
+	}
+
+	/**
 	 * Removes a post and everything that hangs off it.
 	 *
 	 * A post is not one row: its recipients (which is what puts it in a

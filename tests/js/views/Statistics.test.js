@@ -14,10 +14,22 @@ vi.mock('../../../src/services/logger.js', () => ({
 	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
+// @nextcloud/auth reads the user from <head>, which the harness does not set
+vi.mock('@nextcloud/auth', async (importOriginal) => ({
+	...(await importOriginal()),
+	getCurrentUser: () => ({ uid: 'alice', displayName: 'Alice Cooper', isAdmin: false }),
+}))
+
+/** @param {number[]} spikes one day each, the rest of the window quiet */
+function series(spikes = {}) {
+	return Array.from({ length: 30 }, (unused, day) => spikes[day] ?? 0)
+}
+
 function answer(overrides = {}) {
 	return {
 		account: {
 			acct: 'alice',
+			display_name: 'Alice',
 			created_at: '2024-03-17T09:00:00.000Z',
 			followers: 26,
 			following: 24,
@@ -85,6 +97,47 @@ function answer(overrides = {}) {
 			{ id: '7', url: 'https://cloud.example.org/@alice/7', published_at: '2026-09-01T10:00:00.000Z', excerpt: 'A good one', likes: 9, boosts: 4, replies: 2 },
 		],
 		window: { counted: 43, capped: false, max: 2000, first_at: '2026-08-03T21:30:34.000Z', last_at: '2026-09-12T23:20:02.000Z' },
+		periods: {
+			days: 30,
+			current: {
+				posts: 4,
+				reach: 1200,
+				interactions: 184,
+				likes: 83,
+				boosts: 81,
+				replies: 20,
+				from: '2026-08-16T00:00:00.000Z',
+				until: '2026-09-14T23:59:59.000Z',
+				series: {
+					reach: series({ 3: 900, 27: 300 }),
+					interactions: series({ 3: 120, 27: 64 }),
+					likes: series({ 3: 60, 27: 23 }),
+					boosts: series({ 3: 50, 27: 31 }),
+				},
+			},
+			previous: {
+				posts: 2,
+				reach: 400,
+				interactions: 61,
+				likes: 46,
+				boosts: 14,
+				replies: 1,
+				from: '2026-07-17T00:00:00.000Z',
+				until: '2026-08-15T23:59:59.000Z',
+				series: {
+					reach: series({ 10: 400 }),
+					interactions: series({ 10: 61 }),
+					likes: series({ 10: 46 }),
+					boosts: series({ 10: 14 }),
+				},
+			},
+			change: { posts: 100, reach: 200, interactions: 201.6, likes: 80.4, boosts: 478.6, replies: null },
+		},
+		timeline: [
+			{ id: '7', url: 'https://cloud.example.org/@alice/7', published_at: '2026-09-08T15:42:00.000Z', excerpt: 'The loud one', likes: 15, boosts: 7, replies: 3, score: 25, media: false, visibility: 'public', reach: 900 },
+			{ id: '6', url: 'https://cloud.example.org/@alice/6', published_at: '2026-09-06T14:12:00.000Z', excerpt: 'The quiet one', likes: 1, boosts: 0, replies: 0, score: 1, media: false, visibility: 'public', reach: 300 },
+		],
+		reach: { followers: 26, known_boosters: 5, unknown_boosters: 0, listed: 100 },
 		...overrides,
 	}
 }
@@ -170,15 +223,16 @@ describe('Statistics', () => {
 		expect(hours[11].attributes('title')).toContain('5')
 	})
 
-	it('links a best post to the post, and a hashtag to its timeline', async () => {
+	it('links a post to the post, and a hashtag to its timeline', async () => {
 		axios.get.mockResolvedValue({ data: answer() })
 
 		const wrapper = mountPage()
 		await flushPromises()
 
-		const links = wrapper.findAllComponents(RouterLinkStub)
-		expect(links[0].props('to')).toEqual({ name: 'single-post', params: { account: 'alice', id: '7' } })
-		expect(links[1].props('to')).toEqual({ name: 'tags', params: { tag: 'nextcloud' } })
+		const to = (selector) => wrapper.findComponent(selector).props('to')
+		expect(to('.stats__post a')).toEqual({ name: 'single-post', params: { account: 'alice', id: '7' } })
+		expect(to('.stats__best a')).toEqual({ name: 'single-post', params: { account: 'alice', id: '7' } })
+		expect(to('.stats__tags a')).toEqual({ name: 'tags', params: { tag: 'nextcloud' } })
 	})
 
 	it('says how far back the numbers go, and says so differently when it stopped early', async () => {
@@ -193,6 +247,9 @@ describe('Statistics', () => {
 		const capped = mountPage()
 		await flushPromises()
 		expect(text(capped)).toContain('most recent posts')
+		// and the coverage bar says it stopped at its ceiling rather than at the end
+		expect(capped.find('.stats__coverage-fill').classes()).toContain('stats__coverage-fill--capped')
+		expect(text(capped)).toContain('as far back as this page goes')
 	})
 
 	it('shows the rates an agency reports on, not only the totals', async () => {
@@ -263,6 +320,123 @@ describe('Statistics', () => {
 		expect(shown).toContain('remote.example')
 		expect(shown).toContain('23.1% of your followers are on this server')
 		expect(wrapper.findAll('.stats__bars--followers .stats__bar')).toHaveLength(2)
+	})
+
+	it('puts the two windows side by side, each figure against the one before it', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const cards = wrapper.findAll('.stats__kpi')
+		expect(cards).toHaveLength(4)
+		expect(text(cards[0])).toContain('Estimated reach')
+		expect(text(cards[0])).toContain('1,200')
+		// what it was over the window before, so the reader can check the claim
+		expect(text(cards[0])).toContain('Previous total400')
+		expect(text(cards[1])).toContain('↑ +201.6%')
+		expect(text(wrapper)).toContain('30 days. Directly comparable.')
+	})
+
+	it('draws both windows against the taller of the two, so the pair can be read as one picture', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const spark = wrapper.findAll('.stats__kpi')[0].find('.stats__spark')
+		const current = spark.find('.stats__spark-line--current').attributes('points').split(' ')
+		const previous = spark.find('.stats__spark-line--previous').attributes('points').split(' ')
+
+		expect(current).toHaveLength(30)
+		expect(previous).toHaveLength(30)
+		// the tallest day of either line touches the top; the other does not
+		expect(current[3]).toBe('10.34,2')
+		expect(previous[10]).toBe('34.48,17.56')
+		// and a day nothing happened on sits on the floor
+		expect(current[0]).toBe('0,30')
+	})
+
+	it('says new rather than a percentage against a window that held nothing', async () => {
+		axios.get.mockResolvedValue({
+			data: answer({
+				periods: {
+					...answer().periods,
+					change: { posts: null, reach: null, interactions: null, likes: null, boosts: null, replies: null },
+				},
+			}),
+		})
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(text(wrapper.findAll('.stats__kpi')[0])).toContain('new')
+		expect(text(wrapper)).not.toContain('Infinity')
+	})
+
+	it('lists the window post by post, and reorders them without asking the server again', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const posts = () => wrapper.findAll('.stats__post').map((post) => post.text())
+		expect(posts()[0]).toContain('The loud one')
+		expect(posts()[0]).toContain('900')
+
+		// the bar is each post's reach against the best of them
+		const bars = wrapper.findAll('.stats__post-fill')
+		expect(bars[0].attributes('style')).toContain('--share: 100%')
+		expect(bars[1].attributes('style')).toContain('--share: 33%')
+
+		await wrapper.find('.stats__sort select').setValue('engagement')
+		expect(posts()[0]).toContain('The loud one')
+		expect(axios.get).toHaveBeenCalledTimes(1)
+	})
+
+	it('admits the boosters whose audience it cannot know', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+		const wrapper = mountPage()
+		await flushPromises()
+		expect(text(wrapper)).toContain('Reach is an estimate')
+		expect(text(wrapper)).not.toContain('not known here')
+
+		axios.get.mockResolvedValue({
+			data: answer({ reach: { followers: 26, known_boosters: 1, unknown_boosters: 3, listed: 100 } }),
+		})
+		const gappy = mountPage()
+		await flushPromises()
+		expect(text(gappy)).toContain('audiences of 3 accounts')
+	})
+
+	it('heads the page with a name rather than a login, when the account has never been given one', async () => {
+		// what a local account that never opened the profile editor carries
+		axios.get.mockResolvedValue({
+			data: answer({ account: { ...answer().account, acct: 'alice', display_name: 'alice' } }),
+		})
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(text(wrapper)).toContain('Alice Cooper')
+		expect(text(wrapper)).toContain('@alice')
+	})
+
+	it('shows whose numbers these are, and how much of their history was counted', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const shown = text(wrapper)
+		expect(shown).toContain('Analysed account')
+		// the name the account publishes under, not the Nextcloud one
+		expect(shown).toContain('Alice')
+		expect(shown).not.toContain('Alice Cooper')
+		expect(shown).toContain('26current followers')
+		expect(shown).toContain('43 posts, all of them')
+		// the walk finished, so the bar is full and plain
+		expect(wrapper.find('.stats__coverage-fill').classes()).not.toContain('stats__coverage-fill--capped')
 	})
 
 	it('leaves out the sections the answer has nothing for', async () => {

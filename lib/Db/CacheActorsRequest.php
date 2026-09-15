@@ -661,4 +661,59 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
+
+	/**
+	 * How big an audience each of these accounts has, as far as this server
+	 * has been told.
+	 *
+	 * Read out of the cached `details` rather than counted here: a remote
+	 * account's followers are not on this server, and what is stored is
+	 * whatever its own instance last reported to the details refresh. An
+	 * account nothing is known about is *absent* from the answer rather than
+	 * present as a zero, so a caller can say "not known" instead of stating a
+	 * number that is only a gap.
+	 *
+	 * @param string[] $ids the accounts, by id
+	 * @return array<string, int> actor id => how many followers it has
+	 */
+	public function followerCountsOf(array $ids): array {
+		if ($ids === []) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+
+		$prims = [];
+		foreach ($ids as $id) {
+			$prim = $qb->prim($id);
+			if ($prim !== '') {
+				$prims[$prim] = $prim;
+			}
+		}
+
+		if ($prims === []) {
+			return [];
+		}
+
+		$qb->select('ca.id', 'ca.details')
+			->from(self::TABLE_CACHE_ACTORS, 'ca')
+			->where($qb->expr()->in(
+				'ca.id_prim',
+				$qb->createNamedParameter(array_values($prims), IQueryBuilder::PARAM_STR_ARRAY)
+			));
+
+		$counts = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$details = json_decode((string)($data['details'] ?? ''), true);
+			$followers = (is_array($details) && isset($details['count']['followers']))
+				? (int)$details['count']['followers'] : 0;
+			if ($followers > 0) {
+				$counts[(string)$data['id']] = $followers;
+			}
+		}
+		$cursor->closeCursor();
+
+		return $counts;
+	}
 }

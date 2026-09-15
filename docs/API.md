@@ -643,7 +643,7 @@ The answer:
 
 | Key | What it holds |
 |-----|---------------|
-| `account` | `acct`, `created_at`, `followers`, `following` |
+| `account` | `acct`, `display_name`, `created_at`, `followers`, `following` |
 | `posts` | `total`, `originals`, `replies`, `boosts`, `with_media`, `sensitive` |
 | `engagement` | `likes`, `boosts`, `replies` and a `*_per_post` for each |
 | `rates` | `total` engagement and `per_post`; `applause`, `amplification` and `conversation` (likes, boosts and replies per post, under the names an agency reports them under); `per_follower`, engagement per post against the follower count as a percentage; `median` and `best`, because a mean is one viral post away from meaningless; `silent` and `silent_share`, the posts that got no answer at all |
@@ -656,7 +656,12 @@ The answer:
 | `hashtags`, `hashtag_performance` | the tags used most, and separately the tags whose posts average best — the second only counts tags used twice or more |
 | `audience` | `by_month` followers gained, `instances` the hosts they are on, `local_share` the percentage on this server, `counted` and `capped` |
 | `best` | the three most-answered posts, each with an `excerpt`, its counts and its `score` |
+| `periods` | the last `days` (30) beside the 30 before them: `current` and `previous`, each with `from`, `until`, `posts`, `reach`, `interactions`, `likes`, `boosts`, `replies` and a `series` of 30 daily buckets for reach, interactions, likes and boosts; plus `change`, the percentage each moved by, or `null` where the earlier window held nothing — everything is infinitely more than nothing |
+| `timeline` | every post of the current window, newest first and at most 100, each with `id`, `url`, `published_at`, `excerpt`, `likes`, `boosts`, `replies`, `score`, `media`, `visibility` and `reach` |
+| `reach` | `followers`, and `known_boosters`/`unknown_boosters`: how many of the accounts that boosted a post in the window this server knows the audience of, and how many it does not |
 | `window` | `counted`, `capped`, `max`, `first_at`, `last_at`, `followers_counted` |
+
+`reach` is an estimate and the page says so: an account's own followers today plus the followers of everybody who boosted the post, as the boosters' own instances last reported them. Two audiences that overlap are counted twice, a booster this server knows nothing about counts as nobody (and is counted in `unknown_boosters` instead), a direct message has no follower audience at all, and nobody anywhere can count the people who read a post without touching it. A post is counted on the day it was published together with everything it has collected since — there is no record of *when* a like arrived, only that it did. Both windows are the same length and anchored to the start of today, so opening the page twice in an afternoon draws the same two lines.
 
 Every engagement figure is a post's `details` — the local count plus whatever the origin reported — so all of them are a floor rather than a total, which is true of every Fediverse statistic. There are no impressions to divide by, so `per_follower` is against the follower count and says so on the page. A boost the account made is counted under `posts.boosts` and excluded from everything else, because its likes belong to whoever wrote it. The post walk stops at 2000 and the follower read at 5000, newest first, and `window` and `audience` each say whether they stopped early.
 

@@ -197,6 +197,20 @@ own unified search. No external search engine to run.
 - **A private note** about somebody, for you alone. It never leaves this server and the
   person it is about is never told.
 
+![Your own statistics](img/readme/your-statistics.png)
+
+- **Your own statistics**, behind your face in the sidebar. **The last 30 days beside
+  the 30 before them** — estimated reach, interactions, likes and boosts, each as a
+  figure, the percentage it moved by and a line drawn over the window with the previous
+  one behind it — and then **every post of the window, one by one**, with what it
+  reached and what it collected, ordered by date, reach or engagement. Under that: which
+  kind of post does better, the weekday and the hour that work, the tags worth using,
+  where your followers are and when they arrived. Everything is counted from this
+  server's own rows the moment you open the page, so nothing can be stale, and the page
+  says what it cannot know — reach is your followers plus the followers of whoever
+  boosted you, overlapping audiences counted twice, and it names how many boosters'
+  audiences this server has never been told about.
+
 ## 🔔 Notifications
 
 ![Notifications](img/readme/notifications.jpg)

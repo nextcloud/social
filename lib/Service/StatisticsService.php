@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -68,6 +69,24 @@ class StatisticsService {
 	private const MAX_FOLLOWERS = 5000;
 
 	/**
+	 * How long the two windows the page compares are.
+	 *
+	 * Thirty days beside the thirty before them: long enough that a quiet week
+	 * does not decide the answer, short enough that both halves are the same
+	 * account doing the same thing.
+	 */
+	public const PERIOD_DAYS = 30;
+
+	/** How many of the window's posts are listed one by one. */
+	public const TIMELINE_POSTS = 100;
+
+	/** How many Announce rows the reach estimate reads at most. */
+	private const MAX_BOOSTERS = 5000;
+
+	/** A day, in seconds. */
+	private const DAY = 86400;
+
+	/**
 	 * How many times a hashtag has to have been used before its average is
 	 * reported. One post that did well is a post that did well, not a tag that
 	 * works.
@@ -78,6 +97,7 @@ class StatisticsService {
 		private StreamRequest $streamRequest,
 		private FollowsRequest $followsRequest,
 		private AccountService $accountService,
+		private CacheActorsRequest $cacheActorsRequest,
 	) {
 	}
 
@@ -108,6 +128,10 @@ class StatisticsService {
 		$hashtags = [];
 		$hashtagEngagement = [];
 		$best = [];
+		/** the posts inside the two windows, kept whole so the comparison and
+		 * the per-post list can both be built without a second walk */
+		$recent = [];
+		$bounds = $this->bounds(time());
 		$scores = [];
 		$silent = 0;
 		/** what each kind of post collected, to say which kind works */
@@ -197,7 +221,7 @@ class StatisticsService {
 			$this->addKind($kinds, ($post->getInReplyTo() === '') ? 'original' : 'reply', $score);
 			$this->addKind($kinds, 'visibility_' . $scope, $score);
 
-			$best[] = [
+			$row = [
 				'id' => (string)$post->getNid(),
 				'url' => $post->getId(),
 				'published_at' => $this->asDate($published),
@@ -207,6 +231,18 @@ class StatisticsService {
 				'replies' => $replies,
 				'score' => $score,
 			];
+			$best[] = $row;
+
+			if ($published >= $bounds['previous']) {
+				$recent[] = $row + [
+					'published' => $published,
+					'media' => $post->getAttachments() !== [],
+					'visibility' => $scope,
+					// filled in below, once every booster's audience has been
+					// looked up in a single query rather than one per post
+					'reach' => 0,
+				];
+			}
 		}
 
 		arsort($hashtags);
@@ -216,10 +252,14 @@ class StatisticsService {
 		$followers = $this->followsRequest->countFollowers($actor->getId());
 		$audience = $this->audience($actor, $followers);
 		$total = $engagement['likes'] + $engagement['boosts'] + $engagement['replies'];
+		$reach = $this->withReach($recent, $followers);
 
 		return [
 			'account' => [
 				'acct' => $actor->getPreferredUsername(),
+				// the name the account publishes under, which is not always
+				// the Nextcloud one the rest of the interface shows
+				'display_name' => $actor->getName(),
 				'created_at' => $this->asDate($actor->getCreation()),
 				'followers' => $followers,
 				'following' => $this->followsRequest->countFollowing($actor->getId()),
@@ -266,6 +306,14 @@ class StatisticsService {
 			'hashtag_performance' => $this->hashtagPerformance($hashtags, $hashtagEngagement),
 			'audience' => $audience,
 			'best' => array_slice($best, 0, self::TOP_POSTS),
+			'periods' => $this->periods($reach['posts'], $bounds),
+			'timeline' => $this->timeline($reach['posts'], $bounds['current'], $bounds['until']),
+			'reach' => [
+				'followers' => $followers,
+				'known_boosters' => $reach['known'],
+				'unknown_boosters' => $reach['unknown'],
+				'listed' => self::TIMELINE_POSTS,
+			],
 			'window' => [
 				'counted' => $posts['total'],
 				'followers_counted' => $audience['counted'],
@@ -321,6 +369,206 @@ class StatisticsService {
 
 			$maxId = $nid;
 		}
+	}
+
+	/**
+	 * The two windows the page compares, in seconds since the epoch.
+	 *
+	 * Anchored to the start of today rather than to the minute the page was
+	 * opened: otherwise opening it twice in an afternoon moves every bucket
+	 * and the same thirty days draw a different shape each time.
+	 *
+	 * @return array{until: int, current: int, previous: int}
+	 */
+	private function bounds(int $now): array {
+		$endOfToday = (int)strtotime(gmdate('Y-m-d', $now) . ' 00:00:00 UTC') + self::DAY;
+		$current = $endOfToday - self::PERIOD_DAYS * self::DAY;
+
+		return [
+			'until' => $endOfToday,
+			'current' => $current,
+			'previous' => $current - self::PERIOD_DAYS * self::DAY,
+		];
+	}
+
+	/**
+	 * How many people each of these posts could have reached.
+	 *
+	 * The account's own followers plus the followers of everybody who boosted
+	 * it, which is the only reach a Fediverse post has that any one server can
+	 * put a number on. It is an estimate twice over, and the page has to say
+	 * so: two audiences that overlap are counted twice, and a booster whose
+	 * instance has never told this one how big it is counts as nothing at all.
+	 * How many of those there were comes back with the figures, so that the
+	 * page can name the gap rather than quietly absorb it.
+	 *
+	 * The followers are today's followers, not the followers the post had on
+	 * the day it went out — nothing here records that.
+	 *
+	 * A direct message has no follower audience at all, so its base is nobody.
+	 *
+	 * @param list<array<string, mixed>> $recent
+	 * @return array{posts: list<array<string, mixed>>, known: int, unknown: int}
+	 */
+	private function withReach(array $recent, int $followers): array {
+		$boosted = [];
+		foreach ($recent as $row) {
+			// a post nobody boosted needs no lookup: its reach is the
+			// account's own audience and nothing else
+			if ((int)$row['boosts'] > 0) {
+				$boosted[] = (string)$row['url'];
+			}
+		}
+
+		$boosters = ($boosted === []) ? [] : $this->streamRequest->boostersOf($boosted, self::MAX_BOOSTERS);
+
+		$actors = [];
+		foreach ($boosters as $list) {
+			foreach ($list as $actor) {
+				$actors[$actor] = $actor;
+			}
+		}
+		$audiences = ($actors === []) ? [] : $this->cacheActorsRequest->followerCountsOf(array_values($actors));
+
+		$known = 0;
+		$unknown = 0;
+		foreach ($recent as &$row) {
+			$reach = ($row['visibility'] === Stream::TYPE_DIRECT) ? 0 : $followers;
+			foreach ($boosters[(string)$row['url']] ?? [] as $actor) {
+				if (array_key_exists($actor, $audiences)) {
+					$reach += $audiences[$actor];
+					$known++;
+				} else {
+					$unknown++;
+				}
+			}
+			$row['reach'] = $reach;
+		}
+		unset($row);
+
+		return ['posts' => $recent, 'known' => $known, 'unknown' => $unknown];
+	}
+
+	/**
+	 * The last thirty days beside the thirty before them.
+	 *
+	 * Two windows of the same length, which is what makes the pair worth
+	 * printing: "up 40%" against a fortnight is not a sentence.
+	 *
+	 * @param list<array<string, mixed>> $recent
+	 * @param array{until: int, current: int, previous: int} $bounds
+	 * @return array<string, mixed>
+	 */
+	private function periods(array $recent, array $bounds): array {
+		$current = $this->period($recent, $bounds['current'], $bounds['until']);
+		$previous = $this->period($recent, $bounds['previous'], $bounds['current']);
+
+		$change = [];
+		foreach (['posts', 'reach', 'interactions', 'likes', 'boosts', 'replies'] as $key) {
+			$change[$key] = $this->change((int)$current[$key], (int)$previous[$key]);
+		}
+
+		return [
+			'days' => self::PERIOD_DAYS,
+			'current' => $current,
+			'previous' => $previous,
+			'change' => $change,
+		];
+	}
+
+	/**
+	 * One window: what it came to, and what each of its days came to.
+	 *
+	 * The daily series is what the page draws the two lines from, so both
+	 * windows are counted into the same thirty buckets, day one first. A post
+	 * is counted on the day it was published, and everything it has collected
+	 * since is counted there with it — there is no record of *when* a like
+	 * arrived, only that it did.
+	 *
+	 * @param list<array<string, mixed>> $recent
+	 * @return array<string, mixed>
+	 */
+	private function period(array $recent, int $from, int $until): array {
+		$totals = ['posts' => 0, 'reach' => 0, 'interactions' => 0, 'likes' => 0, 'boosts' => 0, 'replies' => 0];
+		$series = [
+			'reach' => array_fill(0, self::PERIOD_DAYS, 0),
+			'interactions' => array_fill(0, self::PERIOD_DAYS, 0),
+			'likes' => array_fill(0, self::PERIOD_DAYS, 0),
+			'boosts' => array_fill(0, self::PERIOD_DAYS, 0),
+		];
+
+		foreach ($recent as $row) {
+			$at = (int)$row['published'];
+			if ($at < $from || $at >= $until) {
+				continue;
+			}
+
+			$day = min(self::PERIOD_DAYS - 1, max(0, intdiv($at - $from, self::DAY)));
+			$counts = [
+				'reach' => (int)$row['reach'],
+				'interactions' => (int)$row['score'],
+				'likes' => (int)$row['likes'],
+				'boosts' => (int)$row['boosts'],
+			];
+
+			$totals['posts']++;
+			$totals['replies'] += (int)$row['replies'];
+			foreach ($counts as $key => $count) {
+				$totals[$key] += $count;
+				$series[$key][$day] += $count;
+			}
+		}
+
+		return array_merge($totals, [
+			'from' => $this->asDate($from),
+			// the last second of the window rather than the first of the next
+			// one, so that a printed range reads as the days it covers
+			'until' => $this->asDate($until - 1),
+			'series' => $series,
+		]);
+	}
+
+	/**
+	 * How much bigger than last time, as a percentage.
+	 *
+	 * Null where the window before it was empty: everything is infinitely more
+	 * than nothing, and a page that prints "+∞%" has stopped saying anything.
+	 */
+	private function change(int $now, int $before): ?float {
+		if ($before < 1) {
+			return null;
+		}
+
+		return round(((float)$now - (float)$before) / (float)$before * 100.0, 1);
+	}
+
+	/**
+	 * Every post of the current window, one by one, newest first.
+	 *
+	 * The averages above answer "how is the account doing"; this answers "and
+	 * which post was that", which is the question anybody who has just read a
+	 * spike in a chart actually has.
+	 *
+	 * @param list<array<string, mixed>> $recent
+	 * @return list<array<string, mixed>>
+	 */
+	private function timeline(array $recent, int $from, int $until): array {
+		$rows = [];
+		foreach ($recent as $row) {
+			$at = (int)$row['published'];
+			if ($at < $from || $at >= $until) {
+				continue;
+			}
+
+			unset($row['published']);
+			$rows[] = $row;
+
+			if (count($rows) >= self::TIMELINE_POSTS) {
+				break;
+			}
+		}
+
+		return $rows;
 	}
 
 	/**
