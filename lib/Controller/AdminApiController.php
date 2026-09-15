@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Db\TrendReviewRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\AccessBlock;
 use OCA\Social\Service\AccessBlockService;
@@ -16,6 +17,7 @@ use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MetricsService;
+use OCA\Social\Service\TrendReviewService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -75,6 +77,7 @@ class AdminApiController extends AdminApiControllerBase {
 		private MetricsService $metricsService,
 		private HashtagService $hashtagService,
 		private TrendService $trendService,
+		private TrendReviewService $trendReviewService,
 		ClientService $clientService,
 	) {
 		parent::__construct($request, $userSession, $logger, $adminApiService, $clientService);
@@ -820,6 +823,138 @@ class AdminApiController extends AdminApiControllerBase {
 				),
 				Http::STATUS_OK
 			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Keeps something out of what is trending, or lets it back in.
+	 *
+	 * Six routes because Mastodon has six — approve and reject, for each of
+	 * tags, links and statuses — and one implementation, because what differs
+	 * between them is the word naming the kind.
+	 *
+	 * **Rejecting hides; approving grants nothing.** Trending here shows
+	 * everything nobody has objected to, which is what it did before this
+	 * existed, so an approval only records that a moderator has looked. The
+	 * other arrangement — nothing trends until approved — would have emptied
+	 * every instance's Explore page on upgrade.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/trends/tags/{id}/approve', requirements: ['id' => '.+'])]
+	public function trendTagApprove(string $id): DataResponse {
+		return $this->decideTrend(TrendReviewRequest::KIND_TAG, $id, true);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/trends/tags/{id}/reject', requirements: ['id' => '.+'])]
+	public function trendTagReject(string $id): DataResponse {
+		return $this->decideTrend(TrendReviewRequest::KIND_TAG, $id, false);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/trends/links/{id}/approve', requirements: ['id' => '.+'])]
+	public function trendLinkApprove(string $id): DataResponse {
+		return $this->decideTrend(TrendReviewRequest::KIND_LINK, $id, true);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/trends/links/{id}/reject', requirements: ['id' => '.+'])]
+	public function trendLinkReject(string $id): DataResponse {
+		return $this->decideTrend(TrendReviewRequest::KIND_LINK, $id, false);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/trends/statuses/{id}/approve', requirements: ['id' => '.+'])]
+	public function trendStatusApprove(string $id): DataResponse {
+		return $this->decideTrend(TrendReviewRequest::KIND_STATUS, $id, true);
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/trends/statuses/{id}/reject', requirements: ['id' => '.+'])]
+	public function trendStatusReject(string $id): DataResponse {
+		return $this->decideTrend(TrendReviewRequest::KIND_STATUS, $id, false);
+	}
+
+	/**
+	 * The hashtags a moderator has decided about.
+	 *
+	 * Mastodon's `/admin/tags`, narrowed to the one thing this app stores
+	 * about a tag: whether it may trend. Its `usable` and `listable` are about
+	 * a tag row that can be disabled for *posting* and for *search*, which
+	 * this app has no equivalent of — a hashtag here is written by whoever
+	 * types it and exists because a post carries it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/tags')]
+	public function adminTags(): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse(
+				$this->trendReviewService->decisions(TrendReviewRequest::KIND_TAG), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * One hashtag's decision, and `PUT` to change it.
+	 *
+	 * `trendable` is the one field that means anything here; `usable` and
+	 * `listable` are accepted and ignored, for the same reason `rule_ids` is
+	 * on a report — a client sending all three should not have the one that
+	 * works refused along with the two that do not.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/tags/{id}', requirements: ['id' => '.+'])]
+	public function adminTag(string $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->trendReviewService->tagEntity($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/admin/tags/{id}', requirements: ['id' => '.+'])]
+	public function adminTagUpdate(string $id, bool $trendable = true): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$this->trendReviewService->decide(
+				TrendReviewRequest::KIND_TAG, $id, $trendable, $this->userId
+			);
+
+			return new DataResponse($this->trendReviewService->tagEntity($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** The one implementation behind the six approve/reject routes. */
+	private function decideTrend(string $kind, string $ref, bool $approved): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+			$this->trendReviewService->decide($kind, $ref, $approved, $this->userId);
+
+			return new DataResponse([
+				'kind' => $kind,
+				'ref' => $ref,
+				'approved' => $approved,
+			], Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

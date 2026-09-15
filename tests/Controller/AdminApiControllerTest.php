@@ -21,6 +21,7 @@ use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MetricsService;
+use OCA\Social\Service\TrendReviewService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -61,6 +62,7 @@ class AdminApiControllerTest extends TestCase {
 	private MetricsService|MockObject $metricsService;
 	private HashtagService|MockObject $hashtagService;
 	private TrendService|MockObject $trendService;
+	private TrendReviewService|MockObject $trendReviewService;
 	private ClientService|MockObject $clientService;
 	private IUserSession|MockObject $userSession;
 
@@ -117,6 +119,15 @@ class AdminApiControllerTest extends TestCase {
 			'dimensions' => ['dimensions', [['servers'], '2026-09-01', '2026-09-10', 10, '']],
 			'retention' => ['retention', ['2026-09-01', '2026-09-10']],
 			'trendTags' => ['trendTags', [10]],
+			'trendTagApprove' => ['trendTagApprove', ['cats']],
+			'trendTagReject' => ['trendTagReject', ['cats']],
+			'trendLinkApprove' => ['trendLinkApprove', ['https://news.example/a']],
+			'trendLinkReject' => ['trendLinkReject', ['https://news.example/a']],
+			'trendStatusApprove' => ['trendStatusApprove', ['https://cloud.example/@a/1']],
+			'trendStatusReject' => ['trendStatusReject', ['https://cloud.example/@a/1']],
+			'adminTags' => ['adminTags', []],
+			'adminTag' => ['adminTag', ['cats']],
+			'adminTagUpdate' => ['adminTagUpdate', ['cats', false]],
 			'trendStatuses' => ['trendStatuses', [10, 0]],
 			'trendLinks' => ['trendLinks', [10, 0]],
 		];
@@ -167,6 +178,7 @@ class AdminApiControllerTest extends TestCase {
 		$this->metricsService = $this->createMock(MetricsService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->trendService = $this->createMock(TrendService::class);
+		$this->trendReviewService = $this->createMock(TrendReviewService::class);
 		$this->adminApiService->method('isAdministrator')
 			->willReturnCallback(fn (string $userId): bool => $this->isAdmin && $userId === self::ADMIN);
 	}
@@ -181,6 +193,7 @@ class AdminApiControllerTest extends TestCase {
 			$this->metricsService,
 			$this->hashtagService,
 			$this->trendService,
+			$this->trendReviewService,
 			$this->clientService
 		);
 	}

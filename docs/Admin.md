@@ -158,7 +158,7 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Twelve sections:
+**Administration → Social.** Fifteen sections:
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
@@ -187,6 +187,23 @@ when each was last tried.
   chosen rather than counted, and it is what makes Explore look like somewhere
   to start. Nothing is named by default and the section of the page is absent
   until something is.
+- **What may trend** — Explore shows whatever is being talked about, counted
+  and nothing else, so the first ugly hashtag to catch on does so on
+  everybody's Explore page and the only remedy used to be waiting. Keeping one
+  out hides it from every trending list here and from the discover grid; the
+  counters keep counting, so letting it back in restores the number it would
+  have had. Hashtags can be kept out from the live trending list beside them;
+  a link or a post is kept out by pasting its address. What is kept out is one
+  list whatever kind it is, because the question is "what am I keeping out of
+  Explore".
+- **Custom emoji** — the pictures people here can write into a post as
+  `:shortcode:`. They travel with the post, so somebody on another server sees
+  them too. The upload goes through the same code `occ social:emoji` uses, so
+  what is refused here is exactly what the command refuses.
+- **The rules of this server** — one per line. Every client shows them to
+  somebody deciding whether to join, and `/api/v1/instance/rules` serves them.
+  Both this and the emoji were `occ`-only until now, which is why most
+  instances had neither.
 - **Retention** — how long remote statuses nobody here cares about are kept.
 - **Storage** — what is on disk, split into what was posted here (somebody's
   own work, not going anywhere) and what is cached from other servers (what

@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamCard;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\TrendReviewService;
 use OCA\Social\Service\TrendService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -29,6 +30,7 @@ use PHPUnit\Framework\TestCase;
  */
 class TrendServiceTest extends TestCase {
 	private TrendsRequest|MockObject $trendsRequest;
+	private TrendReviewService|MockObject $trendReviewService;
 	private TrendService $service;
 
 	/** @var array{since: int, limit: int, offset: int}|null what the store was asked */
@@ -42,6 +44,10 @@ class TrendServiceTest extends TestCase {
 	private array $cards = [];
 
 	protected function setUp(): void {
+		$this->trendReviewService = $this->createMock(TrendReviewService::class);
+		$this->trendReviewService->method('filterLinks')->willReturnArgument(0);
+		$this->trendReviewService->method('statusIsRejected')->willReturn(false);
+
 		$this->trendsRequest = $this->createMock(TrendsRequest::class);
 
 		$this->trendsRequest->method('trendingStatusNids')
@@ -69,7 +75,7 @@ class TrendServiceTest extends TestCase {
 		$this->trendsRequest->method('cardsByUrls')
 			->willReturnCallback(fn (): array => $this->cards);
 
-		$this->service = new TrendService($this->trendsRequest);
+		$this->service = new TrendService($this->trendReviewService, $this->trendsRequest);
 	}
 
 	private function card(string $url, string $title): StreamCard {

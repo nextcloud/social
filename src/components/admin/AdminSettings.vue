@@ -18,6 +18,9 @@
 		<AccountsSection />
 		<MediaBlocksSection />
 		<DiscoverSection />
+		<TrendsSection />
+		<EmojiSection />
+		<RulesSection />
 		<RetentionSection :days="state.retentionDays" />
 		<StorageSection :storage="state.storage" />
 		<FederationSection :federation="state.federation" />
@@ -36,13 +39,16 @@ import ActivitySection from './ActivitySection.vue'
 import AccountsSection from './AccountsSection.vue'
 import AnnouncementsSection from './AnnouncementsSection.vue'
 import DiscoverSection from './DiscoverSection.vue'
+import EmojiSection from './EmojiSection.vue'
 import FederationSection from './FederationSection.vue'
 import MediaBlocksSection from './MediaBlocksSection.vue'
 import ReportsSection from './ReportsSection.vue'
 import RetentionSection from './RetentionSection.vue'
+import RulesSection from './RulesSection.vue'
 import ReviewSection from './ReviewSection.vue'
 import ServerSection from './ServerSection.vue'
 import StorageSection from './StorageSection.vue'
+import TrendsSection from './TrendsSection.vue'
 
 /** What `AdminSettings::getForm()` provides when it provides nothing. */
 const NOTHING = {
@@ -92,13 +98,16 @@ export default {
 		AccountsSection,
 		AnnouncementsSection,
 		DiscoverSection,
+		EmojiSection,
 		FederationSection,
 		MediaBlocksSection,
 		ReportsSection,
 		RetentionSection,
+		RulesSection,
 		ReviewSection,
 		ServerSection,
 		StorageSection,
+		TrendsSection,
 	},
 
 	data() {

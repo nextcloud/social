@@ -37,6 +37,7 @@ class HashtagService {
 		private IURLGenerator $urlGenerator,
 		private ConfigService $configService,
 		private MiscService $miscService,
+		private TrendReviewService $trendReviewService,
 	) {
 	}
 
@@ -218,12 +219,24 @@ class HashtagService {
 	 *
 	 * @return array[] [['hashtag' => string, 'trend' => array], …]
 	 */
+	/**
+	 * How many extra rows are read so that removing the rejected ones does not
+	 * leave a short page. A moderator keeps a handful of things out, not a
+	 * hundred, so this is the whole allowance rather than a loop.
+	 */
+	private const REJECTION_HEADROOM = 20;
+
 	public function getTrending(int $limit = 10, string $period = self::PERIOD_DEFAULT): array {
 		if (!in_array($period, self::PERIODS, true)) {
 			$period = self::PERIOD_DEFAULT;
 		}
 
-		return $this->hashtagsRequest->getTrending($period, $limit);
+		// asked for a few more than wanted, because what a moderator has kept
+		// out is taken off the page afterwards and a page short by one
+		// rejected tag would be a page with a gap in it
+		$rows = $this->hashtagsRequest->getTrending($period, $limit + self::REJECTION_HEADROOM);
+
+		return array_slice($this->trendReviewService->filterTags($rows), 0, $limit);
 	}
 
 	/**

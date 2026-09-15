@@ -44,6 +44,7 @@ class TrendService {
 	public const MAX_LIMIT = 40;
 
 	public function __construct(
+		private TrendReviewService $trendReviewService,
 		private TrendsRequest $trendsRequest,
 	) {
 	}
@@ -64,7 +65,16 @@ class TrendService {
 			$this->since($period), $this->limit($limit), max(0, $offset), $onlyMedia, $mediaType
 		);
 
-		return $this->trendsRequest->statusesByNids($nids);
+		$statuses = $this->trendsRequest->statusesByNids($nids);
+
+		// what a moderator has kept out never reaches a trending page. Applied
+		// here rather than in the counters: a rejected post keeps being
+		// counted, so lifting the decision puts it back with the number it
+		// would have had.
+		return array_values(array_filter(
+			$statuses,
+			fn (Stream $status): bool => !$this->trendReviewService->statusIsRejected($status->getId())
+		));
 	}
 
 	/**
@@ -111,7 +121,7 @@ class TrendService {
 		$cards = $this->trendsRequest->cardsByUrls(array_column($counted, 'url'));
 
 		$links = [];
-		foreach ($counted as $link) {
+		foreach ($this->trendReviewService->filterLinks($counted) as $link) {
 			$card = $cards[$link['url']] ?? (new StreamCard())->setUrl($link['url']);
 			$links[] = new TrendingLink($card, $link['shares']);
 		}

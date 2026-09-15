@@ -76,6 +76,7 @@ class CoreRequestBuilder {
 	public const TABLE_PORTFOLIOS = 'social_portfolio';
 	public const TABLE_TEAMS = 'social_team';
 	public const TABLE_TEAM_POSTS = 'social_team_post';
+	public const TABLE_TREND_REVIEW = 'social_trend_review';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -350,6 +351,15 @@ class CoreRequestBuilder {
 			'stream_id_prim',
 			'author_id',
 			'author_id_prim',
+			'creation'
+		],
+		self::TABLE_TREND_REVIEW => [
+			'id',
+			'kind',
+			'ref',
+			'ref_prim',
+			'approved',
+			'moderator',
 			'creation'
 		],
 		self::TABLE_CONVERSATION_STATE => [

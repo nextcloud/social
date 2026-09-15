@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\HashtagDoesNotExistException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\TrendReviewService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -27,6 +28,7 @@ use PHPUnit\Framework\TestCase;
  */
 class HashtagServiceTest extends TestCase {
 	private HashtagsRequest|MockObject $hashtagsRequest;
+	private TrendReviewService|MockObject $trendReviewService;
 	private StreamRequest|MockObject $streamRequest;
 	private IURLGenerator|MockObject $urlGenerator;
 	private HashtagService $service;
@@ -40,12 +42,16 @@ class HashtagServiceTest extends TestCase {
 				static fn (string $route, array $args): string
 					=> 'https://cloud.example/apps/social/timeline/' . $args['path']
 			);
+		$this->trendReviewService = $this->createMock(TrendReviewService::class);
+		$this->trendReviewService->method('filterTags')->willReturnArgument(0);
+
 		$this->service = new HashtagService(
 			$this->hashtagsRequest,
 			$this->streamRequest,
 			$this->urlGenerator,
 			$this->createMock(ConfigService::class),
 			$this->createMock(MiscService::class),
+			$this->trendReviewService,
 		);
 	}
 
@@ -238,7 +244,9 @@ class HashtagServiceTest extends TestCase {
 		$rows = [['hashtag' => 'loud', 'trend' => ['1h' => 9]]];
 		$this->hashtagsRequest->expects($this->once())
 			->method('getTrending')
-			->with('1h', 2)
+			// a few more than asked for, so taking out what a moderator rejected
+			// does not leave a short page
+			->with('1h', 2 + 20)
 			->willReturn($rows);
 
 		$this->assertSame($rows, $this->service->getTrending(2, '1h'));
@@ -247,7 +255,7 @@ class HashtagServiceTest extends TestCase {
 	public function testTrendingFallsBackToTheDefaultWindowForAnUnknownOne(): void {
 		$this->hashtagsRequest->expects($this->once())
 			->method('getTrending')
-			->with(HashtagService::PERIOD_DEFAULT, 10)
+			->with(HashtagService::PERIOD_DEFAULT, 10 + 20)
 			->willReturn([]);
 
 		$this->service->getTrending(10, 'whenever');
@@ -256,7 +264,7 @@ class HashtagServiceTest extends TestCase {
 	public function testTrendingDefaultsToTheDayWindow(): void {
 		$this->hashtagsRequest->expects($this->once())
 			->method('getTrending')
-			->with(HashtagService::PERIOD_DEFAULT, 10)
+			->with(HashtagService::PERIOD_DEFAULT, 10 + 20)
 			->willReturn([]);
 
 		$this->assertSame([], $this->service->getTrending());
