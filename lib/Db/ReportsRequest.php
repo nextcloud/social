@@ -140,6 +140,22 @@ class ReportsRequest extends ReportsRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Files a report under a different category.
+	 *
+	 * A moderator reading a report often finds it under the wrong one — "spam"
+	 * for something that is harassment — and the category a reporter chose was
+	 * the category for ever until this.
+	 */
+	public function setCategory(int $id, string $category): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_REPORTS)
+			->set('category', $qb->createNamedParameter($category))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
 	public function setResolved(int $id, bool $resolved): void {
 		$qb = $this->getReportsUpdateSql();
 		$qb->set('resolved', $qb->createNamedParameter($resolved ? 1 : 0));

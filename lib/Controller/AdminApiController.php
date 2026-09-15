@@ -97,6 +97,8 @@ class AdminApiController extends AdminApiControllerBase {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/accounts')]
+	// the path a current admin client calls; same page, same filters
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/admin/accounts', postfix: 'v2')]
 	public function accounts(
 		string $origin = '',
 		string $status = '',
@@ -240,6 +242,56 @@ class AdminApiController extends AdminApiControllerBase {
 	}
 
 	/**
+	 * Lifts "everything this account posts is sensitive".
+	 *
+	 * The counterpart of `action` with `sensitive`, which this app has had
+	 * since the tier between doing nothing and silencing was added. Without
+	 * this route an admin client could apply it and not take it off.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/accounts/{id}/unsensitive', requirements: ['id' => '.+'])]
+	public function accountUnsensitive(string $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->adminApiService->unsensitive($this->adminApiService->account($id)),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Deletes what an account posted here, without deleting the account.
+	 *
+	 * Mastodon's `DELETE /admin/accounts/{id}`, which removes the *data* — it
+	 * does not remove the person's login, and here it could not: an account on
+	 * this server is a Nextcloud account and the server owns it. What this
+	 * does is the suspension's destructive half: the posts go, the cached
+	 * actor goes, and a local account's deletion is federated as a `Delete`.
+	 *
+	 * Irreversible, which is why it is a separate verb from `action` rather
+	 * than a severity inside it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/admin/accounts/{id}', requirements: ['id' => '.+'])]
+	public function accountDelete(string $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->adminApiService->purge($this->adminApiService->account($id)), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
 	 * A page of reports, newest first.
 	 *
 	 * `resolved` follows Mastodon: absent means unresolved only, which is the
@@ -292,6 +344,35 @@ class AdminApiController extends AdminApiControllerBase {
 
 	#[NoCSRFRequired]
 	#[PublicPage]
+	/**
+	 * Changes what a report says it is about.
+	 *
+	 * A moderator reading a report often finds it filed under the wrong
+	 * category — "spam" for something that is harassment — and Mastodon lets
+	 * them correct it before deciding. Without this the category a reporter
+	 * chose was the category for ever.
+	 *
+	 * `rule_ids` is accepted and ignored, as it is on the reporting side: a
+	 * report here carries a category and never a rule id, and the instance's
+	 * rules are prose rather than numbered rows to point at. Ignoring it is
+	 * the same answer `POST /api/v1/reports` gives, which is the one thing
+	 * worse than refusing it would be — two halves of one API disagreeing.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/admin/reports/{id}')]
+	public function reportUpdate(int $id, string $category = ''): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse(
+				$this->adminApiService->recategoriseReport($id, $category), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/reports/{id}/resolve')]
 	public function reportResolve(int $id): DataResponse {
 		try {
@@ -423,6 +504,74 @@ class AdminApiController extends AdminApiControllerBase {
 			$this->initAdmin(['admin:write']);
 
 			return new DataResponse($this->adminApiService->unblockDomain($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	// The allowlist, which only means anything in allowlist federation
+
+	/**
+	 * The instances this server will talk to at all.
+	 *
+	 * Mastodon's other half of `domain_blocks`, and it means something only
+	 * when `access_type` is `none_but` — allowlist federation, which this app
+	 * has had all along with no API over it. An admin client could read the
+	 * deny list and not this one, so on an allowlisted instance it showed an
+	 * empty screen and no way to tell why.
+	 *
+	 * The ids are derived from the domain rather than stored: the access list
+	 * is a config array with no ids of its own, and giving it a table so a
+	 * client could address a row by number would be storing something for the
+	 * client's benefit alone. Every route here takes the domain itself too.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/domain_allows')]
+	public function domainAllows(): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->adminApiService->domainAllows(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/admin/domain_allows/{id}')]
+	public function domainAllow(string $id): DataResponse {
+		try {
+			$this->initAdmin();
+
+			return new DataResponse($this->adminApiService->domainAllow($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/admin/domain_allows')]
+	public function domainAllowCreate(string $domain = ''): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse($this->adminApiService->allowDomain($domain), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/admin/domain_allows/{id}')]
+	public function domainAllowRemove(string $id): DataResponse {
+		try {
+			$this->initAdmin(['admin:write']);
+
+			return new DataResponse($this->adminApiService->disallowDomain($id), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
