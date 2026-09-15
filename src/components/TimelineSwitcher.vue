@@ -95,6 +95,18 @@ export default {
 
 	emits: ['update:value'],
 
+	data() {
+		return {
+			/**
+			 * Where the active option is, in pixels from the inside of the
+			 * track, or null while there is nothing to measure.
+			 *
+			 * @type {?{left: number, width: number}}
+			 */
+			measured: null,
+		}
+	},
+
 	computed: {
 		/** @return {number} which option is on screen, 0 when none is */
 		activeIndex() {
@@ -102,29 +114,122 @@ export default {
 		},
 
 		/**
-		 * Where the pill is, as a share of the track.
+		 * Where the pill is, and how wide.
 		 *
-		 * Percentages of its own width rather than pixels: the control is as
-		 * wide as its labels, which are translated, so nothing here may assume
-		 * a measurement.
+		 * Measured off the option it sits under, because the options are no
+		 * longer all the same width: an option is as wide as its own words,
+		 * which is what lets "All" and "Polls" leave room for "Favourites"
+		 * instead of every option being as wide as the longest one. A share of
+		 * the track is only right while they are equal.
 		 *
-		 * The width is left to the stylesheet, which takes the track's padding
-		 * off first: a share of the whole track is a couple of pixels wider
-		 * than a share of the room the options actually have, and the pill
-		 * would stick out past the one it is under. Only the count comes from
-		 * here.
+		 * `measured` is null until there is something to measure — the first
+		 * paint, and jsdom, where nothing has a width. The fallback is the old
+		 * behaviour: an equal share of the track, positioned by index, with the
+		 * width left to the stylesheet (which takes the track's padding off
+		 * first, or the pill would stick out past the option it is under).
 		 *
 		 * @return {object} the inline style
 		 */
 		gliderStyle() {
+			if (this.measured === null) {
+				return {
+					'--switcher-count': this.options.length,
+					transform: `translateX(${this.activeIndex * 100}%)`,
+				}
+			}
+
 			return {
 				'--switcher-count': this.options.length,
-				transform: `translateX(${this.activeIndex * 100}%)`,
+				width: `${this.measured.width}px`,
+				transform: `translateX(${this.measured.offset}px)`,
 			}
 		},
 	},
 
+	watch: {
+		value() {
+			this.$nextTick(() => this.measure())
+		},
+
+		options() {
+			this.$nextTick(() => this.measure())
+		},
+	},
+
+	mounted() {
+		this.measure()
+
+		// the options change width without the track changing size — a
+		// translation arriving, a font loading, the labels giving way to their
+		// icons at a breakpoint — so the observer watches an option rather
+		// than only the track
+		if (typeof ResizeObserver === 'function') {
+			this.observer = new ResizeObserver(() => {
+				// off the observer's own callback: measuring inside it would
+				// re-enter it on the next frame
+				window.requestAnimationFrame(() => this.measure())
+			})
+			this.observer.observe(this.$el)
+			for (const option of this.optionElements()) {
+				this.observer.observe(option)
+			}
+		}
+	},
+
+	unmounted() {
+		this.observer?.disconnect()
+	},
+
 	methods: {
+		/**
+		 * Reads where the active option is, so the pill can sit on it.
+		 *
+		 * `offsetLeft` is relative to the track, which is the pill's containing
+		 * block, so the two agree without either knowing where the control is
+		 * on the page. A width of 0 means there is nothing laid out yet — the
+		 * first paint, or jsdom — and the share-of-the-track fallback stands.
+		 */
+		measure() {
+			const track = this.$el
+			const elements = this.optionElements()
+			const option = elements[this.activeIndex]
+			const first = elements[0]
+			const width = option?.offsetWidth ?? 0
+			if (!track || !option || !first || width === 0) {
+				this.measured = null
+
+				return
+			}
+
+			// `offsetLeft` is physical and the pill is anchored to the inline
+			// start, so in a right-to-left interface the two run in opposite
+			// directions: the distance is measured from the other edge and the
+			// travel is negative.
+			const rightToLeft = window.getComputedStyle(track).direction === 'rtl'
+			const inlineStart = (element) => (rightToLeft
+				? track.offsetWidth - (element.offsetLeft + element.offsetWidth)
+				: element.offsetLeft)
+
+			// measured against the first option rather than against the track,
+			// which takes the track's padding out of both sides of the
+			// subtraction: the pill already sits after that padding, so
+			// travelling it again would push the pill off its option by
+			// exactly that much
+			const distance = inlineStart(option) - inlineStart(first)
+
+			this.measured = {
+				offset: rightToLeft ? -distance : distance,
+				width,
+			}
+		},
+
+		/** @return {HTMLElement[]} the option buttons, in order */
+		optionElements() {
+			const options = this.$refs.options
+
+			return Array.isArray(options) ? options.filter(Boolean) : []
+		},
+
 		/**
 		 * @param {number} index the option to show
 		 */
@@ -220,9 +325,12 @@ export default {
 .switcher .switcher__option {
 	position: relative;
 	z-index: 1;
-	// every option as wide as the widest, so a pill of one third of the track
-	// lands exactly on one of them — "My Feed" is a wider word than "Local"
-	flex: 1 1 0;
+	/* As wide as its own words, not as wide as the longest of them.
+	   Equal widths made every option as wide as "Favourites", which at seven
+	   options in a timeline column left each of them about a pixel of padding
+	   — the row read as one solid block of words. The pill is measured off the
+	   option it sits under (`measure()`), so it no longer needs them equal. */
+	flex: 0 1 auto;
 	display: flex;
 	gap: 8px;
 	align-items: center;
@@ -232,12 +340,11 @@ export default {
 	   was 36 — a 48px control, taller than a Nextcloud button and the loudest
 	   thing above a timeline it only labels */
 	min-height: 30px;
-	/* Three options of one or two words each had room to spare at 16. Discover
-	   puts five here, two of them two words long, and at 16 the labels ran
-	   together: what separates one option from the next is this padding
-	   doubled, and nothing else -- there is no rule between them and the pill
-	   sits under only one. */
-	padding: 0 22px;
+	/* What separates one option from the next is this padding doubled, and
+	   nothing else: there is no rule between them and the pill sits under only
+	   one. Three roomy options and seven tight ones are the same control, so
+	   the figure is the one that reads well at the crowded end. */
+	padding: 0 18px;
 	border: none;
 	border-radius: var(--border-radius-pill, 100px);
 	color: var(--color-text-maxcontrast);
@@ -305,17 +412,6 @@ export default {
 @keyframes switcher-spin {
 	0% { transform: rotate(-160deg) scale(.7); }
 	100% { transform: rotate(0) scale(1); }
-}
-
-/* the labels shrink away before the control does, so three stay on one line */
-@media (max-width: 500px) {
-	.switcher__option {
-		padding: 0 12px;
-	}
-
-	.switcher__label {
-		display: none;
-	}
 }
 
 /*

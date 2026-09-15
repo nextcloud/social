@@ -34,6 +34,34 @@ function options(wrapper) {
 	return wrapper.findAll('.switcher__option')
 }
 
+/**
+ * Lays the options out, which jsdom does not: it reports every element as 0
+ * wide, which is exactly the case the pill falls back to shares of the track
+ * for. Widths are given per option so that the measured pill has something to
+ * be unequal about.
+ *
+ * @param {object} wrapper the mounted switcher
+ * @param {number[]} widths what each option measures, in order
+ * @return {Promise<void>} resolved once the pill has re-measured
+ */
+async function layOut(wrapper, widths) {
+	// the track's own padding, which both the options and the pill start after
+	Object.defineProperty(wrapper.element, 'offsetWidth', {
+		value: widths.reduce((sum, width) => sum + width, 6),
+		configurable: true,
+	})
+	let left = 3
+	options(wrapper).forEach((option, index) => {
+		const width = widths[index]
+		Object.defineProperty(option.element, 'offsetWidth', { value: width, configurable: true })
+		Object.defineProperty(option.element, 'offsetLeft', { value: left, configurable: true })
+		left += width
+	})
+
+	wrapper.vm.measure()
+	await wrapper.vm.$nextTick()
+}
+
 describe('TimelineSwitcher', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -101,6 +129,54 @@ describe('TimelineSwitcher', () => {
 
 		expect(wrapper.find('.switcher__glider').attributes('style'))
 			.toContain('--switcher-count: 2')
+	})
+
+	/**
+	 * An option is as wide as its own words. Equal widths made every option as
+	 * wide as the longest of them, which at seven options in a timeline column
+	 * left each of them about a pixel of padding — so the pill is measured off
+	 * the option it sits under rather than assuming they are all the same.
+	 */
+	it('puts the pill exactly on the option it belongs to', async () => {
+		const { wrapper } = mountSwitcher('second')
+		await layOut(wrapper, [60, 120, 90])
+
+		const style = wrapper.find('.switcher__glider').attributes('style')
+		expect(style).toContain('width: 120px')
+		// 60 wide in front of it: the track's padding is where the pill
+		// already sits, so it is not travelled twice
+		expect(style).toContain('translateX(60px)')
+	})
+
+	it('follows the choice to an option of another width', async () => {
+		const { wrapper } = mountSwitcher('third')
+		await layOut(wrapper, [60, 120, 90])
+
+		const style = wrapper.find('.switcher__glider').attributes('style')
+		expect(style).toContain('width: 90px')
+		expect(style).toContain('translateX(180px)')
+	})
+
+	/**
+	 * Before anything is laid out — the first paint, and this test suite —
+	 * there is nothing to measure, and an equal share of the track is the
+	 * honest guess.
+	 */
+	it('falls back to a share of the track while nothing has a width', () => {
+		const { wrapper } = mountSwitcher('second')
+
+		const style = wrapper.find('.switcher__glider').attributes('style')
+		expect(style).toContain('translateX(100%)')
+		expect(style).not.toContain('width:')
+	})
+
+	it('goes back to the fallback if the options lose their width', async () => {
+		const { wrapper } = mountSwitcher('second')
+		await layOut(wrapper, [60, 120, 90])
+		await layOut(wrapper, [0, 0, 0])
+
+		expect(wrapper.find('.switcher__glider').attributes('style'))
+			.toContain('translateX(100%)')
 	})
 
 	/** It is decoration: the state it shows is on the options themselves. */
