@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\MigrationArchiveService;
 use OCA\Social\Service\MigrationService;
+use OCA\Social\Service\PostImportService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -46,6 +48,8 @@ class MigrationController extends Controller {
 		private ?string $userId,
 		private MigrationArchiveService $archiveService,
 		private MigrationService $migrationService,
+		private PostImportService $postImportService,
+		private AccountService $accountService,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct('social', $request);
@@ -166,6 +170,58 @@ class MigrationController extends Controller {
 			return new DataResponse($this->migrationService->importFollows($this->userId, $csv), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			$this->logger->warning('importing follows failed', ['userId' => $this->userId, 'exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+	/**
+	 * Brings an account's own posts over from the server it wrote them on.
+	 *
+	 * Rate-limited hard — twice an hour — because one call reads an archive,
+	 * writes up to two thousand posts and may fetch a picture for each of
+	 * them. Nothing it writes is federated; see `PostImportService`.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 2, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/posts')]
+	public function importPosts(): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		$file = $_FILES['file'] ?? [];
+		if ($file === [] || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+			return new DataResponse(['error' => 'no export was uploaded'], Http::STATUS_BAD_REQUEST);
+		}
+
+		if (($file['size'] ?? 0) > self::IMPORT_MAX_SIZE) {
+			return new DataResponse(
+				['error' => 'this export is larger than ' . (self::IMPORT_MAX_SIZE / 1024 / 1024) . ' MB'],
+				Http::STATUS_REQUEST_ENTITY_TOO_LARGE
+			);
+		}
+
+		// the pictures are fetched from the old server unless the person says
+		// not to: it is their own archive and their own old account, but it is
+		// a request that server can see, so it is a decision rather than a
+		// default nobody was told about
+		$fetchMedia = !in_array(
+			strtolower(trim((string)($this->request->getParam('fetch_media', '1')))),
+			['0', 'false', 'no'],
+			true
+		);
+
+		try {
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+
+			return new DataResponse(
+				$this->postImportService->import($actor, $file['tmp_name'], $fetchMedia),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			$this->logger->warning('importing posts failed', [
+				'userId' => $this->userId, 'exception' => $e,
+			]);
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}

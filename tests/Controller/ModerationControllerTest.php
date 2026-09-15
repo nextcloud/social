@@ -15,10 +15,12 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Report;
 use OCA\Social\Model\Strike;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Http;
@@ -33,6 +35,8 @@ class ModerationControllerTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private ModerationService|MockObject $moderationService;
 	private AdminApiService|MockObject $adminApiService;
+	private PostReviewService|MockObject $postReviewService;
+	private AccountService|MockObject $accountService;
 	private ModerationController $controller;
 
 	/** The arguments the account page was asked for. */
@@ -50,13 +54,17 @@ class ModerationControllerTest extends TestCase {
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->moderationService = $this->createMock(ModerationService::class);
 		$this->adminApiService = $this->createMock(AdminApiService::class);
+		$this->postReviewService = $this->createMock(PostReviewService::class);
+		$this->accountService = $this->createMock(AccountService::class);
 		$this->controller = new ModerationController(
 			$this->createMock(IRequest::class),
 			$this->reportService,
 			$this->fediverseService,
 			$this->configService,
 			$this->moderationService,
-			$this->adminApiService
+			$this->adminApiService,
+			$this->postReviewService,
+			$this->accountService
 		);
 
 		$this->adminApiService->method('accountPage')->willReturnCallback(

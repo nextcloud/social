@@ -15,11 +15,12 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Story;
 use OCA\Social\Model\ActivityPub\Stream;
 
 class DeleteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	/** The types a deleted id can refer to, in the order they are looked up. */
-	private const DELETABLE_TYPES = ['Note', 'Person'];
+	private const DELETABLE_TYPES = ['Note', 'Person', 'Story'];
 
 	/**
 	 * @throws InvalidOriginException
@@ -65,6 +66,15 @@ class DeleteInterface extends AbstractActivityPubInterface implements IActivityP
 			// account — or any user of the author's server could take it down.
 			// An actor deleting itself is not a Stream and is matched by origin
 			// as before.
+			// the same rule for a story as for a post: it goes on its author's
+			// word, not on that of anybody whose server can reach this one
+			if ($object instanceof Story && $object->getAttributedTo() !== $actorId) {
+				throw new InvalidOriginException(
+					'DeleteInterface::deleteById - actor: ' . $actorId
+					. ' - attributedTo: ' . $object->getAttributedTo()
+				);
+			}
+
 			if ($object instanceof Stream && $object->getAttributedTo() !== $actorId) {
 				throw new InvalidOriginException(
 					'DeleteInterface::deleteById - actor: ' . $actorId

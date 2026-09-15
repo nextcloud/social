@@ -234,7 +234,7 @@ class CollectionController extends ClientApiController {
 	public function byAccount(string $account_id): DataResponse {
 		try {
 			$viewer = $this->optionalViewer(['read:collections']);
-			$owner = $this->cacheActorService->getFromId($account_id);
+			$owner = $this->cacheActorService->resolve($account_id);
 
 			$collections = [];
 			foreach ($this->collectionService->forProfile($viewer, $owner) as $collection) {

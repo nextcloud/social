@@ -10,8 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\MigrationController;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\MigrationArchiveService;
 use OCA\Social\Service\MigrationService;
+use OCA\Social\Service\PostImportService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\IRequest;
@@ -30,6 +33,8 @@ use Psr\Log\NullLogger;
 class MigrationControllerTest extends TestCase {
 	private MigrationArchiveService|MockObject $archiveService;
 	private MigrationService|MockObject $migrationService;
+	private PostImportService|MockObject $postImportService;
+	private AccountService|MockObject $accountService;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -39,7 +44,14 @@ class MigrationControllerTest extends TestCase {
 
 		// Response::getHeaders() asks the container for the request
 		\OC::$server->register(IRequest::class, $this->createMock(IRequest::class));
+
+		$this->postImportService = $this->createMock(PostImportService::class);
+		$this->accountService = $this->createMock(AccountService::class);
+		$this->accountService->method('getActorFromUserId')->willReturn(new Person());
 	}
+
+	/** @var array<string, mixed> what the request carries */
+	private array $params = [];
 
 	protected function tearDown(): void {
 		$_FILES = [];
@@ -49,12 +61,23 @@ class MigrationControllerTest extends TestCase {
 
 	private function controller(?string $userId = 'alice'): MigrationController {
 		return new MigrationController(
-			$this->createMock(IRequest::class),
+			$this->request(),
 			$userId,
 			$this->archiveService,
 			$this->migrationService,
+			$this->postImportService,
+			$this->accountService,
 			new NullLogger(),
 		);
+	}
+
+	/** A request that answers the parameters the post import reads. */
+	private function request(): IRequest {
+		$request = $this->createMock(IRequest::class);
+		$request->method('getParam')
+			->willReturnCallback(fn (string $key, $default = null) => $this->params[$key] ?? $default);
+
+		return $request;
 	}
 
 	/** @param array<string, mixed> $file */
@@ -176,5 +199,56 @@ class MigrationControllerTest extends TestCase {
 
 	public function testFollowsWithoutAnAccountIsUnauthorized(): void {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->importFollows()->getStatus());
+	}
+	public function testImportingPostsHandsTheUploadToTheImporterAndAnswersItsTally(): void {
+		$this->withUpload('outbox.json');
+		$this->postImportService->expects($this->once())
+			->method('import')
+			->with($this->isInstanceOf(Person::class), '/tmp/uploaded', true)
+			->willReturn([
+				'imported' => 12, 'skipped' => 2, 'already' => 0,
+				'media' => 5, 'failed' => 0, 'total' => 14, 'capped' => false,
+			]);
+
+		$response = $this->controller()->importPosts();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(12, $response->getData()['imported']);
+	}
+
+	/** Fetching a picture tells the old server the import is happening, so it is a choice. */
+	public function testTheReaderCanDeclineTheFetchFromTheOldServer(): void {
+		$this->withUpload('pixelfed-statuses.json');
+		$this->params = ['fetch_media' => '0'];
+		$this->postImportService->expects($this->once())
+			->method('import')
+			->with($this->anything(), $this->anything(), false)
+			->willReturn(['imported' => 1, 'skipped' => 0, 'already' => 0, 'media' => 0, 'failed' => 0, 'total' => 1, 'capped' => false]);
+
+		$this->controller()->importPosts();
+	}
+
+	public function testImportingPostsWithoutAnUploadIsABadRequest(): void {
+		$this->postImportService->expects($this->never())->method('import');
+
+		$response = $this->controller()->importPosts();
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+	}
+
+	public function testImportingPostsWithoutAnAccountIsUnauthorized(): void {
+		$this->postImportService->expects($this->never())->method('import');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->importPosts()->getStatus());
+	}
+
+	private function withUpload(string $name): void {
+		$_FILES['file'] = [
+			'name' => $name,
+			'tmp_name' => '/tmp/uploaded',
+			'error' => UPLOAD_ERR_OK,
+			'size' => 1024,
+			'type' => 'application/json',
+		];
 	}
 }

@@ -26,6 +26,7 @@ use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Response;
@@ -149,6 +150,22 @@ class SocialPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	public function followers(string $username): Response {
+		return $this->renderPage($username);
+	}
+
+	/**
+	 * An account's collections, for a browser.
+	 *
+	 * Not an ActivityPub URL — a collection is local and federates nothing —
+	 * so unlike the followers page there is no JSON to answer first: the
+	 * client-side router owns the path, and this exists so that reloading or
+	 * bookmarking it is not a 404. A visitor gets the public page, like the
+	 * profile itself.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}/collections')]
+	public function collections(string $username): Response {
 		return $this->renderPage($username);
 	}
 

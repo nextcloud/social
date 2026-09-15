@@ -425,22 +425,39 @@ class AdminApiService {
 	 *                                   entry on it means the opposite of a
 	 *                                   block
 	 */
+	/**
+	 * Every domain this instance holds at arm's length, at whichever tier.
+	 *
+	 * Two lists become one answer: the deny list as `suspend`, the silenced
+	 * list as `silence`. A Mastodon admin client showed only the first and
+	 * called every entry a suspension, while the silence tier was there in
+	 * the web UI and in `occ social:fediverse` all along — a feature present
+	 * in one door and absent from the other.
+	 *
+	 * @return AdminDomainBlock[]
+	 */
 	public function domainBlocks(): array {
 		$this->assertBlockList();
 
-		return array_map(
-			static fn (string $domain): AdminDomainBlock => new AdminDomainBlock($domain),
-			array_values(array_filter(array_map(
-				static fn ($entry): string => strtolower(trim((string)$entry)),
-				$this->fediverseService->getListedAddresses()
-			), static fn (string $domain): bool => $domain !== ''))
-		);
+		$blocks = [];
+		foreach ($this->fediverseService->getListedAddresses() as $entry) {
+			$domain = strtolower(trim((string)$entry));
+			if ($domain !== '') {
+				$blocks[$domain] = new AdminDomainBlock($domain, AdminDomainBlock::SEVERITY);
+			}
+		}
+		foreach ($this->fediverseService->getSilencedAddresses() as $entry) {
+			$domain = strtolower(trim($entry));
+			// a domain on both lists is suspended: the stronger tier is the
+			// one that is actually in force
+			if ($domain !== '' && !isset($blocks[$domain])) {
+				$blocks[$domain] = new AdminDomainBlock($domain, AdminDomainBlock::SEVERITY_SILENCE);
+			}
+		}
+
+		return array_values($blocks);
 	}
 
-	/**
-	 * @throws ItemNotFoundException
-	 * @throws \InvalidArgumentException
-	 */
 	public function domainBlock(string $reference): AdminDomainBlock {
 		foreach ($this->domainBlocks() as $block) {
 			if ($block->isNamedBy($reference)) {
@@ -451,55 +468,85 @@ class AdminApiService {
 		throw new ItemNotFoundException('Record not found');
 	}
 
-	/**
-	 * Blocks a domain.
-	 *
-	 * Blocking one already blocked is not an error and adds nothing: the list
-	 * holds each domain once, and `FediverseService::isListed()` already
-	 * covers every subdomain of an entry — so a client retrying a request it
-	 * lost the answer to gets the same entry back.
-	 *
-	 * @throws \InvalidArgumentException an address no hostname could be, or an
-	 *                                   allow-list instance
-	 */
 	public function blockDomain(string $domain, string $severity = AdminDomainBlock::SEVERITY): AdminDomainBlock {
 		$this->assertBlockList();
-		$this->assertSeverity($severity);
+		$severity = $this->severity($severity);
 
 		$domain = strtolower(trim($domain));
 		if ($domain === '' || preg_match('/^[a-z0-9.:\[\]-]+$/', $domain) !== 1) {
 			throw new \InvalidArgumentException('invalid domain');
 		}
 
-		$this->fediverseService->addAddress($domain);
+		$this->applySeverity($domain, $severity);
 
-		return new AdminDomainBlock($domain);
+		return new AdminDomainBlock($domain, $severity);
 	}
 
 	/**
-	 * Lifts a block.
+	 * Moves a block between the two tiers.
 	 *
-	 * @throws ItemNotFoundException
-	 * @throws \InvalidArgumentException
+	 * A change of severity is a move from one list to the other; the same
+	 * severity again is a no-op, and the block comes back as it stands.
 	 */
+	public function updateDomainBlock(string $reference, string $severity): AdminDomainBlock {
+		$block = $this->domainBlock($reference);
+		$severity = ($severity === '') ? $block->getSeverity() : $this->severity($severity);
+		if ($severity === $block->getSeverity()) {
+			return $block;
+		}
+
+		$this->applySeverity($block->getDomain(), $severity);
+
+		return new AdminDomainBlock($block->getDomain(), $severity);
+	}
+
 	public function unblockDomain(string $reference): AdminDomainBlock {
 		$block = $this->domainBlock($reference);
 		$this->fediverseService->removeAddress($block->getDomain());
+		$this->fediverseService->unsilenceAddress($block->getDomain());
 
 		return $block;
 	}
 
 	/**
-	 * The one severity this list can express, or a refusal.
+	 * The severity as one of the two this instance has, or a refusal.
 	 *
-	 * @throws \InvalidArgumentException
+	 * Mastodon knows a third, `noop`, which records a domain without doing
+	 * anything to it; there is no such list here, and a 200 that had quietly
+	 * applied something else would tell the client the domain was under a
+	 * block it is not.
 	 */
 	public function assertSeverity(string $severity): void {
-		if ($severity !== '' && $severity !== AdminDomainBlock::SEVERITY) {
+		$this->severity($severity);
+	}
+
+	private function severity(string $severity): string {
+		$severity = strtolower(trim($severity));
+		if ($severity === '') {
+			return AdminDomainBlock::SEVERITY;
+		}
+		if (!in_array($severity, AdminDomainBlock::SEVERITIES, true)) {
 			throw new \InvalidArgumentException(
-				'this instance blocks a domain outright; severity "' . $severity . '" cannot be applied'
+				'this instance knows two tiers of domain block, suspend and silence; severity "' . $severity . '" cannot be applied'
 			);
 		}
+
+		return $severity;
+	}
+
+	/**
+	 * Puts a domain on the list its severity names and takes it off the other.
+	 */
+	private function applySeverity(string $domain, string $severity): void {
+		if ($severity === AdminDomainBlock::SEVERITY_SILENCE) {
+			$this->fediverseService->removeAddress($domain);
+			$this->fediverseService->silenceAddress($domain);
+
+			return;
+		}
+
+		$this->fediverseService->unsilenceAddress($domain);
+		$this->fediverseService->addAddress($domain);
 	}
 
 	/**

@@ -58,11 +58,13 @@ class CoreRequestBuilder {
 	public const TABLE_LIST_MEMBERS = 'social_list_member';
 	public const TABLE_COLLECTIONS = 'social_collection';
 	public const TABLE_COLLECTION_ITEMS = 'social_collection_item';
+	public const TABLE_IMPORTED_POSTS = 'social_import_post';
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REACTIONS = 'social_reaction';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
+	public const TABLE_POST_HOLD = 'social_post_hold';
 	public const TABLE_SCHEDULED = 'social_scheduled';
 	public const TABLE_PLACES = 'social_place';
 	public const TABLE_STORIES = 'social_story';
@@ -263,6 +265,14 @@ class CoreRequestBuilder {
 			'lon',
 			'creation'
 		],
+		self::TABLE_IMPORTED_POSTS => [
+			'id',
+			'actor_id_prim',
+			'source_id',
+			'source_id_prim',
+			'stream_id_prim',
+			'creation'
+		],
 		self::TABLE_STORIES => [
 			'id',
 			'actor_id',
@@ -272,7 +282,10 @@ class CoreRequestBuilder {
 			'caption',
 			'duration',
 			'creation',
-			'expires_at'
+			'expires_at',
+			'source_id',
+			'source_id_prim',
+			'local'
 		],
 		self::TABLE_STORY_VIEWS => [
 			'id',
@@ -446,6 +459,15 @@ class CoreRequestBuilder {
 			'status',
 			'tries',
 			'last'
+		],
+		self::TABLE_POST_HOLD => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'params',
+			'reason',
+			'digest',
+			'creation'
 		],
 		self::TABLE_SCHEDULED => [
 			'id',

@@ -143,7 +143,7 @@ class StoryController extends ClientApiController {
 	public function byAccount(string $account_id): DataResponse {
 		try {
 			$this->initViewer(['read:stories']);
-			$owner = $this->cacheActorService->getFromId($account_id);
+			$owner = $this->cacheActorService->resolve($account_id);
 
 			return new DataResponse(
 				$this->storyService->forAccount($this->viewer(), $owner), Http::STATUS_OK

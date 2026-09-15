@@ -303,6 +303,79 @@ class MigrationServiceTest extends TestCase {
 		. "\n"
 		. "@erin@third.example,true,false,\n";
 
+	/** Pixelfed hands out a JSON array of actor URLs, never a CSV. */
+	public function testParseFollowsReadsPixelfedsJsonExport(): void {
+		$json = json_encode([
+			'https://pixelfed.social/users/carol',
+			'https://pixelfed.social/users/dave/',
+			'https://pixelfed.social/users/carol',
+		]);
+
+		$this->assertSame(
+			['https://pixelfed.social/users/carol', 'https://pixelfed.social/users/dave'],
+			MigrationService::parseFollows($json)
+		);
+	}
+
+	/** An export is the one file its author cannot fix, so the reading is generous. */
+	public function testParseFollowsReadsJsonEntriesWhateverShapeTheyTake(): void {
+		$json = json_encode(['following' => [
+			['url' => 'https://pixelfed.social/users/carol'],
+			['acct' => '@dave@other.example'],
+			['id' => 'https://third.example/users/erin'],
+			'frank@fourth.example',
+			'not an account',
+			42,
+		]]);
+
+		$this->assertSame(
+			[
+				'https://pixelfed.social/users/carol',
+				'dave@other.example',
+				'https://third.example/users/erin',
+				'frank@fourth.example',
+			],
+			MigrationService::parseFollows($json)
+		);
+	}
+
+	/** A CSV is still a CSV, JSON or not at the front of the file. */
+	public function testParseFollowsStillReadsACsv(): void {
+		$this->assertSame(
+			MigrationService::parseFollowsCsv(self::MASTODON_CSV),
+			MigrationService::parseFollows(self::MASTODON_CSV)
+		);
+		// a file that starts like JSON but is not one falls back to the CSV reading
+		$this->assertSame([], MigrationService::parseFollows('[not json'));
+	}
+
+	/** A URL is fetched and followed as the actor it resolves to, not looked up as a handle. */
+	public function testImportFollowsFetchesAnActorUrlAndFollowsWhatCameBack(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$carol = $this->person(self::CAROL, 'carol@remote.example');
+		$this->cacheActorService->expects($this->once())
+			->method('getFromId')
+			->with(self::CAROL, true)
+			->willReturn($carol);
+		$this->followService->expects($this->once())->method('followActor')->with($this->alice(), $carol);
+		$this->followService->expects($this->never())->method('followAccount');
+
+		$result = $this->service->importFollows('alice', json_encode([self::CAROL]));
+
+		$this->assertSame(1, $result['followed']);
+	}
+
+	/** An export that names the importing account itself is skipped, by handle or by URL. */
+	public function testImportFollowsSkipsTheAccountItself(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->followService->expects($this->never())->method('followActor');
+		$this->followService->expects($this->never())->method('followAccount');
+
+		$result = $this->service->importFollows('alice', json_encode([self::ALICE, 'alice@cloud.example']));
+
+		$this->assertSame(2, $result['skipped']);
+	}
+
 	public function testParseFollowsCsvReadsTheMastodonExport(): void {
 		$this->assertSame(
 			['carol@remote.example', 'dave@other.example', 'erin@third.example'],

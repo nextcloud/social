@@ -9,16 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use Exception;
-use InvalidArgumentException;
-use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\ClientNotFoundException;
-use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\AccessBlock;
-use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ClientService;
@@ -73,31 +65,19 @@ use Throwable;
  * `AdminDomainBlock`; each emits every key Mastodon documents, with the empty
  * value of its type wherever this app has nothing behind one.
  */
-class AdminApiController extends Controller {
-	private string $bearer = '';
-	private ?SocialClient $client = null;
-	private string $userId = '';
-
+class AdminApiController extends AdminApiControllerBase {
 	public function __construct(
 		IRequest $request,
-		private IUserSession $userSession,
-		private LoggerInterface $logger,
-		private AdminApiService $adminApiService,
+		IUserSession $userSession,
+		LoggerInterface $logger,
+		AdminApiService $adminApiService,
 		private AccessBlockService $accessBlockService,
 		private MetricsService $metricsService,
 		private HashtagService $hashtagService,
 		private TrendService $trendService,
-		private ClientService $clientService,
+		ClientService $clientService,
 	) {
-		parent::__construct(Application::APP_ID, $request);
-
-		$authHeader = trim($this->request->getHeader('Authorization'));
-		if (strpos($authHeader, ' ')) {
-			[$authType, $authToken] = explode(' ', $authHeader);
-			if (strtolower($authType) === 'bearer') {
-				$this->bearer = $authToken;
-			}
-		}
+		parent::__construct($request, $userSession, $logger, $adminApiService, $clientService);
 	}
 
 	/**
@@ -394,14 +374,13 @@ class AdminApiController extends Controller {
 	}
 
 	/**
-	 * Blocks a domain.
+	 * Adds a domain block at one of the two tiers this instance has.
 	 *
-	 * `severity` may only be `suspend`: an entry on this list refuses the
-	 * domain outright, and a client asking for `silence` would otherwise be
-	 * told it had been given something milder than it was.
-	 * `reject_media`, `reject_reports`, `obfuscate` and the two comments are
-	 * accepted and ignored — the list has no room for any of them, which
-	 * `AdminDomainBlock` states field by field.
+	 * `suspend` (the default) puts the domain on the deny list, which refuses
+	 * everything from it; `silence` keeps its accounts readable to whoever
+	 * follows them and takes them out of the public timelines. Mastodon's
+	 * `noop` has no list to go on here and is refused with a 422 rather than
+	 * quietly applied as something else.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -419,10 +398,8 @@ class AdminApiController extends Controller {
 	}
 
 	/**
-	 * There is nothing on a block here to change, so this confirms the entry
-	 * and refuses any severity but the one it has. A 200 that had quietly
-	 * dropped the change would be worse: the moderator would believe the
-	 * domain was under a lesser block than it is.
+	 * Moves a block between the two tiers: a change of severity is a move
+	 * from one list to the other, the same severity again a no-op.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -430,9 +407,8 @@ class AdminApiController extends Controller {
 	public function domainBlockUpdate(string $id, string $severity = ''): DataResponse {
 		try {
 			$this->initAdmin(['admin:write']);
-			$this->adminApiService->assertSeverity($severity);
 
-			return new DataResponse($this->adminApiService->domainBlock($id), Http::STATUS_OK);
+			return new DataResponse($this->adminApiService->updateDomainBlock($id, $severity), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -818,106 +794,6 @@ class AdminApiController extends Controller {
 	}
 
 	/**
-	 * Establishes that this request is an administrator's, or refuses it.
-	 *
-	 * The order is the point: the Nextcloud user is resolved first, the group
-	 * is asked about that user second, and the token's scope third. A caller
-	 * who is not an administrator is refused before any scope is looked at, so
-	 * no scope a client can ask for makes any difference to them.
-	 *
-	 * @param string[] $scopes any one of which satisfies a bearer token
-	 *
-	 * @throws ClientNotFoundException nobody is behind the request
-	 * @throws InsufficientScopeException they are not an administrator of this
-	 *                                    instance, or their token was not
-	 *                                    granted the admin API
-	 */
-	private function initAdmin(array $scopes = ['admin:read']): void {
-		$userId = $this->currentSession();
-
-		if (!$this->adminApiService->isAdministrator($userId)) {
-			// deliberately the same answer whether the user exists, has a
-			// Social account, or simply may not moderate: the admin API tells
-			// a non-administrator nothing about the instance, not even that
-			$this->logger->info('[AdminApiController] admin API refused to a non-administrator', [
-				'user' => $userId,
-				'route' => (string)$this->request->getParam('_route', ''),
-			]);
-
-			throw new InsufficientScopeException(
-				'this API is restricted to the administrators of this instance'
-			);
-		}
-
-		$this->userId = $userId;
-
-		if ($this->client !== null) {
-			$this->checkTokenScope($scopes);
-		}
-	}
-
-	/**
-	 * The Nextcloud user behind the request: the bearer token's, or the
-	 * session's when there is no token — the same order every other
-	 * client-API controller here uses.
-	 *
-	 * @throws ClientNotFoundException
-	 */
-	private function currentSession(): string {
-		if ($this->bearer !== '') {
-			try {
-				$this->client = $this->clientService->getFromToken($this->bearer);
-			} catch (Exception $e) {
-				// a stale or made-up token is ordinary internet noise
-				$this->logger->debug('[AdminApiController] unusable bearer token', [
-					'exception' => $e->getMessage(),
-				]);
-
-				throw new ClientNotFoundException('the access_token was revoked');
-			}
-
-			return $this->client->getAuthUserId();
-		}
-
-		$user = $this->userSession->getUser();
-		if ($user !== null && $this->request->passesCSRFCheck()) {
-			return $user->getUID();
-		}
-
-		throw new ClientNotFoundException('userId not defined');
-	}
-
-	/**
-	 * `admin:read` is satisfied by `admin:read` or by `admin`, and by nothing
-	 * else.
-	 *
-	 * Not by `read`, which is what every ordinary client holds: Mastodon keeps
-	 * the admin scopes outside the `read`/`write` tree for exactly that
-	 * reason, so a timeline client's token cannot reach the moderation API
-	 * even when its owner happens to be an administrator.
-	 *
-	 * @param string[] $accepted
-	 *
-	 * @throws InsufficientScopeException
-	 */
-	private function checkTokenScope(array $accepted): void {
-		foreach ($accepted as $scope) {
-			$broad = strstr($scope, ':', true);
-			$broad = ($broad === false) ? $scope : $broad;
-
-			foreach ($this->client->getAuthScopes() as $granted) {
-				if ($granted === $scope || $granted === $broad) {
-					return;
-				}
-			}
-		}
-
-		throw new InsufficientScopeException(
-			'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
-		);
-	}
-
-	/**
 	 * Mastodon's `origin`: true for local accounts, false for remote, null for
 	 * both.
 	 *
@@ -996,48 +872,5 @@ class AdminApiController extends Controller {
 		unset($query['max_id'], $query['min_id'], $query['since_id'], $query['_route']);
 
 		return $path . '?' . http_build_query(array_merge($query, $cursor));
-	}
-
-	/**
-	 * A failure as a client can act on it. An unrecognised one is a bug on
-	 * this side, so it answers 500 and its message is not sent on — these are
-	 * `#[PublicPage]` routes, and echoing getMessage() publishes whatever the
-	 * failure happened to name.
-	 */
-	private function error(Throwable $e): DataResponse {
-		if ($e instanceof InsufficientScopeException) {
-			return new DataResponse(
-				['error' => $e->getMessage()],
-				Http::STATUS_FORBIDDEN,
-				['WWW-Authenticate' => 'Bearer error="insufficient_scope"']
-			);
-		}
-
-		if ($e instanceof ClientNotFoundException) {
-			$message = trim($e->getMessage());
-
-			return new DataResponse(
-				['error' => ($message === '') ? 'the access_token is invalid' : $message],
-				Http::STATUS_UNAUTHORIZED,
-				['WWW-Authenticate' => 'Bearer error="invalid_token"']
-			);
-		}
-
-		if ($e instanceof ItemNotFoundException || $e instanceof ReportNotFoundException) {
-			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
-		}
-
-		if ($e instanceof InvalidResourceException || $e instanceof InvalidArgumentException) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
-		}
-
-		$this->logger->error('[AdminApiController] unexpected failure answering the admin API', [
-			'exception' => $e,
-			'route' => (string)$this->request->getParam('_route', ''),
-		]);
-
-		return new DataResponse(
-			['error' => 'internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR
-		);
 	}
 }

@@ -67,7 +67,8 @@ skipped, and once closed it does not come back.
   it into your home feed. It is not a relationship with anybody, and the tags
   you follow are listed above any hashtag timeline.
 - **Coming from another server?** Every Mastodon-like server exports the
-  people you follow as `following_accounts.csv`. Upload it in the first-run
+  people you follow as `following_accounts.csv`, and Pixelfed as
+  `pixelfed-following.json`. Upload it in the first-run
   introduction or under **Settings → Migration** and each account is followed
   again from here.
 
@@ -135,6 +136,38 @@ deletion is sent to every server that received it — this cannot be undone),
 **Pin to profile** (up to five public or unlisted posts), and **Delivery
 status**, which says which servers received the post, which are still being
 tried and which gave up.
+
+### If your post is kept back
+
+Your server may show some posts to a moderator before they go out. There are
+two reasons it does: the **first post** of an account that has not published
+anything here yet, and a post that tripped one of the server's spam rules — a
+lot of links, or a lot of mentions from an account nobody follows yet. Your
+administrator can turn either off, and neither applies to a **direct
+message**: nobody reads those but the people you wrote to.
+
+When it happens the app says so at once, and your writing is kept — there is
+no need to write it again, and writing it again only finds the copy already
+waiting. Nobody but you and the moderators can see it in the meantime: it is
+in no timeline, not even your own. **Settings → Waiting to be looked at** is
+where yours are, and you can take one back from there, which deletes it and
+tells nobody.
+
+If it is approved, it goes out as an ordinary post, dated the moment it was
+approved rather than when you wrote it. If it is refused, it is deleted and
+you are told.
+
+### Where it was taken
+
+The pin in the composer's toolbar says where a post was taken. It offers the
+places people on this server have already posted from as you type; a name
+nobody here has used yet becomes a place the moment your post goes out, with
+a country if you add one. **Nothing is looked up on a map service** — the app
+never sends your location anywhere to work out what it is, which is the same
+promise it keeps by stripping the camera's location from your pictures. The
+place shows as a small marker under the post, and tapping it opens the page
+of everything public that was taken there. Release the pin and the post has
+no place.
 
 ## Reading
 
@@ -205,6 +238,46 @@ plus on it to choose another; you may put up to eight different emoji on the
 same announcement.
 
 Administrators post and remove announcements in **Administration → Social**.
+
+### Stories
+
+Above your own feed is a row of faces: whose stories are up. A story is one
+picture or video that the people who follow the account can see for a day,
+and then it is gone. A face with a coloured ring around it still holds
+something you have not seen; tap it and the stories play one after another,
+each for the seconds its poster gave it, and the ring goes grey. Hold the
+picture to pause it, tap the left or right of it to go back or forward, and
+use the arrows at the sides to move to the next account.
+
+Your own place is always first in the row, with a **+** on it. It opens a
+small dialog: choose a picture or a video, add a caption if you like, and
+say how many seconds a picture should show for. The picture goes up the way
+every attachment does — stripped of the camera's metadata — and your story
+is up for a day, to your followers and nobody else. While it is up, you can
+see how many people watched it and take it down early from the same player.
+
+Stories travel. Yours go to the people who follow you on other servers that
+have stories — Pixelfed is the one that does. Stories from a Pixelfed account
+do not come the other way, and that is Pixelfed's decision rather than this
+server's: it sends them only to servers it recognises as Pixelfed. Taking
+yours down early takes it down there too. What another server does with its copy after the day is up is that
+server's business, which is why a story that arrives here is kept for a day
+at the most, whatever the sender says, and one that has already expired is
+not kept at all.
+
+### Collections
+
+A profile has a fourth tab beside Posts, Photos and Videos: **Collections**, the
+account's albums. Each is a page of the posts the owner gathered into it, drawn
+as the same grid of squares the Photos tab uses, with a lock on the ones that
+are for followers only.
+
+Your own shelf has a **New collection** field at the top. To put a post into
+one, open the post's menu (**…**) and choose **Add to a collection**; only your
+own posts with a picture or a video in them offer it, because that is all a
+collection may hold. On a collection's page you can **Edit** its title,
+description and audience, **Remove posts** from their own squares, or
+**Delete** it — the posts stay where they are.
 
 ## Filtering out words
 
@@ -308,9 +381,32 @@ for anybody else reading the same post.
   deliberately not in it. **Import** reads such an archive (or a Nextcloud
   account export) back in without deleting anything; posts in it are listed,
   not published again. The third section imports the follows from another
-  network's `following_accounts.csv`, and explains that moving your *followers*
+  network's export — a `following_accounts.csv`, or Pixelfed's
+  `pixelfed-following.json` — and explains that moving your *followers*
   here is a one-way move that an administrator performs with
   `occ social:account:alias` and `occ social:account:move`.
+- **Bringing your posts.** The fourth section of **Settings → Migration** reads
+  the export from your old server — this app's own archive, Mastodon's or
+  GoToSocial's `outbox.json`, or Pixelfed's `pixelfed-statuses.json` — and
+  writes the posts in it here as yours, dated when you wrote them, with their
+  pictures. Nothing is sent to anybody: none of it is published again, so the
+  people who follow you do not receive years of posts in one afternoon. Boosts
+  and direct messages are left out, and a reply keeps the post it answers when
+  the file holds both. A picture the export names only by its address is
+  fetched from the old server, which has to still be running; the switch above
+  the button turns that off. At most 2000 posts a run — upload the same file
+  again to carry on — and an archive too large for a browser can be imported by
+  an administrator with `occ social:account:import-posts`.
+- **Coming from Instagram.** The same button reads an Instagram archive. Ask
+  Instagram to download your information and **choose JSON**: the HTML download
+  is a set of web pages with the posts taken out, and this says so rather than
+  failing quietly. Your posts and reels arrive with their pictures, their
+  captions and the hashtags you wrote in them. Two things are worth knowing
+  before you press it. An Instagram post does not record who could see it, so
+  every one of them is posted here with **your own default visibility** — set
+  that first, in **Settings → Your account**, if you would rather they were not
+  public. And your **stories, your archived posts and anything you deleted are
+  not imported**: you put those away on purpose.
 - **Leaving.** Deleting the Nextcloud user deletes the Social account with
   it: what you posted is dropped and a deletion is sent to the servers that
   saw it.
@@ -338,12 +434,8 @@ applies where nothing else claims the key.
 
 ## What the web client does not do yet
 
-These exist in the server and are reachable through the Mastodon-compatible
-API, but the web client has no page for them: **collections**, **stories** and
-**places** — each has a controller in `lib/Controller/` and nothing in the
-sidebar, the router or Settings. Third-party Mastodon clients cannot connect to
-this server yet, because the API is served under the app's own path rather than
-at the domain root (see
+Third-party Mastodon clients cannot connect to this server yet, because the
+API is served under the app's own path rather than at the domain root (see
 [Mastodon-Compatibility.md](Mastodon-Compatibility.md)); until that changes, the
 web client is the client. There is no post translation — `ActionService`'s
 `translate` hands the post back unchanged — and no streaming API, so the page

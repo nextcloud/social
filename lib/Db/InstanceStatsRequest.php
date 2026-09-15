@@ -92,7 +92,24 @@ class InstanceStatsRequest extends CoreRequestBuilder {
 		return count($this->remoteHosts());
 	}
 
-	/** @return array<string, true> */
+	/**
+	 * The remote instances this one has heard of, each with how many of its
+	 * accounts are cached here.
+	 *
+	 * The same scan as the domain list — the host is read off the account
+	 * handle in PHP because there is no host column to group on — so the
+	 * count comes for free.
+	 *
+	 * @return array<string, int> host => cached accounts, most first
+	 */
+	public function remoteHostCounts(): array {
+		$hosts = $this->remoteHosts();
+		arsort($hosts);
+
+		return $hosts;
+	}
+
+	/** @return array<string, int> host => how many cached accounts are on it */
 	private function remoteHosts(): array {
 		$qb = $this->getQueryBuilder();
 		$qb->selectDistinct('ca.account')
@@ -111,7 +128,7 @@ class InstanceStatsRequest extends CoreRequestBuilder {
 
 			$host = strtolower(substr($account, $at + 1));
 			if ($host !== '') {
-				$hosts[$host] = true;
+				$hosts[$host] = ($hosts[$host] ?? 0) + 1;
 			}
 		}
 		$cursor->closeCursor();

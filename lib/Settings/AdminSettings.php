@@ -14,6 +14,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ServerSettingsService;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -26,7 +27,7 @@ use OCP\Util;
 
 /**
  * Moderation panel: the open reports (the resolved ones a click away), the
- * state of outbound federation, the Fediverse access list the occ
+ * posts waiting to be looked at, the state of outbound federation, the Fediverse access list the occ
  * social:fediverse command manages, the announcements the instance is showing
  * everybody — and, for an administrator proper, the Server card.
  *
@@ -58,6 +59,7 @@ class AdminSettings implements IDelegatedSettings {
 		private FediverseService $fediverseService,
 		private ConfigService $configService,
 		private ModerationService $moderationService,
+		private PostReviewService $postReviewService,
 		private FederationHealthService $federationHealthService,
 		private IL10N $l10n,
 		private ServerSettingsService $serverSettingsService,
@@ -100,6 +102,12 @@ class AdminSettings implements IDelegatedSettings {
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
 			'federation' => $this->federationHealthService->summary(),
+			// the first page of the review queue, in the shape
+			// `ModerationController::review()` answers in
+			'review' => $this->postReviewService->pending(),
+			'reviewTotal' => $this->postReviewService->countPending(),
+			'reviewFirstPost' => $this->postReviewService->reviewsFirstPost(),
+			'autospam' => $this->postReviewService->autospam(),
 		]);
 
 		return new TemplateResponse('social', 'settings/admin');

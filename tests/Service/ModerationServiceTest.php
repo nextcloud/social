@@ -16,8 +16,10 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\MuteExpiryRequest;
+use OCA\Social\Db\PostHoldsRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -65,6 +67,8 @@ class ModerationServiceTest extends TestCase {
 	private MuteExpiryRequest|MockObject $muteExpiryRequest;
 	private CollectionsRequest|MockObject $collectionsRequest;
 	private StoriesRequest|MockObject $storiesRequest;
+	private ImportedPostsRequest|MockObject $importedPostsRequest;
+	private PostHoldsRequest|MockObject $postHoldsRequest;
 	private StrikeService|MockObject $strikeService;
 	private AuditService|MockObject $auditService;
 
@@ -78,6 +82,7 @@ class ModerationServiceTest extends TestCase {
 		$this->muteExpiryRequest = $this->createMock(MuteExpiryRequest::class);
 		$this->collectionsRequest = $this->createMock(CollectionsRequest::class);
 		$this->storiesRequest = $this->createMock(StoriesRequest::class);
+		$this->importedPostsRequest = $this->createMock(ImportedPostsRequest::class);
 		$this->moderationRequest = $this->createMock(ModerationRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
@@ -91,6 +96,7 @@ class ModerationServiceTest extends TestCase {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->strikeService = $this->createMock(StrikeService::class);
 		$this->auditService = $this->createMock(AuditService::class);
+		$this->postHoldsRequest = $this->createMock(PostHoldsRequest::class);
 		$this->strikeService->method('record')->willReturnCallback(
 			function (string $actorId, string $action, string $text = '', int $reportId = 0): Strike {
 				$this->strikes[] = compact('actorId', 'action', 'text', 'reportId');
@@ -117,6 +123,8 @@ class ModerationServiceTest extends TestCase {
 			$this->strikeService,
 			$this->collectionsRequest,
 			$this->storiesRequest,
+			$this->importedPostsRequest,
+			$this->postHoldsRequest,
 			$this->auditService
 		);
 	}
@@ -219,6 +227,8 @@ class ModerationServiceTest extends TestCase {
 			$this->strikeService,
 			$this->collectionsRequest,
 			$this->storiesRequest,
+			$this->importedPostsRequest,
+			$this->postHoldsRequest,
 			$this->auditService
 		);
 
@@ -336,8 +346,8 @@ class ModerationServiceTest extends TestCase {
 			$this->requestQueueRequest, $this->createMock(StreamService::class),
 			$this->actorsRequest, $this->accountService, $logger,
 			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest,
-			$this->strikeService, $this->collectionsRequest, $this->storiesRequest,
-			$this->auditService
+			$this->strikeService, $this->collectionsRequest, $this->storiesRequest, $this->importedPostsRequest,
+			$this->postHoldsRequest, $this->auditService
 		);
 
 		$service->decide(self::SPAMMER, Moderation::SILENCE);

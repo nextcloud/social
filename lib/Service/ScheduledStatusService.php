@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\ScheduledStatusesRequest;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\ItemNotFoundException;
@@ -20,7 +19,6 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\ScheduledStatus;
 use OCA\Social\Model\Client\Status;
-use OCA\Social\Model\Post;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -85,9 +83,8 @@ class ScheduledStatusService {
 		private ScheduledStatusesRequest $scheduledRequest,
 		private AccountService $accountService,
 		private DocumentService $documentService,
-		private StreamService $streamService,
 		private PostService $postService,
-		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private StatusAssemblyService $statusAssemblyService,
 		private IURLGenerator $urlGenerator,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
@@ -151,7 +148,7 @@ class ScheduledStatusService {
 		$scheduled = new ScheduledStatus();
 		$scheduled->setActorId($actor->getId())
 			->setScheduledAt($when)
-			->setParams($this->paramsOf($status, $this->visibilityOf($status, $actor)));
+			->setParams($this->statusAssemblyService->paramsOf($status, $this->visibilityOf($status, $actor)));
 
 		$this->scheduledRequest->save($scheduled);
 		$this->hydrateMedia($scheduled, $actor);
@@ -282,88 +279,9 @@ class ScheduledStatusService {
 	private function publish(ScheduledStatus $scheduled): ?ACore {
 		$actor = $this->accountService->getFromId($scheduled->getActorId());
 
-		return $this->postService->createPost($this->buildPost($actor, $scheduled));
-	}
-
-	/**
-	 * The post a waiting request becomes — the same assembly
-	 * `ApiController::statusNew()` performs on an immediate one, reading from
-	 * the stored `params` instead of from the live request.
-	 */
-	private function buildPost(Person $actor, ScheduledStatus $scheduled): Post {
-		$post = new Post($actor);
-		$post->setContent($scheduled->paramText());
-		$post->setPoll($scheduled->paramPoll());
-		$post->setSpoilerText($scheduled->paramString('spoiler_text'));
-		$post->setSensitive($scheduled->paramBool('sensitive'));
-		$post->setType($scheduled->paramString('visibility'));
-		$post->setLanguage($scheduled->paramString('language'));
-		$post->setQuotedId($scheduled->paramString('quoted_status_id'));
-
-		$mediaIds = $scheduled->paramMediaIds();
-		if ($mediaIds !== []) {
-			$documents = $this->documentService->getMediaFromArray(
-				$mediaIds, $actor->getPreferredUsername()
-			);
-			$this->scopeMediaToVisibility($documents, $post->getType());
-			$post->setMedias(
-				array_map(function (Document $document): MediaAttachment {
-					return $document->convertToMediaAttachment(
-						$this->urlGenerator, ACore::FORMAT_ACTIVITYPUB
-					);
-				}, $documents)
-			);
-		}
-
-		$replyTo = (int)$scheduled->paramString('in_reply_to_id');
-		if ($replyTo > 0) {
-			try {
-				$post->setReplyTo($this->streamService->getStreamByNid($replyTo)->getId());
-			} catch (Throwable $e) {
-				// The post being replied to was deleted while this one waited,
-				// which is likelier here than on an immediate post. The reply
-				// still goes out, as a post of its own, rather than being lost
-				// with it.
-				$this->logger->debug(
-					'[ScheduledStatusService] the post ' . $replyTo . ' replied to is gone'
-				);
-			}
-		}
-
-		return $post;
-	}
-
-	/**
-	 * The `params` of the entity: Mastodon's keys, filled from what the client
-	 * sent, and nothing that was not asked for.
-	 *
-	 * Built from the parsed `Status` rather than copied out of the raw body so
-	 * that what is replayed later is what this app understood at the time —
-	 * the same normalisation an immediate post gets, and not a second reading
-	 * of the request by a second piece of code.
-	 *
-	 * `scheduled_at` stays null inside `params`. The time lives on the entity
-	 * itself, where `reschedule()` keeps it current; a copy in here would be
-	 * the stale one the moment a post is moved, and a client cannot tell which
-	 * of the two it is meant to believe.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private function paramsOf(Status $status, string $visibility): array {
-		return [
-			'text' => $status->getStatus(),
-			// strings, because every id Mastodon shows a client is a string,
-			// and this array is echoed back verbatim
-			'media_ids' => array_map('strval', $status->getMediaIds()),
-			'poll' => $status->getPoll(),
-			'in_reply_to_id' => ($status->getInReplyToId() > 0)
-				? (string)$status->getInReplyToId() : null,
-			'quoted_status_id' => ($status->getQuotedId() !== '') ? $status->getQuotedId() : null,
-			'sensitive' => $status->isSensitive(),
-			'spoiler_text' => $status->getSpoilerText(),
-			'visibility' => $visibility,
-			'language' => $status->getLanguage(),
-		];
+		return $this->postService->createPost(
+			$this->statusAssemblyService->fromParams($actor, $scheduled)
+		);
 	}
 
 	/**
@@ -466,31 +384,6 @@ class ScheduledStatusService {
 		);
 		if (count($options) < 2) {
 			throw new InvalidActionException('a poll needs at least two options');
-		}
-	}
-
-	/**
-	 * Records on a post's attachments whether the post itself is
-	 * world-readable, which decides how the bytes may be cached on the way to a
-	 * reader.
-	 *
-	 * The twin of `ApiController::scopeMediaToVisibility()`, which does this
-	 * for an immediate post and is private to the controller. Both exist
-	 * because the answer is only known when the post is created, and a
-	 * scheduled post is created here.
-	 *
-	 * @param Document[] $documents
-	 */
-	private function scopeMediaToVisibility(array $documents, string $visibility): void {
-		$public = in_array($visibility, [Stream::TYPE_PUBLIC, Stream::TYPE_UNLISTED], true);
-
-		foreach ($documents as $document) {
-			if ($document->isPublic() === $public) {
-				continue;
-			}
-
-			$document->setPublic($public);
-			$this->cacheDocumentsRequest->update($document);
 		}
 	}
 

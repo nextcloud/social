@@ -14,6 +14,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ServerSettingsService;
 use OCA\Social\Settings\AdminSection;
@@ -41,6 +42,7 @@ use PHPUnit\Framework\TestCase;
 class AdminSettingsTest extends TestCase {
 	private FederationHealthService|MockObject $federationHealthService;
 	private ModerationService|MockObject $moderationService;
+	private PostReviewService|MockObject $postReviewService;
 	private ReportService|MockObject $reportService;
 	private ServerSettingsService|MockObject $serverSettingsService;
 	private IInitialState|MockObject $initialState;
@@ -90,6 +92,8 @@ class AdminSettingsTest extends TestCase {
 		$groupManager = $this->createMock(IGroupManager::class);
 		$groupManager->method('isAdmin')->willReturn($administrator);
 
+		$this->postReviewService = $this->createMock(PostReviewService::class);
+
 		$fediverseService = $this->createMock(FediverseService::class);
 		$fediverseService->method('getAccessType')->willReturn('all_but');
 		$fediverseService->method('getListedAddresses')->willReturn(['noisy.example']);
@@ -99,6 +103,7 @@ class AdminSettingsTest extends TestCase {
 			$fediverseService,
 			$this->createMock(ConfigService::class),
 			$this->moderationService,
+			$this->postReviewService,
 			$this->federationHealthService,
 			$this->l10n(),
 			$this->serverSettingsService,

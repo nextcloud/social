@@ -155,12 +155,18 @@ class Note extends Stream implements JsonSerializable {
 	 * - only when the post *is* a video: one attachment, and it a video. See
 	 *   `PeerTubeService::soleVideo()`.
 	 *
-	 * The app value is last because it costs a container lookup, and it exists
-	 * because this cannot be proven from here: whether a Mastodon-family server
-	 * renders a `Video` as well as it rendered the `Note` is a question only a
-	 * real one can answer. `attachment` is published either way to make that
-	 * as likely as possible, and an admin who finds otherwise turns it off with
-	 * `occ config:app:set social publish_video_objects --value 0`.
+	 * The app value is last because it costs a container lookup, and it is
+	 * **off by default**. The question this comment used to leave open —
+	 * whether a Mastodon-family server renders a `Video` as well as it
+	 * rendered the `Note` — has an answer from Pixelfed's own source: its
+	 * inbox handles a `Create` only when the object is a `Note` with a parent
+	 * or an attachment, and drops everything else without a word
+	 * (`Inbox/HandlesCreates.php`). With this on, no video posted here ever
+	 * reached a Pixelfed follower. Mastodon draws both shapes; PeerTube draws
+	 * only this one; Pixelfed only the `Note`. `attachment` is published either
+	 * way, so a `Video` still carries its file for the servers that read it.
+	 * An instance whose audience is on PeerTube turns it on with
+	 * `occ config:app:set social publish_video_objects --value 1`.
 	 */
 	private function asVideoIfItIsOne(array $result): array {
 		if ($this->getExportFormat() === self::FORMAT_LOCAL || !$this->isLocal()) {

@@ -33,9 +33,9 @@ class AccountImportFollows extends SocialCommand {
 			->addArgument('userId', InputArgument::REQUIRED, 'Nextcloud user whose actor follows the accounts')
 			->addArgument(
 				'csv', InputArgument::REQUIRED,
-				'path to a Mastodon following_accounts.csv (header "Account address,…", or one handle per line)'
+				'path to the export: a Mastodon following_accounts.csv (header "Account address,…", or one handle per line) or a Pixelfed pixelfed-following.json'
 			)
-			->setDescription('Follow every account of a Mastodon following_accounts.csv export');
+			->setDescription('Follow every account of a follows export (Mastodon CSV or Pixelfed JSON)');
 	}
 
 	#[\Override]
@@ -50,7 +50,7 @@ class AccountImportFollows extends SocialCommand {
 			return 1;
 		}
 
-		$handles = MigrationService::parseFollowsCsv($csv);
+		$handles = MigrationService::parseFollows($csv);
 		$output->writeln('Following ' . count($handles) . ' account(s) as ' . $userId . '...');
 
 		try {

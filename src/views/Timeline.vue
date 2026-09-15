@@ -54,6 +54,10 @@
 		<!-- what the reader wrote on this day in years gone by, and how their
 		     week went if they asked to be told; only over their own home feed,
 		     which is the one page that is about them -->
+		<!-- whose stories are up: a row of faces above the reader's own
+		     feed, and only there — a story is for the people who follow -->
+		<StoryBar v-if="isHome" />
+
 		<WeeklyRecap v-if="isHome" />
 		<OnThisDay v-if="isHome" />
 
@@ -83,6 +87,7 @@ import Announcements from './../components/Announcements.vue'
 import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import OnThisDay from './../components/OnThisDay.vue'
+import StoryBar from './../components/StoryBar.vue'
 import WeeklyRecap from './../components/WeeklyRecap.vue'
 import { tagStyle } from '../utils/tagColour.js'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
@@ -107,6 +112,7 @@ export default {
 		HashtagFollowButton,
 		HashtagFollowedList,
 		OnThisDay,
+		StoryBar,
 		WeeklyRecap,
 		TimelineList,
 		TimelineSwitcher,
@@ -214,16 +220,22 @@ export default {
 		/**
 		 * Whether this is the reader's own feed.
 		 *
-		 * That is the route with no `type` at all — see `scopes()`: the local
-		 * and global feeds are `timeline` and `federated`, and home is the one
-		 * with nothing. The memories belong here and nowhere else; on a tag
-		 * page or a profile they would be an interruption from another
-		 * subject.
+		 * The memories, the recap and the story bar belong here and nowhere
+		 * else; on a tag page or a profile they would be an interruption from
+		 * another subject.
+		 *
+		 * The *route* of the home feed carries no `type` — see `scopes()`: the
+		 * local and global feeds are `timeline` and `federated`, and home is
+		 * the one with nothing. This compared against that empty route
+		 * parameter, but `type` above never answers with it: a route without
+		 * one is reported as `'home'`, which is the word the rest of this view
+		 * uses. So `isHome` was false on every page including the home feed,
+		 * and the three cards it guards had never once been drawn.
 		 *
 		 * @return {boolean}
 		 */
 		isHome() {
-			return (this.type ?? '') === ''
+			return this.type === 'home'
 		},
 
 		/**

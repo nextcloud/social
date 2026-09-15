@@ -41,7 +41,8 @@ class StoriesRequest extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->select(
 			'st.id', 'st.actor_id', 'st.actor_id_prim', 'st.document_id', 'st.document_id_prim',
-			'st.caption', 'st.duration', 'st.creation', 'st.expires_at'
+			'st.caption', 'st.duration', 'st.creation', 'st.expires_at',
+			'st.source_id', 'st.source_id_prim', 'st.local'
 		)
 			->from(self::TABLE_STORIES, 'st');
 
@@ -72,9 +73,20 @@ class StoriesRequest extends CoreRequestBuilder {
 		return $stories;
 	}
 
+	/**
+	 * Writes a story.
+	 *
+	 * A local one is stamped now and given a day; one that arrived keeps the
+	 * times its author put on it, bounded — `StoryService` is where that
+	 * bounding is decided, because it is a rule about what this instance will
+	 * hold rather than about how a row is written.
+	 */
 	public function save(Story $story): Story {
 		$now = new DateTime('now');
-		$expires = (new DateTime('now'))->setTimestamp($now->getTimestamp() + Story::LIFETIME);
+		$now->setTimestamp(($story->getCreation() > 0) ? $story->getCreation() : $now->getTimestamp());
+		$expires = (new DateTime('now'))->setTimestamp(
+			($story->getExpiresAt() > 0) ? $story->getExpiresAt() : $now->getTimestamp() + Story::LIFETIME
+		);
 
 		$qb = $this->getStoriesInsertSql();
 		$qb->setValue('actor_id', $qb->createNamedParameter($story->getOwnerId()))
@@ -84,13 +96,63 @@ class StoriesRequest extends CoreRequestBuilder {
 			->setValue('caption', $qb->createNamedParameter($story->getCaption()))
 			->setValue('duration', $qb->createNamedParameter($story->getDuration()))
 			->setValue('creation', $qb->createNamedParameter($now, IQueryBuilder::PARAM_DATE))
-			->setValue('expires_at', $qb->createNamedParameter($expires, IQueryBuilder::PARAM_DATE));
+			->setValue('expires_at', $qb->createNamedParameter($expires, IQueryBuilder::PARAM_DATE))
+			->setValue('source_id', $qb->createNamedParameter($story->getSourceId()))
+			->setValue('source_id_prim', $qb->createNamedParameter(md5($story->getSourceId())))
+			->setValue('local', $qb->createNamedParameter($story->isLocal(), IQueryBuilder::PARAM_BOOL));
 
 		$qb->executeStatement();
 
 		return $story->setId($qb->getLastInsertId())
 			->setCreation($now->getTimestamp())
 			->setExpiresAt($expires->getTimestamp());
+	}
+
+	/**
+	 * Writes the ActivityPub id of a story that has just been given one.
+	 *
+	 * A local story's id is built out of the row's own number, so it can only
+	 * be written once the row exists.
+	 */
+	public function setSourceId(int $id, string $sourceId): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_STORIES)
+			->set('source_id', $qb->createNamedParameter($sourceId))
+			->set('source_id_prim', $qb->createNamedParameter(md5($sourceId)))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * One story by the ActivityPub id it arrived under.
+	 *
+	 * @throws ItemNotFoundException
+	 */
+	public function getBySourceId(string $sourceId): Story {
+		$qb = $this->getStoriesSelectSql();
+		$qb->andWhere($qb->expr()->eq('st.source_id_prim', $qb->createNamedParameter(md5($sourceId))));
+
+		$stories = $this->getStoriesFromRequest($qb);
+		if ($stories === []) {
+			throw new ItemNotFoundException('unknown story');
+		}
+
+		return $stories[0];
+	}
+
+	/**
+	 * Removes a story by its ActivityPub id, on its author's word.
+	 *
+	 * The author is checked here rather than by the caller: a `Delete` naming
+	 * somebody else's story is the one thing this row must never honour.
+	 */
+	public function deleteBySourceId(string $sourceId, string $actorId): void {
+		$qb = $this->getStoriesDeleteSql();
+		$qb->where($qb->expr()->eq('source_id_prim', $qb->createNamedParameter(md5($sourceId))))
+			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
+
+		$qb->executeStatement();
 	}
 
 	/**
@@ -289,6 +351,34 @@ class StoriesRequest extends CoreRequestBuilder {
 	}
 
 	/** @param int[] $storyIds */
+	/**
+	 * Who watched one story, newest viewer first.
+	 *
+	 * The view rows hold only the viewer's id hash, so the cached actors are
+	 * joined to get an id a caller can resolve; a viewer this server no longer
+	 * caches is simply not in the answer.
+	 *
+	 * @return string[] actor ids
+	 */
+	public function viewersOf(int $storyId, int $limit = 200): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('ca.id')
+			->from(self::TABLE_STORY_VIEWS, 'sv')
+			->innerJoin('sv', self::TABLE_CACHE_ACTORS, 'ca', $qb->expr()->eq('ca.id_prim', 'sv.actor_id_prim'))
+			->where($qb->expr()->eq('sv.story_id', $qb->createNamedParameter($storyId, IQueryBuilder::PARAM_INT)))
+			->orderBy('sv.creation', 'desc')
+			->setMaxResults(max(1, $limit));
+
+		$viewers = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$viewers[] = (string)$data['id'];
+		}
+		$cursor->closeCursor();
+
+		return $viewers;
+	}
+
 	private function deleteViewsOf(array $storyIds): void {
 		if ($storyIds === []) {
 			return;

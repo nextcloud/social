@@ -310,10 +310,25 @@ class MediaAttachment implements JsonSerializable {
 				'url' => $this->getUrl(),
 				// the wire carries the alt text as `name`
 				'name' => ($this->getDescription() === '') ? null : $this->getDescription(),
-				'blurhash' => $this->getBlurHash(),
-				'width' => ($original === null) ? 0 : $original->getWidth() ?? 0,
-				'height' => ($original === null) ? 0 : $original->getHeight() ?? 0
 			];
+
+		// Stated only when they are known, and never as a zero or an empty
+		// string. `"width": 0` is a false statement about a picture, and a
+		// receiver is entitled to act on it: Pixelfed validates these three
+		// as `nullable|min:…` when the key is present and drops the **whole
+		// post** when one fails, so a post whose attachment had no stored
+		// dimensions vanished on the other side without a word.
+		$blurhash = $this->getBlurHash();
+		if ($blurhash !== '') {
+			$document['blurhash'] = $blurhash;
+		}
+
+		$width = ($original === null) ? 0 : ($original->getWidth() ?? 0);
+		$height = ($original === null) ? 0 : ($original->getHeight() ?? 0);
+		if ($width > 0 && $height > 0) {
+			$document['width'] = $width;
+			$document['height'] = $height;
+		}
 
 		// Added only when it points somewhere. `[0, 0]` is the centre, which is
 		// what a peer assumes when the field is absent, so sending it says

@@ -32,6 +32,7 @@ use OCA\Social\Model\Client\ScheduledStatus;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Translation;
 use OCA\Social\Model\CustomEmoji;
+use OCA\Social\Model\HeldPost;
 use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Relationship;
@@ -62,6 +63,7 @@ use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
+use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\ReactionService;
 use OCA\Social\Service\ReactionSummaryService;
@@ -146,6 +148,7 @@ class ApiControllerTest extends TestCase {
 	private ICacheFactory|MockObject $cacheFactory;
 	private AccountRelationService|MockObject $accountRelationService;
 	private ScheduledStatusService|MockObject $scheduledStatusService;
+	private PostReviewService|MockObject $postReviewService;
 	private EmojiService|MockObject $emojiService;
 	private PlaceService|MockObject $placeService;
 	private DeliveryService|MockObject $deliveryService;
@@ -258,6 +261,7 @@ class ApiControllerTest extends TestCase {
 		// and a filter that removed anything would rewrite what they assert
 		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
+		$this->postReviewService = $this->createMock(PostReviewService::class);
 		$this->emojiService = $this->createMock(EmojiService::class);
 		$this->placeService = $this->createMock(PlaceService::class);
 		$this->deliveryService = $this->createMock(DeliveryService::class);
@@ -358,6 +362,7 @@ class ApiControllerTest extends TestCase {
 			$this->avatarService,
 			$this->accountRelationService,
 			$this->scheduledStatusService,
+			$this->postReviewService,
 			$this->emojiService,
 			$this->appManager,
 			$this->fediverseService,
@@ -1061,6 +1066,36 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($entity, $response->getData());
+	}
+
+	/**
+	 * A post a rule holds is stored as a request and never reaches
+	 * `social_stream`, so there is no row for a timeline to find. The client
+	 * is told in the vocabulary Mastodon's API has, with enough beside it to
+	 * say something better than "failed".
+	 */
+	public function testStatusNewHeldForReviewStoresTheRequestAndPublishesNothing(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['status' => 'hello everybody']);
+		$this->postReviewService->method('assess')->willReturn(HeldPost::REASON_FIRST_POST);
+		$this->postReviewService->method('paramsOf')->willReturn(['text' => 'hello everybody']);
+		$held = (new HeldPost())->setId(7)->setReason(HeldPost::REASON_FIRST_POST);
+		$this->postReviewService->expects($this->once())->method('hold')->willReturn($held);
+		$this->postService->expects($this->never())->method('createPost');
+
+		$response = $this->controller()->statusNew();
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertTrue($response->getData()['held_for_review']);
+		$this->assertSame(HeldPost::REASON_FIRST_POST, $response->getData()['reason']);
+		$this->assertSame($held, $response->getData()['held_post']);
+	}
+
+	public function testStatusNewIsPostedWhenNoRuleHoldsIt(): void {
+		$this->postReviewService->method('assess')->willReturn('');
+		$this->postReviewService->expects($this->never())->method('hold');
+
+		$this->assertSame('hi', $this->postWith(['status' => 'hi'])->getContent());
 	}
 
 	public function testStatusNewWithoutAScheduledTimePostsStraightAway(): void {

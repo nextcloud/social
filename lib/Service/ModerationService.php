@@ -16,8 +16,10 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\MuteExpiryRequest;
+use OCA\Social\Db\PostHoldsRequest;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -64,6 +66,8 @@ class ModerationService {
 		private StrikeService $strikeService,
 		private CollectionsRequest $collectionsRequest,
 		private StoriesRequest $storiesRequest,
+		private ImportedPostsRequest $importedPostsRequest,
+		private PostHoldsRequest $postHoldsRequest,
 		private AuditService $auditService,
 	) {
 	}
@@ -330,6 +334,14 @@ class ModerationService {
 			// and its live stories, which were going to expire anyway but must
 			// not outlive the account that posted them
 			'stories' => fn () => $this->storiesRequest->deleteRelatedId($actorId),
+			// and the memory of what it brought over from another server,
+			// which names posts that have just gone with it
+			'imported' => fn () => $this->importedPostsRequest->deleteByActor($actorId),
+			// and anything of its own still waiting for a moderator: nobody is
+			// going to approve the unpublished posts of a suspended account,
+			// and leaving them would leave a queue of decisions that cannot be
+			// taken
+			'held' => fn () => $this->postHoldsRequest->deleteByActor($actorId),
 		] as $what => $delete) {
 			try {
 				$delete();

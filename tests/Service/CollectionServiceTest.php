@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\Collection;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CollectionService;
 use OCA\Social\Service\FollowService;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -36,7 +37,8 @@ class CollectionServiceTest extends TestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->followService = $this->createMock(FollowService::class);
 		$this->service = new CollectionService(
-			$this->collectionsRequest, $this->streamRequest, $this->followService
+			$this->collectionsRequest, $this->streamRequest, $this->followService,
+			$this->createMock(CacheActorService::class)
 		);
 	}
 

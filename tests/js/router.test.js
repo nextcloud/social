@@ -16,6 +16,9 @@ vi.mock('../../src/views/Profile.vue', () => ({ default: { name: 'Profile', rend
 vi.mock('../../src/views/ProfileTimeline.vue', () => ({ default: { name: 'ProfileTimeline', render: () => null } }))
 vi.mock('../../src/views/ProfileFollowers.vue', () => ({ default: { name: 'ProfileFollowers', render: () => null } }))
 vi.mock('../../src/views/BlockedAccounts.vue', () => ({ default: { name: 'BlockedAccounts', render: () => null } }))
+vi.mock('../../src/views/ProfileCollections.vue', () => ({ default: { name: 'ProfileCollections', render: () => null } }))
+vi.mock('../../src/views/CollectionPage.vue', () => ({ default: { name: 'CollectionPage', render: () => null } }))
+vi.mock('../../src/views/PlacePage.vue', () => ({ default: { name: 'PlacePage', render: () => null } }))
 
 describe('router', () => {
 	it('is served under the app path and uses the "active" link class', () => {
@@ -74,6 +77,22 @@ describe('router', () => {
 		expect(Object.keys(route.matched[0].components)).toEqual(['default', 'details'])
 		expect(route.matched[0].props.default).toBe(true)
 		expect(Object.keys(route.matched[1].components)).toEqual(['details'])
+	})
+
+	it('routes an account\'s collections under the account, and one collection to its own page', () => {
+		expect(router.resolve({ name: 'profile.collections', params: { account: 'bob@remote.tld' } }).fullPath)
+			.toBe('/@bob@remote.tld/collections')
+		expect(router.resolve('/@bob@remote.tld/collections').name).toBe('profile.collections')
+
+		const collection = router.resolve({ name: 'collection', params: { id: '9' } })
+		expect(collection.fullPath).toBe('/collections/9')
+		expect(collection.params.id).toBe('9')
+	})
+
+	it('routes a place to its own page', () => {
+		const place = router.resolve({ name: 'place', params: { id: '4' } })
+		expect(place.fullPath).toBe('/places/4')
+		expect(router.resolve('/places/4').name).toBe('place')
 	})
 
 	it('keeps remote handles intact in the account param', () => {

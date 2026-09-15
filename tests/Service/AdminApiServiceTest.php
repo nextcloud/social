@@ -82,6 +82,7 @@ class AdminApiServiceTest extends TestCase {
 	private array $writes = [];
 	/** @var string[] the addresses the access list holds */
 	private array $accessList = [];
+	private array $silencedList = [];
 	private string $accessType = 'all_but';
 
 	protected function setUp(): void {
@@ -156,6 +157,17 @@ class AdminApiServiceTest extends TestCase {
 		$this->fediverseService->method('removeAddress')
 			->willReturnCallback(function (string $address): void {
 				$this->accessList = array_values(array_diff($this->accessList, [$address]));
+			});
+		$this->fediverseService->method('getSilencedAddresses')->willReturnCallback(fn (): array => $this->silencedList);
+		$this->fediverseService->method('silenceAddress')
+			->willReturnCallback(function (string $address): void {
+				if (!in_array($address, $this->silencedList, true)) {
+					$this->silencedList[] = $address;
+				}
+			});
+		$this->fediverseService->method('unsilenceAddress')
+			->willReturnCallback(function (string $address): void {
+				$this->silencedList = array_values(array_diff($this->silencedList, [$address]));
 			});
 		$this->fediverseService->method('isLocal')
 			->willReturnCallback(static fn (string $host): bool => $host === 'cloud.example');
@@ -710,16 +722,71 @@ class AdminApiServiceTest extends TestCase {
 		$service->blockDomain('https://evil.example/path');
 	}
 
-	public function testTheOnlySeverityThisListCanExpressIsSuspend(): void {
+	public function testTheTwoTiersThisInstanceHasAreTheTwoSeveritiesItTakes(): void {
 		$service = $this->service();
 
 		$service->assertSeverity('');
 		$service->assertSeverity('suspend');
-
-		// a client told its silence had been applied would believe the domain
-		// was under a lesser block than it is
-		$this->expectException(\InvalidArgumentException::class);
 		$service->assertSeverity('silence');
+
+		// Mastodon's `noop` records a domain without doing anything to it;
+		// there is no such list here, and a 200 that had quietly applied
+		// something else would tell the client the domain was under a block
+		// it is not
+		$this->expectException(\InvalidArgumentException::class);
+		$service->assertSeverity('noop');
+	}
+
+	/** The silence tier was in the web UI and in occ, and absent from the API. */
+	public function testBothTiersAreListedAndTheStrongerOneWinsADomainOnBoth(): void {
+		$this->accessList = ['evil.example', 'both.example'];
+		$this->silencedList = ['Loud.example', 'both.example'];
+
+		$blocks = [];
+		foreach ($this->service()->domainBlocks() as $block) {
+			$blocks[$block->getDomain()] = $block->getSeverity();
+		}
+
+		$this->assertSame(
+			['evil.example' => 'suspend', 'both.example' => 'suspend', 'loud.example' => 'silence'],
+			$blocks
+		);
+		$entity = $this->service()->domainBlock('loud.example')->jsonSerialize();
+		$this->assertSame('silence', $entity['severity']);
+		$this->assertFalse($entity['reject_media'], 'a silence refuses nothing, it only hides');
+	}
+
+	public function testSilencingADomainPutsItOnTheSilencedListAndNowhereElse(): void {
+		$block = $this->service()->blockDomain('Loud.example', 'silence');
+
+		$this->assertSame('silence', $block->getSeverity());
+		$this->assertSame(['loud.example'], $this->silencedList);
+		$this->assertSame([], $this->accessList);
+	}
+
+	/** A change of severity is a move from one list to the other. */
+	public function testChangingTheSeverityMovesTheDomainBetweenTheLists(): void {
+		$this->silencedList = ['loud.example'];
+		$service = $this->service();
+
+		$this->assertSame('suspend', $service->updateDomainBlock('loud.example', 'suspend')->getSeverity());
+		$this->assertSame([], $this->silencedList);
+		$this->assertSame(['loud.example'], $this->accessList);
+
+		$this->assertSame('silence', $service->updateDomainBlock('loud.example', 'silence')->getSeverity());
+		$this->assertSame(['loud.example'], $this->silencedList);
+		$this->assertSame([], $this->accessList);
+
+		// the same severity again changes nothing
+		$service->updateDomainBlock('loud.example', '');
+		$this->assertSame(['loud.example'], $this->silencedList);
+	}
+
+	public function testUnblockingLiftsASilenceToo(): void {
+		$this->silencedList = ['loud.example'];
+
+		$this->assertSame('loud.example', $this->service()->unblockDomain('loud.example')->getDomain());
+		$this->assertSame([], $this->silencedList);
 	}
 
 	public function testUnblockingLiftsTheEntryItNames(): void {

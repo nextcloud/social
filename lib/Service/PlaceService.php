@@ -10,7 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Db\PlacesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Place;
 
@@ -27,6 +29,7 @@ use OCA\Social\Model\Client\Place;
 class PlaceService {
 	public function __construct(
 		private PlacesRequest $placesRequest,
+		private StreamRequest $streamRequest,
 	) {
 	}
 
@@ -43,6 +46,27 @@ class PlaceService {
 	/** @throws ItemNotFoundException */
 	public function byId(int $id): Place {
 		return $this->placesRequest->getById($id);
+	}
+
+	/**
+	 * The public posts taken at a place, newest first, with the place on them.
+	 *
+	 * Public only, whoever asks: the place page is a public page, and a
+	 * followers-only post's location is as private as the post.
+	 *
+	 * @return Stream[]
+	 */
+	public function posts(int $placeId, int $limit = 20, int $maxId = 0): array {
+		// a 404 for a place nobody named, before any post is read
+		$this->placesRequest->getById($placeId);
+
+		$posts = $this->streamRequest->getPublicByPlace($placeId, max(1, min(40, $limit)), max(0, $maxId));
+		foreach ($posts as $post) {
+			$post->setExportFormat(ACore::FORMAT_LOCAL);
+		}
+		$this->attachPlaces($posts);
+
+		return $posts;
 	}
 
 	/**

@@ -166,21 +166,44 @@ class MediaAttachmentTest extends TestCase {
 		], $media->asDocument());
 	}
 
-	public function testAsDocumentWithoutMetaUsesZeroDimensions(): void {
+	/**
+	 * A dimension nobody knows is left out rather than sent as a zero.
+	 * `"width": 0` is a false statement about a picture, and a receiver is
+	 * entitled to act on it: Pixelfed validates `width`/`height`/`blurhash` as
+	 * `nullable|min:…` **when the key is present** and drops the whole post
+	 * when one fails, so an attachment with no stored dimensions took the post
+	 * with it, silently, on the other side.
+	 */
+	public function testAsDocumentLeavesOutWhatItDoesNotKnow(): void {
 		$document = (new MediaAttachment())->asDocument();
 
-		$this->assertSame(0, $document['width']);
-		$this->assertSame(0, $document['height']);
+		$this->assertArrayNotHasKey('width', $document);
+		$this->assertArrayNotHasKey('height', $document);
+		$this->assertArrayNotHasKey('blurhash', $document);
 	}
 
-	public function testAsDocumentWithoutDimensionsUsesZero(): void {
+	public function testAsDocumentWithoutDimensionsLeavesThemOut(): void {
 		$media = new MediaAttachment();
 		$media->import(['id' => '1', 'url' => 'https://a.example/x.png']);
 
 		$document = $media->asDocument();
 
-		$this->assertSame(0, $document['width']);
-		$this->assertSame(0, $document['height']);
+		$this->assertArrayNotHasKey('width', $document);
+		$this->assertArrayNotHasKey('height', $document);
+	}
+
+	/** Half a pair of dimensions is not a pair, and says nothing useful. */
+	public function testASingleDimensionIsNotStatedOnItsOwn(): void {
+		$media = new MediaAttachment();
+		$media->import([
+			'id' => '1', 'url' => 'https://a.example/x.png',
+			'meta' => ['original' => ['width' => 1200, 'height' => 0]],
+		]);
+
+		$document = $media->asDocument();
+
+		$this->assertArrayNotHasKey('width', $document);
+		$this->assertArrayNotHasKey('height', $document);
 	}
 
 	/**

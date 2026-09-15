@@ -391,6 +391,10 @@ is the profile, the follows, the relations, the marks, the banner and the files
 of the posts this server still has. The posts themselves are counted and not
 written, and the key pair is deliberately never carried.
 
+The follows *file* is read whichever network wrote it: Mastodon's CSV, or
+Pixelfed's `pixelfed-following.json` — a JSON array of actor URLs, which the
+importer used to read as a CSV with no handle in it and follow nobody.
+
 Follower import is still the other half, and it is still impossible without
 identity continuity: the relationship's other half lives on the follower's
 server pointing at the old id. With identity continuity it becomes easy,
@@ -540,6 +544,21 @@ changed on the API for any of them; what changed is who can set them.
 Of the tier-1 pair, one has moved: per-user OAuth tokens are done. The root
 path has not.
 
+Since then, 0.20.2 went after what a **Pixelfed** user and their app would
+meet. Two silent failures on the wire: every video posted here went out as an
+ActivityPub `Video`, which Pixelfed's inbox drops without a word, so it is a
+`Note` by default now; and Pixelfed's follows export is a JSON array of actor
+URLs that the importer read as an empty CSV, so it reads JSON. The official
+app was read against the route table — forty endpoints of Pixelfed's own, ten
+answered — and thirty-four are answered now, through one façade that reshapes
+data this app already serves: the `v1.2` story carousel, `collections/self`,
+`accounts/username` and `mutuals`, `v1.1/report`, `compose/settings`, the
+direct-message thread routes, `tags/{tag}/related`, `push/*` told the truth
+(off, no token), and Pixelfed's `/api/admin/*` screens behind the same gate as
+Mastodon's admin API. The silence tier reached the Mastodon admin API on the
+way (item 19). And the three Pixelfed-native features that were API-only —
+stories, collections, places — have pages in the web app.
+
 And of this document's own list, five items were done in #2126 — the `source`
 leak, the suspension, the three dropped profile fields, the version string and
 the three missing endpoints — with authorized fetch joining them in #2136 and
@@ -632,10 +651,11 @@ meet. These three were it.
 |---|---|---|---|---|
 | 11 | **Authorized fetch inbound** — verify the HTTP signature on GET and resolve the remote reader | Weeks | Signature verification ran on inbox POSTs only, so a followers-only object could not be served to an authorized remote reader and secure mode was impossible. It failed closed, so nothing leaked | done (`AuthorizedFetchService`) |
 | 12 | **`Add` and `Remove` outbound** for pins | Days | A pin was only visible to a peer that re-polled `featured` | done |
-| 13 | **`mediaType` on attachments** | Hours | The stored row (`MediaAttachment::asLocal()`) now carries `media_type`, `import()` reads it back — with a guess from the extension for rows written before it existed — and the Document a post is served as states it | done |
+| 13 | **`mediaType` on attachments** | Hours | The stored row (`MediaAttachment::asLocal()`) now carries `media_type`, `import()` reads it back — with a guess from the extension for rows written before it existed — and the Document a post is served as states it. Since 0.20.5 the Document also **leaves out what it does not know** rather than sending `"width": 0`, `"height": 0` and `"blurhash": ""`: Pixelfed validates all three as `nullable|min:…` *when the key is present* and drops the whole post when one fails, so an attachment with no stored dimensions took its post with it, silently | done |
 | 14 | **The WebFinger profile-page link** | Hours | Pointed at the Nextcloud user profile rather than a Social one | done |
 | 15 | **Emoji reactions** | Days | Announcement reactions are stored and served. Reactions to a *status* are a Misskey and Pleroma extension Mastodon does not handle either, and are deliberately not implemented | done (announcements) |
 | 39 | **Serve attachments as ActivityPub `Document`s** | Hours | New, and verified on the wire rather than in a unit test: everything served on request — a single status, the outbox, `featured`, `replies`, and any re-fetch by a peer — carries Mastodon's *client* shape under `attachment` (`"type": "video"`, `preview_url`, `remote_url`, `meta`) instead of `{"type": "Document", "mediaType": "video/mp4", "name": …}`. `MediaAttachment::asDocument()` is correct and `ACore::FORMAT_ACTIVITYPUB` is set on the attachments of a freshly created post, so the original `Create` goes out right; but `StreamRequest::save()` stores `asLocal()` and hydration leaves the objects in the local format, so every later read of the same post is wrong. `WireCompatibilityTest` calls `asDocument()` directly and therefore passes | done — `Stream::jsonSerialize()` maps every attachment through `asDocument()` whatever format it was hydrated in, so a re-read post goes out the same as the original `Create`; `StreamTest::testAHydratedPostServesItsAttachmentsAsDocuments` pins it |
+| 51 | **Publish a video as a `Note`, not a `Video`, by default** | Hours | `Note::asVideoIfItIsOne()` sent a sole-video post in PeerTube's shape, and Pixelfed's `HandlesCreates` processes only a `Note` with a parent or an attachment — a `Video` is dropped without a word, so no video posted here ever reached a Pixelfed follower. Mastodon draws both shapes, PeerTube only the `Video`, Pixelfed only the `Note` | done — `publish_video_objects` defaults to `0`; an instance whose audience is on PeerTube turns it on |
 
 ### Tier 4 — the admin and moderation surface
 
@@ -644,7 +664,7 @@ meet. These three were it.
 | 16 | **Registration management** — sign-up, an approval queue, invites, email confirmation | Weeks | Accounts are Nextcloud users, so provisioning lives in the server. See "Two answers rather than a tick" | answered, not built |
 | 17 | **Warnings and strikes**, and "email this user" | Weeks | The ladder jumped from silence straight to suspend, with nothing in between and no record | done (`StrikeService`) |
 | 18 | **An account browser in the admin UI**, and a button for post takedown | Days | Only *reported* accounts were actionable from the web | done |
-| 19 | **Graded domain blocks** — a silence and a limit tier, and `reject_media` | Days | The app has a silence tier (`FediverseService::silenceAddress()`), but the *admin API* does not expose it: `AdminApiService::assertSeverity()` refuses any severity but `suspend`, `AdminDomainBlock` reports every entry as `suspend`, and silenced domains are not in that list at all. A Mastodon admin client still sees block-outright or nothing | **partly done** |
+| 19 | **Graded domain blocks** — a silence and a limit tier, and `reject_media` | Days | The app has a silence tier (`FediverseService::silenceAddress()`), but the *admin API* does not expose it: `AdminApiService::assertSeverity()` refuses any severity but `suspend`, `AdminDomainBlock` reports every entry as `suspend`, and silenced domains are not in that list at all. A Mastodon admin client still sees block-outright or nothing | done — `AdminApiService` lists the deny list as `suspend` and the silenced list as `silence`, takes both on create, moves a domain between them on update and lifts either on delete; `noop` stays a 422, there being no list for it. `reject_media`/`reject_reports` follow the tier. Pixelfed's own admin routes (`/api/admin/instances/*`) read the same two lists as `banned` and `unlisted` |
 | 20 | **IP blocks, email-domain blocks, canonical email blocks** | Days | The first two are there (`/api/v1/admin/ip_blocks`, `/admin/email_domain_blocks`); canonical email blocks are not, and belong to a sign-up this app does not own | partly done |
 | 21 | **A moderator role distinct from Nextcloud admin** | Days | Every admin route asked `IGroupManager::isAdmin()`, so moderating meant full server administration. It is now Nextcloud's own settings delegation rather than a second list of names | done |
 | 22 | **Admin metrics** — trends, measures, dimensions, retention | Weeks | Absent | done |

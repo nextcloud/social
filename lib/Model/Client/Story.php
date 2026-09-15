@@ -50,6 +50,8 @@ class Story implements IQueryRow, JsonSerializable {
 	private int $creation = 0;
 	private int $expiresAt = 0;
 	private bool $seen = false;
+	private string $sourceId = '';
+	private bool $local = true;
 	private int $viewCount = 0;
 
 	/** Filled in when the story is read for a client. */
@@ -131,6 +133,27 @@ class Story implements IQueryRow, JsonSerializable {
 		return $this->expiresAt <= ($now ?? time());
 	}
 
+	/** The story's ActivityPub id: ours for a local story, theirs for one that arrived. */
+	public function getSourceId(): string {
+		return $this->sourceId;
+	}
+
+	public function setSourceId(string $sourceId): self {
+		$this->sourceId = $sourceId;
+
+		return $this;
+	}
+
+	public function isLocal(): bool {
+		return $this->local;
+	}
+
+	public function setLocal(bool $local): self {
+		$this->local = $local;
+
+		return $this;
+	}
+
 	public function isSeen(): bool {
 		return $this->seen;
 	}
@@ -183,6 +206,12 @@ class Story implements IQueryRow, JsonSerializable {
 		$this->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
 		$expires = $this->get('expires_at', $data);
 		$this->setExpiresAt(($expires === '') ? 0 : (int)strtotime($expires));
+
+		$this->setSourceId($this->get('source_id', $data));
+		// rows written before stories travelled have no `local` column value
+		// of their own; they are this instance's, which is what they could
+		// only have been
+		$this->setLocal($this->getBool('local', $data, true));
 	}
 
 	#[\Override]

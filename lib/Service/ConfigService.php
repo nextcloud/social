@@ -101,6 +101,42 @@ class ConfigService {
 	 */
 	public const SOCIAL_POLLS_SWEPT = 'polls_swept';
 
+	/**
+	 * Whether the first post of an account that has published nothing here yet
+	 * waits for a moderator.
+	 *
+	 * On by default. Accounts here are Nextcloud users, so a spammer has to be
+	 * given an account by this server before they can post at all — and when
+	 * that happens, the cheapest thing that can be done about it is that the
+	 * first thing they write is seen by a person before it reaches anybody
+	 * else. An instance whose accounts are all colleagues turns it off and
+	 * loses nothing.
+	 */
+	public const SOCIAL_REVIEW_FIRST_POST = 'review_first_post';
+
+	/**
+	 * Whether a post that trips the spam rules waits for a moderator.
+	 *
+	 * On by default, and a very short list of rules — see `PostReviewService`.
+	 * What this is not is a filter: nothing is ever refused by it, only put in
+	 * front of a person.
+	 */
+	public const SOCIAL_AUTOSPAM = 'autospam';
+
+	/**
+	 * The secret a story's fetch capability is derived from, generated the
+	 * first time a story is published. See `getStorySecret()`.
+	 */
+	public const SOCIAL_STORY_SECRET = 'story_secret';
+
+	/**
+	 * Per account, not per instance: the Pixelfed app's own switches, kept
+	 * here because that app keeps them on its server so a reinstall finds the
+	 * app as it was left. Written and read by `PixelfedService`, and
+	 * interpreted by nothing here.
+	 */
+	public const APP_SETTINGS = 'app_settings';
+
 	/** The long form of what this instance is, for `instance/extended_description`. */
 	public const SOCIAL_EXTENDED_DESCRIPTION = 'extended_description';
 
@@ -119,7 +155,7 @@ class ConfigService {
 		self::SOCIAL_SERVICE => 1,
 		self::SOCIAL_MAX_SIZE => 10,
 		self::SOCIAL_MAX_VIDEO_SIZE => 2048,
-		self::SOCIAL_PUBLISH_VIDEO => '1',
+		self::SOCIAL_PUBLISH_VIDEO => '0',
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
 		self::SOCIAL_ACCESS_LIST => '[]',
 		self::SOCIAL_SELF_SIGNED => '0',
@@ -129,6 +165,8 @@ class ConfigService {
 		self::SOCIAL_SILENCED_LIST => '[]',
 		self::SOCIAL_SECURE_MODE => '0',
 		self::SOCIAL_PUBLISH_BLOCKS => '0',
+		self::SOCIAL_REVIEW_FIRST_POST => '1',
+		self::SOCIAL_AUTOSPAM => '1',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
 		self::CONTACT_EMAIL => '',
 		self::SOCIAL_POLLS_SWEPT => '0'
@@ -453,6 +491,25 @@ class ConfigService {
 		}
 
 		return $socialUrl;
+	}
+
+	/**
+	 * The secret the story capabilities are derived from, made the first time
+	 * one is needed.
+	 *
+	 * Generated rather than configured: nobody should have to set this, and an
+	 * instance that has never published a story does not need one. Changing it
+	 * invalidates every capability at once, which is the only revocation this
+	 * needs — a story lives a day.
+	 */
+	public function getStorySecret(): string {
+		$secret = $this->getAppValue(self::SOCIAL_STORY_SECRET);
+		if ($secret === '') {
+			$secret = bin2hex(random_bytes(32));
+			$this->setAppValue(self::SOCIAL_STORY_SECRET, $secret);
+		}
+
+		return $secret;
 	}
 
 	/**

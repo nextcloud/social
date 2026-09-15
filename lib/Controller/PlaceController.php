@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use OCA\Social\Db\PlacesRequest;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -43,6 +44,7 @@ class PlaceController extends ClientApiController {
 		AccountService $accountService,
 		ClientService $clientService,
 		private PlaceService $placeService,
+		private LinkPreviewService $linkPreviewService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -71,6 +73,28 @@ class PlaceController extends ClientApiController {
 			$this->initViewer(['read']);
 
 			return new DataResponse($this->placeService->byId($id), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+	/**
+	 * The public posts taken at a place, for its page.
+	 *
+	 * Public only whoever asks, so the route needs no viewer; it takes one
+	 * so that a signed-in reader's own bookmarks and favourites are marked on
+	 * the posts, as they are everywhere else.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/places/{id}/statuses', requirements: ['id' => '\\d+'])]
+	public function statuses(int $id, int $limit = 20, int $max_id = 0): DataResponse {
+		try {
+			$this->optionalViewer(['read']);
+
+			$posts = $this->placeService->posts($id, $limit, $max_id);
+			$this->linkPreviewService->attachCards($posts);
+
+			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

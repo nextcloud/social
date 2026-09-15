@@ -139,6 +139,63 @@ describe('Migration', () => {
 		expect(wrapper.find('.migration__result').text()).toContain('1')
 	})
 
+	it('takes Pixelfed\'s JSON export too, since that is the only follows file Pixelfed writes', async () => {
+		axios.post.mockResolvedValue({ data: { followed: 3, skipped: 0, failed: {} } })
+
+		const wrapper = mountPage()
+		expect(wrapper.find('input[ref="follows"], input[accept*="json"]').exists()).toBe(true)
+		await choose(wrapper, 'follows', 'pixelfed-following.json')
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/migration/follows`, expect.any(FormData))
+		expect(wrapper.find('.migration__result').text()).toContain('3')
+		expect(wrapper.text()).toContain('pixelfed-following.json')
+	})
+
+	// the posts themselves, which is what moving has never carried
+
+	it('uploads an export, says it may fetch the pictures, and counts what came of it', async () => {
+		axios.post.mockResolvedValue({ data: { imported: 240, media: 96, already: 0, skipped: 12, failed: 1, capped: false } })
+
+		const wrapper = mountPage()
+		await choose(wrapper, 'posts', 'outbox.json')
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/migration/posts`, expect.any(FormData))
+		const form = axios.post.mock.calls[0][1]
+		expect(form.get('fetch_media')).toBe('1')
+		const result = wrapper.findAll('.migration__result').at(-1).text()
+		expect(result).toContain('240')
+		expect(result).toContain('96')
+		expect(result).toContain('12')
+	})
+
+	it('sends the fetch off when the reader turns it off', async () => {
+		axios.post.mockResolvedValue({ data: { imported: 3, media: 0, already: 0, skipped: 0, failed: 0 } })
+
+		const wrapper = mountPage()
+		await wrapper.find('.migration__media-switch input').setValue(false)
+		await choose(wrapper, 'posts', 'pixelfed-statuses.json')
+
+		expect(axios.post.mock.calls[0][1].get('fetch_media')).toBe('0')
+	})
+
+	it('says when the run stopped at its limit, so the reader knows to go again', async () => {
+		axios.post.mockResolvedValue({ data: { imported: 2000, media: 500, already: 0, skipped: 0, failed: 0, capped: true } })
+
+		const wrapper = mountPage()
+		await choose(wrapper, 'posts', 'outbox.json')
+
+		expect(wrapper.findAll('.migration__result').at(-1).text()).toContain('again')
+	})
+
+	it('says so when the export cannot be read', async () => {
+		axios.post.mockRejectedValue({ response: { data: { error: 'this file is not the JSON an export is written in' } } })
+
+		const wrapper = mountPage()
+		await choose(wrapper, 'posts', 'notes.txt')
+
+		expect(showError).toHaveBeenCalledWith('this file is not the JSON an export is written in')
+	})
+
 	it('says so when the follows cannot be read', async () => {
 		axios.post.mockRejectedValue({ response: { data: { error: 'that is not a CSV' } } })
 

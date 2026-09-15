@@ -23,28 +23,165 @@
 
 		<template v-else-if="stats">
 			<!-- who -->
-			<section class="stats__card">
-				<h3>
-					<IconAccount :size="20" />
-					{{ '@' + stats.account.acct }}
-				</h3>
-				<p v-if="joined" class="stats__note">
-					{{ joined }}
-				</p>
+			<section class="stats__card stats__hero">
+				<div class="stats__hero-who">
+					<NcAvatar
+						:user="uid"
+						:displayName="displayName"
+						:size="64"
+						:disableMenu="true"
+						:disableTooltip="true" />
+					<div class="stats__hero-names">
+						<p class="stats__eyebrow">
+							{{ t('social', 'Analysed account') }}
+						</p>
+						<h3 class="stats__hero-name">
+							{{ displayName }}
+						</h3>
+						<p class="stats__hero-handle">
+							{{ '@' + stats.account.acct }}
+						</p>
+					</div>
+					<p class="stats__hero-followers">
+						<strong>{{ number(stats.account.followers) }}</strong>
+						<span>{{ t('social', 'current followers') }}</span>
+					</p>
+				</div>
 				<ul class="stats__figures">
 					<li>
 						<strong>{{ number(stats.posts.total) }}</strong>
 						<span>{{ n('social', 'post', 'posts', stats.posts.total) }}</span>
 					</li>
 					<li>
-						<strong>{{ number(stats.account.followers) }}</strong>
-						<span>{{ n('social', 'follower', 'followers', stats.account.followers) }}</span>
-					</li>
-					<li>
 						<strong>{{ number(stats.account.following) }}</strong>
 						<span>{{ t('social', 'following') }}</span>
 					</li>
 				</ul>
+				<p v-if="joined" class="stats__note">
+					{{ joined }}
+				</p>
+				<div class="stats__coverage">
+					<span class="stats__eyebrow">{{ t('social', 'Posts analysed') }}</span>
+					<span class="stats__coverage-track">
+						<span
+							class="stats__coverage-fill"
+							:class="{ 'stats__coverage-fill--capped': coverage.capped }" />
+					</span>
+					<span class="stats__coverage-count">{{ coverage.label }}</span>
+				</div>
+			</section>
+
+			<!-- the two windows, side by side -->
+			<section v-if="periods" class="stats__card stats__periods">
+				<div class="stats__periods-head">
+					<div>
+						<p class="stats__eyebrow">
+							{{ t('social', 'Posting insights') }}
+						</p>
+						<h3 class="stats__periods-title">
+							{{ n('social', '{days} day. Directly comparable.', '{days} days. Directly comparable.', periods.days, { days: periods.days }) }}
+						</h3>
+					</div>
+					<dl class="stats__legend">
+						<div>
+							<dt><span class="stats__legend-key stats__legend-key--current" />{{ t('social', 'Now') }}</dt>
+							<dd>{{ range(periods.current) }}</dd>
+						</div>
+						<div>
+							<dt><span class="stats__legend-key stats__legend-key--previous" />{{ t('social', 'Before') }}</dt>
+							<dd>{{ range(periods.previous) }}</dd>
+						</div>
+					</dl>
+				</div>
+				<p class="stats__note">
+					{{ t('social', 'Both windows are the same length, so the pair is worth reading. A post counts on the day it went out, together with everything it has collected since.') }}
+				</p>
+				<ul class="stats__kpis">
+					<li v-for="card in kpis" :key="card.key" class="stats__kpi">
+						<p class="stats__kpi-head">
+							<span class="stats__kpi-label">{{ card.label }}</span>
+							<span class="stats__kpi-index">{{ card.index }}</span>
+						</p>
+						<p class="stats__eyebrow">
+							{{ card.hint }}
+						</p>
+						<p class="stats__kpi-value">
+							<strong>{{ number(card.value) }}</strong>
+							<span class="stats__delta" :class="card.deltaClass">{{ card.delta }}</span>
+						</p>
+						<svg
+							class="stats__spark"
+							viewBox="0 0 100 32"
+							preserveAspectRatio="none"
+							role="img"
+							:aria-label="card.description">
+							<polyline
+								class="stats__spark-line stats__spark-line--previous"
+								:points="card.previousPoints"
+								vector-effect="non-scaling-stroke" />
+							<polyline
+								class="stats__spark-line stats__spark-line--current"
+								:points="card.currentPoints"
+								vector-effect="non-scaling-stroke" />
+						</svg>
+						<p class="stats__kpi-foot">
+							<span>{{ t('social', 'Previous total') }}</span>
+							<span>{{ number(card.previousValue) }}</span>
+						</p>
+					</li>
+				</ul>
+				<p class="stats__note">
+					{{ reachNote }}
+				</p>
+			</section>
+
+			<!-- every post of the window, one by one -->
+			<section v-if="timeline.length" class="stats__card">
+				<div class="stats__periods-head">
+					<div>
+						<p class="stats__eyebrow">
+							{{ t('social', 'Post breakdown') }}
+						</p>
+						<h3 class="stats__periods-title">
+							{{ t('social', 'Individual posts') }}
+						</h3>
+					</div>
+					<label class="stats__sort">
+						{{ t('social', 'Sort by') }}
+						<select v-model="sort">
+							<option value="date">{{ t('social', 'Date') }}</option>
+							<option value="reach">{{ t('social', 'Estimated reach') }}</option>
+							<option value="engagement">{{ t('social', 'Engagement') }}</option>
+						</select>
+					</label>
+				</div>
+				<ol class="stats__posts">
+					<li v-for="post in timeline" :key="post.id" class="stats__post">
+						<router-link
+							class="stats__post-text"
+							:to="{ name: 'single-post', params: { account: stats.account.acct, id: post.id } }">
+							<span class="stats__post-date">{{ posted(post) }}</span>
+							<span>{{ post.excerpt || t('social', '(no text)') }}</span>
+						</router-link>
+						<div class="stats__post-figures">
+							<p class="stats__post-reach">
+								<span class="stats__eyebrow">{{ t('social', 'Estimated reach') }}</span>
+								<strong>{{ number(post.reach) }}</strong>
+								<span class="stats__post-track">
+									<span class="stats__post-fill" :style="{ '--share': post.share }" />
+								</span>
+							</p>
+							<p class="stats__post-counts">
+								<span><IconHeart :size="14" /> {{ number(post.likes) }}</span>
+								<span><IconRepeat :size="14" /> {{ number(post.boosts) }}</span>
+								<span><IconReply :size="14" /> {{ number(post.replies) }}</span>
+							</p>
+						</div>
+					</li>
+				</ol>
+				<p class="stats__note">
+					{{ listNote }}
+				</p>
 			</section>
 
 			<!-- how the posts are doing -->
@@ -175,7 +312,9 @@
 						<span class="stats__bar-label">{{ month.label }}</span>
 					</li>
 				</ul>
-				<h4 v-if="engagementMonths.length">{{ t('social', 'Engagement over the same months') }}</h4>
+				<h4 v-if="engagementMonths.length">
+					{{ t('social', 'Engagement over the same months') }}
+				</h4>
 				<ul class="stats__bars stats__bars--months stats__bars--engagement">
 					<li v-for="month in engagementMonths" :key="month.key" :title="engagementTitle(month)">
 						<span class="stats__bar stats__bar--alt" :style="{ '--height': month.height }" />
@@ -280,9 +419,10 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { getCurrentUser } from '@nextcloud/auth'
+import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import IconAccount from 'vue-material-design-icons/AccountCircle.vue'
 import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import IconClock from 'vue-material-design-icons/ClockOutline.vue'
 import IconCalendar from 'vue-material-design-icons/CalendarBlank.vue'
@@ -313,7 +453,6 @@ export default {
 	name: 'Statistics',
 
 	components: {
-		IconAccount,
 		IconAccountGroup,
 		IconCalendar,
 		IconClock,
@@ -325,6 +464,7 @@ export default {
 		IconShape,
 		IconTarget,
 		IconTrophy,
+		NcAvatar,
 		NcButton,
 		NcLoadingIcon,
 	},
@@ -333,12 +473,43 @@ export default {
 		return {
 			loading: true,
 			error: '',
+			/** what the per-post list is ordered by */
+			sort: 'date',
 			/** @type {object|null} */
 			stats: null,
 		}
 	},
 
 	computed: {
+		/** @return {string} the login name, which is what the avatar endpoint answers for */
+		uid() {
+			return getCurrentUser()?.uid ?? ''
+		},
+
+		/**
+		 * The name the account publishes under.
+		 *
+		 * The account's own display name first: the page is about the account,
+		 * and that name is not always the Nextcloud one. But an account that
+		 * has never been given a name of its own carries its login name as one
+		 * — `admin` sits in that column for anybody who never opened the
+		 * profile editor — and a page headed "admin" is headed nobody. Where
+		 * the published name is only the handle again, the name the rest of
+		 * this server calls the reader by is the better answer.
+		 *
+		 * @return {string}
+		 */
+		displayName() {
+			const published = this.stats?.account?.display_name ?? ''
+			const handle = this.stats?.account?.acct ?? ''
+
+			if (published !== '' && published !== handle) {
+				return published
+			}
+
+			return getCurrentUser()?.displayName || published || handle
+		},
+
 		/** @return {string} */
 		joined() {
 			const at = this.stats?.account?.created_at
@@ -353,6 +524,143 @@ export default {
 				: t('social', 'Here since {date}', {
 						date: date.toLocaleDateString(undefined, { year: 'numeric', month: 'long' }),
 					})
+		},
+
+		/**
+		 * How much of the account's history the figures were counted over.
+		 *
+		 * The bar is full either way — the walk always finished — and it is
+		 * the colour and the words beside it that say whether it finished
+		 * because it ran out of posts or because it hit its ceiling. A bar
+		 * drawn at the share of the ceiling used would say 2% of an account
+		 * that has been counted down to its very first post.
+		 *
+		 * @return {{capped: boolean, label: string}}
+		 */
+		coverage() {
+			const w = this.stats?.window
+			const counted = w?.counted ?? 0
+			const max = Math.max(1, w?.max ?? 1)
+
+			return {
+				capped: Boolean(w?.capped),
+				label: w?.capped
+					? t('social', '{counted} of {max} — as far back as this page goes', {
+							counted: this.number(counted),
+							max: this.number(max),
+						})
+					: n('social', '{counted} post, all of them', '{counted} posts, all of them', counted, {
+							counted: this.number(counted),
+						}),
+			}
+		},
+
+		/** @return {object|null} the two windows, as the server counted them */
+		periods() {
+			return this.stats?.periods ?? null
+		},
+
+		/**
+		 * The four figures the two windows are compared on.
+		 *
+		 * Each carries both its own line and the line of the window before it,
+		 * drawn against the taller of the two so that the pair can be read as
+		 * one picture rather than two charts that happen to sit side by side.
+		 *
+		 * @return {Array<object>}
+		 */
+		kpis() {
+			const periods = this.periods
+			if (!periods) {
+				return []
+			}
+
+			const cards = [
+				{ key: 'reach', label: t('social', 'Estimated reach'), hint: t('social', 'Sum of the per-post estimates') },
+				{ key: 'interactions', label: t('social', 'Interactions'), hint: t('social', 'Likes, boosts and replies together') },
+				{ key: 'likes', label: t('social', 'Likes'), hint: t('social', 'As far as this server was told') },
+				{ key: 'boosts', label: t('social', 'Boosts'), hint: t('social', 'As far as this server was told') },
+			]
+
+			return cards.map((card, index) => {
+				const current = periods.current?.series?.[card.key] ?? []
+				const previous = periods.previous?.series?.[card.key] ?? []
+				const tallest = Math.max(1, ...current, ...previous)
+				const change = periods.change?.[card.key] ?? null
+
+				return {
+					...card,
+					index: String(index + 1).padStart(2, '0'),
+					value: periods.current?.[card.key] ?? 0,
+					previousValue: periods.previous?.[card.key] ?? 0,
+					delta: this.delta(change),
+					deltaClass: {
+						'stats__delta--up': change !== null && change > 0,
+						'stats__delta--down': change !== null && change < 0,
+					},
+					currentPoints: this.points(current, tallest),
+					previousPoints: this.points(previous, tallest),
+					description: t('social', '{label}: {now} over the last {days} days, against {before} over the {days} before them.', {
+						label: card.label,
+						now: this.number(periods.current?.[card.key] ?? 0),
+						before: this.number(periods.previous?.[card.key] ?? 0),
+						days: periods.days,
+					}),
+				}
+			})
+		},
+
+		/**
+		 * The window's posts in the order the reader asked for, each with its
+		 * reach against the best of them.
+		 *
+		 * Sorted here rather than on the server: it is a hundred rows that are
+		 * already in the browser, and a round trip to reorder them would be a
+		 * round trip to reorder them.
+		 *
+		 * @return {Array<object>}
+		 */
+		timeline() {
+			const rows = this.stats?.timeline ?? []
+			const furthest = Math.max(1, ...rows.map((row) => row.reach))
+			const sorted = [...rows]
+
+			if (this.sort === 'reach') {
+				sorted.sort((a, b) => b.reach - a.reach)
+			} else if (this.sort === 'engagement') {
+				sorted.sort((a, b) => b.score - a.score)
+			}
+
+			return sorted.map((row) => ({
+				...row,
+				share: Math.round((row.reach / furthest) * 100) + '%',
+			}))
+		},
+
+		/** @return {string} what the reach estimate is, and what it cannot know */
+		reachNote() {
+			const unknown = this.stats?.reach?.unknown_boosters ?? 0
+			const note = t('social', 'Reach is an estimate: your followers today, plus the followers of everybody who boosted the post. Audiences that overlap are counted twice, and nobody can count the people who saw a post without touching it.')
+
+			return (unknown < 1)
+				? note
+				: note + ' ' + n(
+					'social',
+					'The audience of one account that boosted you is not known here, and counts as nobody.',
+					'The audiences of {count} accounts that boosted you are not known here, and count as nobody.',
+					unknown,
+					{ count: this.number(unknown) },
+				)
+		},
+
+		/** @return {string} how much of the window the list holds */
+		listNote() {
+			const listed = this.stats?.timeline?.length ?? 0
+			const posts = this.periods?.current?.posts ?? 0
+
+			return (posts > listed)
+				? t('social', 'The {listed} most recent of the {posts} posts in the window.', { listed: this.number(listed), posts: this.number(posts) })
+				: n('social', 'The one post of the window.', 'All {posts} posts of the window.', posts, { posts: this.number(posts) })
 		},
 
 		/** @return {Array<{key: string, label: string, count: number, height: string}>} */
@@ -555,6 +863,84 @@ export default {
 		},
 
 		/**
+		 * One window, as the dates it covers.
+		 *
+		 * @param {object} period one of the two windows
+		 * @return {string} the range, in the reader's own date format
+		 */
+		range(period) {
+			const from = new Date(period?.from ?? '')
+			const until = new Date(period?.until ?? '')
+			if (Number.isNaN(from.getTime()) || Number.isNaN(until.getTime())) {
+				return ''
+			}
+
+			// counted in UTC and printed in UTC: formatted in a zone ahead of it,
+			// the last second of the window becomes the small hours of the day
+			// after it and the page names a day it does not cover
+			const format = { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }
+
+			return from.toLocaleDateString(undefined, format) + ' – ' + until.toLocaleDateString(undefined, format)
+		},
+
+		/**
+		 * How much bigger than last time, in words.
+		 *
+		 * A window with nothing before it is new rather than infinitely up:
+		 * every percentage against nothing is the same percentage.
+		 *
+		 * @param {number|null} change the percentage the server worked out
+		 * @return {string}
+		 */
+		delta(change) {
+			if (change === null || change === undefined) {
+				return t('social', 'new')
+			}
+
+			return (change >= 0)
+				? '↑ +' + this.decimal(change) + '%'
+				: '↓ ' + this.decimal(change) + '%'
+		},
+
+		/**
+		 * One sparkline, as SVG points.
+		 *
+		 * Drawn into a fixed 100 × 32 box that the CSS stretches, with the
+		 * stroke left un-stretched: a line whose thickness changes with the
+		 * width of the card reads as a different line.
+		 *
+		 * @param {number[]} values one day each
+		 * @param {number} tallest what to scale against
+		 * @return {string} the polyline's points
+		 */
+		points(values, tallest) {
+			if (values.length < 2) {
+				return ''
+			}
+
+			return values
+				.map((value, index) => {
+					const x = (index / (values.length - 1)) * 100
+					const y = 30 - (Math.max(0, value) / tallest) * 28
+
+					return Math.round(x * 100) / 100 + ',' + Math.round(y * 100) / 100
+				})
+				.join(' ')
+		},
+
+		/**
+		 * @param {object} post one row of the list
+		 * @return {string} when it went out, in the reader's own format
+		 */
+		posted(post) {
+			const at = new Date(post?.published_at ?? '')
+
+			return Number.isNaN(at.getTime())
+				? ''
+				: at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+		},
+
+		/**
 		 * One month-by-month chart: the columns, each scaled to the tallest.
 		 *
 		 * @param {object} counts month key to number
@@ -662,6 +1048,347 @@ export default {
 .stats__note {
 	color: var(--color-text-maxcontrast);
 	font-size: 13px;
+}
+
+.stats__eyebrow {
+	color: var(--color-text-maxcontrast);
+	font-size: 11px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.stats__hero-who {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	align-items: center;
+}
+
+.stats__hero-names {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.stats__hero-name {
+	margin: 0;
+	font-size: 26px;
+	font-weight: bold;
+	line-height: 1.1;
+	overflow-wrap: anywhere;
+}
+
+.stats__hero-handle {
+	color: var(--color-text-maxcontrast);
+	overflow-wrap: anywhere;
+}
+
+.stats__hero-followers {
+	display: flex;
+	flex-direction: column;
+	/* pushed to the far end where there is room for it, and simply the next
+	   thing down where there is not */
+	margin-inline-start: auto;
+	text-align: end;
+
+	strong {
+		font-size: 34px;
+		line-height: 1.05;
+	}
+
+	span {
+		color: var(--color-text-maxcontrast);
+		font-size: 12px;
+	}
+}
+
+.stats__coverage {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 12px;
+	align-items: center;
+	margin-top: 14px;
+	padding-top: 12px;
+	border-top: 1px solid var(--color-border);
+	font-size: 12px;
+}
+
+.stats__coverage-track {
+	flex: 1 1 120px;
+	height: 6px;
+	border-radius: 3px;
+	background: var(--color-background-dark);
+}
+
+.stats__coverage-fill {
+	display: block;
+	width: 100%;
+	height: 100%;
+	border-radius: 3px;
+	background: var(--color-primary-element);
+}
+
+.stats__coverage-fill--capped {
+	background: var(--color-warning, var(--color-text-maxcontrast));
+}
+
+.stats__coverage-count {
+	color: var(--color-text-maxcontrast);
+}
+
+.stats__periods-head {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 16px;
+	align-items: flex-end;
+	justify-content: space-between;
+	margin-bottom: 10px;
+}
+
+.stats__periods-title {
+	margin: 2px 0 0;
+	font-size: 24px;
+	font-weight: bold;
+	line-height: 1.15;
+}
+
+.stats__legend {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 8px 12px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large, 12px);
+	font-size: 12px;
+
+	div {
+		display: flex;
+		gap: 10px;
+		align-items: center;
+	}
+
+	dt {
+		display: flex;
+		gap: 6px;
+		align-items: center;
+		min-width: 72px;
+		text-transform: uppercase;
+	}
+
+	dd {
+		color: var(--color-text-maxcontrast);
+	}
+}
+
+.stats__legend-key {
+	width: 16px;
+	height: 3px;
+	border-radius: 2px;
+}
+
+.stats__legend-key--current {
+	background: var(--color-primary-element);
+}
+
+.stats__legend-key--previous {
+	background: var(--color-text-maxcontrast);
+}
+
+.stats__kpis {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 12px;
+	margin: 12px 0;
+}
+
+.stats__kpi {
+	display: flex;
+	flex-direction: column;
+	padding: 12px;
+	border: 1px solid var(--color-border);
+	border-inline-start: 3px solid var(--color-primary-element);
+	border-radius: var(--border-radius-large, 12px);
+}
+
+.stats__kpi-head {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.stats__kpi-label {
+	font-weight: bold;
+}
+
+.stats__kpi-index {
+	color: var(--color-text-maxcontrast);
+	font-size: 11px;
+}
+
+.stats__kpi-value {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: baseline;
+	margin-top: 8px;
+
+	strong {
+		font-size: 30px;
+		line-height: 1.05;
+	}
+}
+
+.stats__delta {
+	padding: 1px 7px;
+	border-radius: 10px;
+	background: var(--color-background-dark);
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.stats__delta--up {
+	color: var(--color-success-text, var(--color-success));
+}
+
+.stats__delta--down {
+	color: var(--color-error-text, var(--color-error));
+}
+
+.stats__spark {
+	display: block;
+	width: 100%;
+	height: 46px;
+	margin: 10px 0 8px;
+}
+
+.stats__spark-line {
+	fill: none;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-width: 2;
+}
+
+.stats__spark-line--previous {
+	opacity: 0.5;
+	stroke: var(--color-text-maxcontrast);
+}
+
+.stats__spark-line--current {
+	stroke: var(--color-primary-element);
+}
+
+.stats__kpi-foot {
+	display: flex;
+	gap: 8px;
+	justify-content: space-between;
+	margin-top: auto;
+	padding-top: 8px;
+	border-top: 1px solid var(--color-border);
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+
+	span:last-child {
+		color: var(--color-main-text);
+		font-weight: bold;
+	}
+}
+
+.stats__sort {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+	text-transform: uppercase;
+}
+
+.stats__posts {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin: 10px 0;
+}
+
+.stats__post {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 12px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large, 12px);
+}
+
+.stats__post-text {
+	display: flex;
+	flex: 1 1 220px;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	color: var(--color-main-text);
+
+	&:hover,
+	&:focus-visible {
+		text-decoration: underline;
+	}
+}
+
+.stats__post-date {
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+}
+
+.stats__post-figures {
+	display: flex;
+	flex: 1 1 220px;
+	flex-direction: column;
+	gap: 4px;
+	padding: 8px 10px;
+	border-radius: var(--border-radius-large, 12px);
+	background: var(--color-background-hover);
+}
+
+.stats__post-reach {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 10px;
+	align-items: center;
+
+	strong {
+		font-size: 20px;
+	}
+}
+
+.stats__post-track {
+	flex: 1 1 60px;
+	height: 6px;
+	border-radius: 3px;
+	background: var(--color-background-dark);
+}
+
+.stats__post-fill {
+	display: block;
+	width: var(--share);
+	height: 100%;
+	border-radius: 3px;
+	background: var(--color-primary-element);
+}
+
+.stats__post-counts {
+	display: flex;
+	gap: 14px;
+	color: var(--color-text-maxcontrast);
+	font-size: 13px;
+
+	span {
+		display: flex;
+		gap: 4px;
+		align-items: center;
+	}
 }
 
 .stats__figures {

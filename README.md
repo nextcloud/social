@@ -32,6 +32,10 @@ make it somebody's only Fediverse client.
 
 One box, and everything a post can carry.
 
+- **A place on a post** — the pin in the composer names where a picture was taken,
+  from the places people here have already posted from or a name you type; the
+  marker under the post opens a page of everything public taken there. Nothing is ever
+  sent to a map service to work a location out.
 - **Say who sees it.** Public, unlisted, followers-only or direct, chosen per post from
   the default you set once. A reply inherits the audience of the post it answers, and
   starts addressed to everyone in the conversation rather than to one person.
@@ -79,6 +83,18 @@ you follow, of this instance and of the whole Fediverse are one click apart.
 
 <img src="img/readme/post-actions.gif" alt="Hovering a post opens its actions" width="680">
 
+![Stories](img/readme/stories.png)
+
+- **Stories** — a row of faces above your feed: whose stories are up. One picture or
+  video, for followers, gone after a day; a ring on the face while there is something
+  you have not seen, a player that runs them one after another, and your own place
+  first in the row with a **+** on it to add one. The poster sees how many people
+  watched and can take it down early; nobody else sees either. Stories federate to
+  Pixelfed, in the shape Pixelfed actually reads — an `Add` carrying a capability its
+  inbox fetches the story with, measured field by field against Pixelfed's own source
+  rather than against the specification. One that arrives is held no longer than a day
+  here whatever the sender says. The other direction is not ours to fix: Pixelfed sends
+  stories only to instances it has identified as Pixelfed.
 - **Photos and Videos are timelines of their own**, drawn as grids and asked of the
   server rather than filtered out of a page you already have.
 ![Videos, including federated PeerTube channels](img/readme/videos.jpg)
@@ -190,12 +206,34 @@ own unified search. No external search engine to run.
   an empty box, and your profile links straight there.
 - **Highlights** — a twelve-week posting chart and the tags somebody keeps coming back
   to.
+![Collections](img/readme/collections.png)
+
+- **Collections** — Pixelfed's albums, as the fourth tab of a profile: a shelf of the
+  account's collections, each a page of its posts drawn as the profile grid. You make
+  one on your own shelf, put a post into it from the post's menu (**… → Add to a
+  collection**), and edit, empty or delete it on its page. A collection holds only
+  its owner's own posts with a picture or a video in them, and a followers-only one
+  is shown to followers and nobody else.
 - **Pinned posts**, up to five, published in the actor's `featured` collection. Remote
   accounts' pins arrive too.
 - **A grid or a timeline**, whichever you last chose, cropped to each picture's focal
   point.
 - **A private note** about somebody, for you alone. It never leaves this server and the
   person it is about is never told.
+
+![Your own statistics](img/readme/your-statistics.png)
+
+- **Your own statistics**, behind your face in the sidebar. **The last 30 days beside
+  the 30 before them** — estimated reach, interactions, likes and boosts, each as a
+  figure, the percentage it moved by and a line drawn over the window with the previous
+  one behind it — and then **every post of the window, one by one**, with what it
+  reached and what it collected, ordered by date, reach or engagement. Under that: which
+  kind of post does better, the weekday and the hour that work, the tags worth using,
+  where your followers are and when they arrived. Everything is counted from this
+  server's own rows the moment you open the page, so nothing can be stale, and the page
+  says what it cannot know — reach is your followers plus the followers of whoever
+  boosted you, overlapping audiences counted twice, and it names how many boosters'
+  audiences this server has never been told about.
 
 ## 🔔 Notifications
 
@@ -245,8 +283,27 @@ and **the pictures and videos come with it**, copied into the archive in the lay
 Mastodon's own export uses, with each attachment pointing at the copy rather than at
 the server you are leaving. Import reads one back, including an archive from
 `occ user:export`. A third section brings your follows over from Mastodon, Pixelfed,
-GoToSocial or Akkoma via their `following_accounts.csv`. Your private key is
-deliberately not in the archive.
+GoToSocial or Akkoma via their `following_accounts.csv` or `pixelfed-following.json`.
+Your private key is deliberately not in the archive.
+
+**And a fourth brings the posts** — the one thing moving between Fediverse servers has
+never carried. Upload the export from your old server (this app's archive, Mastodon's
+or GoToSocial's `outbox.json`, or Pixelfed's `pixelfed-statuses.json`) and the posts in
+it are written here as yours, dated when you wrote them, with their pictures: out of
+the archive where it holds the files, and off the old server where the export only
+lists their addresses. **Nothing is published again** — not one delivery is queued, so
+your followers do not get years of posts in an afternoon — boosts and direct messages
+are left out, a reply keeps the post it answers where the file holds both, and
+importing the same file twice changes nothing the second time. An archive too large
+for a browser goes through `occ social:account:import-posts`.
+
+  **Instagram's archive is read too** — the way most people arrive at Pixelfed. Ask
+  Instagram for your information *in JSON* (the HTML download holds the pages and not
+  the posts, and says so if you try it), and the posts, reels and their pictures come
+  across with their captions and the hashtags written in them. Instagram's archive says
+  nothing about who could see a post, so they are posted with **your own default
+  visibility**; stories, archived posts and deleted ones are deliberately left where
+  they are.
 
 ## 📱 On a phone, and in the dark
 
@@ -315,6 +372,15 @@ the administration settings:
 - **Reports** with **Silence**, **Suspend**, **Lift** and take-a-post-down, each
   recorded with the moderator who did it and written to Nextcloud's audit log.
   Suspending deletes what the account posted here, and the confirmation says so.
+- **A review queue before anything goes out.** The first post of an account that has
+  published nothing here yet, and posts that trip a very short list of spam rules —
+  a wall of links, a scatter of mentions from an account nobody follows — wait for a
+  moderator instead of reaching anybody. A held post is stored as the request the
+  client sent and is written to no timeline at all, so there is no read path that
+  could leak one; its author is told at once, can see it in their own settings, and
+  can take it back. Publishing sends it as an ordinary post; refusing deletes it and
+  tells them. Both rules are switches, both on by default, and a **direct message is
+  never held**.
 - **An account browser** over every account this instance knows, with the standing
   decision and the strike history against each one.
 - **Federation health** — how many deliveries are waiting, how many keep failing, which
@@ -359,9 +425,13 @@ else's.
   announcements, edit history, translation, Mastodon 4.3's grouped notifications with
   their policy and requests inbox, and the admin API. See
   [docs/API.md](docs/API.md) for exactly which routes exist.
-- **Pixelfed's own routes** — the `/api/v2/config` bootstrap its app reads on launch
-  and the `v1.1` discover namespace. Every limit in the config is derived from the one
-  the server actually enforces.
+- **Pixelfed's own routes** — the `/api/v2/config` bootstrap its app reads on launch,
+  the `v1.1`/`v1.2` discover, story, collection, account, report and direct-message
+  routes its screens call, its `push/*` routes answered honestly as off, and its
+  `/api/admin/*` screens behind the same gate as Mastodon's admin API. Every limit in
+  the config is derived from the one the server actually enforces. Of the forty
+  Pixelfed-specific calls the official app makes, thirty-four are answered; the rest are
+  Web Push and in-app registration.
 - **Full ActivityPub delivery**: signed HTTP for `Create`, `Update`, `Delete`, `Like`,
   `Announce`, `Follow`, `Accept`, `Undo`, `Block`, `Flag` and `EmojiReact`, an outbound
   queue and a stream queue, both drained by background jobs and by

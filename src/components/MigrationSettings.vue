@@ -4,7 +4,6 @@
 -->
 <template>
 	<div class="migration">
-
 		<!-- out -->
 		<section class="migration__card">
 			<h4>
@@ -74,12 +73,12 @@
 
 			<h5>{{ t('social', 'Bring your follows with you') }}</h5>
 			<p>
-				{{ t('social', 'Every one of those servers exports the people you follow as a following_accounts.csv. Upload that file and each account is followed again from here. A follow is an agreement between two servers, so it has to be asked for again — it cannot be copied out of a file.') }}
+				{{ t('social', 'Every one of those servers exports the people you follow — most as a following_accounts.csv, Pixelfed as pixelfed-following.json. Upload that file and each account is followed again from here. A follow is an agreement between two servers, so it has to be asked for again — it cannot be copied out of a file.') }}
 			</p>
 			<input
 				ref="follows"
 				type="file"
-				accept=".csv,text/csv"
+				accept=".csv,text/csv,.json,application/json"
 				class="hidden-visually"
 				@change="importFollows">
 			<NcButton :disabled="followsBusy" @click="$refs.follows.click()">
@@ -87,10 +86,46 @@
 					<NcLoadingIcon v-if="followsBusy" :size="20" />
 					<IconAccountMultiplePlus v-else :size="20" />
 				</template>
-				{{ followsBusy ? t('social', 'Following …') : t('social', 'Import follows from a CSV') }}
+				{{ followsBusy ? t('social', 'Following …') : t('social', 'Import follows from a file') }}
 			</NcButton>
 			<p v-if="followsResult" class="migration__result">
 				{{ followsResult }}
+			</p>
+
+			<h5>{{ t('social', 'Bring your posts with you') }}</h5>
+			<p>
+				{{ t('social', 'The one thing moving has never carried. Upload the export from your old server and the posts in it are written here as yours, dated when you wrote them, with their pictures.') }}
+			</p>
+			<p class="migration__note">
+				{{ t('social', 'Nothing is sent to anybody: your followers do not get years of posts in one afternoon, because nothing here is published again. Boosts and direct messages are left out, and a reply keeps the post it answers where the file holds both. Importing the same file twice changes nothing the second time.') }}
+			</p>
+			<NcCheckboxRadioSwitch v-model="fetchMedia" type="switch" class="migration__media-switch">
+				{{ t('social', 'Fetch the pictures from the old server') }}
+			</NcCheckboxRadioSwitch>
+			<p class="migration__note">
+				{{ t('social', 'An archive usually holds the files themselves and they are used as they are. A file that only lists where its pictures are — Pixelfed writes one — needs them fetched, which tells that server the import is happening and only works while it is still running.') }}
+			</p>
+			<input
+				ref="posts"
+				type="file"
+				accept=".zip,application/zip,.json,application/json"
+				class="hidden-visually"
+				@change="importPosts">
+			<NcButton :disabled="postsBusy" @click="$refs.posts.click()">
+				<template #icon>
+					<NcLoadingIcon v-if="postsBusy" :size="20" />
+					<IconPostOutline v-else :size="20" />
+				</template>
+				{{ postsBusy ? t('social', 'Writing your posts …') : t('social', 'Import posts from an export') }}
+			</NcButton>
+			<p v-if="postsResult" class="migration__result">
+				{{ postsResult }}
+			</p>
+			<p class="migration__note">
+				{{ t('social', 'At most 2000 posts at a time; run it again to carry on. An archive too large for a browser to upload can be imported by an administrator with occ social:account:import-posts.') }}
+			</p>
+			<p class="migration__note">
+				{{ t('social', 'Coming from Instagram? The same button reads its archive — ask Instagram for your information in JSON, not HTML. Your posts and reels arrive with their pictures and captions. An Instagram post does not record who could see it, so each one is posted with your own default visibility; your stories, archived posts and deleted ones are left where they are.') }}
 			</p>
 
 			<h5>{{ t('social', 'Where to find that file') }}</h5>
@@ -101,7 +136,11 @@
 				</li>
 				<li>
 					<strong>{{ t('social', 'Pixelfed') }}</strong>
-					{{ t('social', '— Settings → Data export → Following. Photos come across as posts once you follow the accounts again.') }}
+					{{ t('social', '— Settings → Data export → Following (JSON), which writes pixelfed-following.json: a list of account addresses rather than a CSV, and read here all the same. Photos come across as posts once you follow the accounts again.') }}
+				</li>
+				<li>
+					<strong>{{ t('social', 'Instagram') }}</strong>
+					{{ t('social', '— Settings → Accounts Centre → Your information and permissions → Download your information, and choose JSON. The HTML download holds the pages and not the posts. It has no follow list to import; the posts and reels in it can be brought over with the button above.') }}
 				</li>
 				<li>
 					<strong>{{ t('social', 'GoToSocial and Akkoma') }}</strong>
@@ -126,10 +165,12 @@ import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError, showSuccess } from '../services/toast.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconAccountArrowRight from 'vue-material-design-icons/AccountArrowRight.vue'
 import IconAccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
 import IconDownload from 'vue-material-design-icons/Download.vue'
+import IconPostOutline from 'vue-material-design-icons/PostOutline.vue'
 import IconUpload from 'vue-material-design-icons/Upload.vue'
 import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
@@ -150,8 +191,10 @@ export default {
 		IconAccountArrowRight,
 		IconAccountMultiplePlus,
 		IconDownload,
+		IconPostOutline,
 		IconUpload,
 		NcButton,
+		NcCheckboxRadioSwitch,
 		NcLoadingIcon,
 	},
 
@@ -160,6 +203,11 @@ export default {
 			exporting: false,
 			importing: false,
 			followsBusy: false,
+			postsBusy: false,
+			/** whether a picture named only by its address may be fetched from the old server */
+			fetchMedia: true,
+			/** @type {string} what the last post import came to */
+			postsResult: '',
 			/** @type {string[]} what the last import reported */
 			importLog: [],
 			/** @type {string} what the last CSV import came to */
@@ -247,6 +295,58 @@ export default {
 		/**
 		 * @param {Event} event the file input's change
 		 */
+		/**
+		 * Reads an export and writes the posts in it as this account's own.
+		 *
+		 * The heavy one: the server reads the file, writes up to two thousand
+		 * posts and may fetch a picture for each, so the button says what it
+		 * is doing for as long as it takes.
+		 *
+		 * @param {Event} event the file input's change
+		 * @return {Promise<void>}
+		 */
+		async importPosts(event) {
+			const file = event?.target?.files?.[0]
+			if (!file) {
+				return
+			}
+
+			this.postsBusy = true
+			this.postsResult = ''
+			try {
+				const form = new FormData()
+				form.append('file', file)
+				form.append('fetch_media', this.fetchMedia ? '1' : '0')
+				const { data } = await axios.post(
+					generateUrl('apps/social/api/v1/migration/posts'),
+					form,
+				)
+				this.postsResult = t(
+					'social',
+					'{imported} posts written with {media} of their pictures; {already} were already here, {skipped} were not posts to bring over, {failed} could not be written.',
+					{
+						imported: data?.imported ?? 0,
+						media: data?.media ?? 0,
+						already: data?.already ?? 0,
+						skipped: data?.skipped ?? 0,
+						failed: data?.failed ?? 0,
+					},
+				)
+				if (data?.capped) {
+					this.postsResult += ' ' + t('social', 'The run stopped at its limit — import the same file again to carry on.')
+				}
+				showSuccess(t('social', 'Your posts have been imported'))
+			} catch (error) {
+				logger.error('Importing posts failed', { error })
+				showError(error?.response?.data?.error || t('social', 'Could not import those posts'))
+			} finally {
+				this.postsBusy = false
+				if (event?.target) {
+					event.target.value = ''
+				}
+			}
+		},
+
 		async importFollows(event) {
 			const file = event?.target?.files?.[0]
 			if (!file) {
@@ -359,6 +459,10 @@ export default {
 	list-style: none;
 	max-height: 240px;
 	overflow-y: auto;
+}
+
+.migration__media-switch {
+	margin: 4px 0 2px;
 }
 
 .migration__result {

@@ -78,6 +78,7 @@ use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
+use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\ReactionService;
 use OCA\Social\Service\ReactionSummaryService;
@@ -196,6 +197,7 @@ class ApiController extends Controller {
 		private AvatarService $avatarService,
 		private AccountRelationService $accountRelationService,
 		private ScheduledStatusService $scheduledStatusService,
+		private PostReviewService $postReviewService,
 		private EmojiService $emojiService,
 		private IAppManager $appManager,
 		private FediverseService $fediverseService,
@@ -1243,6 +1245,30 @@ class ApiController extends Controller {
 			}
 
 			$post->setQuotedId($status->getQuotedId());
+
+			// Before anything is written: a post a rule holds is stored as a
+			// request and never reaches `social_stream`, so there is no row for
+			// a timeline to find. The 422 is what a client can be told with the
+			// vocabulary Mastodon's API has — `held_for_review` beside it is
+			// what this app's own composer reads to say something better than
+			// "failed".
+			$reason = $this->postReviewService->assess(
+				$actor, $post->getContent(), $post->getType()
+			);
+			if ($reason !== '') {
+				$held = $this->postReviewService->hold(
+					$actor, $this->postReviewService->paramsOf($status, $post->getType()), $reason
+				);
+
+				return new DataResponse([
+					'error' => 'This post is waiting for a moderator to look at it. '
+						. 'It has been kept — there is no need to write it again.',
+					'held_for_review' => true,
+					'reason' => $held->getReason(),
+					'held_post' => $held,
+				], Http::STATUS_UNPROCESSABLE_ENTITY);
+			}
+
 			$activity = $this->postService->createPost($post);
 
 			$item = $this->streamService->getStreamById(

@@ -40,6 +40,7 @@ use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Interfaces\Object\StoryInterface;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -96,6 +97,7 @@ class ImportServiceTest extends TestCase {
 			$this->createMock(ImageInterface::class),
 			$this->createMock(LikeInterface::class),
 			$this->createMock(EmojiReactInterface::class),
+			$this->createMock(StoryInterface::class),
 			$this->createMock(MoveInterface::class),
 			$this->createMock(NoteInterface::class),
 			$this->createMock(SocialAppNotificationInterface::class),

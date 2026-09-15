@@ -19,7 +19,9 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PixelfedConfigService;
+use OCA\Social\Service\PixelfedService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
@@ -52,6 +54,8 @@ class PixelfedControllerTest extends TestCase {
 	private TrendService|MockObject $trendService;
 	private SuggestionService|MockObject $suggestionService;
 	private HashtagService|MockObject $hashtagService;
+	private PixelfedService|MockObject $pixelfedService;
+	private StoryService|MockObject $storyService;
 
 	private bool $hasSession = true;
 	private bool $csrf = true;
@@ -101,6 +105,8 @@ class PixelfedControllerTest extends TestCase {
 		$this->suggestionService->method('suggestions')
 			->willReturn([new Suggestion($this->person(self::OTHER), Suggestion::SOURCE_FRIENDS)]);
 
+		$this->pixelfedService = $this->createMock(PixelfedService::class);
+		$this->storyService = $this->createMock(StoryService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->hashtagService->method('getTrending')
 			->willReturnCallback(function (int $limit, string $period): array {
@@ -137,7 +143,9 @@ class PixelfedControllerTest extends TestCase {
 			$this->suggestionService,
 			$this->hashtagService,
 			$this->createMock(LinkPreviewService::class),
-			$this->createMock(PlaceService::class)
+			$this->createMock(PlaceService::class),
+			$this->pixelfedService,
+			$this->storyService
 		);
 	}
 
@@ -225,5 +233,90 @@ class PixelfedControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([['name' => 'coast']], $response->getData());
+	}
+	/** The app puts the story id in the body and expects Pixelfed's `{code}` back. */
+	public function testMarkingAStorySeenAnswersInPixelfedsShape(): void {
+		$this->storyService->expects($this->once())->method('markSeen')
+			->with($this->isInstanceOf(Person::class), 42);
+
+		$response = $this->controller()->storiesSeen(42);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['code' => 200], $response->getData());
+	}
+
+	public function testAReportIsFiledThroughTheServiceAndAcknowledgedTheWayTheAppReadsIt(): void {
+		$this->pixelfedService->expects($this->once())->method('report')
+			->with($this->isInstanceOf(Person::class), 'spam', '17', 'post', 'buy things');
+
+		$response = $this->controller()->report('spam', '17', 'post', 'buy things');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(200, $response->getData()['code']);
+	}
+
+	/** A reason the service does not know is a 422, in Mastodon's error shape. */
+	public function testAnUnknownReportReasonIsRefused(): void {
+		$this->pixelfedService->method('report')
+			->willThrowException(new \OCA\Social\Exceptions\InvalidResourceException('unknown report_type'));
+
+		$response = $this->controller()->report('rude', '17', 'post', '');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+	}
+
+	/** An account nobody here knows is a 404, whatever the app called it by. */
+	public function testAnUnknownUsernameIsNotFound(): void {
+		$this->pixelfedService->method('resolveAccount')
+			->willThrowException(new \OCA\Social\Exceptions\CacheActorDoesNotExistException());
+
+		$response = $this->controller()->accountByUsername('nobody');
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+	}
+
+	/** Push is answered as off, and enabling it answers with what is actually the case. */
+	public function testThePushRoutesTellTheTruth(): void {
+		$this->pixelfedService->method('pushState')->willReturn(['notify_enabled' => false, 'has_token' => false]);
+
+		$state = $this->controller()->pushState();
+
+		$this->assertSame(Http::STATUS_OK, $state->getStatus());
+		$this->assertFalse($state->getData()['notify_enabled']);
+	}
+
+	/** Every one of these needs somebody signed in; without one it is a 401, not a 500. */
+	public function testTheViewerRoutesRefuseAnAnonymousCaller(): void {
+		$this->hasSession = false;
+
+		foreach ([
+			fn () => $this->controller()->storiesCarousel(),
+			fn () => $this->controller()->collectionsSelf(),
+			fn () => $this->controller()->accountMutuals('7'),
+			fn () => $this->controller()->composeSettings(),
+			fn () => $this->controller()->nagState(),
+			fn () => $this->controller()->pushCompare(),
+		] as $call) {
+			$this->assertSame(Http::STATUS_UNAUTHORIZED, $call()->getStatus());
+		}
+	}
+
+	/** The app's trend ranges land on the windows this server counts. */
+	public function testTheAppsTrendRangesMapOntoThisServersWindows(): void {
+		$this->controller()->discoverPostsTrending('daily');
+		$this->assertSame('1d', $this->trendAsked['period']);
+
+		$this->controller()->discoverNetworkTrending('yearly');
+		$this->assertSame('10d', $this->trendAsked['period']);
+	}
+	public function testTheThreadRoutesGoThroughTheService(): void {
+		$this->pixelfedService->expects($this->once())->method('thread')
+			->with($this->isInstanceOf(Person::class), '7', 0, 40)
+			->willReturn(['id' => '7', 'messages' => []]);
+		$this->pixelfedService->expects($this->once())->method('deleteMessage')
+			->with($this->isInstanceOf(Person::class), 12);
+
+		$this->assertSame('7', $this->controller()->directThread('7', 0, 40)->getData()['id']);
+		$this->assertSame([200], $this->controller()->directThreadDelete(12)->getData());
 	}
 }

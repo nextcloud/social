@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -26,6 +27,7 @@ class StatisticsServiceTest extends TestCase {
 
 	private StreamRequest|MockObject $streamRequest;
 	private FollowsRequest|MockObject $followsRequest;
+	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private StatisticsService $service;
 
 	protected function setUp(): void {
@@ -33,10 +35,12 @@ class StatisticsServiceTest extends TestCase {
 
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->service = new StatisticsService(
 			$this->streamRequest,
 			$this->followsRequest,
 			$this->createMock(AccountService::class),
+			$this->cacheActorsRequest,
 		);
 	}
 
@@ -328,6 +332,149 @@ class StatisticsServiceTest extends TestCase {
 		$this->assertSame([], $stats['best']);
 		$this->assertSame([], $stats['hashtags']);
 		$this->assertFalse($stats['window']['capped']);
+	}
+
+	/** An ISO date a post can be published at, so many days back. */
+	private function daysAgo(int $days, int $hour = 12): string {
+		$midnight = (int)strtotime(gmdate('Y-m-d') . ' 00:00:00 UTC');
+
+		return gmdate('Y-m-d\TH:i:s\Z', $midnight - ($days * 86400) + ($hour * 3600));
+	}
+
+	/** Thirty days beside the thirty before them, which is the whole point. */
+	public function testItComparesTheLastThirtyDaysWithTheThirtyBefore(): void {
+		$this->answering([
+			$this->post(4, ['published' => $this->daysAgo(2), 'likes' => 6, 'boosts' => 2, 'replies' => 1]),
+			$this->post(3, ['published' => $this->daysAgo(20), 'likes' => 4]),
+			$this->post(2, ['published' => $this->daysAgo(40), 'likes' => 5]),
+			// older than both windows: in the totals above, in neither period
+			$this->post(1, ['published' => $this->daysAgo(200), 'likes' => 90]),
+		]);
+		$this->followsRequest->method('countFollowers')->willReturn(10);
+
+		$periods = $this->service->forAccount($this->alice())['periods'];
+
+		$this->assertSame(30, $periods['days']);
+		$this->assertSame(2, $periods['current']['posts']);
+		$this->assertSame(1, $periods['previous']['posts']);
+		$this->assertSame(13, $periods['current']['interactions']);
+		$this->assertSame(5, $periods['previous']['interactions']);
+		$this->assertSame(10, $periods['current']['likes']);
+		// 13 against 5
+		$this->assertSame(160.0, $periods['change']['interactions']);
+		$this->assertSame(100.0, $periods['change']['posts']);
+	}
+
+	/** Everything is infinitely more than nothing, which is not a percentage. */
+	public function testAnEmptyWindowBeforeItLeavesNothingToComparAgainst(): void {
+		$this->answering([$this->post(1, ['published' => $this->daysAgo(2), 'likes' => 4])]);
+
+		$periods = $this->service->forAccount($this->alice())['periods'];
+
+		$this->assertSame(4, $periods['current']['interactions']);
+		$this->assertSame(0, $periods['previous']['interactions']);
+		$this->assertNull($periods['change']['interactions']);
+	}
+
+	/** A post is counted on the day it went out, in both windows alike. */
+	public function testTheDailySeriesPutsAPostOnTheDayItWentOut(): void {
+		$this->answering([
+			$this->post(2, ['published' => $this->daysAgo(0, 0), 'likes' => 3]),
+			$this->post(1, ['published' => $this->daysAgo(29, 0), 'likes' => 1]),
+		]);
+
+		$series = $this->service->forAccount($this->alice())['periods']['current']['series'];
+
+		$this->assertCount(30, $series['likes']);
+		// day one of the window is thirty days back; today is the last column
+		$this->assertSame(1, $series['likes'][0]);
+		$this->assertSame(3, $series['likes'][29]);
+		$this->assertSame(4, array_sum($series['interactions']));
+	}
+
+	/** Reach is the account's own audience plus everybody who passed it on. */
+	public function testReachIsTheAccountsFollowersPlusItsBoostersAudiences(): void {
+		$this->answering([
+			$this->post(2, ['published' => $this->daysAgo(1), 'boosts' => 2]),
+			$this->post(1, ['published' => $this->daysAgo(3)]),
+		]);
+		$this->followsRequest->method('countFollowers')->willReturn(40);
+		$this->streamRequest->method('boostersOf')->willReturn([
+			self::ALICE . '/2' => ['https://remote.example/users/bob', 'https://remote.example/users/carol'],
+		]);
+		$this->cacheActorsRequest->method('followerCountsOf')->willReturn([
+			'https://remote.example/users/bob' => 300,
+			'https://remote.example/users/carol' => 60,
+		]);
+
+		$stats = $this->service->forAccount($this->alice());
+		$byId = array_column($stats['timeline'], null, 'id');
+
+		$this->assertSame(400, $byId['2']['reach']);
+		// nobody boosted the other one, so it reached the account's own people
+		$this->assertSame(40, $byId['1']['reach']);
+		$this->assertSame(440, $stats['periods']['current']['reach']);
+		$this->assertSame(2, $stats['reach']['known_boosters']);
+		$this->assertSame(0, $stats['reach']['unknown_boosters']);
+	}
+
+	/** A booster nothing is known about is a gap, and the page is told so. */
+	public function testABoosterWithNoKnownAudienceIsAGapRatherThanAZero(): void {
+		$this->answering([$this->post(1, ['published' => $this->daysAgo(1), 'boosts' => 1])]);
+		$this->followsRequest->method('countFollowers')->willReturn(12);
+		$this->streamRequest->method('boostersOf')->willReturn([
+			self::ALICE . '/1' => ['https://remote.example/users/stranger'],
+		]);
+		$this->cacheActorsRequest->method('followerCountsOf')->willReturn([]);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertSame(12, $stats['timeline'][0]['reach']);
+		$this->assertSame(0, $stats['reach']['known_boosters']);
+		$this->assertSame(1, $stats['reach']['unknown_boosters']);
+	}
+
+	/** A direct message is not published to the followers. */
+	public function testADirectMessageReachesNobodyByFollowing(): void {
+		$this->answering([
+			$this->post(1, ['published' => $this->daysAgo(1), 'visibility' => Stream::TYPE_DIRECT]),
+		]);
+		$this->followsRequest->method('countFollowers')->willReturn(90);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertSame(0, $stats['timeline'][0]['reach']);
+	}
+
+	/** No boosts anywhere in the window means no lookup at all. */
+	public function testAWindowWithoutABoostAsksTheDatabaseNothingExtra(): void {
+		$this->answering([$this->post(1, ['published' => $this->daysAgo(1), 'likes' => 2])]);
+		$this->streamRequest->expects($this->never())->method('boostersOf');
+		$this->cacheActorsRequest->expects($this->never())->method('followerCountsOf');
+
+		$this->service->forAccount($this->alice());
+	}
+
+	/** The window's posts, one by one, newest first and bounded. */
+	public function testTheWindowsPostsAreListedNewestFirstAndBounded(): void {
+		$posts = [];
+		for ($nid = StatisticsService::TIMELINE_POSTS + 10; $nid >= 1; $nid--) {
+			$posts[] = $this->post($nid, ['published' => $this->daysAgo(1, 0), 'content' => '<p>#' . $nid . '</p>']);
+		}
+		// one from before the window, which the list leaves out
+		$posts[] = $this->post(0, ['published' => $this->daysAgo(45)]);
+		$this->answering($posts);
+
+		$timeline = $this->service->forAccount($this->alice())['timeline'];
+
+		$this->assertCount(StatisticsService::TIMELINE_POSTS, $timeline);
+		$this->assertSame((string)(StatisticsService::TIMELINE_POSTS + 10), $timeline[0]['id']);
+		$this->assertNotContains('0', array_column($timeline, 'id'));
+		// what the list draws a row out of
+		$this->assertSame(
+			['id', 'url', 'published_at', 'excerpt', 'likes', 'boosts', 'replies', 'score', 'media', 'visibility', 'reach'],
+			array_keys($timeline[0])
+		);
 	}
 
 	/** The walk asks for the account's own posts and nothing else. */

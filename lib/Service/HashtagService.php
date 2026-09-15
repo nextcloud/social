@@ -190,6 +190,21 @@ class HashtagService {
 	 *
 	 * @return array
 	 */
+	/**
+	 * The tags that travel with one, as Tag entities — Pixelfed's
+	 * `GET /api/v1/tags/{id}/related`.
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	public function related(string $hashtag, int $limit = 20): array {
+		$tags = [];
+		foreach ($this->hashtagsRequest->related($hashtag, max(1, min(40, $limit))) as $name => $count) {
+			$tags[] = $this->tagEntity((string)$name);
+		}
+
+		return $tags;
+	}
+
 	public function searchHashtags(string $hashtag, bool $all = false): array {
 		return $this->hashtagsRequest->searchHashtags($hashtag, $all);
 	}

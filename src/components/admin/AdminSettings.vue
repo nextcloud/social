@@ -9,6 +9,11 @@
 			:openTotal="state.openReports"
 			:resolvedTotal="state.resolvedReports"
 			:perPage="state.reportsPerPage" />
+		<ReviewSection
+			:queue="state.review"
+			:total="state.reviewTotal"
+			:reviewFirstPost="state.reviewFirstPost"
+			:autospam="state.autospam" />
 		<AccountsSection />
 		<RetentionSection :days="state.retentionDays" />
 		<FederationSection :federation="state.federation" />
@@ -28,6 +33,7 @@ import AnnouncementsSection from './AnnouncementsSection.vue'
 import FederationSection from './FederationSection.vue'
 import ReportsSection from './ReportsSection.vue'
 import RetentionSection from './RetentionSection.vue'
+import ReviewSection from './ReviewSection.vue'
 import ServerSection from './ServerSection.vue'
 
 /** What `AdminSettings::getForm()` provides when it provides nothing. */
@@ -36,6 +42,10 @@ const NOTHING = {
 	openReports: 0,
 	resolvedReports: 0,
 	reportsPerPage: 50,
+	review: [],
+	reviewTotal: 0,
+	reviewFirstPost: true,
+	autospam: true,
 	server: null,
 	accessType: 'all_but',
 	accessList: [],
@@ -56,7 +66,7 @@ const NOTHING = {
 }
 
 /**
- * The seven sections of Administration → Social.
+ * The eight sections of Administration → Social.
  *
  * Nothing here uses `v-html`, and nothing below it does either. Half of what
  * these tables draw — a handle, an instance name, the comment on a report — is
@@ -73,6 +83,7 @@ export default {
 		FederationSection,
 		ReportsSection,
 		RetentionSection,
+		ReviewSection,
 		ServerSection,
 	},
 

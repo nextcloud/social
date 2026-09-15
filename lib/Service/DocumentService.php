@@ -35,6 +35,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
+use OCP\IAvatarManager;
 use OCP\IURLGenerator;
 use Throwable;
 
@@ -58,6 +59,7 @@ class DocumentService {
 		private CacheDocumentService $cacheService,
 		private ConfigService $configService,
 		private MiscService $miscService,
+		private IAvatarManager $avatarManager,
 	) {
 	}
 
@@ -492,7 +494,9 @@ class DocumentService {
 			$icon = AP::instance()->getItemFromType(Image::TYPE);
 			$icon->generateUniqueId('/documents/avatar');
 			$icon->setUrl($url);
-			$icon->setMediaType('');
+			// what the avatar route will actually serve. It used to be left
+			// empty, and an empty `mediaType` is a field peers validate
+			$icon->setMediaType($this->localAvatarMimeType($actor->getUserId()));
 			$icon->setLocalCopy('avatar');
 
 			$interface = AP::instance()->getInterfaceFromType(Image::TYPE);
@@ -506,9 +510,33 @@ class DocumentService {
 			} catch (CacheDocumentDoesNotExistException $e) {
 				return '';
 			}
+
+			if ($icon->getMediaType() === '') {
+				// cached before the mime was recorded: fill it in on the way
+				// past rather than wait for the avatar to change
+				$icon->setMediaType($this->localAvatarMimeType($actor->getUserId()));
+				$this->cacheDocumentsRequest->update($icon);
+			}
 		}
 
 		return $icon->getId();
+	}
+
+	/**
+	 * The mime of the file Nextcloud's avatar route serves for a user.
+	 *
+	 * PNG where nothing better is known: it is what a generated avatar is,
+	 * and an uploaded one is stored in its own format, which the avatar
+	 * manager knows and this method asks.
+	 */
+	private function localAvatarMimeType(string $userId): string {
+		try {
+			$mime = $this->avatarManager->getAvatar($userId)->getFile(128)->getMimeType();
+
+			return ($mime === '') ? 'image/png' : $mime;
+		} catch (\Throwable $e) {
+			return 'image/png';
+		}
 	}
 
 	/**

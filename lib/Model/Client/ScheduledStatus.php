@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
+use OCA\Social\Model\StatusParams;
+use OCA\Social\Model\TStatusParams;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
@@ -34,8 +36,9 @@ use OCA\Social\Tools\Traits\TArrayTools;
  * anything is done with it — see ScheduledStatusesRequest, where that check is
  * a SQL predicate rather than a comparison made after the row was read.
  */
-class ScheduledStatus implements JsonSerializable {
+class ScheduledStatus implements JsonSerializable, StatusParams {
 	use TArrayTools;
+	use TStatusParams;
 
 	/**
 	 * The keys `params` carries, in Mastodon's order.
@@ -54,8 +57,6 @@ class ScheduledStatus implements JsonSerializable {
 	private int $id = 0;
 	private string $actorId = '';
 	private int $scheduledAt = 0;
-	/** @var array<string, mixed> */
-	private array $params = [];
 	/** @var MediaAttachment[] */
 	private array $mediaAttachments = [];
 	private int $creation = 0;
@@ -109,51 +110,6 @@ class ScheduledStatus implements JsonSerializable {
 		return $this;
 	}
 
-	/** @return array<string, mixed> */
-	public function getParams(): array {
-		return $this->params;
-	}
-
-	public function paramText(): string {
-		$text = $this->params['text'] ?? '';
-
-		return is_scalar($text) ? (string)$text : '';
-	}
-
-	public function paramString(string $key): string {
-		$value = $this->params[$key] ?? '';
-
-		return is_scalar($value) ? (string)$value : '';
-	}
-
-	public function paramBool(string $key): bool {
-		return ($this->params[$key] ?? false) === true;
-	}
-
-	public function paramPoll(): ?array {
-		$poll = $this->params['poll'] ?? null;
-
-		return (is_array($poll) && $poll !== []) ? $poll : null;
-	}
-
-	/**
-	 * The attachments the post will carry, as the numeric media ids this app
-	 * uses. Held as strings in `params`, because that is how Mastodon holds
-	 * every id a client sees, and because the entity is echoed verbatim.
-	 *
-	 * @return int[]
-	 */
-	public function paramMediaIds(): array {
-		$ids = [];
-		foreach ((array)($this->params['media_ids'] ?? []) as $id) {
-			if (is_scalar($id) && (int)$id > 0) {
-				$ids[] = (int)$id;
-			}
-		}
-
-		return $ids;
-	}
-
 	/** @param MediaAttachment[] $mediaAttachments */
 	public function setMediaAttachments(array $mediaAttachments): self {
 		$this->mediaAttachments = $mediaAttachments;
@@ -189,11 +145,6 @@ class ScheduledStatus implements JsonSerializable {
 			->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
 
 		return $this;
-	}
-
-	/** The `params` column as it is written. */
-	public function exportParams(): string {
-		return (string)json_encode($this->getParams());
 	}
 
 	/**

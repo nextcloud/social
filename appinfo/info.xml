@@ -24,7 +24,8 @@ What it does:
 - 📡 Videos posted here federate as ActivityPub Video objects, which is what PeerTube ingests, with a poster frame, byte-range seeking and a 2 GB ceiling of their own
 - 🎨 Filters in the composer and a profile that draws as a grid
 - 🗂️ Collections, stories and places
-- 📱 Pixelfed's own config and discover routes, so its clients find what they look for
+- 📱 Pixelfed's own routes — the config its app reads on launch, discover, the story carousel, collections, mutuals, reports, direct-message threads, push (honestly off) and its admin screens — so its app finds what it looks for once the API is at the domain root
+- 🖼️ Stories, collections and places in the web app: a row of faces above your feed with a player and a way to post one; albums as the fourth tab of a profile, each a page of its posts; a pin in the composer that says where a picture was taken, and a page for every place — with nothing ever sent to a map service
 - 🧭 A Discover page: who to follow, with starter packs you can follow in one go
 - 📤 Share to Social from the Files app: pick pictures or videos there and the composer opens with them attached
 - 👥 Lists, and every Nextcloud group you are in as a list of its own — kept in step with the group automatically; you make, rename, delete and fill your own in Settings
@@ -41,12 +42,12 @@ What it does:
 - 💬 Quote posts, carrying the original author's permission on the wire
 - 😀 Custom emoji of this instance's own, added with occ social:emoji and rendered on servers that have never seen them
 - 🎞️ A GIF picker in the composer, backed by the instance's own library rather than a third party
-- 📈 A statistics page for the instance, and profile highlights showing what somebody posts about
+- 📈 Your own statistics: the last 30 days beside the 30 before them — reach, interactions, likes and boosts, each with the percentage it moved by — then every post of the window one by one, what works, when to post and where your followers are. A statistics page for the instance too, and profile highlights showing what somebody posts about
 - 🕰️ On this day, and a weekly recap of what you missed
 - 📣 Announcements: what the administrators of this instance are telling everybody, at the top of the timeline until it is read, dismissed once for every device, with an emoji to say something back
 
 You can pin your own posts to the top of your profile, bookmark any post, and see which hashtags the instance is using most. This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. Polls are fully supported: create your own, and view and vote on federated ones. Profiles carry an avatar, a banner image and up to four profile metadata fields, edited in the profile editor; a field naming a web page is marked as verified once that page links back with rel="me". Posts that link somewhere get a link preview card. Image (JPEG, PNG, GIF, WebP, AVIF, and HEIC from an iPhone where the server can read it), video (MP4, WebM, QuickTime) and audio attachments are supported, up to ten per post, each with alt text and a focal point. Third-party Mastodon clients cannot reach the API yet, because it is served under the app's own path rather than at the domain root; there is no streaming API and no push subscriptions. A post can be translated where this Nextcloud has a translation provider.]]></description>
-	<version>0.20.0</version>
+	<version>0.20.5</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
@@ -92,6 +93,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<command>OCA\Social\Command\AccountAlias</command>
 		<command>OCA\Social\Command\AccountMove</command>
 		<command>OCA\Social\Command\AccountImportFollows</command>
+		<command>OCA\Social\Command\AccountImportPosts</command>
 		<command>OCA\Social\Command\Benchmark</command>
 		<command>OCA\Social\Command\CacheRefresh</command>
 		<command>OCA\Social\Command\CheckInstall</command>

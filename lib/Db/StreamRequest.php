@@ -631,6 +631,37 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * How many posts this account has published here to anybody but one person.
+	 *
+	 * The twin of `countNotesFromActorId()`, which counts only the public ones
+	 * because that is what a profile reports. This one is asked a different
+	 * question — has this account posted here before at all — so a first post
+	 * that went to followers is still not a first post.
+	 *
+	 * Direct messages are left out, and that is the point rather than a
+	 * detail. `PostReviewService` never holds a direct message, so counting
+	 * them here would mean an account could send one message to itself and be
+	 * past first-post review a second later — the rule would hold nobody who
+	 * had read the rule.
+	 */
+	public function countPostsBy(string $actorId): int {
+		$qb = $this->countNotesSelectSql();
+		$qb->limitToAttributedTo($actorId, true);
+		$qb->limitToStatusTypes();
+		$qb->andWhere(
+			$qb->expr()->neq(
+				's.visibility', $qb->createNamedParameter(Stream::TYPE_DIRECT)
+			)
+		);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+	/**
 	 * @param string $actorId
 	 *
 	 * @return int
@@ -1702,6 +1733,143 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		return $counts;
+	}
+
+	/**
+	 * The public posts taken at one place, newest first.
+	 *
+	 * Public only, whoever asks: a place page is a public page, and a
+	 * followers-only post's location is as private as the post. Keyset by
+	 * `nid`, like every other list here.
+	 *
+	 * @return Stream[]
+	 */
+	public function getPublicByPlace(int $placeId, int $limit = 20, int $maxId = 0): array {
+		if ($placeId < 1 || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+		$qb->limitToStatusTypes();
+		$expr = $qb->expr();
+		$qb->andWhere($expr->eq('s.place_id', $qb->createNamedParameter($placeId, IQueryBuilder::PARAM_INT)));
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		// a reply is a fragment of somebody else's thread, not a picture of the place
+		$qb->limitToDBFieldEmpty('in_reply_to');
+		if ($maxId > 0) {
+			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * The direct messages between the viewer and one other account, as one
+	 * thread.
+	 *
+	 * A direct message writes a `dm` destination row for every party to it,
+	 * its author included (`StreamDestRequest::generateStreamDirect()`), so
+	 * the thread is every direct post that has a row for both of them —
+	 * whichever of the two wrote it. Keyset-paged on `nid` like every other
+	 * timeline here.
+	 *
+	 * @return Stream[] newest first, or oldest first when paging forward with `minId`
+	 */
+	public function directBetween(Person $viewer, string $otherId, int $limit = 20, int $maxId = 0, int $minId = 0): array {
+		if ($otherId === '' || $limit < 1) {
+			return [];
+		}
+
+		$options = new ProbeOptions();
+		$options->setFormat(ACore::FORMAT_LOCAL)
+			->setLimit($limit);
+		if ($maxId > 0) {
+			$options->setMaxId($maxId);
+		}
+		if ($minId > 0) {
+			$options->setMinId($minId);
+		}
+
+		$this->setViewer($viewer);
+		$page = $this->getStreamNidsSelectSql(false);
+		$page->limitToStatusTypes();
+		$page->paginate($options);
+		$page->limitToDBField('visibility', Stream::TYPE_DIRECT, true, 's');
+
+		$page->selectDestFollowing('sd1', '');
+		$page->from(self::TABLE_STREAM_DEST, 'sd2');
+		$page->andWhere($page->exprLimitToDest($viewer->getId(), 'dm', '', 'sd1'));
+		$page->andWhere($page->exprLimitToDest($otherId, 'dm', '', 'sd2'));
+
+		$nids = $this->getNidsFromRequest($page);
+		if ($nids === []) {
+			return [];
+		}
+
+		return $this->streamsByNids($nids, $options);
+	}
+
+	/**
+	 * Who boosted each of these posts.
+	 *
+	 * One query for the whole set rather than one per post: the statistics
+	 * page asks about a month of posts at once, and a round trip per post to
+	 * fill in one column is a page that gets slower the more an account posts.
+	 *
+	 * The same account boosting the same post twice is one audience, so the
+	 * actors come back deduplicated per post.
+	 *
+	 * @param string[] $ids the posts, by id
+	 * @param int $limit how many Announce rows to read at most
+	 * @return array<string, list<string>> post id => the actors that boosted it
+	 */
+	public function boostersOf(array $ids, int $limit = 5000): array {
+		if ($ids === [] || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+
+		$byPrim = [];
+		foreach ($ids as $id) {
+			$prim = $qb->prim($id);
+			if ($prim !== '') {
+				$byPrim[$prim] = $id;
+			}
+		}
+
+		if ($byPrim === []) {
+			return [];
+		}
+
+		$expr = $qb->expr();
+		$qb->select('s.object_id_prim', 's.attributed_to')
+			->from(self::TABLE_STREAM, 's')
+			->where($expr->eq('s.type', $qb->createNamedParameter(Announce::TYPE)))
+			->andWhere($expr->in(
+				's.object_id_prim',
+				$qb->createNamedParameter(array_keys($byPrim), IQueryBuilder::PARAM_STR_ARRAY)
+			))
+			->setMaxResults($limit);
+
+		$boosters = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$id = $byPrim[(string)$data['object_id_prim']] ?? '';
+			$actor = (string)$data['attributed_to'];
+			if ($id === '' || $actor === '') {
+				continue;
+			}
+			$boosters[$id][$actor] = $actor;
+		}
+		$cursor->closeCursor();
+
+		return array_map(static fn (array $actors): array => array_values($actors), $boosters);
 	}
 
 	/**

@@ -149,10 +149,49 @@ followers, not the content.
 
 ---
 
+### `social:account:import-posts`
+
+Bring an account's own posts over from the server it wrote them on, with their
+pictures: the same importer the Migration page uses, for the archives a browser
+cannot upload.
+
+```
+php occ social:account:import-posts [--no-media] [--limit LIMIT] <userId> <archive>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `userId` | Yes | Nextcloud user whose account the posts are written as |
+| `archive` | Yes | Path to the export: a zip with an `outbox.json` (this app's, under `social/`; Mastodon's and GoToSocial's, at the root), an **Instagram** archive (the JSON one — `content/posts_*.json` and the reels beside them, with the pictures under `media/`), or a JSON export on its own — an `outbox.json`, or Pixelfed's `pixelfed-statuses.json` |
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--no-media` | none | Do not fetch the pictures an export names only by their address. The ones inside the archive are still restored |
+| `--limit` | number | How many posts to write at most (default and ceiling 2000). The command says when it stopped there; run it again to carry on |
+
+Each post is written as a **new local post** of that account, dated when it was
+written. **Nothing is federated** — not one delivery is queued — because
+re-publishing somebody's years of posts would put them into the timeline of
+every person who follows them, on every server, at once. The original id is
+remembered in `social_import_post`, so running the command twice over the same
+archive writes nothing the second time, and a reply keeps its parent where the
+archive holds both.
+
+What is left alone: boosts (somebody else's post), direct messages (addressed
+to accounts on the old server, so a copy here would be addressed to nobody),
+and items with neither words nor pictures. Every file goes through the same
+upload path a post's own attachment does, so an imported picture is stripped of
+its metadata and held to the sizes and types this instance accepts.
+
+A picture named only by an address is fetched from the server it is still on,
+which means that server learns the import is happening and that it has to be
+running. `--no-media` is the way to import the words without either.
+
 ### `social:account:import-follows`
 
-Follow every account of a Mastodon `following_accounts.csv` export from a local
-account: the other half of moving an account **to** this server.
+Follow every account of a follows export — Mastodon's `following_accounts.csv`
+or Pixelfed's `pixelfed-following.json` — from a local account: the other half
+of moving an account **to** this server.
 
 ```
 php occ social:account:import-follows <userId> <csv>
@@ -161,12 +200,13 @@ php occ social:account:import-follows <userId> <csv>
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `userId` | Yes | Nextcloud user whose actor follows the accounts |
-| `csv` | Yes | Path to the export. The current Mastodon format with the header `Account address,Show boosts,Notify on new posts,Languages` is read by its `Account address` column wherever it is; the older format — one handle per line, no header — works too. |
+| `csv` | Yes | Path to the export. The current Mastodon format with the header `Account address,Show boosts,Notify on new posts,Languages` is read by its `Account address` column wherever it is; the older format — one handle per line, no header — works too. A file that parses as JSON is read as Pixelfed's export: an array of actor URLs (or handles, or objects naming one), each URL fetched and followed as the actor it resolves to. |
 
-Each handle goes through the same path as `social:account:following`: the
-account is resolved (WebFinger), a `Follow` is queued, and a handle already
-followed is left alone. A leading `@` is dropped, repeats are followed once, and
-a line that is not a `user@host` handle is ignored. The other columns (boosts,
+Each entry goes through the same path as `social:account:following`: the
+account is resolved (WebFinger for a handle, an actor fetch for a URL), a
+`Follow` is queued, and an account already followed is left alone. A leading
+`@` is dropped, repeats are followed once, and an entry that is neither a
+`user@host` handle nor an actor URL is ignored. The other columns (boosts,
 notifications, languages) are not imported.
 
 One handle that fails — an unreachable instance, an account that no longer
