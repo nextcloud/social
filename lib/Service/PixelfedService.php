@@ -9,14 +9,19 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StoriesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Collection;
 use OCA\Social\Model\Client\Story;
+use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
 
 /**
@@ -71,6 +76,10 @@ class PixelfedService {
 		private AccountService $accountService,
 		private InstanceService $instanceService,
 		private ConfigService $configService,
+		private StreamRequest $streamRequest,
+		private FollowsRequest $followsRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private PostService $postService,
 	) {
 	}
 
@@ -318,6 +327,194 @@ class PixelfedService {
 	 */
 	public function nagState(): array {
 		return ['active' => false];
+	}
+
+	/** How many messages one page of a thread holds. */
+	public const THREAD_PAGE = 20;
+
+	/** How long a message the app may send at once, as Pixelfed caps it. */
+	public const MESSAGE_MAX = 500;
+
+	/** How many accounts the compose screen is offered. */
+	public const MUTUALS_LIMIT = 50;
+
+	/**
+	 * One direct-message thread as Pixelfed's app draws it: the other party
+	 * on top, then the messages between the two, oldest first.
+	 *
+	 * The messages are this app's direct posts, read through the same
+	 * destination rows the direct timeline uses; nothing is stored twice. A
+	 * message's `text` is the post's text without its markup, and one that
+	 * carries a picture is a `photo` (or `video`) with the file as `media`.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function thread(Person $viewer, string $pid, int $maxId = 0, int $minId = 0): array {
+		$other = $this->resolveAccount($pid);
+		$other->setExportFormat(ACore::FORMAT_LOCAL);
+		$account = $other->exportAsLocal();
+
+		$posts = $this->streamRequest->directBetween($viewer, $other->getId(), self::THREAD_PAGE, $maxId, $minId);
+		usort($posts, static fn (Stream $a, Stream $b): int => $a->getNid() <=> $b->getNid());
+
+		$messages = [];
+		foreach ($posts as $post) {
+			$messages[] = $this->message($viewer, $post);
+		}
+
+		$last = ($messages === []) ? null : $messages[count($messages) - 1];
+
+		return [
+			'id' => (string)($account['id'] ?? ''),
+			'name' => (string)($account['display_name'] ?? ''),
+			'username' => (string)($account['acct'] ?? ''),
+			'avatar' => (string)($account['avatar'] ?? ''),
+			'url' => (string)($account['url'] ?? $other->getId()),
+			'muted' => false,
+			'isLocal' => $other->isLocal(),
+			'domain' => $other->isLocal() ? null : (string)parse_url($other->getId(), PHP_URL_HOST),
+			'created_at' => ($last === null) ? null : $last['created_at'],
+			'updated_at' => ($last === null) ? null : $last['created_at'],
+			'timeAgo' => ($last === null) ? '' : $last['timeAgo'],
+			'lastMessage' => ($last === null) ? '' : $last['text'],
+			'messages' => $messages,
+		];
+	}
+
+	/**
+	 * Sends one message: a direct post addressed to the other account, through
+	 * the same path the composer's own direct messages take.
+	 *
+	 * The message goes out with the recipient's handle in front of it, which
+	 * is how a direct post names who it is for on this network — the app
+	 * shows the thread by account, so the handle is not in its way.
+	 *
+	 * @return array<string, mixed> the message as the thread shows it
+	 * @throws InvalidResourceException
+	 */
+	public function sendMessage(Person $viewer, string $toId, string $message, string $type = 'text'): array {
+		$message = trim($message);
+		if ($message === '' || mb_strlen($message) > self::MESSAGE_MAX) {
+			throw new InvalidResourceException('a message is between 1 and ' . self::MESSAGE_MAX . ' characters');
+		}
+		if (!in_array($type, ['text', 'emoji'], true)) {
+			throw new InvalidResourceException('unknown message type');
+		}
+
+		$other = $this->resolveAccount($toId);
+		if ($other->getId() === $viewer->getId()) {
+			throw new InvalidResourceException('a message needs somebody to send it to');
+		}
+
+		$post = new Post($viewer);
+		$post->setType('direct');
+		$post->setContent('@' . $other->getAccount() . ' ' . $message);
+
+		$created = $this->postService->createPost($post);
+		if (!$created instanceof Stream) {
+			throw new InvalidResourceException('the message could not be sent');
+		}
+
+		return $this->message($viewer, $created);
+	}
+
+	/**
+	 * Takes one of the viewer's own messages back.
+	 *
+	 * Somebody else's message is the same 404 as one that never existed:
+	 * whether it exists is not this route's to tell.
+	 *
+	 * @throws ItemNotFoundException
+	 */
+	public function deleteMessage(Person $viewer, int $id): void {
+		try {
+			$post = $this->streamService->getStreamByNid($id);
+		} catch (\Throwable $e) {
+			throw new ItemNotFoundException('unknown message');
+		}
+
+		if ($post->getAttributedTo() !== $viewer->getId()) {
+			throw new ItemNotFoundException('unknown message');
+		}
+
+		$this->streamService->deleteLocalItem($post, $post->getType());
+	}
+
+	/**
+	 * The accounts the viewer follows that follow them back — who the app's
+	 * "new message" screen offers, since a direct message to a stranger is
+	 * the thing most people never want to receive.
+	 *
+	 * @return list<Person>
+	 */
+	public function composeMutuals(Person $viewer): array {
+		$following = [];
+		foreach ($this->followsRequest->getFollowingByActorId($viewer->getId()) as $follow) {
+			$following[$follow->getObjectId()] = true;
+		}
+
+		$mutual = [];
+		foreach ($this->followsRequest->getFollowersByActorId($viewer->getId()) as $follow) {
+			if (isset($following[$follow->getActorId()])) {
+				$mutual[] = $follow->getActorId();
+			}
+			if (count($mutual) >= self::MUTUALS_LIMIT) {
+				break;
+			}
+		}
+
+		return $this->accounts(array_values($this->cacheActorsRequest->getFromIds($mutual)));
+	}
+
+	/**
+	 * One direct post as a message of the thread.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function message(Person $viewer, Stream $post): array {
+		$attachments = $post->getAttachments();
+		$first = ($attachments === []) ? null : $attachments[0];
+		$type = 'text';
+		if ($first !== null) {
+			$type = ($first->getType() === 'video') ? 'video' : 'photo';
+		}
+
+		$text = trim(html_entity_decode(strip_tags($post->getContent()), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+		$published = $post->getPublishedTime();
+
+		return [
+			'id' => (string)$post->getNid(),
+			'hidden' => false,
+			'isAuthor' => $post->getAttributedTo() === $viewer->getId(),
+			'type' => $type,
+			'text' => $text,
+			'media' => ($first === null) ? null : $first->getUrl(),
+			'carousel' => array_values(array_filter(array_map(
+				static fn ($attachment): ?string => $attachment->getUrl(),
+				$attachments
+			))),
+			'created_at' => ($published > 0) ? gmdate('Y-m-d\TH:i:s', $published) . '.000Z' : null,
+			'timeAgo' => ($published > 0) ? $this->timeAgo($published) : '',
+			'seen' => true,
+			'reportId' => (string)$post->getNid(),
+			'meta' => null,
+		];
+	}
+
+	/**
+	 * "3m", "2h", "5d": the short relative time Pixelfed's app prints beside
+	 * a message.
+	 */
+	private function timeAgo(int $timestamp): string {
+		$seconds = max(0, time() - $timestamp);
+
+		return match (true) {
+			$seconds < 60 => $seconds . 's',
+			$seconds < 3600 => intdiv($seconds, 60) . 'm',
+			$seconds < 86400 => intdiv($seconds, 3600) . 'h',
+			$seconds < 86400 * 7 => intdiv($seconds, 86400) . 'd',
+			default => intdiv($seconds, 86400 * 7) . 'w',
+		};
 	}
 
 	/**

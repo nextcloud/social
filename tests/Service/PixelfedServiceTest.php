@@ -9,14 +9,20 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StoriesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Collection;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Story;
+use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AvatarService;
@@ -26,6 +32,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PixelfedService;
+use OCA\Social\Service\PostService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StoryService;
@@ -47,6 +54,10 @@ class PixelfedServiceTest extends TestCase {
 	private ReportService|MockObject $reportService;
 	private StreamService|MockObject $streamService;
 	private InstanceService|MockObject $instanceService;
+	private StreamRequest|MockObject $streamRequest;
+	private FollowsRequest|MockObject $followsRequest;
+	private CacheActorsRequest|MockObject $cacheActorsRequest;
+	private PostService|MockObject $postService;
 	private PixelfedService $service;
 
 	protected function setUp(): void {
@@ -60,6 +71,10 @@ class PixelfedServiceTest extends TestCase {
 		$this->searchService = $this->createMock(SearchService::class);
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->streamService = $this->createMock(StreamService::class);
+		$this->streamRequest = $this->createMock(StreamRequest::class);
+		$this->followsRequest = $this->createMock(FollowsRequest::class);
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		$this->postService = $this->createMock(PostService::class);
 		$this->instanceService = $this->createMock(InstanceService::class);
 		$this->instanceService->method('supportedMimeTypes')->willReturn(['image/jpeg', 'video/mp4']);
 		$this->instanceService->method('maxUploadSize')->willReturn(10 * 1024 * 1024);
@@ -82,6 +97,10 @@ class PixelfedServiceTest extends TestCase {
 			$this->createMock(AccountService::class),
 			$this->instanceService,
 			$configService,
+			$this->streamRequest,
+			$this->followsRequest,
+			$this->cacheActorsRequest,
+			$this->postService,
 		);
 	}
 
@@ -238,5 +257,93 @@ class PixelfedServiceTest extends TestCase {
 		$this->assertSame(self::BOB, $this->service->resolveAccount('7')->getId());
 		$this->assertSame(self::CAROL, $this->service->resolveAccount('@carol@remote.example')->getId());
 		$this->assertSame(self::CAROL, $this->service->resolveAccount(self::CAROL)->getId());
+	}
+	private function directPost(int $nid, string $author, string $html, int $published): Note {
+		$post = new Note();
+		$post->setNid($nid);
+		$post->setAttributedTo($author);
+		$post->setContent($html);
+		$post->setPublishedTime($published);
+		$post->setVisibility(Stream::TYPE_DIRECT);
+
+		return $post;
+	}
+
+	/** The other party on top, the messages oldest first, each saying whose it is. */
+	public function testAThreadIsTheDirectPostsBetweenTwoAccountsOldestFirst(): void {
+		$bob = $this->person(self::BOB, 7);
+		$bob->setLocal(true);
+		$this->cacheActorService->method('getFromNids')->with([7])->willReturn([$bob]);
+		$this->streamRequest->method('directBetween')
+			->with($this->anything(), self::BOB, PixelfedService::THREAD_PAGE, 0, 0)
+			->willReturn([
+				$this->directPost(12, self::BOB, '<p><span class="h-card">@alice</span> and you?</p>', 1_700_000_100),
+				$this->directPost(11, self::ALICE, '<p>@bob@cloud.example fine &amp; well</p>', 1_700_000_000),
+			]);
+
+		$thread = $this->service->thread($this->person(self::ALICE), '7');
+
+		$this->assertSame('7', $thread['id']);
+		// a local account's `acct` is its bare username, as Mastodon spells it
+		$this->assertSame('bob', $thread['username']);
+		$this->assertTrue($thread['isLocal']);
+		$this->assertSame(['11', '12'], array_column($thread['messages'], 'id'));
+		$this->assertTrue($thread['messages'][0]['isAuthor']);
+		$this->assertFalse($thread['messages'][1]['isAuthor']);
+		$this->assertSame('@bob@cloud.example fine & well', $thread['messages'][0]['text'], 'the text, not its markup');
+		$this->assertSame('text', $thread['messages'][0]['type']);
+		$this->assertSame('@alice and you?', $thread['lastMessage']);
+	}
+
+	/** A message is a direct post to the account, sent the way the composer sends one. */
+	public function testSendingAMessageIsADirectPostNamingTheRecipient(): void {
+		$this->cacheActorService->method('getFromNids')->with([7])->willReturn([$this->person(self::BOB, 7)]);
+		$sent = null;
+		$this->postService->expects($this->once())->method('createPost')
+			->willReturnCallback(function (Post $post) use (&$sent): Note {
+				$sent = $post;
+
+				return $this->directPost(31, self::ALICE, '<p>' . $post->getContent() . '</p>', time());
+			});
+
+		$message = $this->service->sendMessage($this->person(self::ALICE), '7', 'see you at eight', 'text');
+
+		$this->assertSame(Stream::TYPE_DIRECT, $sent->getType());
+		$this->assertSame('@bob@cloud.example see you at eight', $sent->getContent());
+		$this->assertSame('31', $message['id']);
+		$this->assertTrue($message['isAuthor']);
+	}
+
+	public function testAnEmptyOrOverlongMessageIsRefusedBeforeAnythingIsSent(): void {
+		$this->postService->expects($this->never())->method('createPost');
+
+		$this->expectException(InvalidResourceException::class);
+		$this->service->sendMessage($this->person(self::ALICE), '7', str_repeat('x', PixelfedService::MESSAGE_MAX + 1));
+	}
+
+	/** Somebody else's message is the same 404 as one that never existed. */
+	public function testOnlyTheAuthorTakesAMessageBack(): void {
+		$this->streamService->method('getStreamByNid')->with(12)->willReturn($this->directPost(12, self::BOB, '<p>hi</p>', 1));
+		$this->streamService->expects($this->never())->method('deleteLocalItem');
+
+		$this->expectException(ItemNotFoundException::class);
+		$this->service->deleteMessage($this->person(self::ALICE), 12);
+	}
+
+	public function testTheComposeScreenIsOfferedTheAccountsThatFollowBack(): void {
+		$follow = function (string $actor, string $object): Follow {
+			$f = new Follow();
+			$f->setActorId($actor);
+			$f->setObjectId($object);
+
+			return $f;
+		};
+		$this->followsRequest->method('getFollowingByActorId')->willReturn([$follow(self::ALICE, self::BOB), $follow(self::ALICE, self::CAROL)]);
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([$follow(self::CAROL, self::ALICE), $follow('https://x.example/u/dave', self::ALICE)]);
+		$this->cacheActorsRequest->expects($this->once())->method('getFromIds')->with([self::CAROL])->willReturn([self::CAROL => $this->person(self::CAROL)]);
+
+		$mutuals = $this->service->composeMutuals($this->person(self::ALICE));
+
+		$this->assertSame([self::CAROL], array_map(static fn (Person $p): string => $p->getId(), $mutuals));
 	}
 }

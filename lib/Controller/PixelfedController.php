@@ -419,4 +419,63 @@ class PixelfedController extends ClientApiController {
 			return $this->error($e);
 		}
 	}
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/direct/thread')]
+	public function directThread(string $pid = '', int $max_id = 0, int $min_id = 0): DataResponse {
+		try {
+			$this->initViewer(['read:statuses']);
+
+			return new DataResponse(
+				$this->pixelfedService->thread($this->viewer(), $pid, max(0, $max_id), max(0, $min_id)),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 60, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/direct/thread/send')]
+	public function directThreadSend(string $to_id = '', string $message = '', string $type = 'text'): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+
+			return new DataResponse(
+				$this->pixelfedService->sendMessage($this->viewer(), $to_id, $message, $type),
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1.1/direct/thread/message')]
+	public function directThreadDelete(int $id = 0): DataResponse {
+		try {
+			$this->initViewer(['write:statuses']);
+			$this->pixelfedService->deleteMessage($this->viewer(), $id);
+
+			return new DataResponse([200], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/direct/compose/mutuals')]
+	public function directComposeMutuals(): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			return new DataResponse($this->pixelfedService->composeMutuals($this->viewer()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
 }

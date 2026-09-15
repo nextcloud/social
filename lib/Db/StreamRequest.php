@@ -1705,6 +1705,52 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * The direct messages between the viewer and one other account, as one
+	 * thread.
+	 *
+	 * A direct message writes a `dm` destination row for every party to it,
+	 * its author included (`StreamDestRequest::generateStreamDirect()`), so
+	 * the thread is every direct post that has a row for both of them —
+	 * whichever of the two wrote it. Keyset-paged on `nid` like every other
+	 * timeline here.
+	 *
+	 * @return Stream[] newest first, or oldest first when paging forward with `minId`
+	 */
+	public function directBetween(Person $viewer, string $otherId, int $limit = 20, int $maxId = 0, int $minId = 0): array {
+		if ($otherId === '' || $limit < 1) {
+			return [];
+		}
+
+		$options = new ProbeOptions();
+		$options->setFormat(ACore::FORMAT_LOCAL)
+			->setLimit($limit);
+		if ($maxId > 0) {
+			$options->setMaxId($maxId);
+		}
+		if ($minId > 0) {
+			$options->setMinId($minId);
+		}
+
+		$this->setViewer($viewer);
+		$page = $this->getStreamNidsSelectSql(false);
+		$page->limitToStatusTypes();
+		$page->paginate($options);
+		$page->limitToDBField('visibility', Stream::TYPE_DIRECT, true, 's');
+
+		$page->selectDestFollowing('sd1', '');
+		$page->from(self::TABLE_STREAM_DEST, 'sd2');
+		$page->andWhere($page->exprLimitToDest($viewer->getId(), 'dm', '', 'sd1'));
+		$page->andWhere($page->exprLimitToDest($otherId, 'dm', '', 'sd2'));
+
+		$nids = $this->getNidsFromRequest($page);
+		if ($nids === []) {
+			return [];
+		}
+
+		return $this->streamsByNids($nids, $options);
+	}
+
+	/**
 	 * Who boosted each of these posts.
 	 *
 	 * One query for the whole set rather than one per post: the statistics

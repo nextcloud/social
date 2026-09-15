@@ -309,4 +309,14 @@ class PixelfedControllerTest extends TestCase {
 		$this->controller()->discoverNetworkTrending('yearly');
 		$this->assertSame('10d', $this->trendAsked['period']);
 	}
+	public function testTheThreadRoutesGoThroughTheService(): void {
+		$this->pixelfedService->expects($this->once())->method('thread')
+			->with($this->isInstanceOf(Person::class), '7', 0, 40)
+			->willReturn(['id' => '7', 'messages' => []]);
+		$this->pixelfedService->expects($this->once())->method('deleteMessage')
+			->with($this->isInstanceOf(Person::class), 12);
+
+		$this->assertSame('7', $this->controller()->directThread('7', 0, 40)->getData()['id']);
+		$this->assertSame([200], $this->controller()->directThreadDelete(12)->getData());
+	}
 }
