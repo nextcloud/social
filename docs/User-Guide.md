@@ -321,7 +321,8 @@ see. Once it is on, the address appears under the switch and anybody with it
 can read the page without signing in, which is the whole point. **Only your
 public photos are ever on it**, whatever the rest of the settings say: the page
 is built by asking for your posts as an anonymous reader, so a followers-only
-photograph cannot reach it.
+photograph cannot reach it. The draft shows you exactly what will be published,
+which is why a followers-only photo is missing from it too.
 
 ### Who is in the photo
 

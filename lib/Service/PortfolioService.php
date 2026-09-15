@@ -63,7 +63,12 @@ class PortfolioService {
 		}
 
 		$portfolio->setAuthor($this->authorOf($owner->getId()));
-		$portfolio->setPosts($this->postsFor($portfolio, $owner));
+		// as the internet will see it, not as its owner can. An owner
+		// previewing their own draft was shown their followers-only pictures
+		// among the rest, and none of those would have been on the published
+		// page — a preview that shows a photograph which will not appear is
+		// worse than no preview. Found on devel.
+		$portfolio->setPosts($this->postsFor($portfolio, null));
 
 		return $portfolio;
 	}
@@ -137,7 +142,7 @@ class PortfolioService {
 
 		$saved = $this->portfoliosRequest->save($portfolio);
 		$saved->setAuthor($this->authorOf($owner->getId()));
-		$saved->setPosts($this->postsFor($saved, $owner));
+		$saved->setPosts($this->postsFor($saved, null));
 
 		return $saved;
 	}
@@ -150,9 +155,13 @@ class PortfolioService {
 	/**
 	 * The pictures on the page.
 	 *
-	 * @param Person|null $viewer the owner when they are looking at their own
-	 *                            draft, and **null** for everybody else —
-	 *                            which is what makes the page public-only
+	 * Always **null** today, which is the point: every reader of this page,
+	 * its owner included, is shown what the internet is shown. The parameter
+	 * stays because the collection source needs a reader to decide whether a
+	 * followers-only collection is readable, and passing nobody there is how
+	 * it answers "no".
+	 *
+	 * @param Person|null $viewer who to read the posts as
 	 *
 	 * @return array
 	 */

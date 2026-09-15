@@ -121,13 +121,18 @@ class PortfolioServiceTest extends TestCase {
 	}
 
 	/**
-	 * The owner looking at their own draft is the one reader who is a viewer:
-	 * otherwise they could not see what they had written before publishing it.
+	 * The owner's preview is the page, not a version of it only they can see.
+	 *
+	 * Found on devel: previewing a draft showed the owner their own
+	 * followers-only pictures among the rest, and none of those would have
+	 * been on the published page. A preview that shows a photograph which will
+	 * not appear is worse than no preview.
 	 */
-	public function testTheOwnerSeesTheirOwnDraftAsThemselves(): void {
+	public function testTheOwnersPreviewIsWhatTheInternetWillGet(): void {
 		$this->portfoliosRequest->method('getByActor')->willReturn($this->portfolio(false));
 
-		$this->streamRequest->expects($this->once())->method('setViewer');
+		$this->streamRequest->expects($this->once())->method('resetViewer');
+		$this->streamRequest->expects($this->never())->method('setViewer');
 
 		$this->service->own($this->person(self::ALICE));
 	}
