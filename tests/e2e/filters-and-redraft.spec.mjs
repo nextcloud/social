@@ -7,9 +7,8 @@ import { expect, test } from '@playwright/test'
 import { login, openApp } from './helpers.mjs'
 
 /**
- * The two things a Mastodon user reaches for that this app's own client could
- * not do until 0.19.95: filtering a word, and correcting a post by deleting it
- * and writing it again.
+ * The two things a Mastodon user reaches for in Settings and in a post's menu:
+ * filtering a word, and correcting a post by deleting it and writing it again.
  *
  * Both are worth a browser test rather than a unit test because both are a
  * page talking to a route: the unit suite can prove the component asks, and
@@ -20,25 +19,30 @@ test.describe('filters, and writing a post again', () => {
 		await login(page)
 	})
 
-	test('Settings has a Filters section that can add and remove a filter', async ({ page }) => {
+	test('Settings can add and remove a filtered word', async ({ page }) => {
 		await openApp(page, '/settings')
 
 		const section = page.locator('#filters')
 		await expect(section).toBeVisible()
-		await expect(section.getByRole('heading', { name: 'Filters' })).toBeVisible()
+		await expect(section.getByRole('heading', { name: 'Filtered words' })).toBeVisible()
 
 		const word = `spoilers-${Date.now()}`
-		await section.locator('.filters-settings__create input').fill(word)
-		await section.getByRole('button', { name: 'Add filter' }).click()
+		await section.getByRole('button', { name: 'Add a filter' }).click()
+		await section.getByLabel('Name of the filter').fill(word)
+		await section.getByLabel('Word or phrase').first().fill(word)
+		// a new filter applies nowhere until somewhere is ticked, and the form
+		// says so rather than letting it be saved
+		await section.getByText('My Feed', { exact: true }).click()
+		await section.getByRole('button', { name: 'Create filter' }).click()
 
-		const row = section.locator('.filters-settings__item', { hasText: word })
+		const row = section.locator('.filters__item', { hasText: word })
 		await expect(row).toBeVisible()
-		await expect(row.locator('.filters-settings__keyword')).toContainText(word)
 
 		// and take it away again, so the box is left as it was found
-		await row.getByRole('button', { name: `Delete the filter ${word}` }).click()
+		await row.getByRole('button', { name: `More actions for ${word}` }).click()
+		await page.getByRole('menuitem', { name: 'Delete' }).click()
 		await page.getByRole('button', { name: 'Delete', exact: true }).last().click()
-		await expect(section.locator('.filters-settings__item', { hasText: word })).toHaveCount(0)
+		await expect(section.locator('.filters__item', { hasText: word })).toHaveCount(0)
 	})
 
 	test('a post of your own offers Delete & re-draft', async ({ page }) => {
