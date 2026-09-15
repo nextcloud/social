@@ -342,7 +342,10 @@ export default {
 		text-align: start;
 		vertical-align: top;
 		// every column holds something somebody else wrote; none of it may
-		// spill over the column beside it
+		// spill over the column beside it. `white-space` is stated because the
+		// settings page sets `nowrap` on table cells above this, and a cell
+		// that cannot wrap ignores the width the colgroup gives it
+		white-space: normal;
 		overflow-wrap: break-word;
 		border-block-end: 1px solid var(--color-border);
 	}
@@ -353,7 +356,7 @@ export default {
 }
 
 .review__col-text {
-	width: 34%;
+	width: 32%;
 }
 
 .review__col-reason {
@@ -361,11 +364,11 @@ export default {
 }
 
 .review__col-since {
-	width: 15%;
+	width: 14%;
 }
 
 .review__col-actions {
-	width: 16%;
+	width: 18%;
 }
 
 .review__account {
