@@ -631,17 +631,28 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * How many posts this account has published here, whoever they were for.
+	 * How many posts this account has published here to anybody but one person.
 	 *
 	 * The twin of `countNotesFromActorId()`, which counts only the public ones
 	 * because that is what a profile reports. This one is asked a different
-	 * question — has this account posted here before at all — and a first post
+	 * question — has this account posted here before at all — so a first post
 	 * that went to followers is still not a first post.
+	 *
+	 * Direct messages are left out, and that is the point rather than a
+	 * detail. `PostReviewService` never holds a direct message, so counting
+	 * them here would mean an account could send one message to itself and be
+	 * past first-post review a second later — the rule would hold nobody who
+	 * had read the rule.
 	 */
 	public function countPostsBy(string $actorId): int {
 		$qb = $this->countNotesSelectSql();
 		$qb->limitToAttributedTo($actorId, true);
 		$qb->limitToStatusTypes();
+		$qb->andWhere(
+			$qb->expr()->neq(
+				's.visibility', $qb->createNamedParameter(Stream::TYPE_DIRECT)
+			)
+		);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();

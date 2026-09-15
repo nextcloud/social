@@ -44,7 +44,10 @@ use Throwable;
  *  - A **direct message**. Holding one would put private correspondence in
  *    front of a moderator who was not addressed, for a machine's reason. A
  *    spammer sending DMs is dealt with by the people who receive them, through
- *    a report — by a person who was actually written to.
+ *    a report — by a person who was actually written to. A direct message does
+ *    not count as having posted here either (`StreamRequest::countPostsBy()`):
+ *    otherwise an account could send one message to itself and be past
+ *    first-post review a second later.
  *  - A post by an account with a **moderation decision** already against it.
  *    That account's posts are being dealt with by whatever the moderator
  *    decided; the queue is for accounts nobody has looked at yet.
