@@ -6,7 +6,7 @@ looking after the account. It describes the web client that comes with the
 app; where something is only reachable through the Mastodon-compatible API or
 a Mastodon client, it says so.
 
-**Verified against:** app version 0.19.49, `master`, 2026-09-14 — every claim
+**Verified against:** app version 0.19.95, `master`, 2026-09-15 — every claim
 below was checked against the code of that tree. Menu and button names are
 the English strings of the web client.
 
@@ -16,6 +16,7 @@ the English strings of the web client.
 - [Finding and following people](#finding-and-following-people)
 - [Writing a post](#writing-a-post)
 - [Reading](#reading)
+- [Filtering out words](#filtering-out-words)
 - [Managing your account](#managing-your-account)
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [What the web client does not do yet](#what-the-web-client-does-not-do-yet)
@@ -118,6 +119,11 @@ network hiccup.
 - **Emoji.** The smiley opens a Unicode emoji picker. A custom emoji this
   instance publishes is written by its shortcode, `:name:`, and renders here
   and on other servers.
+- **Send it later.** The clock button turns **Post** into **Schedule**: pick a
+  time at least five minutes from now and the post waits on the server until
+  then. What is waiting is listed under **Settings → Scheduled posts**, where
+  one can be cancelled; to move a post to another time, cancel it and write it
+  again.
 - **Replying and quoting.** **Reply** under a post opens the composer
   addressed to its author; **Quote** in a post's menu embeds it in yours. Only
   public and unlisted posts held by this server can be quoted, and the quoted
@@ -149,8 +155,9 @@ The sidebar is the map:
   composer already set to direct.
 - **Lists** — each list you have is a timeline of its own. Every Nextcloud
   group you belong to (up to 500 members) is a list automatically, kept in
-  step with the group. Other lists are made through the API or a Mastodon
-  client; the sidebar shows them all.
+  step with the group. Your own lists are made in **Settings → Lists**, which is
+  also where one is renamed, deleted, or has somebody added to or taken out of
+  it; the sidebar shows them all.
 - **Liked posts** and **Bookmarks** — what you favourited, and what you saved
   with **Bookmark** in a post's menu. Bookmarks are private and never leave
   this server.
@@ -169,13 +176,114 @@ A post that links somewhere gets a preview card, read by this server rather
 than by your browser. With the `notify_push` app installed, new posts arrive
 live; without it the page checks every 30 seconds.
 
+### Announcements from your administrators
+
+When the administrators of this Nextcloud post a notice — a maintenance
+window, a move, a new rule — it appears at the top of the timeline, above the
+composer, on every page except a single post's own. It is there because you
+have not read it yet.
+
+**Got it** marks it read. It does not disappear under you: it stays where it
+was, greyed, with a **Read** mark, so you can finish the sentence you were on.
+It is gone the next time you open the app, and gone on your phone too — being
+read is remembered by the server for your account, not by this browser.
+
+Announcements you have already read are not shown. While the card is up —
+that is, while something in it is still unread — a line at its foot, **Show 2
+announcements you have read**, brings them back; once everything is read the
+card is gone entirely and so are they. An announcement with an end says when
+it runs out ("Until 21 September"), and one that has not started yet, or has
+run out, is never shown at all.
+
+The emoji buttons under an announcement are the one thing you can say back to
+one. Press one to add yours or to take it back, or press the smiley with a
+plus on it to choose another; you may put up to eight different emoji on the
+same announcement.
+
+Administrators post and remove announcements in **Administration → Social**.
+
+## Filtering out words
+
+Some words are not worth reading. **Settings → Filtered words** is where you say
+so, and it is the same list a Mastodon app on your phone writes to — a filter you
+made there has been applying here all along, and this is the first page that shows
+it.
+
+A filter is four things:
+
+- **A name.** Whatever reminds you later what it was for.
+- **The words.** One or more; a post matches if *any* of them appears in its text,
+  its content warning, the description of one of its pictures, or an option of a
+  poll. Upper and lower case never matter, and a boost is read as the post it
+  boosts, so nothing escapes a filter by being boosted. Each word can be marked
+  **whole word only**, which is the difference between filtering "cat" and also
+  filtering every "catalogue".
+- **Where it applies.** **My Feed**, **Activities** (your notifications), the
+  **Local, Global and hashtag** timelines, **Conversations** (the replies above and
+  below an opened post), and **Profiles**. Somewhere you did not tick, a matching
+  post arrives as usual. Ticking nothing is refused: a filter with no place applies
+  nowhere. Two exceptions worth knowing: **list timelines are never filtered**, even
+  with My Feed ticked, and in **Activities** only taking a post out has an effect —
+  a notification is never folded.
+- **What happens to a matching post.** Either it is **folded away** — the post keeps
+  its place in the timeline, with the name of the filter where its text would be and
+  a **Show anyway** button; nothing of the post is on the page until you press it, so
+  the words you filtered cannot be read on the way past. In the Photos and Videos
+  grids the same post shows a covered tile with no picture. Or it is **taken out of
+  the timeline**, and never reaches this app at all. Either way nothing is deleted
+  and nobody is told; lift the filter and the post is back as it was.
+
+  A post that carries a content warning of its own is still warned about after you
+  press Show anyway: the author's cover is not yours to lift.
+
+A filter can also be given an expiry — thirty minutes up to a week — after which it
+simply stops applying. It stays in the list, marked **Expired**, and saving it again
+starts it over. Editing a filter that is still counting down leaves its expiry alone
+unless you change it.
+
+Because a filter that removes posts is easy to forget and looks exactly like a
+conversation with a hole in it, the page says at the top which of your filters are
+taking posts away right now, and where.
+
+Filters are private: they are never sent to another server, and they change nothing
+for anybody else reading the same post.
+
 ## Managing your account
 
 - **Profile.** **My profile** (behind your portrait at the bottom of the
   sidebar) → **Edit profile**: a banner (upload one or give the address of
-  one), a bio, and up to four name/value fields shown under it. A field whose
-  value is a web page gets a verified tick once that page links back to your
-  profile with `rel="me"`. All of it is shared with other servers.
+  one), a bio, and up to four name/value fields shown under it — your website,
+  your pronouns, where you work. All of it is shared with other servers. A
+  fifth field is dropped by the server without saying so, so the editor stops
+  at four, and a row with only one half filled in is dropped the same way;
+  emptying the table and saving removes it from your profile everywhere.
+- **Verified links.** A field whose value is a full web address — written out,
+  starting with `http://` or `https://` — can carry a **verified tick**, and
+  the editor shows where each of yours stands: verified and when it was
+  proved, not verified yet, or, for a bare `example.org`, that nothing written
+  that way can be verified at all.
+
+  To earn one, put a link back to your profile on that page:
+  `<a rel="me" href="https://your-server/@you">…</a>` anywhere in its HTML, or
+  `<link rel="me" href="…">` in its `<head>`. `me` only has to be one of the
+  `rel` words, and a trailing slash or a `#fragment` on the address makes no
+  difference. The editor shows the exact line to paste, with a copy button, as
+  soon as a value looks like an address.
+
+  This server fetches the page itself, in the background, at most once a day
+  per account and only over http or https, and marks the field when it finds
+  the link back. A page it cannot reach is left unverified and asked again
+  later; a page that stops linking back loses the tick. Editing a field's value
+  drops that field's tick straight away — the tick belongs to the address, not
+  to the row — and it returns once the page at the new address has been
+  checked. Your other fields keep theirs.
+- **Featured hashtags.** **Settings → Featured hashtags** decides which tags sit under
+  your bio — up to ten, and anybody reading your profile can click one to see what you
+  posted under it. It opens with the hashtags you post with most and have not featured
+  yet, so you pick from your own writing rather than guessing; anything else goes in
+  the box beside them, with or without the `#`. The **×** on a row stops featuring that
+  tag and does nothing else — your posts keep their hashtags. Your own profile links
+  here from where the tags are shown, whether you feature any or not.
 - **Blocking and muting.** Both are in the menu on an account's profile.
   **Block** severs the relationship in both directions, hides the account
   everywhere, and tells the other server (unless the administrator turned
@@ -184,9 +292,9 @@ live; without it the page checks every 30 seconds.
   in the sidebar, lists both with unblock and unmute inline.
 - **Follow requests.** When your account is locked, people asking to follow
   you appear under **Follow requests** in the sidebar — **Accept** or
-  **Reject** — and on the Nextcloud bell. Locking the account itself is done
-  through the API (`locked` on `PATCH /api/v1/accounts/update_credentials`)
-  or a Mastodon client; the web client has no switch for it yet.
+  **Reject** — and on the Nextcloud bell. Locking the account itself is the
+  **Approve who follows you** switch under **Settings → Your account**, which
+  is `locked` on `PATCH /api/v1/accounts/update_credentials` underneath.
 - **Reporting.** **Report** in a post's menu sends the post, with an optional
   note, to the moderators of this instance. From the web client it is never
   sent to the reported account or their server.
@@ -227,10 +335,13 @@ applies where nothing else claims the key.
 ## What the web client does not do yet
 
 These exist in the server and are reachable through the Mastodon-compatible
-API, but the web client has no page for them: creating and editing **lists**,
-**locking** your account, **scheduled posts**, **collections**, **stories** and
-**places**. Third-party Mastodon clients cannot connect to this server yet,
-because the API is served under the app's own path rather than at the domain
-root (see [Mastodon-Compatibility.md](Mastodon-Compatibility.md)); until that
-changes, the web client is the client. There is no post translation and no
-streaming API.
+API, but the web client has no page for them: **collections**, **stories** and
+**places** — each has a controller in `lib/Controller/` and nothing in the
+sidebar, the router or Settings. Third-party Mastodon clients cannot connect to
+this server yet, because the API is served under the app's own path rather than
+at the domain root (see
+[Mastodon-Compatibility.md](Mastodon-Compatibility.md)); until that changes, the
+web client is the client. There is no post translation — `ActionService`'s
+`translate` hands the post back unchanged — and no streaming API, so the page
+polls.
+

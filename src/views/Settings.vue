@@ -26,6 +26,16 @@
 			<AccountSettings />
 		</section>
 
+		<section id="featured-tags" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Featured hashtags') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'The hashtags you want your profile to be known for. They sit under your bio, and anybody can click one to read what you posted with it.') }}
+			</p>
+			<FeaturedTagsSettings />
+		</section>
+
 		<section id="lists" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Lists') }}
@@ -34,6 +44,16 @@
 				{{ t('social', 'A list is a few of the people you follow, read as a timeline of its own. Your lists are in the sidebar.') }}
 			</p>
 			<ListsSettings />
+		</section>
+
+		<section id="filters" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Filtered words') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'Words you would rather not read. A post carrying one is folded away behind the name of the filter, or taken out of your timelines altogether. Filters are yours alone, nobody is told about them, and a filter set in a phone app has been applying here all along — this is where to see it.') }}
+			</p>
+			<FiltersSettings />
 		</section>
 
 		<section id="shortcuts" class="settings__section">
@@ -93,6 +113,9 @@ const AccountSettings = defineAsyncComponent(() => import(/* webpackChunkName: "
 // of its own with it
 const RecapSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/RecapSettings.vue'))
 const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/ListsSettings.vue'))
+// same chunk again: forms and text fields nobody sees until they open this page
+const FeaturedTagsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/FeaturedTagsSettings.vue'))
+const FiltersSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/FiltersSettings.vue'))
 
 /**
  * Settings: what this app holds about how the reader uses it.
@@ -109,6 +132,8 @@ export default {
 
 	components: {
 		AccountSettings,
+		FeaturedTagsSettings,
+		FiltersSettings,
 		ListsSettings,
 		MigrationSettings,
 		RecapSettings,

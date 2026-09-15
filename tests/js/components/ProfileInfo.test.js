@@ -598,6 +598,114 @@ describe('ProfileInfo', () => {
 			expect(wrapper.find('.modal-stub').exists()).toBe(true)
 			expect(buttonByText(wrapper.find('.modal-stub'), 'Save').attributes('disabled')).toBeUndefined()
 		})
+
+		/**
+		 * The verdicts are the reason the fields are worth filling in, and the
+		 * editor is where somebody is standing when they wonder why their
+		 * website has no tick.
+		 */
+		describe('verified links', () => {
+			const statuses = (modal) => modal.findAll('.user-profile__fields-status').map((row) => row.text())
+
+			/** `source.fields` is the editable copy; `fields` carries the verdicts. */
+			const withFields = (fields) => {
+				credentials = {
+					source: { note: '', fields: fields.map(({ name, value }) => ({ name, value })) },
+					fields,
+				}
+			}
+
+			it('says when each verified row was proved', async () => {
+				withFields([
+					{ name: 'Website', value: 'https://alice.example', verified_at: '2026-09-01T10:00:00+00:00' },
+					{ name: 'Blog', value: 'https://blog.alice.example', verified_at: null },
+				])
+				const wrapper = mountProfile('alice')
+
+				const modal = await openProfileEditor(wrapper)
+				expect(modal.findAllComponents({ name: 'VerifiedCheck' })).toHaveLength(1)
+				expect(statuses(modal)[0]).toContain('Verified on')
+				expect(statuses(modal)[1]).toContain('Not verified')
+			})
+
+			/**
+			 * A verdict belongs to the value it was made about — that is how the
+			 * server keys it — so the tick has to go the moment the value does,
+			 * rather than sitting under a page nobody has checked.
+			 */
+			it('drops the claim as soon as the verified value is edited', async () => {
+				withFields([
+					{ name: 'Website', value: 'https://alice.example', verified_at: '2026-09-01T10:00:00+00:00' },
+				])
+				const wrapper = mountProfile('alice')
+
+				const modal = await openProfileEditor(wrapper)
+				await modal.findAll('.user-profile__fields-row input')[1].setValue('https://elsewhere.example')
+
+				expect(modal.findComponent({ name: 'VerifiedCheck' }).exists()).toBe(false)
+				expect(statuses(modal)[0]).toContain('Not verified')
+			})
+
+			it('says nothing about a row that names no page', async () => {
+				withFields([{ name: 'Pronouns', value: 'they/them', verified_at: null }])
+				const wrapper = mountProfile('alice')
+
+				const modal = await openProfileEditor(wrapper)
+				expect(statuses(modal)).toEqual([''])
+				expect(modal.find('.user-profile__fields-verify').exists()).toBe(false)
+			})
+
+			/** The usual way to end up with a row that can never be verified. */
+			it('tells a bare domain that it cannot be verified', async () => {
+				withFields([{ name: 'Website', value: 'alice.example', verified_at: null }])
+				const wrapper = mountProfile('alice')
+
+				const modal = await openProfileEditor(wrapper)
+				expect(statuses(modal)[0]).toContain('starting with http')
+				expect(modal.find('.user-profile__fields-verify').exists()).toBe(false)
+			})
+
+			it('shows the line to paste, and what the server does with it, once a row is an address', async () => {
+				withFields([{ name: 'Website', value: 'https://alice.example', verified_at: null }])
+				const wrapper = mountProfile('alice')
+
+				const modal = await openProfileEditor(wrapper)
+				const card = modal.find('.user-profile__fields-verify')
+				expect(card.exists()).toBe(true)
+				expect(card.find('code').text())
+					.toBe('<a rel="me" href="https://cloud.example.org/users/alice">Alice</a>')
+				expect(card.text()).toContain('rel words')
+				expect(card.text()).toContain('once a day per account')
+			})
+
+			it('copies the line to paste', async () => {
+				const writeText = vi.fn().mockResolvedValue(undefined)
+				Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+				withFields([{ name: 'Website', value: 'https://alice.example', verified_at: null }])
+				const wrapper = mountProfile('alice')
+
+				const modal = await openProfileEditor(wrapper)
+				await modal.find('.user-profile__fields-snippet button').trigger('click')
+				await flushPromises()
+
+				expect(writeText).toHaveBeenCalledWith('<a rel="me" href="https://cloud.example.org/users/alice">Alice</a>')
+			})
+
+			/** The same fallback the rows themselves have when `source` is unreadable. */
+			it('falls back to the verdicts on the page’s own account', async () => {
+				accountStore.addAccount({
+					actorId: alice.url,
+					data: {
+						fields: [{ name: 'Website', value: 'https://alice.example', verified_at: '2026-09-01T10:00:00+00:00' }],
+					},
+				})
+				vi.spyOn(axios, 'get').mockRejectedValue(new Error('500'))
+				const wrapper = mountProfile('alice')
+
+				const modal = await openProfileEditor(wrapper)
+				expect(modal.findComponent({ name: 'VerifiedCheck' }).exists()).toBe(true)
+			})
+		})
 	})
 
 	describe('bio', () => {

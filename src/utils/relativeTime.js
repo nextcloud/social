@@ -81,3 +81,23 @@ export function fullDateTime(date) {
 		timeStyle: 'short',
 	}).format(value)
 }
+
+/**
+ * The date alone, without a time of day.
+ *
+ * For a bound that is a whole day rather than a moment: an announcement whose
+ * window was given as whole days ends at midnight, and writing that out as
+ * "22 September 2026 at 00:00" tells a reader about an implementation detail
+ * of the window rather than about the day it runs to.
+ *
+ * @param {string|number|Date} date the date to write out
+ * @return {string} a localised date, or '' for a date that cannot be read
+ */
+export function fullDate(date) {
+	const value = new Date(date)
+	if (Number.isNaN(value.getTime())) {
+		return ''
+	}
+
+	return new Intl.DateTimeFormat(locale(), { dateStyle: 'long' }).format(value)
+}

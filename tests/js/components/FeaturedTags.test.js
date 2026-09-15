@@ -19,13 +19,14 @@ const tags = [
 
 /**
  * @param {Array} answered what the server sends
+ * @param {boolean} editable whether this is the reader's own profile
  * @return {Promise<object>} the mounted component, once its request has settled
  */
-async function mountTags(answered = tags) {
+async function mountTags(answered = tags, editable = false) {
 	axios.get.mockResolvedValue({ data: answered })
 
 	const wrapper = mount(FeaturedTags, {
-		props: { accountId: '42' },
+		props: { accountId: '42', editable },
 		global: { stubs: { RouterLink: RouterLinkStub } },
 	})
 	await flushPromises()
@@ -111,6 +112,28 @@ describe('FeaturedTags', () => {
 		await flushPromises()
 
 		expect(axios.get).not.toHaveBeenCalled()
+	})
+
+	it('offers nobody else a way to change them', async () => {
+		const wrapper = await mountTags()
+
+		expect(wrapper.find('.featured-tags__edit').exists()).toBe(false)
+	})
+
+	it('sends the reader to the editor from their own profile', async () => {
+		const wrapper = await mountTags(tags, true)
+		const edit = wrapper.find('.featured-tags__edit')
+
+		expect(edit.exists()).toBe(true)
+		expect(wrapper.findAllComponents(RouterLinkStub).at(-1).props('to'))
+			.toEqual({ name: 'settings', hash: '#featured-tags' })
+	})
+
+	// featuring none is exactly when somebody needs telling that they could
+	it('still offers the way in when the reader features nothing', async () => {
+		const wrapper = await mountTags([], true)
+
+		expect(wrapper.find('.featured-tags__edit').text()).toBe('Feature a hashtag')
 	})
 
 	it('asks again when the profile changes', async () => {

@@ -44,9 +44,13 @@ use Throwable;
  * what a filter *does* is `FilterService`'s, and is applied wherever statuses
  * are handed to a client.
  *
- * The v1 routes (`/api/v1/filters`) are deprecated in Mastodon and are not
- * served: a v1 client cannot express `hide`, an expiry it did not set, or a
- * keyword id, so answering it would mean answering it wrongly.
+ * The v1 routes (`/api/v1/filters`) are deprecated in Mastodon but are served
+ * here, over the same filters: a v1 filter is a v2 *keyword*, carrying its
+ * parent's contexts, expiry and action. This docblock said they were not
+ * served long after `indexV1()` and the rest below were written. The web
+ * client (`src/components/FiltersSettings.vue`) uses v2 only — a filter of
+ * three words is three ids in v1 and one in v2, and an editor that mixed the
+ * two would delete the wrong row.
  *
  * `#[PublicPage]` with `#[NoCSRFRequired]`, like `ApiController` and
  * `TagController`, and for the same reason: a Mastodon client authenticates

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { profileFields } from '../../../src/utils/profileFields.js'
+import { fieldLink, profileFields } from '../../../src/utils/profileFields.js'
 
 describe('profileFields', () => {
 	it('marks a row the server proved', () => {
@@ -58,5 +58,26 @@ describe('profileFields', () => {
 
 		expect(row.verified).toBe(false)
 		expect(row.verifiedAt).toBe('')
+	})
+})
+
+describe('fieldLink', () => {
+	it('finds the address a value names', () => {
+		expect(fieldLink('https://example.org/about')).toBe('https://example.org/about')
+		expect(fieldLink('my page: http://example.org')).toBe('http://example.org')
+	})
+
+	// the same reading ProfileLinkVerifier::linkOf() makes: without a scheme
+	// there is nothing the server would fetch, so there is no tick to offer
+	it('finds none in a bare domain, an empty value or another scheme', () => {
+		expect(fieldLink('example.org')).toBe('')
+		expect(fieldLink('')).toBe('')
+		expect(fieldLink('she/her')).toBe('')
+		expect(fieldLink('javascript:alert(1)')).toBe('')
+		expect(fieldLink('ftp://example.org')).toBe('')
+	})
+
+	it('stops the address at whitespace, as the server does', () => {
+		expect(fieldLink('https://example.org and more')).toBe('https://example.org')
 	})
 })

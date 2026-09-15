@@ -81,6 +81,56 @@ class ActorServiceTest extends TestCase {
 		$this->assertSame('alice', $source['preferredUsername']);
 	}
 
+	/**
+	 * The ticks on a profile survive a write to that profile.
+	 *
+	 * A local actor is rebuilt from the `actors` row, which carries no details,
+	 * and `update()` writes the details column whole — so saving a bio, a flag
+	 * or one field used to erase every verdict `ProfileLinkVerifier` had
+	 * reached, and the profile said nobody had proved anything until the next
+	 * cron pass fetched all those pages again.
+	 */
+	public function testCacheLocalActorKeepsTheVerdictOnAFieldThatIsStillThere(): void {
+		$alice = $this->alice();
+		$alice->setFields([
+			['name' => 'Website', 'value' => 'https://alice.example'],
+			['name' => 'Pronouns', 'value' => 'she/her'],
+		]);
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->cachedAlice([
+			'https://alice.example' => '2026-09-01T10:00:00+00:00',
+		]));
+		$this->cacheActorsRequest->method('update')->willReturn(1);
+
+		$this->service->cacheLocalActor($alice);
+
+		$details = $alice->getDetailsAll();
+		$this->assertSame(
+			['https://alice.example' => '2026-09-01T10:00:00+00:00'],
+			$details['fields_verified']
+		);
+	}
+
+	/**
+	 * The verdict is about a value, not about a row, so a value that has been
+	 * edited away takes its tick with it — and the moment it was last looked at
+	 * goes too, so the next pass checks the new address at once rather than in
+	 * a day's time.
+	 */
+	public function testCacheLocalActorDropsTheVerdictOfAnEditedValue(): void {
+		$alice = $this->alice();
+		$alice->setFields([['name' => 'Website', 'value' => 'https://elsewhere.example']]);
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->cachedAlice([
+			'https://alice.example' => '2026-09-01T10:00:00+00:00',
+		]));
+		$this->cacheActorsRequest->method('update')->willReturn(1);
+
+		$this->service->cacheLocalActor($alice);
+
+		$details = $alice->getDetailsAll();
+		$this->assertArrayNotHasKey('fields_verified', $details);
+		$this->assertArrayNotHasKey('fields_checked', $details);
+	}
+
 	public function testCacheLocalActorSavesANewActor(): void {
 		$alice = $this->alice();
 		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
@@ -88,6 +138,21 @@ class ActorServiceTest extends TestCase {
 		$this->cacheActorsRequest->expects($this->never())->method('update');
 
 		$this->service->cacheLocalActor($alice);
+	}
+
+	/**
+	 * The cached copy as the verifier leaves it: the verdicts, and when the
+	 * fields were last looked at.
+	 *
+	 * @param array<string, string> $verified
+	 */
+	private function cachedAlice(array $verified): Person {
+		$cached = new Person();
+		$cached->setId(self::ALICE);
+		$cached->setDetailArray('fields_verified', $verified);
+		$cached->setDetailInt('fields_checked', 1789000000);
+
+		return $cached;
 	}
 
 	public function testCacheLocalActorDetailsDelegates(): void {

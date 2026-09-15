@@ -10,8 +10,15 @@
 					class="media-grid__link"
 					:to="tile.route"
 					:aria-label="tile.label">
+					<!-- A tile the reader's own keyword filters matched carries
+					     no picture at all: the grid is the other way this app
+					     draws a timeline, and a filter that covers a post in the
+					     list has to cover it here too. Not merely veiled, as a
+					     sensitive picture is — the file is never fetched, and
+					     the alt text, which a filter matches on as well, is not
+					     in the page either. -->
 					<img
-						v-if="tile.preview"
+						v-if="tile.preview && !tile.filtered"
 						class="media-grid__image"
 						:src="tile.preview"
 						:alt="tile.alt"
@@ -19,7 +26,7 @@
 						loading="lazy"
 						decoding="async"
 						@error="onImageError(tile.key)">
-					<span v-else class="media-grid__missing" aria-hidden="true">
+					<span v-else-if="!tile.filtered" class="media-grid__missing" aria-hidden="true">
 						<ImageOffOutline :size="24" />
 					</span>
 
@@ -30,7 +37,7 @@
 					<span v-else-if="tile.isVideo" class="media-grid__badge" aria-hidden="true">
 						<PlayCircleOutline :size="16" />
 					</span>
-					<span v-if="tile.sensitive" class="media-grid__veil" aria-hidden="true">
+					<span v-if="tile.filtered || tile.sensitive" class="media-grid__veil" aria-hidden="true">
 						<EyeOffOutline :size="20" />
 					</span>
 				</router-link>
@@ -49,6 +56,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import { t } from '@nextcloud/l10n'
 import { positionOfFocus } from '../utils/focalPoint.js'
+import { filterCoverLabel, matchedFilters } from '../utils/filters.js'
 
 /**
  * A profile as a grid of squares, which is what a profile looks like on
@@ -130,6 +138,7 @@ export default {
 				count: post.media_attachments.length,
 				isVideo: first.type === 'video' || first.type === 'gifv',
 				sensitive: Boolean(post.sensitive),
+				filtered: matchedFilters(post).length > 0,
 				preview: broken ? null : (first.preview_url || first.url || null),
 				alt: first.description || '',
 				label: this.labelFor(post, first),
@@ -162,6 +171,12 @@ export default {
 		 * @return {string} what a screen reader announces for the tile
 		 */
 		labelFor(post, attachment) {
+			// the name of the filter rather than anything of the post: the alt
+			// text is matched by a filter as surely as the words of the post are
+			if (matchedFilters(post).length > 0) {
+				return filterCoverLabel(post)
+			}
+
 			if (attachment.description) {
 				return attachment.description
 			}

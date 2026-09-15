@@ -45,10 +45,45 @@ class ActorService {
 		$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
 
 		try {
-			$this->cacheActorsRequest->getFromId($actor->getId());
+			$cached = $this->cacheActorsRequest->getFromId($actor->getId());
+			$this->carryVerifiedFields($actor, $cached);
 			$this->update($actor);
 		} catch (CacheActorDoesNotExistException $e) {
 			$this->save($actor);
+		}
+	}
+
+	/**
+	 * Keeps the verified-link verdicts the cached copy already holds.
+	 *
+	 * `update()` writes `details` whole, and a local actor is rebuilt from the
+	 * `actors` row, which has no details column: everything
+	 * `AccountService::cacheLocalActorByUsername()` puts back is the two counts
+	 * it has just recomputed. So every write to a profile — a new bio, one
+	 * flag, one edited field — erased `fields_verified` along with it, and the
+	 * ticks left the profile until the next `Cron\Cache` pass re-fetched every
+	 * linked page. For those minutes the profile told each visitor that an
+	 * account had never proved a link it had proved.
+	 *
+	 * `fields_checked` is deliberately not carried: dropping it is what makes
+	 * the next pass look again at once instead of waiting out
+	 * `ProfileLinkVerifier::RECHECK_SECONDS`, which is what a value that has
+	 * just been edited needs. A verdict whose value is no longer among the
+	 * fields is dropped here rather than lying in wait for the day somebody
+	 * types that value again.
+	 */
+	private function carryVerifiedFields(Person $actor, Person $cached): void {
+		$verified = $cached->getDetailsAll()[ProfileLinkVerifier::DETAIL_VERIFIED] ?? [];
+		if (!is_array($verified) || $verified === []) {
+			return;
+		}
+
+		$kept = array_intersect_key(
+			$verified,
+			array_flip(array_column($actor->getFields(), 'value'))
+		);
+		if ($kept !== []) {
+			$actor->setDetailArray(ProfileLinkVerifier::DETAIL_VERIFIED, $kept);
 		}
 	}
 

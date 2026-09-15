@@ -122,6 +122,34 @@ describe('ProfileMediaGrid', () => {
 			expect(grid().toTile(post([{ type: 'image' }])).route.params.account).toBe('alice')
 		})
 
+		/**
+		 * The grid is the other way this app draws a timeline, and a filter
+		 * that covers a post in the list has to cover it here. Not veiled like
+		 * a sensitive picture: `preview` is dropped, so the file is never
+		 * fetched at all.
+		 */
+		it('draws no picture for a post the reader\'s own filters matched', () => {
+			const tile = grid().toTile(post([{ preview_url: 'a.jpg', type: 'image' }], {
+				filtered: [{ filter: { id: '1', title: 'Politics' }, keyword_matches: ['election'], status_matches: [] }],
+			}))
+
+			expect(tile.filtered).toBe(true)
+			expect(tile.label).toBe('Filtered: Politics')
+		})
+
+		it('leaves a tile nothing matched alone', () => {
+			expect(grid().toTile(post([{ type: 'image' }], { filtered: [] })).filtered).toBe(false)
+		})
+
+		/** The alt text is matched by a filter as surely as the words are. */
+		it('does not put the alt text of a filtered picture in the label', () => {
+			const tile = grid().toTile(post([{ description: 'a rally in the square' }], {
+				filtered: [{ filter: { id: '1', title: 'Politics' }, keyword_matches: [], status_matches: [] }],
+			}))
+
+			expect(tile.label).not.toContain('rally')
+		})
+
 		it('prefers the alt text as the label', () => {
 			expect(grid().toTile(post([{ description: 'a cat asleep' }])).label).toBe('a cat asleep')
 		})

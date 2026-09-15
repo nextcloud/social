@@ -49,3 +49,35 @@ export function profileFields(fields, limit = Infinity) {
 			}
 		})
 }
+
+/**
+ * The web address a field value names, or '' when it names none.
+ *
+ * The same reading the server makes before it tries to verify a field:
+ * `ProfileLinkVerifier::linkOf()` takes the first `http(s)://…` run out of the
+ * value and keeps it only if it parses as a URL. A bare `example.org` is
+ * therefore text, not a link, and is never fetched — which is why the editor
+ * says so rather than offering a tick that can never come.
+ *
+ * Only the plain-text half of `linkOf()` is reproduced here: the `href="…"`
+ * branch is for the HTML a remote instance sends, and nothing typed into the
+ * editor is HTML.
+ *
+ * @param {string} value a field value as it is typed
+ * @return {string} the address, or ''
+ */
+export function fieldLink(value) {
+	const match = /https?:\/\/[^\s<>"']+/i.exec(value ?? '')
+	if (match === null) {
+		return ''
+	}
+
+	try {
+		// the parse is the check, as FILTER_VALIDATE_URL is on the server
+		new URL(match[0])
+	} catch {
+		return ''
+	}
+
+	return match[0]
+}

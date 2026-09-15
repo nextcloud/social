@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<nav v-if="tags.length" class="featured-tags" :aria-label="t('social', 'Hashtags this account features')">
+	<nav v-if="tags.length || editable" class="featured-tags" :aria-label="t('social', 'Hashtags this account features')">
 		<ul class="featured-tags__list">
 			<li v-for="tag in tags" :key="tag.name">
 				<router-link
@@ -12,6 +12,17 @@
 					:to="{ name: 'tags', params: { tag: tag.name } }">
 					<span class="featured-tags__name">#{{ tag.name }}</span>
 					<span v-if="tag.statuses_count > 0" class="featured-tags__count">{{ tag.statuses_count }}</span>
+				</router-link>
+			</li>
+			<!-- Only on the reader's own profile, and the only thing anywhere
+			     in the app that says these can be changed at all: the editor
+			     is a section of Settings, which nobody reaches by looking at
+			     the chips it produces. -->
+			<li v-if="editable">
+				<router-link
+					class="featured-tags__edit"
+					:to="{ name: 'settings', hash: '#featured-tags' }">
+					{{ tags.length ? t('social', 'Edit featured hashtags') : t('social', 'Feature a hashtag') }}
 				</router-link>
 			</li>
 		</ul>
@@ -40,6 +51,11 @@ import { tagStyle } from '../utils/tagColour.js'
  * Each tag wears the colour it wears everywhere else (utils/tagColour.js), so
  * `#design` on a profile is recognisably the `#design` on the tag page it
  * leads to.
+ *
+ * On the reader's own profile it also carries the way in to the editor, which
+ * is a section of Settings — including when there is nothing to draw, because
+ * "you feature none" is exactly when somebody needs to be told they could.
+ * Nothing about anybody else's profile changes.
  */
 export default {
 	name: 'FeaturedTags',
@@ -49,6 +65,12 @@ export default {
 		accountId: {
 			type: String,
 			default: '',
+		},
+
+		/** whether this is the reader's own profile, and so theirs to change */
+		editable: {
+			type: Boolean,
+			default: false,
 		},
 	},
 
@@ -115,6 +137,21 @@ export default {
 	&:hover,
 	&:focus-visible {
 		background: var(--color-background-hover);
+	}
+}
+
+/* deliberately not a chip: it is not one of the tags, and reading as one would
+   make the reader's own profile look like it features something it does not */
+.featured-tags__edit {
+	display: inline-flex;
+	align-items: center;
+	padding: 1px 4px;
+	color: var(--color-text-maxcontrast);
+	font-size: 13px;
+
+	&:hover,
+	&:focus-visible {
+		color: var(--color-main-text);
 	}
 }
 

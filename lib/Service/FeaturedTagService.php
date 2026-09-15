@@ -26,9 +26,10 @@ use OCP\IURLGenerator;
  *
  * The instance advertises a ceiling as `configuration.accounts
  * .max_featured_tags`, and this is where it is enforced. The advertisement
- * lives in `InstanceService` and currently says `0`, which is how a client is
- * told the feature does not exist: until that number changes, every Mastodon
- * client hides the UI regardless of what these routes answer.
+ * lives in `InstanceService`, which reports `MAX_FEATURED_TAGS` below — a `0`
+ * there is how a client is told the feature does not exist, and every
+ * Mastodon client would hide its editor regardless of what these routes
+ * answer.
  */
 class FeaturedTagService {
 	/**
