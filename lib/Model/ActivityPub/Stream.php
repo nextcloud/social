@@ -169,6 +169,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const SUBTYPE_WARNING = 'ModerationWarning';
 	public const SUBTYPE_SEVERED = 'SeveredRelationships';
 
+	/**
+	 * Somebody answered one of your stories. Pixelfed's own two names, because
+	 * these arrive from Pixelfed and a client that knows them already draws
+	 * them the way their sender meant.
+	 */
+	public const SUBTYPE_STORY_REACT = 'StoryReaction';
+	public const SUBTYPE_STORY_REPLY = 'StoryReply';
+
+	/** Somebody named you in a photograph. */
+	public const SUBTYPE_PHOTO_TAG = 'PhotoTag';
+
 	private const NOTIFICATION_TYPES = [
 		Like::TYPE => 'favourite',
 		Announce::TYPE => 'reblog',
@@ -180,6 +191,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		self::SUBTYPE_STATUS => 'status',
 		self::SUBTYPE_WARNING => 'moderation_warning',
 		self::SUBTYPE_SEVERED => 'severed_relationships',
+		self::SUBTYPE_STORY_REACT => 'story:react',
+		self::SUBTYPE_STORY_REPLY => 'story:comment',
+		self::SUBTYPE_PHOTO_TAG => 'tagged',
 	];
 
 	private string $activityId = '';
@@ -199,6 +213,38 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private array $mentions = [];
 	private array $emojis = [];
 	private bool $sensitive = false;
+
+	/**
+	 * How many accounts have opened this post's own page.
+	 *
+	 * Not stored on the row and not federated: it is counted from
+	 * `social_stream_view` and put here for the author alone — see
+	 * `ViewCountService`. `null` on everybody else's copy, which is how the
+	 * client entity tells "nobody has read it" from "this is not yours to
+	 * know".
+	 */
+	private ?int $viewCount = null;
+
+	/**
+	 * The people named in this post's pictures.
+	 *
+	 * Filled in by `MediaTagService` where a post is read for a client, and
+	 * empty otherwise — a post read for the wire carries its names as
+	 * `Mention` tags, which is where a peer looks for them.
+	 *
+	 * @var Person[]
+	 */
+	private array $taggedPeople = [];
+
+	/**
+	 * Whether the author has put this post away.
+	 *
+	 * Local and never federated: an archived post is still on every server
+	 * that received it, because taking it back from them is what `Delete` is
+	 * for and is a different decision. What archiving says is "not on my
+	 * profile here any more".
+	 */
+	private bool $archived = false;
 
 	/**
 	 * Where the post was taken, when its author said so. Zero is "nowhere",
@@ -655,10 +701,43 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * @param bool $sensitive
+	 * How many people opened this post's own page.
 	 *
-	 * @return Stream
+	 * `null` on everybody else's copy: how many people read a post is the
+	 * author's business.
 	 */
+	public function getViewCount(): ?int {
+		return $this->viewCount;
+	}
+
+	/** @return Person[] */
+	public function getTaggedPeople(): array {
+		return $this->taggedPeople;
+	}
+
+	/** @param Person[] $taggedPeople */
+	public function setTaggedPeople(array $taggedPeople): self {
+		$this->taggedPeople = $taggedPeople;
+
+		return $this;
+	}
+
+	public function setViewCount(?int $viewCount): self {
+		$this->viewCount = $viewCount;
+
+		return $this;
+	}
+
+	public function isArchived(): bool {
+		return $this->archived;
+	}
+
+	public function setArchived(bool $archived): self {
+		$this->archived = $archived;
+
+		return $this;
+	}
+
 	public function setSensitive(bool $sensitive): Stream {
 		$this->sensitive = $sensitive;
 
@@ -950,6 +1029,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
 		$this->setContent($this->validate(self::AS_CONTENT, 'content', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
+		$this->setArchived($this->getBool('archived', $data, false));
 		$this->setPlaceId($this->getInt('place_id', $data, 0));
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
@@ -1236,6 +1316,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$result = [
 			'local' => $this->isLocal(),
+			// the author's own; nobody else is ever handed an archived post,
+			// because no list this server builds contains one
+			'archived' => $this->isArchived(),
+			// null on everybody else's copy: how many people read a post is
+			// the author's business
+			'view_count' => $this->getViewCount(),
+			// who is in the picture. Pixelfed's `tagged_people`, and the same
+			// key, because its own app reads it
+			'tagged_people' => $this->getTaggedPeople(),
 			'content' => $this->getContent(),
 			'sensitive' => $this->isSensitive(),
 			'spoiler_text' => $this->getSpoilerText(),

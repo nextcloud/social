@@ -93,7 +93,9 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   Pixelfed, in the shape Pixelfed actually reads — an `Add` carrying a capability its
   inbox fetches the story with, measured field by field against Pixelfed's own source
   rather than against the specification. One that arrives is held no longer than a day
-  here whatever the sender says. The other direction is not ours to fix: Pixelfed sends
+  here whatever the sender says. You can answer one with an emoji or a line of text,
+  and the poster is told and sees what was said; watching one posted elsewhere sends a
+  receipt to its author, so their own server can count it. The other direction is not ours to fix: Pixelfed sends
   stories only to instances it has identified as Pixelfed.
 - **Photos and Videos are timelines of their own**, drawn as grids and asked of the
   server rather than filtered out of a page you already have.
@@ -104,6 +106,10 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   it** — a two-hour talk is not something to mirror onto somebody's Nextcloud — and is
   proxied, so nobody's IP address reaches a server they never chose to talk to. Posts
   that are one video go out as an ActivityPub `Video`, the only shape PeerTube ingests.
+- **How many people read it** — on your own posts and nobody else's, counted when
+  somebody opens the post rather than scrolls past it, and never sent to another
+  server. Three likes means something different out of five readers than out of four
+  hundred, and until now there was no way to know which.
 - **Blurhash placeholders**, so a timeline never jumps as pictures load, and blurred
   previews for anything marked sensitive.
 - **An ALT badge on every described picture**, wherever it is drawn, that shows the
@@ -145,7 +151,12 @@ what it has as the whole conversation.
 **Four things you can do to a post**: reply, boost, favourite, and **react with an
 emoji** — which federates as `EmojiReact` and shows who reacted with what.
 
-**And two to your own.** Edit it, or **delete and write it again** — the correction
+**Archive it** — off your profile and out of every timeline, hashtag page and search
+on this server, with nothing sent to anybody and a way back from Settings. It is the
+answer to "this no longer belongs on my profile" that is not destroying it: other
+servers keep what they already have, which is what deleting is for.
+
+**And two more to your own.** Edit it, or **delete and write it again** — the correction
 people actually make. The post goes everywhere it reached, and its words, content
 warning, audience, language and pictures come back in the composer; the pictures by
 reference, so nothing is uploaded twice. What you post next is a new post, and the
@@ -208,12 +219,35 @@ own unified search. No external search engine to run.
   to.
 ![Collections](img/readme/collections.png)
 
-- **Collections** — Pixelfed's albums, as the fourth tab of a profile: a shelf of the
+- **Collections** — Pixelfed's albums, as a tab of a profile: a shelf of the
   account's collections, each a page of its posts drawn as the profile grid. You make
   one on your own shelf, put a post into it from the post's menu (**… → Add to a
   collection**), and edit, empty or delete it on its page. A collection holds only
   its owner's own posts with a picture or a video in them, and a followers-only one
   is shown to followers and nobody else.
+- **Team accounts** — an administrator can give a Nextcloud group an account to
+  post from, and everybody in the group finds it in the composer beside the
+  audience picker. It is an actor like any other: followable from Mastodon and
+  Pixelfed, moderatable, with its own followers. The membership is the group,
+  asked live, so leaving it takes the account away with it. Who wrote each post
+  is recorded and shown to the team and to moderators, and to nobody else.
+- **A portfolio** — a page of your work with its own public address, to put on a
+  CV. A title, a sentence, a grid or one picture at a time, and the pictures
+  chosen from your recent public photos or one of your collections. A draft until
+  you publish it; readable without signing in once you do, and built only out of
+  public posts whatever else is set.
+- **Videos that play elsewhere** — an administrator can turn on a background job
+  that converts stored videos to H.264 in an MP4, which is the one format the rest
+  of the network plays: Pixelfed's default accepts `video/mp4` and nothing else, so
+  a `.mov` straight off a phone was being dropped by its inbox without a word.
+  Off by default, because re-encoding is lossy and it is somebody's file, and never
+  during an upload.
+- **Tag people in a photo** — name the people in one of your own pictures from the
+  post's menu (**… → Tag people**), and their names show up under it, linked to their
+  profiles. Everybody named is told, and the photo appears under **Tagged** on their
+  own profile — including on another server, because each name is written onto the
+  post as a mention and the post is sent again. It does not change who may see the
+  post. Anybody named can take their own name off, which needs nobody's permission.
 - **Pinned posts**, up to five, published in the actor's `featured` collection. Remote
   accounts' pins arrive too.
 - **A grid or a timeline**, whichever you last chose, cropped to each picture's focal
@@ -284,7 +318,10 @@ Mastodon's own export uses, with each attachment pointing at the copy rather tha
 the server you are leaving. Import reads one back, including an archive from
 `occ user:export`. A third section brings your follows over from Mastodon, Pixelfed,
 GoToSocial or Akkoma via their `following_accounts.csv` or `pixelfed-following.json`.
-Your private key is deliberately not in the archive.
+Your private key is deliberately not in the archive. Naming the account you are
+moving from — the `alsoKnownAs` the old server insists on before it will hand over
+your followers — is a field in the same page rather than an `occ` command, because
+it federates nothing and is yours to set.
 
 **And a fourth brings the posts** — the one thing moving between Fediverse servers has
 never carried. Upload the export from your old server (this app's archive, Mastodon's
@@ -379,7 +416,8 @@ the administration settings:
   client sent and is written to no timeline at all, so there is no read path that
   could leak one; its author is told at once, can see it in their own settings, and
   can take it back. Publishing sends it as an ordinary post; refusing deletes it and
-  tells them. Both rules are switches, both on by default, and a **direct message is
+  tells them. Both rules are switches — the spam rules on by default, first-post review off
+  until an administrator with open registration turns it on — and a **direct message is
   never held**.
 - **An account browser** over every account this instance knows, with the standing
   decision and the strike history against each one.

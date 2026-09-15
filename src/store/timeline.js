@@ -369,6 +369,40 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @param {string} payload.statusId the status that carries the poll
 		 * @param {object} payload.poll the poll as the server returned it
 		 */
+		/**
+		 * Whether a post of the reader's own is put away.
+		 *
+		 * In the store rather than on the card: the same post is often drawn
+		 * twice — a thread and the timeline behind it — and a card that flipped
+		 * its own copy would leave the other one saying the opposite.
+		 *
+		 * @param {object} root0 the post and its new state
+		 * @param {string} root0.statusId the post
+		 * @param {boolean} root0.archived whether it is now archived
+		 */
+		updateStatusArchived({ statusId, archived }) {
+			const known = this.statuses[statusId]
+			if (known !== undefined) {
+				this.statuses[statusId] = { ...known, archived }
+			}
+		},
+		/**
+		 * The people named in a post's pictures, after somebody changed them.
+		 *
+		 * In the store for the same reason as the archive flag: one post is
+		 * often drawn twice, and a card that edited its own copy would leave
+		 * the other one still carrying a name that has been taken off.
+		 *
+		 * @param {object} root0 the post and its new list
+		 * @param {string} root0.statusId the post
+		 * @param {Array} root0.taggedPeople who it names now
+		 */
+		updateStatusTagged({ statusId, taggedPeople }) {
+			const known = this.statuses[statusId]
+			if (known !== undefined) {
+				this.statuses[statusId] = { ...known, tagged_people: taggedPeople }
+			}
+		},
 		updateStatusPoll({ statusId, poll }) {
 			const known = this.statuses[statusId]
 			if (known !== undefined) {

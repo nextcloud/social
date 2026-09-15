@@ -81,24 +81,25 @@ describe('ProfileTimeline', () => {
 	describe('what of an account to read', () => {
 		const switcher = (wrapper) => wrapper.findComponent(TimelineSwitcher)
 
-		it('offers the three kinds of post an account makes, and its collections', () => {
+		it('offers the three kinds of post an account makes, what it is tagged in, and its collections', () => {
 			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: {} })
 
 			expect(switcher(wrapper).props('options').map((option) => option.label))
-				.toEqual(['Posts', 'Photos', 'Videos', 'Collections'])
+				.toEqual(['Posts', 'Photos', 'Videos', 'Tagged', 'Collections'])
 		})
 
 		/**
 		 * The query rather than a route of its own, so a profile stays one
 		 * page and every link to it still names the same route.
 		 */
-		it('keeps the three kinds on the same profile route, and sends collections to their own page', () => {
+		it('keeps the three kinds on the same profile route, and sends tagged and collections to their own pages', () => {
 			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: {} })
 
 			expect(switcher(wrapper).props('options').map((option) => option.to)).toEqual([
 				{ name: 'profile', params: { account: 'bob@remote.example' }, query: {} },
 				{ name: 'profile', params: { account: 'bob@remote.example' }, query: { media: 'image' } },
 				{ name: 'profile', params: { account: 'bob@remote.example' }, query: { media: 'video' } },
+				{ name: 'profile.tagged', params: { account: 'bob@remote.example' } },
 				{ name: 'profile.collections', params: { account: 'bob@remote.example' } },
 			])
 		})

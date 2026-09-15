@@ -76,6 +76,8 @@ failure; the rest let the exception surface.
 
 ### `social:account:alias`
 
+Since 0.20.6 an account's own aliases are also settable by its owner, in **Settings → Migration → Accounts you also answer to** (`/api/v1/migration/aliases`) — setting one federates nothing. This command stays for an administrator acting on somebody else's account, and for scripting a migration.
+
 Manage the `alsoKnownAs` list of a local account: the actor ids it also answers
 to. Setting one is the first step of moving an account **to** this server — a
 Mastodon (or other) server refuses to start a Move towards an account that does
@@ -559,6 +561,86 @@ video can be tried again after whatever was wrong with it is fixed.
 It is a command rather than a background job on purpose: it is a one-off after
 an upgrade, it spends a subprocess and a temporary copy of each video, and an
 instance with a large media library should choose when that happens.
+
+### `social:team`
+
+Give a Nextcloud group an account to post from.
+
+```
+php occ social:team <group> <username>
+php occ social:team --list
+php occ social:team --remove <username>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `group` | No | The Nextcloud group. Required unless `--list` or `--remove` is used |
+| `username` | No | The handle the team posts under. Required unless `--list` or `--remove` is used |
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--list` | none | Show the team accounts there are, group by group |
+| `--remove` | required | Stop a handle being a team account. The account itself stays; delete it with `social:account:delete` if that is what you want |
+
+**What it is.** Pixelfed's answer to "several people, one voice" is its
+`Group*` family: twenty models, still in beta, and a second social graph beside
+the one it already has. Nextcloud's answer is the one it has had all along — a
+group of people who already work together — and this gives that group an
+account. It is the one thing in this comparison Nextcloud can do and Pixelfed
+cannot, because Pixelfed has no idea who works with whom.
+
+A team account is **an actor like any other**: a key pair, a followers
+collection, an inbox and an outbox, followable from Mastodon and Pixelfed,
+moderatable and suspendable. What is new is only who may speak as it — and that
+is whoever is in the group, asked live every time rather than copied into a list
+that would drift.
+
+**A command rather than a route, deliberately.** Creating an actor makes an
+address other servers will follow, cache and keep, which is an administrator's
+decision. Posting as one afterwards needs no administrator at all: everybody in
+the group finds it in the composer.
+
+Who wrote each post from a team account is recorded and shown to the team and to
+moderators, and to nobody else — outside the team, one voice is the point of
+having a team account; inside it, and in a report, the trail is.
+
+A group that does not exist, and one that already has an account, are each
+refused by name.
+
+### `social:media:transcode`
+
+Convert stored videos to H.264 in an MP4, which is the one format the rest of
+the network plays.
+
+```
+php occ social:media:transcode [--limit LIMIT]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--limit` | required | Stop after this many videos. 25 by default |
+
+**Why it matters:** Pixelfed's default `media_types` accepts `video/mp4` and
+nothing else, so every `video/quicktime` posted from here — which is every video
+straight off an iPhone — is dropped by its inbox without a word to anybody.
+Safari will not play WebM either.
+
+Off unless an administrator turned it on, because re-encoding is lossy and it is
+somebody's file: **Administration → Social → Server → Convert videos to MP4**, or
+`occ config:app:set social video_transcode --value=1`. The command exits 1 and
+changes nothing when it is off, or when the server has no ffmpeg.
+
+The same work runs by itself in the background, one video every quarter of an
+hour, which is about a hundred a day — fast enough that a backlog clears and slow
+enough that a server converting one is never the reason its cron is late. This
+command is for an administrator who has just turned the setting on and would
+rather not wait a week.
+
+The converted file is written before the row is pointed at it and the original is
+deleted last, so a failure anywhere leaves a document pointing at a file that
+exists. A video ffmpeg cannot read is recorded as tried and left alone rather
+than retried for ever, and one that is already an MP4 is passed over without
+being re-encoded into a second generation of loss.
 
 ### `social:media:usage`
 

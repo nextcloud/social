@@ -17,6 +17,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Client\AdminDomainBlock;
 use OCA\Social\Model\Client\AdminReport;
+use OCA\Social\Model\Moderation;
 
 /**
  * The administration screens of Pixelfed's app, answered from what this
@@ -42,7 +43,8 @@ class PixelfedAdminService {
 	public const PAGE = 50;
 
 	/** Pixelfed's per-user moderation flags, none of which this instance has. */
-	private const USER_FLAGS = ['unlisted', 'cw', 'no_autolink'];
+	/** What is left after `unlisted` and `cw`, which this instance does have. */
+	private const USER_FLAGS = ['no_autolink'];
 
 	public function __construct(
 		private AdminApiService $adminApiService,
@@ -52,6 +54,7 @@ class PixelfedAdminService {
 		private ConfigService $configService,
 		private PostReviewService $postReviewService,
 		private AccountService $accountService,
+		private ModerationService $moderationService,
 	) {
 	}
 
@@ -173,7 +176,13 @@ class PixelfedAdminService {
 				'dms_sent' => 0,
 				'report_count' => count($this->adminApiService->reports(null, '', $account->getActorId(), AdminApiService::MAX_LIMIT)),
 				'remote_report_count' => 0,
-				'moderation' => ['unlisted' => false, 'cw' => false, 'no_autolink' => false],
+				// the two this instance has, answered truthfully, and the one it
+				// does not
+				'moderation' => [
+					'unlisted' => $this->moderationService->levelOf($account->getActorId()) === Moderation::SILENCE,
+					'cw' => in_array($account->getActorId(), $this->moderationService->forcedSensitive(), true),
+					'no_autolink' => false,
+				],
 			],
 		];
 	}
@@ -199,6 +208,27 @@ class PixelfedAdminService {
 			$this->adminApiService->act($account, AdminApiService::ACTION_SUSPEND, 'removed from the Pixelfed admin app');
 
 			return ['status' => 200, 'msg' => 'deleted'];
+		}
+
+		// Pixelfed's words for two things this instance does have. `unlisted`
+		// is the silence tier — an account out of the public timelines and
+		// readable by whoever deliberately follows it — and `cw` is marking
+		// everything it posts sensitive. Answered as a 422 until now, which
+		// was true of the words and not of the instance.
+		if ($action === 'unlisted' || $action === 'unlist') {
+			$account = $this->adminApiService->account($reference);
+			$this->adminApiService->act(
+				$account, AdminApiService::ACTION_SILENCE, 'unlisted from the Pixelfed admin app'
+			);
+
+			return ['status' => 200, 'msg' => 'unlisted'];
+		}
+
+		if ($action === 'cw') {
+			$account = $this->adminApiService->account($reference);
+			$this->moderationService->forceSensitive($account->getActorId(), true);
+
+			return ['status' => 200, 'msg' => 'cw'];
 		}
 
 		if (in_array($action, self::USER_FLAGS, true)) {

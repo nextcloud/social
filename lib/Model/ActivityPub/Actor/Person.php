@@ -693,6 +693,77 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The names a profile field goes by when it holds somebody's pronouns, and
+	 * when it holds a link for supporting them.
+	 *
+	 * Neither is a field of its own here, and deliberately so. A pronoun row
+	 * is what Mastodon, GoToSocial and Akkoma users already write, it already
+	 * federates as a `PropertyValue`, and a new property that only this app
+	 * understood would be a pronoun nobody else could read. What this app adds
+	 * is *recognising* the row it is in — drawing it beside the name rather
+	 * than in a table at the bottom, which is where it belongs and where every
+	 * other network puts it.
+	 *
+	 * Matched case- and accent-insensitively against the handful of spellings
+	 * people actually use, in the languages this app is translated into most.
+	 */
+	private const PRONOUN_NAMES = [
+		'pronouns', 'pronoun', 'pronomen', 'pronoms', 'pronombres', 'pronomi',
+		'voornaamwoorden', 'zaimki', 'местоимения',
+	];
+
+	private const SUPPORT_NAMES = [
+		'support', 'donate', 'donation', 'donations', 'tip', 'tips', 'sponsor',
+		'funding', 'unterstützen', 'spenden', 'soutien', 'apoyo', 'doar',
+	];
+
+	/**
+	 * The account's pronouns, or `''`.
+	 *
+	 * Short by construction — anything past a handful of characters is a
+	 * sentence somebody wrote in the wrong row, and drawing it beside the name
+	 * would push the name off the line.
+	 */
+	public function getPronouns(): string {
+		$value = $this->fieldNamed(self::PRONOUN_NAMES);
+
+		return (mb_strlen($value) <= 40) ? $value : '';
+	}
+
+	/**
+	 * Where to support this account, or `''`.
+	 *
+	 * Only an `https://` address, and only from the account's own profile:
+	 * this is drawn as a button, and a button is a stronger invitation than a
+	 * row in a table — so it may not be `javascript:`, a bare word, or
+	 * anything a reader would not expect to be a link.
+	 */
+	public function getSupportLink(): string {
+		$value = $this->fieldNamed(self::SUPPORT_NAMES);
+
+		return (str_starts_with($value, 'https://') && filter_var($value, FILTER_VALIDATE_URL) !== false)
+			? $value : '';
+	}
+
+	/**
+	 * The value of the first field whose name is one of these.
+	 *
+	 * @param string[] $names
+	 */
+	private function fieldNamed(array $names): string {
+		foreach ($this->fields as $field) {
+			$name = mb_strtolower(trim((string)($field['name'] ?? '')));
+			// a field is often written with a colon or an emoji beside it
+			$name = trim($name, " \t:：*-–—_#");
+			if (in_array($name, $names, true)) {
+				return trim(strip_tags((string)($field['value'] ?? '')));
+			}
+		}
+
+		return '';
+	}
+
+	/**
 	 * @param array[] $fields [['name' => string, 'value' => string], …]
 	 */
 	public function setFields(array $fields): self {
@@ -1124,7 +1195,14 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'last_status_at' => $this->get('last_post_creation', $details) !== ''
 					? $this->get('last_post_creation', $details) : null,
 				'emojis' => $this->getEmojis(),
-				'fields' => $fields
+				'fields' => $fields,
+				// the two rows this app draws rather than tabulates: beside the
+				// name, and as a button. Sent as their own keys so a client
+				// does not have to know which spellings of "Pronouns" to look
+				// for, and left in `fields` as well, because that is what every
+				// other network reads
+				'pronouns' => $this->getPronouns(),
+				'support_link' => $this->getSupportLink(),
 			];
 
 		if ($this->getMovedTo() !== '') {

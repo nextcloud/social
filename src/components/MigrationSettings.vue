@@ -152,9 +152,47 @@
 				</li>
 			</ul>
 
+			<h5>{{ t('social', 'Accounts you also answer to') }}</h5>
+			<p>
+				{{ t('social', 'Before your old server will send your followers here, it wants this account to say it is also you. Add the old account\'s address and it does. Nothing is sent to anybody by this — it is a note this server keeps about an account it owns — and you can take it off again at any time.') }}
+			</p>
+			<ul v-if="aliases.length > 0" class="migration__aliases">
+				<li v-for="alias in aliases" :key="alias" class="migration__alias">
+					<span class="migration__alias-id">{{ alias }}</span>
+					<NcButton
+						variant="tertiary"
+						:aria-label="t('social', 'Remove this alias')"
+						:title="t('social', 'Remove this alias')"
+						:disabled="aliasBusy"
+						@click="removeAlias(alias)">
+						<template #icon>
+							<IconClose :size="20" />
+						</template>
+					</NcButton>
+				</li>
+			</ul>
+			<div class="migration__alias-add">
+				<NcTextField
+					v-model="aliasInput"
+					class="migration__alias-field"
+					:label="t('social', 'The old account\'s address')"
+					placeholder="https://pixelfed.social/users/you"
+					:disabled="aliasBusy"
+					@keydown.enter="addAlias" />
+				<NcButton :disabled="aliasBusy || aliasInput.trim() === ''" @click="addAlias">
+					<template v-if="aliasBusy" #icon>
+						<NcLoadingIcon :size="20" />
+					</template>
+					{{ t('social', 'Add') }}
+				</NcButton>
+			</div>
+			<p class="migration__note">
+				{{ t('social', 'It is the address of the account itself — the one its own server publishes, like https://pixelfed.social/users/you — and not the handle.') }}
+			</p>
+
 			<h5>{{ t('social', 'Moving your whole account') }}</h5>
 			<p>
-				{{ t('social', 'Telling your old server to redirect your followers here is a one-way move that federates to every server that knows you, so it is an administrator action rather than a button: ask for occ social:account:alias to name this account on the old one, then occ social:account:move to carry the followers over.') }}
+				{{ t('social', 'With the alias above in place, your old server can send your followers here. That is the half that cannot be taken back: it federates to every server that knows you, so it stays an administrator action — ask for occ social:account:move on the old server.') }}
 			</p>
 		</section>
 	</div>
@@ -167,8 +205,10 @@ import { showError, showSuccess } from '../services/toast.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccountArrowRight from 'vue-material-design-icons/AccountArrowRight.vue'
 import IconAccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
+import IconClose from 'vue-material-design-icons/Close.vue'
 import IconDownload from 'vue-material-design-icons/Download.vue'
 import IconPostOutline from 'vue-material-design-icons/PostOutline.vue'
 import IconUpload from 'vue-material-design-icons/Upload.vue'
@@ -190,12 +230,14 @@ export default {
 	components: {
 		IconAccountArrowRight,
 		IconAccountMultiplePlus,
+		IconClose,
 		IconDownload,
 		IconPostOutline,
 		IconUpload,
 		NcButton,
 		NcCheckboxRadioSwitch,
 		NcLoadingIcon,
+		NcTextField,
 	},
 
 	data() {
@@ -212,11 +254,83 @@ export default {
 			importLog: [],
 			/** @type {string} what the last CSV import came to */
 			followsResult: '',
+			/** @type {string[]} the accounts this one also answers to */
+			aliases: [],
+			/** @type {string} the address being added */
+			aliasInput: '',
+			aliasBusy: false,
 		}
+	},
+
+	mounted() {
+		this.loadAliases()
 	},
 
 	methods: {
 		t,
+
+		/**
+		 * The accounts this one also answers to.
+		 *
+		 * Read on mount rather than handed over with the page: the section is
+		 * below the fold of a settings page most people never open, and a
+		 * request that costs nothing until then is cheaper than state on every
+		 * page load.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async loadAliases() {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/migration/aliases'))
+				this.aliases = Array.isArray(data.aliases) ? data.aliases : []
+			} catch (error) {
+				logger.error('Failed to load the aliases', { error })
+			}
+		},
+
+		/** @return {Promise<void>} */
+		async addAlias() {
+			const alias = this.aliasInput.trim()
+			if (alias === '' || this.aliasBusy) {
+				return
+			}
+
+			this.aliasBusy = true
+			try {
+				const { data } = await axios.post(
+					generateUrl('apps/social/api/v1/migration/aliases'),
+					{ alias },
+				)
+				this.aliases = data.aliases
+				this.aliasInput = ''
+				showSuccess(t('social', 'This account now says it is also that one'))
+			} catch (error) {
+				// the server refuses an address that is not an account's own,
+				// and says which; that sentence is the whole of the help there is
+				showError(error.response?.data?.error ?? t('social', 'Could not add the alias'))
+			} finally {
+				this.aliasBusy = false
+			}
+		},
+
+		/**
+		 * @param {string} alias the address to stop answering to
+		 * @return {Promise<void>}
+		 */
+		async removeAlias(alias) {
+			this.aliasBusy = true
+			try {
+				const { data } = await axios.delete(
+					generateUrl('apps/social/api/v1/migration/aliases'),
+					{ data: { alias } },
+				)
+				this.aliases = data.aliases
+			} catch {
+				showError(t('social', 'Could not remove the alias'))
+			} finally {
+				this.aliasBusy = false
+			}
+		},
 
 		/**
 		 * The archive is built on the server and handed over as a blob, then
@@ -430,6 +544,36 @@ export default {
 .migration__note {
 	color: var(--color-text-maxcontrast);
 	font-size: 13px;
+}
+
+.migration__aliases {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-block: 8px;
+}
+
+.migration__alias {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.migration__alias-id {
+	// an actor id is a URL and will not break on its own
+	overflow-wrap: anywhere;
+}
+
+.migration__alias-add {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-block-end: 4px;
+}
+
+.migration__alias-field {
+	max-width: 420px;
 }
 
 .migration__list {

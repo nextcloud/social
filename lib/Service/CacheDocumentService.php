@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use Gumlet\ImageResize;
 use Gumlet\ImageResizeException;
+use OCA\Social\Db\MediaBlocksRequest;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
@@ -34,6 +35,7 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\ITempManager;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 class CacheDocumentService {
@@ -61,6 +63,8 @@ class CacheDocumentService {
 		private ImageConversionService $imageConversionService,
 		private VideoThumbnailService $videoThumbnailService,
 		private ITempManager $tempManager,
+		private MediaBlocksRequest $mediaBlocksRequest,
+		private LoggerInterface $logger,
 	) {
 	}
 
@@ -217,6 +221,7 @@ class CacheDocumentService {
 
 		$this->filterMimeTypes($mime);
 		$this->filterSize($mime, (int)filesize($tmpPath));
+		$this->filterBlockedMedia($tmpPath);
 
 		if (!str_starts_with($mime, 'image/')) {
 			$this->saveMediaFromTemp($document, $tmpPath, $mime);
@@ -242,6 +247,41 @@ class CacheDocumentService {
 		$this->resizeImage($document, $content);
 		$resized = $this->generateFileFromContent($content);
 		$document->setResizedCopy($resized);
+	}
+
+	/**
+	 * A picture a moderator has refused, wherever it came from.
+	 *
+	 * Checked on the bytes as they are written, which is the one place both
+	 * an upload and a fetched remote attachment pass through — a list that
+	 * only stopped local uploads would be a list that stops the one source a
+	 * moderator can already deal with by other means.
+	 *
+	 * The hash is of the file as it arrived, before the metadata is stripped
+	 * and before any conversion: two files that differ only in their Exif are
+	 * a different hash, and this is deliberately not clever. It answers "this
+	 * exact file, again" — which is what re-posting is — and it does not claim
+	 * to answer "a picture that looks like this one".
+	 *
+	 * @throws CacheContentMimeTypeException the same refusal an unacceptable
+	 *                                       type gets: the caller has one way
+	 *                                       to say no to a file, and a second
+	 *                                       would be a second thing every
+	 *                                       caller had to catch
+	 */
+	private function filterBlockedMedia(string $tmpPath): void {
+		// false when the file cannot be read; a successful hash is always the
+		// full 64 characters, so there is no empty case to test for
+		$hash = @hash_file('sha256', $tmpPath);
+		if (!is_string($hash)) {
+			return;
+		}
+
+		if ($this->mediaBlocksRequest->isBlocked($hash)) {
+			$this->logger->notice('a refused picture was offered again', ['hash' => $hash]);
+
+			throw new CacheContentMimeTypeException('this file is not accepted on this instance');
+		}
 	}
 
 	/**
@@ -337,6 +377,23 @@ class CacheDocumentService {
 	 * @throws NotFoundException
 	 * @throws NotPermittedException
 	 */
+	/**
+	 * Puts a file on disk into app storage and says what it was stored under.
+	 *
+	 * The public face of `generateFileFromPath()`, for the transcoder: it has
+	 * a converted video in a temporary file and needs it where the original
+	 * was, and reading the whole thing into a string first is the one thing
+	 * that does not work for a video.
+	 *
+	 * @return string the uuid it was stored under
+	 *
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	public function storeFile(string $path): string {
+		return $this->generateFileFromPath($path);
+	}
+
 	private function generateFileFromPath(string $path): string {
 		$source = fopen($path, 'rb');
 		if ($source === false) {

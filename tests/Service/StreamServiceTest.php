@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use DateTime;
+use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -95,7 +96,8 @@ class StreamServiceTest extends TestCase {
 			$this->emojiService,
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
-			$this->createMock(ReactionSummaryService::class)
+			$this->createMock(ReactionSummaryService::class),
+			$this->createMock(MediaTagsRequest::class)
 		);
 	}
 
@@ -535,7 +537,8 @@ class StreamServiceTest extends TestCase {
 			$this->emojiService,
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
-			$this->createMock(ReactionSummaryService::class)
+			$this->createMock(ReactionSummaryService::class),
+			$this->createMock(MediaTagsRequest::class)
 		);
 
 		$note = new Note();

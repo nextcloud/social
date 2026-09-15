@@ -20,6 +20,7 @@ use OCA\Social\Interfaces\Activity\MoveInterface;
 use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
+use OCA\Social\Interfaces\Activity\StoryAnswerInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
 use OCA\Social\Interfaces\Actor\ApplicationInterface;
@@ -48,8 +49,11 @@ use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Activity\QuoteRequest;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Remove;
+use OCA\Social\Model\ActivityPub\Activity\StoryReaction;
+use OCA\Social\Model\ActivityPub\Activity\StoryReply;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Activity\Update;
+use OCA\Social\Model\ActivityPub\Activity\View;
 use OCA\Social\Model\ActivityPub\Actor\Application;
 use OCA\Social\Model\ActivityPub\Actor\Group;
 use OCA\Social\Model\ActivityPub\Actor\Organization;
@@ -116,6 +120,7 @@ class AP {
 	public function __construct(
 		public AcceptInterface $acceptInterface,
 		public AddInterface $addInterface,
+		public StoryAnswerInterface $storyAnswerInterface,
 		public AnnounceInterface $announceInterface,
 		public BlockInterface $blockInterface,
 		public CreateInterface $createInterface,
@@ -331,6 +336,18 @@ class AP {
 				$item = new Add();
 				break;
 
+			case View::TYPE:
+				$item = new View();
+				break;
+
+			case StoryReaction::TYPE:
+				$item = new StoryReaction();
+				break;
+
+			case StoryReply::TYPE:
+				$item = new StoryReply();
+				break;
+
 			case Announce::TYPE:
 				$item = new Announce();
 				$item->setFilterDuplicate(true);
@@ -470,6 +487,10 @@ class AP {
 				return $this->acceptInterface;
 			case Add::TYPE:
 				return $this->addInterface;
+			case View::TYPE:
+			case StoryReaction::TYPE:
+			case StoryReply::TYPE:
+				return $this->storyAnswerInterface;
 			case Announce::TYPE:
 				return $this->announceInterface;
 			case Block::TYPE:

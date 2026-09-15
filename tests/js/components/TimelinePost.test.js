@@ -1731,4 +1731,71 @@ describe('TimelinePost', () => {
 		// provider call every time
 		expect(axios.post).toHaveBeenCalledTimes(1)
 	})
+
+	describe('who is in the picture', () => {
+		const withPeople = (people, extra = {}) => makeItem({
+			nid: 101,
+			media_attachments: [photo()],
+			tagged_people: people,
+			...extra,
+		})
+
+		it('names them under the post, linked to their profiles', () => {
+			const { wrapper } = mountPost({ item: withPeople([bob]) })
+
+			const named = wrapper.find('.post-tagged')
+			expect(named.exists()).toBe(true)
+			expect(named.text()).toContain('Bob')
+		})
+
+		it('says nothing at all when nobody is named', () => {
+			const { wrapper } = mountPost({ item: withPeople([]) })
+
+			expect(wrapper.find('.post-tagged').exists()).toBe(false)
+		})
+
+		it('offers the author a way to name people, and nobody else', () => {
+			const mine = mountPost({ item: withPeople([]) })
+			expect(menuItem(mine.wrapper, 'Tag people')).toBeTruthy()
+
+			const theirs = mountPost({ item: withPeople([], { account: bob }) })
+			expect(menuItem(theirs.wrapper, 'Tag people')).toBeUndefined()
+		})
+
+		it('does not offer it on a post with no picture', () => {
+			const { wrapper } = mountPost({ item: makeItem({ nid: 101, media_attachments: [] }) })
+
+			expect(menuItem(wrapper, 'Tag people')).toBeUndefined()
+		})
+
+		it('lets somebody named take their own name off', async () => {
+			axios.post.mockResolvedValue({ data: { untagged: true } })
+			const me = { ...alice, acct: 'alice' }
+			const { wrapper, store } = mountPost({
+				item: withPeople([me, bob], { account: bob }),
+				currentAccount: alice,
+			})
+			const updateStatusTagged = vi.spyOn(store, 'updateStatusTagged')
+
+			const leave = wrapper.find('.post-tagged__leave')
+			expect(leave.exists()).toBe(true)
+			await leave.trigger('click')
+			await flushPromises()
+
+			expect(axios.post).toHaveBeenCalledWith(
+				expect.stringContaining('/apps/social/api/v1.1/compose/tag/untagme'),
+				{ status_id: 101 },
+			)
+			expect(updateStatusTagged).toHaveBeenCalledWith({
+				statusId: '101',
+				taggedPeople: [bob],
+			})
+		})
+
+		it('offers no way out to somebody who is not named', () => {
+			const { wrapper } = mountPost({ item: withPeople([bob], { account: bob }) })
+
+			expect(wrapper.find('.post-tagged__leave').exists()).toBe(false)
+		})
+	})
 })

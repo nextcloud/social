@@ -19,6 +19,7 @@ use OCA\Social\Interfaces\Activity\MoveInterface;
 use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
+use OCA\Social\Interfaces\Activity\StoryAnswerInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
 use OCA\Social\Interfaces\Actor\ApplicationInterface;
@@ -65,6 +66,7 @@ trait TActivityPubMocks {
 		return [
 			AcceptInterface::class,
 			AddInterface::class,
+			StoryAnswerInterface::class,
 			AnnounceInterface::class,
 			BlockInterface::class,
 			CreateInterface::class,
@@ -127,7 +129,7 @@ trait TActivityPubMocks {
 	}
 
 	/**
-	 * @param class-string $class one of the 26 interface classes
+	 * @param class-string $class one of the 27 interface classes
 	 */
 	protected function apInterface(string $class): MockObject {
 		return $this->apInterfaces[$class];

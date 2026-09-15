@@ -45,6 +45,14 @@ use Psr\Log\LoggerInterface;
  */
 class StreamRequest extends StreamRequestBuilder {
 	/**
+	 * The accounts every post of which a moderator has marked sensitive, read
+	 * once per request. Null until something is saved.
+	 *
+	 * @var string[]|null
+	 */
+	private ?array $forcedSensitive = null;
+
+	/**
 	 * The width of the random half of a nid.
 	 *
 	 * A nid is `published_time * NID_LIMIT + random`, which keeps it sortable by
@@ -94,6 +102,8 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	public function save(Stream $stream): void {
+		$this->applyForcedSensitive($stream);
+
 		for ($attempt = 1; ; $attempt++) {
 			$qb = $this->saveStream($stream);
 			if ($stream->getType() === Note::TYPE) {
@@ -628,6 +638,133 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		return $this->getInt('count', $data, 0);
+	}
+
+	/**
+	 * A moderator's decision that every post by an account is sensitive.
+	 *
+	 * Applied here, at the one place a post is written, rather than at each of
+	 * the paths that reach it: a local post, a post that arrived in the inbox
+	 * and a post restored by the importer are the same row, and a rule that
+	 * held for one of them and not the others would be a rule nobody could
+	 * explain.
+	 *
+	 * The set is read once per request and is empty on nearly every instance,
+	 * so the common case is one query that returns nothing and a comparison
+	 * against an empty array.
+	 */
+	private function applyForcedSensitive(Stream $stream): void {
+		if ($stream->isSensitive() || $stream->getAttributedTo() === '') {
+			return;
+		}
+
+		$this->forcedSensitive ??= $this->moderationRequest->forcedSensitive();
+		if (in_array($stream->getAttributedTo(), $this->forcedSensitive, true)) {
+			$stream->setSensitive(true);
+		}
+	}
+
+	/**
+	 * Puts one of the author's own posts away, or brings it back.
+	 *
+	 * The author is in the statement rather than checked beforehand: a request
+	 * naming somebody else's post changes no row, which is the same guarantee
+	 * every other per-account write here makes and one that cannot be
+	 * forgotten by a caller.
+	 *
+	 * Local posts only. Archiving is about what this account shows on its own
+	 * profile; a post somebody else wrote is theirs, and the answer to not
+	 * wanting to see it is a mute or a block.
+	 *
+	 * @return bool whether a row changed
+	 */
+	public function setArchived(int $nid, string $actorId, bool $archived): bool {
+		$qb = $this->getStreamUpdateSql();
+		$qb->set('archived', $qb->createNamedParameter($archived, IQueryBuilder::PARAM_BOOL));
+		$qb->where(
+			$qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)),
+			$qb->expr()->eq('attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))),
+			$qb->expr()->eq('local', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL))
+		);
+
+		return $qb->executeStatement() > 0;
+	}
+
+	/**
+	 * The posts this account has put away, newest first.
+	 *
+	 * The one read that asks for archived posts, and the only one: everything
+	 * else is fail-closed (`hideArchived()`).
+	 *
+	 * @return Stream[]
+	 */
+	public function getArchivedByActor(string $actorId, int $limit = 50, int $maxId = 0): array {
+		$qb = $this->getStreamSelectSql(Stream::FORMAT_LOCAL, true);
+		$qb->andWhere($qb->expr()->eq('s.attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))));
+		$qb->andWhere($qb->expr()->eq('s.archived', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)));
+		if ($maxId > 0) {
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/** How many posts this account has put away. */
+	public function countArchivedByActor(string $actorId): int {
+		$qb = $this->getQueryBuilder();
+		$qb->selectAlias($qb->func()->count('*'), 'total')
+			->from(self::TABLE_STREAM, 's')
+			->where($qb->expr()->eq('s.attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->eq('s.archived', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)));
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return (int)($data['total'] ?? 0);
+	}
+
+	/**
+	 * What this instance's own people have been writing, for the two numbers
+	 * an administrator asks for first: how busy is it, and how many of the
+	 * accounts are actually used.
+	 *
+	 * Local posts only. A count that included the fediverse's would say how
+	 * much this server has *received*, which is a number about everybody
+	 * else's activity and about this instance's retention settings.
+	 *
+	 * @param int $since unix time to count from
+	 * @return array{posts: int, authors: int}
+	 */
+	public function localActivitySince(int $since): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+
+		$date = new DateTime();
+		$date->setTimestamp($since);
+
+		$qb->selectAlias($qb->func()->count('s.id'), 'posts')
+			->selectAlias($qb->createFunction('COUNT(DISTINCT s.attributed_to_prim)'), 'authors')
+			->from(self::TABLE_STREAM, 's')
+			->where($expr->eq('s.local', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)))
+			->andWhere($expr->in(
+				's.type',
+				$qb->createNamedParameter([Note::TYPE, Question::TYPE], IQueryBuilder::PARAM_STR_ARRAY)
+			))
+			->andWhere($expr->gte(
+				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
+			));
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return [
+			'posts' => (int)($data['posts'] ?? 0),
+			'authors' => (int)($data['authors'] ?? 0),
+		];
 	}
 
 	/**
@@ -2011,6 +2148,11 @@ class StreamRequest extends StreamRequestBuilder {
 			// and its place in any album its author put it in: a collection
 			// entry pointing at a post that is gone would draw a gap
 			[self::TABLE_COLLECTION_ITEMS, 'stream_id_prim'],
+			// and who opened it, which is a row about a post that no longer
+			// exists and that nothing will ever read again
+			[self::TABLE_STREAM_VIEWS, 'stream_id_prim'],
+			// and the people named in its pictures
+			[self::TABLE_MEDIA_TAGS, 'stream_id_prim'],
 		] as [$table, $field]) {
 			$qb = $this->getQueryBuilder();
 			$qb->delete($table)

@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MediaUsageService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -41,9 +42,15 @@ class MediaUsageTest extends TestCase {
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->configService->method('getCloudUrl')->willReturn(self::CLOUD);
 
+		// the real service over the same mocks: what this test is about is the
+		// walk, and a mocked service would assert that the command called
+		// something rather than that the numbers came out right
 		$this->tester = new CommandTester(new MediaUsage(
-			$this->cacheDocumentsRequest,
-			$this->cacheDocumentService,
+			new MediaUsageService(
+				$this->cacheDocumentsRequest,
+				$this->cacheDocumentService,
+				$this->configService
+			),
 			$this->configService
 		));
 	}
@@ -183,7 +190,10 @@ class MediaUsageTest extends TestCase {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException('no address'));
 		$tester = new CommandTester(new MediaUsage(
-			$this->cacheDocumentsRequest, $this->cacheDocumentService, $configService
+			new MediaUsageService(
+				$this->cacheDocumentsRequest, $this->cacheDocumentService, $configService
+			),
+			$configService
 		));
 
 		$this->assertSame(1, $tester->execute([]));

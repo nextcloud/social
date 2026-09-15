@@ -60,6 +60,8 @@ class CoreRequestBuilder {
 	public const TABLE_COLLECTION_ITEMS = 'social_collection_item';
 	public const TABLE_IMPORTED_POSTS = 'social_import_post';
 	public const TABLE_INSTANCE = 'social_instance';
+	public const TABLE_DISCOVER_CATS = 'social_discover_cat';
+	public const TABLE_MEDIA_BLOCKS = 'social_media_block';
 	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REACTIONS = 'social_reaction';
@@ -69,8 +71,14 @@ class CoreRequestBuilder {
 	public const TABLE_PLACES = 'social_place';
 	public const TABLE_STORIES = 'social_story';
 	public const TABLE_STORY_VIEWS = 'social_story_view';
+	public const TABLE_STORY_REACTS = 'social_story_react';
+	public const TABLE_MEDIA_TAGS = 'social_media_tag';
+	public const TABLE_PORTFOLIOS = 'social_portfolio';
+	public const TABLE_TEAMS = 'social_team';
+	public const TABLE_TEAM_POSTS = 'social_team_post';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
+	public const TABLE_STREAM_VIEWS = 'social_stream_view';
 	public const TABLE_STREAM_CARDS = 'social_stream_card';
 	public const TABLE_STREAM_DEST = 'social_stream_dest';
 	public const TABLE_STRIKES = 'social_strike';
@@ -175,6 +183,7 @@ class CoreRequestBuilder {
 			'description',
 			'public',
 			'error',
+			'transcoded',
 			'creation',
 			'caching'
 		],
@@ -293,6 +302,56 @@ class CoreRequestBuilder {
 			'actor_id_prim',
 			'creation'
 		],
+		self::TABLE_STORY_REACTS => [
+			'id',
+			'story_id',
+			'actor_id',
+			'actor_id_prim',
+			'type',
+			'content',
+			'source_id',
+			'source_id_prim',
+			'creation'
+		],
+		self::TABLE_MEDIA_TAGS => [
+			'id',
+			'stream_id',
+			'stream_id_prim',
+			'actor_id',
+			'actor_id_prim',
+			'tagger_id_prim',
+			'creation'
+		],
+		self::TABLE_PORTFOLIOS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'active',
+			'title',
+			'intro',
+			'layout',
+			'source',
+			'collection_id',
+			'show_captions',
+			'show_places',
+			'show_dates',
+			'show_avatar',
+			'creation'
+		],
+		self::TABLE_TEAMS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'group_id',
+			'creation'
+		],
+		self::TABLE_TEAM_POSTS => [
+			'id',
+			'stream_id_prim',
+			'author_id',
+			'author_id_prim',
+			'creation'
+		],
 		self::TABLE_CONVERSATION_STATE => [
 			'id',
 			'actor_id',
@@ -395,11 +454,27 @@ class CoreRequestBuilder {
 			'account_prim',
 			'creation'
 		],
+		self::TABLE_DISCOVER_CATS => [
+			'id',
+			'name',
+			'hashtags',
+			'position',
+			'creation'
+		],
+		self::TABLE_MEDIA_BLOCKS => [
+			'id',
+			'hash',
+			'reason',
+			'moderator',
+			'blocked',
+			'creation'
+		],
 		self::TABLE_MODERATION => [
 			'actor_id_prim',
 			'actor_id',
 			'level',
 			'comment',
+			'force_sensitive',
 			'creation'
 		],
 		self::TABLE_CLIENT_AUTH => [
@@ -483,6 +558,7 @@ class CoreRequestBuilder {
 			'id_prim',
 			'visibility',
 			'sensitive',
+			'archived',
 			'type',
 			'subtype',
 			'to',
@@ -515,6 +591,12 @@ class CoreRequestBuilder {
 			'quote',
 			'quote_authorization',
 			'place_id'
+		],
+		self::TABLE_STREAM_VIEWS => [
+			'id',
+			'stream_id_prim',
+			'actor_id_prim',
+			'creation'
 		],
 		self::TABLE_STREAM_ACTIONS => [
 			'id',
@@ -688,6 +770,19 @@ class CoreRequestBuilder {
 	 */
 	public function setViewer(Person $viewer) {
 		$this->viewer = $viewer;
+	}
+
+	/**
+	 * Reads what follows for nobody in particular.
+	 *
+	 * The request object outlives one read — it is a service — so a reader set
+	 * for an earlier query is still set for the next one. A path that has to
+	 * answer as the anonymous internet does (the portfolio page, which is
+	 * public and must only ever show public posts) says so rather than hoping
+	 * nothing before it set a viewer.
+	 */
+	public function resetViewer(): void {
+		$this->viewer = null;
 	}
 
 	/**

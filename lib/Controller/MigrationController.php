@@ -226,4 +226,63 @@ class MigrationController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 	}
+
+	/**
+	 * The accounts this one also answers to — its `alsoKnownAs`.
+	 *
+	 * Setting an alias on your **own** account is the half of moving here that
+	 * federates nothing: it is a statement this server makes about an account
+	 * it owns, and it is what the *old* server demands before it will accept a
+	 * `Move` pointing at this one. Until now it was `occ social:account:alias`,
+	 * so arriving from Pixelfed needed an administrator for a field the person
+	 * could have filled in themselves.
+	 *
+	 * The dangerous direction is still not a button. Moving your followers
+	 * *away* sends a `Move` to every server that knows you and cannot be taken
+	 * back; that stays `occ social:account:move`.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/aliases')]
+	public function aliases(): DataResponse {
+		return $this->aliasAction(fn (string $userId): array => $this->migrationService->listAliases($userId));
+	}
+
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/aliases')]
+	public function aliasAdd(string $alias = ''): DataResponse {
+		return $this->aliasAction(
+			fn (string $userId): array => $this->migrationService->addAlias($userId, $alias)
+		);
+	}
+
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 3600)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/migration/aliases')]
+	public function aliasRemove(string $alias = ''): DataResponse {
+		return $this->aliasAction(
+			fn (string $userId): array => $this->migrationService->removeAlias($userId, $alias)
+		);
+	}
+
+	/**
+	 * The three alias routes differ by one call, and each of them answers with
+	 * the list as it now stands — a client that has just changed it should not
+	 * have to ask again to find out what it changed.
+	 *
+	 * @param callable(string): string[] $action
+	 */
+	private function aliasAction(callable $action): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			return new DataResponse(['aliases' => $action($this->userId)], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			// what is refused here is an address that is not an actor id, and
+			// the message says which — it is the whole of the help there is
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+	}
 }

@@ -23,6 +23,7 @@ use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PixelfedAdminService;
 use OCA\Social\Service\PostReviewService;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -36,6 +37,7 @@ class PixelfedAdminServiceTest extends TestCase {
 	private FediverseService|MockObject $fediverseService;
 	private InstanceStatsRequest|MockObject $instanceStatsRequest;
 	private PostReviewService|MockObject $postReviewService;
+	private ModerationService|MockObject $moderationService;
 	private AccountService|MockObject $accountService;
 	private PixelfedAdminService $service;
 	private array $accessList = [];
@@ -77,6 +79,7 @@ class PixelfedAdminServiceTest extends TestCase {
 		$configService->accessTypeList = ['BLACKLIST' => 'all_but', 'WHITELIST' => 'none_but'];
 
 		$this->postReviewService = $this->createMock(PostReviewService::class);
+		$this->moderationService = $this->createMock(ModerationService::class);
 		$this->accountService = $this->createMock(AccountService::class);
 
 		$this->service = new PixelfedAdminService(
@@ -87,6 +90,7 @@ class PixelfedAdminServiceTest extends TestCase {
 			$configService,
 			$this->postReviewService,
 			$this->accountService,
+			$this->moderationService,
 		);
 	}
 
@@ -150,11 +154,35 @@ class PixelfedAdminServiceTest extends TestCase {
 		$this->assertSame('deleted', $this->service->userAction('9', 'delete')['msg']);
 	}
 
+	/**
+	 * Two of Pixelfed's three per-account flags are words for things this
+	 * instance does have: `unlisted` is the silence tier, and `cw` is marking
+	 * everything an account posts sensitive. They were refused with a 422 that
+	 * was true of the words and not of the instance.
+	 */
+	public function testUnlistedIsTheSilenceTier(): void {
+		$account = $this->account(self::ALICE, 'alice', 7, 1_700_000_000);
+		$this->adminApiService->method('account')->willReturn($account);
+		$this->adminApiService->expects($this->once())->method('act')
+			->with($account, AdminApiService::ACTION_SILENCE, $this->anything());
+
+		$this->assertSame('unlisted', $this->service->userAction('9', 'unlisted')['msg']);
+	}
+
+	public function testCwMarksEverythingTheAccountPostsSensitive(): void {
+		$this->adminApiService->method('account')->willReturn($this->account(self::ALICE, 'alice', 7, 1_700_000_000));
+		$this->moderationService->expects($this->once())->method('forceSensitive')
+			->with(self::ALICE, true);
+
+		$this->assertSame('cw', $this->service->userAction('9', 'cw')['msg']);
+	}
+
+	/** The one that is genuinely not a state an account has here. */
 	public function testAFlagAnAccountDoesNotHaveHereIsRefusedRatherThanFaked(): void {
 		$this->adminApiService->expects($this->never())->method('act');
 
 		$this->expectException(InvalidArgumentException::class);
-		$this->service->userAction('9', 'cw');
+		$this->service->userAction('9', 'no_autolink');
 	}
 
 	public function testIgnoringAReportResolvesItAndTheOtherActionsAreRefused(): void {

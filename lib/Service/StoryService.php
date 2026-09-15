@@ -45,6 +45,7 @@ class StoryService {
 		private ActivityService $activityService,
 		private ConfigService $configService,
 		private DocumentInterface $documentInterface,
+		private StoryInteractionService $storyInteractionService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -408,6 +409,10 @@ class StoryService {
 		}
 
 		$this->storiesRequest->markSeen($id, $viewer->getId());
+		// a story from another server is counted there, not here: its author
+		// reads their own instance's number, and without a receipt sent to
+		// them watching it is invisible
+		$this->storyInteractionService->sendView($viewer, $story);
 
 		return $this->hydrate($story, $viewer);
 	}

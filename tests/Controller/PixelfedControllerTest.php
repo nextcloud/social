@@ -10,19 +10,26 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\PixelfedController;
+use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Suggestion;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ArchiveService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\MediaTagService;
 use OCA\Social\Service\PixelfedConfigService;
 use OCA\Social\Service\PixelfedService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PortfolioService;
+use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
+use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TrendService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -56,6 +63,9 @@ class PixelfedControllerTest extends TestCase {
 	private HashtagService|MockObject $hashtagService;
 	private PixelfedService|MockObject $pixelfedService;
 	private StoryService|MockObject $storyService;
+	private StoryInteractionService|MockObject $storyInteractionService;
+	private MediaTagService|MockObject $mediaTagService;
+	private ArchiveService|MockObject|null $archiveService = null;
 
 	private bool $hasSession = true;
 	private bool $csrf = true;
@@ -107,6 +117,8 @@ class PixelfedControllerTest extends TestCase {
 
 		$this->pixelfedService = $this->createMock(PixelfedService::class);
 		$this->storyService = $this->createMock(StoryService::class);
+		$this->storyInteractionService = $this->createMock(StoryInteractionService::class);
+		$this->mediaTagService = $this->createMock(MediaTagService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->hashtagService->method('getTrending')
 			->willReturnCallback(function (int $limit, string $period): array {
@@ -132,6 +144,8 @@ class PixelfedControllerTest extends TestCase {
 	}
 
 	private function controller(): PixelfedController {
+		$this->archiveService ??= $this->createMock(ArchiveService::class);
+
 		return new PixelfedController(
 			$this->request,
 			$this->userSession,
@@ -145,7 +159,14 @@ class PixelfedControllerTest extends TestCase {
 			$this->createMock(LinkPreviewService::class),
 			$this->createMock(PlaceService::class),
 			$this->pixelfedService,
-			$this->storyService
+			$this->storyService,
+			$this->storyInteractionService,
+			$this->mediaTagService,
+			$this->createMock(PortfolioService::class),
+			$this->createMock(TeamService::class),
+			$this->createMock(CacheActorService::class),
+			$this->archiveService,
+			$this->createMock(DiscoverCategoriesRequest::class)
 		);
 	}
 

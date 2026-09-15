@@ -39,6 +39,45 @@
 					:label="t('social', 'Largest video (MB)')" />
 			</div>
 
+			<div class="server__sizes">
+				<NcTextField
+					v-model="form.imageMaxEdge"
+					class="server__number"
+					type="number"
+					min="0"
+					max="16384"
+					:label="t('social', 'Shrink pictures to (pixels)')"
+					:helperText="t('social', '0 stores every upload exactly as it arrived, which is the default and the only setting that loses nothing. A ceiling saves disk and bandwidth; a picture 8000 pixels wide is not being looked at at 8000 pixels.')" />
+				<NcTextField
+					v-model="form.imageQuality"
+					class="server__number"
+					type="number"
+					min="40"
+					max="100"
+					:label="t('social', 'Stored at quality')"
+					:helperText="t('social', 'Only used when a ceiling is set above, because otherwise nothing is re-encoded.')" />
+			</div>
+
+			<!-- the one thing that decides whether a video posted here plays
+			     anywhere else: Pixelfed's default accepts video/mp4 and
+			     nothing else, so a .mov straight off a phone is dropped by its
+			     inbox without a word to anybody -->
+			<NcCheckboxRadioSwitch v-model="form.videoTranscode" type="switch">
+				{{ t('social', 'Convert videos to MP4 in the background') }}
+			</NcCheckboxRadioSwitch>
+			<p class="server__hint">
+				{{ t('social', 'Off by default, because re-encoding is lossy and it is somebody\'s file. On, a background job converts one stored video at a time to H.264 in an MP4 — the only format Pixelfed accepts and the only one every browser plays. Needs ffmpeg on the server; nothing happens without it. Uploads are never held up: the conversion happens afterwards and the video plays as it is meanwhile.') }}
+			</p>
+			<NcTextField
+				v-if="form.videoTranscode"
+				v-model="form.videoMaxHeight"
+				class="server__number"
+				type="number"
+				min="240"
+				max="2160"
+				:label="t('social', 'Shrink videos to (pixels tall)')"
+				:helperText="t('social', 'Only smaller, never larger: a 480p video is left at 480p.')" />
+
 			<NcTextField
 				v-model="form.inboxThrottle"
 				class="server__field"
@@ -133,6 +172,10 @@ export default {
 				extendedDescription: this.settings.extended_description ?? '',
 				maxSize: String(this.settings.max_size ?? 10),
 				maxVideoSize: String(this.settings.max_video_size ?? 2048),
+				imageMaxEdge: String(this.settings.image_max_edge ?? 0),
+				imageQuality: String(this.settings.image_quality ?? 85),
+				videoTranscode: this.settings.video_transcode === true,
+				videoMaxHeight: String(this.settings.video_max_height ?? 1080),
 				inboxThrottle: String(this.settings.inbox_throttle ?? 300),
 				secureMode: this.settings.secure_mode === true,
 				publishBlocks: this.settings.publish_blocks === true,
@@ -171,6 +214,10 @@ export default {
 					extendedDescription: this.form.extendedDescription,
 					maxSize: parseInt(this.form.maxSize, 10),
 					maxVideoSize: parseInt(this.form.maxVideoSize, 10),
+					imageMaxEdge: parseInt(this.form.imageMaxEdge, 10),
+					imageQuality: parseInt(this.form.imageQuality, 10),
+					videoTranscode: this.form.videoTranscode,
+					videoMaxHeight: parseInt(this.form.videoMaxHeight, 10),
 					inboxThrottle: parseInt(this.form.inboxThrottle, 10),
 					secureMode: this.form.secureMode,
 					publishBlocks: this.form.publishBlocks,
@@ -219,5 +266,10 @@ export default {
 	&__number {
 		flex: 1 1 240px;
 	}
+}
+
+.server__hint {
+	color: var(--color-text-maxcontrast);
+	margin-block: -4px 4px;
 }
 </style>

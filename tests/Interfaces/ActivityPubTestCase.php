@@ -19,6 +19,7 @@ use OCA\Social\Interfaces\Activity\MoveInterface;
 use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
+use OCA\Social\Interfaces\Activity\StoryAnswerInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
 use OCA\Social\Interfaces\Actor\ApplicationInterface;
@@ -118,12 +119,14 @@ abstract class ActivityPubTestCase extends TestCase {
 	protected $updateInterface;
 	/** @var QuoteRequestInterface&MockObject */
 	protected $quoteRequestInterface;
+	protected $storyAnswerInterface;
 
 	protected function setUp(): void {
 		parent::setUp();
 
 		$this->acceptInterface = $this->createMock(AcceptInterface::class);
 		$this->addInterface = $this->createMock(AddInterface::class);
+		$this->storyAnswerInterface = $this->createMock(StoryAnswerInterface::class);
 		$this->announceInterface = $this->createMock(AnnounceInterface::class);
 		$this->blockInterface = $this->createMock(BlockInterface::class);
 		$this->createInterface = $this->createMock(CreateInterface::class);
@@ -157,6 +160,7 @@ abstract class ActivityPubTestCase extends TestCase {
 		$this->ap = new AP(
 			$this->acceptInterface,
 			$this->addInterface,
+			$this->storyAnswerInterface,
 			$this->announceInterface,
 			$this->blockInterface,
 			$this->createInterface,

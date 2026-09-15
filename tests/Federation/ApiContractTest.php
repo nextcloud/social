@@ -75,12 +75,15 @@ class ApiContractTest extends TestCase {
 		// are counted here from the EmojiReact activities received, and a peer
 		// counts the ones it received itself, so it is local and derived and
 		// never goes out on the wire.
+		// 'tagged_people' is Pixelfed's key for the people named in a
+		// photograph. Empty unless a page read filled it in; on the wire the
+		// same fact is carried as `Mention` tags, which is where a peer looks.
 		$expected = [
-			'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
+			'archived', 'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote',
 			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
-			'tags', 'uri', 'url', 'visibility',
+			'tagged_people', 'tags', 'uri', 'url', 'view_count', 'visibility',
 		];
 		sort($expected);
 
@@ -210,11 +213,17 @@ class ApiContractTest extends TestCase {
 
 		$account = $person->exportAsLocal();
 
+		// `pronouns` and `support_link` are this app's own addition: two of the
+		// four `fields`, sent again under their own names so a client can draw
+		// them beside the name and as a button without knowing the dozen
+		// spellings people write them in. They are always present, `''` when
+		// nothing was written, because a key that comes and goes is worse for
+		// a client than an empty one
 		$expected = [
 			'acct', 'avatar', 'avatar_static', 'bot', 'created_at', 'discoverable',
 			'display_name', 'emojis', 'fields', 'followers_count', 'following_count',
 			'group', 'header', 'header_static', 'id', 'indexable', 'last_status_at', 'locked',
-			'nid', 'note', 'statuses_count', 'url', 'username',
+			'nid', 'note', 'pronouns', 'statuses_count', 'support_link', 'url', 'username',
 		];
 		$actual = array_keys($account);
 		sort($expected);

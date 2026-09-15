@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\MediaBlocksRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\InstanceActor;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -654,6 +655,8 @@ class OutboundFederationWireTest extends TestCase {
 			$this->createMock(ImageConversionService::class),
 			$this->createMock(VideoThumbnailService::class),
 			$this->createMock(ITempManager::class),
+			$this->createMock(MediaBlocksRequest::class),
+			new NullLogger(),
 		);
 
 		$service->retrieveContent('https://' . self::REMOTE . '/media/1.png?sig=abc');

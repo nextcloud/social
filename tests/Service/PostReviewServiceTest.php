@@ -26,6 +26,7 @@ use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\StatusAssemblyService;
 use OCA\Social\Service\StrikeService;
+use OCP\IGroupManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -48,6 +49,7 @@ class PostReviewServiceTest extends TestCase {
 	private StatusAssemblyService|MockObject $statusAssemblyService;
 	private StrikeService|MockObject $strikeService;
 	private ConfigService|MockObject $configService;
+	private IGroupManager|MockObject $groupManager;
 	private AccountService|MockObject $accountService;
 	private PostReviewService $service;
 
@@ -55,6 +57,7 @@ class PostReviewServiceTest extends TestCase {
 	private array $settings = [
 		ConfigService::SOCIAL_REVIEW_FIRST_POST => '1',
 		ConfigService::SOCIAL_AUTOSPAM => '1',
+		ConfigService::SOCIAL_REVIEW_POSTS => '1',
 	];
 
 	protected function setUp(): void {
@@ -71,6 +74,11 @@ class PostReviewServiceTest extends TestCase {
 		$this->configService->method('getAppValueBool')->willReturnCallback(
 			fn (string $key): bool => ($this->settings[$key] ?? '0') === '1'
 		);
+		$this->configService->method('getAppValueInt')->willReturnCallback(
+			fn (string $key): int => (int)($this->settings[$key] ?? 1)
+		);
+
+		$this->groupManager = $this->createMock(IGroupManager::class);
 
 		$this->service = new PostReviewService(
 			$this->postHoldsRequest,
@@ -82,6 +90,7 @@ class PostReviewServiceTest extends TestCase {
 			$this->strikeService,
 			$this->accountService,
 			$this->configService,
+			$this->groupManager,
 			new NullLogger()
 		);
 	}
@@ -109,6 +118,37 @@ class PostReviewServiceTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Somebody who can empty the queue is not somebody to put in it.
+	 *
+	 * The case that made this obvious is the first post on a brand-new
+	 * instance: it is the administrator's, it was held for a moderator who was
+	 * the same person, and a fresh install looked broken — the post did not
+	 * appear and the only place it existed was a panel nobody had opened yet.
+	 * The end-to-end suite caught it as "a post written in the dialog shows up
+	 * in My Feed" failing, twice, on a clean install.
+	 */
+	public function testAnAdministratorsOwnFirstPostIsNotHeldForThemToApprove(): void {
+		$this->streamRequest->method('countPostsBy')->willReturn(0);
+		$this->groupManager->method('isAdmin')->willReturn(true);
+
+		$actor = $this->alice();
+		$actor->setUserId('alice');
+
+		$this->assertSame('', $this->service->assess($actor, 'hello everybody', Stream::TYPE_PUBLIC));
+	}
+
+	/** An actor with no Nextcloud user behind it — a team account — is nobody's administrator. */
+	public function testAnActorWithNoUserBehindItIsNotTreatedAsAModerator(): void {
+		$this->streamRequest->method('countPostsBy')->willReturn(0);
+		$this->groupManager->expects($this->never())->method('isAdmin');
+
+		$this->assertSame(
+			HeldPost::REASON_FIRST_POST,
+			$this->service->assess($this->alice(), 'hello everybody', Stream::TYPE_PUBLIC)
+		);
+	}
+
 	public function testThePostAfterThatIsNotHeld(): void {
 		$this->established();
 
@@ -125,6 +165,40 @@ class PostReviewServiceTest extends TestCase {
 		$this->assertSame(
 			HeldPost::REASON_FIRST_POST,
 			$this->service->assess($this->alice(), 'hello', Stream::TYPE_FOLLOWERS)
+		);
+	}
+
+	/**
+	 * An account graduates by having posts approved — a person having looked
+	 * at it that many times, which is the only measure of trust this app has
+	 * that is not a guess.
+	 */
+	public function testAnInstanceCanAskForMoreThanOnePostToBeLookedAt(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_POSTS] = '3';
+		$this->followsRequest->method('countFollowers')->willReturn(10);
+
+		$this->streamRequest->method('countPostsBy')->willReturn(2);
+		$this->assertSame(
+			HeldPost::REASON_FIRST_POST,
+			$this->service->assess($this->alice(), 'still new here', Stream::TYPE_PUBLIC),
+			'two approved posts is not yet three'
+		);
+	}
+
+	public function testPastThatNumberNothingIsHeld(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_POSTS] = '3';
+		$this->followsRequest->method('countFollowers')->willReturn(10);
+		$this->streamRequest->method('countPostsBy')->willReturn(3);
+
+		$this->assertSame('', $this->service->assess($this->alice(), 'settled in', Stream::TYPE_PUBLIC));
+	}
+
+	/** A mistyped setting must not hold an account's posts for ever. */
+	public function testTheNumberIsBounded(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_POSTS] = '100000';
+
+		$this->assertSame(
+			PostReviewService::MAX_POSTS_BEFORE_TRUSTED, $this->service->postsBeforeTrusted()
 		);
 	}
 

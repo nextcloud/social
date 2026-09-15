@@ -252,9 +252,17 @@ class AccountService {
 	 * @throws UrlCloudException
 	 */
 	public function createActor(string $userId, string $username) {
-		$this->confirmUserId($userId);
+		// A team account belongs to a group rather than to a person, and is
+		// stored under a reserved `team/<group>` id that no Nextcloud user can
+		// have: there is nobody to confirm and no address to check the domain
+		// of. Everything after this is the same actor every account gets — the
+		// key pair, the cache row, the loopback follow — which is what makes a
+		// team followable from Mastodon without any of it being written twice.
+		if (!str_starts_with($userId, 'team/')) {
+			$this->confirmUserId($userId);
+			$this->assertEmailDomainIsAllowed($userId);
+		}
 		$this->checkActorUsername($username);
-		$this->assertEmailDomainIsAllowed($userId);
 
 		try {
 			$actor = $this->actorsRequest->getFromUsername($username);
@@ -609,10 +617,16 @@ class AccountService {
 
 			$this->publishHandleOnProfile($actor);
 
-			try {
-				$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
-				$actor->setIconId($iconId);
-			} catch (ItemUnknownException|ItemAlreadyExistsException $e) {
+			// A team account has no Nextcloud user and therefore no avatar to
+			// mirror: the picture route would be asked for a user id nothing
+			// can resolve. It gets the app's default until somebody uploads
+			// one, which is honest rather than a broken image.
+			if (!str_starts_with($actor->getUserId(), 'team/')) {
+				try {
+					$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
+					$actor->setIconId($iconId);
+				} catch (ItemUnknownException|ItemAlreadyExistsException $e) {
+				}
 			}
 
 			$this->loadLocalActorHeader($actor);
@@ -693,6 +707,20 @@ class AccountService {
 	 * @throws NoUserException
 	 */
 	private function updateCacheLocalActorName(Person $actor) {
+		// A team account belongs to a group rather than to a person, so there
+		// is no Nextcloud account to read a display name off. Its name is the
+		// group's, which is the only name it has — and returning here rather
+		// than raising is what keeps it in the actor cache: an actor that is
+		// not cached is one every read of it 404s on, which is what happened
+		// the first time a team posted anything.
+		if (str_starts_with($actor->getUserId(), 'team/')) {
+			if ($actor->getName() === '') {
+				$actor->setName(substr($actor->getUserId(), strlen('team/')));
+			}
+
+			return;
+		}
+
 		$user = $this->userManager->get($actor->getUserId());
 		if ($user === null) {
 			throw new NoUserException();

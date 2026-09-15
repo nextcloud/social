@@ -88,6 +88,34 @@ class ModerationService {
 		return $this->moderationRequest->getActorIdsAt(Moderation::SILENCE);
 	}
 
+	/**
+	 * Marks every post by an account sensitive, or stops doing so.
+	 *
+	 * The step between doing nothing and silencing: an account can be asked to
+	 * put a content warning on its pictures without being taken out of the
+	 * timelines, which is exactly the case silence is too heavy for. It
+	 * applies from the next post — what is already stored was stored with the
+	 * flag the author gave it, and rewriting somebody's old posts is a
+	 * different and much larger decision.
+	 */
+	public function forceSensitive(string $actorId, bool $sensitive): void {
+		// there has to be a decision row to put it on: an account nobody has
+		// decided anything about gets one that decides nothing else
+		if ($this->moderationRequest->levelOf($actorId) === '') {
+			$this->moderationRequest->save(new Moderation($actorId, '', '', time()));
+		}
+
+		$this->moderationRequest->setForceSensitive($actorId, $sensitive);
+		$this->auditService->accountDecided(
+			$actorId, $sensitive ? 'force_sensitive' : 'force_sensitive_lifted'
+		);
+	}
+
+	/** @return string[] the accounts every post of which is marked sensitive */
+	public function forcedSensitive(): array {
+		return $this->moderationRequest->forcedSensitive();
+	}
+
 	public function isSuspended(string $actorId): bool {
 		return $this->moderationRequest->levelOf($actorId) === Moderation::SUSPEND;
 	}

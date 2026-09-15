@@ -218,10 +218,56 @@ describe('Migration', () => {
 	})
 
 	/** A move federates and cannot be undone, so it is not a button here. */
-	it('sends a whole-account move to an administrator rather than offering it', () => {
+	/**
+	 * Naming the old account federates nothing and is the person's own to do;
+	 * moving the followers cannot be taken back, and stays an administrator's.
+	 */
+	it('offers the alias but sends the move to an administrator', () => {
 		const text = mountPage().text()
 
-		expect(text).toContain('social:account:alias')
+		expect(text).toContain('Accounts you also answer to')
 		expect(text).toContain('social:account:move')
+		expect(text).not.toContain('social:account:alias')
+	})
+
+	it('reads the aliases when the page opens', async () => {
+		axios.get.mockResolvedValue({ data: { aliases: ['https://pixelfed.social/users/you'] } })
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/migration/aliases')
+		expect(wrapper.text()).toContain('https://pixelfed.social/users/you')
+	})
+
+	it('adds one and shows the list the server answers with', async () => {
+		const wrapper = mountPage()
+		await flushPromises()
+		axios.post.mockResolvedValue({ data: { aliases: ['https://old.example/users/me'] } })
+
+		wrapper.vm.aliasInput = 'https://old.example/users/me'
+		await wrapper.vm.addAlias()
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(
+			'/index.php/apps/social/api/v1/migration/aliases',
+			{ alias: 'https://old.example/users/me' },
+		)
+		expect(wrapper.text()).toContain('https://old.example/users/me')
+		// the box is cleared, so a second press cannot add the same one twice
+		expect(wrapper.vm.aliasInput).toBe('')
+	})
+
+	/** An address that is not an account's own is refused, and the server says why. */
+	it('shows the reason the server gave for refusing an address', async () => {
+		const wrapper = mountPage()
+		await flushPromises()
+		axios.post.mockRejectedValue({ response: { data: { error: 'that is not an actor id' } } })
+
+		wrapper.vm.aliasInput = 'pixelfed.social'
+		await wrapper.vm.addAlias()
+		await flushPromises()
+
+		const { showError } = await import('../../../src/services/toast.js')
+		expect(showError).toHaveBeenCalledWith('that is not an actor id')
 	})
 })

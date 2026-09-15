@@ -30,6 +30,8 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Client\Story;
+use OCA\Social\Model\Client\StoryInteraction;
 use OCA\Social\Reference\PostReferenceProvider;
 use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
@@ -304,6 +306,79 @@ class NotificationService {
 			$interface->save($item);
 		} catch (Exception $e) {
 			$this->logger->warning('could not store a moderation notification', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Tells the poster of a story that somebody has answered it.
+	 *
+	 * The poster and nobody else, whoever the answer came from and wherever it
+	 * came from: a reaction to a story is not a public fact about the story,
+	 * it is a message to one person. The notification carries the text, because
+	 * a reply lives with the story and a story lives a day — there is nowhere
+	 * to go and read it later.
+	 */
+	public function onStoryInteraction(Story $story, StoryInteraction $interaction): void {
+		if (!$this->isLocal($story->getOwnerId()) || $story->getOwnerId() === $interaction->getActorId()) {
+			return;
+		}
+
+		try {
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
+
+			/** @var SocialAppNotification $item */
+			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+			$reply = ($interaction->getType() === StoryInteraction::TYPE_REPLY);
+
+			$item->addDetail('story_id', (string)$story->getId());
+			$item->addDetail('content', $interaction->getContent());
+			$item->addDetail('account', $this->accountOf($interaction->getActorId()));
+			// attributedTo is who the notification is *about*, which is what a
+			// client draws as its account — the person who answered, not the
+			// person being told
+			$item->setAttributedTo($interaction->getActorId())
+				->setSubType($reply ? Stream::SUBTYPE_STORY_REPLY : Stream::SUBTYPE_STORY_REACT)
+				->setId($story->getOwnerId() . '/notification+story/' . md5($interaction->getSourceId()))
+				->setSummary($reply ? '{account} replied to your story' : '{account} reacted to your story')
+				->setTo($story->getOwnerId())
+				->setLocal(true);
+
+			$interface->save($item);
+		} catch (Exception $e) {
+			$this->logger->warning('could not store a story notification', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Tells somebody they have been named in a photograph.
+	 *
+	 * Local accounts only: a remote one is told by its own server, which
+	 * learns the name from the `Mention` the tag writes onto the post. Sending
+	 * this as well would be telling them twice through one of the two channels
+	 * they have.
+	 */
+	public function onPhotoTag(Stream $post, Person $author, Person $tagged): void {
+		if (!$this->isLocal($tagged->getId()) || $tagged->getId() === $author->getId()) {
+			return;
+		}
+
+		try {
+			$interface = AP::instance()->getInterfaceFromType(SocialAppNotification::TYPE);
+
+			/** @var SocialAppNotification $item */
+			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
+			$item->addDetail('account', $this->accountOf($author->getId()));
+			$item->setAttributedTo($author->getId())
+				->setSubType(Stream::SUBTYPE_PHOTO_TAG)
+				->setId($post->getId() . '/notification+tagged/' . md5($tagged->getId()))
+				->setSummary('{account} named you in a photo')
+				->setObjectId($post->getId())
+				->setTo($tagged->getId())
+				->setLocal(true);
+
+			$interface->save($item);
+		} catch (Exception $e) {
+			$this->logger->warning('could not store a photo-tag notification', ['exception' => $e]);
 		}
 	}
 
