@@ -35,12 +35,25 @@ class ServerSettingsService {
 	/** Inbox requests per origin host per minute; 0 disables the throttle. */
 	public const MAX_INBOX_THROTTLE = 100000;
 
+	/**
+	 * The longest edge a stored picture may be held to. Below the minimum it
+	 * is a thumbnail rather than a photograph; above the maximum it is not a
+	 * ceiling anybody's camera reaches.
+	 */
+	public const MIN_IMAGE_EDGE = 480;
+	public const MAX_IMAGE_EDGE = 16384;
+
+	/** Past this far down, a re-encoded photograph is visibly worse. */
+	public const MIN_IMAGE_QUALITY = 40;
+
 	/** The keys this page owns, in the order the page shows them. */
 	public const KEYS = [
 		ConfigService::CONTACT_EMAIL,
 		ConfigService::SOCIAL_EXTENDED_DESCRIPTION,
 		ConfigService::SOCIAL_MAX_SIZE,
 		ConfigService::SOCIAL_MAX_VIDEO_SIZE,
+		ConfigService::SOCIAL_IMAGE_MAX_EDGE,
+		ConfigService::SOCIAL_IMAGE_QUALITY,
 		ConfigService::SOCIAL_INBOX_THROTTLE,
 		ConfigService::SOCIAL_SECURE_MODE,
 		ConfigService::SOCIAL_PUBLISH_BLOCKS,
@@ -60,6 +73,8 @@ class ServerSettingsService {
 	 *     extended_description: string,
 	 *     max_size: int,
 	 *     max_video_size: int,
+	 *     image_max_edge: int,
+	 *     image_quality: int,
 	 *     inbox_throttle: int,
 	 *     secure_mode: bool,
 	 *     publish_blocks: bool,
@@ -74,6 +89,10 @@ class ServerSettingsService {
 			ConfigService::SOCIAL_MAX_SIZE => $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE),
 			ConfigService::SOCIAL_MAX_VIDEO_SIZE
 				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_VIDEO_SIZE),
+			ConfigService::SOCIAL_IMAGE_MAX_EDGE
+				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_IMAGE_MAX_EDGE),
+			ConfigService::SOCIAL_IMAGE_QUALITY
+				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_IMAGE_QUALITY),
 			ConfigService::SOCIAL_INBOX_THROTTLE
 				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_INBOX_THROTTLE),
 			// the two switches other code reads as `=== '1'`, and the one it
@@ -104,6 +123,8 @@ class ServerSettingsService {
 		string $extendedDescription,
 		int $maxSize,
 		int $maxVideoSize,
+		int $imageMaxEdge,
+		int $imageQuality,
 		int $inboxThrottle,
 		bool $secureMode,
 		bool $publishBlocks,
@@ -132,6 +153,20 @@ class ServerSettingsService {
 				'max_video_size must be between 1 and ' . self::MAX_VIDEO_SIZE_MB . ' MB'
 			);
 		}
+		// 0 is "store every upload exactly as it arrived", which is the default
+		// and the only value that loses nothing
+		if ($imageMaxEdge !== 0 && ($imageMaxEdge < self::MIN_IMAGE_EDGE || $imageMaxEdge > self::MAX_IMAGE_EDGE)) {
+			throw new InvalidArgumentException(
+				'image_max_edge must be 0, or between ' . self::MIN_IMAGE_EDGE . ' and ' . self::MAX_IMAGE_EDGE . ' pixels'
+			);
+		}
+
+		if ($imageQuality < self::MIN_IMAGE_QUALITY || $imageQuality > 100) {
+			throw new InvalidArgumentException(
+				'image_quality must be between ' . self::MIN_IMAGE_QUALITY . ' and 100'
+			);
+		}
+
 		if ($inboxThrottle < 0 || $inboxThrottle > self::MAX_INBOX_THROTTLE) {
 			throw new InvalidArgumentException(
 				'inbox_throttle must be between 0 and ' . self::MAX_INBOX_THROTTLE
@@ -142,6 +177,8 @@ class ServerSettingsService {
 		$this->configService->setAppValue(ConfigService::SOCIAL_EXTENDED_DESCRIPTION, $extendedDescription);
 		$this->configService->setAppValue(ConfigService::SOCIAL_MAX_SIZE, (string)$maxSize);
 		$this->configService->setAppValue(ConfigService::SOCIAL_MAX_VIDEO_SIZE, (string)$maxVideoSize);
+		$this->configService->setAppValue(ConfigService::SOCIAL_IMAGE_MAX_EDGE, (string)$imageMaxEdge);
+		$this->configService->setAppValue(ConfigService::SOCIAL_IMAGE_QUALITY, (string)$imageQuality);
 		$this->configService->setAppValue(ConfigService::SOCIAL_INBOX_THROTTLE, (string)$inboxThrottle);
 		// written as the literal `1`/`0`: AuthorizedFetchService and the
 		// domain-blocks route compare against '1', not against "truthy"

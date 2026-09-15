@@ -328,6 +328,8 @@ can still be set with `occ`; the page validates the ranges given here.
 | `extended_description` | *(empty)* | The long form of what this instance is, for `/api/v1/instance/extended_description`. Up to 10000 characters. |
 | `max_size` | `10` | The largest picture or file an upload may be, in MB. 1–10240. |
 | `max_video_size` | `2048` | The largest video, in MB. 1–102400. A peer will refuse a great deal less than the ceiling. |
+| `image_max_edge` | `0` | The longest edge a **stored** picture may have, in pixels. `0` stores every upload exactly as it arrived — the default, and the only setting that loses nothing: this app strips metadata losslessly and re-encodes only a picture it has to rotate. Set it (480–16384) on an instance where storage costs money or whose people post from a 48-megapixel phone. A picture already inside the ceiling is not re-encoded, because shrinking nothing and losing a generation anyway is the worst of both. |
+| `image_quality` | `85` | What a re-encoded picture is stored at, 40–100. Only consulted when `image_max_edge` is set. |
 | `inbox_throttle` | `300` | Incoming inbox requests allowed per origin host per minute. `0` accepts everything, which is what an instance behind its own rate limiter wants. |
 | `secure_mode` | `0` | Refuse ActivityPub fetches that are not signed. Mastodon's secure mode. Turning it on makes this instance invisible to every peer that does not sign what it asks for, and to every anonymous reader; it is a decision about who to federate with, not a hardening step to apply by default. |
 | `publish_blocks` | `0` | Publish the deny list on `/api/v1/instance/domain_blocks`, the way Mastodon does, so somebody choosing a server can see who it will not talk to. Whether *this* server wants that read by anybody is a disclosure decision. |
@@ -345,6 +347,7 @@ can still be set with `occ`; the page validates the ranges given here.
 | `publish_video_objects` | `0` | Whether a post that is a video is federated as an ActivityPub `Video` (PeerTube's shape) rather than a `Note` with an attachment. Off by default: Pixelfed's inbox handles only `Note`s and silently drops a `Video`, so with this on no video posted here reaches a Pixelfed follower. Mastodon draws both shapes; PeerTube draws only the `Video`. Turn it on for an instance whose audience is on PeerTube. |
 | `rules` | *(empty)* | The instance rules shown by `/api/v1/instance/rules`, one per line. |
 | `review_first_post` | `1` | Hold the first post of an account that has published nothing here yet, for a moderator to see before it goes out. |
+| `review_posts` | `1` | How many posts an account must have had published before its posts stop being held. `1` is first-post review as it has always meant. An account graduates by having that many posts approved — a person having looked at it that many times, which is the only measure of trust here that is not a guess. Capped at 20. |
 | `autospam` | `1` | Hold a post that trips one of the spam rules — more than five links in a short post, or more than five mentions from an account nobody follows and that follows nobody. Nothing is ever refused by the rules, only shown to a person. |
 
 ### System configuration

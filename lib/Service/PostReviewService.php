@@ -67,6 +67,12 @@ class PostReviewService {
 	 */
 	public const MAX_PENDING_PER_ACTOR = 20;
 
+	/**
+	 * The most posts an account can be asked to have approved before it is
+	 * trusted. Past this it is not a review queue, it is a permission.
+	 */
+	public const MAX_POSTS_BEFORE_TRUSTED = 20;
+
 	/** Links in one post, past which it goes to a person. */
 	public const MAX_LINKS = 5;
 
@@ -93,6 +99,22 @@ class PostReviewService {
 	/** Whether an administrator has asked for a first post to be looked at. */
 	public function reviewsFirstPost(): bool {
 		return $this->configService->getAppValueBool(ConfigService::SOCIAL_REVIEW_FIRST_POST);
+	}
+
+	/**
+	 * How many posts an account publishes before it stops being held.
+	 *
+	 * An account graduates by having that many posts approved — which is a
+	 * person having looked at it that many times, and is the only measure of
+	 * trust this app has that is not a guess. One by default, which is what
+	 * "first-post review" has always meant; bounded so that a mistyped setting
+	 * cannot hold an account's posts for ever.
+	 */
+	public function postsBeforeTrusted(): int {
+		return max(1, min(
+			self::MAX_POSTS_BEFORE_TRUSTED,
+			$this->configService->getAppValueInt(ConfigService::SOCIAL_REVIEW_POSTS)
+		));
 	}
 
 	/** Whether an administrator has asked for the spam rules to be applied. */
@@ -130,7 +152,8 @@ class PostReviewService {
 			}
 		}
 
-		if ($this->reviewsFirstPost() && $this->streamRequest->countPostsBy($actor->getId()) === 0) {
+		if ($this->reviewsFirstPost()
+			&& $this->streamRequest->countPostsBy($actor->getId()) < $this->postsBeforeTrusted()) {
 			return HeldPost::REASON_FIRST_POST;
 		}
 

@@ -55,6 +55,7 @@ class PostReviewServiceTest extends TestCase {
 	private array $settings = [
 		ConfigService::SOCIAL_REVIEW_FIRST_POST => '1',
 		ConfigService::SOCIAL_AUTOSPAM => '1',
+		ConfigService::SOCIAL_REVIEW_POSTS => '1',
 	];
 
 	protected function setUp(): void {
@@ -70,6 +71,9 @@ class PostReviewServiceTest extends TestCase {
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->configService->method('getAppValueBool')->willReturnCallback(
 			fn (string $key): bool => ($this->settings[$key] ?? '0') === '1'
+		);
+		$this->configService->method('getAppValueInt')->willReturnCallback(
+			fn (string $key): int => (int)($this->settings[$key] ?? 1)
 		);
 
 		$this->service = new PostReviewService(
@@ -125,6 +129,40 @@ class PostReviewServiceTest extends TestCase {
 		$this->assertSame(
 			HeldPost::REASON_FIRST_POST,
 			$this->service->assess($this->alice(), 'hello', Stream::TYPE_FOLLOWERS)
+		);
+	}
+
+	/**
+	 * An account graduates by having posts approved — a person having looked
+	 * at it that many times, which is the only measure of trust this app has
+	 * that is not a guess.
+	 */
+	public function testAnInstanceCanAskForMoreThanOnePostToBeLookedAt(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_POSTS] = '3';
+		$this->followsRequest->method('countFollowers')->willReturn(10);
+
+		$this->streamRequest->method('countPostsBy')->willReturn(2);
+		$this->assertSame(
+			HeldPost::REASON_FIRST_POST,
+			$this->service->assess($this->alice(), 'still new here', Stream::TYPE_PUBLIC),
+			'two approved posts is not yet three'
+		);
+	}
+
+	public function testPastThatNumberNothingIsHeld(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_POSTS] = '3';
+		$this->followsRequest->method('countFollowers')->willReturn(10);
+		$this->streamRequest->method('countPostsBy')->willReturn(3);
+
+		$this->assertSame('', $this->service->assess($this->alice(), 'settled in', Stream::TYPE_PUBLIC));
+	}
+
+	/** A mistyped setting must not hold an account's posts for ever. */
+	public function testTheNumberIsBounded(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_POSTS] = '100000';
+
+		$this->assertSame(
+			PostReviewService::MAX_POSTS_BEFORE_TRUSTED, $this->service->postsBeforeTrusted()
 		);
 	}
 

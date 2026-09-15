@@ -72,6 +72,8 @@ describe('the server card', () => {
 			extendedDescription: 'a friendly place',
 			maxSize: 20,
 			maxVideoSize: 4096,
+			imageMaxEdge: 0,
+			imageQuality: 85,
 			inboxThrottle: 0,
 			secureMode: true,
 			publishBlocks: false,

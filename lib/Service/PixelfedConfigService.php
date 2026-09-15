@@ -57,6 +57,11 @@ class PixelfedConfigService {
 	) {
 	}
 
+	/** Whether this instance shrinks what is uploaded to it. */
+	private function optimisesImages(): bool {
+		return $this->configService->getAppValueInt(ConfigService::SOCIAL_IMAGE_MAX_EDGE) > 0;
+	}
+
 	/**
 	 * @return array the config object, in Pixelfed's shape
 	 */
@@ -76,12 +81,16 @@ class PixelfedConfigService {
 				'max_caption_length' => self::MAX_CAPTION_LENGTH,
 				'max_altext_length' => self::MAX_ALTTEXT_LENGTH,
 				'album_limit' => Stream::MAX_ATTACHMENTS,
-				// nothing here is recompressed: metadata is stripped losslessly
-				// and a picture is re-encoded only when it has to be rotated.
-				// It said `optimize_image: true, image_quality: 80` — a claim
-				// a client may act on by skipping its own compression
-				'image_quality' => 100,
-				'optimize_image' => false,
+				// A client may act on these by skipping its own compression, so
+				// they say what this instance actually does. Nothing is
+				// recompressed unless an administrator asked for it: metadata
+				// is stripped losslessly and a picture is re-encoded only when
+				// it has to be rotated — or when `image_max_edge` is set, which
+				// is the case these two report.
+				'image_quality' => $this->optimisesImages()
+					? $this->configService->getAppValueInt(ConfigService::SOCIAL_IMAGE_QUALITY) : 100,
+				'optimize_image' => $this->optimisesImages(),
+				// video is never re-encoded here, whatever the setting
 				'optimize_video' => false,
 				'media_types' => implode(',', $this->instanceService->supportedMimeTypes()),
 				'max_collection_length' => CollectionsRequest::MAX_ITEMS,

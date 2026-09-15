@@ -43,6 +43,8 @@ class ServerSettingsController extends Controller {
 	 * @param string $contactEmail empty, or an address
 	 * @param int $maxSize megabytes an attachment may have
 	 * @param int $maxVideoSize megabytes a video may have
+	 * @param int $imageMaxEdge longest edge a stored picture may have; 0 keeps every upload as it arrived
+	 * @param int $imageQuality what a re-encoded picture is stored at, when the above is set
 	 * @param int $inboxThrottle inbox requests per origin host per minute; 0 disables
 	 * @param bool $secureMode refuse ActivityPub fetches that are not signed
 	 * @param bool $publishBlocks publish the domain deny list on the instance API
@@ -54,6 +56,8 @@ class ServerSettingsController extends Controller {
 		string $extendedDescription = '',
 		int $maxSize = 10,
 		int $maxVideoSize = 2048,
+		int $imageMaxEdge = 0,
+		int $imageQuality = 85,
 		int $inboxThrottle = 300,
 		bool $secureMode = false,
 		bool $publishBlocks = false,
@@ -65,6 +69,8 @@ class ServerSettingsController extends Controller {
 				$extendedDescription,
 				$maxSize,
 				$maxVideoSize,
+				$imageMaxEdge,
+				$imageQuality,
 				$inboxThrottle,
 				$secureMode,
 				$publishBlocks,

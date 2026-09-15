@@ -124,6 +124,35 @@ class ConfigService {
 	public const SOCIAL_AUTOSPAM = 'autospam';
 
 	/**
+	 * How many posts an account must have published here before its posts stop
+	 * being held.
+	 *
+	 * `1` — hold the first one only — is the default and is what "first-post
+	 * review" means. An instance that has had trouble can ask for more, and an
+	 * account that has had that many posts approved is one a person has
+	 * already looked at that many times.
+	 */
+	public const SOCIAL_REVIEW_POSTS = 'review_posts';
+
+	/**
+	 * The longest edge a stored picture may have, in pixels; 0 keeps every
+	 * upload exactly as it arrived.
+	 *
+	 * Off by default, because this app's promise has been that nothing loses a
+	 * generation of quality: the metadata is stripped losslessly and a picture
+	 * is re-encoded only when it has to be. An instance where storage costs
+	 * money, or whose people post straight from a 48-megapixel phone, wants
+	 * the other trade, and until now had no way to ask for it.
+	 */
+	public const SOCIAL_IMAGE_MAX_EDGE = 'image_max_edge';
+
+	/**
+	 * The JPEG quality a re-encoded picture is stored at. Only consulted when
+	 * `image_max_edge` is set, because otherwise nothing is re-encoded.
+	 */
+	public const SOCIAL_IMAGE_QUALITY = 'image_quality';
+
+	/**
 	 * The secret a story's fetch capability is derived from, generated the
 	 * first time a story is published. See `getStorySecret()`.
 	 */
@@ -167,6 +196,9 @@ class ConfigService {
 		self::SOCIAL_PUBLISH_BLOCKS => '0',
 		self::SOCIAL_REVIEW_FIRST_POST => '1',
 		self::SOCIAL_AUTOSPAM => '1',
+		self::SOCIAL_REVIEW_POSTS => '1',
+		self::SOCIAL_IMAGE_MAX_EDGE => '0',
+		self::SOCIAL_IMAGE_QUALITY => '85',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
 		self::CONTACT_EMAIL => '',
 		self::SOCIAL_POLLS_SWEPT => '0'

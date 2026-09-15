@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use Gumlet\ImageResize;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use Psr\Log\LoggerInterface;
@@ -41,6 +42,13 @@ class ImageConversionService {
 	private const JPEG_QUALITY = 90;
 	private const AVIF_QUALITY = 80;
 
+	/**
+	 * The formats a resize is worth doing on. A GIF may be animated and would
+	 * come out as one frame; an AVIF is already small and the encoder is not
+	 * always there.
+	 */
+	private const SHRINKABLE = ['image/jpeg', 'image/png', 'image/webp'];
+
 	/** Uploaded as these, stored as something else. */
 	private const TRANSCODE_FROM = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
 
@@ -49,6 +57,7 @@ class ImageConversionService {
 
 	public function __construct(
 		private ImageMetadataService $metadataService,
+		private ConfigService $configService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -67,6 +76,21 @@ class ImageConversionService {
 	 * @throws CacheContentDecodeException when the picture will not decode
 	 */
 	public function prepareForStorage(string $content, string $mime): array {
+		[$content, $mime] = $this->convert($content, $mime);
+
+		// Last, and only when an administrator asked for it: everything above
+		// is about storing what was uploaded correctly, and this is about
+		// storing less of it.
+		return $this->shrink($content, $mime);
+	}
+
+	/**
+	 * Everything that has to happen to a picture before it is stored, whatever
+	 * the instance's settings are.
+	 *
+	 * @return array{0: string, 1: string} the content and what it now is
+	 */
+	private function convert(string $content, string $mime): array {
 		if (in_array($mime, self::TRANSCODE_FROM, true)) {
 			return [$this->transcodeToJpeg($content), self::TRANSCODE_TARGET];
 		}
@@ -97,6 +121,52 @@ class ImageConversionService {
 		}
 
 		return [$content, $mime];
+	}
+
+	/**
+	 * The picture, no larger than this instance asked for.
+	 *
+	 * Off unless `image_max_edge` is set, and deliberately so: this app's
+	 * promise has been that nothing loses a generation of quality. An instance
+	 * where storage costs money, or whose people post from a 48-megapixel
+	 * phone, wants the other trade — and a picture that is 8000 pixels wide is
+	 * not being looked at at 8000 pixels by anybody.
+	 *
+	 * A picture already inside the ceiling is returned untouched rather than
+	 * re-encoded at the configured quality: shrinking nothing and losing a
+	 * generation anyway is the worst of both.
+	 *
+	 * @return array{0: string, 1: string}
+	 */
+	private function shrink(string $content, string $mime): array {
+		$edge = $this->configService->getAppValueInt(ConfigService::SOCIAL_IMAGE_MAX_EDGE);
+		if ($edge <= 0 || !in_array($mime, self::SHRINKABLE, true)) {
+			return [$content, $mime];
+		}
+
+		try {
+			$image = ImageResize::createFromString($content);
+			if ($image->getSourceWidth() <= $edge && $image->getSourceHeight() <= $edge) {
+				return [$content, $mime];
+			}
+
+			$quality = max(40, min(100, $this->configService->getAppValueInt(ConfigService::SOCIAL_IMAGE_QUALITY)));
+			$image->quality_jpg = $quality;
+			$image->quality_webp = $quality;
+			$image->resizeToBestFit($edge, $edge);
+			$smaller = $image->getImageAsString();
+		} catch (Throwable $e) {
+			// a picture that cannot be resized is stored as it arrived: the
+			// upload is the person's, and a setting about disk space is not a
+			// reason to refuse it
+			$this->logger->notice('[ImageConversionService] could not shrink an upload', [
+				'mime' => $mime, 'exception' => $e->getMessage(),
+			]);
+
+			return [$content, $mime];
+		}
+
+		return (is_string($smaller) && $smaller !== '') ? [$smaller, $mime] : [$content, $mime];
 	}
 
 	/** Whether this installation can read the formats a phone camera produces. */
