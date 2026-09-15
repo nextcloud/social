@@ -270,7 +270,7 @@ class PixelfedService {
 		return [
 			'version' => '1',
 			'username' => $viewer->getPreferredUsername(),
-			'profile_id' => (string)$viewer->getNid(),
+			'profile_id' => $this->profileId($viewer),
 			'notify_enabled' => false,
 			'has_token' => false,
 			'notify_like' => false,
@@ -289,7 +289,7 @@ class PixelfedService {
 		return [
 			'version' => '1',
 			'username' => $viewer->getPreferredUsername(),
-			'profile_id' => (string)$viewer->getNid(),
+			'profile_id' => $this->profileId($viewer),
 			'notify_enabled' => false,
 			'match' => false,
 			'has_existing' => false,
@@ -329,7 +329,7 @@ class PixelfedService {
 		$decoded = ($stored === '') ? null : json_decode($stored, true);
 
 		return [
-			'id' => (string)$viewer->getNid(),
+			'id' => $this->profileId($viewer),
 			'username' => $viewer->getPreferredUsername(),
 			// null until the account has saved them once, which is how the app
 			// tells "never set" from "set to the defaults"
@@ -369,7 +369,7 @@ class PixelfedService {
 		);
 
 		return [
-			'id' => (string)$viewer->getNid(),
+			'id' => $this->profileId($viewer),
 			'username' => $viewer->getPreferredUsername(),
 			'updated_at' => $updated,
 			'common' => $kept,
@@ -659,6 +659,24 @@ class PixelfedService {
 			'local' => $account->isLocal(),
 			'is_author' => $isViewer,
 		];
+	}
+
+	/**
+	 * The account id the app keys its own per-account state on.
+	 *
+	 * The viewer comes from `social_actor`, which is what this instance
+	 * decides about an account and carries no numeric id; the id every client
+	 * sees is the cached actor's. Without this every account answered `0`, so
+	 * two accounts on one phone shared whatever the app stored under it.
+	 */
+	private function profileId(Person $viewer): string {
+		if ($viewer->getNid() > 0) {
+			return (string)$viewer->getNid();
+		}
+
+		$nid = $this->ownerNid($viewer->getId());
+
+		return ($nid === '') ? '0' : $nid;
 	}
 
 	private function ownerNid(string $actorId): string {

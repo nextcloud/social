@@ -376,6 +376,8 @@ class PixelfedServiceTest extends TestCase {
 		$settings = $this->service->appSettings($this->alice());
 
 		$this->assertSame('alice', $settings['username']);
+		// the id the app keys its own per-account state on
+		$this->assertSame((string)$this->person(self::ALICE)->getNid(), $settings['id']);
 		// null, not a date: how the app tells "never set" from "set to the
 		// defaults"
 		$this->assertNull($settings['updated_at']);
@@ -425,6 +427,23 @@ class PixelfedServiceTest extends TestCase {
 		]);
 
 		$this->assertSame('system', $saved['common']['appearance']['theme']);
+	}
+
+	/**
+	 * The viewer a route holds comes from `social_actor`, which is what this
+	 * instance decides about an account and carries no numeric id. Without
+	 * the fallback every account answered `0`, and two accounts on one phone
+	 * shared whatever the app stored under it.
+	 */
+	public function testAnAccountWithNoNumberOfItsOwnIsStillNamed(): void {
+		$viewer = new Person();
+		$viewer->setId(self::ALICE)->setPreferredUsername('alice');
+		$viewer->setUserId('alice');
+
+		$settings = $this->service->appSettings($viewer);
+
+		$this->assertNotSame('0', $settings['id']);
+		$this->assertSame((string)$this->person(self::ALICE)->getNid(), $settings['id']);
 	}
 
 	/** One account's switches are not another's. */
