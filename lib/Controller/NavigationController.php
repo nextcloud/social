@@ -16,12 +16,14 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SensitiveMediaService;
+use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
@@ -48,6 +50,9 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Controller
  */
 class NavigationController extends Controller {
+	/** How many posts the page is handed before it asks for any. */
+	private const FIRST_PAGE = 15;
+
 	use TArrayTools;
 	use TNCDataResponse;
 
@@ -65,6 +70,7 @@ class NavigationController extends Controller {
 		private ConfigService $configService,
 		private CheckService $checkService,
 		private SensitiveMediaService $sensitiveMediaService,
+		private StreamService $streamService,
 		private MiscService $miscService,
 		private LoggerInterface $logger,
 	) {
@@ -213,6 +219,7 @@ class NavigationController extends Controller {
 		]);
 		$this->initialState->provideInitialState('serverData', $serverData);
 		$this->provideViewerAccount();
+		$this->provideFirstPage($path);
 
 		return new TemplateResponse(Application::APP_ID, 'main');
 	}
@@ -246,6 +253,62 @@ class NavigationController extends Controller {
 				'exception' => $e->getMessage(),
 			]);
 		}
+	}
+
+	/**
+	 * The first page of the home timeline, in the page that asks for it.
+	 *
+	 * Without this the first screenful is a staircase: the browser fetches
+	 * 290 KB of JavaScript, mounts, and only then asks the server for the
+	 * posts — a second round trip, and a full Nextcloud boot, before anything
+	 * a person came to read is on screen. The page is already doing a database
+	 * request and already holds the viewer; the posts cost one more and are
+	 * bytes the browser was going to ask for anyway.
+	 *
+	 * Only the home timeline, and only when the home timeline is what was
+	 * asked for. Seeding a profile or a hashtag page would be seeding whatever
+	 * happened to be in the URL, and a page reached with a cursor is one the
+	 * reader has scrolled to rather than the one they arrived on.
+	 *
+	 * A failure is not worth showing anybody: the page asks, which is what it
+	 * did before.
+	 */
+	private function provideFirstPage(string $path): void {
+		if ($this->userId === null || !$this->isHomeTimeline($path)) {
+			return;
+		}
+
+		try {
+			$viewer = $this->accountService->getActorFromUserId($this->userId);
+			$this->streamService->setViewer($viewer);
+
+			$options = new ProbeOptions();
+			$options->setFormat(ACore::FORMAT_LOCAL)
+				->setProbe(ProbeOptions::HOME)
+				->setLimit(self::FIRST_PAGE);
+
+			$this->initialState->provideInitialState(
+				'firstPage', $this->streamService->getTimeline($options)
+			);
+		} catch (Exception $e) {
+			$this->logger->debug('[NavigationController] no first page to hand the page', [
+				'userId' => $this->userId,
+				'exception' => $e->getMessage(),
+			]);
+		}
+	}
+
+	/**
+	 * Whether this address is the home timeline.
+	 *
+	 * The app's root and `timeline/home` are the two ways of naming it;
+	 * everything else — a profile, a hashtag, the notifications — is a
+	 * different list and is not what this seeds.
+	 */
+	private function isHomeTimeline(string $path): bool {
+		$path = trim($path, '/');
+
+		return $path === '' || $path === 'timeline' || $path === 'timeline/home';
 	}
 
 	private function setupCloudAddress(): string {

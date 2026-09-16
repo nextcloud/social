@@ -388,6 +388,8 @@ can still be set with `occ`; the page validates the ranges given here.
 | `video_max_height` | `1080` | The tallest a converted video is written, 240–2160. Only smaller, never larger: a 480p video is left at 480p. Only consulted when `video_transcode` is on. |
 | `video_ladder` | `0` | Whether each stored MP4 is **also** written at a ladder of smaller sizes, as HLS, so a player can pick the one that fits the connection. A different question from `video_transcode`, which is about a video being playable at all elsewhere; this is about it being watchable on a phone on a train. Off by default, because it is several ffmpeg encodes per video on this server. Each rung is one file — `-hls_flags single_file` writes the rendition as a fragmented MP4 and the playlist addresses its segments as byte ranges — so a forty-minute video is three files rather than a thousand, which is also the shape PeerTube publishes. The original is kept and is what a player without HLS falls back to. Needs ffmpeg **and** ffprobe. One video every half-hour, or `occ social:media:ladder` to work through a backlog now. Built from `video/mp4` only: a `.mov` goes through the transcoder first. |
 | `video_ladder_heights` | `360,720,1080` | Which heights, comma-separated, 144–2160. Heights at or above a video's own are skipped rather than upscaled, and the video's own height is always a rung, so the best rung is never worse than the file beside it. A list with nothing usable in it is refused by the admin card rather than silently replaced with the default. Only consulted when `video_ladder` is on. |
+| `search_window_days` | `365` | How far back a content search looks. `content ILIKE '%term%'` cannot use an index — a leading wildcard never can — so an unbounded search reads every post the instance has ever stored, joined to seven other tables, **on every keystroke**; at ten million rows that is a table scan with the rate limit as the only defence. A year covers what anybody is looking for. `0` searches everything, which an instance small enough can afford to say. |
+| `local_actor_cursor` | `''` | Bookkeeping, not a setting: where the cron's local-account refresh walk got to. It used to read every local account into memory on every pass; it pages now, and this is what makes the next pass carry on rather than start again. |
 | `video_quota` | `0` | How many megabytes of video **one account** may keep here; `0` is no quota, which is what every instance has in effect today. A different question from `max_video_size`, which is a ceiling on one file: that is about a single request, this about a year of them. Off by default because an instance that has been running without a quota and acquires one on upgrade would start refusing uploads from exactly the accounts that use it most. Checked once, where an upload is written, against the size recorded on each stored file — so a video uploaded before this app recorded sizes counts as nothing until the daily usage job has been past it, which fills the column in as it walks. The **ladders this server builds do not count against it**: they are made because an administrator asked for them, are several times the size of the upload, and would turn a quota somebody was told about into one several times smaller. They are counted in what an administrator is shown, because they are real disk. Who is holding what is under **Administration → Social → Storage**. |
 | `nsfw_policy` | `default` | What happens to media somebody marked sensitive, for readers who have not chosen for themselves. PeerTube's three NSFW policies under Mastodon's names for the same three states: `show_all` (PeerTube's *display*), `default` (its *blur* — covered, the blurhash showing, one press away, and what this app has always done) and `hide_all` (its *hide* — not drawn, and no button to draw it). Anybody can override it for themselves under **Settings** in the app, and "follow the instance" stays a state of its own, so changing this moves everybody who is following it and nobody who has chosen. A **content warning is a different thing** and always covers its post, whatever this says. |
 | `review_videos` | `0` | Whether every post with a video on it waits for a moderator. The third rule of the review queue, beside a new account's first post and the spam rules, and the one an instance that hosts video wants: a video is minutes of somebody's attention and a great deal of somebody else's disk. **Unlike the other two it is not about the account** — a trusted account with a thousand posts behind it is held by it too, every time, because what it is about is the video. A moderator's own video is not held, and neither is a direct message. Under **Administration → Social → Posts waiting to be looked at**. |
@@ -472,6 +474,41 @@ occ social:reset --uninstall        # and drops the tables, jobs and app config
 ```
 
 ---
+
+## Running a large instance
+
+Everything below is optional and nothing on a small instance needs any of it.
+These are the three things that stop working first as an instance grows, and
+what to do about each.
+
+**Install `notify_push`.** Without it every open tab asks the server for the
+home timeline and the unread count **every thirty seconds**; with it the server
+tells the client instead and the poll drops to once every five minutes — a
+tenfold cut in the request volume, for one app install. The polls also answer
+`304` now when nothing has changed, so even without it most of them cost an
+index probe and an empty response rather than a rendered page.
+
+**Run delivery workers.** `Cron\Queue` moves at most 200 deliveries every twelve
+minutes and, when peers are slow, as few as ten — a ceiling of about a thousand
+an hour, which an instance whose accounts are followed across thousands of
+servers exceeds with a single popular post. `occ social:worker` is the same
+delivery in a loop that does not stop, and **several may run at once**; see
+[OCC-Commands.md](OCC-Commands.md) for a systemd unit. The cron job is unchanged,
+so an instance that will not run a daemon keeps what it has.
+
+**Watch the cron actually finish.** The steps are budgeted at 300 seconds a pass
+and resume where they stopped, so a pass that runs out of time is normal. A pass
+that *never* reaches the later steps is not: `social:check` and the Nextcloud log
+are where that shows.
+
+Two settings exist for size and are listed above: `search_window_days` bounds
+what a content search scans, and `retention_days` bounds what cached remote
+media costs. Both trade completeness for a bounded cost, and the default of each
+is the one a medium instance wants.
+
+`occ social:benchmark` seeds a realistic amount of content and times the
+timeline queries against it, which is the only honest way to find out what any
+of this costs on the hardware in front of you.
 
 ## What to watch
 

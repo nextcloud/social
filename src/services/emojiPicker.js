@@ -23,6 +23,9 @@
  */
 let picker = null
 
+/**
+ *
+ */
 export function emojiPickerModule() {
 	return (picker ??= import('@nextcloud/vue/components/NcEmojiPicker'))
 }

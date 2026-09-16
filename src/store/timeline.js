@@ -6,6 +6,7 @@
 import axios from '@nextcloud/axios'
 import { showError, showInfo } from '../services/toast.js'
 import { translate as t } from '@nextcloud/l10n'
+import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'
 
@@ -119,6 +120,16 @@ export const useTimelineStore = defineStore('timeline', {
 		/** which list a removed status came from, so a rollback restores it there */
 		removedFrom: {},
 		type: 'home',
+
+		/**
+		 * The first screenful of the home timeline, put in the document by the
+		 * server that rendered it — see `NavigationController::provideFirstPage()`.
+		 * Read once and then dropped; null on every page that was not rendered
+		 * with one.
+		 *
+		 * @type {Array|null}
+		 */
+		seededPage: loadState('social', 'firstPage', null),
 		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string, filter?: string}} */
 		params: {},
 		account: '',
@@ -237,6 +248,37 @@ export const useTimelineStore = defineStore('timeline', {
 	actions: {
 		addToStatuses(status) {
 			indexStatus(this, status)
+		},
+
+		/**
+		 * The first page the server put in the document, if this request is
+		 * the one it was rendered for.
+		 *
+		 * Consumed rather than read: it answers the first fetch of the home
+		 * timeline and nothing afterwards, because it is a snapshot of one
+		 * moment and a second request means the reader asked for something
+		 * else — a cursor, a filter, a refresh.
+		 *
+		 * @param {object} params what the fetch was going to ask for
+		 * @return {Array|null} the posts, or null to go and ask
+		 */
+		takeSeededPage(params) {
+			if (this.seededPage === null || this.type !== 'home') {
+				return null
+			}
+
+			const page = this.seededPage
+			this.seededPage = null
+
+			// a cursor, a narrowing, or any other question the seeded page was
+			// not the answer to
+			const asked = { ...params }
+			delete asked.limit
+			if (Object.keys(asked).length > 0) {
+				return null
+			}
+
+			return page
 		},
 		addToTimeline(data) {
 			if (Array.isArray(data)) {
@@ -850,6 +892,23 @@ export const useTimelineStore = defineStore('timeline', {
 		async fetchTimeline(params = {}) {
 			if (params.limit === undefined) {
 				params.limit = 15
+			}
+
+			// The page was rendered for this reader and carries the first
+			// screenful of their home timeline with it, so the first fetch has
+			// nothing to go and ask for. Without this the first screen is a
+			// staircase: fetch the bundle, mount, *then* ask the server —
+			// a second round trip and a full Nextcloud boot before anything a
+			// person came to read is on screen.
+			//
+			// Once only, and only for the list it was rendered for: a seeded
+			// page handed to a second request would be a stale answer to a
+			// different question.
+			const seeded = this.takeSeededPage(params)
+			if (seeded !== null) {
+				this.addToTimeline(seeded)
+
+				return seeded
 			}
 
 			let url
