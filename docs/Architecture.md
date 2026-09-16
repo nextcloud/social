@@ -710,7 +710,15 @@ seeding harness is for.
 The per-viewer filters — blocks, mutes, hidden boosts — are what forced the
 join, so they no longer ride in the page query. They are applied to the twenty
 rows it chose, where each is a lookup against twenty ids; the page is read three
-times wider than asked so that one which loses rows to a block still fills.
+times wider than asked so that one which loses rows to a block still fills. When
+that is not enough — a muted account that has just posted sixty times in a row,
+a blocked instance that dominates the window — the page **reads on** from below
+the oldest id it has already considered, up to four more windows. Empty is how
+both clients read "there is nothing more" (the web app sets `allLoaded` on a
+page of zero, and no `Link: rel="next"` is sent), so without it the timeline
+ended in the middle while older posts the reader can see sat further down. The
+bound is what keeps a reader who has muted everything they follow from turning
+one request into a walk of the table.
 
 A **media narrowing is the exception**, and the reason is worth keeping: it is a
 question about the *post*, and the page query reads only the recipient rows,
