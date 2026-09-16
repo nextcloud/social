@@ -22,11 +22,13 @@ const media = {
 const file = new File(['x'], 'screenshot.png', { type: 'image/png' })
 const sound = new File(['x'], 'talk.ogg', { type: 'audio/ogg' })
 
-function mountItem(preview) {
+function mountItem(preview, randomKey = 'blob:preview-1') {
 	return mount(PreviewGridItem, {
-		props: { preview, randomKey: 'blob:preview-1' },
+		props: { preview, randomKey },
 	})
 }
+
+const swatches = (wrapper) => wrapper.findAll('.filter-picker__image').map((img) => img.attributes('src'))
 
 const pad = (wrapper) => wrapper.find('.preview-item__focus-pad')
 
@@ -262,5 +264,45 @@ describe('PreviewGridItem', () => {
 	it('does not badge a picture that has none', () => {
 		expect(mountItem({ file, data: media }).find('.preview-item__focal').exists()).toBe(false)
 		expect(mountItem({ file, data: media }).find('.preview-item__crosshair').exists()).toBe(false)
+	})
+
+	/**
+	 * The swatches are the picture itself with a different `filter:` on each,
+	 * and the key is what they were drawn from. That works for an upload,
+	 * whose key *is* an object URL; a file attached from Nextcloud is keyed by
+	 * `nextcloud:<n>:<path>`, which is an identifier and not an address — so
+	 * every swatch under a picture picked from Files was a broken image, and
+	 * every one of them a content-security-policy violation in the console.
+	 */
+	describe('what the filter swatches are drawn from', () => {
+		it('draws an upload from the object url it is keyed by', () => {
+			const wrapper = mountItem({ file, data: media })
+
+			expect(swatches(wrapper)).toContain('blob:preview-1')
+		})
+
+		it('draws a file from Nextcloud from the copy the server made', () => {
+			const wrapper = mountItem(
+				{ file: null, path: '/Photos/Birdie.jpg', data: media },
+				'nextcloud:1:/Photos/Birdie.jpg',
+			)
+
+			expect(swatches(wrapper)).toContain('https://cloud.example.org/media/small.png')
+			expect(swatches(wrapper).join(' ')).not.toContain('nextcloud:')
+		})
+
+		/**
+		 * Until the server answers there is nothing to filter, and the picker
+		 * is not offered at all — so there is never a moment where it is drawn
+		 * from an address that does not exist.
+		 */
+		it('is not offered while the server is still fetching the file', () => {
+			const wrapper = mountItem(
+				{ file: null, path: '/Photos/Birdie.jpg', data: null },
+				'nextcloud:1:/Photos/Birdie.jpg',
+			)
+
+			expect(wrapper.findComponent({ name: 'FilterPicker' }).exists()).toBe(false)
+		})
 	})
 })

@@ -1764,6 +1764,17 @@ is the dialog's. Posting still empties the box, through one `clearComposer()`, s
 a field added to the composer cannot survive a post by being missed off one of
 two lists.
 
+**An attachment is keyed by where it came from, and drawn from where it is.**
+An upload is keyed by its own object URL, so the filter swatches — the picture
+itself with a different `filter:` on each — can be drawn before the server has
+answered. A file attached from Nextcloud is keyed by `nextcloud:<n>:<path>`
+instead, because the same picture may be picked twice and the path cannot tell
+those two apart. That key is an identifier and not an address, and drawing the
+swatches from it put eight broken images under every picture attached from
+Files, with a content-security-policy violation in the console for each. They
+are drawn from the server's own copy for those, which by then exists: the picker
+is not offered until the attachment has come back.
+
 **Every panel the toolbar opens closes from itself.** The poll, the content
 warning, the preview and the place picker were opened by a button in the toolbar
 and could be shut only by finding that same button and pressing it again — a row

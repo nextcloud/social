@@ -212,9 +212,29 @@ export default {
 				: type === 'image'
 		},
 
-		/** @return {string} the object URL the swatches draw, which is the key */
+		/**
+		 * What the filter swatches draw.
+		 *
+		 * An upload is keyed by its own object URL, which is a picture the
+		 * browser already holds — so the swatches can be drawn before the
+		 * server has answered. A file attached from Nextcloud is keyed by
+		 * `nextcloud:<n>:<path>` instead, because the same picture may be
+		 * picked twice and the path cannot tell those two apart: that is an
+		 * identifier, not an address, and using it as one put eight broken
+		 * images under every picture attached from Files (and eight
+		 * content-security-policy violations in the console). For those the
+		 * server's own copy is what there is to draw, once it answers; until
+		 * then the picker shows its coloured placeholders, which is what it
+		 * does for anything it has no picture of.
+		 *
+		 * @return {string} the address of the picture, or '' when there is none
+		 */
 		previewUrl() {
-			return this.randomKey
+			if (this.randomKey.startsWith('blob:')) {
+				return this.randomKey
+			}
+
+			return this.preview?.data?.preview_url || this.preview?.data?.url || ''
 		},
 	},
 
