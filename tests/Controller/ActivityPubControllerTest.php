@@ -178,6 +178,7 @@ class ActivityPubControllerTest extends TestCase {
 			$this->instanceActorService,
 			$this->authorizedFetchService,
 			$this->storyService,
+			$this->createMock(\OCA\Social\Service\FeedService::class),
 			$this->configService,
 			$this->initialState,
 			$this->logger

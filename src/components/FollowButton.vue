@@ -43,7 +43,7 @@
 					class="follow-button__icon follow-button__check" />
 			</template>
 			<span :key="unfollowIntent ? 'unfollow' : 'following'" class="follow-button__label">
-				{{ unfollowIntent ? t('social', 'Unfollow') : t('social', 'Following') }}
+				{{ unfollowIntent ? words.unfollow : words.following }}
 			</span>
 		</NcButton>
 		<NcButton
@@ -68,7 +68,7 @@
 			  like it had already shown was rolled back.
 			-->
 			<span :key="pending ? 'pending' : 'follow'" class="follow-button__label">
-				{{ pending ? t('social', 'Following') : t('social', 'Follow') }}
+				{{ pending ? words.following : words.follow }}
 			</span>
 		</NcButton>
 
@@ -144,6 +144,34 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore),
+
+		/**
+		 * What this button is called, which depends on what is behind it.
+		 *
+		 * A channel — a PeerTube one, or one of ours — is a `Group`, and you
+		 * subscribe to a channel rather than follow it. The act and the API are
+		 * identical; only the word people use for it is not, and a button that
+		 * says "Follow" under a channel reads as a mistake to anybody who has
+		 * used a video site.
+		 *
+		 * @return {{follow: string, following: string, unfollow: string}}
+		 */
+		words() {
+			if (this.profileAccount?.group) {
+				return {
+					follow: translate('social', 'Subscribe'),
+					following: translate('social', 'Subscribed'),
+					unfollow: translate('social', 'Unsubscribe'),
+				}
+			}
+
+			return {
+				follow: translate('social', 'Follow'),
+				following: translate('social', 'Following'),
+				unfollow: translate('social', 'Unfollow'),
+			}
+		},
+
 		/** @return {boolean} */
 		isCurrentUserFollowing() {
 			return this.accountStore.isFollowingUser(this.profileAccount)
@@ -163,7 +191,7 @@ export default {
 					},
 				},
 				{
-					label: translate('social', 'Unfollow'),
+					label: this.words.unfollow,
 					variant: 'error',
 					callback: () => this.unfollow(),
 				},

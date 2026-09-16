@@ -24,8 +24,12 @@
 				:showParents="true"
 				:type="$route.params.type"
 				:reverseOrder="true" />
+			<!-- a video gets a page about the video: the same route, because
+			     every link to one already leads here, with a heading, the
+			     channel to subscribe to and its chapters instead of a card -->
+			<VideoHeader v-if="isVideo" :status="singlePost" />
 			<TimelineEntry
-				v-if="singlePost"
+				v-else-if="singlePost"
 				ref="mainPost"
 				class="main-post"
 				:item="singlePost"
@@ -72,6 +76,9 @@ import PostDetails from '../components/PostDetails.vue'
 import PostReactedBy from '../components/PostReactedBy.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
+// its own chunk: it brings a player and a follow button, and almost every post
+// opened is not a video
+const VideoHeader = defineAsyncComponent(() => import(/* webpackChunkName: "watch" */'../components/VideoHeader.vue'))
 import { loadState } from '@nextcloud/initial-state'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
@@ -94,6 +101,7 @@ export default {
 		PostReactedBy,
 		TimelineEntry,
 		TimelineList,
+		VideoHeader,
 	},
 
 	setup() {
@@ -117,6 +125,29 @@ export default {
 		...mapStores(useAccountStore, useTimelineStore),
 		singlePost() {
 			return this.timelineStore.getSinglePost
+		},
+
+		/**
+		 * Whether this post is a video, and so gets a page about the video.
+		 *
+		 * The `video` block is what a federated `Video` said about itself; a
+		 * post written here whose only attachment is a video is one too, and
+		 * gets the heading and the channel without the counters it has none of.
+		 *
+		 * @return {boolean}
+		 */
+		isVideo() {
+			if (!this.singlePost) {
+				return false
+			}
+
+			if (this.singlePost.video) {
+				return true
+			}
+
+			const media = this.singlePost.media_attachments || []
+
+			return media.length === 1 && media[0].type === 'video'
 		},
 
 		composerDisplayStatus() {

@@ -246,6 +246,11 @@ class PeerTubeService {
 	 */
 	public function videoMeta(array $data): array {
 		$meta = array_filter([
+			// what the video is *called*. A `Note` has no title and this app
+			// puts it in the first line of the content, which is right for a
+			// timeline card and not enough for a page about the video: a watch
+			// page wants a heading, and it cannot take one out of a paragraph.
+			'title' => mb_substr($this->title($data), 0, self::MAX_TITLE),
 			// PeerTube sends these as `{id, label}`; the label is what a reader
 			// wants and the id means nothing off its own instance
 			'category' => $this->labelOf($data['category'] ?? null),
@@ -254,6 +259,11 @@ class PeerTubeService {
 			'support' => trim((string)($data['support'] ?? '')),
 			'originally_published_at' => trim((string)($data['originallyPublishedAt'] ?? '')),
 		], static fn (string $value): bool => $value !== '');
+
+		$duration = $this->duration($data);
+		if ($duration > 0) {
+			$meta['duration'] = $duration;
+		}
 
 		foreach (['views' => 'views', 'likes' => 'likes', 'dislikes' => 'dislikes'] as $key => $field) {
 			$count = $data[$field] ?? null;
@@ -747,6 +757,7 @@ class PeerTubeService {
 		string $watchUrl,
 		array $attributedTo,
 		int $views = 0,
+		array $stated = [],
 	): ?array {
 		$meta = $video->getMeta();
 		$duration = (int)round((float)($meta?->getDuration() ?? 0));
@@ -765,7 +776,18 @@ class PeerTubeService {
 		}
 
 		$note['type'] = self::TYPE;
-		$note['name'] = self::titleFor($note, $video);
+		// what the author called it, where they called it anything. A title
+		// taken out of the first line of the post is a guess, and a guess is
+		// only worth making when nobody has answered the question.
+		$note['name'] = ($stated['title'] ?? '') !== ''
+			? mb_substr((string)$stated['title'], 0, self::MAX_TITLE)
+			: self::titleFor($note, $video);
+
+		foreach (['category', 'licence'] as $field) {
+			if (($stated[$field] ?? '') !== '') {
+				$note[$field] = (string)$stated[$field];
+			}
+		}
 		$note['attributedTo'] = $attributedTo;
 		// `isUUIDValid` is checked before anything else is read, and a `Video`
 		// without one is refused outright. Derived from the post's own id so

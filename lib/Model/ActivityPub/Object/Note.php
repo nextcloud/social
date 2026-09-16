@@ -199,7 +199,15 @@ class Note extends Stream implements JsonSerializable {
 		}
 
 		$asVideo = PeerTubeService::asVideo(
-			$result, $video, $this->getId(), $attributedTo, $this->getViewCount() ?? 0
+			$result,
+			$video,
+			$this->getId(),
+			$attributedTo,
+			$this->getViewCount() ?? 0,
+			// what the author said it is, where they said anything: a title
+			// taken out of the first line is a guess, and a guess is only worth
+			// making when nobody has answered
+			$this->getVideoMeta()
 		);
 
 		// a post that cannot make a `Video` PeerTube would accept stays the

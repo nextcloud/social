@@ -391,6 +391,7 @@ class ApiControllerTest extends TestCase {
 			$this->notificationPolicyService,
 			$this->quoteService,
 			$this->annualReportService,
+			$this->createMock(\OCA\Social\Service\WatchService::class),
 			$this->l10nFactory
 		);
 	}

@@ -35,6 +35,8 @@ class Post implements JsonSerializable {
 	private string $quotedId = '';
 	/** who may quote this post: '', 'public', 'followers' or 'nobody' */
 	private string $quotePolicy = '';
+	/** what the composer said about the video: its title, category and licence */
+	private array $videoMeta = [];
 	private string $content = '';
 	private string $type = '';
 	private array $hashtags = [];
@@ -135,6 +137,22 @@ class Post implements JsonSerializable {
 
 	public function setQuotePolicy(string $quotePolicy): Post {
 		$this->quotePolicy = $quotePolicy;
+
+		return $this;
+	}
+
+	/**
+	 * @return array<string, string>
+	 */
+	public function getVideoMeta(): array {
+		return $this->videoMeta;
+	}
+
+	/**
+	 * @param array<string, string> $videoMeta
+	 */
+	public function setVideoMeta(array $videoMeta): Post {
+		$this->videoMeta = $videoMeta;
 
 		return $this;
 	}

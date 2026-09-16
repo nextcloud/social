@@ -1278,7 +1278,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'bot' => $this->isBot(),
 				'discoverable' => $this->isDiscoverable(),
 				'indexable' => $this->isIndexable(),
-				'group' => false,
+				// Mastodon's own flag for "this is not a person". It was
+				// hardcoded false, which was true until channels existed: a
+				// PeerTube channel and one of ours are both `Group`s, and a
+				// client that is told otherwise offers "Follow" where the thing
+				// on the screen is something you subscribe to.
+				'group' => $this->getType() === Group::TYPE,
 				'created_at' => gmdate('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
 				'note' => $this->isLocal() ? $this->bioAsHtml() : $this->getDescription(),
 				'url' => $this->getId(),

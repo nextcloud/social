@@ -142,6 +142,9 @@ class PostService {
 		// who may quote this one, before it is stored: the column is written by
 		// the same insert as everything else on the post
 		$note->setQuotePolicy($post->getQuotePolicy());
+		if ($post->getVideoMeta() !== []) {
+			$note->setVideoMeta($post->getVideoMeta());
+		}
 		$quotedAuthor = $this->applyQuote($note, $post->getQuotedId());
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());

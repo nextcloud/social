@@ -155,6 +155,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_trend_review` | What a moderator has decided about something that is trending: one row per rejected (or approved) tag, link or status |
 | `social_relay` | The relays this instance subscribes to: one row per subscription, with the `Follow` it sent, the inbox to deliver to and whether the relay answered |
 | `social_channel` | The `Group` actors an account publishes videos under: one row per channel, binding it to the account that owns it |
+| `social_watch` | Where a reader stopped watching a video: one row per (post, viewer), never federated |
 
 | `social_quote_grant` | The permissions this instance has given out to quote its posts: one row per (quoted post, quoting post), with the `QuoteRequest` it answered so the grant can be taken back |
 | `social_team` | The accounts a Nextcloud group posts from: one row per team account, bound to the group whose members may speak as it |
@@ -651,6 +652,15 @@ a post is. It now accepts every `AP::NOTE_LIKE_TYPES`. A PeerTube watch page is
 *not* the object's id, so the "a document is only evidence about itself" rule
 is satisfied one level in: the document is trusted when it names the address it
 was fetched from among its own `url` links.
+
+**Where somebody stopped watching** is `social_watch` — PeerTube's
+`WatchAction`, and the thing that makes a long video usable at all: a two-hour
+talk watched in three sittings is three sittings of finding the place again. A
+fact about a **reader**: never federated, never shown to anybody else, never
+counted into anything, one row per (post, viewer) moved rather than appended. A
+video watched past 95% is **forgotten** rather than bookmarked at the credits,
+and one under ten seconds in was never really started — a "continue watching"
+row that offers back either is a row nobody presses twice.
 
 **Playlists** are collections. PeerTube's `Playlist` is an ordered set of a
 channel's videos with a title, a description and a visibility, which is what

@@ -93,6 +93,7 @@ use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Service\ViewCountService;
+use OCA\Social\Service\WatchService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
@@ -218,6 +219,7 @@ class ApiController extends Controller {
 		private NotificationPolicyService $notificationPolicyService,
 		private QuoteService $quoteService,
 		private AnnualReportService $annualReportService,
+		private WatchService $watchService,
 		private IFactory $l10nFactory,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -1276,6 +1278,7 @@ class ApiController extends Controller {
 
 			$post->setQuotedId($status->getQuotedId());
 			$post->setQuotePolicy($status->getQuotePolicy());
+			$post->setVideoMeta($status->getVideoMeta());
 
 			// Before anything is written: a post a rule holds is stored as a
 			// request and never reaches `social_stream`, so there is no row for
@@ -1847,6 +1850,72 @@ class ApiController extends Controller {
 			$this->logger->warning('issues while mediaStream', ['exception' => $e]);
 
 			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
+		}
+	}
+
+	// --- where somebody stopped watching ----------------------------------
+
+	/**
+	 * Remembers where the reader got to in a video.
+	 *
+	 * A two-hour talk watched in three sittings is three sittings of finding
+	 * the place again, which is what this is for. It is a fact about the
+	 * reader: never federated, never shown to anybody else, never counted into
+	 * anything.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	// a player reports as it goes, so this is asked for often and is cheap
+	#[UserRateLimit(limit: 600, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/watched')]
+	public function statusWatched(int $nid, int $position = 0, int $duration = 0): DataResponse {
+		try {
+			$this->initViewer(true);
+			$post = $this->streamService->getStreamByNid($nid);
+			$this->watchService->remember($post, $this->viewer, $position, $duration);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Takes a video off the reader's own "continue watching" list. */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 60, period: 3600)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/statuses/{nid}/watched')]
+	public function statusUnwatched(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+			$post = $this->streamService->getStreamByNid($nid);
+			$this->watchService->forget($post, $this->viewer);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The videos the reader was in the middle of, newest first.
+	 *
+	 * Neither the ones they barely started nor the ones they finished: a row
+	 * that offers back a video somebody watched to the end is a row nobody
+	 * presses twice.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/videos/continue')]
+	public function videosContinue(int $limit = 20): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return new DataResponse(
+				$this->watchService->unfinished($this->viewer, $limit), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 	}
 

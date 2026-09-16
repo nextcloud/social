@@ -80,6 +80,7 @@ class CoreRequestBuilder {
 	public const TABLE_RELAYS = 'social_relay';
 	public const TABLE_QUOTE_GRANTS = 'social_quote_grant';
 	public const TABLE_CHANNELS = 'social_channel';
+	public const TABLE_WATCH = 'social_watch';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -376,6 +377,14 @@ class CoreRequestBuilder {
 			'follow_id',
 			'error',
 			'creation',
+			'last_update'
+		],
+		self::TABLE_WATCH => [
+			'id',
+			'stream_id_prim',
+			'actor_id_prim',
+			'position',
+			'duration',
 			'last_update'
 		],
 		self::TABLE_CHANNELS => [
