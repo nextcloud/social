@@ -176,6 +176,57 @@ class ConfigService {
 	public const SOCIAL_VIDEO_MAX_HEIGHT = 'video_max_height';
 
 	/**
+	 * Whether a stored video is also written at a ladder of smaller heights,
+	 * as HLS.
+	 *
+	 * A different question from `video_transcode`, which is about a video
+	 * being *playable at all* elsewhere. This is about it being watchable on a
+	 * connection that cannot carry the original: the same video two or three
+	 * more times, smaller, and a playlist that lets a player move between
+	 * them. Off by default, because it is several encodes per video on
+	 * somebody's server.
+	 */
+	public const SOCIAL_VIDEO_LADDER = 'video_ladder';
+
+	/**
+	 * Which heights, as a comma-separated list. Rungs at or above a video's
+	 * own height are skipped rather than upscaled, so this is a ceiling on
+	 * what may be written and not a promise about what will be.
+	 */
+	public const SOCIAL_VIDEO_LADDER_HEIGHTS = 'video_ladder_heights';
+
+	/**
+	 * How many megabytes of video one account may keep here, `0` for no
+	 * limit.
+	 *
+	 * A different question from `max_video_size`, which is a ceiling on one
+	 * file: that one is about a single request, this one about a year of
+	 * them. Off by default, because an instance that has been running without
+	 * a quota and acquires one on upgrade would start refusing uploads from
+	 * exactly the accounts that use it most.
+	 */
+	public const SOCIAL_VIDEO_QUOTA = 'video_quota';
+
+	/**
+	 * What this instance does with a post somebody marked sensitive, for
+	 * readers who have not chosen for themselves: `show_all`, `default`
+	 * (covered, one press away) or `hide_all`. PeerTube's three NSFW policies
+	 * under Mastodon's names for them — see `SensitiveMediaService`.
+	 */
+	public const SOCIAL_NSFW_POLICY = 'nsfw_policy';
+
+	/**
+	 * Whether a post with a video on it waits for a moderator.
+	 *
+	 * The review queue already holds a first post and a post the spam rules
+	 * do not like; this is the third rule, and the one an instance that hosts
+	 * video wants: a video is minutes of somebody's attention and a great deal
+	 * of somebody else's disk, and an instance may reasonably want to see one
+	 * before it is published. Off by default.
+	 */
+	public const SOCIAL_REVIEW_VIDEOS = 'review_videos';
+
+	/**
 	 * The last measurement of how much disk this app is using, as JSON, with
 	 * the moment it was taken.
 	 *
@@ -234,6 +285,11 @@ class ConfigService {
 		self::SOCIAL_IMAGE_QUALITY => '85',
 		self::SOCIAL_VIDEO_TRANSCODE => '0',
 		self::SOCIAL_VIDEO_MAX_HEIGHT => '1080',
+		self::SOCIAL_VIDEO_LADDER => '0',
+		self::SOCIAL_VIDEO_LADDER_HEIGHTS => '360,720,1080',
+		self::SOCIAL_VIDEO_QUOTA => '0',
+		self::SOCIAL_NSFW_POLICY => 'default',
+		self::SOCIAL_REVIEW_VIDEOS => '0',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
 		self::CONTACT_EMAIL => '',
 		self::SOCIAL_POLLS_SWEPT => '0'

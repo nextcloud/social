@@ -104,6 +104,8 @@ export default {
 					return translate('social', 'A lot of mentions')
 				case 'repeat':
 					return translate('social', 'The same as a post already waiting')
+				case 'video':
+					return translate('social', 'Videos are looked at before they are published here')
 				default:
 					return reason
 			}

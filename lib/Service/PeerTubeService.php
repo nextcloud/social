@@ -161,6 +161,48 @@ class PeerTubeService {
 	}
 
 	/**
+	 * Whether replies to this video have to be approved before anybody sees
+	 * them — FEP-5624, which PeerTube ≥ 6.2 implements as `commentsPolicy`.
+	 *
+	 * `1` is enabled, `2` disabled and `3` "requires approval"; `canReply`
+	 * names who may reply without being approved, so a video that publishes one
+	 * which does not include the public collection is moderating its comments
+	 * too. Read in both spellings because the two arrived a version apart and
+	 * instances run both.
+	 *
+	 * Without this a reply written here looked posted, sat in a queue on the
+	 * other side, and either appeared a day later or never — with nothing
+	 * anywhere to say which.
+	 *
+	 * @param array $data the wire `Video`
+	 */
+	public function repliesNeedApproval(array $data): bool {
+		$policy = $data['commentsPolicy'] ?? null;
+		if (is_array($policy)) {
+			// newer PeerTube sends `{id: 3, label: "Requires approval"}`
+			$policy = $policy['id'] ?? null;
+		}
+		if (is_numeric($policy)) {
+			return (int)$policy === 3;
+		}
+
+		if (!array_key_exists('canReply', $data)) {
+			return false;
+		}
+
+		// an audience that is stated and is not everybody: the ones left out
+		// are the ones who have to be approved, and from here that is us
+		foreach ($this->asList($data['canReply']) as $who) {
+			$id = is_array($who) ? (string)($who['id'] ?? '') : (string)$who;
+			if ($id === ACore::CONTEXT_PUBLIC) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * How long it runs, in whole seconds.
 	 *
 	 * ActivityStreams says `duration` is an xsd:duration, and PeerTube always
@@ -182,6 +224,170 @@ class PeerTubeService {
 		return (int)($matches[1] ?? 0) * 3600
 			+ (int)($matches[2] ?? 0) * 60
 			+ (int)round((float)($matches[3] ?? 0));
+	}
+
+	/**
+	 * Everything else a `Video` says that a `Note` has nowhere to put.
+	 *
+	 * A video is not a post with a rectangle in it. It has a category, a
+	 * licence, a language, chapters, captions, a "support the author" line and
+	 * two counters — every one of which PeerTube publishes and none of which
+	 * this app read, so a federated video arrived as a paragraph and a player
+	 * with all of that thrown away.
+	 *
+	 * Kept together in one block on the post's details rather than spread over
+	 * a dozen columns: it is local, derived data about somebody else's
+	 * document, which is what the details column is for, and a watch page wants
+	 * all of it or none.
+	 *
+	 * @param array $data the wire `Video`
+	 *
+	 * @return array<string, mixed> empty when the object says none of it
+	 */
+	public function videoMeta(array $data): array {
+		$meta = array_filter([
+			// what the video is *called*. A `Note` has no title and this app
+			// puts it in the first line of the content, which is right for a
+			// timeline card and not enough for a page about the video: a watch
+			// page wants a heading, and it cannot take one out of a paragraph.
+			'title' => mb_substr($this->title($data), 0, self::MAX_TITLE),
+			// PeerTube sends these as `{id, label}`; the label is what a reader
+			// wants and the id means nothing off its own instance
+			'category' => $this->labelOf($data['category'] ?? null),
+			'licence' => $this->labelOf($data['licence'] ?? null),
+			'language' => $this->labelOf($data['language'] ?? null),
+			'support' => trim((string)($data['support'] ?? '')),
+			'originally_published_at' => trim((string)($data['originallyPublishedAt'] ?? '')),
+		], static fn (string $value): bool => $value !== '');
+
+		$duration = $this->duration($data);
+		if ($duration > 0) {
+			$meta['duration'] = $duration;
+		}
+
+		foreach (['views' => 'views', 'likes' => 'likes', 'dislikes' => 'dislikes'] as $key => $field) {
+			$count = $data[$field] ?? null;
+			if (is_numeric($count)) {
+				$meta[$key] = max(0, (int)$count);
+			}
+		}
+
+		// `downloadEnabled` is the author saying whether the file may be saved.
+		// Absent means yes, which is PeerTube's own default, so only a stated
+		// refusal is recorded — an absent field must not read as one.
+		if (array_key_exists('downloadEnabled', $data)) {
+			$meta['download'] = (bool)$data['downloadEnabled'];
+		}
+
+		if (!empty($data['isLiveBroadcast'])) {
+			$meta['live'] = true;
+		}
+
+		$chapters = $this->chapters($data);
+		if ($chapters !== []) {
+			$meta['chapters'] = $chapters;
+		}
+
+		$captions = $this->captions($data);
+		if ($captions !== []) {
+			$meta['captions'] = $captions;
+		}
+
+		return $meta;
+	}
+
+	/**
+	 * A field PeerTube sends as `{id, label}`, as the label — or as itself
+	 * where an instance sends a bare string.
+	 */
+	private function labelOf(mixed $value): string {
+		if (is_string($value)) {
+			return trim($value);
+		}
+
+		if (is_array($value)) {
+			return trim((string)($value['label'] ?? $value['identifier'] ?? ''));
+		}
+
+		return '';
+	}
+
+	/**
+	 * The chapters of a video, from FEP-6f7d's `hasParts`.
+	 *
+	 * A chapter is a name and a moment, which is all a seek list needs. The
+	 * offsets are seconds; anything that is not a number is not a chapter.
+	 *
+	 * @return array<int, array{title: string, start: int}>
+	 */
+	private function chapters(array $data): array {
+		$parts = $data['hasParts'] ?? $data['hasPart'] ?? null;
+		if (is_array($parts) && isset($parts['orderedItems'])) {
+			$parts = $parts['orderedItems'];
+		}
+
+		$chapters = [];
+		foreach ($this->asList($parts) as $part) {
+			if (!is_array($part)) {
+				continue;
+			}
+
+			$title = trim((string)($part['name'] ?? ''));
+			$start = $part['startOffset'] ?? null;
+			if ($title === '' || !is_numeric($start)) {
+				continue;
+			}
+
+			$chapters[] = ['title' => mb_substr($title, 0, 200), 'start' => max(0, (int)$start)];
+		}
+
+		usort($chapters, static fn (array $a, array $b): int => $a['start'] <=> $b['start']);
+
+		return array_slice($chapters, 0, 200);
+	}
+
+	/**
+	 * The subtitle tracks a video publishes.
+	 *
+	 * PeerTube hangs them off `url` as `text/vtt` links carrying the language,
+	 * which is the only place they are actually addressable — `subtitleLanguage`
+	 * on its own names languages with nothing to fetch for them.
+	 *
+	 * @return array<int, array{language: string, url: string}>
+	 */
+	private function captions(array $data): array {
+		$languages = [];
+		foreach ($this->asList($data['subtitleLanguage'] ?? null) as $entry) {
+			$id = is_array($entry) ? (string)($entry['identifier'] ?? $entry['id'] ?? '') : (string)$entry;
+			$url = is_array($entry) ? (string)($entry['url'] ?? '') : '';
+			if ($id !== '' && $url !== '' && $this->isHttp($url)) {
+				$languages[] = ['language' => mb_substr($id, 0, 15), 'url' => $url];
+			}
+		}
+
+		foreach ($this->links($data) as $link) {
+			if ($link['mediaType'] !== 'text/vtt') {
+				continue;
+			}
+
+			$languages[] = [
+				'language' => mb_substr($link['language'], 0, 15),
+				'url' => $link['href'],
+			];
+		}
+
+		$seen = [];
+		$captions = [];
+		foreach ($languages as $caption) {
+			if ($caption['url'] === '' || isset($seen[$caption['url']])) {
+				continue;
+			}
+
+			$seen[$caption['url']] = true;
+			$captions[] = $caption;
+		}
+
+		return array_slice($captions, 0, 40);
 	}
 
 	/**
@@ -340,7 +546,7 @@ class PeerTubeService {
 	 * that Chrome and Firefox cannot open must never be preferred over an mp4
 	 * that they can.
 	 *
-	 * @param array<int, array{href: string, mediaType: string, width: int, height: int}> $links
+	 * @param array<int, array{href: string, mediaType: string, width: int, height: int, language: string}> $links
 	 */
 	private function bestSource(array $links): ?array {
 		$best = null;
@@ -386,7 +592,7 @@ class PeerTubeService {
 	 *
 	 * @param int $depth guards against a `tag` that refers back to its own link
 	 *
-	 * @return array<int, array{href: string, mediaType: string, width: int, height: int}>
+	 * @return array<int, array{href: string, mediaType: string, width: int, height: int, language: string}>
 	 */
 	private function links(array $data, string $key = 'url', int $depth = 0): array {
 		if ($depth > self::MAX_LINK_DEPTH) {
@@ -425,6 +631,11 @@ class PeerTubeService {
 				'mediaType' => (string)($link['mediaType'] ?? ''),
 				'width' => (int)($link['width'] ?? 0),
 				'height' => (int)($link['height'] ?? 0),
+				// a caption link says which language it is in, and nothing
+				// else in the list has one
+				'language' => is_array($link['language'] ?? null)
+					? (string)($link['language']['identifier'] ?? '')
+					: (string)($link['language'] ?? ''),
 			];
 		}
 
@@ -539,10 +750,69 @@ class PeerTubeService {
 	 * and trading Mastodon for it.
 	 *
 	 * @param array $note the note as it would otherwise have been published
+	 * @param array<array{height: int, size: int, bandwidth: int, href: string}> $rungs
+	 *                                                                                  the sizes this video also exists at, where it has been laddered
 	 */
-	public static function asVideo(array $note, MediaAttachment $video, string $watchUrl): array {
+	public static function asVideo(
+		array $note,
+		MediaAttachment $video,
+		string $watchUrl,
+		array $attributedTo,
+		int $views = 0,
+		array $stated = [],
+		array $rungs = [],
+	): ?array {
+		$meta = $video->getMeta();
+		$duration = (int)round((float)($meta?->getDuration() ?? 0));
+		$icon = self::iconFor($video);
+
+		// PeerTube's validator makes `duration`, `icon` and a non-empty
+		// `attributedTo` mandatory, and its builder refuses a video whose
+		// `attributedTo` holds no `Group` at all. A post that cannot satisfy
+		// all three — no poster because the server has no ffmpeg, no duration
+		// for the same reason, no channel because the account has none — is
+		// therefore published as the `Note` it would have been, which Mastodon
+		// and Pixelfed both read. Sending a `Video` that is going to be thrown
+		// away is strictly worse than sending the shape that works.
+		if ($duration <= 0 || $icon === null || $attributedTo === []) {
+			return null;
+		}
+
 		$note['type'] = self::TYPE;
-		$note['name'] = self::titleFor($note, $video);
+		// what the author called it, where they called it anything. A title
+		// taken out of the first line of the post is a guess, and a guess is
+		// only worth making when nobody has answered the question.
+		$note['name'] = ($stated['title'] ?? '') !== ''
+			? mb_substr((string)$stated['title'], 0, self::MAX_TITLE)
+			: self::titleFor($note, $video);
+
+		foreach (['category', 'licence'] as $field) {
+			if (($stated[$field] ?? '') !== '') {
+				$note[$field] = (string)$stated[$field];
+			}
+		}
+		$note['attributedTo'] = $attributedTo;
+		// `isUUIDValid` is checked before anything else is read, and a `Video`
+		// without one is refused outright. Derived from the post's own id so
+		// that the same post is the same video however often it is delivered.
+		$note['uuid'] = self::uuidFor((string)($note['id'] ?? ''));
+		$note['views'] = max(0, $views);
+		// mandatory, and this app writes one only on a post that has been
+		// edited; an unedited video is as up to date as it is published
+		if (($note['updated'] ?? '') === '') {
+			$note['updated'] = (string)($note['published'] ?? gmdate('c'));
+		}
+		// the defaults PeerTube would have filled in, said out loud: a reader
+		// that states them is a reader whose intent cannot be guessed wrong
+		$note['state'] = 1;
+		$note['waitTranscoding'] = false;
+		$note['downloadEnabled'] = true;
+		$note['sensitive'] = (bool)($note['sensitive'] ?? false);
+		$note['isLiveBroadcast'] = false;
+		// this app has replies on every post and no way to turn them off
+		$note['commentsPolicy'] = 1;
+		$note['icon'] = [$icon];
+		$note['duration'] = 'PT' . $duration . 'S';
 
 		// what the content actually is, said out loud. PeerTube declares
 		// `text/markdown` for its own; this app's posts are html, and a peer
@@ -551,18 +821,7 @@ class PeerTubeService {
 			$note['mediaType'] = 'text/html';
 		}
 
-		$meta = $video->getMeta();
-		$duration = (int)round((float)($meta?->getDuration() ?? 0));
-		if ($duration > 0) {
-			$note['duration'] = 'PT' . $duration . 'S';
-		}
-
-		$icon = self::iconFor($video);
-		if ($icon !== null) {
-			$note['icon'] = [$icon];
-		}
-
-		$note['url'] = self::urlsFor($video, $watchUrl);
+		$note['url'] = self::urlsFor($video, $watchUrl, $rungs);
 
 		// PeerTube states it on every video and its clients read it; this app
 		// has replies on every post and no way to turn them off
@@ -598,6 +857,39 @@ class PeerTubeService {
 		return 'Video';
 	}
 
+	/**
+	 * A UUID for a post that has none.
+	 *
+	 * PeerTube checks `uuid` before it reads anything else and refuses a
+	 * `Video` whose one is not a UUID. This app addresses a post by its URL and
+	 * has no such field, so one is derived from the id — the same id in, the
+	 * same UUID out, every time, which is what makes a redelivered video the
+	 * same video rather than a second one.
+	 *
+	 * Shaped as a version-5 UUID (the name-based one) because that is exactly
+	 * what it is: a hash of a name in a namespace. The two nibbles that carry
+	 * the version and the variant are set by hand, since what matters is that
+	 * `isUUIDValid` accepts it and that it is stable.
+	 *
+	 * Public because `PeerTubeApiService` needs the **same** answer: a video
+	 * seen through the PeerTube client API and the same video seen over
+	 * ActivityPub must carry one uuid and not two that nothing can tell apart.
+	 */
+	public static function uuidFor(string $id): string {
+		$hash = sha1('social:video:' . $id);
+
+		return sprintf(
+			'%s-%s-5%s-%x%s-%s',
+			substr($hash, 0, 8),
+			substr($hash, 8, 4),
+			substr($hash, 13, 3),
+			// the variant: one of 8, 9, a or b
+			(hexdec($hash[16]) & 0x3) | 0x8,
+			substr($hash, 17, 3),
+			substr($hash, 20, 12)
+		);
+	}
+
 	/** The poster frame, as the `Image` PeerTube puts in `icon`. */
 	private static function iconFor(MediaAttachment $video): ?array {
 		$preview = $video->getPreviewUrl();
@@ -622,12 +914,15 @@ class PeerTubeService {
 	 * `url` as PeerTube writes it: the page a person watches on, then the file
 	 * a player opens.
 	 *
-	 * One rendition, because this app does not transcode -- the file is
-	 * whatever was uploaded. That is a shorter list than a PeerTube publishes
-	 * and the same shape, which is what matters: a reader takes the best
-	 * playable link it finds, and here there is one.
+	 * The file link is always there: whatever was uploaded, at one size, which
+	 * is what a reader with no HLS falls back to. Where the video has been
+	 * laddered there is a streaming playlist beside it, in the shape PeerTube
+	 * publishes its own — the master's address, and a `Link` tag per rung so a
+	 * peer knows what it is being offered without fetching the playlist first.
+	 *
+	 * @param array<array{height: int, size: int, bandwidth: int, href: string}> $rungs
 	 */
-	private static function urlsFor(MediaAttachment $video, string $watchUrl): array {
+	private static function urlsFor(MediaAttachment $video, string $watchUrl, array $rungs = []): array {
 		$urls = [];
 
 		if ($watchUrl !== '') {
@@ -653,9 +948,71 @@ class PeerTubeService {
 			$link['height'] = $original->getHeight();
 		}
 
+		// `isRemoteVideoUrlValid()` wants `height` and `size` as integers and
+		// drops a file link that has neither, so a `Video` whose only link went
+		// out without them arrived with nothing to play. `fps` is optional and
+		// sent where it is known.
+		$link['size'] = $video->getSizeBytes();
+		$fps = (int)round((float)($video->getMeta()?->getFps() ?? 0));
+		if ($fps > 0) {
+			$link['fps'] = $fps;
+		}
+
 		$urls[] = $link;
 
+		$playlist = self::playlistFor($video, $rungs);
+		if ($playlist !== null) {
+			$urls[] = $playlist;
+		}
+
 		return $urls;
+	}
+
+	/**
+	 * The ladder as PeerTube's streaming-playlist link.
+	 *
+	 * PeerTube reads `mediaType: application/x-mpegURL` as "this is HLS" and
+	 * takes the resolutions from the `Link` tags underneath rather than by
+	 * fetching the playlist, so a link with no tags is one it accepts and then
+	 * has no files for. No `Infohash` tag: those are BitTorrent info hashes for
+	 * PeerTube's WebTorrent transport, which this app does not have and must
+	 * not invent.
+	 *
+	 * @param array<array{height: int, size: int, bandwidth: int, href: string}> $rungs
+	 */
+	private static function playlistFor(MediaAttachment $video, array $rungs): ?array {
+		$master = $video->getHlsUrl();
+		if ($master === '' || $rungs === []) {
+			return null;
+		}
+
+		$tags = [];
+		foreach ($rungs as $rung) {
+			if (($rung['href'] ?? '') === '' || ($rung['height'] ?? 0) < 1) {
+				continue;
+			}
+
+			$tags[] = [
+				'type' => 'Link',
+				// a rung is one fragmented MP4 whose segments are byte ranges
+				// into it, which is a `video/mp4` to anything that fetches it
+				'mediaType' => 'video/mp4',
+				'href' => $rung['href'],
+				'height' => (int)$rung['height'],
+				'size' => (int)($rung['size'] ?? 0),
+			];
+		}
+
+		if ($tags === []) {
+			return null;
+		}
+
+		return [
+			'type' => 'Link',
+			'mediaType' => 'application/x-mpegURL',
+			'href' => $master,
+			'tag' => $tags,
+		];
 	}
 
 	/**

@@ -70,6 +70,25 @@
 				{{ t('social', 'The composer starts every new post with this audience. You can still change it for any single post.') }}
 			</p>
 
+			<!-- PeerTube's three NSFW policies, which Mastodon's own reading
+			     preference already has names for. Saved on its own the moment
+			     it changes: it is a fact about reading and has nothing to do
+			     with the account fields above, which go out as one Mastodon
+			     credentials update. -->
+			<NcSelect
+				v-model="sensitiveChoice"
+				class="account-settings__privacy"
+				:inputLabel="t('social', 'Media marked sensitive')"
+				:options="sensitiveOptions"
+				:clearable="false"
+				:searchable="false"
+				:disabled="savingSensitive"
+				label="text"
+				@update:modelValue="saveSensitive" />
+			<p class="account-settings__hint account-settings__hint--block">
+				{{ t('social', 'A content warning is a different thing: it is the author saying something about the whole post in their own words, and it always covers its post.') }}
+			</p>
+
 			<div class="account-settings__actions">
 				<NcButton
 					variant="primary"
@@ -87,6 +106,8 @@
 </template>
 
 <script>
+import axios from '@nextcloud/axios'
+import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -96,7 +117,8 @@ import ContentSave from 'vue-material-design-icons/ContentSave.vue'
 import { translate as t } from '@nextcloud/l10n'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
-import { showSuccess } from '../services/toast.js'
+import { useServerData } from '../composables/useServerData.js'
+import { showError, showSuccess } from '../services/toast.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 
@@ -125,6 +147,12 @@ export default {
 		VisibilityIcon,
 	},
 
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
+	},
+
 	data() {
 		return {
 			visibilities: visibilitiesInfo,
@@ -137,6 +165,16 @@ export default {
 				/** @type {import('./Visibility/VisibilitiesInfos.js').Visibility|null} */
 				privacy: null,
 			},
+
+			/**
+			 * What this account chose, or '' for "follow the instance".
+			 *
+			 * Out of the page rather than a request: the effective policy is
+			 * already there because the timeline needs it before it draws, and
+			 * the choice behind it travels with it.
+			 */
+			sensitive: this.serverData?.nsfwChoice ?? '',
+			savingSensitive: false,
 
 			saving: false,
 		}
@@ -187,6 +225,34 @@ export default {
 		changed() {
 			return Object.keys(this.payload).length > 0
 		},
+
+		/**
+		 * The three policies, plus the fourth thing that is not one of them:
+		 * following the instance, which is different from choosing whatever
+		 * the instance happens to do today.
+		 *
+		 * @return {Array<{id: string, text: string}>}
+		 */
+		sensitiveOptions() {
+			return [
+				{ id: '', text: t('social', 'Whatever this server does') },
+				{ id: 'show_all', text: t('social', 'Show it like anything else') },
+				{ id: 'default', text: t('social', 'Cover it, one press away') },
+				{ id: 'hide_all', text: t('social', 'Do not show it; I will open the post') },
+			]
+		},
+
+		/** @return {{id: string, text: string}} */
+		sensitiveChoice: {
+			get() {
+				return this.sensitiveOptions.find((option) => option.id === this.sensitive)
+					?? this.sensitiveOptions[0]
+			},
+
+			set(option) {
+				this.sensitive = option?.id ?? ''
+			},
+		},
 	},
 
 	watch: {
@@ -223,6 +289,30 @@ export default {
 				indexable: Boolean(credentials.indexable),
 				bot: Boolean(credentials.bot),
 				privacy: visibilitiesInfo.find(({ id }) => id === privacy) ?? null,
+			}
+		},
+
+		/**
+		 * Writes the reading preference by itself.
+		 *
+		 * It takes effect on the next page rather than at once: the policy is
+		 * read out of the page's own initial state, because it decides what
+		 * the first screenful looks like and a timeline that uncovered itself
+		 * a moment after drawing would be worse than either policy.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async saveSensitive() {
+			this.savingSensitive = true
+			try {
+				await axios.put(generateUrl('apps/social/api/v1/preferences'), {
+					expandMedia: this.sensitive,
+				})
+				showSuccess(t('social', 'Saved. It applies the next time this page loads.'))
+			} catch {
+				showError(t('social', 'Could not save that setting'))
+			} finally {
+				this.savingSensitive = false
 			}
 		},
 

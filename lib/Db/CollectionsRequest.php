@@ -188,6 +188,23 @@ class CollectionsRequest extends CollectionsRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Empties a collection.
+	 *
+	 * For the one caller that rebuilds rather than edits: a playlist that
+	 * arrived from somewhere else is somebody else's document, and the document
+	 * is the whole truth about it — a video taken out there has to go from here
+	 * too, which a merge cannot express.
+	 */
+	public function clearItems(Collection $collection): void {
+		$qb = $this->getCollectionItemsDeleteSql();
+		$qb->where(
+			$qb->expr()->eq('collection_id', $qb->createNamedParameter($collection->getId(), IQueryBuilder::PARAM_INT))
+		);
+
+		$qb->executeStatement();
+	}
+
 	/** Takes a post out of every collection it is in, when the post is deleted. */
 	public function removeStream(string $streamId): void {
 		$qb = $this->getCollectionItemsDeleteSql();

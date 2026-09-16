@@ -2,7 +2,7 @@
   - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
-# Interop tests (this app talking to a real Mastodon)
+# Interop tests (this app talking to a real Mastodon and a real PeerTube)
 
 The unit suite proves this app emits the document it meant to. The integration
 suite proves the database and the migrations hold what it thinks they hold.
@@ -33,14 +33,24 @@ Nothing is stubbed. For each test the suite:
    its serialiser refuses to render has not arrived either, and the API is the
    same answer a Mastodon user would get.
 
-Covered so far: `Create` (a public post, and a post with a content warning —
-`summary` is the field most likely to be quietly dropped), `Update` (an edit
-has to carry `updated`, or the other side takes the edit in and goes on showing
-the words that were replaced), `Delete`, and `Announce`.
+Covered against **Mastodon**: `Create` (a public post, and a post with a
+content warning — `summary` is the field most likely to be quietly dropped),
+`Update` (an edit has to carry `updated`, or the other side takes the edit in
+and goes on showing the words that were replaced), `Delete`, and `Announce`.
+
+Covered against **PeerTube**: a video published here, arriving as a `Video`,
+filed under the right channel, with a duration and a file link that survived —
+and a `Delete` that takes it away again. This is the one that had never been
+run and the one that mattered most. PeerTube refuses a video it cannot make
+sense of **silently and on its own side**: *"Cannot find associated video
+channel"* goes into its log, the delivery from here answers 204, and nothing
+here is any the wiser. Reading its validator told us what it wants; only this
+tells us whether we send it. Its own log is printed when the job fails, because
+that is where the refusal is.
 
 ## What it cannot prove
 
-It runs against **one** Mastodon version, over **plain HTTP**, on **one host**.
+It runs against **one** version of each, over **plain HTTP**, on **one host**.
 So it says nothing about behaviour behind TLS, about instances running
 `AUTHORIZED_FETCH`, or about Mastodon versions other than the one the workflow
 pins. Each of those is a separate decision and none of them is free: a public
@@ -54,10 +64,14 @@ Every test **skips with a reason** when `MASTODON_BASE_URL` and
 that says so rather than a failure.
 
 ```
-MASTODON_BASE_URL=http://localhost:3000 \
-MASTODON_TOKEN=... \
+MASTODON_BASE_URL=http://localhost:3000 MASTODON_TOKEN=... \
+PEERTUBE_BASE_URL=http://localhost:9000 \
+PEERTUBE_USER=interop PEERTUBE_PASSWORD=... \
 composer run test:interop
 ```
+
+Each peer is independent: setting only the Mastodon variables runs the Mastodon
+tests and skips the PeerTube ones, and the other way round.
 
 It needs the same real Nextcloud the integration suite does — the app inside a
 server checkout, installed, with `cloud_url` and `social_url` set — and that
@@ -68,9 +82,9 @@ host able to see each other.
 
 ## In CI
 
-`.github/workflows/interop-mastodon.yml` stands the whole thing up: Postgres,
-Redis, Mastodon's web and Sidekiq containers, a Nextcloud, an account and a
-token.
+`.github/workflows/interop.yml` stands the whole thing up: Postgres, Redis,
+Mastodon's web and Sidekiq containers, a PeerTube, a Nextcloud, and an account
+on each side.
 
 It is deliberately **not** on `pull_request`. It depends on a third-party image
 whose startup this repository does not control, so a bad day for that image

@@ -76,6 +76,7 @@ use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\NotificationService;
+use OCA\Social\Service\PeerTubeService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
@@ -88,11 +89,14 @@ use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
+use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TranslationService;
+use OCA\Social\Service\VideoLadderService;
 use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Service\ViewCountService;
+use OCA\Social\Service\WatchService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
@@ -107,6 +111,7 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
@@ -202,6 +207,7 @@ class ApiController extends Controller {
 		private AccountRelationService $accountRelationService,
 		private ScheduledStatusService $scheduledStatusService,
 		private PostReviewService $postReviewService,
+		private SensitiveMediaService $sensitiveMediaService,
 		private ViewCountService $viewCountService,
 		private TeamService $teamService,
 		private EmojiService $emojiService,
@@ -217,6 +223,7 @@ class ApiController extends Controller {
 		private NotificationPolicyService $notificationPolicyService,
 		private QuoteService $quoteService,
 		private AnnualReportService $annualReportService,
+		private WatchService $watchService,
 		private IFactory $l10nFactory,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -1275,6 +1282,7 @@ class ApiController extends Controller {
 
 			$post->setQuotedId($status->getQuotedId());
 			$post->setQuotePolicy($status->getQuotePolicy());
+			$post->setVideoMeta($status->getVideoMeta());
 
 			// Before anything is written: a post a rule holds is stored as a
 			// request and never reaches `social_stream`, so there is no row for
@@ -1286,7 +1294,13 @@ class ApiController extends Controller {
 			// review is about an account nobody has vouched for yet, and a team
 			// account exists because an administrator made it
 			$reason = $this->postReviewService->assess(
-				$author, $post->getContent(), $post->getType()
+				$author,
+				$post->getContent(),
+				$post->getType(),
+				// asked of the attachments that were actually resolved, not of
+				// the ids the client sent: an id that named nothing, or
+				// somebody else's upload, is not a video on this post
+				PeerTubeService::soleVideo($post->getMedias()) !== null
 			);
 			if ($reason !== '') {
 				$held = $this->postReviewService->hold(
@@ -1844,6 +1858,293 @@ class ApiController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
 			$this->logger->warning('issues while mediaStream', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
+		}
+	}
+
+	// --- where somebody stopped watching ----------------------------------
+
+	/**
+	 * Remembers where the reader got to in a video.
+	 *
+	 * A two-hour talk watched in three sittings is three sittings of finding
+	 * the place again, which is what this is for. It is a fact about the
+	 * reader: never federated, never shown to anybody else, never counted into
+	 * anything.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	// a player reports as it goes, so this is asked for often and is cheap
+	#[UserRateLimit(limit: 600, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/watched')]
+	public function statusWatched(int $nid, int $position = 0, int $duration = 0): DataResponse {
+		try {
+			$this->initViewer(true);
+			$post = $this->streamService->getStreamByNid($nid);
+			$this->watchService->remember($post, $this->viewer, $position, $duration);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Takes a video off the reader's own "continue watching" list. */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 60, period: 3600)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/statuses/{nid}/watched')]
+	public function statusUnwatched(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+			$post = $this->streamService->getStreamByNid($nid);
+			$this->watchService->forget($post, $this->viewer);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The videos the reader was in the middle of, newest first.
+	 *
+	 * Neither the ones they barely started nor the ones they finished: a row
+	 * that offers back a video somebody watched to the end is a row nobody
+	 * presses twice.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/videos/continue')]
+	public function videosContinue(int $limit = 20): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return new DataResponse(
+				$this->watchService->unfinished($this->viewer, $limit), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * An HLS playlist, with every URI in it pointed back through this server.
+	 *
+	 * A PeerTube transcoding to HLS — the default, and what a public instance
+	 * federates — publishes a `.m3u8` and nothing but Safari can open one. So
+	 * the client loads hls.js and asks for this; without the rewrite it would
+	 * then fetch every segment straight from the origin, which is the very
+	 * thing `mediaStream()` exists to prevent, and worse, because it is one
+	 * request per few seconds of video.
+	 *
+	 * Unauthenticated for the same reason the other two media routes are: it is
+	 * a media url handed out with the post it belongs to, and it takes a row id
+	 * rather than a url.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/playlist/{nid}')]
+	public function mediaPlaylist(int $nid): Response {
+		try {
+			$opened = $this->documentService->openPlaylist(
+				$nid,
+				fn (string $url): string => $this->urlGenerator->linkToRouteAbsolute(
+					'social.Api.mediaPlaylistFile', ['nid' => $nid, 'u' => $url]
+				)
+			);
+
+			$response = new DataDisplayResponse($opened['playlist'], Http::STATUS_OK, [
+				'Content-Type' => 'application/vnd.apple.mpegurl',
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				'X-Content-Type-Options' => 'nosniff',
+			]);
+
+			return $response;
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaPlaylist', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
+		}
+	}
+
+	// --- a local video's own ladder ---------------------------------------
+
+	/**
+	 * The master playlist of a stored video: which sizes it exists at.
+	 *
+	 * Addressed by uuid, the same handle `/media/{uuid}` takes, because it
+	 * leads to the same video. A route keyed on a row id would make a ladder
+	 * easier to find than the file it was built from, which would be a way of
+	 * reading a followers-only post's video by counting.
+	 *
+	 * 404 rather than an empty playlist when there is no ladder: a player that
+	 * is handed a master with no rungs in it reports a broken video, where one
+	 * that gets a 404 falls back to the plain file, which is what should
+	 * happen.
+	 *
+	 * Every address in this group ends in the extension its content actually
+	 * has, and the three of them are at different depths so none can be read
+	 * as another. Browsers and hls.js go by the `Content-Type`, but ffmpeg's
+	 * HLS demuxer checks the *extension* of every segment URI it is given and
+	 * refuses one it does not recognise — found on devel, where ffprobe would
+	 * not open a playlist this server had written correctly.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/master.m3u8')]
+	public function mediaLadder(string $uuid): Response {
+		try {
+			$master = $this->documentService->masterPlaylist(
+				$uuid,
+				fn (int $height): string => $this->urlGenerator->linkToRouteAbsolute(
+					'social.Api.mediaLadderRung', ['uuid' => $uuid, 'height' => $height]
+				)
+			);
+
+			if ($master === null) {
+				return new DataResponse(['error' => 'no ladder'], Http::STATUS_NOT_FOUND);
+			}
+
+			return new DataDisplayResponse($master, Http::STATUS_OK, [
+				'Content-Type' => VideoLadderService::PLAYLIST_TYPE,
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				'X-Content-Type-Options' => 'nosniff',
+			]);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaLadder', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * One rung's playlist: where each segment is inside that rung's file.
+	 *
+	 * The stored playlist keeps a placeholder where the media URI goes, and it
+	 * is filled in here — the address is a route on this server, which is not
+	 * known when ffmpeg writes the file and changes if the instance moves.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 120, period: 60)]
+	#[UserRateLimit(limit: 600, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/{height}/index.m3u8')]
+	public function mediaLadderRung(string $uuid, int $height): Response {
+		try {
+			$playlist = $this->documentService->rungPlaylist(
+				$uuid,
+				$height,
+				fn (int $rung): string => $this->urlGenerator->linkToRouteAbsolute(
+					'social.Api.mediaLadderFile', ['uuid' => $uuid, 'height' => $rung]
+				)
+			);
+
+			if ($playlist === null) {
+				return new DataResponse(['error' => 'no such rung'], Http::STATUS_NOT_FOUND);
+			}
+
+			return new DataDisplayResponse($playlist, Http::STATUS_OK, [
+				'Content-Type' => VideoLadderService::PLAYLIST_TYPE,
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				'X-Content-Type-Options' => 'nosniff',
+			]);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaLadderRung', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * One rung's file: the whole fragmented MP4, served with ranges.
+	 *
+	 * Every segment of a rung is a byte range into this one file, so a player
+	 * watching a ten-minute video asks this route a few hundred times with a
+	 * different `Range` each time. That is what `RangedFileResponse` is for,
+	 * and why the limits here are the generous ones.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 600, period: 60)]
+	#[UserRateLimit(limit: 3000, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/{height}/video.mp4')]
+	public function mediaLadderFile(string $uuid, int $height): Response {
+		try {
+			$rung = $this->documentService->rungFile($uuid, $height);
+			if ($rung === null) {
+				return new DataResponse(['error' => 'no such rung'], Http::STATUS_NOT_FOUND);
+			}
+
+			[$file, $document] = $rung;
+			$response = new RangedFileResponse(
+				$file, VideoLadderService::RENDITION_TYPE, $this->request->getHeader('Range')
+			);
+			// the same terms the video itself is served on: for ever in the
+			// reader's own cache, and in a shared one only when the post it
+			// hangs off is public
+			$response->cacheFor(self::MEDIA_CACHE_SECONDS, $document->isPublic(), true);
+
+			return $response;
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaLadderFile', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * One file out of such a playlist — a segment, a key, or a nested playlist.
+	 *
+	 * The url is **not** trusted from the caller: it has to be on the same host
+	 * as the playlist the nid names. That is the same property `mediaStream()`
+	 * has by taking a row id rather than a url, one level further in, and it is
+	 * what keeps this from being a proxy for the whole internet.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	// a segment is a few seconds of video, so a film is hundreds of them
+	#[AnonRateLimit(limit: 600, period: 60)]
+	#[UserRateLimit(limit: 3000, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/playlist/{nid}/file')]
+	public function mediaPlaylistFile(int $nid, string $u = ''): Response {
+		try {
+			$opened = $this->documentService->openPlaylistFile(
+				$nid, $u, $this->request->getHeader('Range')
+			);
+
+			$headers = [
+				'Content-Type' => (string)($opened['type'] ?? 'application/octet-stream'),
+				'Accept-Ranges' => 'bytes',
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				'X-Content-Type-Options' => 'nosniff',
+			];
+
+			foreach (['Content-Length', 'Content-Range'] as $header) {
+				$value = $opened['headers'][$header] ?? $opened['headers'][strtolower($header)] ?? [];
+				if ($value !== []) {
+					$headers[$header] = (string)$value[0];
+				}
+			}
+
+			return new StreamedRemoteResponse($opened['stream'], $opened['status'], $headers);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaPlaylistFile', ['exception' => $e]);
 
 			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
 		}
@@ -2849,11 +3150,59 @@ class ApiController extends Controller {
 				'posting:default:sensitive' => (bool)($source['sensitive'] ?? false),
 				'posting:default:language' => ($source['language'] ?? '') !== ''
 					? $source['language'] : null,
-				// this app has no per-account reading preferences; Mastodon's
-				// defaults are what a client assumes when they are absent, so
-				// sending them is what stops it assuming something else
-				'reading:expand:media' => 'default',
+				// PeerTube's three NSFW policies, under the names Mastodon
+				// already has for the same three states: what this account
+				// chose, or what the instance does for somebody who has not.
+				// See `SensitiveMediaService`.
+				'reading:expand:media' => $this->sensitiveMediaService->policyFor(
+					$this->currentSession()
+				),
+				// still Mastodon's default: a content warning is a different
+				// thing from sensitive media and this app keeps no preference
+				// about it
 				'reading:expand:spoilers' => false,
+			], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Records what this account wants done with sensitive media.
+	 *
+	 * Not a Mastodon route — Mastodon has no write for preferences, and its
+	 * own reading preferences are set on its web front end rather than through
+	 * the API. The value is Mastodon's all the same, so a client that reads
+	 * `/api/v1/preferences` and a client that writes here agree about what the
+	 * three words mean.
+	 *
+	 * `''` is a fourth thing and not a fourth policy: it puts the account back
+	 * to following whatever the instance does, which is different from
+	 * choosing what the instance happens to do today.
+	 *
+	 * `PublicPage` with no CSRF like every other route of this controller:
+	 * `currentSession()` is what authenticates, and it checks the CSRF token
+	 * itself for a caller with a session rather than a bearer token.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/preferences')]
+	public function preferencesUpdate(string $expandMedia = ''): DataResponse {
+		try {
+			$userId = $this->currentSession();
+			if (!$this->sensitiveMediaService->choose($userId, $expandMedia)) {
+				return new DataResponse(
+					['error' => 'expand_media must be show_all, default, hide_all, or empty'],
+					Http::STATUS_UNPROCESSABLE_ENTITY
+				);
+			}
+
+			return new DataResponse([
+				'reading:expand:media' => $this->sensitiveMediaService->policyFor($userId),
+				// what was chosen, as it was chosen: a settings page has to be
+				// able to show "follow the instance" as the state it is
+				'choice' => $this->sensitiveMediaService->choiceOf($userId),
+				'instance' => $this->sensitiveMediaService->instancePolicy(),
 			], Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);

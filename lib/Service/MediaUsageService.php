@@ -91,6 +91,8 @@ class MediaUsageService {
 				foreach ([$row['local_copy'], $row['resized_copy']] as $copy) {
 					$this->addCopy($usage, $side, $kind, $copy);
 				}
+
+				$this->recordSize($row);
 			}
 		}
 
@@ -131,6 +133,36 @@ class MediaUsageService {
 		$usage = json_decode($stored, true);
 
 		return is_array($usage) ? $usage : null;
+	}
+
+	/**
+	 * Fills in the size of a video row that has none.
+	 *
+	 * `social_cache_doc.size` arrived with the video work; every row written
+	 * before it carries 0, which is what the per-account quota and the
+	 * PeerTube file link both read. This walk is already asking the store how
+	 * big each file is, so it writes the answer down as it passes — and the
+	 * quota becomes accurate after one pass rather than never.
+	 *
+	 * Videos only, and only where the row says nothing: an image's size is not
+	 * read anywhere, and overwriting a size that is already there would mean
+	 * this run could disagree with what was published.
+	 *
+	 * @param array<string, mixed> $row
+	 */
+	private function recordSize(array $row): void {
+		$copy = (string)($row['local_copy'] ?? '');
+		if ((int)($row['size'] ?? 0) > 0
+			|| !str_starts_with((string)($row['media_type'] ?? ''), 'video/')
+			|| $copy === ''
+			|| $copy === Document::COPY_STREAMED) {
+			return;
+		}
+
+		$size = $this->cacheDocumentService->cachedFileSize($copy);
+		if ($size !== null && $size > 0) {
+			$this->cacheDocumentsRequest->setSize((int)$row['nid'], $size);
+		}
 	}
 
 	/**

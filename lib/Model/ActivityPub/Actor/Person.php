@@ -66,6 +66,18 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private bool $locked = false;
 	private array $emojis = [];
 	private bool $bot = false;
+	/**
+	 * Who this actor belongs to, as ActivityPub's `attributedTo`.
+	 *
+	 * Empty for an ordinary account, which belongs to nobody but itself. A
+	 * **channel** names its owner here, and has to: PeerTube fetches a video's
+	 * channel and then looks for a `Person` in the channel's own `attributedTo`,
+	 * refusing the video with *"Cannot find account attributed to video
+	 * channel"* when there is none.
+	 *
+	 * @var array<int, array{type: string, id: string}>
+	 */
+	private array $attributedToActors = [];
 	private bool $discoverable = false;
 	private bool $indexable = false;
 	private string $privacy = 'public';
@@ -474,6 +486,69 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function isBot(): bool {
 		return $this->bot;
+	}
+
+	/**
+	 * The type this actor is served as, for the column that stores it.
+	 *
+	 * `''` for the two the `bot` flag already decides between, so a row means
+	 * "decide as before" unless something deliberately said otherwise — which
+	 * is what every row written before `actor_type` existed means, and what an
+	 * ordinary account goes on meaning.
+	 */
+	/**
+	 * `attributedTo` as a list of typed references, however the document wrote
+	 * it: PeerTube sends objects with a `type`, and a bare id is read as a
+	 * `Person` because that is the only thing an actor is ever attributed to.
+	 *
+	 * @param array<string, mixed> $source
+	 * @return array<int, array{type: string, id: string}>
+	 */
+	private function attributedToFrom(array $source): array {
+		$raw = $source['attributedTo'] ?? [];
+		if (is_string($raw)) {
+			$raw = [$raw];
+		}
+		if (!is_array($raw)) {
+			return [];
+		}
+
+		$actors = [];
+		foreach ($raw as $entry) {
+			if (is_string($entry) && $entry !== '') {
+				$actors[] = ['type' => self::TYPE, 'id' => $entry];
+				continue;
+			}
+
+			$id = is_array($entry) ? (string)($entry['id'] ?? '') : '';
+			if ($id !== '') {
+				$actors[] = ['type' => (string)($entry['type'] ?? self::TYPE), 'id' => $id];
+			}
+		}
+
+		return $actors;
+	}
+
+	/**
+	 * @return array<int, array{type: string, id: string}>
+	 */
+	public function getAttributedToActors(): array {
+		return $this->attributedToActors;
+	}
+
+	/**
+	 * @param array<int, array{type: string, id: string}> $actors
+	 */
+	public function setAttributedToActors(array $actors): self {
+		$this->attributedToActors = $actors;
+
+		return $this;
+	}
+
+	public function storedActorType(): string {
+		$type = $this->getType();
+
+		return ($type === self::TYPE || $type === Service::TYPE) ? '' : $type;
 	}
 
 	/**
@@ -937,6 +1012,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				$this->setHeader($image);
 			}
 			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
+			// Whose a channel is. The cached copy is what every read of an
+			// actor is served from and it has no column for this, so it comes
+			// back out of the source document the same way `alsoKnownAs` does —
+			// without it the `Group` was served with no owner, which is the
+			// second thing PeerTube refuses a video for.
+			$this->setAttributedToActors($this->attributedToFrom($source));
 			$this->setMovedTo($this->validate(self::AS_URL, 'movedTo', $source, $this->getMovedTo()));
 			$this->setLocked($this->getBool('manuallyApprovesFollowers', $source, $this->isLocked()));
 			$this->setDiscoverable($this->getBool('discoverable', $source, $this->isDiscoverable()));
@@ -954,6 +1035,16 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$this->setBot($this->getInt('bot', $data, 0) === 1);
 		} else {
 			$this->setBot(in_array($this->getType(), self::BOT_TYPES, true));
+		}
+
+		// A local actor that is something other than a person: a channel is a
+		// `Group`, which is the one thing PeerTube will look for when it asks
+		// which channel a video belongs to. Read *after* the bot flag, because
+		// `setBot()` moves the type between Person and Service and would
+		// otherwise overwrite this one.
+		$actorType = $this->get('actor_type', $data, '');
+		if ($actorType !== '') {
+			$this->setType($actorType);
 		}
 
 		// local actor rows carry the canonical fields in their own column
@@ -1072,6 +1163,13 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$data['featured'] = $this->getFeatured();
 		}
 
+		// Whose this is. Only a channel sets it, and a channel must: PeerTube
+		// fetches the `Group` a video names and refuses the video outright
+		// unless a `Person` is attributed here.
+		if ($this->getAttributedToActors() !== []) {
+			$data['attributedTo'] = $this->getAttributedToActors();
+		}
+
 		if ($this->getAlsoKnownAs() !== []) {
 			$data['alsoKnownAs'] = $this->getAlsoKnownAs();
 		}
@@ -1180,7 +1278,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'bot' => $this->isBot(),
 				'discoverable' => $this->isDiscoverable(),
 				'indexable' => $this->isIndexable(),
-				'group' => false,
+				// Mastodon's own flag for "this is not a person". It was
+				// hardcoded false, which was true until channels existed: a
+				// PeerTube channel and one of ours are both `Group`s, and a
+				// client that is told otherwise offers "Follow" where the thing
+				// on the screen is something you subscribe to.
+				'group' => $this->getType() === Group::TYPE,
 				'created_at' => gmdate('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
 				'note' => $this->isLocal() ? $this->bioAsHtml() : $this->getDescription(),
 				'url' => $this->getId(),

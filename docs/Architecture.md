@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.21.0  
+**App version:** 0.22.0  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -154,6 +154,10 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_discover_cat` | The subjects an instance says Explore is about: a name and the hashtags it means, in the order an administrator put them in |
 | `social_trend_review` | What a moderator has decided about something that is trending: one row per rejected (or approved) tag, link or status |
 | `social_relay` | The relays this instance subscribes to: one row per subscription, with the `Follow` it sent, the inbox to deliver to and whether the relay answered |
+| `social_channel` | The `Group` actors an account publishes videos under: one row per channel, binding it to the account that owns it |
+| `social_watch` | Where a reader stopped watching a video: one row per (post, viewer), never federated |
+| `social_video_rendition` | The rungs of a local video's ladder: one row per (video, height), each naming one fragmented MP4 and the playlist that addresses it |
+
 | `social_quote_grant` | The permissions this instance has given out to quote its posts: one row per (quoted post, quoting post), with the `QuoteRequest` it answered so the grant can be taken back |
 | `social_team` | The accounts a Nextcloud group posts from: one row per team account, bound to the group whose members may speak as it |
 | `social_team_post` | Who actually wrote each post from a team account: one row per post, shown to the team and to moderators |
@@ -200,7 +204,9 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_announce_read` | Who has dismissed which announcement: one row per (account, announcement), unique on the pair |
 | `social_scheduled` | Posts asked to be published later: one row per waiting post, with the client's request as JSON in `params` and the resolved visibility inside it |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`, and `Version1000Date20260911000004` adds `social_followed_tag` (the hashtags an account follows, unique on (actor, tag) — which is also the index the home timeline reads). `Version1000Date20260911000005` adds `social_list` and `social_list_member` — Mastodon's lists and their membership, the membership table unique on (list, account), which is both what makes adding an account twice a no-op and the index the list timeline joins `social_stream.attributed_to_prim` on. `Version1000Date20260911000006` adds `social_filter` and `social_filter_kw` — the keyword filters an account mutes posts with, indexed by owner and by filter, which are the two reads there are. `Version1000Date20260911000007` adds `social_convo_state`, unique on (account, thread root) — the read and dismissed markers behind `/api/v1/conversations`. The conversations themselves get no table: a conversation is a thread of `social_stream` rows derived from `in_reply_to` at read time, and its id is the nid of the thread root. `Version1000Date20260911000008` adds `social_domain_block`, `social_account_note` and `social_mute_expiry` — the per-account instance blocks, the private notes and the expiry of a timed mute, each unique on the pair it is keyed by, which is both what makes writing one twice a no-op and the index its read path probes. An endorsement is not among them: it is a row in `social_actor_relation` with type `endorse`, which is what that table already holds. `Version1000Date20260911000009` adds `social_stream_rev` (the revisions of an edited status, indexed on (status, id), which is the only read there is) and `Version1000Date20260911000010` adds `social_featured_tag` (the hashtags an account pins to its profile, unique on (actor, tag)). `Version1000Date20260911000011` adds `social_announcement` and `social_announce_read` — the announcements and their dismissals, the dismissal table unique on (account, announcement), which is both what makes dismissing twice a no-op and the index the client read probes. The announcements table gets no index beyond its key: every read of it is its whole active set, and it holds a handful of rows. `Version1000Date20260911000014` adds `social_scheduled` — the posts a client asked to have published later — with two indexes, one per read there is: `(actor_id_prim, scheduled_at)` for one account's list and the daily cap, and `(scheduled_at)` for the cron's "what is due across every account", which the first index cannot answer because its leading column is the account. `Version1000Date20260911000020` adds `forwarded` to `social_report`: whether a report was passed on to the instance that hosts the reported account, which the admin API used to answer as a hardcoded `false`. `Version1000Date20260912000001` adds the two indexes `Version1000Date20260910000001` left out: `social_actor.user_id`, which resolves the logged-in user's actor on every authenticated request and had no index at all, and the four trend windows of `social_hashtag` other than `trend_1d` (`trend_1h`, `trend_12h`, `trend_3d`, `trend_10d`), each of which `getTrending()` filters and orders on. `Version1000Date20260912000002` adds `social_actor.bot` — whether a local account is automated, which is what Mastodon's `bot` reports and what decides whether the actor document says `Service` or `Person`; it was accepted from clients and dropped. `Version1000Date20260912000003` adds `social_strike` — the history of moderation decisions, indexed on the account, which is the only read there is. `Version1000Date20260912000011` adds `social_convo_state.muted` — the thread an account has stopped hearing from, a column rather than a table because that row already records what one account has done with one thread. `Version1000Date20260912000010` adds `social_client_auth`, unique on (client, account) with an index on each of the two secrets it is looked up by — and carries the authorization already on each client row across, so a token in use today goes on working. `Version1000Date20260912000006` adds `social_access_block`, unique on (type, value) — one table for two lists, because what differs between Mastodon's two is a severity column and a count, and neither is worth a second table on an instance that holds tens of these rows. `Version1000Date20260912000005` adds `social_announce_react`, unique on (announcement, account, emoji) — both what makes reacting twice with the same emoji a no-op and the index its two reads use. `Version1000Date20260912000004` adds `social_emoji`, unique on the shortcode — which is both what makes re-adding one a replacement rather than a second row nothing can tell from the first, and the index every read of it uses. `Version1000Date20260912000008` adds `social_collection` and `social_collection_item` — the albums an account curates out of its own posts, the item table unique on (collection, post) so adding one twice is a no-op, with a second index on the post because deleting one has to find every collection holding it. `Version1000Date20260912000009` adds `social_story` and `social_story_view` — a picture that expires after a day and who has seen it, indexed on (account, expiry) for the reads and on expiry alone for the cron that sweeps them, the view table unique on (story, viewer). `Version1000Date20260912000012` adds `social_place` and `social_stream.place_id` — where a post was taken, deduplicated on (name, country) with the name hashed because a unique index on a TEXT column is not portable; no geocoder is involved anywhere, see the migration. `Version1000Date20260914000002` adds `social_list.group_id`, indexed — the Nextcloud group a list follows, which is what `GroupListService` reads when a group changes: every list bound to it, whoever owns it. `Version1000Date20260914000001` adds `social_req_queue.object_id_prim`, indexed — the md5 of the id of the object a queued delivery is about, which is what lets a post ask the queue where it got to; empty on rows queued before the column existed, which are at most a few days of retries. `Version1000Date20260914000005` adds `social_gif` — the shared pictures the composer offers, unique on the slug, with the bytes in appdata beside the custom emoji: it is the same shape of thing, a small curated set served to everybody that must not break because a file moved in somebody's Files. `Version1000Date20260914000004` adds `social_reaction` — who reacted to which post with which emoji — unique on (actor, post, emoji) and indexed on the post, which is the read it exists for. A table of its own rather than another `type` in `social_action`: a like and a boost are a fact about a pair, which is what that table's key says, while a reaction carries a third thing and one account may react to one post several times over. `Version1000Date20260915000001` adds `social_filter_st` — the individual posts a filter covers, beside the keywords it matches, which is the other half of Mastodon's v2 filters and the only part of that API this app did not serve. The post is named by its `nid`, the id a client sends, with an index on the filter (how a filter's entries are read and deleted) and one on the status (not unique: two filters of one account, and two accounts, may each cover the same post). `Version1000Date20260915000002` adds `social_import_post` — what an account has brought over from an export, unique on (account, original id). A post written by the importer is a *new local post*: its original id belongs to the server it was written on and cannot be kept, so without this row nothing would remember where it came from, a second run of the same archive would write every post again, and a reply — which an archive names by its parent's original id — would have nothing to hang off. Nothing cascades: a post the account later deletes leaves its row, because the row says "this was imported" and importing it again because it was deleted here would undo a decision the account made. `Version1000Date20260915000003` adds `source_id`, `source_id_prim` and `local` to `social_story`, unique on the hashed id. A story used to be local by definition — no ActivityPub identity, no recipients — so the row had no way of saying whose network it belonged to; it is published to followers as an `Add` now and arrives from peers the same way. The unique index is what makes a story delivered twice one row, which matters more here than elsewhere because a fan-out reaches an instance once per follower on it, and `local` is what decides which stories are published outward and which may be deleted through the API. Existing rows are local and have their id minted on first read rather than in a `postSchemaChange`: a story lives a day, so within a day of the migration the question has answered itself. `Version1000Date20260915000004` adds `social_post_hold` — the review queue. What it stores is the *request*, the same shape `social_scheduled` holds, and not a post: a held post that existed as a row in `social_stream` with a flag on it would be one forgotten predicate away from a timeline, a hashtag page, a profile or an outbox, and this app has shipped exactly that leak before. A post that is not in the table cannot be read out of it by code nobody has written yet. Unique on `digest`, the md5 of the account and the text: a client told its post was held will be pressed again by its user and the Pixelfed app retries a 422 by itself, so without it one post held once would be twenty identical rows for a moderator to work through. Indexed on (`actor_id_prim`, `id`) for the author's own list and the per-account cap; the queue itself is read in `id` order off the primary key, because it is drained by people. `Version1000Date20260915000005` adds `social_stream.archived` — a post its author has put away. Deleting was the only thing this app offered somebody who no longer wanted a post on their profile, which is a bad answer to a common question: a photograph from four years ago is not something to destroy because it has stopped belonging at the top of a profile. A column rather than a table because it is one fact about one post and every read that must not show one is a read of `social_stream`; no index, because almost every row is `false` and always will be, and the queries that filter it are already selected by their own timeline's index. The filter is **fail-closed**: `StreamRequestBuilder::hideArchived()` is applied by the two base selects every stream read is built from, and the two reads that should see an archived post — the author's own list, and a post fetched by its own address — ask for it. A read written later shows none until somebody decides it should, rather than leaking one until somebody notices. Nothing federates: an archived post is still on every server that received it, and taking it back from them is what `Delete` is for. `Version1000Date20260915000006` adds `social_moderation.force_sensitive` and `social_media_block`. The first is the step between doing nothing and silencing — an account asked to put a content warning on its pictures without being taken out of the timelines, which is Mastodon's own tier and what Pixelfed calls `cw` — applied in `StreamRequest::save()` because a local post, a post that arrived in the inbox and a post the importer restored are the same row and a rule that held for one of them would be a rule nobody could explain. The second is the one thing none of the account-level tools does: stop a **file** coming back. A hash of the bytes as they arrive, checked in `CacheDocumentService::saveFromTempToCache()` — the one place an upload and a fetched remote attachment both pass through — with the reason and the moderator beside it, and a count of how many times it has been turned away, because a blocklist with no evidence is one nobody dares remove anything from a year later. `Version1000Date20260915000007` adds `social_stream_view` — who has opened a post. An author could see three likes and had no way to know whether that was three out of five or three out of four hundred; a story has had a view count since it was written and a post had none. What is counted is deliberately narrow: **a post's own page, opened by a signed-in account that is not its author**. Not an impression in a timeline — a post scrolled past has not been read, counting it would make the number meaningless, and it would write a row for every post on every page of every timeline. Unique on (post, viewer), so the number is people rather than visits. It is never federated and is on the author's copy alone: a count that arrived from another server would be a number about that server's readers added to this one's, meaning neither. `Version1000Date20260916000001` adds `social_trend_review` — what a moderator has decided about something that is trending. Trending is counted and shown with nobody in the loop, so the first ugly hashtag to catch on did so on the Explore page of every account here and the only remedy was to wait for it to fall off; Mastodon has nine admin routes for this and the app had none. **Rejected is what is stored, and everything else trends.** The other arrangement Mastodon offers — nothing trends until it is approved — would empty the Explore page of every instance on upgrade and leave it empty until somebody found the new panel; approval is still recorded, because a moderator wants to see what they have already looked at, but it grants nothing that was not already so. One table for the three kinds rather than three: what differs is a word (a tag is named by its text, a link by its URL, a status by its id) and splitting them would be three identical schemas, three queries to keep in step and three things each trend read would have to know about. The filter is applied where a trend list is **read**, never where the counters are written — a rejected tag keeps being counted, so lifting the decision puts it back with the number it would have had, and a decision that could only be undone by waiting for counters to refill is one nobody would risk making. `Version1000Date20260916000003` adds `social_stream.quote_policy` and `social_quote_grant` — who may quote a post, and the permissions that have been given out. This app answers a `QuoteRequest` already (FEP-044f, the mechanism Mastodon 4.5 quotes run on), but the answer was derived from one thing: whether the post was addressed to the public collection. An author who wanted their public post quoted by their followers and nobody else, or by nobody at all, had no way to say so — and Mastodon's own composer offers exactly that choice on every post. The policy is `public`, `followers` or `nobody`, and **empty for every post written before anybody was asked**, which keeps meaning what it meant: the visibility rule. It lives on the post rather than on the account because it is a decision about *this* post; a default for new posts is a client preference and belongs with the composer's other defaults. What it decides is `Stream::mayBeQuotedBy()`, which is both the rule `QuoteRequestInterface` applies when a request arrives and the rule `quote_approval.current_user` reports to a client, so the two cannot drift. It is advertised outward as `interactionPolicy.canQuote.automaticApproval` — the public collection, the author's followers collection, or the author alone — which is what Mastodon reads before it offers a quote button at all. `social_quote_grant` is one row per permission given: which post was quoted, which post quotes it, who asked, and **the `QuoteRequest` the grant answers**. That last column is the reason the table exists — taking a quote back means sending a `Reject` naming the request that was accepted, and without a row there is nothing to name. Unique on (quoted, quoting), so a request delivered twice (a peer retries) is one row. Changing the policy is deliberately **forward-only**: it does not withdraw permissions already given, because a quote that has been published and read is not undone by a switch being flipped. Taking one back is its own route, which says so and tells the other server.
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`, and `Version1000Date20260911000004` adds `social_followed_tag` (the hashtags an account follows, unique on (actor, tag) — which is also the index the home timeline reads). `Version1000Date20260911000005` adds `social_list` and `social_list_member` — Mastodon's lists and their membership, the membership table unique on (list, account), which is both what makes adding an account twice a no-op and the index the list timeline joins `social_stream.attributed_to_prim` on. `Version1000Date20260911000006` adds `social_filter` and `social_filter_kw` — the keyword filters an account mutes posts with, indexed by owner and by filter, which are the two reads there are. `Version1000Date20260911000007` adds `social_convo_state`, unique on (account, thread root) — the read and dismissed markers behind `/api/v1/conversations`. The conversations themselves get no table: a conversation is a thread of `social_stream` rows derived from `in_reply_to` at read time, and its id is the nid of the thread root. `Version1000Date20260911000008` adds `social_domain_block`, `social_account_note` and `social_mute_expiry` — the per-account instance blocks, the private notes and the expiry of a timed mute, each unique on the pair it is keyed by, which is both what makes writing one twice a no-op and the index its read path probes. An endorsement is not among them: it is a row in `social_actor_relation` with type `endorse`, which is what that table already holds. `Version1000Date20260911000009` adds `social_stream_rev` (the revisions of an edited status, indexed on (status, id), which is the only read there is) and `Version1000Date20260911000010` adds `social_featured_tag` (the hashtags an account pins to its profile, unique on (actor, tag)). `Version1000Date20260911000011` adds `social_announcement` and `social_announce_read` — the announcements and their dismissals, the dismissal table unique on (account, announcement), which is both what makes dismissing twice a no-op and the index the client read probes. The announcements table gets no index beyond its key: every read of it is its whole active set, and it holds a handful of rows. `Version1000Date20260911000014` adds `social_scheduled` — the posts a client asked to have published later — with two indexes, one per read there is: `(actor_id_prim, scheduled_at)` for one account's list and the daily cap, and `(scheduled_at)` for the cron's "what is due across every account", which the first index cannot answer because its leading column is the account. `Version1000Date20260911000020` adds `forwarded` to `social_report`: whether a report was passed on to the instance that hosts the reported account, which the admin API used to answer as a hardcoded `false`. `Version1000Date20260912000001` adds the two indexes `Version1000Date20260910000001` left out: `social_actor.user_id`, which resolves the logged-in user's actor on every authenticated request and had no index at all, and the four trend windows of `social_hashtag` other than `trend_1d` (`trend_1h`, `trend_12h`, `trend_3d`, `trend_10d`), each of which `getTrending()` filters and orders on. `Version1000Date20260912000002` adds `social_actor.bot` — whether a local account is automated, which is what Mastodon's `bot` reports and what decides whether the actor document says `Service` or `Person`; it was accepted from clients and dropped. `Version1000Date20260912000003` adds `social_strike` — the history of moderation decisions, indexed on the account, which is the only read there is. `Version1000Date20260912000011` adds `social_convo_state.muted` — the thread an account has stopped hearing from, a column rather than a table because that row already records what one account has done with one thread. `Version1000Date20260912000010` adds `social_client_auth`, unique on (client, account) with an index on each of the two secrets it is looked up by — and carries the authorization already on each client row across, so a token in use today goes on working. `Version1000Date20260912000006` adds `social_access_block`, unique on (type, value) — one table for two lists, because what differs between Mastodon's two is a severity column and a count, and neither is worth a second table on an instance that holds tens of these rows. `Version1000Date20260912000005` adds `social_announce_react`, unique on (announcement, account, emoji) — both what makes reacting twice with the same emoji a no-op and the index its two reads use. `Version1000Date20260912000004` adds `social_emoji`, unique on the shortcode — which is both what makes re-adding one a replacement rather than a second row nothing can tell from the first, and the index every read of it uses. `Version1000Date20260912000008` adds `social_collection` and `social_collection_item` — the albums an account curates out of its own posts, the item table unique on (collection, post) so adding one twice is a no-op, with a second index on the post because deleting one has to find every collection holding it. `Version1000Date20260912000009` adds `social_story` and `social_story_view` — a picture that expires after a day and who has seen it, indexed on (account, expiry) for the reads and on expiry alone for the cron that sweeps them, the view table unique on (story, viewer). `Version1000Date20260912000012` adds `social_place` and `social_stream.place_id` — where a post was taken, deduplicated on (name, country) with the name hashed because a unique index on a TEXT column is not portable; no geocoder is involved anywhere, see the migration. `Version1000Date20260914000002` adds `social_list.group_id`, indexed — the Nextcloud group a list follows, which is what `GroupListService` reads when a group changes: every list bound to it, whoever owns it. `Version1000Date20260914000001` adds `social_req_queue.object_id_prim`, indexed — the md5 of the id of the object a queued delivery is about, which is what lets a post ask the queue where it got to; empty on rows queued before the column existed, which are at most a few days of retries. `Version1000Date20260914000005` adds `social_gif` — the shared pictures the composer offers, unique on the slug, with the bytes in appdata beside the custom emoji: it is the same shape of thing, a small curated set served to everybody that must not break because a file moved in somebody's Files. `Version1000Date20260914000004` adds `social_reaction` — who reacted to which post with which emoji — unique on (actor, post, emoji) and indexed on the post, which is the read it exists for. A table of its own rather than another `type` in `social_action`: a like and a boost are a fact about a pair, which is what that table's key says, while a reaction carries a third thing and one account may react to one post several times over. `Version1000Date20260915000001` adds `social_filter_st` — the individual posts a filter covers, beside the keywords it matches, which is the other half of Mastodon's v2 filters and the only part of that API this app did not serve. The post is named by its `nid`, the id a client sends, with an index on the filter (how a filter's entries are read and deleted) and one on the status (not unique: two filters of one account, and two accounts, may each cover the same post). `Version1000Date20260915000002` adds `social_import_post` — what an account has brought over from an export, unique on (account, original id). A post written by the importer is a *new local post*: its original id belongs to the server it was written on and cannot be kept, so without this row nothing would remember where it came from, a second run of the same archive would write every post again, and a reply — which an archive names by its parent's original id — would have nothing to hang off. Nothing cascades: a post the account later deletes leaves its row, because the row says "this was imported" and importing it again because it was deleted here would undo a decision the account made. `Version1000Date20260915000003` adds `source_id`, `source_id_prim` and `local` to `social_story`, unique on the hashed id. A story used to be local by definition — no ActivityPub identity, no recipients — so the row had no way of saying whose network it belonged to; it is published to followers as an `Add` now and arrives from peers the same way. The unique index is what makes a story delivered twice one row, which matters more here than elsewhere because a fan-out reaches an instance once per follower on it, and `local` is what decides which stories are published outward and which may be deleted through the API. Existing rows are local and have their id minted on first read rather than in a `postSchemaChange`: a story lives a day, so within a day of the migration the question has answered itself. `Version1000Date20260915000004` adds `social_post_hold` — the review queue. What it stores is the *request*, the same shape `social_scheduled` holds, and not a post: a held post that existed as a row in `social_stream` with a flag on it would be one forgotten predicate away from a timeline, a hashtag page, a profile or an outbox, and this app has shipped exactly that leak before. A post that is not in the table cannot be read out of it by code nobody has written yet. Unique on `digest`, the md5 of the account and the text: a client told its post was held will be pressed again by its user and the Pixelfed app retries a 422 by itself, so without it one post held once would be twenty identical rows for a moderator to work through. Indexed on (`actor_id_prim`, `id`) for the author's own list and the per-account cap; the queue itself is read in `id` order off the primary key, because it is drained by people. `Version1000Date20260915000005` adds `social_stream.archived` — a post its author has put away. Deleting was the only thing this app offered somebody who no longer wanted a post on their profile, which is a bad answer to a common question: a photograph from four years ago is not something to destroy because it has stopped belonging at the top of a profile. A column rather than a table because it is one fact about one post and every read that must not show one is a read of `social_stream`; no index, because almost every row is `false` and always will be, and the queries that filter it are already selected by their own timeline's index. The filter is **fail-closed**: `StreamRequestBuilder::hideArchived()` is applied by the two base selects every stream read is built from, and the two reads that should see an archived post — the author's own list, and a post fetched by its own address — ask for it. A read written later shows none until somebody decides it should, rather than leaking one until somebody notices. Nothing federates: an archived post is still on every server that received it, and taking it back from them is what `Delete` is for. `Version1000Date20260915000006` adds `social_moderation.force_sensitive` and `social_media_block`. The first is the step between doing nothing and silencing — an account asked to put a content warning on its pictures without being taken out of the timelines, which is Mastodon's own tier and what Pixelfed calls `cw` — applied in `StreamRequest::save()` because a local post, a post that arrived in the inbox and a post the importer restored are the same row and a rule that held for one of them would be a rule nobody could explain. The second is the one thing none of the account-level tools does: stop a **file** coming back. A hash of the bytes as they arrive, checked in `CacheDocumentService::saveFromTempToCache()` — the one place an upload and a fetched remote attachment both pass through — with the reason and the moderator beside it, and a count of how many times it has been turned away, because a blocklist with no evidence is one nobody dares remove anything from a year later. `Version1000Date20260915000007` adds `social_stream_view` — who has opened a post. An author could see three likes and had no way to know whether that was three out of five or three out of four hundred; a story has had a view count since it was written and a post had none. What is counted is deliberately narrow: **a post's own page, opened by a signed-in account that is not its author**. Not an impression in a timeline — a post scrolled past has not been read, counting it would make the number meaningless, and it would write a row for every post on every page of every timeline. Unique on (post, viewer), so the number is people rather than visits. It is never federated and is on the author's copy alone: a count that arrived from another server would be a number about that server's readers added to this one's, meaning neither. `Version1000Date20260916000001` adds `social_trend_review` — what a moderator has decided about something that is trending. Trending is counted and shown with nobody in the loop, so the first ugly hashtag to catch on did so on the Explore page of every account here and the only remedy was to wait for it to fall off; Mastodon has nine admin routes for this and the app had none. **Rejected is what is stored, and everything else trends.** The other arrangement Mastodon offers — nothing trends until it is approved — would empty the Explore page of every instance on upgrade and leave it empty until somebody found the new panel; approval is still recorded, because a moderator wants to see what they have already looked at, but it grants nothing that was not already so. One table for the three kinds rather than three: what differs is a word (a tag is named by its text, a link by its URL, a status by its id) and splitting them would be three identical schemas, three queries to keep in step and three things each trend read would have to know about. The filter is applied where a trend list is **read**, never where the counters are written — a rejected tag keeps being counted, so lifting the decision puts it back with the number it would have had, and a decision that could only be undone by waiting for counters to refill is one nobody would risk making. `Version1000Date20260916000004` adds `social_channel`, `social_actor.actor_type` and `social_cache_doc.size` — the three things a `Video` this app publishes needs before a PeerTube will take it. PeerTube has **no video without a channel**: its builder resolves one by looking for a `Group` in the video's `attributedTo` and throws *"Cannot find associated video channel"* when there is none, then fetches that `Group` and looks for a `Person` in *its* `attributedTo`. A Social account is a `Person` and nothing else, so every `Video` published from here was refused on arrival — silently, and in PeerTube's log rather than in ours. A channel is **an actor like any other** — key pair, inbox, outbox, followers, followable, moderatable — which is the same design `social_team` uses and the reason neither needed the actor machinery written twice; what is new is the type it is served as and who owns it. It is stored under a reserved `channel/<handle>` user id, which no Nextcloud user can have because a user id may not contain a slash. The owner is the **`Person` actor**, not the Nextcloud user, so a channel points at the same thing the wire does. One is made for an account the first time it posts a video and used unless the person picks another: nobody should have to learn what a channel is in order to post a video, and an account that never posts one never grows an actor it did not ask for. It is made when the **post is written**, never when it is serialised — a serialisation happens once per instance a post is delivered to, and making an actor there would be a write on a read path, forty times over. `actor_type` is how it is served as a `Group`. A local actor's type was derived from one flag (`bot`, which moves it between `Person` and `Service`) and there was nowhere to say anything else; `''` means "decide as before", which is every row written until now. `social_cache_doc.size` is how many bytes a stored file is. PeerTube's `isRemoteVideoUrlValid()` wants `size` as an integer on every video file link and drops a link without one, so a `Video` from here arrived with nothing to play; it is recorded when the file is stored rather than measured per serialisation, and the per-account video quota asks the same question. **A post that cannot make a valid `Video` stays a `Note`**: no poster (`icon` is mandatory), no duration, or no channel, and the post is published in the shape Mastodon and Pixelfed both read. Sending a `Video` that is going to be thrown away is strictly worse than sending the one that works.
+
+`Version1000Date20260916000003` adds `social_stream.quote_policy` and `social_quote_grant` — who may quote a post, and the permissions that have been given out. This app answers a `QuoteRequest` already (FEP-044f, the mechanism Mastodon 4.5 quotes run on), but the answer was derived from one thing: whether the post was addressed to the public collection. An author who wanted their public post quoted by their followers and nobody else, or by nobody at all, had no way to say so — and Mastodon's own composer offers exactly that choice on every post. The policy is `public`, `followers` or `nobody`, and **empty for every post written before anybody was asked**, which keeps meaning what it meant: the visibility rule. It lives on the post rather than on the account because it is a decision about *this* post; a default for new posts is a client preference and belongs with the composer's other defaults. What it decides is `Stream::mayBeQuotedBy()`, which is both the rule `QuoteRequestInterface` applies when a request arrives and the rule `quote_approval.current_user` reports to a client, so the two cannot drift. It is advertised outward as `interactionPolicy.canQuote.automaticApproval` — the public collection, the author's followers collection, or the author alone — which is what Mastodon reads before it offers a quote button at all. `social_quote_grant` is one row per permission given: which post was quoted, which post quotes it, who asked, and **the `QuoteRequest` the grant answers**. That last column is the reason the table exists — taking a quote back means sending a `Reject` naming the request that was accepted, and without a row there is nothing to name. Unique on (quoted, quoting), so a request delivered twice (a peer retries) is one row. Changing the policy is deliberately **forward-only**: it does not withdraw permissions already given, because a quote that has been published and read is not undone by a switch being flipped. Taking one back is its own route, which says so and tells the other server.
 
 `Version1000Date20260916000002` adds `social_relay` — the relays this instance subscribes to. A small instance sees only what the people on it follow, so its federated timeline is empty on the first day and thin for months: there is nobody here yet to have found anybody out there, and nobody out there has heard of this server. A relay breaks that circle by rebroadcasting the public posts of every instance subscribed to it. The row is the **subscription**, not the relay: the `Follow` this instance sent, the inbox to deliver to, and whether the relay answered — so a relay nobody here subscribed to has no row, and an `Announce` from a server that merely calls itself one is not treated as a relay's. **The subscription belongs to the instance**, which is why there is no owner column: the `Follow` is signed by the instance actor, and what comes back is for everybody's federated timeline. That also means it cannot go through `social_request_queue`, which resolves its signing key from `social_actor` — `HttpSignatureService::signAsInstance()` signs it and it goes out inline, the same arrangement a forwarded report has. **A relayed `Announce` is not a boost.** Storing it as one would put "relay.example boosted this" in front of every post and hang it off an actor nobody follows; Mastodon treats it as a pointer and so does this — the post is fetched from the server that wrote it through `SearchService::resolveStatus()`, with the same guard a reader pasting a link gets, that the document has to claim the address it came from. Outbound, a **local public** activity is delivered to every accepted relay's inbox beside its followers': subscribing and sending nothing is taking without giving, and an instance that only reads is invisible to every other instance on the relay. Not local, because forwarding a third party's activity would put this instance's name on somebody else's post and loop where two instances both relay; not public, because a followers-only post has an audience that was chosen and a relay is the opposite of one. Unique on `actor_id_prim`, so subscribing twice is the same row.
 
@@ -555,7 +561,13 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   string. The channel wins: it is what the `Create` is signed by, what a reader
   follows, and what the video is listed under on PeerTube itself. `Stream::import()`
   asks for a string and got neither, so a federated video used to arrive
-  attributed to nobody.
+  attributed to nobody. A channel also announces its own
+  video to its followers the moment it publishes it, so a followed channel
+  arrived **twice** — once as the video, once as "the channel boosted the
+  video". That `Announce` is skipped, narrowly: only a video, and only where the
+  announcer is the account the video is already attributed to, because somebody
+  boosting their own post to resurface it is a thing people do and this must not
+  swallow that.
 - **The title is in `name`**, which a `Note` has no use for — and must not be
   copied into, since `name` on a note means the option a poll vote chose. So the
   title becomes the first paragraph of the content, linked to the watch page.
@@ -574,6 +586,295 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   is one this app wrote, and a link is only made of an `http(s)` target.
   Headings, lists and code fences are deliberately not handled — rare in a
   video description, and each one a way to get this wrong.
+
+- **Whether replies have to be approved.** PeerTube ≥ 6.2 moderates comments
+  (FEP-5624): a video whose `commentsPolicy` is 3 takes a reply in and shows it
+  to nobody until a human has looked, then sends an `ApproveReply` back to the
+  server the reply came from. Read in both spellings — the numeric
+  `commentsPolicy` PeerTube sends and the FEP's own `canReply`, which names who
+  may reply *without* being approved — because the two arrived a version apart
+  and instances run both. Without it a reply written here looked posted, sat in
+  a queue on the other side, and either appeared a day later or never, with
+  nothing anywhere to say which. It is kept on the post as
+  `Stream::DETAIL_REPLY_POLICY`, and a reply written to such a post carries
+  `DETAIL_REPLY_STATE` — `pending` until the `ApproveReply` arrives. Both are
+  local, derived facts, which is what the details column is for: neither is a
+  property of the wire object, and the second is about somebody else's document.
+- **`Dislike`**, which Mastodon has never had and which therefore had no model
+  here at all: every one that arrived was logged as an unknown type and
+  dropped, so a video whose author cared about the number showed none of them.
+  Stored the way a `Like` is — a row in `social_action` keyed by (actor,
+  object, type) — and counted onto the post as `dislikes`. **It never
+  notifies**: a like tells an author somebody liked them, and a dislike
+  arriving as a notification would be a way to needle somebody from anywhere,
+  one activity at a time.
+- **`View`**, which PeerTube sends to the owner of a video for every watch.
+  This is the one place `social_stream_view` takes a number from another
+  server, and it does so on exactly the terms it counts a local one: **one row
+  per (post, person)**, so it counts people rather than plays, and the person
+  is the actor the sending server signed for — inflating it costs an actor id
+  per view, which is the same bar a local account faces. Only ever on our own
+  posts: a view of somebody else's video is their server's business. Outbound,
+  a `View` goes to the origin the **first** time somebody here opens a
+  federated video and not afterwards, because `seen()` is idempotent on (post,
+  viewer) and one press of play is not a second view. An instance whose readers
+  watch without ever saying so is a freeloader on everybody else's counters.
+
+- **Everything else the object says.** A video is not a post with a rectangle
+  in it: it has a category, a licence, a language, chapters (FEP-6f7d's
+  `hasParts`), subtitle tracks, a "support the author" line, `downloadEnabled`
+  and three counters. None of it was read, so a federated video arrived as a
+  paragraph and a player with all of that thrown away. It is kept together in
+  one block on the post's details (`Stream::DETAIL_VIDEO`) rather than spread
+  over a dozen columns — it is local, derived data about somebody else's
+  document, and a watch page wants all of it or none — and reaches a client as
+  `video` on the status, null for every post that is not one. The `{id, label}`
+  pairs PeerTube sends are read as their **label**: the id means nothing off
+  its own instance. An absent `downloadEnabled` is PeerTube's own default of
+  "yes", so only a stated refusal is recorded.
+- **HLS.** An instance transcoding to HLS — the default — publishes an `.m3u8`
+  that only Safari opens, so those videos showed a poster and a player that did
+  nothing. The client now loads **hls.js**, lazily and only when such a video is
+  actually opened, because it is a few hundred kilobytes and almost every post
+  is not a video. The playlist it is given is the **proxied** one
+  (`/media/playlist/{nid}`): a playlist names its segments relative to itself,
+  so pointing a player at the origin's copy would have every segment fetched
+  from there — the very thing the byte proxy exists to prevent, and worse, at
+  one request per few seconds of video. Both plain URI lines and `URI="…"`
+  attributes are rewritten, because a player follows both, and the segment
+  route refuses any address that is not on the playlist's own host.
+
+A pasted **watch page** resolves too. `SearchService::resolveStatus()` accepted
+`Note` and `Question` only, so a PeerTube address found nothing at all —
+although the very same object would have been stored had it arrived by
+following the channel, which is the inbox and the search disagreeing about what
+a post is. It now accepts every `AP::NOTE_LIKE_TYPES`. A PeerTube watch page is
+`/w/{shortUUID}`, which is the address a person copies out of their browser and
+*not* the object's id, so the "a document is only evidence about itself" rule
+is satisfied one level in: the document is trusted when it names the address it
+was fetched from among its own `url` links.
+
+**Where somebody stopped watching** is `social_watch` — PeerTube's
+`WatchAction`, and the thing that makes a long video usable at all: a two-hour
+talk watched in three sittings is three sittings of finding the place again. A
+fact about a **reader**: never federated, never shown to anybody else, never
+counted into anything, one row per (post, viewer) moved rather than appended. A
+video watched past 95% is **forgotten** rather than bookmarked at the credits,
+and one under ten seconds in was never really started — a "continue watching"
+row that offers back either is a row nobody presses twice.
+
+**A ladder of sizes** is `social_video_rendition`. A stored video used to be one
+file at whatever height it was uploaded at, so a reader on a phone on a train
+downloaded the 1080p of it or nothing; a ladder is the same video written two or
+three more times, smaller, plus a playlist that lets the player move between
+them as the connection changes. It is also the shape PeerTube publishes, so a
+laddered video reaches a PeerTube reader the way a native one does.
+
+A rung is **one row and one file**. HLS normally means a directory of a few
+hundred segments, which would be a few hundred rows and a few hundred objects in
+the store; `-hls_flags single_file` writes each rung as a single fragmented MP4
+and the playlist addresses each segment as a byte range into it, so a
+forty-minute video is three files rather than a thousand — which is, not by
+coincidence, exactly the shape PeerTube's own fMP4 output has. The playlist, a
+couple of kilobytes of text, is kept in the row beside it with the media
+filename replaced by a placeholder: the URI it has to carry is a route on this
+server, which is not known when ffmpeg writes the file and changes if the
+instance is moved.
+
+Three things it is careful about. **Keyframes are forced onto the segment
+boundary at every rung, with the same period** — without that ffmpeg cuts at the
+next keyframe it happens to find, the rungs end up with different boundaries,
+and a player switching between them stalls or skips. **It never upscales**: a
+rung at or above the source's height is dropped rather than encoded, because a
+480p video written out at 1080p is a bigger file of the same picture. **A
+half-built ladder is torn down rather than published**, since a master playlist
+advertising a rung whose file is missing is a player that stalls rather than one
+that picks another; nothing is ever *replaced*, so the failure mode of every
+step is "no ladder yet" and never "a video that 404s".
+
+Off unless an administrator turns it on (`video_ladder`, with
+`video_ladder_heights` for which sizes), because it is several ffmpeg encodes
+per video on somebody's server. `Cron\Ladder` does one video every half-hour —
+its own job rather than a step of `Cron\Transcode`, because a transcode is one
+encode and a ladder is three, and a job that did both would have an
+unpredictable cost per run with the transcoder waiting behind it. Ladders are
+built from `video/mp4` only: a `.mov` goes through the transcoder first, and on
+an instance with the transcoder off it gets no ladder, which is the honest
+answer — there is no ladder to build from a file this server has decided not to
+touch. A transcode voids whatever ladder was built from the old bytes, so
+`replaceVideo()` resets the flag and the job rebuilds it.
+
+It is served by uuid, never by row id: a ladder is the same video as the file,
+so it must be no easier to reach than the file, and a route keyed on a small
+integer would make a followers-only post's video findable by counting. Clients
+see it as `hls_url` on the attachment — not one of Mastodon's keys, so a client
+that does not know it plays `url`, which is the same video at one size — and
+PeerTube sees it as a streaming-playlist `Link` with a `Link` tag per rung,
+because PeerTube takes the resolutions from the tags rather than by fetching the
+playlist and a link with no tags is one it accepts and then has no files for.
+
+**How much video one account may keep** is `video_quota`, off by default. There
+was a ceiling on how big one *file* could be and none at all on how many of
+them one account could upload, so the only real limit was the disk — and the
+administrator found out about it from the disk. It is checked once, in
+`CacheDocumentService::saveFromTempToCache()`, which is the one place both an
+upload and a fetched remote attachment pass through; a **fetched** one is
+exempt, because charging somebody's quota for a video this instance chose to
+cache on their behalf would be a limit nobody could explain. The **ladders are
+exempt too**: they are made because an administrator asked for them, are
+several times the size of the upload, and would turn a quota somebody was told
+about into one several times smaller than the number they were given — but they
+*are* counted in what an administrator is shown, because they are real disk.
+
+Counted from the stored `size` rather than by walking the files, since this is
+asked on every video upload. Rows written before that column existed carry `0`,
+so `MediaUsageService` — already doing a `stat` per stored file on the daily
+cron — writes the answer down as it passes, and the quota becomes accurate
+after one pass rather than never. Who is holding what is a single grouped query
+on the Storage card. **Where the files are is not a setting**: Nextcloud has no
+per-app object store, and an app that offered one would be offering something
+it cannot deliver; the card says whether the instance-wide `objectstore` in
+`config.php` is in force, which is the supported way to put this elsewhere and
+covers Social's appdata along with everything else's.
+
+**What happens to a post somebody marked sensitive** is `SensitiveMediaService`.
+PeerTube gives an instance three NSFW policies and lets a person override the
+one their instance chose; this app had one, hard-coded. The three are the same
+three, under **Mastodon's** names rather than PeerTube's — `show_all`,
+`default`, `hide_all` — because Mastodon already has a field for exactly this
+(`reading:expand:media`), every client that speaks this API reads it, and a
+fourth vocabulary for the same three states would be one no client could act
+on. `show_all` is PeerTube's *display*, `default` its *blur* (covered, the
+blurhash showing, one press away — what this app has always done, and the
+default so an upgrade changes nothing), `hide_all` its *hide* (not drawn, and
+no button to draw it: opening the post is what it takes).
+
+A **content warning is not subject to it**: the policy is about media somebody
+marked sensitive, and a warning is an author saying something about the whole
+post in their own words — a reader who asked to see sensitive media has not
+asked to be shown past every warning anybody writes. An account's choice is
+stored against its Nextcloud user rather than its actor, because it is a fact
+about a person reading and not an identity other servers see, and **"follow the
+instance" stays a state of its own**: it looks the same as choosing what the
+instance currently does until an administrator changes the default, at which
+point a settings page that could not tell them apart would have silently pinned
+everybody to the old one. The effective policy travels in the page's own
+initial state rather than behind a request, because it decides what the first
+screenful looks like and a timeline that uncovered itself a moment after it
+drew would be worse than either policy.
+
+**Videos can be held for a moderator** with `review_videos`, the third rule of
+the review queue beside a new account's first post and the spam rules. Unlike
+the other two it is **not about the account**: a trusted account with a
+thousand posts behind it is held by it too, every time, because what it is
+about is the video — so it is asked before the "a moderator has already decided
+about this account" gate that stops the others. A moderator's own video is not
+held, for the same reason their first post is not.
+
+**A forwarded report names the posts by the address the receiving server knows
+them by.** A client reports a post by the id *this* API gave it — a snowflake
+nid — and those were going into the `Flag` as they arrived. No other server has
+ever seen them, so every forwarded report named one account the receiving
+moderators could find and a list of numbers they could not: a report about an
+account read as a complaint with no evidence, and a report about a **video**,
+where the video is the entire complaint, carried nothing at all — PeerTube
+resolves an abuse by the video's own address and would have found nothing every
+time. `ReportForwardService` resolves each one through `social_stream` now, and
+leaves out anything local: the statuses in a report about a remote account are
+that account's posts, and one of ours in the list is a reply somebody picked up
+by mistake.
+
+**Bringing a channel over** is `PostImportService`, which already read four
+networks' archives and now reads PeerTube's. Their export carries two halves of
+the same data: `activity-pub/outbox.json`, whose `Video` objects name each
+file by its address on the **old server**, and `peertube/videos.json`, whose
+`archiveFiles` name the copy **inside the archive**. The second is the one read,
+because an import that needs the server somebody is leaving to still be running
+is one that stops working exactly when it is needed — and it states the privacy
+as a number rather than leaving it to be read out of an audience, and carries
+the title, the tags, the category and the licence, which is most of what a video
+is.
+
+Three kinds are refused rather than translated. A **private, internal or
+password-protected** video is one its author decided not to publish, and there
+is no audience here that means "the people who had the password". A **live** has
+no recording to bring over; a saved replay is a video of its own and is exported
+as one. A video with **no file in the archive** would be a page with nothing to
+play — and an export taken without its video files is refused by name, because
+the JSON alone is a catalogue and the run would otherwise report "nothing
+imported" about a perfectly valid archive that was simply not the one to ask
+for. The old instance's **view, like and dislike counts are not carried over**:
+they are numbers about its readers, and a post here claiming four thousand
+people had watched it on this server would be false.
+
+**One video by its address** is the other half, as PeerTube has it: an export is
+a heavy tool for a single video, and somebody who has lost their account on the
+old server cannot take one at all while the video is still there to be fetched.
+The fetched document has to be a `Video` that **names the address it was fetched
+from**, which is the same evidence `SearchService::resolveStatus()` requires and
+is what stops a redirect substituting one video for another; the tallest
+playable file link is stored, and an HLS playlist is passed over, since storing a
+list of segments on somebody else's server and calling it a video is not an
+import. A video **already on this server** is refused — bringing a neighbour's
+post over as your own is not an import, and it is the one case the server can
+actually tell. What it cannot check is whether the video is *yours*: neither can
+PeerTube's own importer, nor the archive import, which reads a file somebody
+uploaded. What stands in for it is the same thing in both places — one
+deliberate act, rate-limited, producing an ordinary post of the account that
+asked for it, which moderation and reporting reach like any other.
+
+**PeerTube's own client API** is `PeerTubeApiController` and
+`PeerTubeApiService` — the same move the Pixelfed routes are, and for the same
+reason: the official PeerTube app, Tubelab and Fedilab all exist and are good,
+and a client somebody already has is worth more than one nobody has written.
+PeerTube's API is not Mastodon's, so this is a **translation and not an alias**;
+the shapes live in the service so that what one client is promised can be read
+in one place.
+
+Two things decide how to judge it. It is **read-only**: PeerTube's upload is a
+resumable protocol with a transcoding state machine behind it, and a half-built
+one that took somebody's file and lost it would be worse than none — comments
+are read and not posted for the same reason the Pixelfed routes do not post,
+that a client posting through them would go round the review queue the composer
+goes through. And it is **gated on the domain root**: no PeerTube client will
+ask under `/apps/social/`, because they all build `https://<host>/api/v1/…`
+from the address a person types. Every route is correct and none is reachable
+by a real client until this instance answers at its own root — item 1 of the
+Mastodon compatibility list, a decision for whoever runs the server rather than
+something this app can do to a Nextcloud.
+
+Three translations are worth stating because each could have been faked. A
+video's **uuid is the one this app already publishes on the wire**, so a video
+seen through this API and the same video seen over ActivityPub carry one uuid
+rather than two nothing can tell apart — and because that uuid is a one-way hash
+of the post's address, a video is addressable here by its numeric id only, which
+a client that lists before it fetches already has. A category, licence or
+language is `{id: 0, label}`: PeerTube's ids are indexes into its own lists,
+which this app does not have and must not guess at, and a wrong id is a client
+showing the wrong category with confidence. And `total` on every list is the
+size of **that page**, because these timelines are keyed on a cursor and have no
+count to give — a number invented for the shape's sake is one a client would
+draw a pager from.
+
+`/oauth-clients/local` is the one place the two designs genuinely disagree.
+PeerTube hands out one pair per instance, the same to everybody for ever; this
+app mints a pair per client and hashes the secret, deliberately, so there is no
+stored plaintext to hand back twice. A fresh registration is answered instead,
+which is what the route is actually for — a client fetches a pair immediately
+before logging in and uses it at once — and is exactly what a Mastodon client
+does through `/api/v1/apps`.
+
+**Playlists** are collections. PeerTube's `Playlist` is an ordered set of a
+channel's videos with a title, a description and a visibility, which is what
+this app already calls a collection — so it is stored as one rather than given
+a table of its own, and appears as a tab on the channel's profile. **Read-only
+and rebuilt**: it is somebody else's document and the document is the whole
+truth about it, so what arrives replaces what was there — which is the only way
+a video *removed* from a playlist can leave this copy. Only videos this
+instance already holds go in one: a playlist naming forty videos nobody here
+has seen is not a reason to fetch forty videos, and it fills in as the rest
+arrives by following the channel. A playlist of nothing we hold is not stored
+at all, because an empty page with a title on it is worse than nothing.
 
 A document arriving a **second** time — a redelivery, an `Update` of the post it
 hangs off — describes a file on somebody else's server and knows nothing about

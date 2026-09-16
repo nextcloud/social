@@ -71,7 +71,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 			'a.id', 'a.id_prim', 'a.user_id', 'a.preferred_username', 'a.name', 'a.summary',
 			'a.public_key', 'a.avatar_version', 'a.private_key', 'a.creation', 'a.deleted',
 			'a.locked', 'a.fields', 'a.discoverable', 'a.indexable', 'a.bot', 'a.also_known_as',
-			'a.moved_to'
+			'a.moved_to', 'a.actor_type'
 		)
 			->from(self::TABLE_ACTORS, 'a');
 
@@ -111,7 +111,14 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		// only thing on the wire which says so. Setting it to Person on every
 		// read left the flag true on the client entity and the actor document
 		// saying Person — the two of them disagreeing about the same fact.
-		$actor->setType($actor->isBot() ? Service::TYPE : Person::TYPE);
+		//
+		// Unless the row says otherwise. A channel is a `Group`, which is the
+		// one type PeerTube will accept as the owner of a video, and this line
+		// used to overwrite that on every read — the column was written, and
+		// nothing that read it ever saw it.
+		if ($actor->storedActorType() === '') {
+			$actor->setType($actor->isBot() ? Service::TYPE : Person::TYPE);
+		}
 		$actor->setInbox($actor->getId() . '/inbox')
 			->setOutbox($actor->getId() . '/outbox')
 			->setUserId($this->get('user_id', $data, ''))

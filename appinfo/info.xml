@@ -21,7 +21,10 @@ What it does:
 - 📊 Dashboard tiles for mentions, direct messages, your timeline, bookmarks, follow requests and trending hashtags, plus open reports and federation health for administrators
 - 🔒 Photos have their Exif metadata — including the coordinates a phone writes into them — removed before they are stored or federated
 - 🎬 A Videos timeline, including the videos from PeerTube channels anyone here follows: streamed from the instance that holds them rather than copied here, and proxied so no viewer's address reaches a server they never chose
-- 📡 Videos posted here federate as ActivityPub Video objects, which is what PeerTube ingests, with a poster frame, byte-range seeking and a 2 GB ceiling of their own
+- 📡 Videos posted here federate as ActivityPub Video objects filed under a channel, which is what PeerTube needs before it will take one at all, with a poster frame, byte-range seeking and a 2 GB ceiling of their own
+- ▶️ A video opens on a watch page: its title, the channel with a Subscribe button, its chapters as links that seek, and where you stopped offered back as continue watching. Every channel and account has an RSS feed with an enclosure per video
+- 🪜 An administrator can have each stored video written at a ladder of smaller sizes as HLS, so a player picks what the connection carries; and can set a per-account video quota, see who is holding the disk, choose what happens to media marked sensitive, and hold every post with a video for a moderator
+- 📥 A channel can be brought over from PeerTube's own export, or a single video by its address
 - 🎨 Filters in the composer and a profile that draws as a grid
 - 🗂️ Collections, stories and places
 - 📱 Pixelfed's own routes — the config its app reads on launch, discover, the story carousel, collections, mutuals, reports, direct-message threads, push (honestly off) and its admin screens — so its app finds what it looks for once the API is at the domain root
@@ -56,7 +59,7 @@ What it does:
 - 🛡️ For moderators: what may trend (a hashtag, a link or a post kept out of Explore), the instance's custom emoji and its rules, all from the administration page rather than from occ
 
 You can pin your own posts to the top of your profile, bookmark any post, and see which hashtags the instance is using most. This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. Polls are fully supported: create your own, and view and vote on federated ones. Profiles carry an avatar, a banner image and up to four profile metadata fields, edited in the profile editor; a field naming a web page is marked as verified once that page links back with rel="me". Posts that link somewhere get a link preview card. Image (JPEG, PNG, GIF, WebP, AVIF, and HEIC from an iPhone where the server can read it), video (MP4, WebM, QuickTime) and audio attachments are supported, up to ten per post, each with alt text and a focal point. Quote posts carry the original author's permission on the wire, and the author decides who may quote each post and can take one back afterwards. Third-party Mastodon clients cannot reach the API yet, because it is served under the app's own path rather than at the domain root; there is no streaming API and no push subscriptions. A post can be translated where this Nextcloud has a translation provider.]]></description>
-	<version>0.21.0</version>
+	<version>0.22.0</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
@@ -84,6 +87,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<job>OCA\Social\Cron\ScheduledPosts</job>
 		<job>OCA\Social\Cron\ExpiredStories</job>
 		<job>OCA\Social\Cron\Transcode</job>
+		<job>OCA\Social\Cron\Ladder</job>
 	</background-jobs>
 
 	<repair-steps>
@@ -112,6 +116,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<command>OCA\Social\Command\Fediverse</command>
 		<command>OCA\Social\Command\MediaPosters</command>
 		<command>OCA\Social\Command\MediaTranscode</command>
+		<command>OCA\Social\Command\MediaLadder</command>
 		<command>OCA\Social\Command\TeamAccount</command>
 		<command>OCA\Social\Command\MediaUsage</command>
 		<command>OCA\Social\Command\NoteLike</command>

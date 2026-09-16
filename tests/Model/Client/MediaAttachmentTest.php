@@ -90,7 +90,7 @@ class MediaAttachmentTest extends TestCase {
 		$this->assertArrayHasKey('description', $local);
 		$this->assertNull($local['description']);
 		$this->assertSame(
-			['id', 'type', 'media_type', 'url', 'preview_url', 'remote_url', 'meta', 'description', 'blurhash'],
+			['id', 'type', 'media_type', 'url', 'preview_url', 'hls_url', 'remote_url', 'meta', 'description', 'blurhash'],
 			array_keys($local)
 		);
 	}

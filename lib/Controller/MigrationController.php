@@ -282,6 +282,52 @@ class MigrationController extends Controller {
 	}
 
 	/**
+	 * Brings one video over, by its address.
+	 *
+	 * The single-video half of the same job the archive import does: PeerTube
+	 * has this and people use it, because an export is a heavy tool for one
+	 * video and somebody who has lost their account on the old server cannot
+	 * take one at all while the video is still there to be fetched.
+	 *
+	 * Ten an hour. One call fetches a document and a video file from another
+	 * server, and a limit sized for an API call would make this a way to have
+	 * this instance pull gigabytes from anywhere. See
+	 * `PostImportService::importVideo()` for what it refuses and what it
+	 * cannot check.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 10, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/video')]
+	public function importVideo(string $url = '', string $fetch_media = '1'): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+
+			return new DataResponse(
+				$this->postImportService->importVideo(
+					$actor,
+					$url,
+					!in_array(strtolower(trim($fetch_media)), ['0', 'false', 'no'], true)
+				),
+				Http::STATUS_OK
+			);
+		} catch (InvalidResourceException $e) {
+			// the message says which of the refusals it was, and that is the
+			// whole of the help there is
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			$this->logger->warning('importing a video failed', [
+				'userId' => $this->userId, 'exception' => $e,
+			]);
+
+			return new DataResponse(['error' => 'the video could not be brought over'], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
 	 * Brings an account's own posts over from the server it wrote them on.
 	 *
 	 * Rate-limited hard — twice an hour — because one call reads an archive,

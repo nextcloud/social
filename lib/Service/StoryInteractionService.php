@@ -151,18 +151,22 @@ class StoryInteractionService {
 	 * its author. A `View` for somebody else's story, or from an account that
 	 * does not follow, is a claim rather than a receipt.
 	 */
-	public function receiveView(View $activity): void {
+	public function receiveView(View $activity): bool {
 		$story = $this->localStory($activity->getStoryId());
 		if ($story === null) {
-			return;
+			// not a story of ours: PeerTube sends a `View` for every watch of a
+			// video, and the caller offers those to the post counter instead
+			return false;
 		}
 
 		$watcher = $activity->getActorId();
 		if ($watcher === '' || !$this->follows($watcher, $story->getOwnerId())) {
-			return;
+			return true;
 		}
 
 		$this->storiesRequest->markSeen($story->getId(), $watcher);
+
+		return true;
 	}
 
 	/**

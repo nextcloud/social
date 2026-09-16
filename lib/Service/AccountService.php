@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\ChannelsRequest;
 use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -83,6 +84,7 @@ class AccountService {
 		private IUserSession $userSession,
 		private IAccountManager $accountManager,
 		private ActorsRequest $actorsRequest,
+		private ChannelsRequest $channelsRequest,
 		private ClientAuthRequest $clientAuthRequest,
 		private FollowsRequest $followsRequest,
 		private StreamRequest $streamRequest,
@@ -254,14 +256,16 @@ class AccountService {
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 */
-	public function createActor(string $userId, string $username) {
-		// A team account belongs to a group rather than to a person, and is
-		// stored under a reserved `team/<group>` id that no Nextcloud user can
-		// have: there is nobody to confirm and no address to check the domain
-		// of. Everything after this is the same actor every account gets — the
-		// key pair, the cache row, the loopback follow — which is what makes a
-		// team followable from Mastodon without any of it being written twice.
-		if (!str_starts_with($userId, 'team/')) {
+	public function createActor(string $userId, string $username, string $type = Person::TYPE) {
+		// A team account belongs to a group rather than to a person, and a
+		// channel to an account rather than to a user; both are stored under a
+		// reserved `team/` or `channel/` id that no Nextcloud user can have,
+		// because a user id may not contain a slash. There is nobody to confirm
+		// and no address to check the domain of. Everything after this is the
+		// same actor every account gets — the key pair, the cache row, the
+		// loopback follow — which is what makes either of them followable from
+		// Mastodon without any of it being written twice.
+		if (!str_starts_with($userId, 'team/') && !str_starts_with($userId, 'channel/')) {
 			$this->confirmUserId($userId);
 			$this->assertEmailDomainIsAllowed($userId);
 		}
@@ -289,6 +293,10 @@ class AccountService {
 		$actor = new Person();
 		$actor->setUserId($userId);
 		$actor->setPreferredUsername($username);
+		// what a peer reads to know what kind of thing this is. A channel is a
+		// `Group`, which is the one type PeerTube will accept as the owner of a
+		// video; everything else is the `Person` it has always been.
+		$actor->setType($type);
 		$this->signatureService->generateKeys($actor);
 		$this->actorsRequest->create($actor);
 
@@ -669,11 +677,23 @@ class AccountService {
 
 			$this->publishHandleOnProfile($actor);
 
-			// A team account has no Nextcloud user and therefore no avatar to
-			// mirror: the picture route would be asked for a user id nothing
-			// can resolve. It gets the app's default until somebody uploads
-			// one, which is honest rather than a broken image.
-			if (!str_starts_with($actor->getUserId(), 'team/')) {
+			// Whose channel this is, which PeerTube demands before it will
+			// take a video the channel owns: it fetches the `Group` and looks
+			// for a `Person` here, refusing the video outright when there is
+			// none. Read from the channel table rather than passed in, because
+			// this method is reached from half a dozen places and none of the
+			// others knows or should know what a channel is.
+			$owner = $this->channelsRequest->ownerOf($actor->getId());
+			if ($owner !== '') {
+				$actor->setAttributedToActors([['type' => Person::TYPE, 'id' => $owner]]);
+			}
+
+			// A team account and a channel have no Nextcloud user and therefore
+			// no avatar to mirror: the picture route would be asked for a user
+			// id nothing can resolve. They get the app's default until somebody
+			// uploads one, which is honest rather than a broken image.
+			if (!str_starts_with($actor->getUserId(), 'team/')
+				&& !str_starts_with($actor->getUserId(), 'channel/')) {
 				try {
 					$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 					$actor->setIconId($iconId);
@@ -768,6 +788,18 @@ class AccountService {
 		if (str_starts_with($actor->getUserId(), 'team/')) {
 			if ($actor->getName() === '') {
 				$actor->setName(substr($actor->getUserId(), strlen('team/')));
+			}
+
+			return;
+		}
+
+		// A channel belongs to an account rather than to a person, so there is
+		// no Nextcloud user here either, and the same rule applies for the same
+		// reason: an actor that is not cached is one every read of it 404s on,
+		// which is exactly what happened to the first channel ever made.
+		if (str_starts_with($actor->getUserId(), 'channel/')) {
+			if ($actor->getName() === '') {
+				$actor->setName($actor->getPreferredUsername());
 			}
 
 			return;

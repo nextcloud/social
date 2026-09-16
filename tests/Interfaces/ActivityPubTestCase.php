@@ -186,6 +186,9 @@ abstract class ActivityPubTestCase extends TestCase {
 			$this->updateInterface,
 			$this->quoteRequestInterface,
 			$this->configService,
+			$this->createMock(\OCA\Social\Interfaces\Activity\ApproveReplyInterface::class),
+			$this->createMock(\OCA\Social\Interfaces\Object\DislikeInterface::class),
+			$this->createMock(\OCA\Social\Interfaces\Object\PlaylistInterface::class),
 			// the real one: reading a PeerTube `Video` is parsing, and only
 			// the two things it writes through are doubles
 			new PeerTubeService(

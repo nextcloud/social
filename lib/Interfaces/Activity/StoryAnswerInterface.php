@@ -15,9 +15,12 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\StoryInteraction;
 use OCA\Social\Model\ActivityPub\Activity\View;
 use OCA\Social\Service\StoryInteractionService;
+use OCA\Social\Service\ViewCountService;
 
 /**
- * The three ways a peer answers a story: `View`, `Story:Reaction`, `Story:Reply`.
+ * The three ways a peer answers a story: `View`, `Story:Reaction`, `Story:Reply`
+ * — and, since PeerTube sends one for every watch of a video, the way a peer
+ * says it has watched a post.
  *
  * One interface for all three because the checks are the same and the decision
  * is the same: this is about a story, or it is about nothing. What is *done*
@@ -33,6 +36,7 @@ use OCA\Social\Service\StoryInteractionService;
 class StoryAnswerInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	public function __construct(
 		private StoryInteractionService $storyInteractionService,
+		private ViewCountService $viewCountService,
 	) {
 	}
 
@@ -46,7 +50,13 @@ class StoryAnswerInterface extends AbstractActivityPubInterface implements IActi
 		$item->checkOrigin($item->getActorId());
 
 		if ($item instanceof View) {
-			$this->storyInteractionService->receiveView($item);
+			// A `View` is not only a story's. PeerTube sends one to the owner
+			// of a video for every watch, which is the same fact about a post
+			// rather than about a story — so a view that names no story of ours
+			// is offered to the post counter before it is dropped.
+			if (!$this->storyInteractionService->receiveView($item)) {
+				$this->viewCountService->receiveView($item->getStoryId(), $item->getActorId());
+			}
 
 			return;
 		}

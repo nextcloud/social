@@ -75,6 +75,12 @@ class ApiContractTest extends TestCase {
 		// are counted here from the EmojiReact activities received, and a peer
 		// counts the ones it received itself, so it is local and derived and
 		// never goes out on the wire.
+		// 'video' is everything a PeerTube `Video` says that a post has nowhere
+		// to put — category, licence, chapters, captions, counters. Null for
+		// every post that is not one, which is almost all of them.
+		// 'reply_approval' says whether replies here have to be approved and,
+		// on a reply of ours, whether this one has been — FEP-5624, which
+		// PeerTube ≥ 6.2 moderates comments with. Null on almost every post.
 		// 'quote_approval' is Mastodon 4.5's "who may quote this", and null on
 		// everybody else's post: their server decides who may quote theirs,
 		// and what it decided rides on their document as `interactionPolicy`.
@@ -85,7 +91,7 @@ class ApiContractTest extends TestCase {
 			'archived', 'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote',
-			'quote_approval',
+			'quote_approval', 'reply_approval', 'video',
 			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
 			'tagged_people', 'tags', 'uri', 'url', 'view_count', 'visibility',
 		];

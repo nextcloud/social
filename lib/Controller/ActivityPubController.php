@@ -35,11 +35,13 @@ use OCA\Social\Model\ActivityPub\Object\QuoteAuthorization;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AuthorizedFetchService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\FeedService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\InboxLimiter;
@@ -61,6 +63,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Services\IInitialState;
@@ -107,6 +110,7 @@ class ActivityPubController extends Controller {
 		private InstanceActorService $instanceActorService,
 		private AuthorizedFetchService $authorizedFetchService,
 		private StoryService $storyService,
+		private FeedService $feedService,
 		ConfigService $configService,
 		IInitialState $initialState,
 		LoggerInterface $logger,
@@ -170,6 +174,53 @@ class ActivityPubController extends Controller {
 			return $this->activityPubSuccess($actor);
 		} catch (SignatureException $e) {
 			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+		} catch (Exception $e) {
+			return $this->fail($e, [], 404);
+		}
+	}
+
+	/**
+	 * An account's public posts as an RSS feed.
+	 *
+	 * PeerTube publishes one per channel and Mastodon one per account, and
+	 * PeerTube's users in particular live in feed readers and podcast apps: a
+	 * channel with no feed is one they cannot subscribe to from outside,
+	 * whatever else it offers. A video carries an `enclosure`, which is what
+	 * makes such a feed usable in a podcast client at all.
+	 *
+	 * Built from an **anonymous** read — the same one a stranger visiting the
+	 * profile gets — because the feed is readable signed out. That is not a
+	 * convenience: a feed is the easiest possible way to leak a followers-only
+	 * post, since one wrong predicate puts it in somebody's reader and out of
+	 * reach for ever. `FeedService` refuses a non-public post a second time.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/@{username}.rss')]
+	public function feed(string $username): Response {
+		try {
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
+
+			$options = new ProbeOptions();
+			$options->setFormat(ACore::FORMAT_ACTIVITYPUB)
+				->setProbe(ProbeOptions::ACCOUNT)
+				->setAccountId($actor->getId())
+				->setLimit(FeedService::LIMIT);
+
+			// no viewer at all: the account query answers an anonymous reader
+			// with public posts and nothing else, which is the rule that keeps
+			// this safe rather than a switch somebody can get wrong once
+			$this->streamRequest->resetViewer();
+			$posts = $this->streamRequest->getTimeline($options);
+
+			$response = new DataDisplayResponse(
+				$this->feedService->forAccount($actor, $posts),
+				Http::STATUS_OK,
+				['Content-Type' => 'application/rss+xml; charset=utf-8']
+			);
+			$response->cacheFor(600, false, true);
+
+			return $response;
 		} catch (Exception $e) {
 			return $this->fail($e, [], 404);
 		}

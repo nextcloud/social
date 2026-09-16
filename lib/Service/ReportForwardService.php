@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\InstanceActor;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Flag;
@@ -57,6 +58,7 @@ class ReportForwardService {
 		private InstanceActorService $instanceActorService,
 		private HttpSignatureService $httpSignatureService,
 		private CurlService $curlService,
+		private StreamRequest $streamRequest,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -135,10 +137,62 @@ class ReportForwardService {
 		$flag->setId($actor->getId() . '#reports/' . $report->getId())
 			->setActorId($actor->getId())
 			->setTo($target->getId());
-		$flag->setObjectIds(array_merge([$target->getId()], $report->getStatusIds()))
+		$flag->setObjectIds(array_merge([$target->getId()], $this->addressesOf($report)))
 			->setContent($report->getComment());
 
 		return $flag;
+	}
+
+	/**
+	 * The reported posts, by the addresses the receiving server knows them by.
+	 *
+	 * A client reports a post by the id **this** API gave it — a snowflake nid
+	 * — and those ids were being put into the `Flag` as they arrived. No other
+	 * server has ever seen them, so every forwarded report named one account
+	 * the receiving moderators could find and a list of numbers they could not:
+	 * a report about an account read as a complaint with no evidence attached,
+	 * and a report about a **video**, where the video is the entire complaint,
+	 * carried nothing at all. PeerTube resolves an abuse by the video's own
+	 * address and would have found nothing every time.
+	 *
+	 * A local post is left out rather than translated. The statuses in a report
+	 * about a remote account are that account's posts; one of ours in the list
+	 * is a reply somebody picked up by mistake, and naming it would be telling
+	 * another instance's moderators about a post of our own.
+	 *
+	 * @return string[]
+	 */
+	private function addressesOf(Report $report): array {
+		$addresses = [];
+
+		foreach ($report->getStatusIds() as $statusId) {
+			if (str_starts_with($statusId, 'http://') || str_starts_with($statusId, 'https://')) {
+				// already an address: a report that arrived as a `Flag` names
+				// them this way, and so does anything that knew better
+				$addresses[] = $statusId;
+				continue;
+			}
+
+			if (!ctype_digit($statusId)) {
+				continue;
+			}
+
+			try {
+				$stream = $this->streamRequest->getStreamByNid((int)$statusId);
+			} catch (\Exception $e) {
+				// a post this instance no longer holds; the account is still
+				// named, which is the part the report is about
+				continue;
+			}
+
+			if ($stream->isLocal() || $stream->getId() === '') {
+				continue;
+			}
+
+			$addresses[] = $stream->getId();
+		}
+
+		return array_values(array_unique($addresses));
 	}
 
 	/**

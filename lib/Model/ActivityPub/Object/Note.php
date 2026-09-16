@@ -11,13 +11,17 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 use JsonSerializable;
 use OCA\Social\AP;
+use OCA\Social\Db\RenditionsRequest;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Service\ChannelService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\PeerTubeService;
+use OCP\IURLGenerator;
 use OCP\Server;
 use Throwable;
 
@@ -182,12 +186,88 @@ class Note extends Stream implements JsonSerializable {
 			if (!Server::get(ConfigService::class)->getAppValueBool(ConfigService::SOCIAL_PUBLISH_VIDEO)) {
 				return $result;
 			}
+
+			// Which channel it is filed under. PeerTube resolves a video's
+			// channel by looking for a `Group` here and refuses the video
+			// outright when there is none, so this is not decoration: without
+			// it every `Video` this app published was thrown away on arrival.
+			// Read, never created — the channel is made when the post is
+			// written (`PostService::createPost()`), because making an actor
+			// inside a serialisation is a write on a read path.
+			$attributedTo = Server::get(ChannelService::class)->attributionOf($this->getAttributedTo());
 		} catch (Throwable $e) {
 			// nothing to resolve it from: publish the post as it was rather
 			// than lose it over a setting
 			return $result;
 		}
 
-		return PeerTubeService::asVideo($result, $video, $this->getId());
+		$asVideo = PeerTubeService::asVideo(
+			$result,
+			$video,
+			$this->getId(),
+			$attributedTo,
+			$this->getViewCount() ?? 0,
+			// what the author said it is, where they said anything: a title
+			// taken out of the first line is a guess, and a guess is only worth
+			// making when nobody has answered
+			$this->getVideoMeta(),
+			// where the video has been laddered, the sizes it also exists at.
+			// One query, on the wire-export path of a single post that has a
+			// single video on it -- never on a timeline read.
+			self::rungsOf($video)
+		);
+
+		// a post that cannot make a `Video` PeerTube would accept stays the
+		// `Note` it was; see `PeerTubeService::asVideo()`
+		return $asVideo ?? $result;
+	}
+
+	/**
+	 * The rungs of a laddered video, addressed absolutely.
+	 *
+	 * Empty for a video with no ladder, which is every video on an instance
+	 * that has not turned the setting on — and the reason this asks the
+	 * attachment first: `hls_url` is set only where the row says there is one,
+	 * so the ordinary case costs no query at all.
+	 *
+	 * @return array<array{height: int, size: int, bandwidth: int, href: string}>
+	 */
+	private static function rungsOf(MediaAttachment $video): array {
+		if ($video->getHlsUrl() === '') {
+			return [];
+		}
+
+		try {
+			$renditions = Server::get(RenditionsRequest::class)->forDocument((int)$video->getId());
+			$urlGenerator = Server::get(IURLGenerator::class);
+		} catch (Throwable $e) {
+			return [];
+		}
+
+		$rungs = [];
+		foreach ($renditions as $rendition) {
+			$rungs[] = [
+				'height' => $rendition->getHeight(),
+				'size' => $rendition->getSize(),
+				'bandwidth' => $rendition->getBandwidth(),
+				'href' => $urlGenerator->linkToRouteAbsolute('social.Api.mediaLadderFile', [
+					'uuid' => self::ladderUuid($video),
+					'height' => $rendition->getHeight(),
+				]),
+			];
+		}
+
+		return $rungs;
+	}
+
+	/**
+	 * The uuid the ladder routes are keyed on, read back out of the master
+	 * url the attachment already carries — rather than fetched again from the
+	 * document row it came from.
+	 */
+	private static function ladderUuid(MediaAttachment $video): string {
+		$path = parse_url($video->getHlsUrl(), PHP_URL_PATH);
+
+		return ($path === false || $path === null) ? '' : basename($path);
 	}
 }

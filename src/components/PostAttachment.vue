@@ -41,7 +41,7 @@
 					class="attachment"
 					:aria-label="openLabel(item, index)"
 					@click="openMedia(index)">
-					<MediaAttachment :attachment="item" :interactive="to === null" />
+					<MediaAttachment :attachment="item" :interactive="to === null" :video="video" />
 				</button>
 				<!-- video and audio carry their own controls where the media is
 				     the subject, and nesting those in a button is invalid. In a
@@ -53,11 +53,12 @@
 					class="attachment"
 					:aria-label="openLabel(item, index)"
 					@click="openMedia(index)">
-					<MediaAttachment :attachment="item" :interactive="false" />
+					<MediaAttachment :attachment="item" :interactive="false" :video="video" />
 				</button>
 				<MediaAttachment
 					v-else
 					ref="thumbnails"
+					:video="video"
 					class="attachment"
 					:attachment="item" />
 				<AltBadge v-if="hasDescription(item)" :description="item.description" />
@@ -74,7 +75,7 @@
 		<!-- files are named, not shown: one row each, the whole row a download -->
 		<ul v-if="documents.length" class="post-attachments__files">
 			<li v-for="(item, index) in documents" :key="item.id ?? `file-${index}`">
-				<MediaAttachment :attachment="item" :interactive="true" />
+				<MediaAttachment :attachment="item" :interactive="true" :video="video" />
 			</li>
 		</ul>
 		<NcModal
@@ -180,6 +181,18 @@ export default {
 		 *
 		 * @type {import('vue').PropType<object|null>}
 		 */
+		/**
+		 * What the post said about the video beyond its file: the captions,
+		 * whether it is live. One `Video` object carries one set of those, so
+		 * it belongs to the post rather than to any one attachment.
+		 *
+		 * @type {import('vue').PropType<object|null>}
+		 */
+		video: {
+			type: Object,
+			default: null,
+		},
+
 		to: {
 			type: Object,
 			default: null,

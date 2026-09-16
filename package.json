@@ -1,7 +1,7 @@
 {
 	"name": "social",
 	"description": "Nextcloud becomes part of the federated social networks!",
-	"version": "0.21.0",
+	"version": "0.22.0",
 	"authors": [
 		{
 			"name": "Benedikt Schächner",
@@ -41,6 +41,7 @@
 		"debounce": "^1.2.1",
 		"dompurify": "^3.4.10",
 		"he": "^1.2.0",
+		"hls.js": "^1.7.3",
 		"linkify-plugin-mention": "^4.1.0",
 		"linkify-string": "^4.1.0",
 		"linkifyjs": "^4.1.0",

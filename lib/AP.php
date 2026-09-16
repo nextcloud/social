@@ -13,6 +13,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Interfaces\Activity\AcceptInterface;
 use OCA\Social\Interfaces\Activity\AddInterface;
+use OCA\Social\Interfaces\Activity\ApproveReplyInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
@@ -31,6 +32,7 @@ use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
+use OCA\Social\Interfaces\Object\DislikeInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
 use OCA\Social\Interfaces\Object\EmojiReactInterface;
 use OCA\Social\Interfaces\Object\FlagInterface;
@@ -38,10 +40,12 @@ use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Interfaces\Object\PlaylistInterface;
 use OCA\Social\Interfaces\Object\StoryInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Add;
+use OCA\Social\Model\ActivityPub\Activity\ApproveReply;
 use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
@@ -61,6 +65,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Dislike;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\EmojiReact;
 use OCA\Social\Model\ActivityPub\Object\Flag;
@@ -68,6 +73,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Playlist;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Object\Story;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
@@ -146,6 +152,9 @@ class AP {
 		public UpdateInterface $updateInterface,
 		public QuoteRequestInterface $quoteRequestInterface,
 		public ConfigService $configService,
+		public ApproveReplyInterface $approveReplyInterface,
+		public DislikeInterface $dislikeInterface,
+		public PlaylistInterface $playlistInterface,
 		public PeerTubeService $peerTubeService,
 	) {
 	}
@@ -320,6 +329,21 @@ class AP {
 
 		$item->setContent($this->peerTubeService->content($data));
 
+		// whether a reply to this will be shown to anybody before a human has
+		// looked at it: a reply written here to a moderated video is held on
+		// the other side, and this is what lets the client say so
+		if ($this->peerTubeService->repliesNeedApproval($data)) {
+			$item->setReplyPolicy(Stream::REPLY_POLICY_APPROVAL);
+		}
+
+		// everything else the object says that a `Note` has nowhere to put —
+		// the category, the licence, the chapters, the captions, the counters.
+		// A video is not a post with a rectangle in it.
+		$meta = $this->peerTubeService->videoMeta($data);
+		if ($meta !== []) {
+			$item->setVideoMeta($meta);
+		}
+
 		$attachments = $this->peerTubeService->attachments($data, $item);
 		if ($attachments !== []) {
 			$item->setAttachments($attachments);
@@ -338,6 +362,18 @@ class AP {
 
 			case View::TYPE:
 				$item = new View();
+				break;
+
+			case ApproveReply::TYPE:
+				$item = new ApproveReply();
+				break;
+
+			case Dislike::TYPE:
+				$item = new Dislike();
+				break;
+
+			case Playlist::TYPE:
+				$item = new Playlist();
 				break;
 
 			case StoryReaction::TYPE:
@@ -491,6 +527,12 @@ class AP {
 			case StoryReaction::TYPE:
 			case StoryReply::TYPE:
 				return $this->storyAnswerInterface;
+			case ApproveReply::TYPE:
+				return $this->approveReplyInterface;
+			case Dislike::TYPE:
+				return $this->dislikeInterface;
+			case Playlist::TYPE:
+				return $this->playlistInterface;
 			case Announce::TYPE:
 				return $this->announceInterface;
 			case Block::TYPE:

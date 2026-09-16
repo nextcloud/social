@@ -31,7 +31,14 @@ class ViewCountServiceTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		$this->streamViewsRequest = $this->createMock(StreamViewsRequest::class);
-		$this->service = new ViewCountService($this->streamViewsRequest, new NullLogger());
+		$this->service = new ViewCountService(
+			$this->streamViewsRequest,
+			$this->createMock(\OCA\Social\Db\StreamRequest::class),
+			$this->createMock(\OCA\Social\Service\CacheActorService::class),
+			$this->createMock(\OCA\Social\Service\SignatureService::class),
+			$this->createMock(\OCA\Social\Service\ActivityService::class),
+			new NullLogger(),
+		);
 	}
 
 	private function person(string $id): Person {
@@ -113,5 +120,115 @@ class ViewCountServiceTest extends TestCase {
 
 		$this->service->seen($this->post(), $this->person(self::BOB));
 		$this->addToAssertionCount(1);
+	}
+
+	// --- the other server's readers, and ours ------------------------------
+
+	/**
+	 * PeerTube sends a `View` to the owner of a video for every watch. This is
+	 * the one place this app's view count takes a number from anywhere else,
+	 * and it does so on the same terms it counts a local one: one row per
+	 * (post, person), so it counts people rather than plays.
+	 */
+	public function testAViewFromAnotherServerIsCountedOnOurOwnPost(): void {
+		$service = $this->serviceHolding($this->localPost());
+		$this->streamViewsRequest->expects($this->once())->method('seen')
+			->with(self::POST, 'https://peertube.example/accounts/carol');
+
+		$service->receiveView(self::POST, 'https://peertube.example/accounts/carol');
+	}
+
+	/**
+	 * A view of somebody else's video is their server's business; adding it to
+	 * a copy we hold would be a count about their readers on our row.
+	 */
+	public function testAViewOfARemotePostIsNotCountedHere(): void {
+		$service = $this->serviceHolding($this->localPost(local: false));
+		$this->streamViewsRequest->expects($this->never())->method('seen');
+
+		$service->receiveView(self::POST, 'https://peertube.example/accounts/carol');
+	}
+
+	public function testTheAuthorsOwnViewIsNotCountedEitherWay(): void {
+		$service = $this->serviceHolding($this->localPost());
+		$this->streamViewsRequest->expects($this->never())->method('seen');
+
+		$service->receiveView(self::POST, self::ALICE);
+	}
+
+	/**
+	 * A receipt goes out the first time and not the second: `seen()` is
+	 * idempotent on (post, viewer), so a second play is not a second view —
+	 * and sending one per press of play would be a way to inflate somebody
+	 * else's counter from here.
+	 */
+	public function testAReceiptIsSentOnceForARemoteVideo(): void {
+		$video = $this->localPost(local: false);
+		$video->setType('Video');
+		$video->setAttributedTo('https://peertube.example/video-channels/news');
+
+		$owner = $this->person('https://peertube.example/video-channels/news');
+		$owner->setInbox('https://peertube.example/inbox');
+		$cacheActorService = $this->createMock(\OCA\Social\Service\CacheActorService::class);
+		$cacheActorService->method('getFromId')->willReturn($owner);
+
+		$activityService = $this->createMock(\OCA\Social\Service\ActivityService::class);
+		$activityService->expects($this->once())->method('request');
+
+		$this->streamViewsRequest->method('seen')->willReturnOnConsecutiveCalls(true, false);
+
+		$service = new ViewCountService(
+			$this->streamViewsRequest,
+			$this->createMock(\OCA\Social\Db\StreamRequest::class),
+			$cacheActorService,
+			$this->createMock(\OCA\Social\Service\SignatureService::class),
+			$activityService,
+			new NullLogger(),
+		);
+
+		$service->seen($video, $this->person(self::BOB));
+		$service->seen($video, $this->person(self::BOB));
+	}
+
+	/** Everything else is read rather than watched, and nothing counts those. */
+	public function testNoReceiptIsSentForAPostThatIsNotAVideo(): void {
+		$post = $this->localPost(local: false);
+		$post->setAttributedTo('https://remote.example/users/carol');
+
+		$activityService = $this->createMock(\OCA\Social\Service\ActivityService::class);
+		$activityService->expects($this->never())->method('request');
+		$this->streamViewsRequest->method('seen')->willReturn(true);
+
+		$service = new ViewCountService(
+			$this->streamViewsRequest,
+			$this->createMock(\OCA\Social\Db\StreamRequest::class),
+			$this->createMock(\OCA\Social\Service\CacheActorService::class),
+			$this->createMock(\OCA\Social\Service\SignatureService::class),
+			$activityService,
+			new NullLogger(),
+		);
+
+		$service->seen($post, $this->person(self::BOB));
+	}
+
+	private function localPost(bool $local = true): \OCA\Social\Model\ActivityPub\Object\Note {
+		$note = new \OCA\Social\Model\ActivityPub\Object\Note();
+		$note->setId(self::POST)->setLocal($local)->setAttributedTo(self::ALICE);
+
+		return $note;
+	}
+
+	private function serviceHolding(\OCA\Social\Model\ActivityPub\Stream $post): ViewCountService {
+		$streamRequest = $this->createMock(\OCA\Social\Db\StreamRequest::class);
+		$streamRequest->method('getStreamById')->willReturn($post);
+
+		return new ViewCountService(
+			$this->streamViewsRequest,
+			$streamRequest,
+			$this->createMock(\OCA\Social\Service\CacheActorService::class),
+			$this->createMock(\OCA\Social\Service\SignatureService::class),
+			$this->createMock(\OCA\Social\Service\ActivityService::class),
+			new NullLogger(),
+		);
 	}
 }

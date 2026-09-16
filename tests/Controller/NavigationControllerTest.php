@@ -55,6 +55,7 @@ class NavigationControllerTest extends TestCase {
 	private $configService;
 	/** @var CheckService&MockObject */
 	private $checkService;
+	private $sensitiveMediaService;
 	/** @var IGroupManager&MockObject */
 	private $groupManager;
 	private array $states = [];
@@ -72,6 +73,9 @@ class NavigationControllerTest extends TestCase {
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->checkService = $this->createMock(CheckService::class);
+		$this->sensitiveMediaService = $this->createMock(\OCA\Social\Service\SensitiveMediaService::class);
+		$this->sensitiveMediaService->method('policyFor')->willReturn('default');
+		$this->sensitiveMediaService->method('choiceOf')->willReturn('');
 		$this->groupManager = $this->createMock(IGroupManager::class);
 
 		$this->initialState->method('provideInitialState')
@@ -105,6 +109,7 @@ class NavigationControllerTest extends TestCase {
 			$this->documentService,
 			$this->configService,
 			$this->checkService,
+			$this->sensitiveMediaService,
 			$this->createMock(MiscService::class),
 			new NullLogger()
 		);
@@ -149,6 +154,10 @@ class NavigationControllerTest extends TestCase {
 			'setup' => false,
 			'isAdmin' => false,
 			'cliUrl' => 'https://cloud.example/index.php',
+			// what to do with sensitive media, and what this reader chose —
+			// in the page because the timeline needs both before it draws
+			'nsfwPolicy' => 'default',
+			'nsfwChoice' => '',
 			'cloudAddress' => 'https://cloud.example/index.php',
 		], $this->serverData());
 	}

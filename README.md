@@ -101,11 +101,32 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   server rather than filtered out of a page you already have.
 ![Videos, including federated PeerTube channels](img/readme/videos.jpg)
 
-- **PeerTube, properly.** A PeerTube video arrives with its title, its channel, its
-  thumbnail and something to play. The video **streams from the instance that holds
-  it** — a two-hour talk is not something to mirror onto somebody's Nextcloud — and is
-  proxied, so nobody's IP address reaches a server they never chose to talk to. Posts
-  that are one video go out as an ActivityPub `Video`, the only shape PeerTube ingests.
+- **PeerTube, properly — in both directions.** A PeerTube video arrives with its
+  title, its channel, its thumbnail and something to play. The video **streams from
+  the instance that holds it** — a two-hour talk is not something to mirror onto
+  somebody's Nextcloud — and is proxied, so nobody's IP address reaches a server they
+  never chose to talk to. Going the other way, a post that is one video is published
+  as an ActivityPub `Video` **filed under a channel**, which is the thing PeerTube
+  cannot take a video without: it resolves one by looking for a `Group` in the video's
+  `attributedTo` and refuses the video outright when there is none. One is made for an
+  account the first time it posts a video, so nobody has to learn the word.
+- **A watch page, not a post with a rectangle in it.** A video opens on its title, the
+  channel that published it with a Subscribe button, the counters, and its chapters as
+  links that seek. Where you stopped is remembered per video and offered back as
+  **continue watching** — a fact about a reader, never federated and never shown to
+  anybody else — and a video watched to the end is forgotten rather than bookmarked at
+  the credits. Every channel and every account has an **RSS feed** with an enclosure
+  per video, so a podcast client can subscribe to one from outside.
+- **A ladder of sizes, if an administrator wants it.** The same video written two or
+  three more times, smaller, as HLS, so a player picks what the connection can carry.
+  Each rung is **one file** rather than a directory of segments, which is also the
+  shape PeerTube publishes — so a laddered video reaches a PeerTube reader the way a
+  native one does. Off by default; the original is kept and is what plays without it.
+- **Bring a channel over.** PeerTube's own export is read — from the half that carries
+  the files, so the server you are leaving does not have to still be running — and a
+  single video can be brought over by its address. Nothing is federated on the way in:
+  re-publishing somebody's back catalogue would put it into every follower's timeline
+  in one afternoon.
 - **How many people read it** — on your own posts and nobody else's, counted when
   somebody opens the post rather than scrolls past it, and never sent to another
   server. Three likes means something different out of five readers than out of four
@@ -266,6 +287,16 @@ own unified search. No external search engine to run.
   a `.mov` straight off a phone was being dropped by its inbox without a word.
   Off by default, because re-encoding is lossy and it is somebody's file, and never
   during an upload.
+- **Storage that fits video** — a per-account video quota beside the per-file ceiling,
+  because a limit on one upload says nothing about a year of them, and a Storage card
+  that says **who** is holding the disk rather than only how much of it is gone. Off
+  by default: an instance that acquired a quota on upgrade would start refusing
+  uploads from exactly the accounts that use it most.
+- **Moderation defaults for video** — the three policies for media somebody marked
+  sensitive (shown, covered, hidden) as an instance default that anybody can override
+  for themselves, and a switch that holds every post with a video on it for a
+  moderator. That one is not about the account: a trusted account is held by it too,
+  every time, because what it is about is the video.
 - **Tag people in a photo** — name the people in one of your own pictures from the
   post's menu (**… → Tag people**), and their names show up under it, linked to their
   profiles. Everybody named is told, and the photo appears under **Tagged** on their
@@ -636,7 +667,7 @@ See `tests/Integration/README.md` for what it covers.
 ### Interop tests
 
 A third PHP suite in `tests/Interop/` delivers this app's activities to a **real
-Mastodon** and reads them back out of Mastodon's own API — a `Create`, a post
+Mastodon** and a **real PeerTube** and reads them back out of each one's own API — a `Create`, a post
 with a content warning, an `Update`, a `Delete` and an `Announce`, through the
 real queue and the real signer, to an instance that has been made to follow the
 account. Neither of the other two suites can prove the thing that decides
@@ -647,11 +678,14 @@ Every test skips with a reason when there is no Mastodon to talk to, so running
 it without one is a pass that says so:
 
 ```bash
-MASTODON_BASE_URL=http://localhost:3000 MASTODON_TOKEN=… composer run test:interop
+MASTODON_BASE_URL=http://localhost:3000 MASTODON_TOKEN=… \
+PEERTUBE_BASE_URL=http://localhost:9000 PEERTUBE_USER=… PEERTUBE_PASSWORD=… \
+composer run test:interop
 ```
 
-`.github/workflows/interop-mastodon.yml` stands the whole thing up — Postgres,
-Redis, Mastodon, a Nextcloud and a token — weekly and on demand. Deliberately
+`.github/workflows/interop.yml` stands the whole thing up — Postgres, Redis,
+Mastodon, PeerTube, a Nextcloud and an account on each side — weekly and on
+demand. Deliberately
 not on every pull request: it depends on a third-party image whose startup this
 repository does not control. See `tests/Interop/README.md`, including what it
 cannot prove.

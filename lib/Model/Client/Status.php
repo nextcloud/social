@@ -30,6 +30,13 @@ class Status implements \JsonSerializable {
 	private string $quotedId = '';
 	/** who may quote the post being written: '', 'public', 'followers' or 'nobody' */
 	private string $quotePolicy = '';
+
+	/**
+	 * What the composer said about the video: its title, category and licence.
+	 *
+	 * @var array<string, string>
+	 */
+	private array $videoMeta = [];
 	/** the handle of a team account this post is written as, or '' */
 	private string $postAs = '';
 	private string $status = '';
@@ -133,6 +140,13 @@ class Status implements \JsonSerializable {
 		return $this->quotePolicy;
 	}
 
+	/**
+	 * @return array<string, string>
+	 */
+	public function getVideoMeta(): array {
+		return $this->videoMeta;
+	}
+
 	public function getQuotedId(): string {
 		return $this->quotedId;
 	}
@@ -202,6 +216,17 @@ class Status implements \JsonSerializable {
 		// it on every post and its three values are the whole vocabulary
 		$policy = $data['quote_approval_policy'] ?? '';
 		$this->setQuotePolicy(is_scalar($policy) ? (string)$policy : '');
+
+		// what a video is called, and what it is. A `Note` has none of this and
+		// the composer never asked, so a video posted from here was published
+		// with its title guessed out of the first line of the post — which is
+		// right for somebody who wrote one and wrong for somebody who did not.
+		foreach (['video_title' => 'title', 'video_category' => 'category', 'video_licence' => 'licence'] as $field => $key) {
+			$value = $data[$field] ?? '';
+			if (is_scalar($value) && trim((string)$value) !== '') {
+				$this->videoMeta[$key] = mb_substr(trim((string)$value), 0, 255);
+			}
+		}
 		$this->setStatus($this->get('status', $data));
 		$this->setLanguage($this->get('language', $data));
 		$this->setPostAs($this->get('post_as', $data));

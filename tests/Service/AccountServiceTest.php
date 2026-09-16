@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\ChannelsRequest;
 use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -57,6 +58,7 @@ class AccountServiceTest extends TestCase {
 	private IAccountManager|MockObject $accountManager;
 	private ActorsRequest|MockObject $actorsRequest;
 	private ClientAuthRequest|MockObject $clientAuthRequest;
+	private ChannelsRequest|MockObject $channelsRequest;
 	private FollowsRequest|MockObject $followsRequest;
 	private StreamRequest|MockObject $streamRequest;
 	private ActorService|MockObject $actorService;
@@ -91,6 +93,7 @@ class AccountServiceTest extends TestCase {
 		$this->errorReporting = error_reporting(E_ALL & ~E_DEPRECATED);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->clientAuthRequest = $this->createMock(ClientAuthRequest::class);
+		$this->channelsRequest = $this->createMock(ChannelsRequest::class);
 		$this->accessBlockService = $this->createMock(AccessBlockService::class);
 		$this->accessBlockService->method('isBlockedEmail')->willReturnCallback(
 			fn (string $email): bool => in_array($email, $this->blockedEmails, true)
@@ -101,6 +104,7 @@ class AccountServiceTest extends TestCase {
 			$this->userSession,
 			$this->accountManager,
 			$this->actorsRequest,
+			$this->channelsRequest,
 			$this->clientAuthRequest,
 			$this->followsRequest,
 			$this->streamRequest,

@@ -187,9 +187,11 @@
 				v-if="mediaRevealed"
 				mediaFirst
 				:to="mediaRoute"
+				:video="item.video"
 				:attachments="item.media_attachments || []" />
 			<div v-else class="post-sensitive post-sensitive--leading">
 				<NcButton
+					v-if="mediaRevealable"
 					variant="secondary"
 					@click="warningLifted = true">
 					<template #icon>
@@ -197,6 +199,9 @@
 					</template>
 					{{ t('social', 'Show sensitive content') }}
 				</NcButton>
+				<span v-else class="post-sensitive__hidden">
+					{{ t('social', 'Sensitive media, hidden by your settings') }}
+				</span>
 			</div>
 			<div v-if="item.content" class="post-message post-message--caption">
 				<MessageContent :item="displayedItem" />
@@ -223,6 +228,7 @@
 			<PostAttachment
 				v-if="hasAttachments && !mediaLeads"
 				:to="mediaRoute"
+				:video="item.video"
 				:attachments="item.media_attachments || []" />
 			<PostCard v-if="showCard" :card="item.card" />
 		</template>
@@ -234,6 +240,7 @@
 		     the pictures will take. -->
 		<div v-else-if="!hasSpoiler && !mediaLeads && !filterCovers" class="post-sensitive">
 			<NcButton
+				v-if="mediaRevealable"
 				variant="secondary"
 				@click="warningLifted = true">
 				<template #icon>
@@ -241,6 +248,9 @@
 				</template>
 				{{ t('social', 'Show sensitive content') }}
 			</NcButton>
+			<span v-else class="post-sensitive__hidden">
+				{{ t('social', 'Sensitive media, hidden by your settings') }}
+			</span>
 		</div>
 		<!-- The reactions stay on the card rather than joining the row below:
 		     that row is revealed by the pointer, and a reaction somebody left
@@ -844,17 +854,53 @@ export default {
 		},
 
 		/**
+		 * What this reader has asked for, or what the instance does for
+		 * somebody who has not asked. PeerTube's three NSFW policies, under
+		 * the names Mastodon's `reading:expand:media` already uses for the
+		 * same three states.
+		 *
+		 * @return {string} 'show_all', 'default' or 'hide_all'
+		 */
+		nsfwPolicy() {
+			const policy = this.serverData?.nsfwPolicy
+
+			return ['show_all', 'default', 'hide_all'].includes(policy) ? policy : 'default'
+		},
+
+		/**
 		 * @return {boolean} whether the media sits behind a reveal. A warning
 		 * covers the whole post; `sensitive` on its own covers only the media,
 		 * which is what Mastodon shows for a post flagged without a warning.
+		 *
+		 * A content warning is **not** subject to the policy: the policy is
+		 * about media somebody marked sensitive, and a warning is an author
+		 * saying something about the whole post in their own words. A reader
+		 * who asked to see sensitive media has not asked to be shown past
+		 * every warning anybody writes.
 		 */
 		hasGatedMedia() {
-			return (this.hasSpoiler || this.item.sensitive === true) && this.hasMedia
+			if (this.hasSpoiler) {
+				return this.hasMedia
+			}
+
+			return this.item.sensitive === true
+				&& this.hasMedia
+				&& this.nsfwPolicy !== 'show_all'
+		},
+
+		/**
+		 * @return {boolean} whether there is a button to lift the cover.
+		 * Under `hide_all` there is not: opening the post itself is what it
+		 * takes, which is the difference between that policy and the covered
+		 * one. A content warning keeps its own reveal either way.
+		 */
+		mediaRevealable() {
+			return this.hasSpoiler || this.nsfwPolicy !== 'hide_all'
 		},
 
 		/** @return {boolean} */
 		mediaRevealed() {
-			return !this.hasGatedMedia || this.warningLifted
+			return !this.hasGatedMedia || (this.warningLifted && this.mediaRevealable)
 		},
 
 		/**
@@ -2231,6 +2277,11 @@ export default {
  * A post flagged sensitive without a warning shows its text but not its
  * pictures until the reader asks for them.
  */
+.post-sensitive__hidden {
+	color: var(--color-text-maxcontrast);
+	font-style: italic;
+}
+
 .post-sensitive {
 	display: flex;
 	align-items: center;

@@ -109,6 +109,10 @@ trait TActivityPubMocks {
 		$configService->method('getCloudUrl')->willReturn($cloudUrl);
 		$args[] = $configService;
 
+		$args[] = $this->createMock(\OCA\Social\Interfaces\Activity\ApproveReplyInterface::class);
+		$args[] = $this->createMock(\OCA\Social\Interfaces\Object\DislikeInterface::class);
+		$args[] = $this->createMock(\OCA\Social\Interfaces\Object\PlaylistInterface::class);
+
 		// the real one, not a double: reading a PeerTube `Video` is parsing,
 		// and a test that stubbed it would be asserting against its own stub.
 		// Only the two things it *writes* through are mocks.

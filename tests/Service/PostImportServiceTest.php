@@ -33,6 +33,8 @@ class PostImportServiceTest extends TestCase {
 	private const ALICE = 'https://cloud.example/apps/social/@alice';
 
 	private ImportedPostsRequest|MockObject $importedPostsRequest;
+	private \OCA\Social\Service\CurlService|MockObject $curlService;
+	private \OCA\Social\Service\ConfigService|MockObject $configService;
 	private StreamRequest|MockObject $streamRequest;
 	private DocumentService|MockObject $documentService;
 	private CacheDocumentService|MockObject $cacheDocumentService;
@@ -114,6 +116,10 @@ class PostImportServiceTest extends TestCase {
 		// account what its own posts get
 		$this->accountService = $this->createMock(AccountService::class);
 
+		$this->curlService = $this->createMock(\OCA\Social\Service\CurlService::class);
+		$this->configService = $this->createMock(\OCA\Social\Service\ConfigService::class);
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example/');
+
 		$this->service = new PostImportService(
 			$this->importedPostsRequest,
 			$this->streamRequest,
@@ -124,6 +130,13 @@ class PostImportServiceTest extends TestCase {
 			$this->accountService,
 			$tempManager,
 			$this->createMock(IURLGenerator::class),
+			$this->curlService,
+			new \OCA\Social\Service\PeerTubeService(
+				$this->createMock(\OCA\Social\Interfaces\Object\DocumentInterface::class),
+				$this->createMock(IURLGenerator::class),
+				new NullLogger(),
+			),
+			$this->configService,
 			new NullLogger(),
 		);
 	}
@@ -387,6 +400,310 @@ class PostImportServiceTest extends TestCase {
 
 		$this->assertSame(3, $tally['imported']);
 		$this->assertTrue($tally['capped']);
+	}
+
+	// PeerTube
+
+	/**
+	 * One entry of `peertube/videos.json`, in the shape their exporter writes.
+	 *
+	 * @param array<string, mixed> $values
+	 * @return array<string, mixed>
+	 */
+	private function peerTubeVideo(array $values = []): array {
+		return array_merge([
+			'uuid' => '0f0e0d0c-0b0a-0908-0706-050403020100',
+			'url' => 'https://tube.example/videos/watch/0f0e0d0c-0b0a-0908-0706-050403020100',
+			'name' => 'A cat and a glass',
+			'description' => 'It goes exactly how you think.',
+			'publishedAt' => '2025-06-01T12:00:00.000Z',
+			'privacy' => 1,
+			'duration' => 113,
+			'nsfw' => false,
+			'isLive' => false,
+			'tags' => ['cats', 'physics'],
+			'category' => ['id' => 15, 'label' => 'Science & Technology'],
+			'licence' => ['id' => 1, 'label' => 'Attribution'],
+			'language' => ['id' => 'en', 'label' => 'English'],
+			'archiveFiles' => [
+				'videoFile' => '../files/videos/video-files/0f0e0d0c-0b0a-0908-0706-050403020100.mp4',
+				'thumbnail' => '../files/videos/thumbnails/0f0e0d0c-0b0a-0908-0706-050403020100.jpg',
+				'captions' => [],
+			],
+		], $values);
+	}
+
+	/** @param array<int, array<string, mixed>> $videos */
+	private function peerTubeExport(array $videos, bool $withFiles = true): string {
+		$files = [
+			'peertube/videos.json' => (string)json_encode(['videos' => $videos]),
+			// the archive really does carry both halves; the reader has to
+			// prefer the one that names the copy inside it
+			'activity-pub/outbox.json' => (string)json_encode(['orderedItems' => []]),
+		];
+
+		if ($withFiles) {
+			foreach ($videos as $video) {
+				$files['files/videos/video-files/' . $video['uuid'] . '.mp4'] = 'not really a video';
+			}
+		}
+
+		return $this->archive($files);
+	}
+
+	public function testAPeerTubeExportBringsTheVideoOverWithItsTitleAndTags(): void {
+		$path = $this->peerTubeExport([$this->peerTubeVideo()]);
+
+		$tally = $this->service->import($this->alice(), $path);
+
+		$this->assertSame(1, $tally['imported']);
+		$note = $this->written[0];
+		$this->assertStringContainsString('A cat and a glass', $note->getContent());
+		$this->assertStringContainsString('It goes exactly how you think.', $note->getContent());
+		$this->assertSame(['cats', 'physics'], $note->getHashtags());
+		$this->assertSame(strtotime('2025-06-01T12:00:00Z'), $note->getPublishedTime());
+	}
+
+	/**
+	 * Most of what a video *is* — and what this app reads back out when it
+	 * publishes one, so an imported video leaves here as the same `Video` it
+	 * arrived as rather than as a post with a rectangle in it.
+	 */
+	public function testTheTitleRunningTimeCategoryAndLicenceAreKept(): void {
+		$this->service->import($this->alice(), $this->peerTubeExport([$this->peerTubeVideo()]));
+
+		$meta = $this->written[0]->getVideoMeta();
+		$this->assertSame('A cat and a glass', $meta['title']);
+		$this->assertSame(113, $meta['duration']);
+		$this->assertSame('Science & Technology', $meta['category']);
+		$this->assertSame('Attribution', $meta['licence']);
+	}
+
+	/**
+	 * The archive's own copy, not the address on the old server: an export
+	 * carries the file precisely so the import does not need that server to
+	 * still be running.
+	 */
+	public function testTheFileComesOutOfTheArchiveRatherThanOffTheOldServer(): void {
+		$this->documentService->expects($this->once())
+			->method('storeLocalAttachment')
+			->with(
+				$this->anything(),
+				$this->callback(static fn (string $p): bool => file_get_contents($p) === 'not really a video'),
+				$this->anything(),
+				$this->anything(),
+				$this->anything(),
+			)
+			->willReturn(new Document());
+		$this->cacheDocumentService->expects($this->never())->method('retrieveContent');
+
+		$this->service->import($this->alice(), $this->peerTubeExport([$this->peerTubeVideo()]), false);
+	}
+
+	/**
+	 * Each is a video its author decided not to publish, and there is no
+	 * audience here that means "the people who had the password".
+	 *
+	 * @dataProvider providePrivacies
+	 */
+	public function testAVideoItsAuthorDidNotPublishIsNotBroughtOver(int $privacy): void {
+		$tally = $this->service->import(
+			$this->alice(), $this->peerTubeExport([$this->peerTubeVideo(['privacy' => $privacy])])
+		);
+
+		$this->assertSame(0, $tally['imported']);
+		$this->assertSame(1, $tally['skipped']);
+	}
+
+	/** @return array<string, array{int}> */
+	public static function providePrivacies(): array {
+		return [
+			'private' => [3],
+			'internal' => [4],
+			'password protected' => [5],
+		];
+	}
+
+	public function testAnUnlistedVideoStaysUnlisted(): void {
+		$this->service->import(
+			$this->alice(), $this->peerTubeExport([$this->peerTubeVideo(['privacy' => 2])])
+		);
+
+		$this->assertSame(Stream::TYPE_UNLISTED, $this->written[0]->getVisibility());
+	}
+
+	/** There is no recording to bring over; a saved replay is a video of its own. */
+	public function testALiveIsNotBroughtOver(): void {
+		$tally = $this->service->import(
+			$this->alice(), $this->peerTubeExport([$this->peerTubeVideo(['isLive' => true])])
+		);
+
+		$this->assertSame(0, $tally['imported']);
+	}
+
+	/**
+	 * Numbers about the old instance's readers. A post here that arrived with
+	 * four thousand views would be claiming four thousand people had watched
+	 * it on this server.
+	 */
+	public function testTheOldInstancesCountersAreNotBroughtOver(): void {
+		$this->service->import($this->alice(), $this->peerTubeExport([
+			$this->peerTubeVideo(['views' => 4000, 'likes' => 300, 'dislikes' => 2]),
+		]));
+
+		$meta = $this->written[0]->getVideoMeta();
+		$this->assertArrayNotHasKey('views', $meta);
+		$this->assertArrayNotHasKey('likes', $meta);
+		$this->assertArrayNotHasKey('dislikes', $meta);
+	}
+
+	/**
+	 * Without its video files the JSON is a catalogue: every entry names a
+	 * file that is not there, and the run would report "nothing imported"
+	 * about an archive that is perfectly valid and simply not the one to ask
+	 * for.
+	 */
+	public function testAnExportTakenWithoutTheVideoFilesIsRefusedByName(): void {
+		$this->expectException(InvalidResourceException::class);
+		$this->expectExceptionMessageMatches('/without its video files/');
+
+		$this->service->import(
+			$this->alice(), $this->peerTubeExport([$this->peerTubeVideo()], withFiles: false)
+		);
+	}
+
+	// PeerTube, one video by its address
+
+	/** @param array<string, mixed> $values */
+	private function videoObject(array $values = []): array {
+		return array_merge([
+			'id' => 'https://tube.example/videos/watch/abc',
+			'type' => 'Video',
+			'name' => 'A cat and a glass',
+			'content' => '<p>It goes exactly how you think.</p>',
+			'published' => '2025-06-01T12:00:00Z',
+			'duration' => 'PT113S',
+			'to' => ['https://www.w3.org/ns/activitystreams#Public'],
+			'url' => [
+				['type' => 'Link', 'mediaType' => 'text/html', 'href' => 'https://tube.example/w/abc'],
+				['type' => 'Link', 'mediaType' => 'video/mp4', 'href' => 'https://tube.example/small.mp4', 'height' => 360],
+				['type' => 'Link', 'mediaType' => 'video/mp4', 'href' => 'https://tube.example/big.mp4', 'height' => 1080],
+			],
+		], $values);
+	}
+
+	public function testOneVideoIsBroughtOverByItsAddress(): void {
+		$this->curlService->method('retrieveObject')->willReturn($this->videoObject());
+		$this->cacheDocumentService->method('retrieveContent')->willReturn('not really a video');
+
+		$tally = $this->service->importVideo(
+			$this->alice(), 'https://tube.example/videos/watch/abc'
+		);
+
+		$this->assertSame(1, $tally['imported']);
+		$this->assertStringContainsString('A cat and a glass', $this->written[0]->getContent());
+		$this->assertSame(
+			'https://tube.example/videos/watch/abc',
+			array_key_first($this->remembered),
+			'the original id is remembered, so a second attempt is a no-op'
+		);
+	}
+
+	/** The best one, because a 360p copy of a 1080p video is not the import anybody wanted. */
+	public function testTheTallestFileIsTheOneStored(): void {
+		$this->curlService->method('retrieveObject')->willReturn($this->videoObject());
+		$this->cacheDocumentService->expects($this->once())->method('retrieveContent')
+			->with('https://tube.example/big.mp4')->willReturn('not really a video');
+
+		$this->service->importVideo($this->alice(), 'https://tube.example/videos/watch/abc');
+	}
+
+	/**
+	 * A watch page is not the object's own id, so the document is trusted when
+	 * it names the address it came from — the same evidence
+	 * `SearchService::resolveStatus()` requires, one level in.
+	 */
+	public function testAWatchPageAddressIsAcceptedWhenTheVideoClaimsIt(): void {
+		$this->curlService->method('retrieveObject')->willReturn($this->videoObject());
+		$this->cacheDocumentService->method('retrieveContent')->willReturn('not really a video');
+
+		$this->assertSame(
+			1, $this->service->importVideo($this->alice(), 'https://tube.example/w/abc')['imported']
+		);
+	}
+
+	/** So a redirect cannot substitute one video for another. */
+	public function testAnAddressTheDocumentDoesNotClaimIsRefused(): void {
+		$this->curlService->method('retrieveObject')->willReturn($this->videoObject());
+
+		$this->expectException(InvalidResourceException::class);
+		$this->service->importVideo($this->alice(), 'https://tube.example/w/somethingelse');
+	}
+
+	/** Bringing a neighbour's post over as your own is not an import. */
+	public function testAVideoAlreadyOnThisServerIsRefused(): void {
+		$this->expectException(InvalidResourceException::class);
+		$this->expectExceptionMessageMatches('/already on this server/');
+
+		$this->service->importVideo($this->alice(), 'https://cloud.example/apps/social/@bob/7');
+	}
+
+	public function testSomethingThatIsNotAVideoIsRefused(): void {
+		$this->curlService->method('retrieveObject')
+			->willReturn($this->note('https://old.example/users/bob/statuses/1'));
+
+		$this->expectException(InvalidResourceException::class);
+		$this->service->importVideo($this->alice(), 'https://old.example/users/bob/statuses/1');
+	}
+
+	/**
+	 * A playlist is a list of a few hundred segments on somebody else's
+	 * server; storing it and calling it a video is not an import.
+	 */
+	public function testAVideoThatOffersOnlyAPlaylistIsRefused(): void {
+		$this->curlService->method('retrieveObject')->willReturn($this->videoObject([
+			'url' => [
+				['type' => 'Link', 'mediaType' => 'text/html', 'href' => 'https://tube.example/videos/watch/abc'],
+				['type' => 'Link', 'mediaType' => 'application/x-mpegURL', 'href' => 'https://tube.example/master.m3u8'],
+			],
+		]));
+
+		$this->expectException(InvalidResourceException::class);
+		$this->service->importVideo($this->alice(), 'https://tube.example/videos/watch/abc');
+	}
+
+	public function testAVideoBroughtOverTwiceIsBroughtOverOnce(): void {
+		$this->curlService->method('retrieveObject')->willReturn($this->videoObject());
+		$this->cacheDocumentService->method('retrieveContent')->willReturn('not really a video');
+
+		$this->importedPostsRequest = $this->createMock(ImportedPostsRequest::class);
+		$this->importedPostsRequest->method('knownAmong')
+			->willReturn(['https://tube.example/videos/watch/abc' => 'someprim']);
+
+		$service = new PostImportService(
+			$this->importedPostsRequest,
+			$this->streamRequest,
+			$this->createMock(StreamService::class),
+			$this->documentService,
+			$this->cacheDocumentService,
+			$this->createMock(LinkifyService::class),
+			$this->accountService,
+			$this->createMock(ITempManager::class),
+			$this->createMock(IURLGenerator::class),
+			$this->curlService,
+			new \OCA\Social\Service\PeerTubeService(
+				$this->createMock(\OCA\Social\Interfaces\Object\DocumentInterface::class),
+				$this->createMock(IURLGenerator::class),
+				new NullLogger(),
+			),
+			$this->configService,
+			new NullLogger(),
+		);
+
+		$tally = $service->importVideo($this->alice(), 'https://tube.example/videos/watch/abc');
+
+		$this->assertSame(0, $tally['imported']);
+		$this->assertSame(1, $tally['already']);
 	}
 
 	// Instagram

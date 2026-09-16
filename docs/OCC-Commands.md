@@ -636,6 +636,41 @@ enough that a server converting one is never the reason its cron is late. This
 command is for an administrator who has just turned the setting on and would
 rather not wait a week.
 
+### `social:media:ladder`
+
+Write stored videos at a ladder of smaller sizes, as HLS, so a player can pick
+the one that fits the connection.
+
+```
+php occ social:media:ladder [--limit LIMIT]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--limit` | required | Stop after this many videos. 10 by default |
+
+**Why it matters:** a stored video is one file at whatever height it was
+uploaded at, and a reader on a phone on a train downloads the 1080p of it or
+nothing. A ladder is the same video written two or three more times, smaller,
+plus a playlist that lets the player move between them as the connection
+changes. It is also the shape PeerTube publishes, so a laddered video reaches a
+PeerTube reader the way a native one does.
+
+Each rung is **one file**: `-hls_flags single_file` writes the whole rendition
+as a fragmented MP4 and the playlist addresses each segment as a byte range into
+it, so a forty-minute video is three files rather than a thousand. Rungs at or
+above a video's own height are skipped rather than upscaled.
+
+Off unless an administrator turned it on: **Administration → Social → Server →
+Build a ladder of video sizes**, or `occ config:app:set social video_ladder
+--value=1`. Which heights, with `occ config:app:set social video_ladder_heights
+--value=360,720,1080`. The command exits 1 and changes nothing when it is off,
+or when the server has no ffmpeg and ffprobe.
+
+Slower per video than `social:media:transcode` by however many rungs the ladder
+has — worth knowing before starting it on a library of ten thousand. The
+background job does one video every half-hour.
+
 The converted file is written before the row is pointed at it and the original is
 deleted last, so a failure anywhere leaves a document pointing at a file that
 exists. A video ffmpeg cannot read is recorded as tried and left alone rather

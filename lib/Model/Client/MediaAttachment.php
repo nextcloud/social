@@ -34,8 +34,22 @@ class MediaAttachment implements JsonSerializable {
 	private string $id = '';
 	private string $type = '';
 	private string $mediaType = '';
+	/**
+	 * How many bytes the stored file is; 0 where nothing measured it.
+	 *
+	 * Never serialised to a client — Mastodon's entity has no such field — and
+	 * carried only so the wire form of a video can state it: PeerTube drops a
+	 * video file link that has no `size`.
+	 */
+	private int $sizeBytes = 0;
 	private ?string $url = null;
 	private string $previewUrl = '';
+	/**
+	 * The master playlist of this video's ladder, where it has one. Not one of
+	 * Mastodon's keys — Mastodon has no such thing — so a client that does not
+	 * know it simply plays `url`, which is the same video at one size.
+	 */
+	private string $hlsUrl = '';
 	private ?string $remoteUrl = null;
 	private string $textUrl = '';
 	private ?AttachmentMeta $meta = null;
@@ -172,6 +186,7 @@ class MediaAttachment implements JsonSerializable {
 			$this->setMediaType(self::guessMediaType($this->getType(), $this->getUrl()));
 		}
 		$this->setPreviewUrl($this->get('preview_url', $data));
+		$this->setHlsUrl($this->get('hls_url', $data, ''));
 		$this->setRemoteUrl($this->get('remote_url', $data));
 		$this->setDescription($this->get('description', $data));
 		$this->setBlurHash($this->get('blurhash', $data));
@@ -219,6 +234,10 @@ class MediaAttachment implements JsonSerializable {
 			'media_type' => $this->getMediaType(),
 			'url' => $this->onThisInstance($this->getUrl()),
 			'preview_url' => ($preview === null || $preview === '') ? null : $preview,
+			// not Mastodon's: where the same video exists at several sizes, a
+			// player that understands HLS gets the one that fits the
+			// connection. Always present, null where there is no ladder.
+			'hls_url' => ($this->hlsUrl === '') ? null : $this->hlsUrl,
 			'remote_url' => ($remote === null || $remote === '') ? null : $remote,
 			// `meta` is an object on the wire, never a list: an empty
 			// AttachmentMeta json-encodes as `[]`, which a client decoding a
@@ -338,5 +357,25 @@ class MediaAttachment implements JsonSerializable {
 		}
 
 		return $document;
+	}
+
+	public function getHlsUrl(): string {
+		return $this->hlsUrl;
+	}
+
+	public function setHlsUrl(string $hlsUrl): self {
+		$this->hlsUrl = $hlsUrl;
+
+		return $this;
+	}
+
+	public function getSizeBytes(): int {
+		return $this->sizeBytes;
+	}
+
+	public function setSizeBytes(int $sizeBytes): self {
+		$this->sizeBytes = max(0, $sizeBytes);
+
+		return $this;
 	}
 }

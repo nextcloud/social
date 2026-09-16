@@ -467,6 +467,7 @@ class OutboundFederationWireTest extends TestCase {
 			$this->instanceActorService,
 			$this->httpSignatureService(),
 			$this->curlService(),
+			$this->createMock(\OCA\Social\Db\StreamRequest::class),
 			new NullLogger(),
 		);
 
@@ -658,6 +659,7 @@ class OutboundFederationWireTest extends TestCase {
 			$this->createMock(VideoThumbnailService::class),
 			$this->createMock(ITempManager::class),
 			$this->createMock(MediaBlocksRequest::class),
+			$this->createMock(\OCA\Social\Service\VideoQuotaService::class),
 			new NullLogger(),
 		);
 

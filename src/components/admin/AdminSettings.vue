@@ -14,7 +14,8 @@
 			:queue="state.review"
 			:total="state.reviewTotal"
 			:reviewFirstPost="state.reviewFirstPost"
-			:autospam="state.autospam" />
+			:autospam="state.autospam"
+			:reviewVideos="state.reviewVideos" />
 		<AccountsSection />
 		<MediaBlocksSection />
 		<DiscoverSection />
@@ -22,7 +23,7 @@
 		<EmojiSection />
 		<RulesSection />
 		<RetentionSection :days="state.retentionDays" />
-		<StorageSection :storage="state.storage" />
+		<StorageSection :storage="state.storage" :videoStorage="state.videoStorage" />
 		<FederationSection :federation="state.federation" />
 		<AccessSection :accessType="state.accessType" :addresses="state.accessList" />
 		<AnnouncementsSection />
@@ -66,6 +67,7 @@ const NOTHING = {
 	reviewTotal: 0,
 	reviewFirstPost: true,
 	autospam: true,
+	reviewVideos: false,
 	server: null,
 	accessType: 'all_but',
 	accessList: [],

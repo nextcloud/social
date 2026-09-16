@@ -64,6 +64,7 @@ class CacheDocumentService {
 		private VideoThumbnailService $videoThumbnailService,
 		private ITempManager $tempManager,
 		private MediaBlocksRequest $mediaBlocksRequest,
+		private VideoQuotaService $videoQuotaService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -202,6 +203,10 @@ class CacheDocumentService {
 
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
+		// what the stored file weighs, recorded once here rather than measured
+		// on every serialisation: PeerTube drops a video link that carries no
+		// `size`, and the per-account quota asks the same question
+		$document->setSizeBytes(strlen($content));
 
 		if (str_starts_with((string)$mime, 'image/')) {
 			$this->resizeImage($document, $content);
@@ -221,6 +226,7 @@ class CacheDocumentService {
 
 		$this->filterMimeTypes($mime);
 		$this->filterSize($mime, (int)filesize($tmpPath));
+		$this->filterQuota($document, $mime, (int)filesize($tmpPath));
 		$this->filterBlockedMedia($tmpPath);
 
 		if (!str_starts_with($mime, 'image/')) {
@@ -247,6 +253,33 @@ class CacheDocumentService {
 		$this->resizeImage($document, $content);
 		$resized = $this->generateFileFromContent($content);
 		$document->setResizedCopy($resized);
+	}
+
+	/**
+	 * The per-account video quota, applied before anything is written.
+	 *
+	 * Local uploads only. This one funnel carries both an upload and a
+	 * *fetched remote attachment*, and charging somebody's quota for a video
+	 * this instance chose to cache on their behalf would be a limit nobody
+	 * could explain — the bytes are there because a post they follow had a
+	 * video in it.
+	 *
+	 * @throws CacheContentSizeException
+	 */
+	public function filterQuota(Document $document, string $mime, int $size): void {
+		if (!$document->isLocal() || !str_starts_with($mime, 'video/')) {
+			return;
+		}
+
+		$account = $document->getAccount();
+		if ($this->videoQuotaService->fits($account, $size)) {
+			return;
+		}
+
+		throw new CacheContentSizeException(
+			'this account has used its ' . $this->videoQuotaService->quota()
+			. 'MB of video storage on this instance'
+		);
 	}
 
 	/**
@@ -338,6 +371,7 @@ class CacheDocumentService {
 		$document->setMimeType($mime);
 
 		$document->setLocalCopy($this->generateFileFromPath($tmpPath));
+		$document->setSizeBytes((int)filesize($tmpPath));
 
 		if (!str_starts_with($mime, 'video/')) {
 			return;
@@ -739,6 +773,32 @@ class CacheDocumentService {
 		}
 
 		return $this->curlService->openStream($url, $headers);
+	}
+
+	/**
+	 * A remote file read whole, up to a ceiling.
+	 *
+	 * For the one thing this app fetches from a streamed document rather than
+	 * passing on: an HLS playlist, which is text, is kilobytes, and has to be
+	 * rewritten before a player sees it. The ceiling is what stops a server
+	 * that answers a `.m3u8` with a film from being read into memory.
+	 *
+	 * @throws RequestServerException
+	 */
+	public function readRemoteFile(Document $document, int $max): string {
+		$opened = $this->openRemoteFile($document);
+		$body = stream_get_contents($opened['stream'], $max + 1);
+		fclose($opened['stream']);
+
+		if ($body === false) {
+			throw new RequestServerException('could not read the file');
+		}
+
+		if (strlen($body) > $max) {
+			throw new RequestServerException('that file is larger than a playlist should be');
+		}
+
+		return $body;
 	}
 
 	public function retrieveContent(string $url): string {

@@ -103,6 +103,43 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const DETAIL_QUOTE_STATE = 'quote_state';
 
 	/**
+	 * Whether replies to this post have to be approved before anybody sees
+	 * them, and — on a reply of ours — whether this one has been.
+	 *
+	 * PeerTube ≥ 6.2 moderates comments (FEP-5624): a video whose
+	 * `commentsPolicy` is 3 takes a reply in and shows it to nobody until a
+	 * human approves it, and says so by sending an `ApproveReply` back to the
+	 * server the reply came from. Without reading any of that, a reply written
+	 * here looked posted, sat in a queue on the other side, and either appeared
+	 * a day later or never — with nothing anywhere to say which.
+	 *
+	 * Local, derived data, which is what the details column is for: neither
+	 * fact is a property of the wire object this instance holds, and the second
+	 * one is about somebody else's document entirely.
+	 */
+	/**
+	 * Everything a `Video` says that a `Note` has nowhere to put: the category,
+	 * the licence, the language, the chapters, the captions, the counters and
+	 * the author's support line.
+	 *
+	 * One block rather than a dozen columns, because it is local derived data
+	 * about somebody else's document — which is what this column is for — and
+	 * because a watch page wants all of it or none of it.
+	 */
+	public const DETAIL_VIDEO = 'video';
+
+	public const DETAIL_REPLY_POLICY = 'reply_policy';
+	public const DETAIL_REPLY_STATE = 'reply_state';
+
+	/** Replies to this post are held until somebody approves them. */
+	public const REPLY_POLICY_APPROVAL = 'approval';
+
+	/** This reply is waiting to be approved, has been, or was refused. */
+	public const REPLY_PENDING = 'pending';
+	public const REPLY_APPROVED = 'approved';
+	public const REPLY_REJECTED = 'rejected';
+
+	/**
 	 * How many attachments a single post may bring in. Twice what Mastodon
 	 * lets an author attach, so nothing real is ever cut.
 	 */
@@ -623,6 +660,64 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	public function setQuoteState(string $state): self {
 		$this->setDetail(self::DETAIL_QUOTE_STATE, $state);
+
+		return $this;
+	}
+
+	/**
+	 * What a `Video` said beyond what a post can hold, or `[]` for every post
+	 * that is not one.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function getVideoMeta(): array {
+		$meta = $this->getDetailsAll()[self::DETAIL_VIDEO] ?? [];
+
+		return is_array($meta) ? $meta : [];
+	}
+
+	/**
+	 * @param array<string, mixed> $meta
+	 */
+	public function setVideoMeta(array $meta): self {
+		$this->setDetailArray(self::DETAIL_VIDEO, $meta);
+
+		return $this;
+	}
+
+	/**
+	 * Whether replies to this post have to be approved — `approval`, or '' for
+	 * the ordinary case where they do not.
+	 */
+	public function getReplyPolicy(): string {
+		$policy = $this->getDetailsAll()[self::DETAIL_REPLY_POLICY] ?? '';
+
+		return is_string($policy) ? $policy : '';
+	}
+
+	public function setReplyPolicy(string $policy): self {
+		$this->setDetail(self::DETAIL_REPLY_POLICY, $policy);
+
+		return $this;
+	}
+
+	/** Whether replies here need approving before anybody sees them. */
+	public function repliesNeedApproval(): bool {
+		return $this->getReplyPolicy() === self::REPLY_POLICY_APPROVAL;
+	}
+
+	/**
+	 * Where this reply stands with the server it was sent to: `pending`,
+	 * `approved`, `rejected`, or '' for a reply nobody had to approve.
+	 */
+	public function getReplyState(): string {
+		$state = $this->getDetailsAll()[self::DETAIL_REPLY_STATE] ?? '';
+
+		return is_string($state) ? $state : '';
+	}
+
+	public function setReplyState(string $state): self {
+		$this->setDetail(self::DETAIL_REPLY_STATE, $state);
 
 		return $this;
 	}
@@ -1400,6 +1495,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// server decides who may quote theirs, and what it decided rides
 			// on their document as `interactionPolicy` rather than here
 			'quote_approval' => $this->isLocal() ? $this->exportQuoteApproval() : null,
+			// where a reply of ours stands with the server it was sent to, and
+			// whether replies here have to be approved at all. Null for the
+			// ordinary post, which is almost every post: a client that has to
+			// test for a key it will almost never see is a client that will
+			// get it wrong.
+			'reply_approval' => $this->exportReplyApproval(),
+			// what a video is, beyond being a post with a file on it: null for
+			// every post that is not one, which is almost all of them
+			'video' => ($video = $this->getVideoMeta()) === [] ? null : $video,
 			'mentions' => $this->exportMentionsAsLocal(),
 			'emojis' => $this->getEmojis(),
 			'tags' => $this->exportTagsAsLocal(),
@@ -1583,6 +1687,23 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		};
 
 		return ['interactionPolicy' => ['canQuote' => ['automaticApproval' => $allowed]]];
+	}
+
+	/**
+	 * What a client needs to say "waiting to be approved" — or null, which is
+	 * almost every post.
+	 *
+	 * @return array{policy: string, state: string}|null
+	 */
+	private function exportReplyApproval(): ?array {
+		$policy = $this->getReplyPolicy();
+		$state = $this->getReplyState();
+
+		if ($policy === '' && $state === '') {
+			return null;
+		}
+
+		return ['policy' => $policy, 'state' => $state];
 	}
 
 	/** The author's followers collection, as every local actor publishes it. */

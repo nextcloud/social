@@ -38,6 +38,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 			->setValue('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
 			->setValue('blurhash', $qb->createNamedParameter($document->getBlurHash()))
+			->setValue('size', $qb->createNamedParameter($document->getSizeBytes(), IQueryBuilder::PARAM_INT))
 			->setValue('description', $qb->createNamedParameter($document->getDescription()))
 			->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
 			->setValue('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
@@ -74,6 +75,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 			->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
 			->set('blurhash', $qb->createNamedParameter($document->getBlurHash()))
+			->set('size', $qb->createNamedParameter($document->getSizeBytes(), IQueryBuilder::PARAM_INT))
 			->set('description', $qb->createNamedParameter($document->getDescription()))
 			->set('parent_id', $qb->createNamedParameter($document->getParentId()))
 			->set('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
@@ -154,6 +156,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()));
 		$qb->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
 		$qb->set('blurhash', $qb->createNamedParameter($document->getBlurHash()));
+		$qb->set('size', $qb->createNamedParameter($document->getSizeBytes(), IQueryBuilder::PARAM_INT));
 		$qb->set('description', $qb->createNamedParameter($document->getDescription()));
 		$qb->set('error', $qb->createNamedParameter($document->getError()));
 		// The mime type is sniffed from the downloaded bytes and this is the only
@@ -365,6 +368,93 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/**
+	 * How many bytes of video one account is holding here.
+	 *
+	 * The stored `size`, not a walk of the files: this is asked on every video
+	 * upload, and a `stat` per row would make the quota cost more than the
+	 * thing it guards. A row written before that column existed carries 0 and
+	 * is invisible here until the usage cron has been past it, which is the
+	 * honest trade — see `MediaUsageService`, which fills them in as it walks.
+	 *
+	 * Streamed rows are excluded: those are somebody else's bytes on somebody
+	 * else's server.
+	 */
+	public function videoBytesOf(string $account): int {
+		if ($account === '') {
+			return 0;
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->selectAlias($qb->func()->sum('size'), 'total')
+			->from(self::TABLE_CACHE_DOCUMENTS)
+			->where($expr->eq('account', $qb->createNamedParameter($account)))
+			->andWhere($expr->like('media_type', $qb->createNamedParameter('video/%')))
+			->andWhere($expr->neq('local_copy', $qb->createNamedParameter('')))
+			->andWhere($expr->neq('local_copy', $qb->createNamedParameter(Document::COPY_STREAMED)));
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return (int)($data['total'] ?? 0);
+	}
+
+	/**
+	 * Every account holding video here, most first.
+	 *
+	 * What an administrator actually wants to know when the disk is filling:
+	 * who has the four hundred gigabytes. One query rather than one per
+	 * account, and capped, because the answer is a page and not a report.
+	 *
+	 * @return array<array{account: string, bytes: int, files: int}>
+	 */
+	public function videoBytesByAccount(int $limit = 50): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->select('account')
+			->selectAlias($qb->func()->sum('size'), 'total')
+			->selectAlias($qb->createFunction('COUNT(*)'), 'files')
+			->from(self::TABLE_CACHE_DOCUMENTS)
+			->where($expr->like('media_type', $qb->createNamedParameter('video/%')))
+			->andWhere($expr->neq('local_copy', $qb->createNamedParameter('')))
+			->andWhere($expr->neq('local_copy', $qb->createNamedParameter(Document::COPY_STREAMED)))
+			->andWhere($expr->neq('account', $qb->createNamedParameter('')))
+			->groupBy('account')
+			->orderBy('total', 'desc')
+			->setMaxResults($limit);
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$rows[] = [
+				'account' => (string)$data['account'],
+				'bytes' => (int)($data['total'] ?? 0),
+				'files' => (int)($data['files'] ?? 0),
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/**
+	 * Records how big a stored file turned out to be.
+	 *
+	 * For the rows written before there was a column to put it in: the usage
+	 * walk is already stat-ing every one of them, so it fills them in as it
+	 * goes and the quota becomes accurate after one pass rather than never.
+	 */
+	public function setSize(int $nid, int $size): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_CACHE_DOCUMENTS)
+			->set('size', $qb->createNamedParameter($size, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * @return Document[]
 	 * @throws Exception
 	 */
@@ -490,6 +580,54 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * "tried and failed": a job that only recorded its successes would read
 	 * the same unconvertible file on every run for ever.
 	 */
+	/**
+	 * Local videos that have not been up the ladder yet.
+	 *
+	 * Narrowed the same way the transcoder's candidates are — bytes here, not
+	 * a streamed marker — and to `video/mp4`, because a ladder is built from
+	 * the format everything decodes and a `.mov` should go through the
+	 * transcoder first. On an instance with the transcoder off, that means a
+	 * non-MP4 upload never gets a ladder, which is the honest answer: there is
+	 * no ladder to build from a file this server has decided not to touch.
+	 *
+	 * @return Document[]
+	 */
+	public function getVideosToLadder(int $limit = 5, int $after = 0): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$alias = $qb->getDefaultSelectAlias();
+		$expr = $qb->expr();
+
+		$qb->andWhere($expr->eq($alias . '.media_type', $qb->createNamedParameter('video/mp4')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter('')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter(Document::COPY_STREAMED)));
+		$qb->andWhere($expr->orX(
+			$expr->eq($alias . '.laddered', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)),
+			$expr->isNull($alias . '.laddered')
+		));
+		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)));
+		$qb->orderBy($alias . '.nid', 'asc');
+		$qb->setMaxResults($limit);
+
+		$documents = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
+	/** Remembers that a video has been up the ladder, or will not be. */
+	public function setLaddered(int $nid, int $state): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_CACHE_DOCUMENTS)
+			->set('laddered', $qb->createNamedParameter($state, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
 	public function setTranscoded(int $nid, int $state): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_DOCUMENTS)
@@ -502,9 +640,10 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	/**
 	 * The converted file takes the place of the original.
 	 *
-	 * The three things that change together, in one statement: what the file
-	 * is, where it is, and how big the video now is. Apart they would be a
-	 * window in which a document said `video/quicktime` about an MP4.
+	 * The things that change together, in one statement: what the file is,
+	 * where it is, how big the video now is, and that whatever ladder was
+	 * built from the old bytes is void. Apart they would be a window in which
+	 * a document said `video/quicktime` about an MP4.
 	 */
 	public function replaceVideo(int $nid, string $localCopy, string $mediaType): void {
 		$qb = $this->getQueryBuilder();
@@ -513,6 +652,10 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			->set('media_type', $qb->createNamedParameter($mediaType))
 			->set('mime_type', $qb->createNamedParameter($mediaType))
 			->set('transcoded', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT))
+			// the bytes have changed, so any ladder built from them is of a
+			// video that no longer exists: back to nought, and the ladder job
+			// rebuilds it and throws the old rungs away as it goes
+			->set('laddered', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
 			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
 
 		$qb->executeStatement();
@@ -571,12 +714,18 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * a row an avatar rather than an attachment — and whether that actor is
 	 * one of ours, without hydrating either side.
 	 *
-	 * @return list<array{nid: int, id: string, url: string, account: string, local_copy: string, resized_copy: string, actor_local: ?bool}>
+	 * `media_type` and `size` are here for the same walk's second job: filling
+	 * in the size of a video row written before there was a column to put it
+	 * in, which is what makes the per-account quota accurate after one pass
+	 * rather than never. Two columns off a row already being read.
+	 *
+	 * @return list<array{nid: int, id: string, url: string, account: string, local_copy: string, resized_copy: string, media_type: string, size: int, actor_local: ?bool}>
 	 */
 	public function getUsagePage(int $limit, int $after = 0): array {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 		$qb->select('cd.nid', 'cd.id', 'cd.url', 'cd.account', 'cd.local_copy', 'cd.resized_copy')
+			->addSelect('cd.media_type', 'cd.size')
 			->selectAlias('ca.local', 'actor_local')
 			->from(self::TABLE_CACHE_DOCUMENTS, 'cd')
 			->leftJoin('cd', self::TABLE_CACHE_ACTORS, 'ca', $expr->eq('ca.id_prim', 'cd.parent_id_prim'))
@@ -594,6 +743,10 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 				'account' => (string)($data['account'] ?? ''),
 				'local_copy' => (string)($data['local_copy'] ?? ''),
 				'resized_copy' => (string)($data['resized_copy'] ?? ''),
+				'media_type' => (string)($data['media_type'] ?? ''),
+				// what the row *says* it is, which for a row written before
+				// there was a column to say it in is 0
+				'size' => (int)($data['size'] ?? 0),
 				// NULL when the parent is not a cached actor; the boolean column
 				// comes back as an int on MySQL and as a bool on PostgreSQL
 				'actor_local' => ($data['actor_local'] === null) ? null : (bool)(int)$data['actor_local'],

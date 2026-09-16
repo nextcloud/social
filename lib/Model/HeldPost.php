@@ -42,11 +42,21 @@ class HeldPost implements JsonSerializable, StatusParams {
 	/** The same text this account has already been held for. */
 	public const REASON_REPEAT = 'repeat';
 
+	/**
+	 * There is a video on it, and this instance looks at videos first.
+	 *
+	 * Unlike the other four this is not about the *account*: a trusted account
+	 * with a thousand posts behind it is held by this rule too, every time,
+	 * because what it is about is the video.
+	 */
+	public const REASON_VIDEO = 'video';
+
 	public const REASONS = [
 		self::REASON_FIRST_POST,
 		self::REASON_LINKS,
 		self::REASON_MENTIONS,
 		self::REASON_REPEAT,
+		self::REASON_VIDEO,
 	];
 
 	private int $id = 0;

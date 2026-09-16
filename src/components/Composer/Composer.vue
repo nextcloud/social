@@ -87,6 +87,34 @@
 			class="new-post-form"
 			:class="{ 'new-post-form--media-first': hasAttachments }"
 			@submit.prevent>
+			<!-- a post whose only attachment is a video is a video, and a video
+			     has a name. Without this the title was guessed out of the first
+			     line of the post, which is right for somebody who wrote one and
+			     wrong for somebody who did not — and PeerTube lists a video by
+			     its name and nothing else -->
+			<div v-if="isVideoPost" class="video-row">
+				<input
+					v-model="videoTitle"
+					type="text"
+					class="video-row__title"
+					maxlength="120"
+					:aria-label="t('social', 'Video title')"
+					:placeholder="t('social', 'Video title — what it is called on other servers')">
+				<div class="video-row__pair">
+					<input
+						v-model="videoCategory"
+						type="text"
+						maxlength="60"
+						:aria-label="t('social', 'Category')"
+						:placeholder="t('social', 'Category, e.g. Music')">
+					<input
+						v-model="videoLicence"
+						type="text"
+						maxlength="60"
+						:aria-label="t('social', 'Licence')"
+						:placeholder="t('social', 'Licence, e.g. CC BY-SA')">
+				</div>
+			</div>
 			<div v-if="showWarning" class="content-warning-row">
 				<input
 					v-model="spoilerText"
@@ -769,6 +797,10 @@ export default {
 			attachments: {},
 			showPoll: false,
 			showWarning: false,
+			/** what a video is called, and what it is; blank unless asked for */
+			videoTitle: '',
+			videoCategory: '',
+			videoLicence: '',
 			/** whether the "how this will read" pane is open */
 			showPreview: false,
 			/** whether the shared picture library is open */
@@ -972,6 +1004,22 @@ export default {
 		},
 
 		/** @return {string[]} the ids the post will carry */
+		/**
+		 * Whether this post is a video: one attachment, and it a video.
+		 *
+		 * The same rule the wire form applies — a `Video` object *is* the
+		 * video, so a post carrying a video and three photographs is a post.
+		 *
+		 * @return {boolean}
+		 */
+		isVideoPost() {
+			const attachments = Object.values(this.attachments)
+
+			return attachments.length === 1
+				&& (attachments[0].data?.type === 'video'
+					|| (attachments[0].data?.media_type || '').startsWith('video/'))
+		},
+
 		mediaIds() {
 			return Object.values(this.attachments)
 				.map((attachment) => attachment.data?.id)
@@ -2044,6 +2092,26 @@ export default {
 		},
 
 		n: translatePlural,
+		/**
+		 * What the poster said the video is, leaving out what they did not say.
+		 *
+		 * @return {object}
+		 */
+		videoFields() {
+			const fields = {}
+			for (const [key, value] of [
+				['video_title', this.videoTitle],
+				['video_category', this.videoCategory],
+				['video_licence', this.videoLicence],
+			]) {
+				if (value.trim() !== '') {
+					fields[key] = value.trim()
+				}
+			}
+
+			return fields
+		},
+
 		async createPost() {
 			if (!this.canPost || this.loading) {
 				return
@@ -2072,6 +2140,10 @@ export default {
 				// always, so the post is never without one: the server would
 				// fill in the same default, but what the poster saw is what goes
 				language: this.language,
+				// only where this is a video and the poster filled something
+				// in: an empty title is not an answer, and the server falls
+				// back to the first line of the post as it always did
+				...(this.isVideoPost ? this.videoFields() : {}),
 			}
 
 			// where it was taken, only ever as the poster said: a known place
@@ -2442,6 +2514,28 @@ function nodeToPlainText(node) {
 </script>
 
 <style scoped lang="scss">
+.video-row {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-block-end: 8px;
+}
+
+.video-row__pair {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+
+	> input {
+		flex: 1 1 10em;
+		min-width: 0;
+	}
+}
+
+.video-row__title {
+	width: 100%;
+}
+
 // one duration and one curve for the whole opening, so the parts of it arrive
 // together rather than each on its own schedule
 $composer-ease: cubic-bezier(0.25, 0.8, 0.35, 1);
