@@ -260,7 +260,17 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		if ($activity->getType() === Undo::TYPE) {
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getActorId());
+			// read before the row goes: the count was moved up by the Accept,
+			// so a follow request that was never accepted must not move it
+			// down. The activity carries what the sender wrote, which is not
+			// where this is recorded.
+			$accepted = $this->wasAccepted($item);
 			$this->followsRequest->delete($item);
+			if ($accepted) {
+				$this->accountService->bumpActorCount(
+					$item->getObjectId(), 'count_followers', -1
+				);
+			}
 		}
 
 		if ($activity->getType() === Reject::TYPE) {
@@ -276,6 +286,17 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			// moment, and no id it is keyed on says so — see
 			// TimelineRevisionService
 			$this->timelineRevisionService->bumpForActor($item->getActorId());
+		}
+	}
+
+	/** Whether the stored follow this activity is about had been accepted. */
+	private function wasAccepted(Follow $follow): bool {
+		try {
+			return $this->followsRequest
+				->getByPersons($follow->getActorId(), $follow->getObjectId())
+				->isAccepted();
+		} catch (Exception $e) {
+			return false;
 		}
 	}
 

@@ -403,6 +403,37 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($undo, $follow);
 	}
 
+	/**
+	 * The Accept counted the follower up; nothing counted it back down, so a
+	 * local account's follower count only ever climbed between recounts.
+	 */
+	public function testUndoOfAnAcceptedFollowTakesTheFollowerOffTheCount(): void {
+		$follow = $this->incomingFollow();
+		$stored = clone $follow;
+		$stored->setAccepted(true);
+		$this->followsRequest->method('getByPersons')->willReturn($stored);
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', $this->bob->getId(), $follow);
+
+		$this->accountService->expects($this->once())
+			->method('bumpActorCount')
+			->with($follow->getObjectId(), 'count_followers', -1);
+
+		$this->handler->activity($undo, $follow);
+	}
+
+	/** A follow request that was never accepted was never counted either. */
+	public function testUndoOfAFollowRequestLeavesTheCountAlone(): void {
+		$follow = $this->incomingFollow();
+		$stored = clone $follow;
+		$stored->setAccepted(false);
+		$this->followsRequest->method('getByPersons')->willReturn($stored);
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', $this->bob->getId(), $follow);
+
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->handler->activity($undo, $follow);
+	}
+
 	public function testUndoNotComingFromTheFollowersServerIsRefused(): void {
 		$follow = $this->incomingFollow();
 		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', $this->bob->getId(), $follow, 'evil.example');

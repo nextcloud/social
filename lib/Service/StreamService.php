@@ -23,6 +23,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -71,6 +72,7 @@ class StreamService {
 		private PlaceService $placeService,
 		private ReactionSummaryService $reactionSummaryService,
 		private MediaTagsRequest $mediaTagsRequest,
+		private AccountService $accountService,
 	) {
 	}
 
@@ -419,6 +421,14 @@ class StreamService {
 		$this->addressBoostersAndRepliers($item);
 		$this->activityService->deleteActivity($item);
 		$this->streamRequest->deleteById($item->getId(), $type);
+		// their profile has one post fewer. Nothing moved this counter down at
+		// all, so an account that wrote and deleted a post all day climbed
+		// until the cron's recount put it back; the condition is the recount's
+		// own — a public status, which is what it counts.
+		if ($item->addressesPublic()
+			&& in_array($item->getType(), [Note::TYPE, Question::TYPE], true)) {
+			$this->accountService->bumpActorCount($item->getAttributedTo(), 'count_posts', -1);
+		}
 		// the post it answered counts one reply fewer now. Deleting your own
 		// reply comes through here rather than through `NoteInterface`, so
 		// without this the parent went on claiming a reply that no page could

@@ -742,6 +742,16 @@ overlaid on it where the row is parsed, and the counting still happens in the
 cron's walk, which is where drift is reconciled. `-1` means "never counted"
 rather than "none".
 
+**Each move has to obey the recount's own rule**, or the two disagree and the
+number visibly wobbles between cron passes. The recount counts *public*
+statuses, so `count_posts` moves only for a post that names the public
+collection (`Item::addressesPublic()`) — and moves **down** when one is deleted,
+which nothing did at all. `count_followers` is moved up by the Accept and down
+by the unfollow, whichever side it came from: a local `Undo` sent from here, or
+one that arrived in the inbox, in each case only when the follow it undoes had
+been accepted. The cron's walk is the safety net for what races through, not
+the thing that makes the number right.
+
 **The cron walks rather than reads.** `Cron\Cache` refreshed *every* local
 account on every pass — the whole table in one PHP array, twelve minutes apart,
 with a dozen queries and an avatar read behind each row. At a million accounts

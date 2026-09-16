@@ -22,6 +22,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -85,6 +86,8 @@ class StreamServiceTest extends TestCase {
 			}
 		);
 
+		$this->accountService = $this->createMock(AccountService::class);
+
 		$this->service = new StreamService(
 			$this->urlGenerator,
 			$this->streamRequest,
@@ -97,7 +100,8 @@ class StreamServiceTest extends TestCase {
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
 			$this->createMock(ReactionSummaryService::class),
-			$this->createMock(MediaTagsRequest::class)
+			$this->createMock(MediaTagsRequest::class),
+			$this->accountService
 		);
 	}
 
@@ -127,6 +131,8 @@ class StreamServiceTest extends TestCase {
 
 		return $actor;
 	}
+
+	private AccountService|MockObject $accountService;
 
 	private function note(string $id, string $attributedTo = self::ACTOR_ID, string $inReplyTo = ''): Note {
 		$note = new Note();
@@ -538,7 +544,8 @@ class StreamServiceTest extends TestCase {
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
 			$this->createMock(ReactionSummaryService::class),
-			$this->createMock(MediaTagsRequest::class)
+			$this->createMock(MediaTagsRequest::class),
+			$this->createMock(AccountService::class)
 		);
 
 		$note = new Note();
@@ -1385,6 +1392,34 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->expects($this->once())->method('recountReplies')->with('');
 
 		$this->service->deleteLocalItem($note);
+	}
+
+	/**
+	 * Nothing moved this counter down at all, so an account that wrote and
+	 * deleted a post all day climbed until the cron's recount put it back. The
+	 * condition is the recount's own: a public status, which is what it counts.
+	 */
+	public function testDeletingAPublicPostTakesItOffTheProfilesCount(): void {
+		$note = $this->note('https://social.example/notes/post');
+		$note->setLocal(true);
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+
+		$this->accountService->expects($this->once())
+			->method('bumpActorCount')
+			->with(self::ACTOR_ID, 'count_posts', -1);
+
+		$this->service->deleteLocalItem($note, Note::TYPE);
+	}
+
+	/** A followers-only post was never counted, so it is not counted down. */
+	public function testDeletingAPostNobodyCountedLeavesTheCountAlone(): void {
+		$note = $this->note('https://social.example/notes/post');
+		$note->setLocal(true);
+		$note->setTo(self::ACTOR_ID . '/followers');
+
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->service->deleteLocalItem($note, Note::TYPE);
 	}
 
 	public function testARemotePostIsNotDeletedFromHereAndNothingIsRecounted(): void {

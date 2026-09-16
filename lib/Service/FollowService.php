@@ -72,6 +72,7 @@ class FollowService {
 		private FollowInterface $followInterface,
 		private ModerationService $moderationService,
 		private AccountRelationService $accountRelationService,
+		private AccountService $accountService,
 		private TimelineRevisionService $timelineRevisionService,
 		private LoggerInterface $logger,
 	) {
@@ -278,6 +279,15 @@ class FollowService {
 			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
 			$this->timelineRevisionService->bumpForActor($actor->getId());
+			if ($follow->isAccepted()) {
+				// the account they left has one follower fewer. The Accept is
+				// what counted it up — locally handled or delivered, see
+				// FollowInterface::confirmFollowRequest() — so a follow that
+				// was never accepted must not count down.
+				$this->accountService->bumpActorCount(
+					$remoteActor->getId(), 'count_followers', -1
+				);
+			}
 
 			$undo = AP::instance()->getItemFromType(Undo::TYPE);
 			$follow->setParent($undo);

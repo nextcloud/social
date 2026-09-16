@@ -25,6 +25,7 @@ use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\AccountRelationService;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -55,6 +56,7 @@ class FollowServiceTest extends TestCase {
 	/** @var ConfigService&MockObject */
 	private $configService;
 	private TimelineRevisionService|MockObject $timelineRevisionService;
+	private AccountService|MockObject $accountService;
 	private $followInterface;
 	private ModerationService|MockObject $moderationService;
 	private FollowService $service;
@@ -72,6 +74,7 @@ class FollowServiceTest extends TestCase {
 		$this->moderationService = $this->createMock(ModerationService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
+		$this->accountService = $this->createMock(AccountService::class);
 
 		$this->service = new FollowService(
 			$this->urlGenerator,
@@ -83,6 +86,7 @@ class FollowServiceTest extends TestCase {
 			$this->followInterface,
 			$this->moderationService,
 			$this->accountRelationService,
+			$this->accountService,
 			$this->timelineRevisionService,
 			new NullLogger()
 		);
@@ -316,6 +320,37 @@ class FollowServiceTest extends TestCase {
 		$this->followsRequest->expects($this->never())->method('delete');
 		$this->activityService->expects($this->never())->method('request');
 		$this->timelineRevisionService->expects($this->never())->method('bumpForActor');
+
+		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
+	}
+
+	/**
+	 * The Accept is what counted the follower up — see
+	 * `FollowInterface::confirmFollowRequest()` — and nothing counted it back
+	 * down, so an account's follower count only ever climbed until the cron's
+	 * recount reached it.
+	 */
+	public function testUnfollowingTakesTheFollowerOffTheTargetsCount(): void {
+		$bob = $this->person(self::BOB_ID, 'bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
+		$this->activityService->method('request')->willReturn('token');
+		$this->followsRequest->method('getByPersons')
+			->willReturn($this->follow(self::ALICE_ID, self::BOB_ID, true));
+		$this->accountService->expects($this->once())
+			->method('bumpActorCount')
+			->with(self::BOB_ID, 'count_followers', -1);
+
+		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
+	}
+
+	/** A follow request that was never accepted was never counted either. */
+	public function testWithdrawingAFollowRequestLeavesTheCountAlone(): void {
+		$bob = $this->person(self::BOB_ID, 'bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
+		$this->activityService->method('request')->willReturn('token');
+		$this->followsRequest->method('getByPersons')
+			->willReturn($this->follow(self::ALICE_ID, self::BOB_ID, false));
+		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
 	}

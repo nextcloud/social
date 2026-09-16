@@ -101,7 +101,8 @@ class PostServiceTest extends TestCase {
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
 			$this->createMock(ReactionSummaryService::class),
-			$this->createMock(MediaTagsRequest::class)
+			$this->createMock(MediaTagsRequest::class),
+			$this->createMock(AccountService::class)
 		);
 
 		$l10nFactory = $this->createMock(IFactory::class);
@@ -449,6 +450,19 @@ class PostServiceTest extends TestCase {
 		// a server with no shared inbox is reached at the personal one, which
 		// is the only address Carol has
 		$this->assertContains(self::CAROL_INBOX, $inboxes);
+	}
+
+	/**
+	 * The recount counts public statuses (`countNotesFromActorId()` joins the
+	 * public recipient row), so counting every post here meant the number
+	 * climbed on each followers-only post and fell back at the next cron pass:
+	 * a profile's post count that visibly wobbled.
+	 */
+	public function testAFollowersOnlyPostIsNotCountedTowardsTheProfile(): void {
+		$this->expectCreateActivity($note);
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->service->createPost($this->post('for my followers', Stream::TYPE_FOLLOWERS));
 	}
 
 	public function testCreatePostToUnknownReplyTargetFailsBeforeAnythingIsSent(): void {

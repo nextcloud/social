@@ -172,7 +172,15 @@ class PostService {
 		// `COUNT(*)` over `social_follow`, which for an account with a million
 		// followers is a million index entries counted so that the post count
 		// on a profile can go up.
-		$this->accountService->bumpActorCount($actor->getId(), 'count_posts', 1);
+		//
+		// Only a post that names the public collection, because that is what
+		// the recount counts (`StreamRequest::countNotesFromActorId()` joins
+		// the public recipient row). Counting the others here meant the number
+		// climbed on every followers-only post and fell back at the next cron
+		// pass, so a profile's post count visibly wobbled.
+		if ($note->addressesPublic()) {
+			$this->accountService->bumpActorCount($actor->getId(), 'count_posts', 1);
+		}
 
 		// after the post exists: the request names it as the instrument, and
 		// the quoted author's server dereferences both before approving
