@@ -976,6 +976,35 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The three counters, laid over what `details` says.
+	 *
+	 * They live in their own columns so that one can be moved without
+	 * recomputing the other two, while the JSON stays what is read — so every
+	 * path that turns a row into an actor has to lay one over the other, and
+	 * doing it here is what makes that true of all of them. It used to be done
+	 * in one of the two query builders that parse this row, and that one did
+	 * not select the columns: the overlay never had anything to lay on, and
+	 * every profile showed the JSON until the cron's recount rewrote it — a
+	 * post count that did not move when you posted.
+	 *
+	 * `-1` is "never counted" and leaves the JSON alone, which is what a row
+	 * written before the columns existed carries. A row without the columns at
+	 * all — the local actor table, which has none — is left alone too.
+	 */
+	private function overlayStoredCounts(array $data): void {
+		if (!array_key_exists('count_followers', $data) || (int)$data['count_followers'] < 0) {
+			return;
+		}
+
+		$count = $this->getDetails('count');
+		$count['followers'] = (int)$data['count_followers'];
+		$count['following'] = max(0, (int)($data['count_following'] ?? 0));
+		$count['post'] = max(0, (int)($data['count_posts'] ?? 0));
+
+		$this->setDetailArray('count', $count);
+	}
+
+	/**
 	 * @param array $data
 	 */
 	#[\Override]
@@ -1067,6 +1096,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
 			->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
 			->setDetailsAll($this->getArray('details', $data, []));
+
+		$this->overlayStoredCounts($data);
 
 		try {
 			$cTime = new DateTime($this->get('creation', $data, 'yesterday'));

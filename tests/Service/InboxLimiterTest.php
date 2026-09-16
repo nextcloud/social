@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Exceptions\PayloadTooLargeException;
 use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InboxLimiter;
@@ -160,6 +161,43 @@ class InboxLimiterTest extends TestCase {
 		$this->expectException(TooManyRequestsException::class);
 
 		$this->limiter->assertAllowed($this->request(''));
+	}
+
+	/** @return IRequest&MockObject */
+	private function delivery(string $contentLength): IRequest {
+		$request = $this->createMock(IRequest::class);
+		$request->method('getHeader')->willReturnCallback(
+			fn (string $header): string => $header === 'Content-Length' ? $contentLength : ''
+		);
+
+		return $request;
+	}
+
+	/**
+	 * Both inboxes are public and unauthenticated, and the `Digest` is hashed
+	 * over the body before the signature is verified — because a signature over
+	 * a body nobody has hashed proves nothing about it. The only ceiling on
+	 * that was PHP's `post_max_size`, which a Nextcloud sets to hundreds of
+	 * megabytes so that file uploads work: anyone could hand every worker in
+	 * the pool half a gigabyte to allocate and SHA-256. The rate limit bounds
+	 * requests, not bytes.
+	 */
+	public function testABodyTooBigToBeAnActivityIsRefusedBeforeItIsRead(): void {
+		$this->expectException(PayloadTooLargeException::class);
+
+		$this->limiter->readBody($this->delivery((string)(InboxLimiter::MAX_BODY + 1)));
+	}
+
+	/** An activity is a few kilobytes; a megabyte is a wide margin over that. */
+	public function testAnOrdinaryDeliveryIsRead(): void {
+		// php://input is empty under the test runner: what is asserted here is
+		// that the declared length is accepted and the read is reached
+		$this->assertSame('', $this->limiter->readBody($this->delivery('4096')));
+	}
+
+	/** A chunked request declares no length at all, and is still bounded. */
+	public function testADeliveryWithNoDeclaredLengthIsStillRead(): void {
+		$this->assertSame('', $this->limiter->readBody($this->delivery('')));
 	}
 
 	public function testZeroDisablesTheLimiter(): void {

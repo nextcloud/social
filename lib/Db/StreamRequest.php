@@ -84,6 +84,12 @@ class StreamRequest extends StreamRequestBuilder {
 	/** ...but never an unbounded read, whatever limit was asked for. */
 	private const HOME_OVERREAD_MAX = 300;
 
+	/**
+	 * How many further windows a page that filtering emptied may read. See
+	 * `refilledHomePage()`.
+	 */
+	private const HOME_REFILL_ROUNDS = 4;
+
 	/** Whether the recipient rows carry their post's nid yet; asked once per request. */
 	private ?bool $recipientNidsFilled = null;
 
@@ -1073,8 +1079,67 @@ class StreamRequest extends StreamRequestBuilder {
 		// where each is a lookup against twenty ids rather than a join across
 		// everything the viewer follows.
 		$posts = $this->streamsByNids($nids, $options, $fast);
+		if (!$fast) {
+			return $posts;
+		}
 
-		return $fast ? array_slice($posts, 0, $options->getLimit()) : $posts;
+		return array_slice(
+			$this->refilledHomePage($posts, $nids, $options), 0, $options->getLimit()
+		);
+	}
+
+	/**
+	 * Fetches further windows when filtering emptied the one that was read.
+	 *
+	 * The fast page query reads three times the limit and the per-viewer
+	 * filters are applied to the rows afterwards, which covers a page that
+	 * loses a few posts to a block. It does not cover a page that loses *all*
+	 * of them: a muted account that has just posted sixty times, or a blocked
+	 * instance that dominates the window, and the page comes back empty while
+	 * older posts the reader can see sit further down. Empty is how both
+	 * clients read "there is nothing more" — the web app sets `allLoaded` on a
+	 * page of zero and the `Link: rel="next"` header is not sent — so the
+	 * timeline ended, in the middle.
+	 *
+	 * So a short page reads on, from below the oldest id this page has already
+	 * *considered* rather than from the oldest it kept: everything between the
+	 * two was looked at and dropped. Bounded, because a reader who has muted
+	 * everything they follow must not turn one request into a walk of the
+	 * table; four more windows is twelve times the limit, and a page still
+	 * short after that is one where the join path would be reading the same
+	 * rows to no better end.
+	 *
+	 * @param Stream[] $posts what the first window came back with
+	 * @param int[] $window the ids that window was chosen from
+	 *
+	 * @return Stream[]
+	 */
+	private function refilledHomePage(array $posts, array $window, ProbeOptions $options): array {
+		for ($round = 0; $round < self::HOME_REFILL_ROUNDS; $round++) {
+			if (count($posts) >= $options->getLimit() || $window === []) {
+				break;
+			}
+
+			$next = clone $options;
+			if ($options->isInverted()) {
+				$next->setMinId(max($window));
+			} else {
+				$next->setMaxId(min($window));
+			}
+
+			$window = $this->homeTimelineNidsFromRecipients($next) ?? [];
+			if ($window === []) {
+				break;
+			}
+
+			if ($this->followsAnyTag()) {
+				$window = $this->mergeNidPages($window, $this->followedTagNids($next), $next);
+			}
+
+			$posts = array_merge($posts, $this->streamsByNids($window, $next, true));
+		}
+
+		return $posts;
 	}
 
 	/**
@@ -1189,7 +1254,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return int[]|null
 	 */
-	private function homeTimelineNidsFromRecipients(ProbeOptions $options): ?array {
+	protected function homeTimelineNidsFromRecipients(ProbeOptions $options): ?array {
 		if ($this->viewer === null || !$this->recipientNidsAreFilled()) {
 			return null;
 		}
@@ -1208,7 +1273,7 @@ class StreamRequest extends StreamRequestBuilder {
 			return null;
 		}
 
-		$collections = $this->followsRequest->getFollowedCollectionPrims($this->viewer->getId());
+		$collections = $this->followsRequest->getHomeCollectionPrims($this->viewer->getId());
 		// an account's own posts reach its own timeline through the recipient
 		// row addressed to its own follower collection, which it is not a
 		// follower of

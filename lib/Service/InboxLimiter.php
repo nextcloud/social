@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Exceptions\PayloadTooLargeException;
 use OCA\Social\Exceptions\TooManyRequestsException;
 use OCP\ICache;
 use OCP\ICacheFactory;
@@ -48,6 +49,12 @@ class InboxLimiter {
 	 * ceiling exists only to bound one origin's total.
 	 */
 	public const HOST_LIMIT_FACTOR = 4;
+
+	/**
+	 * The largest delivery this instance will read. See `readBody()` for why
+	 * there has to be one at all.
+	 */
+	public const MAX_BODY = 1048576;
 
 	private ICache $cache;
 
@@ -101,6 +108,47 @@ class InboxLimiter {
 
 	private function window(): int {
 		return (int)floor(time() / self::WINDOW);
+	}
+
+	/**
+	 * The delivery's body, or nothing if it is too big to be one.
+	 *
+	 * Both inboxes are public, unauthenticated routes, and what they did first
+	 * was read the whole request into a string and hash it: the `Digest` is
+	 * checked over the body **before** the signature is verified, because a
+	 * signature over a body nobody has hashed proves nothing about the body.
+	 * The only ceiling on that was PHP's `post_max_size`, which a Nextcloud
+	 * sets to hundreds of megabytes so that file uploads work — so anyone at
+	 * all could hand every worker in the pool half a gigabyte to allocate and
+	 * SHA-256, as often as the per-address bucket allows. The rate limit bounds
+	 * requests, not bytes, and one request was already enough to hold a worker
+	 * for seconds.
+	 *
+	 * An activity is a few kilobytes. The largest legitimate one — a long
+	 * article naming many recipients and carrying many attachments — is well
+	 * inside a megabyte, which is what Mastodon accepts as well. A sender that
+	 * genuinely has more to say has `Collection` pages to say it in.
+	 *
+	 * `Content-Length` is checked first because it costs nothing, and then the
+	 * read itself is bounded anyway: the header is the sender's claim, and a
+	 * chunked request carries none at all.
+	 *
+	 * @throws PayloadTooLargeException
+	 */
+	public function readBody(IRequest $request): string {
+		$declared = (int)$request->getHeader('Content-Length');
+		if ($declared > self::MAX_BODY) {
+			throw new PayloadTooLargeException(
+				'inbox body of ' . $declared . ' bytes declared, limit is ' . self::MAX_BODY
+			);
+		}
+
+		$body = (string)file_get_contents('php://input', false, null, 0, self::MAX_BODY + 1);
+		if (strlen($body) > self::MAX_BODY) {
+			throw new PayloadTooLargeException('inbox body over ' . self::MAX_BODY . ' bytes');
+		}
+
+		return $body;
 	}
 
 	/**

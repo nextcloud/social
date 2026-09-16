@@ -52,8 +52,20 @@ use OCP\Migration\SimpleMigrationStep;
  * `StreamRequest` keeps the old predicate available for exactly that window.
  */
 class Version1000Date20260917000001 extends SimpleMigrationStep {
-	/** How many recipient rows one backfill statement carries. */
-	private const BATCH = 20000;
+	/**
+	 * How many recipient rows one backfill statement carries.
+	 *
+	 * Three bound parameters a row — the `WHEN`, the `THEN` and the `IN` — so
+	 * this is the number of placeholders in one statement divided by three.
+	 * **SQLite allows 32,766**, and at 20,000 rows this statement asked it for
+	 * 60,000: an upgrade on any SQLite instance with more than about eleven
+	 * thousand posts failed with "too many SQL variables" and left the backfill
+	 * half done. PostgreSQL's wire protocol allows 65,535, so it fitted there
+	 * with little to spare. 5,000 is 15,000 placeholders, comfortably inside
+	 * the smallest of the three ceilings and still four times fewer round trips
+	 * than a statement per row.
+	 */
+	private const BATCH = 5000;
 
 	public function __construct(
 		private IDBConnection $connection,

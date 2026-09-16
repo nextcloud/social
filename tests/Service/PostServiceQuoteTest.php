@@ -84,7 +84,8 @@ class PostServiceQuoteTest extends TestCase {
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
 			$this->createMock(ReactionSummaryService::class),
-			$this->createMock(MediaTagsRequest::class)
+			$this->createMock(MediaTagsRequest::class),
+			$this->createMock(AccountService::class)
 		);
 
 		$l10nFactory = $this->createMock(IFactory::class);

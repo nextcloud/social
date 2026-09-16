@@ -506,6 +506,16 @@ reblog, follow, follow request and update from the single write path
 to rebuild, because timelines are queried live. Rules and retention are app
 values and occ commands. Moderation lives in Nextcloud admin settings.
 
+`POST /api/v1/media` accepts more than Mastodon does, on purpose. Beside the
+pictures, video and audio, a post here may carry a **document** — a PDF, a
+spreadsheet, a text file — which is what people on a Nextcloud actually have to
+share, and Mastodon would answer one of those `422 File content type is
+invalid`. The answer here is `200` with `type: "unknown"`, which is exactly what
+Mastodon's own entity says about an attachment it cannot draw, so a Mastodon
+client renders it as a link and a reader on another Nextcloud gets a file card.
+Nothing a browser would execute is accepted: HTML and SVG are refused `422`, and
+everything served carries `X-Content-Type-Options: nosniff`.
+
 And in the other direction, Mastodon has no equivalent for: ten dashboard
 widgets, profile-page integration, posting a picture straight from Nextcloud
 Files, Social data in `occ user:export`, and twenty-odd occ commands as an admin

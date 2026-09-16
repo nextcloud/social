@@ -162,7 +162,14 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			->selectAlias($pf . '.source', 'ca_source')
 			->selectAlias($pf . '.details', 'ca_details')
 			->selectAlias($pf . '.creation', 'ca_creation')
-			->selectAlias($pf . '.local', 'ca_local');
+			->selectAlias($pf . '.local', 'ca_local')
+			// the counters the increments move, laid over `details` by
+			// `Person::importFromDatabase()`; an author beside a post is read
+			// through here, so without them a profile opened from a timeline
+			// showed a different number from the same profile opened directly
+			->selectAlias($pf . '.count_followers', 'ca_count_followers')
+			->selectAlias($pf . '.count_following', 'ca_count_following')
+			->selectAlias($pf . '.count_posts', 'ca_count_posts');
 
 		$this->leftJoinCacheDocuments('icon_id', $pf, 'ca_cd_', 'cacd');
 	}

@@ -93,6 +93,7 @@ use OCA\Social\Service\SearchService;
 use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\VideoLadderService;
 use OCA\Social\Service\VideoThumbnailService;
@@ -115,6 +116,7 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\Files\File;
 use OCP\Files\IRootFolder;
@@ -140,6 +142,22 @@ class ApiController extends Controller {
 	 * the tag the next request will send back.
 	 */
 	private string $pollTag = '';
+
+	/**
+	 * The headers every `Response` works out for itself. `tagged()` carries a
+	 * response's headers to the one it hands back and leaves these behind: the
+	 * new response computes the same values, and copying them would freeze
+	 * today's into a response that knows how to derive them — `Cache-Control`
+	 * above all, which is the one being set on purpose.
+	 */
+	private const FRAMEWORK_HEADERS = [
+		'Cache-Control',
+		'Content-Security-Policy',
+		'Feature-Policy',
+		'X-Request-Id',
+		'X-Robots-Tag',
+		'X-User-Id',
+	];
 
 	use TNCDataResponse;
 
@@ -234,6 +252,7 @@ class ApiController extends Controller {
 		private AnnualReportService $annualReportService,
 		private WatchService $watchService,
 		private IFactory $l10nFactory,
+		private TimelineRevisionService $timelineRevisionService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -2228,7 +2247,7 @@ class ApiController extends Controller {
 	 * @param int $min_id
 	 * @param int $since_id
 	 *
-	 * @return DataResponse
+	 * @return Response
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -2244,7 +2263,7 @@ class ApiController extends Controller {
 		int $since_id = 0,
 		bool $only_media = false,
 		bool $only_video = false,
-	): DataResponse {
+	): Response {
 		$this->logger->debug('[ApiController] timelines called', [
 			'timeline' => $timeline,
 			'local' => $local,
@@ -2290,8 +2309,14 @@ class ApiController extends Controller {
 			// timeline is worth tagging: a page reached with `max_id` is
 			// historical and a client asks for it once.
 			if ($timeline === ProbeOptions::HOME && $max_id === 0 && $min_id === 0) {
+				// the newest id says whether anything arrived; the revision
+				// says whether the reader has changed what they are shown —
+				// a follow, a block, a mute, a filter, a followed hashtag —
+				// none of which moves an id. See TimelineRevisionService.
 				$notModified = $this->notModified(
-					'h' . $this->streamRequest->newestNidFor($this->viewerCollections()) . '-' . $limit
+					'h' . $this->streamRequest->newestNidFor($this->viewerCollections())
+					. '-' . $limit
+					. '-' . $this->timelineRevisionService->of($this->currentSession())
 				);
 				if ($notModified !== null) {
 					return $notModified;
@@ -3948,12 +3973,12 @@ class ApiController extends Controller {
 	 * The sidebar badge asks for this; a client that keeps markers gets the
 	 * same answer from the same place.
 	 *
-	 * @return DataResponse
+	 * @return Response
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/notifications/unread_count')]
-	public function notificationsUnreadCount(): DataResponse {
+	public function notificationsUnreadCount(): Response {
 		try {
 			$this->initViewer(true);
 			$userId = $this->currentSession();
@@ -4558,9 +4583,9 @@ class ApiController extends Controller {
 	 * it blind — which is precisely what turns the poll into a conditional
 	 * request.
 	 *
-	 * @return DataResponse|null the 304 to return, or null to carry on
+	 * @return JSONResponse|null the 304 to return, or null to carry on
 	 */
-	private function notModified(string $tag): ?DataResponse {
+	private function notModified(string $tag): ?JSONResponse {
 		if ($tag === '') {
 			return null;
 		}
@@ -4569,7 +4594,7 @@ class ApiController extends Controller {
 		$sent = trim($this->request->getHeader('If-None-Match'));
 
 		if ($sent !== '' && ($sent === $etag || $sent === $tag || $sent === 'W/' . $etag)) {
-			$response = new DataResponse([], Http::STATUS_NOT_MODIFIED);
+			$response = new JSONResponse([], Http::STATUS_NOT_MODIFIED);
 			$response->addHeader('ETag', $etag);
 			$response->addHeader('Cache-Control', 'private, no-cache');
 
@@ -4581,15 +4606,48 @@ class ApiController extends Controller {
 		return null;
 	}
 
-	/** Puts the tag on the answer that earned it. */
-	private function tagged(DataResponse $response): DataResponse {
+	/**
+	 * Puts the tag on the answer that earned it.
+	 *
+	 * It hands back a `JSONResponse` rather than the `DataResponse` it was
+	 * given, and that is the whole of why the conditional request works. A
+	 * controller that returns a `DataResponse` has it rebuilt by Nextcloud's
+	 * default json responder, which does
+	 *
+	 *     $response->setHeaders(array_merge($dataHeaders, $headers));
+	 *
+	 * where `$headers` are the *fresh* response's — and every response's
+	 * defaults include `Cache-Control: no-cache, no-store, must-revalidate`.
+	 * The controller's header is therefore overwritten by the default on its
+	 * way out, and `no-store` forbids the browser to keep the body at all: it
+	 * never sends `If-None-Match`, so the `304` below is never asked for and
+	 * the whole design is inert against a real client. Measured on devel: the
+	 * response carried our `ETag` and Nextcloud's `no-store`, side by side.
+	 *
+	 * A `JSONResponse` is what the responder would have built, so returning one
+	 * skips it and the header reaches the wire. Only the headers the caller set
+	 * are carried over — the framework's own are recomputed identically by the
+	 * new response, and copying them would pin today's values into a response
+	 * that knows how to work them out.
+	 */
+	private function tagged(DataResponse $response): JSONResponse {
+		$json = new JSONResponse($response->getData(), $response->getStatus());
+
+		foreach ($response->getHeaders() as $name => $value) {
+			if (in_array($name, self::FRAMEWORK_HEADERS, true)) {
+				continue;
+			}
+
+			$json->addHeader($name, $value);
+		}
+
 		if ($this->pollTag !== '') {
-			$response->addHeader('ETag', $this->pollTag);
-			$response->addHeader('Cache-Control', 'private, no-cache');
+			$json->addHeader('ETag', $this->pollTag);
+			$json->addHeader('Cache-Control', 'private, no-cache');
 			$this->pollTag = '';
 		}
 
-		return $response;
+		return $json;
 	}
 
 	/**
@@ -4603,7 +4661,7 @@ class ApiController extends Controller {
 			return [];
 		}
 
-		$collections = $this->followsRequest->getFollowedCollectionPrims($this->viewer->getId());
+		$collections = $this->followsRequest->getHomeCollectionPrims($this->viewer->getId());
 		if ($this->viewer->getFollowers() !== '') {
 			$collections[] = md5($this->viewer->getFollowers());
 		}

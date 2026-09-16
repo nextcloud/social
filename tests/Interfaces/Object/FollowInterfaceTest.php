@@ -31,6 +31,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 
@@ -51,6 +52,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 	private $activityService;
 	/** @var MiscService&MockObject */
 	private $miscService;
+	private TimelineRevisionService|MockObject $timelineRevisionService;
 	private FollowInterface $handler;
 
 	private Person $alice;
@@ -67,6 +69,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->miscService = $this->createMock(MiscService::class);
+		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
 
 		$this->handler = new FollowInterface(
 			$this->followsRequest,
@@ -75,6 +78,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 			$this->cacheActorService,
 			$this->accountService,
 			$this->activityService,
+			$this->timelineRevisionService,
 			$this->miscService,
 		);
 
@@ -395,6 +399,37 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 
 		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($follow));
 		$this->followsRequest->expects($this->never())->method('accepted');
+
+		$this->handler->activity($undo, $follow);
+	}
+
+	/**
+	 * The Accept counted the follower up; nothing counted it back down, so a
+	 * local account's follower count only ever climbed between recounts.
+	 */
+	public function testUndoOfAnAcceptedFollowTakesTheFollowerOffTheCount(): void {
+		$follow = $this->incomingFollow();
+		$stored = clone $follow;
+		$stored->setAccepted(true);
+		$this->followsRequest->method('getByPersons')->willReturn($stored);
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', $this->bob->getId(), $follow);
+
+		$this->accountService->expects($this->once())
+			->method('bumpActorCount')
+			->with($follow->getObjectId(), 'count_followers', -1);
+
+		$this->handler->activity($undo, $follow);
+	}
+
+	/** A follow request that was never accepted was never counted either. */
+	public function testUndoOfAFollowRequestLeavesTheCountAlone(): void {
+		$follow = $this->incomingFollow();
+		$stored = clone $follow;
+		$stored->setAccepted(false);
+		$this->followsRequest->method('getByPersons')->willReturn($stored);
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', $this->bob->getId(), $follow);
+
+		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->handler->activity($undo, $follow);
 	}

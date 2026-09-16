@@ -991,4 +991,58 @@ class PersonTest extends TestCase {
 		$this->assertSame('https://liberapay.com/alice', $exported['support_link']);
 		$this->assertCount(2, $exported['fields'], 'and still in the table every other network reads');
 	}
+
+	/**
+	 * The counters live in their own columns so that one can be moved without
+	 * recomputing the other two, and `details` is still what is read — so the
+	 * row's columns have to be laid over the JSON wherever an actor is parsed.
+	 * The overlay used to live in one of the two query builders that do that,
+	 * and that one did not select the columns: every profile showed whatever
+	 * the cron's last walk had written, so a post count did not move when you
+	 * posted.
+	 */
+	public function testTheStoredCountersAreLaidOverTheDetailsJson(): void {
+		$person = new Person();
+
+		$person->importFromDatabase([
+			'id' => 'https://cloud.example/@alice',
+			'details' => ['count' => ['followers' => 1, 'following' => 2, 'post' => 3]],
+			'count_followers' => 10,
+			'count_following' => 20,
+			'count_posts' => 30,
+		]);
+
+		$this->assertSame(
+			['followers' => 10, 'following' => 20, 'post' => 30], $person->getDetails('count')
+		);
+	}
+
+	/** `-1` is "never counted", and leaves the JSON to say what it says. */
+	public function testAnUncountedRowIsLeftToTheJson(): void {
+		$person = new Person();
+
+		$person->importFromDatabase([
+			'id' => 'https://cloud.example/@alice',
+			'details' => ['count' => ['followers' => 1, 'following' => 2, 'post' => 3]],
+			'count_followers' => -1,
+			'count_following' => -1,
+			'count_posts' => -1,
+		]);
+
+		$this->assertSame(
+			['followers' => 1, 'following' => 2, 'post' => 3], $person->getDetails('count')
+		);
+	}
+
+	/** The local actor table has no such columns, and is unharmed by that. */
+	public function testARowWithoutTheColumnsIsLeftAlone(): void {
+		$person = new Person();
+
+		$person->importFromDatabase([
+			'id' => 'https://cloud.example/@alice',
+			'details' => ['count' => ['followers' => 1]],
+		]);
+
+		$this->assertSame(['followers' => 1], $person->getDetails('count'));
+	}
 }

@@ -37,6 +37,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -57,6 +58,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		private CacheActorService $cacheActorService,
 		private AccountService $accountService,
 		private ActivityService $activityService,
+		private TimelineRevisionService $timelineRevisionService,
 		private MiscService $miscService,
 	) {
 	}
@@ -258,17 +260,43 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		if ($activity->getType() === Undo::TYPE) {
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getActorId());
+			// read before the row goes: the count was moved up by the Accept,
+			// so a follow request that was never accepted must not move it
+			// down. The activity carries what the sender wrote, which is not
+			// where this is recorded.
+			$accepted = $this->wasAccepted($item);
 			$this->followsRequest->delete($item);
+			if ($accepted) {
+				$this->accountService->bumpActorCount(
+					$item->getObjectId(), 'count_followers', -1
+				);
+			}
 		}
 
 		if ($activity->getType() === Reject::TYPE) {
 			$activity->checkOrigin($item->getObjectId());
 			$this->followsRequest->delete($item);
+			$this->timelineRevisionService->bumpForActor($item->getActorId());
 		}
 
 		if ($activity->getType() === Accept::TYPE) {
 			$activity->checkOrigin($item->getObjectId());
 			$this->followsRequest->accepted($item);
+			// the follower's home timeline holds different posts from this
+			// moment, and no id it is keyed on says so — see
+			// TimelineRevisionService
+			$this->timelineRevisionService->bumpForActor($item->getActorId());
+		}
+	}
+
+	/** Whether the stored follow this activity is about had been accepted. */
+	private function wasAccepted(Follow $follow): bool {
+		try {
+			return $this->followsRequest
+				->getByPersons($follow->getActorId(), $follow->getObjectId())
+				->isAccepted();
+		} catch (Exception $e) {
+			return false;
 		}
 	}
 

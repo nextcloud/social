@@ -45,8 +45,16 @@ use OCP\Migration\SimpleMigrationStep;
  * what answers. That is what makes this safe to deploy on a running instance.
  */
 class Version1000Date20260917000003 extends SimpleMigrationStep {
-	/** How many posts one backfill statement looks at. */
-	private const BATCH = 20000;
+	/**
+	 * How many posts one backfill statement looks at.
+	 *
+	 * One placeholder a row plus the kind, so a page of this size is one
+	 * statement of 5,001 parameters at worst. The same size as the recipient
+	 * backfill's, which had to come down under SQLite's limit of 32,766: this
+	 * one was inside it at 20,000, but a batch size chosen a hair under a
+	 * ceiling is one that a second bound parameter turns into a failed upgrade.
+	 */
+	private const BATCH = 5000;
 
 	public function __construct(
 		private IDBConnection $connection,

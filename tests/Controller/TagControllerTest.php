@@ -17,6 +17,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -42,6 +43,7 @@ class TagControllerTest extends TestCase {
 	private AccountService|MockObject $accountService;
 	private ClientService|MockObject $clientService;
 	private FollowedTagsRequest|MockObject $followedTagsRequest;
+	private TimelineRevisionService|MockObject $timelineRevisionService;
 	private HashtagService|MockObject $hashtagService;
 	private IUserSession|MockObject $userSession;
 
@@ -96,6 +98,7 @@ class TagControllerTest extends TestCase {
 			);
 
 		$this->followedTagsRequest = $this->createMock(FollowedTagsRequest::class);
+		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
 		$this->followedTagsRequest->method('isFollowing')
 			->willReturnCallback(fn (string $actor, string $tag): bool => in_array($tag, $this->followed, true));
 		$this->followedTagsRequest->method('save')
@@ -134,6 +137,7 @@ class TagControllerTest extends TestCase {
 			$this->clientService,
 			$this->hashtagService,
 			$this->followedTagsRequest,
+			$this->timelineRevisionService,
 		);
 	}
 

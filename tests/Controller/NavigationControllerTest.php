@@ -57,6 +57,7 @@ class NavigationControllerTest extends TestCase {
 	private $checkService;
 	private $sensitiveMediaService;
 	private $streamService;
+	private $filterService;
 	/** @var IGroupManager&MockObject */
 	private $groupManager;
 	private array $states = [];
@@ -75,6 +76,9 @@ class NavigationControllerTest extends TestCase {
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->checkService = $this->createMock(CheckService::class);
 		$this->streamService = $this->createMock(\OCA\Social\Service\StreamService::class);
+		$this->filterService = $this->createMock(\OCA\Social\Service\FilterService::class);
+		// what it does by default: hides nothing, hands each post back exported
+		$this->filterService->method('apply')->willReturnArgument(0);
 		$this->sensitiveMediaService = $this->createMock(\OCA\Social\Service\SensitiveMediaService::class);
 		$this->sensitiveMediaService->method('policyFor')->willReturn('default');
 		$this->sensitiveMediaService->method('choiceOf')->willReturn('');
@@ -113,6 +117,7 @@ class NavigationControllerTest extends TestCase {
 			$this->checkService,
 			$this->sensitiveMediaService,
 			$this->streamService,
+			$this->filterService,
 			$this->createMock(MiscService::class),
 			new NullLogger()
 		);
@@ -473,6 +478,33 @@ class NavigationControllerTest extends TestCase {
 		$this->controller()->navigate();
 
 		$this->assertSame($posts, $this->states['social']['firstPage'] ?? null);
+	}
+
+	/**
+	 * The one screenful handed to the page used to be the only place in the app
+	 * where a word the reader had muted came back — and the first thing they
+	 * saw. The API route filters the page it answers with; so does this.
+	 */
+	public function testTheSeededScreenfulIsFilteredTheWayTheApiFiltersIt(): void {
+		$this->systemValues([]);
+		$this->configuredCloud();
+		$this->existingActor();
+		$kept = ['id' => '2'];
+		$this->streamService->method('getTimeline')->willReturn([
+			$this->createMock(\OCA\Social\Model\ActivityPub\Stream::class),
+			$this->createMock(\OCA\Social\Model\ActivityPub\Stream::class),
+		]);
+
+		$filterService = $this->createMock(\OCA\Social\Service\FilterService::class);
+		$filterService->expects($this->once())
+			->method('apply')
+			->with($this->anything(), \OCA\Social\Model\Client\Filter::CONTEXT_HOME, $this->anything())
+			->willReturn([$kept]);
+		$this->filterService = $filterService;
+
+		$this->controller()->navigate();
+
+		$this->assertSame([$kept], $this->states['social']['firstPage'] ?? null);
 	}
 
 	/**

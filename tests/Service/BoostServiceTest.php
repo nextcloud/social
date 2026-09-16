@@ -24,6 +24,7 @@ use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
@@ -96,7 +97,8 @@ class BoostServiceTest extends TestCase {
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
 			$this->createMock(ReactionSummaryService::class),
-			$this->createMock(MediaTagsRequest::class)
+			$this->createMock(MediaTagsRequest::class),
+			$this->createMock(AccountService::class)
 		);
 
 		$this->service = new BoostService(

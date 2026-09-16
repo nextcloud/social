@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.23.0  
+**App version:** 0.24.0  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -278,7 +278,7 @@ The business logic lives in `lib/Service/`.
 - **PinService** — Pinned posts, and the `Add`/`Remove` that tell the fediverse about one. A pin is not an activity of its own on the wire: what travels names the actor's `featured` collection as its `target`. Without that pair a pin was visible only to a peer that re-read the collection, which nothing prompts it to do — so a pin appeared elsewhere late or never, and an unpin never at all. The row is stored first and a failure to federate is logged rather than raised: the profile here is right either way, and a pin is not worth failing a request over
 - **ReportForwardService** — Passes a local report on to the instance that hosts the reported account, as a `Flag`. Anonymised: the activity names this instance's `Application` actor and is signed with its key, so the receiving moderators see the server and not the person who filed it — which is the point, since that person is reporting an account on the instance being told. Delivered inline rather than through `social_req_queue`, because a queued delivery is signed by `HttpSignatureService::signDelivery()` from `oc_social_actor` by the queue row's author, and the instance actor is deliberately not a row there. One report is one POST with a 3-second timeout; a failure costs the forward and nothing else, and `social_report.forwarded` is set only when the remote inbox accepted it
 - **DomainPurgeService** — Removes what a blocked instance already sent: its cached accounts, their posts, the follows in both directions, the notifications they caused and the deliveries still queued towards them. A block on its own only ever stopped the *next* request. Bounded (50 accounts per step, every underlying delete already batched, no transaction held open), idempotent (each step asks what of the domain is still stored rather than counting off an offset, so an interrupted purge resumes and a repeat is free) and terminating (a step that deletes nothing stops rather than spins). Reuses `ModerationService::purgeActor()`, so a domain purge detaches exactly what a suspension detaches. What it deletes is gone — unblocking the domain lets the instance reach us again but restores nothing. Matches the exact host, not subdomains, even though `isListed()` widens a block to cover them: refusing traffic from one instance too many is undone by editing the list, and deleting one is not
-- **InboxLimiter** — Per-minute rate limits on the inbox routes, one spent before the signature is checked and one after; see [Security](#security)
+- **InboxLimiter** — Per-minute rate limits on the inbox routes, one spent before the signature is checked and one after, and the ceiling on how big a delivery may be (`readBody()`, 1 MiB); see [Security](#security)
 - **RequestQueueService** — Manages `social_req_queue`: creates entries, hands out the priority entry, and re-offers standby entries once they are due. The `floor(tries^4 / 3)` second backoff and the `MAX_TRIES` (16) give-up are applied by the query (`CoreRequestBuilder::limitToQueueDue()`), and exhausted rows are marked `STATUS_ABANDONED` (8) before the 200-row window is read — filtered in PHP afterwards, the rows of one dead instance permanently occupied that window and starved every other delivery. A delivered row is kept as `STATUS_SUCCESS` and an exhausted one as abandoned for `RETENTION_SECONDS` (seven days), then purged by `purgeFinished()` on every cron pass and by `occ social:stream:prune`; they used to be deleted the moment they finished, which made the queue a to-do list that could never say where a post had got to. Every row carries `object_id_prim`, the md5 of the id of the object inside the activity, read off the JSON in `objectIdPrimOf()` so that forwarded third-party bytes are keyed the same way; `DeliveryService` reads the rows of one object back for the author (`GET /api/v1/statuses/{nid}/delivery`). A row whose delivery fails in a way `ActivityService` does not handle itself — a corrupt signing key, the database going away — is logged and handed back to standby by the caller (`Cron\Queue` and `QueueController`), because it was marked `running` before the attempt: left that way it was never retried, never counted against `MAX_TRIES`, and took the rest of the 200-row batch with it
 - **StreamQueueService** — Manages `social_stream_queue`, the inbound side. Two queue types are implemented. `Cache`: for each Note a received stream references (a reply parent, a boosted post), it fetches that Note, caches its author, stores it, and embeds it in the referencing stream's cache — anything that is not a Note, or whose id does not match the URL it was fetched from, is rejected. `LinkPreview`: reads the page a post links to, once, and stores the card. Any other type is dropped. This side has the same 200-row batch cap and the same in-query backoff, give-up (`MAX_TRIES`, 10 here) and delete-on-success as the outbound queue; it used to keep one permanent row per activity ever cached and was never pruned
 - **CurlService** — Outbound HTTP for ActivityPub fetches, WebFinger and host-meta lookups, and the async self-call that drains a delivery token. The transport is the server's own client (`OCP\Http\Client\IClientService`), and a caller hands it a method, a URL and at most four options — `headers`, `body`, `timeout`, `json_headers` — which is what the client itself takes; nothing in between describes an HTTP request a second time. So the CA bundle, the proxy configuration and the local-address checks come from the server, and what stays here is federation-specific: the protocol fallback (an instance reachable over `http` only, via `doRequestOverUrls()`), the signed fetch and its one unsigned retry, the download size ceiling, and the mapping onto the app's request exceptions. A URL somebody else wrote — an ActivityPub id, a cached-media link, a previewed page — is requested exactly as it is written rather than taken apart and reassembled, which is also what makes the path a signature covers the path the request is sent to
@@ -387,7 +387,7 @@ The app never emits Add, Remove or Move. It can parse all three — `AP::getItem
 ### Incoming Flow
 
 1. A remote instance POSTs to `/@{username}/inbox` or the shared `/inbox`
-2. `InboxLimiter::assertAllowed()` spends the per-address bucket, before anything is read
+2. `InboxLimiter::assertAllowed()` spends the per-address bucket, before anything is read, and `readBody()` reads at most 1 MiB of body — refusing more with `413`
 3. `SignatureService::checkRequest()` checks the `date` header for freshness, that `content-length` matches the body, that `digest` matches the body, and then the HTTP signature. It returns the verified origin host, or throws — a request whose signature does not verify never reaches step 4
 4. `FediverseService::authorized()` is called with that origin, then `InboxLimiter::assertOriginAllowed()` spends that origin's own, looser bucket. The per-origin ceiling is spent here rather than at step 2 because before step 3 the origin is only what the sender wrote
 5. `ImportService::importFromJson()` parses the body into a typed object
@@ -690,6 +690,16 @@ no index can span. With `(actor_id, type, nid)` the page is a descending index
 range per followed collection, merged, stopping at the limit: **50 ms** against
 the same 1,661, and index-only. Thirty-three times.
 
+The rows it reads over are the ones the join matched, which is **every accepted
+follow row of the viewer's, whatever its type** — not only the ones of type
+`Follow`. The row that makes the difference is the **Loopback**, the self-follow
+every local actor is given, whose target is the account's own id: it is how a
+post addressed to the reader *by name* — a mention, a reply from somebody they
+do not follow — reaches their home timeline at all. Narrowing the set to
+`type = 'Follow'` dropped every one of them; the notification still arrived and
+the post was still readable at its own address, so what it looked like from
+outside was a timeline that paged straight past it.
+
 The guard on it is a **flag written by the migration**, not a question asked of
 the table. The obvious check — "is any nid still zero?" — has no index that can
 answer it and is a full scan of the largest table this app has, 427 ms on
@@ -700,7 +710,15 @@ seeding harness is for.
 The per-viewer filters — blocks, mutes, hidden boosts — are what forced the
 join, so they no longer ride in the page query. They are applied to the twenty
 rows it chose, where each is a lookup against twenty ids; the page is read three
-times wider than asked so that one which loses rows to a block still fills.
+times wider than asked so that one which loses rows to a block still fills. When
+that is not enough — a muted account that has just posted sixty times in a row,
+a blocked instance that dominates the window — the page **reads on** from below
+the oldest id it has already considered, up to four more windows. Empty is how
+both clients read "there is nothing more" (the web app sets `allLoaded` on a
+page of zero, and no `Link: rel="next"` is sent), so without it the timeline
+ended in the middle while older posts the reader can see sat further down. The
+bound is what keeps a reader who has muted everything they follow from turning
+one request into a walk of the table.
 
 A **media narrowing is the exception**, and the reason is worth keeping: it is a
 question about the *post*, and the page query reads only the recipient rows,
@@ -723,6 +741,21 @@ incremented atomically; the JSON is still what is read, with the columns
 overlaid on it where the row is parsed, and the counting still happens in the
 cron's walk, which is where drift is reconciled. `-1` means "never counted"
 rather than "none".
+
+The overlay is applied in **`Person::importFromDatabase()`**, where a row
+becomes an actor, rather than in either of the two query builders that parse one
+— one of them did it and did not select the columns, so the overlay had nothing
+to lay on and every profile showed whatever the last cron walk had written.
+
+**Each move has to obey the recount's own rule**, or the two disagree and the
+number visibly wobbles between cron passes. The recount counts *public*
+statuses, so `count_posts` moves only for a post that names the public
+collection (`Item::addressesPublic()`) — and moves **down** when one is deleted,
+which nothing did at all. `count_followers` is moved up by the Accept and down
+by the unfollow, whichever side it came from: a local `Undo` sent from here, or
+one that arrived in the inbox, in each case only when the follow it undoes had
+been accepted. The cron's walk is the safety net for what races through, not
+the thing that makes the number right.
 
 **The cron walks rather than reads.** `Cron\Cache` refreshed *every* local
 account on every pass — the whole table in one PHP array, twelve minutes apart,
@@ -777,6 +810,35 @@ for — so a poll that has not changed is answered `304`. Media carries the stor
 file's own tag, which matters because a timeline is forty to sixty pictures a
 screen and each was a full Nextcloud boot.
 
+The tag carries a second number: the reader's **timeline revision**
+(`TimelineRevisionService`), one integer per account in its user config. The
+newest id answers "has anything arrived"; everything else that decides what the
+page holds is a decision the reader made — following or unfollowing an account,
+blocking or muting one, adding a keyword filter, following a hashtag — and none
+of those moves an id. Without it, a reader who unfollows a noisy account is
+answered `304` on every poll and goes on seeing it until somebody else happens
+to post: the page they are looking at is the one they just asked to change. The
+number is incremented where those rows are written, so it moves whether the
+change came from the web app, a Mastodon client or the inbox. What it
+deliberately does not cover is somebody else deleting a post further down a page
+the reader already holds — making that reach every follower's tag is a write per
+follower, which is the fan-out this design exists to avoid, and the page is
+revalidated when anything else changes.
+
+The two json routes hand back a **`JSONResponse` rather than a `DataResponse`**,
+and that is what makes any of it work. A returned `DataResponse` is rebuilt by
+Nextcloud's default json responder, which merges the *fresh* response's headers
+over the controller's — and every response's defaults include `Cache-Control:
+no-cache, no-store, must-revalidate`. The header the route set was therefore
+replaced on the way out, and `no-store` forbids the browser to keep the body at
+all: it never sends `If-None-Match`, so the `304` was never asked for and the
+whole thing was decoration, as the wire showed — our `ETag` and Nextcloud's
+`no-store` side by side. The dispatcher rebuilds only a `DataResponse`, so a
+route that builds the `JSONResponse` itself reaches the wire as it is.
+`tests/Controller/PollCacheHeaderTest` pins both halves against the real
+framework class. The media routes were never affected: a `FileDisplayResponse`
+does not go through the responder.
+
 With `notify_push` installed the client is told instead of asking, and the poll
 interval drops from thirty seconds to five minutes; that is the single largest
 reduction available to an administrator and it is one app install.
@@ -785,7 +847,10 @@ The page also carries **the first screenful of the home timeline** in its
 initial state. Without it the first screen is a staircase: fetch the bundle,
 mount, and only then ask the server — a second round trip and a full boot before
 anything a person came to read is on screen. It is consumed once, and only by
-the list it was rendered for.
+the list it was rendered for. It goes through `FilterService::apply()` exactly
+as the API route's page does, which is both what keeps a muted word out of the
+one screenful nobody asked the server for and what makes the seeded page byte
+for byte what `/api/v1/timelines/home` would have answered.
 
 **A ladder of sizes** is `social_video_rendition`. A stored video used to be one
 file at whatever height it was uploaded at, so a reader on a phone on a train
@@ -2066,6 +2131,7 @@ a freshly imported account has none. No `Delete`, no `Move`, no `Like`, no
 - **HTTP Signatures on outbound requests** — every queued delivery is signed with the sending actor's RSA private key over `(request-target)`, `content-length`, `date`, `host` and `digest`. Outbound ActivityPub **GET**s are signed too, by `HttpSignatureService::signFetch()`, over `(request-target) host date` — there is no body to digest. Without this, any peer running Mastodon's authorized-fetch or GoToSocial's secure mode answers 401 to every actor, object and collection fetch, which reads as "user not found" when following and as threads that stop at the first remote reply. The signing identity is one fixed local actor rather than whoever is reading, so a remote instance is not told which of our accounts read which of its posts; a peer that rejects a signed GET is retried once unsigned, so nobody becomes less reachable than before. WebFinger, host-meta and NodeInfo stay unsigned
 - **HTTP Signature verification on inbound requests** — `SignatureService::checkRequest()` requires `(request-target)`, `host`, `date` and `digest` to all be within the signed header set, so the signature binds the body and cannot be replayed against another host; it rejects a missing, stale or future `date` (±`DATE_DELAY`, 300 s), a `content-length` that disagrees with the body *when the header is sent* (a chunked sender omits it, and refusing those outright cost interoperability for nothing), and a `digest` that does not match. `Digest` and `Content-Digest` are parsed rather than byte-compared, so a lowercase algorithm token, a multi-value digest or an RFC 9530 header is accepted as long as one algorithm we can compute matches. A signature algorithm that is neither `hs2019` nor absent is refused by name instead of being assumed to be sha256, which used to fail an Ed25519 key with a misleading message. When the signed `host` differs from the configured one — which fails every inbound delivery on a multi-domain or non-default-port install — the log now names both. A signature that does not verify, or whose key cannot be retrieved, is refused by `checkRequest()` itself (it throws), rather than returning an empty origin for a later check to catch
 - **Inbound inbox deliveries are rate-limited** — `InboxLimiter` caps deliveries in two places (`inbox_throttle` app setting, default 300 per minute, 0 disables). Before any signature work, `assertAllowed()` spends a bucket keyed on the **source address**, which is the one thing about an unauthenticated request the sender cannot choose. After the signature has been verified, `assertOriginAllowed()` spends a second, looser bucket (`HOST_LIMIT_FACTOR`, 4×) keyed on the **verified origin**, which bounds what one instance can send from however many addresses. The second bucket used to be spent up front on the host named in the sender's own unverified `keyId` — which meant four cheap addresses could fill a large instance's bucket every minute and have its genuine deliveries answered 429, cutting this server off from it. Only a peer that can sign for a host now spends that host's budget
+- **A delivery is bounded in size** — `InboxLimiter::readBody()` refuses a body over `MAX_BODY` (1 MiB) with `413`, by the declared `Content-Length` where there is one and by a bounded read where there is not. Both inboxes are public and unauthenticated, and the `Digest` is hashed over the body *before* the signature is verified — a signature over a body nobody has hashed proves nothing about the body — so until this the only ceiling was PHP's `post_max_size`, which a Nextcloud sets to hundreds of megabytes so that file uploads work. Anyone at all could hand every worker in the pool that much to allocate and SHA-256; the rate limit bounds requests, not bytes, and one request was enough to hold a worker for seconds. An activity is a few kilobytes, and a sender with more to say has `Collection` pages to say it in
 - **LD signatures are bounded in time and replay-checked** — `checkObject()` refuses a signature whose `created` lies more than `LD_WINDOW` (24 h) from now, and remembers accepted signatures in a distributed cache for twice the window, so a captured activity cannot be re-POSTed indefinitely by an instance that once saw it
 - **Linked Data Signatures** — outgoing Create, Update, Delete, Like, Announce and Undo carry an RsaSignature2017 signature; incoming ones are verified by `SignatureService::checkObject()`, which also retries against a refreshed public key. Follow and Accept are not LD-signed
 - **Instance access control** — `FediverseService::authorized()` is checked on both inbox routes and on every outgoing `CurlService` request. It reads one app config value, `access_type`, which is either `all_but` (the default: everything is allowed unless the host is in the list) or `none_but` (only listed hosts, plus the local host, are allowed), together with a single host list in `access_list`. Hosts are compared case-insensitively and without the trailing dot of the absolute form, and the two modes read the list differently on purpose: a deny-list entry covers the domain and everything under it (`isListed()`), because blocking `evil.test` while `www.evil.test` walks straight back in is not a block; an allow-list entry matches exactly (`isExactlyListed()`), because a subdomain of an allowed domain is a different instance and whoever runs the parent was never asked. `occ social:fediverse` manages both

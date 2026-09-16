@@ -19,6 +19,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\PayloadTooLargeException;
 use OCA\Social\Exceptions\RealTokenException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
@@ -301,7 +302,9 @@ class ActivityPubController extends Controller {
 		$origin = '';
 		try {
 			$this->inboxLimiter->assertAllowed($this->request);
-			$body = (string)file_get_contents('php://input');
+			// bounded: the digest below hashes whatever arrives, before
+			// anything about the sender is known — see InboxLimiter::readBody()
+			$body = $this->inboxLimiter->readBody($this->request);
 
 			$requestTime = 0;
 			$signer = '';
@@ -337,6 +340,10 @@ class ActivityPubController extends Controller {
 			return $this->success();
 		} catch (TooManyRequestsException $e) {
 			return new DataResponse(['error' => 'too many requests'], Http::STATUS_TOO_MANY_REQUESTS);
+		} catch (PayloadTooLargeException $e) {
+			return new DataResponse(
+				['error' => 'body too large'], Http::STATUS_REQUEST_ENTITY_TOO_LARGE
+			);
 		} catch (ItemUnknownException $e) {
 			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
@@ -362,7 +369,9 @@ class ActivityPubController extends Controller {
 		$origin = '';
 		try {
 			$this->inboxLimiter->assertAllowed($this->request);
-			$body = (string)file_get_contents('php://input');
+			// bounded: the digest below hashes whatever arrives, before
+			// anything about the sender is known — see InboxLimiter::readBody()
+			$body = $this->inboxLimiter->readBody($this->request);
 
 			$requestTime = 0;
 			$signer = '';
@@ -400,6 +409,10 @@ class ActivityPubController extends Controller {
 			return $this->success();
 		} catch (TooManyRequestsException $e) {
 			return new DataResponse(['error' => 'too many requests'], Http::STATUS_TOO_MANY_REQUESTS);
+		} catch (PayloadTooLargeException $e) {
+			return new DataResponse(
+				['error' => 'body too large'], Http::STATUS_REQUEST_ENTITY_TOO_LARGE
+			);
 		} catch (ItemUnknownException $e) {
 			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
