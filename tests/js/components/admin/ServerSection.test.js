@@ -76,6 +76,8 @@ describe('the server card', () => {
 			imageQuality: 85,
 			videoTranscode: false,
 			videoMaxHeight: 1080,
+			videoLadder: false,
+			videoLadderHeights: '360,720,1080',
 			inboxThrottle: 0,
 			secureMode: true,
 			publishBlocks: false,

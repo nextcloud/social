@@ -156,6 +156,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_relay` | The relays this instance subscribes to: one row per subscription, with the `Follow` it sent, the inbox to deliver to and whether the relay answered |
 | `social_channel` | The `Group` actors an account publishes videos under: one row per channel, binding it to the account that owns it |
 | `social_watch` | Where a reader stopped watching a video: one row per (post, viewer), never federated |
+| `social_video_rendition` | The rungs of a local video's ladder: one row per (video, height), each naming one fragmented MP4 and the playlist that addresses it |
 
 | `social_quote_grant` | The permissions this instance has given out to quote its posts: one row per (quoted post, quoting post), with the `QuoteRequest` it answered so the grant can be taken back |
 | `social_team` | The accounts a Nextcloud group posts from: one row per team account, bound to the group whose members may speak as it |
@@ -661,6 +662,56 @@ counted into anything, one row per (post, viewer) moved rather than appended. A
 video watched past 95% is **forgotten** rather than bookmarked at the credits,
 and one under ten seconds in was never really started — a "continue watching"
 row that offers back either is a row nobody presses twice.
+
+**A ladder of sizes** is `social_video_rendition`. A stored video used to be one
+file at whatever height it was uploaded at, so a reader on a phone on a train
+downloaded the 1080p of it or nothing; a ladder is the same video written two or
+three more times, smaller, plus a playlist that lets the player move between
+them as the connection changes. It is also the shape PeerTube publishes, so a
+laddered video reaches a PeerTube reader the way a native one does.
+
+A rung is **one row and one file**. HLS normally means a directory of a few
+hundred segments, which would be a few hundred rows and a few hundred objects in
+the store; `-hls_flags single_file` writes each rung as a single fragmented MP4
+and the playlist addresses each segment as a byte range into it, so a
+forty-minute video is three files rather than a thousand — which is, not by
+coincidence, exactly the shape PeerTube's own fMP4 output has. The playlist, a
+couple of kilobytes of text, is kept in the row beside it with the media
+filename replaced by a placeholder: the URI it has to carry is a route on this
+server, which is not known when ffmpeg writes the file and changes if the
+instance is moved.
+
+Three things it is careful about. **Keyframes are forced onto the segment
+boundary at every rung, with the same period** — without that ffmpeg cuts at the
+next keyframe it happens to find, the rungs end up with different boundaries,
+and a player switching between them stalls or skips. **It never upscales**: a
+rung at or above the source's height is dropped rather than encoded, because a
+480p video written out at 1080p is a bigger file of the same picture. **A
+half-built ladder is torn down rather than published**, since a master playlist
+advertising a rung whose file is missing is a player that stalls rather than one
+that picks another; nothing is ever *replaced*, so the failure mode of every
+step is "no ladder yet" and never "a video that 404s".
+
+Off unless an administrator turns it on (`video_ladder`, with
+`video_ladder_heights` for which sizes), because it is several ffmpeg encodes
+per video on somebody's server. `Cron\Ladder` does one video every half-hour —
+its own job rather than a step of `Cron\Transcode`, because a transcode is one
+encode and a ladder is three, and a job that did both would have an
+unpredictable cost per run with the transcoder waiting behind it. Ladders are
+built from `video/mp4` only: a `.mov` goes through the transcoder first, and on
+an instance with the transcoder off it gets no ladder, which is the honest
+answer — there is no ladder to build from a file this server has decided not to
+touch. A transcode voids whatever ladder was built from the old bytes, so
+`replaceVideo()` resets the flag and the job rebuilds it.
+
+It is served by uuid, never by row id: a ladder is the same video as the file,
+so it must be no easier to reach than the file, and a route keyed on a small
+integer would make a followers-only post's video findable by counting. Clients
+see it as `hls_url` on the attachment — not one of Mastodon's keys, so a client
+that does not know it plays `url`, which is the same video at one size — and
+PeerTube sees it as a streaming-playlist `Link` with a `Link` tag per rung,
+because PeerTube takes the resolutions from the tags rather than by fetching the
+playlist and a link with no tags is one it accepts and then has no files for.
 
 **Playlists** are collections. PeerTube's `Playlist` is an ordered set of a
 channel's videos with a title, a description and a visibility, which is what

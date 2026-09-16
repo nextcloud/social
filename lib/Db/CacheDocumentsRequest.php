@@ -493,6 +493,54 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * "tried and failed": a job that only recorded its successes would read
 	 * the same unconvertible file on every run for ever.
 	 */
+	/**
+	 * Local videos that have not been up the ladder yet.
+	 *
+	 * Narrowed the same way the transcoder's candidates are — bytes here, not
+	 * a streamed marker — and to `video/mp4`, because a ladder is built from
+	 * the format everything decodes and a `.mov` should go through the
+	 * transcoder first. On an instance with the transcoder off, that means a
+	 * non-MP4 upload never gets a ladder, which is the honest answer: there is
+	 * no ladder to build from a file this server has decided not to touch.
+	 *
+	 * @return Document[]
+	 */
+	public function getVideosToLadder(int $limit = 5, int $after = 0): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$alias = $qb->getDefaultSelectAlias();
+		$expr = $qb->expr();
+
+		$qb->andWhere($expr->eq($alias . '.media_type', $qb->createNamedParameter('video/mp4')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter('')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter(Document::COPY_STREAMED)));
+		$qb->andWhere($expr->orX(
+			$expr->eq($alias . '.laddered', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)),
+			$expr->isNull($alias . '.laddered')
+		));
+		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)));
+		$qb->orderBy($alias . '.nid', 'asc');
+		$qb->setMaxResults($limit);
+
+		$documents = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
+	/** Remembers that a video has been up the ladder, or will not be. */
+	public function setLaddered(int $nid, int $state): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_CACHE_DOCUMENTS)
+			->set('laddered', $qb->createNamedParameter($state, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
 	public function setTranscoded(int $nid, int $state): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_DOCUMENTS)
@@ -505,9 +553,10 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	/**
 	 * The converted file takes the place of the original.
 	 *
-	 * The three things that change together, in one statement: what the file
-	 * is, where it is, and how big the video now is. Apart they would be a
-	 * window in which a document said `video/quicktime` about an MP4.
+	 * The things that change together, in one statement: what the file is,
+	 * where it is, how big the video now is, and that whatever ladder was
+	 * built from the old bytes is void. Apart they would be a window in which
+	 * a document said `video/quicktime` about an MP4.
 	 */
 	public function replaceVideo(int $nid, string $localCopy, string $mediaType): void {
 		$qb = $this->getQueryBuilder();
@@ -516,6 +565,10 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			->set('media_type', $qb->createNamedParameter($mediaType))
 			->set('mime_type', $qb->createNamedParameter($mediaType))
 			->set('transcoded', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT))
+			// the bytes have changed, so any ladder built from them is of a
+			// video that no longer exists: back to nought, and the ladder job
+			// rebuilds it and throws the old rungs away as it goes
+			->set('laddered', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
 			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
 
 		$qb->executeStatement();

@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Db\RenditionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
@@ -26,6 +27,7 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\VideoRendition;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -51,9 +53,13 @@ class DocumentService {
 	 */
 	public const ERROR_CONTENT = 4;
 
+	/** A playlist is text and is read whole; this is the ceiling on that. */
+	private const MAX_PLAYLIST = 2 * 1024 * 1024;
+
 	public function __construct(
 		private IUrlGenerator $urlGenerator,
 		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private RenditionsRequest $renditionsRequest,
 		private ActorsRequest $actorRequest,
 		private StreamRequest $streamRequest,
 		private CacheDocumentService $cacheService,
@@ -373,9 +379,6 @@ class DocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	/** A playlist is text and is read whole; this is the ceiling on that. */
-	private const MAX_PLAYLIST = 2 * 1024 * 1024;
-
 	public function openStreamed(int $nid, string $range = ''): array {
 		if ($nid < 1) {
 			throw new NotFoundException('invalid document');
@@ -505,6 +508,82 @@ class DocumentService {
 		}
 
 		return implode("\n", $lines);
+	}
+
+	// --- a local video's own ladder ---------------------------------------
+
+	/**
+	 * The master playlist for a stored video, or null when it has no ladder.
+	 *
+	 * Addressed by uuid rather than by row id, exactly as `/media/{uuid}` is:
+	 * a ladder is the same bytes as the video, so it must be no easier to
+	 * reach than the video. A row id is a small integer and would be.
+	 *
+	 * @param callable(int): string $rungUrl what to call each rung in the
+	 *                                       master playlist, given its height
+	 *
+	 * @throws NotFoundException
+	 */
+	public function masterPlaylist(string $uuid, callable $rungUrl): ?string {
+		[, $document] = $this->getFromUuid($uuid);
+		$renditions = $this->renditionsRequest->forDocument($document->getNid());
+		if ($renditions === []) {
+			return null;
+		}
+
+		$lines = ['#EXTM3U', '#EXT-X-VERSION:7'];
+		foreach ($renditions as $rendition) {
+			$lines[] = $rendition->masterEntry($rungUrl($rendition->getHeight()));
+		}
+
+		return implode("\n", $lines) . "\n";
+	}
+
+	/**
+	 * One rung's playlist, with the URI of its media file filled in.
+	 *
+	 * @param callable(int): string $mediaUrl what to call the rung's own file
+	 *
+	 * @throws NotFoundException
+	 */
+	public function rungPlaylist(string $uuid, int $height, callable $mediaUrl): ?string {
+		[, $document] = $this->getFromUuid($uuid);
+		$rendition = $this->renditionsRequest->forHeight($document->getNid(), $height);
+
+		return ($rendition === null) ? null : $rendition->playlistFor($mediaUrl($height));
+	}
+
+	/**
+	 * One rung's fragmented MP4, open and ready to be served with a `Range`.
+	 *
+	 * @return array{0: ISimpleFile, 1: Document}|null
+	 *
+	 * @throws NotFoundException
+	 */
+	public function rungFile(string $uuid, int $height): ?array {
+		[, $document] = $this->getFromUuid($uuid);
+		$rendition = $this->renditionsRequest->forHeight($document->getNid(), $height);
+		if ($rendition === null || $rendition->getLocalCopy() === '') {
+			return null;
+		}
+
+		try {
+			return [$this->cacheService->getContentFromCache($rendition->getLocalCopy()), $document];
+		} catch (Exception $e) {
+			// the row says there is a rung and the store disagrees: a 404 for
+			// this rung, and the player falls back to another one
+			throw new NotFoundException('the rung is not there');
+		}
+	}
+
+	/**
+	 * The rungs of a stored video, for a client that wants to know there are
+	 * any before it loads a player that can use them.
+	 *
+	 * @return VideoRendition[]
+	 */
+	public function renditionsOf(int $nid): array {
+		return ($nid < 1) ? [] : $this->renditionsRequest->forDocument($nid);
 	}
 
 	/** A URI in a playlist, against the playlist's own address. */

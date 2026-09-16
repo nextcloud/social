@@ -64,6 +64,7 @@ class DocumentServiceTest extends TestCase {
 		$this->service = new DocumentService(
 			$this->urlGenerator,
 			$this->cacheDocumentsRequest,
+			$this->createMock(\OCA\Social\Db\RenditionsRequest::class),
 			$this->actorsRequest,
 			$this->streamRequest,
 			$this->cacheService,

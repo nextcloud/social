@@ -91,6 +91,7 @@ use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TranslationService;
+use OCA\Social\Service\VideoLadderService;
 use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Service\ViewCountService;
 use OCA\Social\Service\WatchService;
@@ -1960,6 +1961,132 @@ class ApiController extends Controller {
 			$this->logger->warning('issues while mediaPlaylist', ['exception' => $e]);
 
 			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
+		}
+	}
+
+	// --- a local video's own ladder ---------------------------------------
+
+	/**
+	 * The master playlist of a stored video: which sizes it exists at.
+	 *
+	 * Addressed by uuid, the same handle `/media/{uuid}` takes, because it
+	 * leads to the same video. A route keyed on a row id would make a ladder
+	 * easier to find than the file it was built from, which would be a way of
+	 * reading a followers-only post's video by counting.
+	 *
+	 * 404 rather than an empty playlist when there is no ladder: a player that
+	 * is handed a master with no rungs in it reports a broken video, where one
+	 * that gets a 404 falls back to the plain file, which is what should
+	 * happen.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}')]
+	public function mediaLadder(string $uuid): Response {
+		try {
+			$master = $this->documentService->masterPlaylist(
+				$uuid,
+				fn (int $height): string => $this->urlGenerator->linkToRouteAbsolute(
+					'social.Api.mediaLadderRung', ['uuid' => $uuid, 'height' => $height]
+				)
+			);
+
+			if ($master === null) {
+				return new DataResponse(['error' => 'no ladder'], Http::STATUS_NOT_FOUND);
+			}
+
+			return new DataDisplayResponse($master, Http::STATUS_OK, [
+				'Content-Type' => VideoLadderService::PLAYLIST_TYPE,
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				'X-Content-Type-Options' => 'nosniff',
+			]);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaLadder', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * One rung's playlist: where each segment is inside that rung's file.
+	 *
+	 * The stored playlist keeps a placeholder where the media URI goes, and it
+	 * is filled in here — the address is a route on this server, which is not
+	 * known when ffmpeg writes the file and changes if the instance moves.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 120, period: 60)]
+	#[UserRateLimit(limit: 600, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/{height}')]
+	public function mediaLadderRung(string $uuid, int $height): Response {
+		try {
+			$playlist = $this->documentService->rungPlaylist(
+				$uuid,
+				$height,
+				fn (int $rung): string => $this->urlGenerator->linkToRouteAbsolute(
+					'social.Api.mediaLadderFile', ['uuid' => $uuid, 'height' => $rung]
+				)
+			);
+
+			if ($playlist === null) {
+				return new DataResponse(['error' => 'no such rung'], Http::STATUS_NOT_FOUND);
+			}
+
+			return new DataDisplayResponse($playlist, Http::STATUS_OK, [
+				'Content-Type' => VideoLadderService::PLAYLIST_TYPE,
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				'X-Content-Type-Options' => 'nosniff',
+			]);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaLadderRung', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * One rung's file: the whole fragmented MP4, served with ranges.
+	 *
+	 * Every segment of a rung is a byte range into this one file, so a player
+	 * watching a ten-minute video asks this route a few hundred times with a
+	 * different `Range` each time. That is what `RangedFileResponse` is for,
+	 * and why the limits here are the generous ones.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 600, period: 60)]
+	#[UserRateLimit(limit: 3000, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/{height}/file')]
+	public function mediaLadderFile(string $uuid, int $height): Response {
+		try {
+			$rung = $this->documentService->rungFile($uuid, $height);
+			if ($rung === null) {
+				return new DataResponse(['error' => 'no such rung'], Http::STATUS_NOT_FOUND);
+			}
+
+			[$file, $document] = $rung;
+			$response = new RangedFileResponse(
+				$file, VideoLadderService::RENDITION_TYPE, $this->request->getHeader('Range')
+			);
+			// the same terms the video itself is served on: for ever in the
+			// reader's own cache, and in a shared one only when the post it
+			// hangs off is public
+			$response->cacheFor(self::MEDIA_CACHE_SECONDS, $document->isPublic(), true);
+
+			return $response;
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaLadderFile', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 	}
 

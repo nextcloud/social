@@ -50,6 +50,8 @@ class ServerSettingsController extends Controller {
 	 * @param int $imageQuality what a re-encoded picture is stored at, when the above is set
 	 * @param bool $videoTranscode re-encode stored videos to H.264 MP4 in the background
 	 * @param int $videoMaxHeight the tallest a converted video is written
+	 * @param bool $videoLadder also write each video at a ladder of smaller sizes, as HLS
+	 * @param string $videoLadderHeights which sizes, comma-separated
 	 * @param int $inboxThrottle inbox requests per origin host per minute; 0 disables
 	 * @param bool $secureMode refuse ActivityPub fetches that are not signed
 	 * @param bool $publishBlocks publish the domain deny list on the instance API
@@ -65,6 +67,8 @@ class ServerSettingsController extends Controller {
 		int $imageQuality = 85,
 		bool $videoTranscode = false,
 		int $videoMaxHeight = 1080,
+		bool $videoLadder = false,
+		string $videoLadderHeights = '360,720,1080',
 		int $inboxThrottle = 300,
 		bool $secureMode = false,
 		bool $publishBlocks = false,
@@ -80,6 +84,8 @@ class ServerSettingsController extends Controller {
 				$imageQuality,
 				$videoTranscode,
 				$videoMaxHeight,
+				$videoLadder,
+				$videoLadderHeights,
 				$inboxThrottle,
 				$secureMode,
 				$publishBlocks,

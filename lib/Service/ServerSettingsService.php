@@ -56,6 +56,8 @@ class ServerSettingsService {
 		ConfigService::SOCIAL_IMAGE_QUALITY,
 		ConfigService::SOCIAL_VIDEO_TRANSCODE,
 		ConfigService::SOCIAL_VIDEO_MAX_HEIGHT,
+		ConfigService::SOCIAL_VIDEO_LADDER,
+		ConfigService::SOCIAL_VIDEO_LADDER_HEIGHTS,
 		ConfigService::SOCIAL_INBOX_THROTTLE,
 		ConfigService::SOCIAL_SECURE_MODE,
 		ConfigService::SOCIAL_PUBLISH_BLOCKS,
@@ -83,6 +85,8 @@ class ServerSettingsService {
 	 *     image_quality: int,
 	 *     video_transcode: bool,
 	 *     video_max_height: int,
+	 *     video_ladder: bool,
+	 *     video_ladder_heights: string,
 	 *     inbox_throttle: int,
 	 *     secure_mode: bool,
 	 *     publish_blocks: bool,
@@ -105,6 +109,10 @@ class ServerSettingsService {
 				=> $this->configService->getAppValueBool(ConfigService::SOCIAL_VIDEO_TRANSCODE),
 			ConfigService::SOCIAL_VIDEO_MAX_HEIGHT
 				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_VIDEO_MAX_HEIGHT),
+			ConfigService::SOCIAL_VIDEO_LADDER
+				=> $this->configService->getAppValueBool(ConfigService::SOCIAL_VIDEO_LADDER),
+			ConfigService::SOCIAL_VIDEO_LADDER_HEIGHTS
+				=> (string)$this->configService->getAppValue(ConfigService::SOCIAL_VIDEO_LADDER_HEIGHTS),
 			ConfigService::SOCIAL_INBOX_THROTTLE
 				=> $this->configService->getAppValueInt(ConfigService::SOCIAL_INBOX_THROTTLE),
 			// the two switches other code reads as `=== '1'`, and the one it
@@ -139,6 +147,8 @@ class ServerSettingsService {
 		int $imageQuality,
 		bool $videoTranscode,
 		int $videoMaxHeight,
+		bool $videoLadder,
+		string $videoLadderHeights,
 		int $inboxThrottle,
 		bool $secureMode,
 		bool $publishBlocks,
@@ -188,6 +198,28 @@ class ServerSettingsService {
 			);
 		}
 
+		// Cleaned rather than refused, because what an administrator types
+		// here is a list and the mistakes are commas: an entry that is not a
+		// height in range is dropped, and a list with nothing usable left in
+		// it is the one thing worth refusing, since silently falling back to
+		// the default would be a page that says one thing and a server that
+		// does another.
+		$heights = [];
+		foreach (explode(',', $videoLadderHeights) as $part) {
+			$height = (int)trim($part);
+			if ($height >= VideoLadderService::MIN_HEIGHT && $height <= VideoLadderService::MAX_HEIGHT) {
+				$heights[] = $height;
+			}
+		}
+		$heights = array_values(array_unique($heights));
+		sort($heights);
+		if ($heights === []) {
+			throw new InvalidArgumentException(
+				'video_ladder_heights must be a comma-separated list of heights between '
+				. VideoLadderService::MIN_HEIGHT . ' and ' . VideoLadderService::MAX_HEIGHT
+			);
+		}
+
 		if ($inboxThrottle < 0 || $inboxThrottle > self::MAX_INBOX_THROTTLE) {
 			throw new InvalidArgumentException(
 				'inbox_throttle must be between 0 and ' . self::MAX_INBOX_THROTTLE
@@ -204,6 +236,10 @@ class ServerSettingsService {
 			ConfigService::SOCIAL_VIDEO_TRANSCODE, $videoTranscode ? '1' : '0'
 		);
 		$this->configService->setAppValue(ConfigService::SOCIAL_VIDEO_MAX_HEIGHT, (string)$videoMaxHeight);
+		$this->configService->setAppValue(ConfigService::SOCIAL_VIDEO_LADDER, $videoLadder ? '1' : '0');
+		$this->configService->setAppValue(
+			ConfigService::SOCIAL_VIDEO_LADDER_HEIGHTS, implode(',', $heights)
+		);
 		$this->configService->setAppValue(ConfigService::SOCIAL_INBOX_THROTTLE, (string)$inboxThrottle);
 		// written as the literal `1`/`0`: AuthorizedFetchService and the
 		// domain-blocks route compare against '1', not against "truthy"

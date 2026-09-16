@@ -238,6 +238,70 @@ describe('MediaAttachment', () => {
 		expect(context.putImageData).not.toHaveBeenCalled()
 	})
 
+	// a local video's ladder: an addition to a file that already plays, which
+	// is why every path through it keeps the file
+
+	const laddered = {
+		id: '11',
+		type: 'video',
+		media_type: 'video/mp4',
+		url: 'https://cloud.example.org/media/movie.mp4',
+		hls_url: 'https://cloud.example.org/media/hls/stored-uuid',
+		preview_url: 'https://cloud.example.org/media/poster.jpg',
+		description: '',
+		blurhash: '',
+	}
+
+	/**
+	 * The plain file is what plays while hls.js is being fetched, what plays
+	 * if the ladder cannot be loaded, and what plays in a browser with no HLS
+	 * at all — so it is on the element from the first frame.
+	 */
+	it('keeps the plain file as the src of a laddered video', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: laddered, interactive: true } })
+
+		expect(wrapper.find('video').attributes('src')).toBe('https://cloud.example.org/media/movie.mp4')
+	})
+
+	/**
+	 * A remote HLS video is a playlist and nothing else, so its `src` has to
+	 * be empty and hls.js hands the element its own.
+	 */
+	it('gives a remote playlist no src of its own', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: {
+					id: '12',
+					type: 'video',
+					media_type: 'application/x-mpegURL',
+					url: 'https://cloud.example.org/apps/social/media/playlist/4',
+					preview_url: 'https://cloud.example.org/media/poster.jpg',
+					description: '',
+					blurhash: '',
+				},
+				interactive: true,
+			},
+		})
+
+		expect(wrapper.find('video').attributes('src')).toBeUndefined()
+	})
+
+	/** A video with no ladder has nothing extra to load. */
+	it('offers no ladder for a video the server has not laddered', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { ...laddered, hls_url: null }, interactive: true },
+		})
+
+		expect(wrapper.vm.ladderSource).toBe('')
+	})
+
+	/** A thumbnail in a timeline must not start fetching an adaptive stream. */
+	it('loads no ladder for an attachment that is not interactive', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: laddered } })
+
+		expect(wrapper.vm.hls).toBe(null)
+	})
+
 	it('emits click so a parent can open the viewer', async () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment } })
 		await wrapper.find('.attachment').trigger('click')

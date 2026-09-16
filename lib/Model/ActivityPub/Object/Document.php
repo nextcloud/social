@@ -64,6 +64,14 @@ class Document extends ACore implements JsonSerializable {
 	private string $parentId = '';
 	/** how many bytes the stored file is; 0 for one nothing measured */
 	private int $sizeBytes = 0;
+
+	/**
+	 * Whether this video has been written at a ladder of smaller sizes: the
+	 * four states of `social_cache_doc.laddered`. Carried so that serving an
+	 * attachment can say there is an adaptive playlist without a second query
+	 * per attachment.
+	 */
+	private int $laddered = 0;
 	private array $localCopySize = [0, 0];
 	private array $resizedCopySize = [0, 0];
 
@@ -399,6 +407,7 @@ class Document extends ACore implements JsonSerializable {
 		$this->setResizedCopy($this->get('resized_copy', $data, ''));
 		$this->setBlurHash($this->get('blurhash', $data, ''));
 		$this->setSizeBytes($this->getInt('size', $data, 0));
+		$this->setLaddered($this->getInt('laddered', $data, 0));
 		$this->setDescription($this->get('description', $data, ''));
 		$this->setMediaType($this->get('media_type', $data, ''));
 		$this->setMimeType($this->get('mime_type', $data, ''));
@@ -505,6 +514,34 @@ class Document extends ACore implements JsonSerializable {
 		);
 	}
 
+	public function getLaddered(): int {
+		return $this->laddered;
+	}
+
+	public function setLaddered(int $laddered): self {
+		$this->laddered = $laddered;
+
+		return $this;
+	}
+
+	/** Whether there is a ladder to offer a player. */
+	public function hasLadder(): bool {
+		return $this->laddered === 1 && $this->getLocalCopy() !== '';
+	}
+
+	/**
+	 * The master playlist of this video's ladder.
+	 *
+	 * By uuid, like `getMediaUrl()` and for the same reason: a ladder is the
+	 * same video, so it must be no easier to reach than the video.
+	 */
+	public function ladderUrl(IURLGenerator $urlGenerator): string {
+		return $urlGenerator->linkToRouteAbsolute(
+			'social.Api.mediaLadder',
+			['uuid' => $this->getLocalCopy()]
+		);
+	}
+
 	public function getResizedMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
 		$ext = '';
 		if ($mime !== '') {
@@ -557,6 +594,9 @@ class Document extends ACore implements JsonSerializable {
 				$media->setUrl($this->streamUrl($urlGenerator));
 			} else {
 				$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
+				if ($this->hasLadder()) {
+					$media->setHlsUrl($this->ladderUrl($urlGenerator));
+				}
 				// a file has no preview of itself; handing the file back as
 				// one would have a client try to draw a PDF as a picture
 				if ($media->getType() !== 'unknown') {

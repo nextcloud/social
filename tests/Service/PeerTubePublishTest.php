@@ -116,6 +116,97 @@ class PeerTubePublishTest extends TestCase {
 		$this->assertNull(PeerTubeService::soleVideo([]));
 	}
 
+	// the ladder
+
+	/** A rung as `Note::rungsOf()` builds one. */
+	private static function rung(int $height, int $size): array {
+		return [
+			'height' => $height,
+			'size' => $size,
+			'bandwidth' => $size * 8 / 100,
+			'href' => 'https://cloud.example.org/media/hls/stored-uuid/' . $height . '/file',
+		];
+	}
+
+	private function laddered(): MediaAttachment {
+		return $this->attachment()->setHlsUrl('https://cloud.example.org/media/hls/stored-uuid');
+	}
+
+	/**
+	 * PeerTube reads `application/x-mpegURL` as "this is HLS" and takes the
+	 * resolutions from the `Link` tags rather than by fetching the playlist,
+	 * so a link with no tags is one it accepts and then has no files for.
+	 */
+	public function testALadderIsPublishedAsAStreamingPlaylistWithARungPerTag(): void {
+		$video = PeerTubeService::asVideo(
+			$this->note(), $this->laddered(), self::WATCH, self::attribution(), 0, [],
+			[self::rung(360, 500_000), self::rung(720, 2_600_000)]
+		);
+
+		$playlists = array_values(array_filter(
+			$video['url'],
+			static fn (array $link): bool => ($link['mediaType'] ?? '') === 'application/x-mpegURL'
+		));
+
+		$this->assertCount(1, $playlists);
+		$this->assertSame('https://cloud.example.org/media/hls/stored-uuid', $playlists[0]['href']);
+		$this->assertCount(2, $playlists[0]['tag']);
+		$this->assertSame(
+			[360, 720],
+			array_column($playlists[0]['tag'], 'height')
+		);
+		// every tag is a file link in the shape `isRemoteVideoUrlValid()`
+		// accepts: a real type, a height and a size
+		foreach ($playlists[0]['tag'] as $tag) {
+			$this->assertSame('video/mp4', $tag['mediaType']);
+			$this->assertGreaterThan(0, $tag['size']);
+		}
+	}
+
+	/**
+	 * The plain file is always there beside it: a reader with no HLS plays
+	 * that, which is the same video at one size.
+	 */
+	public function testTheWholeFileIsStillOfferedBesideTheLadder(): void {
+		$video = PeerTubeService::asVideo(
+			$this->note(), $this->laddered(), self::WATCH, self::attribution(), 0, [],
+			[self::rung(360, 500_000)]
+		);
+
+		$files = array_values(array_filter(
+			$video['url'],
+			static fn (array $link): bool => ($link['mediaType'] ?? '') === 'video/mp4'
+		));
+
+		$this->assertCount(1, $files);
+		$this->assertSame('https://cloud.example.org/media/movie.mp4', $files[0]['href']);
+	}
+
+	/** A video with no ladder publishes no playlist rather than an empty one. */
+	public function testAVideoWithNoLadderPublishesNoPlaylist(): void {
+		$video = PeerTubeService::asVideo(
+			$this->note(), $this->attachment(), self::WATCH, self::attribution()
+		);
+
+		foreach ($video['url'] as $link) {
+			$this->assertNotSame('application/x-mpegURL', $link['mediaType'] ?? '');
+		}
+	}
+
+	/**
+	 * A master url with nothing under it would be a playlist PeerTube takes
+	 * and then has no files for.
+	 */
+	public function testAMasterWithNoRungsIsNotPublished(): void {
+		$video = PeerTubeService::asVideo(
+			$this->note(), $this->laddered(), self::WATCH, self::attribution(), 0, [], []
+		);
+
+		foreach ($video['url'] as $link) {
+			$this->assertNotSame('application/x-mpegURL', $link['mediaType'] ?? '');
+		}
+	}
+
 	// the shape
 
 	public function testTheObjectBecomesAVideoCarryingItsRunningTime(): void {

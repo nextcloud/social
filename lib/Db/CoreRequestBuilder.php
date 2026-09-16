@@ -81,6 +81,7 @@ class CoreRequestBuilder {
 	public const TABLE_QUOTE_GRANTS = 'social_quote_grant';
 	public const TABLE_CHANNELS = 'social_channel';
 	public const TABLE_WATCH = 'social_watch';
+	public const TABLE_RENDITIONS = 'social_video_rendition';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -191,6 +192,7 @@ class CoreRequestBuilder {
 			'public',
 			'error',
 			'transcoded',
+			'laddered',
 			'creation',
 			'caching'
 		],
@@ -386,6 +388,16 @@ class CoreRequestBuilder {
 			'position',
 			'duration',
 			'last_update'
+		],
+		self::TABLE_RENDITIONS => [
+			'id',
+			'doc_nid',
+			'height',
+			'bandwidth',
+			'size',
+			'local_copy',
+			'playlist',
+			'creation'
 		],
 		self::TABLE_CHANNELS => [
 			'id',

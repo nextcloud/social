@@ -181,8 +181,29 @@ export default {
 		},
 
 		/**
+		 * The master playlist of a *local* video's ladder, where there is one.
+		 *
+		 * Different from `isPlaylist` in the one way that matters: there is a
+		 * plain file beside it. A remote HLS video is a playlist and nothing
+		 * else, so failing to load it is failing to play the video; a ladder is
+		 * an addition to a file that plays perfectly well on its own, which is
+		 * why this one falls back rather than giving up.
+		 *
+		 * @return {string}
+		 */
+		ladderSource() {
+			return (!this.isPlaylist && this.attachment?.type === 'video')
+				? (this.attachment?.hls_url || '')
+				: ''
+		},
+
+		/**
 		 * The `src` the element itself carries — empty for a playlist, which is
 		 * handed to the element by hls.js instead.
+		 *
+		 * A laddered video keeps its plain `src`: it is what plays while the
+		 * library is being fetched, what plays if the ladder cannot be loaded,
+		 * and what plays in a browser with no HLS at all.
 		 *
 		 * @return {string|undefined}
 		 */
@@ -335,18 +356,27 @@ export default {
 		async attachPlaylist() {
 			this.detachPlaylist()
 
-			if (!this.interactive || !this.isPlaylist) {
+			if (!this.interactive) {
 				return
 			}
 
 			const element = this.$refs.video
-			const source = this.attachment.url
+			// a remote video that is nothing but a playlist, or a local one
+			// that has a ladder beside its file
+			const source = this.isPlaylist ? this.attachment.url : this.ladderSource
 			if (!element || !source) {
 				return
 			}
 
+			// Safari opens a playlist itself, and for a remote one that is the
+			// whole answer. A ladder is left to the plain file there instead:
+			// pointing the element at the master would throw away the fallback
+			// for an adaptive stream of the same video, which is not a trade
+			// worth making when the file is already playing.
 			if (element.canPlayType('application/vnd.apple.mpegurl')) {
-				element.src = source
+				if (this.isPlaylist) {
+					element.src = source
+				}
 
 				return
 			}
@@ -364,9 +394,25 @@ export default {
 					return
 				}
 
-				this.hls = new Hls({ enableWorker: false })
-				this.hls.loadSource(source)
-				this.hls.attachMedia(element)
+				const hls = new Hls({ enableWorker: false })
+				this.hls = hls
+
+				// A ladder that cannot be loaded must not be the reason a video
+				// stops playing: there is a whole file behind it, and going back
+				// to it is better than a player that stops. A remote playlist
+				// has nothing to fall back to, so it is left to report itself.
+				if (!this.isPlaylist) {
+					hls.on(Hls.Events.ERROR, (event, data) => {
+						if (data?.fatal) {
+							logger.debug('falling back to the plain file', { data })
+							this.detachPlaylist()
+							element.src = this.attachment.url
+						}
+					})
+				}
+
+				hls.loadSource(source)
+				hls.attachMedia(element)
 			} catch (error) {
 				logger.error('could not start an HLS video', { error })
 			}

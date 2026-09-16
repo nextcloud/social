@@ -78,6 +78,21 @@
 				:label="t('social', 'Shrink videos to (pixels tall)')"
 				:helperText="t('social', 'Only smaller, never larger: a 480p video is left at 480p.')" />
 
+			<!-- the same video at two or three sizes, so a reader on a phone
+			     on a train is not downloading the 1080p of it or nothing -->
+			<NcCheckboxRadioSwitch v-model="form.videoLadder" type="switch">
+				{{ t('social', 'Build a ladder of video sizes') }}
+			</NcCheckboxRadioSwitch>
+			<p class="server__hint">
+				{{ t('social', 'Off by default, because it is several encodes per video on this server. On, a background job writes each stored MP4 at a ladder of smaller sizes as HLS, and a player picks the one that fits the connection — which is also the shape PeerTube publishes, so a video from here reaches a PeerTube reader the way a native one does. The original is kept and is what a player without HLS falls back to. Needs ffmpeg and ffprobe; nothing happens without them.') }}
+			</p>
+			<NcTextField
+				v-if="form.videoLadder"
+				v-model="form.videoLadderHeights"
+				class="server__field"
+				:label="t('social', 'Sizes to write (pixels tall, comma-separated)')"
+				:helperText="t('social', 'Sizes at or above a video\'s own height are skipped rather than enlarged.')" />
+
 			<NcTextField
 				v-model="form.inboxThrottle"
 				class="server__field"
@@ -176,6 +191,8 @@ export default {
 				imageQuality: String(this.settings.image_quality ?? 85),
 				videoTranscode: this.settings.video_transcode === true,
 				videoMaxHeight: String(this.settings.video_max_height ?? 1080),
+				videoLadder: this.settings.video_ladder === true,
+				videoLadderHeights: String(this.settings.video_ladder_heights ?? '360,720,1080'),
 				inboxThrottle: String(this.settings.inbox_throttle ?? 300),
 				secureMode: this.settings.secure_mode === true,
 				publishBlocks: this.settings.publish_blocks === true,
@@ -218,6 +235,8 @@ export default {
 					imageQuality: parseInt(this.form.imageQuality, 10),
 					videoTranscode: this.form.videoTranscode,
 					videoMaxHeight: parseInt(this.form.videoMaxHeight, 10),
+					videoLadder: this.form.videoLadder,
+					videoLadderHeights: this.form.videoLadderHeights.trim(),
 					inboxThrottle: parseInt(this.form.inboxThrottle, 10),
 					secureMode: this.form.secureMode,
 					publishBlocks: this.form.publishBlocks,

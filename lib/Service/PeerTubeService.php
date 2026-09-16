@@ -750,6 +750,8 @@ class PeerTubeService {
 	 * and trading Mastodon for it.
 	 *
 	 * @param array $note the note as it would otherwise have been published
+	 * @param array<array{height: int, size: int, bandwidth: int, href: string}> $rungs
+	 *                                                                                  the sizes this video also exists at, where it has been laddered
 	 */
 	public static function asVideo(
 		array $note,
@@ -758,6 +760,7 @@ class PeerTubeService {
 		array $attributedTo,
 		int $views = 0,
 		array $stated = [],
+		array $rungs = [],
 	): ?array {
 		$meta = $video->getMeta();
 		$duration = (int)round((float)($meta?->getDuration() ?? 0));
@@ -818,7 +821,7 @@ class PeerTubeService {
 			$note['mediaType'] = 'text/html';
 		}
 
-		$note['url'] = self::urlsFor($video, $watchUrl);
+		$note['url'] = self::urlsFor($video, $watchUrl, $rungs);
 
 		// PeerTube states it on every video and its clients read it; this app
 		// has replies on every post and no way to turn them off
@@ -907,12 +910,15 @@ class PeerTubeService {
 	 * `url` as PeerTube writes it: the page a person watches on, then the file
 	 * a player opens.
 	 *
-	 * One rendition, because this app does not transcode -- the file is
-	 * whatever was uploaded. That is a shorter list than a PeerTube publishes
-	 * and the same shape, which is what matters: a reader takes the best
-	 * playable link it finds, and here there is one.
+	 * The file link is always there: whatever was uploaded, at one size, which
+	 * is what a reader with no HLS falls back to. Where the video has been
+	 * laddered there is a streaming playlist beside it, in the shape PeerTube
+	 * publishes its own — the master's address, and a `Link` tag per rung so a
+	 * peer knows what it is being offered without fetching the playlist first.
+	 *
+	 * @param array<array{height: int, size: int, bandwidth: int, href: string}> $rungs
 	 */
-	private static function urlsFor(MediaAttachment $video, string $watchUrl): array {
+	private static function urlsFor(MediaAttachment $video, string $watchUrl, array $rungs = []): array {
 		$urls = [];
 
 		if ($watchUrl !== '') {
@@ -950,7 +956,59 @@ class PeerTubeService {
 
 		$urls[] = $link;
 
+		$playlist = self::playlistFor($video, $rungs);
+		if ($playlist !== null) {
+			$urls[] = $playlist;
+		}
+
 		return $urls;
+	}
+
+	/**
+	 * The ladder as PeerTube's streaming-playlist link.
+	 *
+	 * PeerTube reads `mediaType: application/x-mpegURL` as "this is HLS" and
+	 * takes the resolutions from the `Link` tags underneath rather than by
+	 * fetching the playlist, so a link with no tags is one it accepts and then
+	 * has no files for. No `Infohash` tag: those are BitTorrent info hashes for
+	 * PeerTube's WebTorrent transport, which this app does not have and must
+	 * not invent.
+	 *
+	 * @param array<array{height: int, size: int, bandwidth: int, href: string}> $rungs
+	 */
+	private static function playlistFor(MediaAttachment $video, array $rungs): ?array {
+		$master = $video->getHlsUrl();
+		if ($master === '' || $rungs === []) {
+			return null;
+		}
+
+		$tags = [];
+		foreach ($rungs as $rung) {
+			if (($rung['href'] ?? '') === '' || ($rung['height'] ?? 0) < 1) {
+				continue;
+			}
+
+			$tags[] = [
+				'type' => 'Link',
+				// a rung is one fragmented MP4 whose segments are byte ranges
+				// into it, which is a `video/mp4` to anything that fetches it
+				'mediaType' => 'video/mp4',
+				'href' => $rung['href'],
+				'height' => (int)$rung['height'],
+				'size' => (int)($rung['size'] ?? 0),
+			];
+		}
+
+		if ($tags === []) {
+			return null;
+		}
+
+		return [
+			'type' => 'Link',
+			'mediaType' => 'application/x-mpegURL',
+			'href' => $master,
+			'tag' => $tags,
+		];
 	}
 
 	/**
