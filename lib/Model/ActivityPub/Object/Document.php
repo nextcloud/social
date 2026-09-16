@@ -62,6 +62,8 @@ class Document extends ACore implements JsonSerializable {
 	private bool $public = false;
 	private int $error = 0;
 	private string $parentId = '';
+	/** how many bytes the stored file is; 0 for one nothing measured */
+	private int $sizeBytes = 0;
 	private array $localCopySize = [0, 0];
 	private array $resizedCopySize = [0, 0];
 
@@ -206,6 +208,25 @@ class Document extends ACore implements JsonSerializable {
 	 */
 	public function setResizedCopy(string $resizedCopy): self {
 		$this->resizedCopy = $resizedCopy;
+
+		return $this;
+	}
+
+	/**
+	 * How many bytes the stored file is, or 0 where nothing measured it.
+	 *
+	 * Recorded rather than measured on demand: PeerTube wants `size` on every
+	 * video file link it is offered and drops a link without one, and a
+	 * filesystem lookup inside a serialisation is not a thing to do per
+	 * delivery. 0 for a streamed file, which has no bytes here at all, and for
+	 * anything stored before the column existed.
+	 */
+	public function getSizeBytes(): int {
+		return $this->sizeBytes;
+	}
+
+	public function setSizeBytes(int $sizeBytes): self {
+		$this->sizeBytes = max(0, $sizeBytes);
 
 		return $this;
 	}
@@ -377,6 +398,7 @@ class Document extends ACore implements JsonSerializable {
 		$this->setLocalCopy($this->get('local_copy', $data, ''));
 		$this->setResizedCopy($this->get('resized_copy', $data, ''));
 		$this->setBlurHash($this->get('blurhash', $data, ''));
+		$this->setSizeBytes($this->getInt('size', $data, 0));
 		$this->setDescription($this->get('description', $data, ''));
 		$this->setMediaType($this->get('media_type', $data, ''));
 		$this->setMimeType($this->get('mime_type', $data, ''));
@@ -520,6 +542,9 @@ class Document extends ACore implements JsonSerializable {
 		// the whole of it, not just the half the client entity shows: what
 		// goes back out as an ActivityPub Document has to state it
 		$media->setMediaType($this->getMediaType());
+		// carried for the wire alone: a PeerTube `Video` states the size of
+		// every file it offers, and drops a link that does not
+		$media->setSizeBytes($this->getSizeBytes());
 
 		if (!is_null($urlGenerator)) {
 			if ($this->isStreamed()) {

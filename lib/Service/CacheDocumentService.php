@@ -202,6 +202,10 @@ class CacheDocumentService {
 
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
+		// what the stored file weighs, recorded once here rather than measured
+		// on every serialisation: PeerTube drops a video link that carries no
+		// `size`, and the per-account quota asks the same question
+		$document->setSizeBytes(strlen($content));
 
 		if (str_starts_with((string)$mime, 'image/')) {
 			$this->resizeImage($document, $content);
@@ -338,6 +342,7 @@ class CacheDocumentService {
 		$document->setMimeType($mime);
 
 		$document->setLocalCopy($this->generateFileFromPath($tmpPath));
+		$document->setSizeBytes((int)filesize($tmpPath));
 
 		if (!str_starts_with($mime, 'video/')) {
 			return;

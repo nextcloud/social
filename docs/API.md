@@ -737,6 +737,16 @@ The Migration page's three buttons: take a copy of the account's Social data, pu
 | POST | `/api/v1/migration/aliases` | user | `alias` (required, an actor id) | Adds one. **This federates nothing**: it is a statement this server makes about an account it owns, and it is what the *old* server demands before it will accept a `Move` pointing here — so it is the person's own to make rather than an administrator's. Idempotent. An address that is not an actor id (a handle, a hostname, this account's own id, an actor on this server) is a **422** naming the reason. 30 an hour. |
 | DELETE | `/api/v1/migration/aliases` | user | `alias` (required) | Stops answering to it. Idempotent, and answers with the list as it now stands. 30 an hour. |
 
+### Channels
+
+The `Group` actor a video is published under. PeerTube resolves a video's channel by looking for a `Group` in its `attributedTo` and refuses the video with *"Cannot find associated video channel"* when there is none — so before these existed, every `Video` this app published was thrown away on arrival, silently and in PeerTube's log rather than ours. One is made for an account the first time it posts a video (`PostService::createPost()`), named after the account, so nobody has to learn the word; these routes are for the person who wants a second one or a better name on the first. **Session routes**, not client-API ones: making an actor here mints an address other servers will follow and cache, which is not something to hand to a third-party token.
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/channels` | user | — | Every channel this account has, oldest first: `{"channels": [{"id", "actor_id", "handle", "name", "description", "default"}]}`. |
+| POST | `/api/v1/channels` | user | `handle` (required), `name`, `description` | Makes one, with a `Group` actor of its own — its own key pair, inbox, outbox and followers, followable and moderatable like any other actor. The handle is an address on this instance and cannot be changed afterwards, which is why it is asked for separately from the name; one that is taken or is not a handle is a **422** naming the reason. At most 20 channels an account. 5 an hour. |
+| PUT | `/api/v1/channels/{id}` | user | `id`, `name`, `description` | Renames one, or changes what it says it is about — on the row and on the actor document both. Somebody else's channel is a **422**, the same answer an id that does not exist gets. 30 an hour. |
+
 The dangerous direction is deliberately not here. `Move` tells every server that knows you to follow somebody else instead, cannot be taken back, and stays `occ social:account:move`.
 
 ### Posts held for review

@@ -143,6 +143,23 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			return;
 		}
 
+		// A PeerTube channel announces its own video to its followers the
+		// moment it publishes it, so a followed channel arrived twice: once as
+		// the video, once as "the channel boosted the video". Narrow on
+		// purpose — only a video, and only where the announcer is the account
+		// the video is already attributed to — because somebody boosting their
+		// own *post* to resurface it is a thing people do on Mastodon and this
+		// must not swallow that.
+		if ($post !== null
+			&& ($post->getType() === 'Video' || $post->getSubType() === 'Video')
+			&& strcasecmp($post->getAttributedTo(), $item->getActorId()) === 0) {
+			$this->miscService->log(
+				'skipping a channel announcing its own video: ' . $item->getObjectId(), 1
+			);
+
+			return;
+		}
+
 		try {
 			$knownItem = $this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
 

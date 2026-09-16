@@ -255,9 +255,15 @@ class NoteTest extends TestCase {
 			->setMediaType('video/mp4')
 			->setUrl('https://cloud.example.org/media/movie.mp4')
 			->setPreviewUrl('https://cloud.example.org/media/poster.jpeg')
-			->setDescription('a cat');
+			->setDescription('a cat')
+			// PeerTube's validator makes the duration and the file's size
+			// mandatory, so a `Video` cannot be published without either
+			->setSizeBytes(4_194_304);
 
-		return $media;
+		$meta = new \OCA\Social\Model\Client\AttachmentMeta();
+		$meta->setDuration(113.0);
+
+		return $media->setMeta($meta);
 	}
 
 	private function localVideoPost(string $type = 'video'): Note {
@@ -272,11 +278,22 @@ class NoteTest extends TestCase {
 		return $note;
 	}
 
-	/** The setting is read only in the branch that could use it. */
-	private function publishVideoObjects(bool $enabled): void {
+	/**
+	 * The setting is read only in the branch that could use it, and so is the
+	 * channel: a `Video` without a `Group` in `attributedTo` is one PeerTube
+	 * refuses, so the publisher asks for one before it makes the shape.
+	 */
+	private function publishVideoObjects(bool $enabled, bool $hasChannel = true): void {
 		$config = $this->createMock(\OCA\Social\Service\ConfigService::class);
 		$config->method('getAppValueBool')->willReturn($enabled);
 		\OC::$server->register(\OCA\Social\Service\ConfigService::class, $config);
+
+		$channels = $this->createMock(\OCA\Social\Service\ChannelService::class);
+		$channels->method('attributionOf')->willReturn($hasChannel ? [
+			['type' => 'Group', 'id' => 'https://cloud.example.org/apps/social/@alice_channel'],
+			['type' => 'Person', 'id' => 'https://cloud.example.org/apps/social/@alice'],
+		] : []);
+		\OC::$server->register(\OCA\Social\Service\ChannelService::class, $channels);
 	}
 
 	public function testALocalVideoPostIsPublishedAsAVideo(): void {
@@ -287,8 +304,32 @@ class NoteTest extends TestCase {
 		$this->assertSame('Video', $published['type']);
 		$this->assertSame('The cat and the glass', $published['name']);
 		$this->assertIsArray($published['url']);
+		// the channel PeerTube will not take a video without, first in the
+		// list as PeerTube itself writes it
+		$this->assertSame('Group', $published['attributedTo'][0]['type']);
+		// and the fields its validator reads before anything else
+		$this->assertMatchesRegularExpression(
+			'/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',
+			$published['uuid']
+		);
+		$this->assertIsInt($published['views']);
+		$this->assertNotSame('', (string)$published['updated']);
+		$this->assertNotSame([], $published['icon']);
 		// and everything a Mastodon-family server reads is still there
 		$this->assertArrayHasKey('attachment', $published);
+	}
+
+	/**
+	 * PeerTube resolves a video's channel by looking for a `Group` in
+	 * `attributedTo` and refuses the video when there is none, so an account
+	 * without a channel publishes the `Note` it would have published — which
+	 * every Mastodon-family server reads — rather than a shape that is going
+	 * to be thrown away on arrival.
+	 */
+	public function testAVideoPostFromAnAccountWithNoChannelStaysANote(): void {
+		$this->publishVideoObjects(true, hasChannel: false);
+
+		$this->assertSame('Note', $this->localVideoPost()->jsonSerialize()['type']);
 	}
 
 	/** A remote note is somebody else's document, re-serialised as it arrived. */

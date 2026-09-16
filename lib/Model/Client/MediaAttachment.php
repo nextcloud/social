@@ -34,6 +34,14 @@ class MediaAttachment implements JsonSerializable {
 	private string $id = '';
 	private string $type = '';
 	private string $mediaType = '';
+	/**
+	 * How many bytes the stored file is; 0 where nothing measured it.
+	 *
+	 * Never serialised to a client — Mastodon's entity has no such field — and
+	 * carried only so the wire form of a video can state it: PeerTube drops a
+	 * video file link that has no `size`.
+	 */
+	private int $sizeBytes = 0;
 	private ?string $url = null;
 	private string $previewUrl = '';
 	private ?string $remoteUrl = null;
@@ -338,5 +346,15 @@ class MediaAttachment implements JsonSerializable {
 		}
 
 		return $document;
+	}
+
+	public function getSizeBytes(): int {
+		return $this->sizeBytes;
+	}
+
+	public function setSizeBytes(int $sizeBytes): self {
+		$this->sizeBytes = max(0, $sizeBytes);
+
+		return $this;
 	}
 }

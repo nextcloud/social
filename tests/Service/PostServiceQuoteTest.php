@@ -100,6 +100,8 @@ class PostServiceQuoteTest extends TestCase {
 			$this->createMock(StatusRevisionService::class),
 			$this->createMock(\OCA\Social\Service\NotificationService::class),
 			new \OCA\Social\Service\LinkifyService(),
+			$this->createMock(\OCA\Social\Service\ChannelService::class),
+			$this->createMock(\OCA\Social\Service\ConfigService::class),
 			new NullLogger(),
 		);
 	}

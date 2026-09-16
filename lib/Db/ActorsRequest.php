@@ -39,6 +39,9 @@ class ActorsRequest extends ActorsRequestBuilder {
 			->setValue('discoverable', $qb->createNamedParameter($actor->isDiscoverable() ? 1 : 0))
 			->setValue('indexable', $qb->createNamedParameter($actor->isIndexable() ? 1 : 0))
 			->setValue('bot', $qb->createNamedParameter($actor->isBot() ? 1 : 0))
+			// what the actor is served as, where it is anything but the two the
+			// `bot` flag decides between; '' means "decide as before"
+			->setValue('actor_type', $qb->createNamedParameter($actor->storedActorType()))
 			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 			->setValue('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())))
 			->setValue(

@@ -636,7 +636,7 @@ See `tests/Integration/README.md` for what it covers.
 ### Interop tests
 
 A third PHP suite in `tests/Interop/` delivers this app's activities to a **real
-Mastodon** and reads them back out of Mastodon's own API — a `Create`, a post
+Mastodon** and a **real PeerTube** and reads them back out of each one's own API — a `Create`, a post
 with a content warning, an `Update`, a `Delete` and an `Announce`, through the
 real queue and the real signer, to an instance that has been made to follow the
 account. Neither of the other two suites can prove the thing that decides
@@ -647,11 +647,14 @@ Every test skips with a reason when there is no Mastodon to talk to, so running
 it without one is a pass that says so:
 
 ```bash
-MASTODON_BASE_URL=http://localhost:3000 MASTODON_TOKEN=… composer run test:interop
+MASTODON_BASE_URL=http://localhost:3000 MASTODON_TOKEN=… \
+PEERTUBE_BASE_URL=http://localhost:9000 PEERTUBE_USER=… PEERTUBE_PASSWORD=… \
+composer run test:interop
 ```
 
-`.github/workflows/interop-mastodon.yml` stands the whole thing up — Postgres,
-Redis, Mastodon, a Nextcloud and a token — weekly and on demand. Deliberately
+`.github/workflows/interop.yml` stands the whole thing up — Postgres, Redis,
+Mastodon, PeerTube, a Nextcloud and an account on each side — weekly and on
+demand. Deliberately
 not on every pull request: it depends on a third-party image whose startup this
 repository does not control. See `tests/Interop/README.md`, including what it
 cannot prove.

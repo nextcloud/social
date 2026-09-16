@@ -29,6 +29,22 @@ use Psr\Log\LoggerInterface;
  */
 class PeerTubePublishTest extends TestCase {
 	private const WATCH = 'https://cloud.example.org/apps/social/@alice/0123';
+	private const ALICE = 'https://cloud.example.org/apps/social/@alice';
+	private const CHANNEL = 'https://cloud.example.org/apps/social/@alice_channel';
+
+	/**
+	 * What every video carries: the channel it is filed under, then the
+	 * account that made it. PeerTube resolves the channel by looking for the
+	 * `Group` and refuses a video that names none.
+	 *
+	 * @return array<int, array{type: string, id: string}>
+	 */
+	private static function attribution(): array {
+		return [
+			['type' => 'Group', 'id' => self::CHANNEL],
+			['type' => 'Person', 'id' => self::ALICE],
+		];
+	}
 
 	private PeerTubeService $service;
 
@@ -59,7 +75,10 @@ class PeerTubePublishTest extends TestCase {
 			->setMediaType('video/mp4')
 			->setUrl('https://cloud.example.org/media/movie.mp4')
 			->setPreviewUrl($preview)
-			->setDescription('A cat knocking a glass off a table');
+			->setDescription('A cat knocking a glass off a table')
+			// PeerTube drops a video link with no `size`, so the publisher
+			// refuses to make a `Video` without one
+			->setSizeBytes(4_194_304);
 
 		return $media->setMeta($meta);
 	}
@@ -100,7 +119,7 @@ class PeerTubePublishTest extends TestCase {
 	// the shape
 
 	public function testTheObjectBecomesAVideoCarryingItsRunningTime(): void {
-		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH);
+		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH, self::attribution());
 
 		$this->assertSame('Video', $video['type']);
 		$this->assertSame('PT113S', $video['duration']);
@@ -115,7 +134,7 @@ class PeerTubePublishTest extends TestCase {
 	 * `Video` without it is a video nothing can play.
 	 */
 	public function testTheFileAndTheWatchPageBothTravelInUrl(): void {
-		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH);
+		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH, self::attribution());
 
 		$this->assertSame([
 			['type' => 'Link', 'mediaType' => 'text/html', 'href' => self::WATCH],
@@ -125,12 +144,16 @@ class PeerTubePublishTest extends TestCase {
 				'href' => 'https://cloud.example.org/media/movie.mp4',
 				'width' => 1920,
 				'height' => 1080,
+				// `isRemoteVideoUrlValid()` wants `height` and `size` as
+				// integers and drops a file link carrying neither, so a
+				// `Video` published without them arrived with nothing to play
+				'size' => 4_194_304,
 			],
 		], $video['url']);
 	}
 
 	public function testThePosterTravelsAsTheIcon(): void {
-		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH);
+		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH, self::attribution());
 
 		$this->assertSame([[
 			'type' => 'Image',
@@ -142,15 +165,32 @@ class PeerTubePublishTest extends TestCase {
 	}
 
 	/**
-	 * A server with no ffmpeg has no poster, and `preview_url` is then the
-	 * video itself -- which is not a picture and must not be published as one.
+	 * `icon` is mandatory to PeerTube's validator, so a video with no poster
+	 * cannot be published as a `Video` at all — it stays the `Note` it was,
+	 * which every Mastodon-family server reads. Sending a `Video` that is
+	 * going to be thrown away on arrival is strictly worse.
 	 */
-	public function testAVideoWithNoPosterPublishesNoIcon(): void {
+	public function testAVideoWithNoPosterIsNotPublishedAsAVideo(): void {
 		$attachment = $this->attachment(preview: 'https://cloud.example.org/media/movie.mp4');
 
-		$video = PeerTubeService::asVideo($this->note(), $attachment, self::WATCH);
+		$this->assertNull(
+			PeerTubeService::asVideo($this->note(), $attachment, self::WATCH, self::attribution())
+		);
+	}
 
-		$this->assertArrayNotHasKey('icon', $video);
+	/** The same rule for the other two mandatory fields. */
+	public function testAVideoWithNoDurationOrNoChannelIsNotPublishedAsAVideo(): void {
+		$this->assertNull(
+			PeerTubeService::asVideo(
+				$this->note(), $this->attachment(duration: 0), self::WATCH, self::attribution()
+			),
+			'no duration'
+		);
+
+		$this->assertNull(
+			PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH, []),
+			'no channel'
+		);
 	}
 
 	/**
@@ -160,7 +200,7 @@ class PeerTubePublishTest extends TestCase {
 	 * trading Mastodon for it.
 	 */
 	public function testTheAttachmentIsKeptForEverybodyElse(): void {
-		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH);
+		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH, self::attribution());
 
 		$this->assertSame([['type' => 'Document', 'mediaType' => 'video/mp4']], $video['attachment']);
 	}
@@ -168,24 +208,29 @@ class PeerTubePublishTest extends TestCase {
 	public function testEverythingTheNoteAlreadySaidSurvives(): void {
 		$note = $this->note();
 
-		$video = PeerTubeService::asVideo($note, $this->attachment(), self::WATCH);
+		$video = PeerTubeService::asVideo($note, $this->attachment(), self::WATCH, self::attribution());
 
-		foreach (['id', 'attributedTo', 'published', 'sensitive', 'to', 'content'] as $key) {
+		foreach (['id', 'published', 'sensitive', 'to', 'content'] as $key) {
 			$this->assertSame($note[$key], $video[$key], $key . ' was lost');
 		}
+
+		// the one field that is deliberately *not* what the note said: a
+		// `Video` is attributed to the channel it is filed under as well as to
+		// the account that made it, and PeerTube refuses one that is not
+		$this->assertSame(self::attribution(), $video['attributedTo']);
 	}
 
 	// the title, which a Note does not have
 
 	public function testTheTitleIsTheFirstLineOfThePost(): void {
-		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH);
+		$video = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH, self::attribution());
 
 		$this->assertSame('The cat and the glass', $video['name']);
 	}
 
 	/** A post that is nothing but the video falls back to its alt text. */
 	public function testAPostWithNoTextIsTitledByItsAltText(): void {
-		$video = PeerTubeService::asVideo($this->note(''), $this->attachment(), self::WATCH);
+		$video = PeerTubeService::asVideo($this->note(''), $this->attachment(), self::WATCH, self::attribution());
 
 		$this->assertSame('A cat knocking a glass off a table', $video['name']);
 	}
@@ -194,7 +239,7 @@ class PeerTubePublishTest extends TestCase {
 		$attachment = $this->attachment();
 		$attachment->setDescription('');
 
-		$video = PeerTubeService::asVideo($this->note(''), $attachment, self::WATCH);
+		$video = PeerTubeService::asVideo($this->note(''), $attachment, self::WATCH, self::attribution());
 
 		$this->assertSame('Video', $video['name']);
 	}
@@ -205,7 +250,8 @@ class PeerTubePublishTest extends TestCase {
 		$video = PeerTubeService::asVideo(
 			$this->note('<p><a href="https://x.example">' . $long . '</a></p>'),
 			$this->attachment(),
-			self::WATCH
+			self::WATCH,
+			self::attribution()
 		);
 
 		$this->assertSame(120, mb_strlen($video['name']));
@@ -217,7 +263,8 @@ class PeerTubePublishTest extends TestCase {
 		$video = PeerTubeService::asVideo(
 			$this->note('<p>Cats &amp; dogs</p>'),
 			$this->attachment(),
-			self::WATCH
+			self::WATCH,
+			self::attribution()
 		);
 
 		$this->assertSame('Cats & dogs', $video['name']);
@@ -231,7 +278,7 @@ class PeerTubePublishTest extends TestCase {
 	 * only worth anything if they are held to each other.
 	 */
 	public function testWhatIsPublishedIsReadBackIdentically(): void {
-		$published = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH);
+		$published = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH, self::attribution());
 
 		$this->assertSame(self::WATCH, $this->service->watchUrl($published));
 		$this->assertSame(113, $this->service->duration($published));
@@ -239,10 +286,10 @@ class PeerTubePublishTest extends TestCase {
 			['url' => 'https://cloud.example.org/media/poster.jpeg', 'mediaType' => 'image/jpeg'],
 			$this->service->thumbnail($published)
 		);
-		$this->assertSame(
-			'https://cloud.example.org/apps/social/@alice',
-			$this->service->attributedTo($published)
-		);
+		// the **channel**, not the account: a reader takes the `Group` because
+		// that is what a video is listed under and what somebody follows, and
+		// the round trip is where the two halves are held to that agreement
+		$this->assertSame(self::CHANNEL, $this->service->attributedTo($published));
 
 		$source = $this->service->source($published);
 		$this->assertSame('https://cloud.example.org/media/movie.mp4', $source?->getUrl());
@@ -254,7 +301,7 @@ class PeerTubePublishTest extends TestCase {
 	 * but the post that was written is still in there and is still html.
 	 */
 	public function testTheContentSurvivesTheRoundTrip(): void {
-		$published = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH);
+		$published = PeerTubeService::asVideo($this->note(), $this->attachment(), self::WATCH, self::attribution());
 
 		$read = $this->service->content($published);
 

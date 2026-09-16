@@ -79,6 +79,7 @@ class CoreRequestBuilder {
 	public const TABLE_TREND_REVIEW = 'social_trend_review';
 	public const TABLE_RELAYS = 'social_relay';
 	public const TABLE_QUOTE_GRANTS = 'social_quote_grant';
+	public const TABLE_CHANNELS = 'social_channel';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -129,6 +130,7 @@ class CoreRequestBuilder {
 		self::TABLE_ACTORS => [
 			'id_prim',
 			'id',
+			'actor_type',
 			'user_id',
 			'preferred_username',
 			'name',
@@ -184,6 +186,7 @@ class CoreRequestBuilder {
 			'meta',
 			'blurhash',
 			'description',
+			'size',
 			'public',
 			'error',
 			'transcoded',
@@ -374,6 +377,17 @@ class CoreRequestBuilder {
 			'error',
 			'creation',
 			'last_update'
+		],
+		self::TABLE_CHANNELS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'owner_id',
+			'owner_id_prim',
+			'name',
+			'description',
+			'is_default',
+			'creation'
 		],
 		self::TABLE_QUOTE_GRANTS => [
 			'id',

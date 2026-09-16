@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\ChannelService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\PeerTubeService;
 use OCP\Server;
@@ -182,12 +183,27 @@ class Note extends Stream implements JsonSerializable {
 			if (!Server::get(ConfigService::class)->getAppValueBool(ConfigService::SOCIAL_PUBLISH_VIDEO)) {
 				return $result;
 			}
+
+			// Which channel it is filed under. PeerTube resolves a video's
+			// channel by looking for a `Group` here and refuses the video
+			// outright when there is none, so this is not decoration: without
+			// it every `Video` this app published was thrown away on arrival.
+			// Read, never created — the channel is made when the post is
+			// written (`PostService::createPost()`), because making an actor
+			// inside a serialisation is a write on a read path.
+			$attributedTo = Server::get(ChannelService::class)->attributionOf($this->getAttributedTo());
 		} catch (Throwable $e) {
 			// nothing to resolve it from: publish the post as it was rather
 			// than lose it over a setting
 			return $result;
 		}
 
-		return PeerTubeService::asVideo($result, $video, $this->getId());
+		$asVideo = PeerTubeService::asVideo(
+			$result, $video, $this->getId(), $attributedTo, $this->getViewCount() ?? 0
+		);
+
+		// a post that cannot make a `Video` PeerTube would accept stays the
+		// `Note` it was; see `PeerTubeService::asVideo()`
+		return $asVideo ?? $result;
 	}
 }

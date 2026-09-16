@@ -38,6 +38,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 			->setValue('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
 			->setValue('blurhash', $qb->createNamedParameter($document->getBlurHash()))
+			->setValue('size', $qb->createNamedParameter($document->getSizeBytes(), IQueryBuilder::PARAM_INT))
 			->setValue('description', $qb->createNamedParameter($document->getDescription()))
 			->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
 			->setValue('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
@@ -74,6 +75,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 			->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
 			->set('blurhash', $qb->createNamedParameter($document->getBlurHash()))
+			->set('size', $qb->createNamedParameter($document->getSizeBytes(), IQueryBuilder::PARAM_INT))
 			->set('description', $qb->createNamedParameter($document->getDescription()))
 			->set('parent_id', $qb->createNamedParameter($document->getParentId()))
 			->set('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
@@ -154,6 +156,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()));
 		$qb->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
 		$qb->set('blurhash', $qb->createNamedParameter($document->getBlurHash()));
+		$qb->set('size', $qb->createNamedParameter($document->getSizeBytes(), IQueryBuilder::PARAM_INT));
 		$qb->set('description', $qb->createNamedParameter($document->getDescription()));
 		$qb->set('error', $qb->createNamedParameter($document->getError()));
 		// The mime type is sniffed from the downloaded bytes and this is the only

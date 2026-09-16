@@ -35,6 +35,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\IUserManager;
 use OCP\L10N\IFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class PostService {
 	public const POLL_MAX_OPTIONS = 4;
@@ -67,6 +68,8 @@ class PostService {
 		private StatusRevisionService $revisionService,
 		private NotificationService $notificationService,
 		private LinkifyService $linkifyService,
+		private ChannelService $channelService,
+		private ConfigService $configService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -134,6 +137,7 @@ class PostService {
 		$note->setLanguage($this->languageFor($post->getLanguage(), $actor));
 		$note->setPlaceId($post->getPlaceId());
 
+		$this->ensureChannelForVideo($post);
 		$this->streamService->replyTo($note, $post->getReplyTo());
 		// who may quote this one, before it is stored: the column is written by
 		// the same insert as everything else on the post
@@ -261,6 +265,39 @@ class PostService {
 		throw new InvalidActionException(
 			'a post may not be longer than ' . InstanceService::MAX_CHARACTERS . ' characters'
 		);
+	}
+
+	/**
+	 * Gives an account a channel the first time it posts a video.
+	 *
+	 * PeerTube has no video without a channel and refuses a `Video` whose
+	 * `attributedTo` names no `Group`, so a video published without one is a
+	 * video no PeerTube can take. It is made **here**, when the post is
+	 * written, rather than when the post is serialised: a serialisation happens
+	 * once per instance the post is delivered to, and making an actor there
+	 * would be a write on a read path, forty times over.
+	 *
+	 * Lazily and silently: nobody should have to learn what a channel is in
+	 * order to post a video, and an account that never posts one never grows an
+	 * actor it did not ask for. A failure costs the PeerTube shape and not the
+	 * post — the `Note` still goes out, and Mastodon and Pixelfed both read it.
+	 */
+	private function ensureChannelForVideo(Post $post): void {
+		if (PeerTubeService::soleVideo($post->getMedias()) === null) {
+			return;
+		}
+
+		try {
+			if (!$this->configService->getAppValueBool(ConfigService::SOCIAL_PUBLISH_VIDEO)) {
+				return;
+			}
+
+			$this->channelService->defaultFor($post->getActor());
+		} catch (Throwable $e) {
+			$this->logger->notice('could not give an account a channel for its video', [
+				'actor' => $post->getActor()->getId(), 'exception' => $e,
+			]);
+		}
 	}
 
 	/**

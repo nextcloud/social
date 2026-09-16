@@ -540,26 +540,59 @@ class PeerTubeService {
 	 *
 	 * @param array $note the note as it would otherwise have been published
 	 */
-	public static function asVideo(array $note, MediaAttachment $video, string $watchUrl): array {
+	public static function asVideo(
+		array $note,
+		MediaAttachment $video,
+		string $watchUrl,
+		array $attributedTo,
+		int $views = 0,
+	): ?array {
+		$meta = $video->getMeta();
+		$duration = (int)round((float)($meta?->getDuration() ?? 0));
+		$icon = self::iconFor($video);
+
+		// PeerTube's validator makes `duration`, `icon` and a non-empty
+		// `attributedTo` mandatory, and its builder refuses a video whose
+		// `attributedTo` holds no `Group` at all. A post that cannot satisfy
+		// all three — no poster because the server has no ffmpeg, no duration
+		// for the same reason, no channel because the account has none — is
+		// therefore published as the `Note` it would have been, which Mastodon
+		// and Pixelfed both read. Sending a `Video` that is going to be thrown
+		// away is strictly worse than sending the shape that works.
+		if ($duration <= 0 || $icon === null || $attributedTo === []) {
+			return null;
+		}
+
 		$note['type'] = self::TYPE;
 		$note['name'] = self::titleFor($note, $video);
+		$note['attributedTo'] = $attributedTo;
+		// `isUUIDValid` is checked before anything else is read, and a `Video`
+		// without one is refused outright. Derived from the post's own id so
+		// that the same post is the same video however often it is delivered.
+		$note['uuid'] = self::uuidFor((string)($note['id'] ?? ''));
+		$note['views'] = max(0, $views);
+		// mandatory, and this app writes one only on a post that has been
+		// edited; an unedited video is as up to date as it is published
+		if (($note['updated'] ?? '') === '') {
+			$note['updated'] = (string)($note['published'] ?? gmdate('c'));
+		}
+		// the defaults PeerTube would have filled in, said out loud: a reader
+		// that states them is a reader whose intent cannot be guessed wrong
+		$note['state'] = 1;
+		$note['waitTranscoding'] = false;
+		$note['downloadEnabled'] = true;
+		$note['sensitive'] = (bool)($note['sensitive'] ?? false);
+		$note['isLiveBroadcast'] = false;
+		// this app has replies on every post and no way to turn them off
+		$note['commentsPolicy'] = 1;
+		$note['icon'] = [$icon];
+		$note['duration'] = 'PT' . $duration . 'S';
 
 		// what the content actually is, said out loud. PeerTube declares
 		// `text/markdown` for its own; this app's posts are html, and a peer
 		// that assumed otherwise would show somebody their own tags.
 		if (($note['content'] ?? '') !== '') {
 			$note['mediaType'] = 'text/html';
-		}
-
-		$meta = $video->getMeta();
-		$duration = (int)round((float)($meta?->getDuration() ?? 0));
-		if ($duration > 0) {
-			$note['duration'] = 'PT' . $duration . 'S';
-		}
-
-		$icon = self::iconFor($video);
-		if ($icon !== null) {
-			$note['icon'] = [$icon];
 		}
 
 		$note['url'] = self::urlsFor($video, $watchUrl);
@@ -596,6 +629,35 @@ class PeerTubeService {
 		// something has to be there: `name` is how a video is listed, and a
 		// blank row is worse than a dull one
 		return 'Video';
+	}
+
+	/**
+	 * A UUID for a post that has none.
+	 *
+	 * PeerTube checks `uuid` before it reads anything else and refuses a
+	 * `Video` whose one is not a UUID. This app addresses a post by its URL and
+	 * has no such field, so one is derived from the id — the same id in, the
+	 * same UUID out, every time, which is what makes a redelivered video the
+	 * same video rather than a second one.
+	 *
+	 * Shaped as a version-5 UUID (the name-based one) because that is exactly
+	 * what it is: a hash of a name in a namespace. The two nibbles that carry
+	 * the version and the variant are set by hand, since what matters is that
+	 * `isUUIDValid` accepts it and that it is stable.
+	 */
+	private static function uuidFor(string $id): string {
+		$hash = sha1('social:video:' . $id);
+
+		return sprintf(
+			'%s-%s-5%s-%x%s-%s',
+			substr($hash, 0, 8),
+			substr($hash, 8, 4),
+			substr($hash, 13, 3),
+			// the variant: one of 8, 9, a or b
+			(hexdec($hash[16]) & 0x3) | 0x8,
+			substr($hash, 17, 3),
+			substr($hash, 20, 12)
+		);
 	}
 
 	/** The poster frame, as the `Image` PeerTube puts in `icon`. */
@@ -651,6 +713,16 @@ class PeerTubeService {
 		if ($original?->getWidth() > 0 && $original?->getHeight() > 0) {
 			$link['width'] = $original->getWidth();
 			$link['height'] = $original->getHeight();
+		}
+
+		// `isRemoteVideoUrlValid()` wants `height` and `size` as integers and
+		// drops a file link that has neither, so a `Video` whose only link went
+		// out without them arrived with nothing to play. `fps` is optional and
+		// sent where it is known.
+		$link['size'] = $video->getSizeBytes();
+		$fps = (int)round((float)($video->getMeta()?->getFps() ?? 0));
+		if ($fps > 0) {
+			$link['fps'] = $fps;
 		}
 
 		$urls[] = $link;
