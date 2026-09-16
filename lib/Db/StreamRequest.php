@@ -1194,6 +1194,20 @@ class StreamRequest extends StreamRequestBuilder {
 			return null;
 		}
 
+		// A media narrowing is a question about the **post**, and this query
+		// reads only the recipient rows — which carry no such column. Asking it
+		// anyway would read the newest rows and then throw most of them away:
+		// on an instance where a small fraction of posts carry a picture, a
+		// Photos or Videos timeline would come back empty while the pictures
+		// sat a few thousand rows further down. So the narrowed timelines take
+		// the join path, which has the predicate *in* the query and finds them
+		// wherever they are. They are also read far less often than the home
+		// timeline, which is what makes that the right trade rather than a
+		// concession.
+		if ($options->isOnlyMedia() || $options->isOnlyVideo() || $options->getMediaType() !== '') {
+			return null;
+		}
+
 		$collections = $this->followsRequest->getFollowedCollectionPrims($this->viewer->getId());
 		// an account's own posts reach its own timeline through the recipient
 		// row addressed to its own follower collection, which it is not a
