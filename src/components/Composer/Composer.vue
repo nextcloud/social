@@ -314,6 +314,16 @@
 				</NcButton>
 			</div>
 
+			<!-- A panel, and so above the toolbar with the others rather than
+			     inside it: the toolbar row is `max-height: 120px; overflow:
+			     hidden` for its collapse, which cut the picker off — the
+			     country box under the suggestions was simply not there. -->
+			<PlacePicker
+				v-if="placing"
+				:place="place"
+				@update:place="place = $event"
+				@close="togglePlace" />
+
 			<div class="options">
 				<NcButton
 					:title="t('social', 'Add attachment')"
@@ -446,11 +456,6 @@
 						</template>
 					</NcButton>
 				</div>
-
-				<PlacePicker
-					v-if="placing"
-					:place="place"
-					@update:place="place = $event" />
 
 				<span v-if="undescribed > 0" class="composer-alt-warning" role="status">
 					{{ undescribedWarning }}
@@ -1924,6 +1929,18 @@ export default {
 					.setMultiSelect(true)
 					.setMimeTypeFilter(PICKABLE_MEDIA_TYPES)
 					.allowDirectories(false)
+					// Without this the dialog has **no confirm button at all**:
+					// a picker built with neither `addButton` nor
+					// `setButtonFactory` renders none, so a file could be
+					// selected and there was nothing to press, and the only way
+					// out was to close the dialog — which rejects, and attaches
+					// nothing. `pick()` resolves with the selection when a
+					// button is pressed, so the callback has nothing to do.
+					.addButton({
+						label: translate('social', 'Attach'),
+						variant: 'primary',
+						callback: () => {},
+					})
 					.build()
 					.pick()
 			} catch (error) {

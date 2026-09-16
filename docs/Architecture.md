@@ -1758,13 +1758,16 @@ a field added to the composer cannot survive a post by being missed off one of
 two lists.
 
 **Every panel the toolbar opens closes from itself.** The poll, the content
-warning and the preview were opened by a button in the toolbar and could be shut
-only by finding that same button and pressing it again — a row further down, and
-a thing to work out rather than see. Each carries its own close now, beside the
-schedule editor's, which has had one all along; the button in the toolbar keeps
-working and still says which state it is in. Closing takes what belongs to the
-panel with it, as pressing the toolbar button always did: the poll's options,
-the warning's text.
+warning, the preview and the place picker were opened by a button in the toolbar
+and could be shut only by finding that same button and pressing it again — a row
+further down, and a thing to work out rather than see. Each carries its own close
+now, beside the schedule editor's, which has had one all along; the button in the
+toolbar keeps working and still says which state it is in. Closing takes what
+belongs to the panel with it, as pressing the toolbar button always did: the
+poll's options, the warning's text, the place. The place picker keeps its
+narrower `Remove the place` as well — that one clears the choice and leaves the
+search open, where the close puts the panel away and leaves the post without a
+place, which is what an unpressed pin means.
 
 The draft on disk (`src/services/draft.js`) is the same promise across a reload:
 the text, the content warning, the audience and **the team account it was being

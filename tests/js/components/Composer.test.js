@@ -214,6 +214,7 @@ function filePicker(result) {
 		setMultiSelect: vi.fn(() => builder),
 		setMimeTypeFilter: vi.fn(() => builder),
 		allowDirectories: vi.fn(() => builder),
+		addButton: vi.fn(() => builder),
 		build: vi.fn(() => ({ pick: vi.fn(() => result) })),
 	}
 	getFilePickerBuilder.mockReturnValue(builder)
@@ -765,6 +766,17 @@ describe('Composer', () => {
 			expect(wrapper.findComponent(ComposerPreview).exists()).toBe(false)
 		})
 
+		it('closes the place picker from the picker', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Say where this was taken').trigger('click')
+			expect(wrapper.find('.place-picker').exists()).toBe(true)
+
+			await wrapper.find('.place-picker__close').trigger('click')
+
+			expect(wrapper.find('.place-picker').exists()).toBe(false)
+		})
+
 		/** What was typed in it goes with it, as pressing the button again does. */
 		it('takes the warning text with the warning', async () => {
 			const { wrapper } = mountComposer()
@@ -984,6 +996,12 @@ describe('Composer', () => {
 			expect(builder.setMultiSelect).toHaveBeenCalledWith(true)
 			expect(builder.setMimeTypeFilter).toHaveBeenCalledWith(expect.arrayContaining(['image/*', 'video/*', 'application/pdf', 'text/plain']))
 			expect(builder.allowDirectories).toHaveBeenCalledWith(false)
+			// a picker built with no button renders none: a file could be
+			// selected and there was nothing to press to confirm it
+			expect(builder.addButton).toHaveBeenCalledWith(expect.objectContaining({
+				label: 'Attach',
+				variant: 'primary',
+			}))
 			expect(store.createMediaFromFile).toHaveBeenCalledWith({ path: beach })
 		})
 
