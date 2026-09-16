@@ -48,6 +48,23 @@
 					{{ currentUser.displayName }}
 				</span>
 			</div>
+			<!-- The way out. The box opens on a click and closes again when the
+			     reader clicks elsewhere — but only while it holds nothing worth
+			     keeping, so as soon as a word is typed the only way back to a
+			     one-line box was to delete that word by hand. Nothing is thrown
+			     away here: what is in the box stays in it, and is put back from
+			     the draft after a reload. -->
+			<NcButton
+				v-if="closable"
+				variant="tertiary"
+				class="new-post-author__close"
+				:aria-label="t('social', 'Close the composer')"
+				:title="t('social', 'Close the composer. What you have written is kept.')"
+				@click="close">
+				<template #icon>
+					<Close :size="20" />
+				</template>
+			</NcButton>
 		</div>
 		<div v-if="replyTo && !anchoredReply" class="reply-to">
 			<p class="reply-info">
@@ -732,6 +749,11 @@ export default {
 			// what a click into the box opens up; the composer is also expanded
 			// by anything it already holds — see expanded()
 			openedByHand: this.startExpanded,
+			// and what the close button shuts again. It has to be a state of
+			// its own rather than the absence of `openedByHand`, because a box
+			// with a word in it is expanded by the word: without this there was
+			// no way to close one except by deleting what was in it.
+			closedByHand: false,
 			// a reply goes where the post it answers went, which is also what
 			// the reply flow does when a composer is retargeted by hand
 			// the audience, in order of who gets to say: whoever opened this
@@ -1108,6 +1130,12 @@ export default {
 		 * @return {boolean}
 		 */
 		expanded() {
+			if (this.closedByHand) {
+				// what was written is still in the box and still on disk; it is
+				// simply not on screen until the reader asks for it again
+				return false
+			}
+
 			return this.openedByHand
 				|| this.loading
 				// the post it is anchored under is not a reply in progress: a
@@ -1120,6 +1148,19 @@ export default {
 				|| this.showWarning
 				|| !this.statusIsEmpty
 				|| Object.keys(this.attachments).length > 0
+		},
+
+		/**
+		 * Whether there is anything to close it *to*.
+		 *
+		 * Not in the New post dialog, where writing a post is the whole reason
+		 * the composer is on screen and the dialog has its own way out; and not
+		 * while it is collapsed already.
+		 *
+		 * @return {boolean}
+		 */
+		closable() {
+			return this.expanded && !this.startExpanded
 		},
 
 		/**
@@ -1207,8 +1248,9 @@ export default {
 			this.visibilityChosen = true
 			// somebody pressed reply, which is a request to write one — including
 			// on the post this box is anchored under, where the target does not
-			// change and the box opening is the whole of the answer
-			this.openedByHand = true
+			// change and the box opening is the whole of the answer. Through
+			// expand(), so that it also undoes a close by hand.
+			this.expand()
 		}
 		eventBus.on('composer-reply', this.onComposerReply)
 
@@ -1267,7 +1309,64 @@ export default {
 
 	methods: {
 		expand() {
+			this.closedByHand = false
 			this.openedByHand = true
+		},
+
+		/**
+		 * Everything the reader put in, gone — the text, the attachments and
+		 * their previews, the poll, the warning, the schedule, the place, and
+		 * the copy on disk.
+		 *
+		 * One method rather than two lists, because it is run in two places
+		 * that must agree: after a post has been sent, and when the reader
+		 * closes the box on one that has not. A field added to the composer and
+		 * to only one of those lists is a field that survives posting.
+		 */
+		clearComposer() {
+			if (this.$refs.composerInput !== undefined) {
+				this.$refs.composerInput.innerText = ''
+			}
+			Object.keys(this.attachments).forEach((key) => this.releasePreview(key))
+			this.attachments = {}
+			this.showPoll = false
+			this.pollOptions = ['', '']
+			this.pollMultiple = false
+			this.showWarning = false
+			this.spoilerText = ''
+			this.scheduling = false
+			this.scheduledAt = null
+			this.placing = false
+			this.place = null
+			clearDraft()
+			this.updateStatusContent()
+		},
+
+		/**
+		 * The close button: back to a line of placeholder, with everything
+		 * still in the box.
+		 *
+		 * **Nothing is thrown away.** What was typed stays in the box and stays
+		 * in the draft on disk, so opening it again — a click, a reply, the
+		 * compose shortcut, or the next visit to the page — puts the reader
+		 * back where they were. A half-written post is not something to ask
+		 * somebody about at the moment they are trying to get it out of their
+		 * way; it is something to still be there when they come back.
+		 *
+		 * Clicking elsewhere collapses an idle composer and may do no more than
+		 * that, because a stray click must not close a box somebody is writing
+		 * in. This is that click made deliberate.
+		 */
+		close() {
+			this.closedByHand = true
+			this.openedByHand = false
+
+			if (this.inReplyTo === null && this.statusIsEmpty) {
+				// the sidebar's box is shown by the store rather than by this
+				// component; an empty one closes all the way, a written one
+				// stays where the reader can get back to it
+				this.timelineStore.setComposerDisplayStatus(false)
+			}
 		},
 
 		/**
@@ -2206,20 +2305,7 @@ export default {
 				// clicked into it
 				this.openedByHand = this.startExpanded
 			}
-			this.$refs.composerInput.innerText = ''
-			Object.keys(this.attachments).forEach((key) => this.releasePreview(key))
-			this.attachments = {}
-			this.showPoll = false
-			this.pollOptions = ['', '']
-			this.pollMultiple = false
-			this.showWarning = false
-			this.spoilerText = ''
-			this.scheduling = false
-			this.scheduledAt = null
-			this.placing = false
-			this.place = null
-			clearDraft()
-			this.updateStatusContent()
+			this.clearComposer()
 			// the sidebar's modal has no other way of knowing: it cleared the
 			// box and stayed open, which reads as if nothing had happened
 			this.$emit('posted')
@@ -2690,6 +2776,11 @@ $composer-duration: 220ms;
 	padding-bottom: 10px;
 	border-bottom: 1px solid var(--color-border);
 	margin-bottom: 10px;
+
+	// pushed to the far end of the row, where a close button is looked for
+	&__close {
+		margin-inline-start: auto;
+	}
 
 	.post-author {
 		display: flex;

@@ -26,6 +26,23 @@ describe('the composer draft', () => {
 		})
 	})
 
+	/**
+	 * The composer has always sent this and the store has always dropped it,
+	 * so the line that reads it back — "a reload does not quietly turn a team
+	 * post back into a personal one" — could never be true.
+	 */
+	it('remembers which account the post was being written as', () => {
+		saveDraft({ text: 'from the team', postAs: 'design@cloud.example.org' })
+
+		expect(loadDraft()).toMatchObject({ postAs: 'design@cloud.example.org' })
+	})
+
+	it('says "the account itself" when the draft names no team', () => {
+		saveDraft({ text: 'from me' })
+
+		expect(loadDraft().postAs).toBe('')
+	})
+
 	it('has nothing to give back when nothing was kept', () => {
 		expect(loadDraft()).toBeNull()
 	})

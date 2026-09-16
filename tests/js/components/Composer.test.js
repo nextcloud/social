@@ -632,6 +632,96 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('closing it', () => {
+		const closeButton = (wrapper) => wrapper.find('.new-post-author__close')
+		const collapsed = (wrapper) => wrapper.find('.new-post').classes().includes('new-post--collapsed')
+		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft') ?? 'null')
+
+		it('offers no way out while there is nothing to come out of', () => {
+			const { wrapper } = mountComposer()
+
+			expect(closeButton(wrapper).exists()).toBe(false)
+		})
+
+		it('offers one as soon as the box is open', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+
+			expect(closeButton(wrapper).exists()).toBe(true)
+		})
+
+		it('closes an empty box all the way', async () => {
+			const { wrapper, store } = mountComposer()
+			await input(wrapper).trigger('focusin')
+
+			await closeButton(wrapper).trigger('click')
+
+			expect(collapsed(wrapper)).toBe(true)
+			expect(store.setComposerDisplayStatus).toHaveBeenCalledWith(false)
+		})
+
+		/**
+		 * A click elsewhere already collapses an idle composer and may do no
+		 * more than that, so before the close button the only way out of a box
+		 * with a word in it was to delete the word. Closing it now keeps the
+		 * word: what is asked for is the feed back, not the writing gone.
+		 */
+		it('keeps what was written when the box is closed', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+
+			await closeButton(wrapper).trigger('click')
+
+			expect(collapsed(wrapper)).toBe(true)
+			expect(typed(wrapper)).toBe('half a thought')
+			expect(stored()).toMatchObject({ text: 'half a thought' })
+		})
+
+		it('gives it back when the box is opened again', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+			await closeButton(wrapper).trigger('click')
+
+			await input(wrapper).trigger('focusin')
+
+			expect(collapsed(wrapper)).toBe(false)
+			expect(typed(wrapper)).toBe('half a thought')
+		})
+
+		/** Being asked to reply is a request to write one, closed box or not. */
+		it('opens again when a reply is asked for', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+			await closeButton(wrapper).trigger('click')
+
+			eventBus.emit('composer-reply', replyTo(bob))
+			await flushPromises()
+
+			expect(collapsed(wrapper)).toBe(false)
+		})
+
+		/** A box somebody is writing in stays where they can get back to it. */
+		it('leaves a written box on the page rather than taking it away', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+
+			await closeButton(wrapper).trigger('click')
+
+			expect(store.setComposerDisplayStatus).not.toHaveBeenCalled()
+		})
+
+		/**
+		 * The New post dialog has its own way out, and a composer that is the
+		 * whole reason the dialog is on screen has nothing to close itself to.
+		 */
+		it('is not offered where there is nothing to close to', async () => {
+			const { wrapper } = mountComposer({ startExpanded: true })
+			await setContent(wrapper, 'half a thought')
+
+			expect(closeButton(wrapper).exists()).toBe(false)
+		})
+	})
+
 	describe('the draft', () => {
 		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft') ?? 'null')
 

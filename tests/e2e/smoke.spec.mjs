@@ -44,6 +44,40 @@ test.describe('Social, in a browser', () => {
 		await expect(page.locator('.social__timeline article').filter({ hasText: text }).first()).toBeVisible()
 	})
 
+	/**
+	 * The box opens on a click and stays open for as long as it holds
+	 * anything — so before the close button, a reader who had typed a word and
+	 * changed their mind had to delete the word to get their feed back. Closing
+	 * it keeps the word: what was asked for is the feed, not a blank page.
+	 */
+	test('the composer in the feed closes without losing what was written', async ({ page }) => {
+		await openApp(page)
+
+		const composer = page.locator('.social__wrapper .new-post').first()
+		await composer.locator('.message').click()
+		await page.keyboard.type('half a thought')
+		await expect(composer).not.toHaveClass(/new-post--collapsed/)
+
+		await composer.getByRole('button', { name: 'Close the composer' }).click()
+		await expect(composer).toHaveClass(/new-post--collapsed/)
+		await expect(composer.locator('.message')).toHaveText('half a thought')
+
+		// and it is all still there when the box is asked for again
+		await composer.locator('.message').click()
+		await expect(composer).not.toHaveClass(/new-post--collapsed/)
+		await expect(composer.locator('.message')).toHaveText('half a thought')
+
+		// down to the next visit to the page, which is what the draft is for
+		await openApp(page)
+		await expect(page.locator('.social__wrapper .new-post .message').first())
+			.toHaveText('half a thought')
+
+		// leave the feed as it was found
+		await page.locator('.social__wrapper .new-post .message').first().click()
+		await page.keyboard.press('ControlOrMeta+A')
+		await page.keyboard.press('Backspace')
+	})
+
 	test('Discover has its sections', async ({ page }) => {
 		await openApp(page, '/discover')
 
