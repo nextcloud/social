@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
+use Doctrine\DBAL\Platforms\SqlitePlatform;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
@@ -390,6 +391,12 @@ class Benchmark extends SocialCommand {
 			$followers = $author . '/followers';
 
 			$streamRows[] = [
+				// the same snowflake `StreamRequest::save()` mints: the second
+				// it was published in, times the limit, plus a random offset.
+				// It is the column every timeline pages and orders on, so a
+				// seeded row whose nid did not sort with the real ones would
+				// measure a different query than the one being served.
+				'nid' => $published * StreamRequest::NID_LIMIT + random_int(1, StreamRequest::NID_LIMIT),
 				'id' => $id,
 				'id_prim' => $prim,
 				'type' => Note::TYPE,
@@ -464,8 +471,23 @@ class Benchmark extends SocialCommand {
 			}
 		}
 
-		$sql = 'INSERT INTO `*PREFIX*' . $table . '` (' . implode(', ', $quoted) . ') VALUES '
-			. implode(', ', array_fill(0, count($rows), $tuple));
+		// A seed that dies halfway and cannot be run again is a tool nobody
+		// uses twice: the second attempt collides with the actors the first
+		// one wrote. Every database spells "insert what is new and say nothing
+		// about the rest" differently, and all three of them have it.
+		$platform = $this->connection->getDatabasePlatform();
+		$verb = 'INSERT';
+		$suffix = '';
+		if ($platform instanceof PostgreSQLPlatform) {
+			$suffix = ' ON CONFLICT DO NOTHING';
+		} elseif ($platform instanceof SqlitePlatform) {
+			$verb = 'INSERT OR IGNORE';
+		} else {
+			$verb = 'INSERT IGNORE';
+		}
+
+		$sql = $verb . ' INTO `*PREFIX*' . $table . '` (' . implode(', ', $quoted) . ') VALUES '
+			. implode(', ', array_fill(0, count($rows), $tuple)) . $suffix;
 
 		$this->connection->executeStatement($sql, $values);
 	}

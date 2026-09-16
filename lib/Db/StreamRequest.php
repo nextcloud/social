@@ -68,7 +68,30 @@ class StreamRequest extends StreamRequestBuilder {
 	 * old width: every new nid is larger than every old one, and both halves
 	 * stay monotonic in time.
 	 */
-	private const NID_LIMIT = 1000000000;
+	public const NID_LIMIT = 1000000000;
+
+	/**
+	 * How much wider than the page the fast home query reads.
+	 *
+	 * The filters it no longer carries — blocks, mutes, hidden boosts — are
+	 * applied to the rows afterwards, so a page of twenty that loses three to
+	 * a block would come back short. Three times the page is enough for any
+	 * ordinary amount of blocking, and where it is not the page is simply
+	 * shorter, which is what an infinite scroll already handles.
+	 */
+	private const HOME_OVERREAD = 3;
+
+	/** ...but never an unbounded read, whatever limit was asked for. */
+	private const HOME_OVERREAD_MAX = 300;
+
+	/** Whether the recipient rows carry their post's nid yet; asked once per request. */
+	private ?bool $recipientNidsFilled = null;
+
+	/**
+	 * Whether the last home page was chosen by the fast query, which carries
+	 * none of the per-viewer filters — so the hydration has to apply them.
+	 */
+	private bool $homeServedFromRecipients = false;
 
 	/** How many fresh nids to try before giving up on an insert. */
 	private const NID_ATTEMPTS = 4;
@@ -98,6 +121,7 @@ class StreamRequest extends StreamRequestBuilder {
 		private FollowedTagsRequest $followedTagsRequest,
 		private ConversationsRequest $conversationsRequest,
 		private RenditionsRequest $renditionsRequest,
+		private FollowsRequest $followsRequest,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 	}
@@ -983,7 +1007,9 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	private function getTimelineHome(ProbeOptions $options): array {
 		// which posts, decided over one column, then what they say
+		$this->homeServedFromRecipients = false;
 		$nids = $this->homeTimelineNids($options);
+		$fast = $this->homeServedFromRecipients;
 
 		if ($this->followsAnyTag()) {
 			$nids = $this->mergeNidPages($nids, $this->followedTagNids($options), $options);
@@ -993,7 +1019,13 @@ class StreamRequest extends StreamRequestBuilder {
 			return [];
 		}
 
-		return $this->streamsByNids($nids, $options);
+		// The fast page query narrows on one column and carries none of the
+		// per-viewer filters; they are applied here, to the rows it chose,
+		// where each is a lookup against twenty ids rather than a join across
+		// everything the viewer follows.
+		$posts = $this->streamsByNids($nids, $options, $fast);
+
+		return $fast ? array_slice($posts, 0, $options->getLimit()) : $posts;
 	}
 
 	/**
@@ -1046,10 +1078,158 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return int[]
 	 */
 	protected function homeTimelineNids(ProbeOptions $options): array {
+		$fast = $this->homeTimelineNidsFromRecipients($options);
+		if ($fast !== null) {
+			// which half answered decides what `streamsByNids()` has left to
+			// do, and it is recorded rather than returned so that this stays
+			// one overridable seam returning one thing
+			$this->homeServedFromRecipients = true;
+
+			return $fast;
+		}
+
+		return $this->homeTimelineNidsByJoin($options);
+	}
+
+	/**
+	 * The old page query: correct everywhere, slow at scale.
+	 *
+	 * Kept as the fallback for an instance whose backfill has not finished and
+	 * for a viewer the fast path cannot serve. See
+	 * `homeTimelineNidsFromRecipients()` for what is wrong with it.
+	 *
+	 * @return int[]
+	 */
+	private function homeTimelineNidsByJoin(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql();
 		$this->homeTimelineFilters($page, $options, false);
 
 		return $this->getNidsFromRequest($page);
+	}
+
+	/**
+	 * The home page, read off the recipient rows' own sort key.
+	 *
+	 * This is the query the home timeline is supposed to be, and the one the
+	 * `nid` column on `social_stream_dest` exists for. The old shape — kept
+	 * below as the fallback — drives from the viewer's follows, fetches
+	 * **every recipient row every followed account ever produced**, joins each
+	 * to `social_stream` to find out when it was published, and sorts the lot
+	 * in a temporary table to keep twenty. `EXPLAIN` named it exactly:
+	 * `Using temporary; Using filesort`. One page load therefore costs
+	 * Σ(all posts of everyone you follow), and a client asks for one every
+	 * thirty seconds.
+	 *
+	 * Here the sort key is *on the row being filtered*, so
+	 * `(actor_id, type, nid)` answers the whole page from the index: a
+	 * descending range per followed collection, merged, stopping at the limit.
+	 * No temporary table, no row lookups, and nothing read that the page does
+	 * not return.
+	 *
+	 * The filters that used to ride along in that query — blocks, mutes,
+	 * hidden boosts, the media narrowing — are **not** applied here. They are
+	 * per-viewer predicates over joined tables, and putting them back would
+	 * put the join back. They are applied to the twenty rows instead, in
+	 * `streamsByNids()`, where they cost twenty lookups rather than three
+	 * million. `withoutHidden()` reads a page slightly larger than the limit
+	 * so that a page which loses rows to a block still fills.
+	 *
+	 * Returns **null** where this path cannot be used — no viewer, nothing
+	 * followed, or an instance whose backfill has not finished — and the
+	 * caller falls back to the old query, which is slower and always correct.
+	 *
+	 * @return int[]|null
+	 */
+	private function homeTimelineNidsFromRecipients(ProbeOptions $options): ?array {
+		if ($this->viewer === null || !$this->recipientNidsAreFilled()) {
+			return null;
+		}
+
+		$collections = $this->followsRequest->getFollowedCollectionPrims($this->viewer->getId());
+		// an account's own posts reach its own timeline through the recipient
+		// row addressed to its own follower collection, which it is not a
+		// follower of
+		$own = $this->viewer->getFollowers();
+		if ($own !== '') {
+			$collections[] = md5($own);
+		}
+
+		if ($collections === []) {
+			return null;
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->selectDistinct('sd.nid')
+			->from(self::TABLE_STREAM_DEST, 'sd')
+			->where($expr->in(
+				'sd.actor_id',
+				$qb->createNamedParameter($collections, IQueryBuilder::PARAM_STR_ARRAY)
+			))
+			->andWhere($expr->eq('sd.type', $qb->createNamedParameter('recipient')))
+			// a row written before the column existed carries 0 and would sort
+			// to the bottom for ever; it is excluded rather than shown last
+			->andWhere($expr->gt('sd.nid', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+
+		if ($options->getSince() > 0) {
+			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getSince(), IQueryBuilder::PARAM_INT)));
+		}
+		if ($options->getMaxId() > 0) {
+			$qb->andWhere($expr->lt('sd.nid', $qb->createNamedParameter($options->getMaxId(), IQueryBuilder::PARAM_INT)));
+		}
+		if ($options->getMinId() > 0) {
+			$options->setInverted(true);
+			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getMinId(), IQueryBuilder::PARAM_INT)));
+		}
+
+		$qb->orderBy('sd.nid', $options->isInverted() ? 'asc' : 'desc');
+		// read wider than the page: the filters this query no longer carries
+		// are applied to the rows afterwards, and a page that lost three posts
+		// to a block should still come back with twenty
+		$qb->setMaxResults(min(self::HOME_OVERREAD_MAX, $options->getLimit() * self::HOME_OVERREAD));
+
+		$nids = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$nids[] = (int)$data['nid'];
+		}
+		$cursor->closeCursor();
+
+		return $nids;
+	}
+
+	/**
+	 * Whether the recipient rows carry their post's sort key yet.
+	 *
+	 * The migration backfills twenty million rows on a large instance, in
+	 * batches, and until it has finished the fast path would silently show a
+	 * short timeline. One row with a zero nid is enough to say "not yet" —
+	 * asked once per request and answered from the index.
+	 */
+	private function recipientNidsAreFilled(): bool {
+		if ($this->recipientNidsFilled !== null) {
+			return $this->recipientNidsFilled;
+		}
+
+		try {
+			$qb = $this->getQueryBuilder();
+			$qb->select('nid')
+				->from(self::TABLE_STREAM_DEST)
+				->where($qb->expr()->eq('nid', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
+				->setMaxResults(1);
+
+			$cursor = $qb->executeQuery();
+			$unfilled = $cursor->fetch();
+			$cursor->closeCursor();
+
+			$this->recipientNidsFilled = ($unfilled === false);
+		} catch (\Throwable $e) {
+			// the column is not there at all: an instance whose migration has
+			// not run, which is the same answer
+			$this->recipientNidsFilled = false;
+		}
+
+		return $this->recipientNidsFilled;
 	}
 
 	/**
@@ -1171,7 +1351,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 */
-	protected function streamsByNids(array $nids, ProbeOptions $options): array {
+	protected function streamsByNids(array $nids, ProbeOptions $options, bool $homeFilters = false): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->andWhere(
 			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
@@ -1183,6 +1363,19 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction('sa');
 		$qb->leftJoinObjectStatus();
+
+		if ($homeFilters) {
+			// what the fast page query deliberately left out. Every one of
+			// these is a per-viewer predicate over a joined table, and in the
+			// page query it forced the join that made the page cost
+			// Σ(everything the viewer follows). Here the driving set is the
+			// page itself.
+			$qb->filterType(SocialAppNotification::TYPE);
+			$this->filterMedia($qb, $options);
+			$qb->filterHiddenBoosts();
+			$qb->filterHiddenActors();
+			$qb->filterDuplicate();
+		}
 
 		return $this->getStreamsFromRequest($qb);
 	}

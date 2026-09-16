@@ -684,7 +684,8 @@ class CoreRequestBuilder {
 			'stream_id',
 			'actor_id',
 			'type',
-			'subtype'
+			'subtype',
+			'nid'
 		],
 		self::TABLE_STREAM_QUEUE => [
 			'id',
