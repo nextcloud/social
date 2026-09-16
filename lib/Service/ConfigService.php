@@ -213,6 +213,17 @@ class ConfigService {
 	 * (covered, one press away) or `hide_all`. PeerTube's three NSFW policies
 	 * under Mastodon's names for them — see `SensitiveMediaService`.
 	 */
+	/**
+	 * Where the local-account refresh walk got to, as an `id_prim`.
+	 *
+	 * Bookkeeping rather than a setting. The walk used to read every local
+	 * account into memory on every cron pass; it pages now, and this is what
+	 * makes the next pass carry on rather than start again. `''` is "begin at
+	 * the top", which is also what it is set back to when the walk reaches the
+	 * end.
+	 */
+	public const SOCIAL_LOCAL_ACTOR_CURSOR = 'local_actor_cursor';
+
 	public const SOCIAL_NSFW_POLICY = 'nsfw_policy';
 
 	/**
@@ -288,6 +299,7 @@ class ConfigService {
 		self::SOCIAL_VIDEO_LADDER => '0',
 		self::SOCIAL_VIDEO_LADDER_HEIGHTS => '360,720,1080',
 		self::SOCIAL_VIDEO_QUOTA => '0',
+		self::SOCIAL_LOCAL_ACTOR_CURSOR => '',
 		self::SOCIAL_NSFW_POLICY => 'default',
 		self::SOCIAL_REVIEW_VIDEOS => '0',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',

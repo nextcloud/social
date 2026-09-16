@@ -249,6 +249,43 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
+	 * One page of local accounts, oldest first.
+	 *
+	 * `getAll()` below reads every one of them into a PHP array, which is the
+	 * right thing for a command somebody typed and the wrong thing for a cron
+	 * job: `Cron\Cache` refreshed the cached copy of **every** local account on
+	 * every pass, twelve minutes apart. At a million accounts that array does
+	 * not fit in memory, and if it did the work behind it — a dozen queries
+	 * and an avatar read each — is hours inside a job that fires every twelve
+	 * minutes. The failure is silent, too: the cron just gets slower.
+	 *
+	 * So the job walks instead, a page at a time, remembering where it got to.
+	 * The ordering is by `creation` and then `id_prim` so the walk is total and
+	 * stable — a new account arriving mid-walk lands at the end rather than
+	 * shifting the page boundary under it.
+	 *
+	 * @return Person[]
+	 * @throws SocialAppConfigException
+	 */
+	public function getPage(int $limit, string $afterPrim = ''): array {
+		$qb = $this->getActorsSelectSql();
+		if ($afterPrim !== '') {
+			$qb->andWhere($qb->expr()->gt('a.id_prim', $qb->createNamedParameter($afterPrim)));
+		}
+		$qb->orderBy('a.id_prim', 'asc');
+		$qb->setMaxResults($limit);
+
+		$accounts = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$accounts[] = $this->parseActorsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $accounts;
+	}
+
+	/**
 	 * @return Person[]
 	 * @throws SocialAppConfigException
 	 */

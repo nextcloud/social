@@ -351,7 +351,7 @@ class LocalControllerTest extends TestCase {
 	public function testActionFollowFollowsAndRefreshesCounters(): void {
 		$actor = $this->actorForUser();
 		$this->followService->expects($this->once())->method('followAccount')->with($actor, 'bob@remote.example');
-		$this->accountService->expects($this->once())->method('cacheLocalActorDetailCount')->with($actor);
+		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following');
 
 		$this->assertSuccess($this->controller()->actionFollow('bob@remote.example'), []);
 	}
@@ -359,7 +359,7 @@ class LocalControllerTest extends TestCase {
 	public function testActionFollowMapsServiceExceptionsToFailures(): void {
 		$this->actorForUser();
 		$this->followService->method('followAccount')->willThrowException(new FollowSameAccountException("Don't follow yourself, be your own lead"));
-		$this->accountService->expects($this->never())->method('cacheLocalActorDetailCount');
+		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->assertFailure($this->controller()->actionFollow('alice'), FollowSameAccountException::class, "Don't follow yourself, be your own lead");
 	}
@@ -373,7 +373,7 @@ class LocalControllerTest extends TestCase {
 	public function testActionUnfollowUnfollowsAndRefreshesCounters(): void {
 		$actor = $this->actorForUser();
 		$this->followService->expects($this->once())->method('unfollowAccount')->with($actor, 'bob@remote.example');
-		$this->accountService->expects($this->once())->method('cacheLocalActorDetailCount')->with($actor);
+		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following');
 
 		$this->assertSuccess($this->controller()->actionUnfollow('bob@remote.example'), []);
 	}

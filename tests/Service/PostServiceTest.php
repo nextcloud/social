@@ -188,8 +188,8 @@ class PostServiceTest extends TestCase {
 	public function testCreatePostBuildsNoteAndWrapsItInCreateActivity(): void {
 		$this->cacheActorService->method('getFromAccount')->with('bob@remote.example', true)->willReturn($this->bob());
 		$this->accountService->expects($this->once())
-			->method('cacheLocalActorDetailCount')
-			->with($this->callback(fn (Person $p): bool => $p->getId() === self::ACTOR_ID));
+			->method('bumpActorCount')
+			->with(self::ACTOR_ID, 'count_posts', 1);
 		$this->expectCreateActivity($note);
 
 		$token = '';
@@ -454,7 +454,7 @@ class PostServiceTest extends TestCase {
 	public function testCreatePostToUnknownReplyTargetFailsBeforeAnythingIsSent(): void {
 		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
 		$this->activityService->expects($this->never())->method('createActivity');
-		$this->accountService->expects($this->never())->method('cacheLocalActorDetailCount');
+		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$post = $this->post('I agree');
 		$post->setReplyTo('https://remote.example/notes/missing');

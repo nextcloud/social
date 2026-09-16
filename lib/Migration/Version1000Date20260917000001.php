@@ -127,7 +127,7 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 			$page = $this->connection->executeQuery(
 				'SELECT `nid`, `id_prim` FROM `' . $stream . '` WHERE `nid` > ? ORDER BY `nid` ASC LIMIT '
 				. self::BATCH,
-				[$after]
+				[(string)$after]
 			)->fetchAll();
 
 			if ($page === []) {
@@ -144,7 +144,7 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 				$prims[] = (string)$row['id_prim'];
 				$cases .= ' WHEN ? THEN ?';
 				$values[] = (string)$row['id_prim'];
-				$values[] = (int)$row['nid'];
+				$values[] = (string)(int)$row['nid'];
 			}
 
 			$in = implode(', ', array_fill(0, count($prims), '?'));

@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\ChannelsRequest;
 use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -47,6 +48,12 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Service
  */
 class AccountService {
+	/** How many local accounts one page of the refresh walk carries. */
+	private const LOCAL_ACTOR_BATCH = 200;
+
+	/** ...and how many pages one cron pass may walk before giving the run back. */
+	private const LOCAL_ACTOR_PAGES = 10;
+
 	/** How long a soft-deleted actor is kept before `manageDeletedActors()` purges it. */
 	public const TIME_RETENTION = 3600;
 
@@ -95,6 +102,7 @@ class AccountService {
 		private ConfigService $configService,
 		private AccessBlockService $accessBlockService,
 		private CacheActorService $cacheActorService,
+		private CacheActorsRequest $cacheActorsRequest,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -755,7 +763,7 @@ class AccountService {
 	/**
 	 * @param Person $actor
 	 */
-	public function addLocalActorDetailCount(Person $actor) {
+	public function addLocalActorDetailCount(Person $actor, bool $recount = true) {
 		$lastPostCreation = '';
 		try {
 			$lastPost = $this->streamRequest->lastNoteFromActorId($actor->getId());
@@ -763,14 +771,61 @@ class AccountService {
 		} catch (StreamNotFoundException $e) {
 		}
 
-		$count = [
-			'followers' => $this->followsRequest->countFollowers($actor->getId()),
-			'following' => $this->followsRequest->countFollowing($actor->getId()),
+		$count = $recount ? null : $this->cacheActorsRequest->getCounts($actor->getId());
+
+		if ($count === null) {
+			// the four aggregate queries. They are the reason this must not be
+			// on a write path: `countFollowers()` is a `COUNT(*)` over
+			// `social_follow`, which for an account with a million followers
+			// is a million index entries counted so that a number on a profile
+			// can go up by one. Reached from the cron's local-account walk,
+			// which is bounded, and from the places a person explicitly asks
+			// for a refresh.
+			$count = [
+				'followers' => $this->followsRequest->countFollowers($actor->getId()),
+				'following' => $this->followsRequest->countFollowing($actor->getId()),
+				'post' => $this->streamRequest->countNotesFromActorId($actor->getId()),
+			];
+			// and write them where they can be added to next time
+			$this->cacheActorsRequest->setCounts($actor->getId(), $count);
+		}
+
+		$actor->setDetailArray('count', [
+			'followers' => $count['followers'],
+			'following' => $count['following'],
+			// never incremental: it is bounded by how many people are waiting
+			// for an answer, which is small, and it has to be right the moment
+			// the screen that shows it is opened
 			'follow_requests' => $this->followsRequest->countPendingRequests($actor->getId()),
-			'post' => $this->streamRequest->countNotesFromActorId($actor->getId())
-		];
-		$actor->setDetailArray('count', $count);
+			'post' => $count['post'],
+		]);
 		$actor->setDetail('last_post_creation', $lastPostCreation);
+	}
+
+	/**
+	 * Moves one of an account's counters by one, for the paths that know
+	 * exactly what changed.
+	 *
+	 * A follow arriving is `+1 followers` on the followed account and
+	 * `+1 following` on the follower; a post written is `+1 posts`. Each used
+	 * to recompute all three with aggregate queries. Where the counter has
+	 * never been counted the bump is skipped rather than applied to a number
+	 * nobody established — see `CacheActorsRequest::bumpCount()`.
+	 */
+	public function bumpActorCount(string $actorId, string $column, int $by = 1): void {
+		if ($actorId === '') {
+			return;
+		}
+
+		try {
+			$this->cacheActorsRequest->bumpCount($actorId, $column, $by);
+		} catch (Exception $e) {
+			// a counter on a profile is not worth failing a follow or a post
+			// over; the cron's walk reconciles it
+			$this->logger->debug('could not move an actor counter', [
+				'actor' => $actorId, 'column' => $column, 'exception' => $e,
+			]);
+		}
 	}
 
 	/**
@@ -1080,16 +1135,58 @@ class AccountService {
 	 * @return int
 	 * @throws Exception
 	 */
-	public function manageCacheLocalActors(): int {
-		$update = $this->actorsRequest->getAll();
-		foreach ($update as $item) {
-			try {
-				$this->cacheLocalActorByUsername($item->getPreferredUsername());
-			} catch (Exception $e) {
+	/**
+	 * Refreshes the cached copy of the local accounts, a page at a time.
+	 *
+	 * It used to read **every** local account into one array on every pass,
+	 * twelve minutes apart, and do a dozen queries and an avatar read for each.
+	 * At a million accounts the array does not fit in memory; at a hundred
+	 * thousand it does and the work behind it is hours, in a job that fires
+	 * every twelve minutes — and nothing says so, the cron simply falls behind.
+	 *
+	 * Now it walks: `LOCAL_ACTOR_BATCH` accounts a page, at most
+	 * `LOCAL_ACTOR_PAGES` pages a pass, stopping at the pass deadline, and
+	 * remembering in app config where it got to. A large instance therefore
+	 * takes many passes to go round, which is the correct behaviour for a
+	 * refresh nobody is waiting on — and the things that actually change
+	 * (a display name, an avatar, a follow, a post) already refresh the row
+	 * where they happen.
+	 *
+	 * @param int $deadline when the pass must stop, or 0 for no limit
+	 *
+	 * @return int how many accounts were refreshed
+	 */
+	public function manageCacheLocalActors(int $deadline = 0): int {
+		$after = (string)$this->configService->getAppValue(ConfigService::SOCIAL_LOCAL_ACTOR_CURSOR);
+		$done = 0;
+
+		for ($page = 0; $page < self::LOCAL_ACTOR_PAGES; $page++) {
+			$batch = $this->actorsRequest->getPage(self::LOCAL_ACTOR_BATCH, $after);
+			if ($batch === []) {
+				// the end of the table: begin again next pass
+				$after = '';
+				break;
+			}
+
+			foreach ($batch as $item) {
+				// the column the page is ordered by; the model carries the id
+				// and the prim is its md5, as everywhere else in this app
+				$after = md5($item->getId());
+				try {
+					$this->cacheLocalActorByUsername($item->getPreferredUsername());
+				} catch (Exception $e) {
+				}
+				$done++;
+			}
+
+			if ($deadline > 0 && time() >= $deadline) {
+				break;
 			}
 		}
 
-		return sizeof($update);
+		$this->configService->setAppValue(ConfigService::SOCIAL_LOCAL_ACTOR_CURSOR, $after);
+
+		return $done;
 	}
 
 	/**

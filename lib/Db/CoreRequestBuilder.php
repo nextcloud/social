@@ -171,7 +171,10 @@ class CoreRequestBuilder {
 			'details_update',
 			'sync_attempt',
 			'sync_failures',
-			'creation'
+			'creation',
+			'count_followers',
+			'count_following',
+			'count_posts'
 		],
 		self::TABLE_CACHE_DOCUMENTS => [
 			'nid',

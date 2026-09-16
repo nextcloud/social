@@ -9,8 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
-use Doctrine\DBAL\Platforms\SqlitePlatform;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
@@ -458,10 +456,16 @@ class Benchmark extends SocialCommand {
 		}
 
 		$columns = array_keys($rows[0]);
-		$quoted = array_map(static fn (string $c): string => '`' . $c . '`', $columns);
-		if ($this->connection->getDatabasePlatform() instanceof PostgreSQLPlatform) {
-			$quoted = array_map(static fn (string $c): string => '"' . $c . '"', $columns);
-		}
+		// The platform classes live in Doctrine, which the OCP stub this app is
+		// analysed against does not carry, so the platform is identified by
+		// name rather than by `instanceof`.
+		/** @psalm-suppress UndefinedDocblockClass the ocp stub carries no Doctrine platform classes */
+		$platform = strtolower(get_class($this->connection->getDatabasePlatform()));
+		$postgres = str_contains($platform, 'postgres');
+		$sqlite = str_contains($platform, 'sqlite');
+
+		$quote = $postgres ? '"' : '`';
+		$quoted = array_map(static fn (string $c): string => $quote . $c . $quote, $columns);
 
 		$tuple = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
 		$values = [];
@@ -475,15 +479,13 @@ class Benchmark extends SocialCommand {
 		// uses twice: the second attempt collides with the actors the first
 		// one wrote. Every database spells "insert what is new and say nothing
 		// about the rest" differently, and all three of them have it.
-		$platform = $this->connection->getDatabasePlatform();
-		$verb = 'INSERT';
+		$verb = 'INSERT IGNORE';
 		$suffix = '';
-		if ($platform instanceof PostgreSQLPlatform) {
+		if ($postgres) {
+			$verb = 'INSERT';
 			$suffix = ' ON CONFLICT DO NOTHING';
-		} elseif ($platform instanceof SqlitePlatform) {
+		} elseif ($sqlite) {
 			$verb = 'INSERT OR IGNORE';
-		} else {
-			$verb = 'INSERT IGNORE';
 		}
 
 		$sql = $verb . ' INTO `*PREFIX*' . $table . '` (' . implode(', ', $quoted) . ') VALUES '
@@ -512,7 +514,7 @@ class Benchmark extends SocialCommand {
 
 		$output->write(sprintf(
 			"\r  %-8s %s / %s (%d%%)   ",
-			$what, number_format($done), number_format($total), (int)($done / $total * 100)
+			$what, number_format($done), number_format($total), (int)((float)$done / (float)$total * 100.0)
 		));
 
 		if ($last) {

@@ -506,7 +506,7 @@ class LocalController extends Controller {
 			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->followAccount($actor, $account);
-			$this->accountService->cacheLocalActorDetailCount($actor);
+			$this->accountService->bumpActorCount($actor->getId(), 'count_following', 1);
 
 			return $this->success([]);
 		} catch (Exception $e) {
@@ -523,7 +523,7 @@ class LocalController extends Controller {
 			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->unfollowAccount($actor, $account);
-			$this->accountService->cacheLocalActorDetailCount($actor);
+			$this->accountService->bumpActorCount($actor->getId(), 'count_following', -1);
 
 			return $this->success([]);
 		} catch (Exception $e) {

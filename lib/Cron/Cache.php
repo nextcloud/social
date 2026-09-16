@@ -91,8 +91,10 @@ class Cache extends TimedJob {
 			'manageDeletedActors' => function (): void {
 				$this->accountService->manageDeletedActors();
 			},
-			'manageCacheLocalActors' => function (): void {
-				$this->accountService->manageCacheLocalActors();
+			'manageCacheLocalActors' => function () use ($deadline): void {
+				// the one step that used to read the whole of a table into
+				// memory; it pages and resumes now, and is told when to stop
+				$this->accountService->manageCacheLocalActors($deadline);
 			},
 			'manageCacheRemoteActors' => function (): void {
 				$this->cacheActorService->manageCacheRemoteActors();

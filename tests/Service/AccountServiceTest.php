@@ -68,9 +68,12 @@ class AccountServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private AccessBlockService|MockObject $accessBlockService;
 	private CacheActorService|MockObject $cacheActorService;
+	private \OCA\Social\Db\CacheActorsRequest|MockObject $cacheActorsRequest;
 
 	/** @var string[] the addresses this instance gives no fediverse account to */
 	private array $blockedEmails = [];
+	/** @var array<string, string> what the service wrote to app config */
+	private array $appValues = [];
 	private AccountService $service;
 	private int $errorReporting;
 
@@ -86,12 +89,22 @@ class AccountServiceTest extends TestCase {
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->signatureService = $this->createMock(SignatureService::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		// the local-actor walk remembers where it got to in app config
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => $this->appValues[$key] ?? ''
+		);
+		$this->configService->method('setAppValue')->willReturnCallback(
+			function (string $key, string $value): void {
+				$this->appValues[$key] = $value;
+			}
+		);
 
 		// AccountService assigns its collaborators to undeclared properties; PHP reports
 		// "Creation of dynamic property" for each of them, which PHPUnit would treat as
 		// unexpected output. Silence that single known deprecation around construction.
 		$this->errorReporting = error_reporting(E_ALL & ~E_DEPRECATED);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->cacheActorsRequest = $this->createMock(\OCA\Social\Db\CacheActorsRequest::class);
 		$this->clientAuthRequest = $this->createMock(ClientAuthRequest::class);
 		$this->channelsRequest = $this->createMock(ChannelsRequest::class);
 		$this->accessBlockService = $this->createMock(AccessBlockService::class);
@@ -115,6 +128,7 @@ class AccountServiceTest extends TestCase {
 			$this->configService,
 			$this->accessBlockService,
 			$this->cacheActorService,
+			$this->cacheActorsRequest,
 			new NullLogger(),
 		);
 		error_reporting($this->errorReporting);
@@ -598,7 +612,10 @@ class AccountServiceTest extends TestCase {
 		$alice = $this->alice();
 		$bob = $this->alice();
 		$bob->setPreferredUsername('bob');
-		$this->actorsRequest->method('getAll')->willReturn([$alice, $bob]);
+		// one page, then the end of the table
+		$this->actorsRequest->method('getPage')->willReturnCallback(
+			static fn (int $limit, string $after = ''): array => ($after === '') ? [$alice, $bob] : []
+		);
 		$refreshed = [];
 		$this->actorsRequest->expects($this->exactly(2))
 			->method('getFromUsername')
@@ -610,6 +627,40 @@ class AccountServiceTest extends TestCase {
 
 		$this->assertSame(2, $this->service->manageCacheLocalActors());
 		$this->assertSame(['alice', 'bob'], $refreshed);
+	}
+
+	/**
+	 * The walk used to read every local account into one array on every cron
+	 * pass. At a million accounts that array does not fit in memory, and the
+	 * dozen queries and avatar read behind each of them are hours of work in a
+	 * job that fires every twelve minutes — silently, because nothing reports
+	 * a cron that is merely falling behind.
+	 */
+	public function testTheLocalActorWalkStopsAtTheDeadlineAndResumesWhereItStopped(): void {
+		$pages = [];
+		$this->actorsRequest->method('getPage')->willReturnCallback(
+			function (int $limit, string $after = '') use (&$pages): array {
+				$pages[] = $after;
+				// always another page, so only the deadline can stop it
+				$actor = $this->alice();
+				$actor->setId('https://cloud.example/@a' . count($pages));
+
+				return [$actor];
+			}
+		);
+		$this->actorsRequest->method('getFromUsername')
+			->willThrowException(new ActorDoesNotExistException());
+
+		// a deadline already past: one page, then stop
+		$this->service->manageCacheLocalActors(time() - 1);
+
+		$this->assertCount(1, $pages, 'the pass stopped at its deadline');
+		$this->assertSame('', $pages[0], 'and it began where the last one left off');
+		$this->assertSame(
+			md5('https://cloud.example/@a1'),
+			$this->appValues[ConfigService::SOCIAL_LOCAL_ACTOR_CURSOR] ?? null,
+			'the cursor is where the next pass carries on from'
+		);
 	}
 
 	public function testManageDeletedActorsSkipsLiveActors(): void {

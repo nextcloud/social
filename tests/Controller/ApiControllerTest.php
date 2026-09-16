@@ -1829,7 +1829,7 @@ class ApiControllerTest extends TestCase {
 		$this->followService->expects($this->once())
 			->method('followAccount')->with($this->identicalTo($viewer), 'bob@remote.example');
 		$this->accountService->expects($this->once())
-			->method('cacheLocalActorDetailCount')->with($this->identicalTo($viewer));
+			->method('bumpActorCount')->with($viewer->getId(), 'count_following', 1);
 
 		$relationship = new Relationship(42);
 		$this->followService->method('getRelationshipWith')->willReturn($relationship);
