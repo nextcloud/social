@@ -224,6 +224,18 @@ class ConfigService {
 	 */
 	public const SOCIAL_LOCAL_ACTOR_CURSOR = 'local_actor_cursor';
 
+	/**
+	 * How far back a content search looks, in days; `0` searches everything.
+	 *
+	 * `content ILIKE '%term%'` cannot use an index — a leading wildcard never
+	 * can — so an unbounded search reads every post the instance has ever
+	 * stored, joined to seven other tables, on every keystroke. At ten million
+	 * rows that is a table scan the rate limit is the only defence against.
+	 * A year covers what anybody is looking for; an instance small enough to
+	 * search all of it can say so.
+	 */
+	public const SOCIAL_SEARCH_WINDOW_DAYS = 'search_window_days';
+
 	public const SOCIAL_NSFW_POLICY = 'nsfw_policy';
 
 	/**
@@ -300,6 +312,7 @@ class ConfigService {
 		self::SOCIAL_VIDEO_LADDER_HEIGHTS => '360,720,1080',
 		self::SOCIAL_VIDEO_QUOTA => '0',
 		self::SOCIAL_LOCAL_ACTOR_CURSOR => '',
+		self::SOCIAL_SEARCH_WINDOW_DAYS => '365',
 		self::SOCIAL_NSFW_POLICY => 'default',
 		self::SOCIAL_REVIEW_VIDEOS => '0',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',

@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Tools\Exceptions\DateTimeException;
@@ -483,9 +484,24 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$expr = $this->expr();
 		$pf = $this->getDefaultSelectAlias();
 
-		$this->andWhere($expr->isNotNull($pf . '.attachments'));
-		$this->andWhere($expr->neq($pf . '.attachments', $this->createNamedParameter('')));
-		$this->andWhere($expr->neq($pf . '.attachments', $this->createNamedParameter('[]')));
+		// `media_kind` says this in one indexed column, and is what answers
+		// wherever it has been filled in. The three string comparisons below
+		// are what a row written before that column existed is judged by, and
+		// they are the reason this predicate could never use an index: they are
+		// applied *after* the join, so a Photos timeline on a ten-million-row
+		// table read every candidate row and then decided.
+		$this->andWhere($expr->orX(
+			$expr->andX(
+				$expr->isNotNull($pf . '.media_kind'),
+				$expr->neq($pf . '.media_kind', $this->createNamedParameter(Stream::MEDIA_KIND_NONE))
+			),
+			$expr->andX(
+				$expr->isNull($pf . '.media_kind'),
+				$expr->isNotNull($pf . '.attachments'),
+				$expr->neq($pf . '.attachments', $this->createNamedParameter('')),
+				$expr->neq($pf . '.attachments', $this->createNamedParameter('[]'))
+			)
+		));
 
 		return $this;
 	}
@@ -512,15 +528,25 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$expr = $this->expr();
 		$pf = $this->getDefaultSelectAlias();
 
-		$this->andWhere(
-			$expr->orX(
-				$expr->like(
-					$pf . '.attachments',
-					$this->createNamedParameter('%"type":"video"%')
-				),
-				$expr->eq($pf . '.subtype', $this->createNamedParameter('Video'))
+		$this->andWhere($expr->orX(
+			// the indexed answer, wherever the column has been filled in.
+			// `mixed` counts: a post with a photograph and a video in it is a
+			// video post, and the column had to choose one word for it.
+			$expr->in($pf . '.media_kind', $this->createNamedParameter(
+				['video', Stream::MEDIA_KIND_MIXED], IQueryBuilder::PARAM_STR_ARRAY
+			)),
+			// and the old question, for a row the backfill has not reached
+			$expr->andX(
+				$expr->isNull($pf . '.media_kind'),
+				$expr->orX(
+					$expr->like(
+						$pf . '.attachments',
+						$this->createNamedParameter('%"type":"video"%')
+					),
+					$expr->eq($pf . '.subtype', $this->createNamedParameter('Video'))
+				)
 			)
-		);
+		));
 
 		return $this;
 	}
@@ -546,14 +572,21 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * which is one account's posts.
 	 */
 	public function limitToMediaType(string $type): self {
+		$expr = $this->expr();
 		$pf = $this->getDefaultSelectAlias();
 
-		$this->andWhere(
-			$this->expr()->like(
-				$pf . '.attachments',
-				$this->createNamedParameter('%"type":"' . $type . '"%')
+		$this->andWhere($expr->orX(
+			$expr->in($pf . '.media_kind', $this->createNamedParameter(
+				[$type, Stream::MEDIA_KIND_MIXED], IQueryBuilder::PARAM_STR_ARRAY
+			)),
+			$expr->andX(
+				$expr->isNull($pf . '.media_kind'),
+				$expr->like(
+					$pf . '.attachments',
+					$this->createNamedParameter('%"type":"' . $type . '"%')
+				)
 			)
-		);
+		));
 
 		return $this;
 	}

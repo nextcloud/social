@@ -139,11 +139,15 @@ class StreamRequest extends StreamRequestBuilder {
 					$attachments[] = $item->asLocal(); // get attachment ready for local
 				}
 
+				$encoded = (string)json_encode($attachments, JSON_UNESCAPED_SLASHES);
 				$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
-					->setValue(
-						'attachments', $qb->createNamedParameter(json_encode($attachments, JSON_UNESCAPED_SLASHES)
-						)
-					);
+					->setValue('attachments', $qb->createNamedParameter($encoded))
+					// what kind of media this is, decided once here rather than
+					// by searching the JSON above with `LIKE` on every read of
+					// a Photos or Videos timeline
+					->setValue('media_kind', $qb->createNamedParameter(
+						Stream::mediaKindOf($encoded, $stream->getSubType())
+					));
 			}
 
 			try {
@@ -243,12 +247,12 @@ class StreamRequest extends StreamRequestBuilder {
 		// the object it was copied from disagree from the next read on.
 		$this->setPostFields($qb, $stream, false);
 		if ($stream->getType() === Note::TYPE && $stream instanceof Note) {
+			$encoded = (string)json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES);
 			$qb->set('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags(), JSON_UNESCAPED_SLASHES)));
-			$qb->set(
-				'attachments', $qb->createNamedParameter(
-					json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
-				)
-			);
+			$qb->set('attachments', $qb->createNamedParameter($encoded));
+			$qb->set('media_kind', $qb->createNamedParameter(
+				Stream::mediaKindOf($encoded, $stream->getSubType())
+			));
 		}
 		$qb->set('published', $qb->createNamedParameter($stream->getPublished()));
 		try {
@@ -490,7 +494,52 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->orderBy('s.published_time', 'desc');
 		$qb->setMaxResults($limit);
 
+		// The window is what keeps this from being a full scan. `content
+		// ILIKE '%term%'` cannot use an index — a leading wildcard never
+		// can — so without a bound the database reads every post the instance
+		// has ever stored, joined to seven other tables, on every search. At
+		// ten million rows that is a table scan per keystroke, and the rate
+		// limit is the only thing between it and the CPU.
+		//
+		// `published_time` is indexed and is what the result is ordered by, so
+		// a range on it is both the narrowing and the ordering. Searching the
+		// recent past and saying so is a different promise from searching
+		// everything and timing out; a full-text index is what would let this
+		// promise more, and it is a per-database feature this app has nowhere
+		// else — see `SearchService`.
+		$since = $this->searchWindowStart();
+		if ($since > 0) {
+			$qb->andWhere($expr->gt(
+				's.published_time',
+				$qb->createNamedParameter($this->dateTime($since), IQueryBuilder::PARAM_DATE)
+			));
+		}
+
 		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * How far back a content search looks, as a timestamp, or 0 for "all of
+	 * it".
+	 *
+	 * An administrator can widen it — an instance with a hundred thousand
+	 * posts can afford to search all of them, and one with ten million cannot.
+	 * The default is a year, which covers what anybody is actually looking for
+	 * and bounds the scan at roughly the instance's yearly output rather than
+	 * its whole history.
+	 */
+	private function searchWindowStart(): int {
+		$days = $this->configService->getAppValueInt(ConfigService::SOCIAL_SEARCH_WINDOW_DAYS);
+
+		return ($days > 0) ? time() - ($days * 86400) : 0;
+	}
+
+	/** A timestamp as the DateTime the date parameters take. */
+	private function dateTime(int $timestamp): DateTime {
+		$date = new DateTime();
+		$date->setTimestamp($timestamp);
+
+		return $date;
 	}
 
 	public function getStreamByNid(int $nid): Stream {

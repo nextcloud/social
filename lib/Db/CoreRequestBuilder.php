@@ -653,6 +653,7 @@ class CoreRequestBuilder {
 			'source',
 			'instances',
 			'attachments',
+			'media_kind',
 			'cache',
 			'creation',
 			'local',
