@@ -9,6 +9,7 @@ import { getFilePickerBuilder } from '@nextcloud/dialogs'
 import { setLanguage } from '@nextcloud/l10n'
 import { showError, showSuccess } from '../../../src/services/toast.js'
 import Composer from '../../../src/components/Composer/Composer.vue'
+import ComposerPreview from '../../../src/components/Composer/ComposerPreview.vue'
 import LanguageSelect from '../../../src/components/Composer/LanguageSelect.vue'
 import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vue'
 import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusButton.vue'
@@ -719,6 +720,62 @@ describe('Composer', () => {
 			await setContent(wrapper, 'half a thought')
 
 			expect(closeButton(wrapper).exists()).toBe(false)
+		})
+	})
+
+	describe('the panels the toolbar opens', () => {
+		const toolbarButton = (wrapper, label) => wrapper.findAll('button')
+			.find((button) => button.attributes('aria-label') === label)
+
+		/**
+		 * Pressing the toolbar button again closed them, which is a row
+		 * further down and a thing to work out; the way out of a panel belongs
+		 * on the panel.
+		 */
+		it('closes the poll from the poll itself', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Add poll').trigger('click')
+			expect(wrapper.find('.poll-editor').exists()).toBe(true)
+
+			await wrapper.find('.poll-editor__remove').trigger('click')
+
+			expect(wrapper.find('.poll-editor').exists()).toBe(false)
+		})
+
+		it('closes the content warning from the row it is typed in', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Add content warning').trigger('click')
+			expect(wrapper.find('.content-warning').exists()).toBe(true)
+
+			await wrapper.find('.content-warning-row__remove').trigger('click')
+
+			expect(wrapper.find('.content-warning').exists()).toBe(false)
+		})
+
+		it('closes the preview from the preview', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'something to look at')
+			await toolbarButton(wrapper, 'Preview this post').trigger('click')
+			expect(wrapper.findComponent(ComposerPreview).exists()).toBe(true)
+
+			await wrapper.find('.composer-preview__close').trigger('click')
+
+			expect(wrapper.findComponent(ComposerPreview).exists()).toBe(false)
+		})
+
+		/** What was typed in it goes with it, as pressing the button again does. */
+		it('takes the warning text with the warning', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Add content warning').trigger('click')
+			await wrapper.find('.content-warning').setValue('spoilers')
+
+			await wrapper.find('.content-warning-row__remove').trigger('click')
+			await toolbarButton(wrapper, 'Add content warning').trigger('click')
+
+			expect(wrapper.find('.content-warning').element.value).toBe('')
 		})
 	})
 

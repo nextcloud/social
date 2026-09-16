@@ -133,13 +133,28 @@
 				</div>
 			</div>
 			<div v-if="showWarning" class="content-warning-row">
-				<input
-					v-model="spoilerText"
-					type="text"
-					class="content-warning"
-					maxlength="200"
-					:aria-label="t('social', 'Content warning')"
-					:placeholder="t('social', 'Content warning, e.g. what the post is about')">
+				<div class="content-warning-row__field">
+					<input
+						v-model="spoilerText"
+						type="text"
+						class="content-warning"
+						maxlength="200"
+						:aria-label="t('social', 'Content warning')"
+						:placeholder="t('social', 'Content warning, e.g. what the post is about')">
+					<!-- the toolbar button that opened this row is the other way
+					     to close it, and it is a row further down and a guess:
+					     the way out of a thing belongs on the thing -->
+					<NcButton
+						variant="tertiary"
+						class="content-warning-row__remove"
+						:title="t('social', 'Remove the content warning')"
+						:aria-label="t('social', 'Remove the content warning')"
+						@click.prevent="toggleWarning">
+						<template #icon>
+							<Close :size="18" />
+						</template>
+					</NcButton>
+				</div>
 				<!-- the warnings people actually write, as one press each: the
 				     box stays, because the list cannot cover what a post is
 				     about, and pressing one only fills the box in -->
@@ -195,9 +210,23 @@
 			<ComposerPreview
 				v-if="showPreview"
 				:text="statusText"
-				:warning="showWarning ? spoilerText : ''" />
+				:warning="showWarning ? spoilerText : ''"
+				@close="showPreview = false" />
 
 			<div v-if="showPoll" class="poll-editor">
+				<div class="poll-editor__head">
+					<span class="poll-editor__title">{{ t('social', 'Poll') }}</span>
+					<NcButton
+						variant="tertiary"
+						class="poll-editor__remove"
+						:title="t('social', 'Remove the poll')"
+						:aria-label="t('social', 'Remove the poll')"
+						@click.prevent="togglePoll">
+						<template #icon>
+							<Close :size="18" />
+						</template>
+					</NcButton>
+				</div>
 				<div v-for="(option, index) in pollOptions" :key="index" class="poll-editor__option">
 					<input
 						v-model="pollOptions[index]"
@@ -3084,6 +3113,24 @@ $composer-duration: 220ms;
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius);
 
+	&__head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 4px;
+	}
+
+	&__title {
+		color: var(--color-text-maxcontrast);
+		font-size: 12px;
+		text-transform: uppercase;
+		letter-spacing: .04em;
+	}
+
+	&__remove {
+		margin-inline-start: auto;
+	}
+
 	&__option {
 		display: flex;
 		gap: 4px;
@@ -3216,7 +3263,14 @@ $composer-duration: 220ms;
 .content-warning-row {
 	margin-bottom: 6px;
 
+	&__field {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
 	.content-warning {
+		flex-grow: 1;
 		margin-bottom: 4px;
 	}
 }

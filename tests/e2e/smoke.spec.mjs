@@ -78,6 +78,36 @@ test.describe('Social, in a browser', () => {
 		await page.keyboard.press('Backspace')
 	})
 
+	/**
+	 * Each was opened by a button in the toolbar and could be shut only by
+	 * finding that same button and pressing it again — a row further down, and
+	 * a thing to work out rather than to see.
+	 */
+	test('each composer panel closes from itself', async ({ page }) => {
+		await openApp(page)
+		const composer = page.locator('.social__wrapper .new-post').first()
+		await composer.locator('.message').click()
+
+		await composer.getByRole('button', { name: 'Add poll' }).click()
+		await expect(composer.locator('.poll-editor')).toBeVisible()
+		await composer.locator('.poll-editor__remove').click()
+		await expect(composer.locator('.poll-editor')).toBeHidden()
+
+		await composer.getByRole('button', { name: 'Add content warning' }).click()
+		await composer.locator('.content-warning').fill('spoilers')
+		await composer.locator('.content-warning-row__remove').click()
+		await expect(composer.locator('.content-warning')).toBeHidden()
+
+		await composer.getByRole('button', { name: 'Preview this post' }).click()
+		await expect(composer.locator('.composer-preview')).toBeVisible()
+		await composer.locator('.composer-preview__close').click()
+		await expect(composer.locator('.composer-preview')).toBeHidden()
+
+		// and the box itself still closes, with nothing left behind in it
+		await composer.getByRole('button', { name: 'Close the composer' }).click()
+		await expect(composer).toHaveClass(/new-post--collapsed/)
+	})
+
 	test('Discover has its sections', async ({ page }) => {
 		await openApp(page, '/discover')
 
