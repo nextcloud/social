@@ -97,6 +97,7 @@ class StreamRequest extends StreamRequestBuilder {
 		private CacheDocumentService $cacheDocumentService,
 		private FollowedTagsRequest $followedTagsRequest,
 		private ConversationsRequest $conversationsRequest,
+		private RenditionsRequest $renditionsRequest,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 	}
@@ -2202,15 +2203,15 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * The cached attachments of a set of posts: the files first, then the rows
-	 * that name them — a row without its file is recoverable, a file without
-	 * its row is not.
+	 * The cached attachments of a set of posts, and the ladders built from
+	 * them: the files first, then the rows that name them — a row without its
+	 * file is recoverable, a file without its row is not.
 	 *
 	 * @param string[] $prims
 	 */
 	private function deleteDocumentsOf(array $prims): int {
 		$qb = $this->getQueryBuilder();
-		$qb->select('id_prim', 'local_copy', 'resized_copy')
+		$qb->select('nid', 'id_prim', 'local_copy', 'resized_copy')
 			->from(self::TABLE_CACHE_DOCUMENTS)
 			->where($qb->expr()->in(
 				'parent_id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
@@ -2226,6 +2227,14 @@ class StreamRequest extends StreamRequestBuilder {
 		foreach ($rows as $row) {
 			$this->cacheDocumentService->removeFromCache((string)$row['local_copy']);
 			$this->cacheDocumentService->removeFromCache((string)$row['resized_copy']);
+
+			// and the rungs of its ladder, which are files of this server's
+			// own making that nothing else names: a document's row going away
+			// without them is disk that no later run would ever free, because
+			// the only thing that knew about them was the row
+			foreach ($this->renditionsRequest->deleteForDocument((int)$row['nid']) as $rung) {
+				$this->cacheDocumentService->removeFromCache($rung);
+			}
 		}
 
 		$delete = $this->getQueryBuilder();

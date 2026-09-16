@@ -232,6 +232,25 @@ class PeerTubeApiServiceTest extends TestCase {
 		$this->assertSame('Alice on video', $this->service->video($this->video())['channel']['displayName']);
 	}
 
+	/**
+	 * A video posted before this app recorded a title and a running time has
+	 * no video metadata at all, and its duration is still on the file.
+	 */
+	public function testTheDurationFallsBackToTheFilesOwn(): void {
+		$attachmentMeta = new \OCA\Social\Model\Client\AttachmentMeta();
+		$attachmentMeta->setDuration(240);
+
+		$attachment = new \OCA\Social\Model\Client\MediaAttachment();
+		$attachment->setId('9')->setType('video')->setMediaType('video/mp4')
+			->setUrl('https://cloud.example/media/movie.mp4')
+			->setMeta($attachmentMeta);
+
+		$post = $this->video(['duration' => 0]);
+		$post->setAttachments([$attachment]);
+
+		$this->assertSame(240, $this->service->video($post)['duration']);
+	}
+
 	// --- the signed-in account ---------------------------------------------
 
 	/**

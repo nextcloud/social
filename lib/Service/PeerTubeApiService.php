@@ -207,7 +207,10 @@ class PeerTubeApiService {
 				? ['id' => 1, 'label' => 'Public'] : ['id' => 2, 'label' => 'Unlisted'],
 			'name' => (string)($meta['title'] ?? $this->titleOf($post)),
 			'truncatedDescription' => mb_substr(trim(strip_tags($post->getContent())), 0, 250),
-			'duration' => (int)($meta['duration'] ?? 0),
+			// the video meta first, and the attachment's own second: a video
+			// posted before this app recorded a title and a running time has
+			// no meta at all, and its duration is still on the file
+			'duration' => (int)($meta['duration'] ?? 0) ?: $this->durationOf($file),
 			'aspectRatio' => null,
 			'isLocal' => $post->isLocal(),
 			'thumbnailPath' => (string)($file['preview_url'] ?? ''),
@@ -418,6 +421,26 @@ class PeerTubeApiService {
 		$label = trim($label);
 
 		return ($label === '') ? null : ['id' => 0, 'label' => $label];
+	}
+
+	/**
+	 * How long the file runs, where the post itself does not say.
+	 *
+	 * A video posted before this app recorded a title and a running time has
+	 * no video metadata at all, and the duration is still on the attachment —
+	 * where it was written when the file was stored. `asLocal()` hands `meta`
+	 * back as an object so a client decoding a dictionary takes it, which is
+	 * why this is not a plain array read.
+	 *
+	 * @param array<string, mixed>|null $file
+	 */
+	private function durationOf(?array $file): int {
+		$meta = $file['meta'] ?? null;
+		if (!is_object($meta) || !isset($meta->duration)) {
+			return 0;
+		}
+
+		return (int)round((float)$meta->duration);
 	}
 
 	/** A title for a post that has none: the first line, as everywhere else here. */
