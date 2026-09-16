@@ -388,6 +388,63 @@ php occ social:stream:prune [-d|--days DAYS] [--dry-run]
 
 ## Queue Management
 
+### `social:worker`
+
+Drain the queues continuously, instead of once every twelve minutes.
+
+```
+php occ social:worker [--once] [--max-seconds SECONDS] [--quiet-log]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--once` | none | Drain what is queued now and return, instead of waiting for more — what a cron entry wants |
+| `--max-seconds` | int (0) | Stop after this long, so a supervisor can restart it; `0` runs until stopped |
+| `--quiet-log` | none | Do not print a line per batch |
+
+**Why it matters:** `Cron\Queue` reads **200 rows every twelve minutes** and
+delivers them one after another with a 30-second timeout each, inside a
+300-second budget. That is about a thousand deliveries an hour at best and
+**ten** at worst — ten unresponsive peers at 30 seconds each fill the whole
+budget. An instance whose accounts are followed across twenty thousand servers
+therefore takes the better part of a day to deliver one popular post, with
+everything else queued behind it, and Nextcloud runs one `cron.php` at a time so
+there is no parallelism to be had by adding servers.
+
+This is the same delivery in a loop that does not stop. A healthy peer answers in
+a fraction of a second, so one worker moves thousands of rows an hour rather than
+a thousand a day — and because claiming a row is already atomic (an
+`UPDATE … WHERE status = standby` that throws when it loses the race),
+**several workers may run at once** and will not collide. Run as many as the
+instance needs, under systemd:
+
+```ini
+[Unit]
+Description=Nextcloud Social delivery worker %i
+After=network.target
+
+[Service]
+User=www-data
+ExecStart=/usr/bin/php /var/www/html/occ social:worker --max-seconds=3600 --quiet-log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`systemctl enable --now social-worker@{1..4}` for four of them. It finishes the
+row in hand on `SIGTERM` rather than abandoning a delivery the receiving server
+may already have taken, sleeps (with a growing wait) when there is nothing to do,
+and hands rows back to standby when an attempt fails outside the delivery
+service's own error handling — without that a killed worker leaves a row
+`running`, which nothing retries until the stale reaper an hour later.
+
+**The cron job is unchanged.** An instance that will not run a daemon keeps
+exactly the behaviour it has; one that will gets the throughput.
+
+---
+
 ### `social:queue:process`
 
 Process both queues once: the outbound request queue (federation delivery) and the

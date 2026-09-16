@@ -270,6 +270,7 @@ class OutboundFederationWireTest extends TestCase {
 			$this->configService,
 			$this->actorsRequest,
 			$this->createMock(RelayRequest::class),
+			$this->createMock(\OCP\ICacheFactory::class),
 			new NullLogger(),
 		);
 		$service->manageInit();

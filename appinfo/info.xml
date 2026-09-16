@@ -117,6 +117,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<command>OCA\Social\Command\MediaPosters</command>
 		<command>OCA\Social\Command\MediaTranscode</command>
 		<command>OCA\Social\Command\MediaLadder</command>
+		<command>OCA\Social\Command\Worker</command>
 		<command>OCA\Social\Command\TeamAccount</command>
 		<command>OCA\Social\Command\MediaUsage</command>
 		<command>OCA\Social\Command\NoteLike</command>

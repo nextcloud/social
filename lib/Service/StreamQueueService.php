@@ -39,6 +39,19 @@ use OCA\Social\Tools\Model\CacheItem;
  */
 class StreamQueueService {
 	/**
+	 * How much thread resolution one inbox delivery does before handing the
+	 * rest to the queue.
+	 *
+	 * A thread is walked by fetching its parents from the servers that hold
+	 * them, and this happens while an FPM worker is still held. A handful of
+	 * items and a couple of seconds covers the ordinary case — a reply whose
+	 * parent is one fetch away — without letting one slow peer hold a worker
+	 * for the length of a conversation.
+	 */
+	private const INLINE_ITEMS = 5;
+	private const INLINE_SECONDS = 3;
+
+	/**
 	 * Detail stamped on every ancestor fetched for a reply: how many levels up
 	 * the climb already is. NoteInterface::save() stops queueing the next parent
 	 * once it reaches MAX_ANCESTOR_DEPTH, so a thread of a thousand messages
@@ -94,9 +107,24 @@ class StreamQueueService {
 	 */
 	public function cacheStreamByToken(string $token) {
 		$items = $this->streamQueueRequest->getFromToken($token);
+		$deadline = time() + self::INLINE_SECONDS;
+		$done = 0;
 
 		foreach ($items as $item) {
+			// Bounded, because this runs **inside the inbox request**, after
+			// the response has been flushed but while the PHP worker is still
+			// held. Each item can be an HTTP fetch of a parent post or an
+			// author from a server that may be slow or gone, so an unbounded
+			// walk spends the FPM pool waiting for other people's servers —
+			// and at a million users' worth of inbound traffic that is the
+			// pool. What is left stays queued; the cron and `social:worker`
+			// drain it, which is what that queue is for.
+			if ($done >= self::INLINE_ITEMS || time() >= $deadline) {
+				break;
+			}
+
 			$this->manageStreamQueue($item);
+			$done++;
 		}
 	}
 

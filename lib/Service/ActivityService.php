@@ -40,6 +40,8 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -54,7 +56,26 @@ class ActivityService {
 	public const TIMEOUT_ASYNC = 10;
 	public const TIMEOUT_SERVICE = 30;
 
+	/**
+	 * How long a host that has just failed is left alone, and the ceiling on
+	 * that.
+	 *
+	 * The list used to be per-pass: `manageInit()` emptied it at the start of
+	 * every run, so a dead peer was discovered afresh every twelve minutes, one
+	 * 30-second timeout at a time, for every row addressed to it. Kept in the
+	 * distributed cache the discovery survives the pass — and a host that keeps
+	 * failing is left alone for longer each time, up to an hour, which is the
+	 * difference between a dead instance costing a few seconds a day and
+	 * costing the whole delivery budget.
+	 */
+	private const BREAKER_BASE = 60;
+	private const BREAKER_MAX = 3600;
+
+	/** The hosts this pass has already found to be failing. */
 	private ?array $failInstances = null;
+
+	/** Shared across every process that delivers; see the constants above. */
+	private ICache $breaker;
 
 	public function __construct(
 		private StreamRequest $streamRequest,
@@ -66,8 +87,13 @@ class ActivityService {
 		private ConfigService $configService,
 		private ActorsRequest $actorsRequest,
 		private RelayRequest $relayRequest,
+		ICacheFactory $cacheFactory,
 		private LoggerInterface $logger,
 	) {
+		// shared between the cron, the async worker and every `social:worker`
+		// process, which is the point: one of them discovering that a host is
+		// down should spare all of them
+		$this->breaker = $cacheFactory->createDistributed('social.breaker');
 	}
 
 	/**
@@ -224,6 +250,56 @@ class ActivityService {
 	}
 
 	/**
+	 * Whether this host has failed recently enough to be worth skipping.
+	 *
+	 * Asked before a delivery is attempted rather than after it times out,
+	 * which is the whole saving: a row addressed to a dead instance costs a
+	 * cache read instead of thirty seconds.
+	 */
+	private function isCircuitOpen(string $host): bool {
+		if (in_array($host, $this->failInstances ?? [], true)) {
+			return true;
+		}
+
+		try {
+			return $this->breaker->get('open:' . $host) !== null;
+		} catch (\Throwable $e) {
+			// no distributed cache configured, or it is unreachable: fall back
+			// to the per-pass list, which is what this was before
+			return false;
+		}
+	}
+
+	/**
+	 * Records that this host is failing, for longer each consecutive time.
+	 *
+	 * The backoff is what stops a permanently dead instance from being
+	 * rediscovered every minute for ever; a host that answers again clears it,
+	 * so a peer that was merely restarting is not held at arm's length.
+	 */
+	private function openCircuit(string $host): void {
+		$this->failInstances[] = $host;
+
+		try {
+			$strikes = (int)($this->breaker->get('strikes:' . $host) ?? 0) + 1;
+			$for = min(self::BREAKER_MAX, self::BREAKER_BASE * (int)(2 ** min(6, $strikes - 1)));
+			$this->breaker->set('open:' . $host, 1, $for);
+			$this->breaker->set('strikes:' . $host, $strikes, self::BREAKER_MAX);
+		} catch (\Throwable $e) {
+			// the per-pass list above is the fallback
+		}
+	}
+
+	/** A host that answered: it is not failing, whatever it did before. */
+	private function closeCircuit(string $host): void {
+		try {
+			$this->breaker->remove('open:' . $host);
+			$this->breaker->remove('strikes:' . $host);
+		} catch (\Throwable $e) {
+		}
+	}
+
+	/**
 	 * Whether an HTTP status from a peer is worth trying again later.
 	 *
 	 * 408 and 429 are explicitly temporary, and any 5xx is the peer's own
@@ -245,7 +321,7 @@ class ActivityService {
 	public function manageRequest(RequestQueue $queue) {
 		$host = $queue->getInstance()
 			->getAddress();
-		if (in_array($host, $this->failInstances)) {
+		if ($this->isCircuitOpen($host)) {
 			return;
 		}
 
@@ -269,6 +345,7 @@ class ActivityService {
 				$url,
 				['headers' => $headers, 'body' => $body, 'timeout' => $queue->getTimeout()]
 			);
+			$this->closeCircuit($host);
 			$this->requestQueueService->endRequest($queue, true);
 		} catch (UnauthorizedFediverseException|RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
@@ -283,7 +360,7 @@ class ActivityService {
 					. $url . ' - ' . $e->getMessage()
 				);
 				$this->requestQueueService->endRequest($queue, false);
-				$this->failInstances[] = $host;
+				$this->openCircuit($host);
 
 				return;
 			}
@@ -305,7 +382,7 @@ class ActivityService {
 				. ' - ' . get_class($e) . ': ' . $e->getMessage()
 			);
 			$this->requestQueueService->endRequest($queue, false);
-			$this->failInstances[] = $host;
+			$this->openCircuit($host);
 		}
 	}
 
