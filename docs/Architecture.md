@@ -824,7 +824,10 @@ The page also carries **the first screenful of the home timeline** in its
 initial state. Without it the first screen is a staircase: fetch the bundle,
 mount, and only then ask the server — a second round trip and a full boot before
 anything a person came to read is on screen. It is consumed once, and only by
-the list it was rendered for.
+the list it was rendered for. It goes through `FilterService::apply()` exactly
+as the API route's page does, which is both what keeps a muted word out of the
+one screenful nobody asked the server for and what makes the seeded page byte
+for byte what `/api/v1/timelines/home` would have answered.
 
 **A ladder of sizes** is `social_video_rendition`. A stored video used to be one
 file at whatever height it was uploaded at, so a reader on a phone on a train

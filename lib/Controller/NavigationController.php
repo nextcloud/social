@@ -16,11 +16,13 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\FilterService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\StreamService;
@@ -71,6 +73,7 @@ class NavigationController extends Controller {
 		private CheckService $checkService,
 		private SensitiveMediaService $sensitiveMediaService,
 		private StreamService $streamService,
+		private FilterService $filterService,
 		private MiscService $miscService,
 		private LoggerInterface $logger,
 	) {
@@ -270,6 +273,14 @@ class NavigationController extends Controller {
 	 * happened to be in the URL, and a page reached with a cursor is one the
 	 * reader has scrolled to rather than the one they arrived on.
 	 *
+	 * The reader's keyword filters are applied to it, exactly as the API route
+	 * applies them to the page it answers with. Without that the one screenful
+	 * a person is handed on every full page load is the only place in the app
+	 * where a word they muted comes back — and it is the first thing they see.
+	 * It is `FilterService::apply()` that also exports each post for the
+	 * client, so what the page is handed is now byte for byte what
+	 * `/api/v1/timelines/home` would have answered.
+	 *
 	 * A failure is not worth showing anybody: the page asks, which is what it
 	 * did before.
 	 */
@@ -288,7 +299,10 @@ class NavigationController extends Controller {
 				->setLimit(self::FIRST_PAGE);
 
 			$this->initialState->provideInitialState(
-				'firstPage', $this->streamService->getTimeline($options)
+				'firstPage',
+				$this->filterService->apply(
+					$this->streamService->getTimeline($options), Filter::CONTEXT_HOME, $viewer
+				)
 			);
 		} catch (Exception $e) {
 			$this->logger->debug('[NavigationController] no first page to hand the page', [
