@@ -497,6 +497,39 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * ordinary account goes on meaning.
 	 */
 	/**
+	 * `attributedTo` as a list of typed references, however the document wrote
+	 * it: PeerTube sends objects with a `type`, and a bare id is read as a
+	 * `Person` because that is the only thing an actor is ever attributed to.
+	 *
+	 * @param array<string, mixed> $source
+	 * @return array<int, array{type: string, id: string}>
+	 */
+	private function attributedToFrom(array $source): array {
+		$raw = $source['attributedTo'] ?? [];
+		if (is_string($raw)) {
+			$raw = [$raw];
+		}
+		if (!is_array($raw)) {
+			return [];
+		}
+
+		$actors = [];
+		foreach ($raw as $entry) {
+			if (is_string($entry) && $entry !== '') {
+				$actors[] = ['type' => self::TYPE, 'id' => $entry];
+				continue;
+			}
+
+			$id = is_array($entry) ? (string)($entry['id'] ?? '') : '';
+			if ($id !== '') {
+				$actors[] = ['type' => (string)($entry['type'] ?? self::TYPE), 'id' => $id];
+			}
+		}
+
+		return $actors;
+	}
+
+	/**
 	 * @return array<int, array{type: string, id: string}>
 	 */
 	public function getAttributedToActors(): array {
@@ -979,6 +1012,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				$this->setHeader($image);
 			}
 			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
+			// Whose a channel is. The cached copy is what every read of an
+			// actor is served from and it has no column for this, so it comes
+			// back out of the source document the same way `alsoKnownAs` does —
+			// without it the `Group` was served with no owner, which is the
+			// second thing PeerTube refuses a video for.
+			$this->setAttributedToActors($this->attributedToFrom($source));
 			$this->setMovedTo($this->validate(self::AS_URL, 'movedTo', $source, $this->getMovedTo()));
 			$this->setLocked($this->getBool('manuallyApprovesFollowers', $source, $this->isLocked()));
 			$this->setDiscoverable($this->getBool('discoverable', $source, $this->isDiscoverable()));
