@@ -91,6 +91,47 @@ class HttpSignatureService {
 	}
 
 	/**
+	 * The delivery signature for an activity the **instance** sends as itself.
+	 *
+	 * `signDelivery()` cannot be used for these: it resolves the signing key
+	 * from `oc_social_actor` by the queue row's author, and the instance actor
+	 * is deliberately not a row there (see `InstanceActorService`). So the
+	 * activities that must be signed as the server — a forwarded report, a
+	 * relay subscription — are exactly the ones the queue cannot sign, and
+	 * they go out inline with these headers.
+	 *
+	 * @param string $url the inbox the request is sent to; the signature covers
+	 *                    the path of that very URL
+	 * @param string $body the bytes that go on the wire, which is what `digest`
+	 *                     and `content-length` describe
+	 *
+	 * @return array<string, string> the headers to send
+	 *
+	 * @throws SignatureException there is no instance actor, or its key is
+	 *                            unusable — either way the activity must fail
+	 *                            loudly rather than go out unsigned, which the
+	 *                            peer would reject for the wrong reason
+	 */
+	public function signAsInstance(string $url, string $body): array {
+		$actor = $this->instanceActorService->getSigningActor();
+		if ($actor === null) {
+			throw new SignatureException('this instance has no actor of its own to sign as');
+		}
+
+		return $this->sign(
+			$actor,
+			self::DELIVERY_HEADERS,
+			[
+				'(request-target)' => $this->requestTarget('post', $url),
+				'date' => gmdate(self::DATE_HEADER),
+				'host' => $this->authority($url),
+				'digest' => $this->digest($body),
+				'content-length' => (string)strlen($body),
+			]
+		);
+	}
+
+	/**
 	 * Signs an outbound ActivityPub GET, so that a peer running Mastodon's
 	 * `AUTHORIZED_FETCH` or GoToSocial's secure mode answers it.
 	 *

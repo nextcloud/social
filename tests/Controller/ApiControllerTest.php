@@ -17,6 +17,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TranslationUnavailableException;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -41,6 +42,7 @@ use OCA\Social\Response\RangedFileResponse;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
+use OCA\Social\Service\AnnualReportService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
@@ -65,6 +67,7 @@ use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\QuoteService;
 use OCA\Social\Service\ReactionService;
 use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\RelationshipService;
@@ -163,6 +166,8 @@ class ApiControllerTest extends TestCase {
 	private TranslationService|MockObject $translationService;
 	private NotificationPolicyService|MockObject $notificationPolicyService;
 	private IFactory|MockObject $l10nFactory;
+	private QuoteService|MockObject $quoteService;
+	private AnnualReportService|MockObject $annualReportService;
 	private IAppManager|MockObject $appManager;
 	private FediverseService|MockObject $fediverseService;
 
@@ -281,6 +286,8 @@ class ApiControllerTest extends TestCase {
 			->willReturnCallback(static fn (Person $viewer, array $page): array
 				=> ['shown' => $page, 'held' => []]);
 		$this->l10nFactory = $this->createMock(IFactory::class);
+		$this->quoteService = $this->createMock(QuoteService::class);
+		$this->annualReportService = $this->createMock(AnnualReportService::class);
 		$this->appManager = $this->createMock(IAppManager::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->fediverseService->method('getAccessType')->willReturnCallback(fn (): string => $this->accessType);
@@ -382,6 +389,8 @@ class ApiControllerTest extends TestCase {
 			$this->notificationService,
 			$this->translationService,
 			$this->notificationPolicyService,
+			$this->quoteService,
+			$this->annualReportService,
 			$this->l10nFactory
 		);
 	}
@@ -1889,6 +1898,145 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(
 			Http::STATUS_NOT_FOUND, $this->controller()->statusFavouritedBy(9)->getStatus()
 		);
+	}
+
+	// quotes: who has quoted a post, who may, and taking one back
+
+	public function testTheQuotesOfAPostAreWhatTheServiceHolds(): void {
+		$this->loggedInAs();
+		$post = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->with(9)->willReturn($post);
+		$quote = $this->createMock(Stream::class);
+		$quote->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+		$this->quoteService->expects($this->once())->method('quotesOf')
+			->with($this->identicalTo($post), 20, 0)->willReturn([$quote]);
+
+		$response = $this->controller()->statusQuotes(9);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([$quote], $response->getData());
+	}
+
+	/** A post the reader may not see has no list of quotes either. */
+	public function testTheQuotesOfAPostTheReaderMayNotSeeAreA404(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')
+			->willThrowException(new StreamNotFoundException());
+		$this->quoteService->expects($this->never())->method('quotesOf');
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->statusQuotes(9)->getStatus());
+	}
+
+	/**
+	 * Somebody else's post is a 404 rather than a 403: the pair of answers
+	 * together would say whose post an id belongs to.
+	 */
+	public function testSettingThePolicyOnSomebodyElsesPostIsNotFound(): void {
+		$this->loggedInAs();
+		$this->quoteService->method('setPolicy')
+			->willThrowException(new InvalidResourceException('no such post'));
+
+		$response = $this->controller()->statusInteractionPolicy(9);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+	}
+
+	public function testRevokingAQuoteThatIsNotThereIsNotFound(): void {
+		$this->loggedInAs();
+		$this->quoteService->method('revoke')->willReturn(false);
+
+		$this->assertSame(
+			Http::STATUS_NOT_FOUND, $this->controller()->statusQuoteRevoke(9, 11)->getStatus()
+		);
+	}
+
+	public function testRevokingAQuoteAnswersPlainlyWhenItWorked(): void {
+		$this->loggedInAs();
+		$this->quoteService->expects($this->once())->method('revoke')
+			->with(9, $this->anything(), 11)->willReturn(true);
+
+		$this->assertSame(
+			Http::STATUS_OK, $this->controller()->statusQuoteRevoke(9, 11)->getStatus()
+		);
+	}
+
+	// the year an account had
+
+	public function testTheAnnualReportsAreWrappedTheWayMastodonWrapsThem(): void {
+		$this->loggedInAs();
+		$this->annualReportService->method('years')->willReturn([2025]);
+		$this->annualReportService->method('forYear')->willReturn([
+			'year' => 2025,
+			'data' => ['archetype' => 'oracle', 'time_series' => [], 'top_hashtags' => [],
+				'top_statuses' => ['by_reblogs' => '9', 'by_replies' => null, 'by_favourites' => null]],
+			'schema_version' => 1,
+			'share_url' => null,
+			'account_id' => '3',
+		]);
+		$best = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->with(9)->willReturn($best);
+
+		$data = $this->controller()->annualReports()->getData();
+
+		$this->assertCount(1, $data['annual_reports']);
+		$this->assertSame([$best], $data['statuses'], 'the posts a report names travel with it');
+		$this->assertCount(1, $data['accounts']);
+	}
+
+	/** A post deleted since it was the year's best does not take the report with it. */
+	public function testAReportWhosePostIsGoneStillComesBack(): void {
+		$this->loggedInAs();
+		$this->annualReportService->method('years')->willReturn([2025]);
+		$this->annualReportService->method('forYear')->willReturn([
+			'year' => 2025,
+			'data' => ['top_statuses' => ['by_reblogs' => '9']],
+			'schema_version' => 1, 'share_url' => null, 'account_id' => '3',
+		]);
+		$this->streamService->method('getStreamByNid')
+			->willThrowException(new StreamNotFoundException());
+
+		$data = $this->controller()->annualReports()->getData();
+
+		$this->assertCount(1, $data['annual_reports']);
+		$this->assertSame([], $data['statuses']);
+	}
+
+	/** Twelve empty months is worse than saying there is nothing. */
+	public function testAYearWithNoReportAnswersWithAnEmptyWrapper(): void {
+		$this->loggedInAs();
+		$this->annualReportService->method('state')->willReturn('ineligible');
+		$this->annualReportService->expects($this->never())->method('forYear');
+
+		$data = $this->controller()->annualReport(2019)->getData();
+
+		$this->assertSame([], $data['annual_reports']);
+		$this->assertSame([], $data['accounts']);
+	}
+
+	public function testTheStateIsWhatTheServiceSays(): void {
+		$this->loggedInAs();
+		$this->annualReportService->method('state')->with($this->anything(), 2025)
+			->willReturn('available');
+
+		$this->assertSame(['state' => 'available'], $this->controller()->annualReportState(2025)->getData());
+	}
+
+	public function testMarkingAReportReadReachesTheService(): void {
+		$this->loggedInAs();
+		$this->annualReportService->expects($this->once())->method('markRead')->with('alice', 2025);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->annualReportRead(2025)->getStatus());
+	}
+
+	/**
+	 * There is nothing to generate — the report is ready the moment it is
+	 * asked for — but a Mastodon client calls this before it reads, and a 404
+	 * there is a client that never asks again.
+	 */
+	public function testAskingForOneToBeGeneratedAnswersPlainly(): void {
+		$this->loggedInAs();
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->annualReportGenerate(2025)->getStatus());
 	}
 
 	public function testAccountsSearchCompletesAHandle(): void {

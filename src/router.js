@@ -20,6 +20,7 @@ const CollectionPage = () => import(/* webpackChunkName: "profile" */'./views/Co
 const PlacePage = () => import(/* webpackChunkName: "profile" */'./views/PlacePage.vue')
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
+const NotificationRequests = () => import(/* webpackChunkName: "profile" */'./views/NotificationRequests.vue')
 const Discover = () => import('./views/Discover.vue')
 const Settings = () => import(/* webpackChunkName: "profile" */'./views/Settings.vue')
 const Statistics = () => import(/* webpackChunkName: "profile" */'./views/Statistics.vue')
@@ -267,6 +268,13 @@ const router = createRouter({
 				default: BlockedAccounts,
 			},
 			name: 'blocked-accounts',
+		},
+		{
+			path: '/filtered',
+			components: {
+				default: NotificationRequests,
+			},
+			name: 'notification-requests',
 		},
 		{
 			path: '/settings',

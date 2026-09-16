@@ -26,6 +26,24 @@
 				</template>
 				{{ exporting ? t('social', 'Preparing the archive …') : t('social', 'Export') }}
 			</NcButton>
+
+			<h5>{{ t('social', 'Or one list at a time') }}</h5>
+			<p>
+				{{ t('social', 'The same lists of accounts as single CSV files, each written the way Mastodon writes it — so another server\'s importer reads them without being asked to understand a whole archive. The followers file is a record rather than something an import can re-create: a follower follows again, or their server is told by the move.') }}
+			</p>
+			<div class="migration__csv-buttons">
+				<NcButton
+					v-for="kind in csvKinds"
+					:key="kind.name"
+					:disabled="csvBusy !== ''"
+					@click="downloadCsv(kind.name)">
+					<template #icon>
+						<NcLoadingIcon v-if="csvBusy === kind.name" :size="20" />
+						<IconDownload v-else :size="20" />
+					</template>
+					{{ kind.label }}
+				</NcButton>
+			</div>
 		</section>
 
 		<!-- in -->
@@ -90,6 +108,58 @@
 			</NcButton>
 			<p v-if="followsResult" class="migration__result">
 				{{ followsResult }}
+			</p>
+
+			<h5>{{ t('social', 'Bring your blocks, mutes and lists') }}</h5>
+			<p>
+				{{ t('social', 'The rest of what the same export holds. Blocks and mutes are decisions this account makes on its own, so they apply the moment the file is read — and a block federates, exactly as blocking somebody from here does.') }}
+			</p>
+			<p class="migration__note">
+				{{ t('social', 'Import your follows first and your lists after. A list here can only hold accounts you follow, as on Mastodon, so anybody you have not followed again yet is counted as skipped rather than followed by a button that says lists. A list you already have is filled rather than made twice.') }}
+			</p>
+			<div class="migration__csv-buttons">
+				<input
+					ref="blocks"
+					type="file"
+					accept=".csv,text/csv"
+					class="hidden-visually"
+					@change="importCsv($event, 'blocks')">
+				<NcButton :disabled="csvImport !== ''" @click="$refs.blocks.click()">
+					<template #icon>
+						<NcLoadingIcon v-if="csvImport === 'blocks'" :size="20" />
+						<IconCancel v-else :size="20" />
+					</template>
+					{{ t('social', 'Import blocks') }}
+				</NcButton>
+				<input
+					ref="mutes"
+					type="file"
+					accept=".csv,text/csv"
+					class="hidden-visually"
+					@change="importCsv($event, 'mutes')">
+				<NcButton :disabled="csvImport !== ''" @click="$refs.mutes.click()">
+					<template #icon>
+						<NcLoadingIcon v-if="csvImport === 'mutes'" :size="20" />
+						<IconVolumeOff v-else :size="20" />
+					</template>
+					{{ t('social', 'Import mutes') }}
+				</NcButton>
+				<input
+					ref="lists"
+					type="file"
+					accept=".csv,text/csv"
+					class="hidden-visually"
+					@change="importCsv($event, 'lists')">
+				<NcButton :disabled="csvImport !== ''" @click="$refs.lists.click()">
+					<template #icon>
+						<NcLoadingIcon v-if="csvImport === 'lists'" :size="20" />
+						<IconFormatListBulleted v-else :size="20" />
+					</template>
+					{{ t('social', 'Import lists') }}
+				</NcButton>
+			</div>
+			<p v-if="csvResult" class="migration__result">
+				{{ csvResult }}
 			</p>
 
 			<h5>{{ t('social', 'Bring your posts with you') }}</h5>
@@ -208,10 +278,13 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccountArrowRight from 'vue-material-design-icons/AccountArrowRight.vue'
 import IconAccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
+import IconCancel from 'vue-material-design-icons/Cancel.vue'
 import IconClose from 'vue-material-design-icons/Close.vue'
 import IconDownload from 'vue-material-design-icons/Download.vue'
+import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import IconPostOutline from 'vue-material-design-icons/PostOutline.vue'
 import IconUpload from 'vue-material-design-icons/Upload.vue'
+import IconVolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
@@ -230,10 +303,13 @@ export default {
 	components: {
 		IconAccountArrowRight,
 		IconAccountMultiplePlus,
+		IconCancel,
 		IconClose,
 		IconDownload,
+		IconFormatListBulleted,
 		IconPostOutline,
 		IconUpload,
+		IconVolumeOff,
 		NcButton,
 		NcCheckboxRadioSwitch,
 		NcLoadingIcon,
@@ -254,12 +330,38 @@ export default {
 			importLog: [],
 			/** @type {string} what the last CSV import came to */
 			followsResult: '',
+			/** @type {string} which single-file export is being prepared */
+			csvBusy: '',
+			/** @type {string} which CSV is being read in */
+			csvImport: '',
+			/** @type {string} what the last blocks, mutes or lists import came to */
+			csvResult: '',
 			/** @type {string[]} the accounts this one also answers to */
 			aliases: [],
 			/** @type {string} the address being added */
 			aliasInput: '',
 			aliasBusy: false,
 		}
+	},
+
+	computed: {
+		/**
+		 * The lists of accounts that can be downloaded one at a time.
+		 *
+		 * Named here rather than in the loop so the labels are translated
+		 * strings in the source and not something built out of a route name.
+		 *
+		 * @return {Array<{name: string, label: string}>}
+		 */
+		csvKinds() {
+			return [
+				{ name: 'following', label: t('social', 'Follows') },
+				{ name: 'followers', label: t('social', 'Followers') },
+				{ name: 'blocks', label: t('social', 'Blocks') },
+				{ name: 'mutes', label: t('social', 'Mutes') },
+				{ name: 'lists', label: t('social', 'Lists') },
+			]
+		},
 	},
 
 	mounted() {
@@ -461,6 +563,102 @@ export default {
 			}
 		},
 
+		/**
+		 * One list of accounts, saved as the CSV the server writes.
+		 *
+		 * Fetched as a blob and saved through a link this code makes, the same
+		 * way the archive is: the route needs the session, so opening it in a
+		 * tab would work — and an error would then replace the page with a
+		 * JSON body instead of being caught here and said out loud.
+		 *
+		 * @param {string} kind which list: following, followers, blocks, mutes or lists
+		 * @return {Promise<void>}
+		 */
+		async downloadCsv(kind) {
+			this.csvBusy = kind
+			try {
+				const response = await axios.get(
+					generateUrl('apps/social/api/v1/migration/export/{kind}', { kind }),
+					{ responseType: 'blob' },
+				)
+				const url = URL.createObjectURL(response.data)
+				const link = document.createElement('a')
+				link.href = url
+				link.download = this.filenameOf(response) || kind + '.csv'
+				document.body.appendChild(link)
+				link.click()
+				link.remove()
+				URL.revokeObjectURL(url)
+			} catch (error) {
+				logger.error('A CSV export failed', { error, kind })
+				showError(t('social', 'Could not export that list'))
+			} finally {
+				this.csvBusy = ''
+			}
+		},
+
+		/**
+		 * Reads a blocks, mutes or lists CSV back in.
+		 *
+		 * @param {Event} event the file input's change
+		 * @param {string} kind blocks, mutes or lists
+		 * @return {Promise<void>}
+		 */
+		async importCsv(event, kind) {
+			const file = event?.target?.files?.[0]
+			if (!file) {
+				return
+			}
+
+			this.csvImport = kind
+			this.csvResult = ''
+			try {
+				const form = new FormData()
+				form.append('file', file)
+				const { data } = await axios.post(
+					generateUrl('apps/social/api/v1/migration/{kind}', { kind }),
+					form,
+				)
+				this.csvResult = this.csvSummary(kind, data)
+				showSuccess(t('social', 'That file has been read'))
+			} catch (error) {
+				logger.error('Importing a CSV failed', { error, kind })
+				showError(error?.response?.data?.error || t('social', 'Could not read that file'))
+			} finally {
+				this.csvImport = ''
+				if (event?.target) {
+					event.target.value = ''
+				}
+			}
+		},
+
+		/**
+		 * @param {string} kind blocks, mutes or lists
+		 * @param {object} data what the server counted
+		 * @return {string} what to tell the person who pressed the button
+		 */
+		csvSummary(kind, data) {
+			const failed = Object.keys(data?.failed ?? {}).length
+			if (kind === 'lists') {
+				return t(
+					'social',
+					'{lists} lists made, {added} accounts added, {skipped} skipped because you do not follow them, {failed} could not be reached',
+					{
+						lists: data?.lists ?? 0,
+						added: data?.added ?? 0,
+						skipped: data?.skipped ?? 0,
+						failed,
+					},
+				)
+			}
+
+			return t(
+				'social',
+				'{done} applied, {skipped} skipped, {failed} could not be reached',
+				{ done: data?.blocked ?? data?.muted ?? 0, skipped: data?.skipped ?? 0, failed },
+			)
+		},
+
 		async importFollows(event) {
 			const file = event?.target?.files?.[0]
 			if (!file) {
@@ -511,6 +709,12 @@ export default {
 .migration__hint {
 	margin-bottom: 16px;
 	color: var(--color-text-maxcontrast);
+}
+
+.migration__csv-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .migration__card {

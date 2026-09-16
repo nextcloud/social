@@ -425,6 +425,40 @@ class LocalControllerTest extends TestCase {
 		$this->assertNotLoggedIn($this->controller(null)->accountCreate('alice'));
 	}
 
+	// accountDelete(): the one button on the page that cannot be taken back
+
+	public function testAccountDeleteHandsTheTypedHandleToTheService(): void {
+		$this->accountService->expects($this->once())->method('deleteOwnAccount')
+			->with('alice', 'alice@cloud.example');
+
+		$this->assertSuccess($this->controller()->accountDelete('alice@cloud.example'), ['deleted' => true]);
+	}
+
+	/**
+	 * The message names the handle to type, which is the whole of the help
+	 * there is — so it reaches the caller rather than being flattened into
+	 * "request failed" the way a real failure is.
+	 */
+	public function testAccountDeleteSaysWhatToTypeWhenTheConfirmationIsWrong(): void {
+		$this->accountService->method('deleteOwnAccount')->willThrowException(
+			new InvalidResourceException('type alice@cloud.example to confirm that this is the account to delete')
+		);
+
+		$response = $this->controller()->accountDelete('bob');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(
+			'type alice@cloud.example to confirm that this is the account to delete',
+			$response->getData()['error']
+		);
+	}
+
+	public function testAccountDeleteRequiresALoggedInUser(): void {
+		$this->accountService->expects($this->never())->method('deleteOwnAccount');
+
+		$this->assertNotLoggedIn($this->controller(null)->accountDelete('alice'));
+	}
+
 	public function testAccountLinkPutsTheHandleOnTheProfileAndCreatesNothing(): void {
 		$this->accountService->expects($this->once())->method('linkExternalHandle')
 			->with('alice', '@alice@mastodon.social')->willReturn('alice@mastodon.social');

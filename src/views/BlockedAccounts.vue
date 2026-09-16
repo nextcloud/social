@@ -80,6 +80,56 @@
 			</transition-group>
 		</section>
 
+		<section>
+			<h3>{{ t('social', 'Hidden servers') }}</h3>
+			<p class="social__blocked-hint">
+				{{ t('social', 'Hiding a whole server hides every account on it and everything they post, and it takes your follows in both directions with it. It is the answer to being bothered by a server rather than by one person — until now the API had it and this page did not, so the only way was to block accounts one at a time.') }}
+			</p>
+
+			<form class="blocked-domain__add" @submit.prevent="hideDomain">
+				<NcTextField
+					v-model="domainDraft"
+					class="blocked-domain__field"
+					:label="t('social', 'The server to hide')"
+					placeholder="example.social"
+					:disabled="hidingDomain" />
+				<NcButton type="submit" :disabled="hidingDomain || domainDraft.trim() === ''">
+					<template #icon>
+						<Cancel :size="20" />
+					</template>
+					{{ t('social', 'Hide it') }}
+				</NcButton>
+			</form>
+
+			<transition name="empty">
+				<NcEmptyContent
+					v-if="!loading && domains.length === 0"
+					:name="t('social', 'No hidden servers')"
+					:description="t('social', 'Nothing here is hidden from you by server.')">
+					<template #icon>
+						<Cancel />
+					</template>
+				</NcEmptyContent>
+			</transition>
+
+			<transition-group name="collapse" tag="div" class="blocked-account-list">
+				<div v-for="domain in domains" :key="`domain-${domain}`" class="blocked-account">
+					<div class="blocked-account__user">
+						<span class="blocked-account__name">{{ domain }}</span>
+					</div>
+					<NcButton
+						:disabled="busy.includes(domain)"
+						:aria-label="t('social', 'Show again')"
+						@click="showDomain(domain)">
+						<template #icon>
+							<VolumeHigh :size="20" />
+						</template>
+						{{ t('social', 'Show again') }}
+					</NcButton>
+				</div>
+			</transition-group>
+		</section>
+
 		<div v-if="loading" class="loading-indicator">
 			{{ t('social', 'Loading…') }}
 		</div>
@@ -93,6 +143,7 @@ import { showError } from '../services/toast.js'
 import ActorAvatar from '../components/ActorAvatar.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Cancel from 'vue-material-design-icons/Cancel.vue'
 import VolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
@@ -106,6 +157,7 @@ export default {
 		ActorAvatar,
 		NcButton,
 		NcEmptyContent,
+		NcTextField,
 		Cancel,
 		VolumeHigh,
 		VolumeOff,
@@ -117,6 +169,10 @@ export default {
 			blocked: [],
 			/** @type {import('../types/Mastodon.js').Account[]} */
 			muted: [],
+			/** @type {string[]} the servers hidden from this account */
+			domains: [],
+			domainDraft: '',
+			hidingDomain: false,
 			busy: [],
 			loading: true,
 		}
@@ -134,12 +190,14 @@ export default {
 		async fetchAll() {
 			this.loading = true
 			try {
-				const [blocked, muted] = await Promise.all([
+				const [blocked, muted, domains] = await Promise.all([
 					axios.get(generateUrl('apps/social/api/v1/blocks')),
 					axios.get(generateUrl('apps/social/api/v1/mutes')),
+					axios.get(generateUrl('apps/social/api/v1/domain_blocks')),
 				])
 				this.blocked = Array.isArray(blocked.data) ? blocked.data : []
 				this.muted = Array.isArray(muted.data) ? muted.data : []
+				this.domains = Array.isArray(domains.data) ? domains.data : []
 			} catch (error) {
 				logger.error('Failed to load the blocked and muted accounts', { error })
 				showError(t('social', 'Failed to load the blocked and muted accounts'))
@@ -157,6 +215,52 @@ export default {
 		/** @param {import('../types/Mastodon.js').Account} account the account to unmute */
 		async unmute(account) {
 			await this.act(account, 'unmuteAccount', 'muted')
+		},
+
+		/**
+		 * Hides a whole server from this account.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async hideDomain() {
+			const domain = this.domainDraft.trim().replace(/^@/, '').toLowerCase()
+			if (domain === '') {
+				return
+			}
+
+			this.hidingDomain = true
+			try {
+				await axios.post(generateUrl('apps/social/api/v1/domain_blocks'), { domain })
+				this.domainDraft = ''
+				// re-read rather than push: the server decides what the domain
+				// normalises to, and a row that said something else would be a
+				// row the unhide button could not act on
+				await this.fetchAll()
+			} catch (error) {
+				logger.error('Failed to hide the server', { error })
+				showError(t('social', 'Could not hide that server'))
+			} finally {
+				this.hidingDomain = false
+			}
+		},
+
+		/**
+		 * @param {string} domain the server to show again
+		 * @return {Promise<void>}
+		 */
+		async showDomain(domain) {
+			this.busy.push(domain)
+			try {
+				await axios.delete(generateUrl('apps/social/api/v1/domain_blocks'), {
+					data: { domain },
+				})
+				this.domains = this.domains.filter((one) => one !== domain)
+			} catch (error) {
+				logger.error('Failed to show the server again', { error })
+				showError(t('social', 'Could not show that server again'))
+			} finally {
+				this.busy = this.busy.filter((one) => one !== domain)
+			}
 		},
 
 		/**
@@ -299,4 +403,17 @@ export default {
 		transition: none;
 	}
 }
+
+.blocked-domain__add {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-block-end: 8px;
+}
+
+.blocked-domain__field {
+	max-width: 320px;
+}
+
 </style>

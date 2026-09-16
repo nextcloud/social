@@ -572,4 +572,87 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertTrue($response->isThrottled());
 	}
+
+	// the apps this account has signed in to
+
+	public function testTheAuthorizedAppsAreTheOnesThisAccountGranted(): void {
+		$this->loggedIn();
+		$tusky = new SocialClient();
+		$tusky->setAuthId(4)->setAppName('Tusky')->setAppWebsite('https://tusky.app')
+			->setAuthScopes(['read', 'write'])->setAuthCreation(1757000000)
+			->setLastUpdate(1757800000)->setToken('hashed');
+		$this->clientService->method('getAuthorizationsOf')->with('alice')->willReturn([$tusky]);
+
+		$response = $this->controller->authorizedApps();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([[
+			'id' => 4,
+			'name' => 'Tusky',
+			'website' => 'https://tusky.app',
+			'scopes' => ['read', 'write'],
+			'created_at' => 1757000000,
+			'last_used_at' => 1757800000,
+			'signed_in' => true,
+		]], $response->getData());
+	}
+
+	/**
+	 * The token is stored hashed and nothing on this page wants it; a list of
+	 * tokens is the one thing this route must never be.
+	 */
+	public function testTheAuthorizedAppsNeverCarryTheToken(): void {
+		$this->loggedIn();
+		$client = new SocialClient();
+		$client->setAuthId(4)->setAppName('Tusky')->setToken('hashed');
+		$this->clientService->method('getAuthorizationsOf')->willReturn([$client]);
+
+		$row = $this->controller->authorizedApps()->getData()[0];
+
+		$this->assertArrayNotHasKey('token', $row);
+		$this->assertStringNotContainsString('hashed', json_encode($row));
+	}
+
+	/** A code that was never exchanged is not a sign-in, and is not shown as one. */
+	public function testAnAuthorizationWhoseCodeWasNeverExchangedIsMarked(): void {
+		$this->loggedIn();
+		$client = new SocialClient();
+		$client->setAuthId(9)->setAppName('Something')->setToken('');
+		$this->clientService->method('getAuthorizationsOf')->willReturn([$client]);
+
+		$this->assertFalse($this->controller->authorizedApps()->getData()[0]['signed_in']);
+	}
+
+	public function testTheAuthorizedAppsNeedAnAccount(): void {
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->authorizedApps()->getStatus());
+	}
+
+	public function testSigningAnAppOutTakesTheAuthorizationBack(): void {
+		$this->loggedIn();
+		$this->clientService->expects($this->once())->method('revokeAuthorizationOf')
+			->with('alice', 4)->willReturn(true);
+
+		$response = $this->controller->revokeAuthorizedApp(4);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	/**
+	 * The id is a number a caller can count upwards: an authorization that is
+	 * not this account's own has to be unreachable, and the answer has to be
+	 * the one an id that does not exist gets, or the pair of answers would say
+	 * which ids exist.
+	 */
+	public function testSigningOutSomebodyElsesAppIsNotFound(): void {
+		$this->loggedIn();
+		$this->clientService->method('revokeAuthorizationOf')->willReturn(false);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller->revokeAuthorizedApp(4)->getStatus());
+	}
+
+	public function testSigningAnAppOutNeedsAnAccount(): void {
+		$this->clientService->expects($this->never())->method('revokeAuthorizationOf');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->revokeAuthorizedApp(4)->getStatus());
+	}
 }

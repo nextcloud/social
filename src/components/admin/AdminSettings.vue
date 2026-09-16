@@ -18,14 +18,21 @@
 		<AccountsSection />
 		<MediaBlocksSection />
 		<DiscoverSection />
+		<TrendsSection />
+		<EmojiSection />
+		<RulesSection />
 		<RetentionSection :days="state.retentionDays" />
 		<StorageSection :storage="state.storage" />
 		<FederationSection :federation="state.federation" />
 		<AccessSection :accessType="state.accessType" :addresses="state.accessList" />
 		<AnnouncementsSection />
 		<!-- not for a delegate: the server is administered, not moderated, and
-		     `AdminSettings` sends no server settings to one -->
+		     `AdminSettings` sends no server settings to one. A relay is the
+		     same kind of decision — it changes what every federated timeline
+		     here holds and where every public post written here is sent — so
+		     it is behind the same condition -->
 		<ServerSection v-if="state.server !== null" :settings="state.server" />
+		<RelaysSection v-if="state.server !== null" />
 	</div>
 </template>
 
@@ -36,13 +43,17 @@ import ActivitySection from './ActivitySection.vue'
 import AccountsSection from './AccountsSection.vue'
 import AnnouncementsSection from './AnnouncementsSection.vue'
 import DiscoverSection from './DiscoverSection.vue'
+import EmojiSection from './EmojiSection.vue'
 import FederationSection from './FederationSection.vue'
 import MediaBlocksSection from './MediaBlocksSection.vue'
+import RelaysSection from './RelaysSection.vue'
 import ReportsSection from './ReportsSection.vue'
 import RetentionSection from './RetentionSection.vue'
+import RulesSection from './RulesSection.vue'
 import ReviewSection from './ReviewSection.vue'
 import ServerSection from './ServerSection.vue'
 import StorageSection from './StorageSection.vue'
+import TrendsSection from './TrendsSection.vue'
 
 /** What `AdminSettings::getForm()` provides when it provides nothing. */
 const NOTHING = {
@@ -92,13 +103,17 @@ export default {
 		AccountsSection,
 		AnnouncementsSection,
 		DiscoverSection,
+		EmojiSection,
 		FederationSection,
 		MediaBlocksSection,
+		RelaysSection,
 		ReportsSection,
 		RetentionSection,
+		RulesSection,
 		ReviewSection,
 		ServerSection,
 		StorageSection,
+		TrendsSection,
 	},
 
 	data() {

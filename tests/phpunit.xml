@@ -20,6 +20,10 @@
 		<testsuite name="Social App Tests">
 			<directory suffix="Test.php">.</directory>
 			<exclude>./Integration</exclude>
+			<!-- the interop suite needs a real server and a real Mastodon; it
+			     has its own config, and running it from here would boot
+			     neither -->
+			<exclude>./Interop</exclude>
 		</testsuite>
 	</testsuites>
 	<source>

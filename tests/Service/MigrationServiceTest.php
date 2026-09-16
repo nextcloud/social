@@ -9,21 +9,27 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ListsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MigrationService;
+use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\SignatureService;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -44,6 +50,9 @@ class MigrationServiceTest extends TestCase {
 	private FollowService|MockObject $followService;
 	private ActivityService|MockObject $activityService;
 	private SignatureService|MockObject $signatureService;
+	private ActorRelationRequest|MockObject $actorRelationRequest;
+	private ListsRequest|MockObject $listsRequest;
+	private RelationshipService|MockObject $relationshipService;
 	private MigrationService $service;
 
 	protected function setUp(): void {
@@ -54,6 +63,9 @@ class MigrationServiceTest extends TestCase {
 		$this->followService = $this->createMock(FollowService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->signatureService = $this->createMock(SignatureService::class);
+		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
+		$this->listsRequest = $this->createMock(ListsRequest::class);
+		$this->relationshipService = $this->createMock(RelationshipService::class);
 
 		$this->service = new MigrationService(
 			$this->accountService,
@@ -63,6 +75,9 @@ class MigrationServiceTest extends TestCase {
 			$this->followService,
 			$this->activityService,
 			$this->signatureService,
+			$this->actorRelationRequest,
+			$this->listsRequest,
+			$this->relationshipService,
 			new NullLogger(),
 		);
 	}
@@ -504,5 +519,298 @@ class MigrationServiceTest extends TestCase {
 			$handles,
 			MigrationService::parseFollowsCsv(MigrationService::exportFollowsCsv($handles))
 		);
+	}
+
+	// --- blocks, mutes and lists -----------------------------------------
+
+	private function relation(string $objectId, string $type, bool $notifications = true): ActorRelation {
+		$relation = new ActorRelation();
+		$relation->setObjectId($objectId)->setType($type)->setNotifications($notifications);
+
+		return $relation;
+	}
+
+	private function mastodonList(int $id, string $title, string $groupId = ''): MastodonList {
+		$list = new MastodonList();
+		$list->setId($id)->setOwnerId(self::ALICE)->setTitle($title)->setGroupId($groupId);
+
+		return $list;
+	}
+
+	public function testImportBlocksBlocksEveryAccountInTheFile(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$carol = $this->person(self::CAROL, 'carol@remote.example');
+		$dave = $this->person('https://other.example/users/dave', 'dave@other.example');
+		$this->cacheActorService->method('getFromAccount')
+			->willReturnCallback(static fn (string $account): Person => $account === 'carol@remote.example' ? $carol : $dave);
+
+		$blocked = [];
+		$this->relationshipService->method('block')
+			->willReturnCallback(function (Person $actor, Person $target) use (&$blocked): void {
+				$blocked[] = $target->getAccount();
+			});
+
+		$result = $this->service->importBlocks('alice', "carol@remote.example\ndave@other.example\n");
+
+		$this->assertSame(['carol@remote.example', 'dave@other.example'], $blocked);
+		$this->assertSame(2, $result['blocked']);
+		$this->assertSame([], $result['failed']);
+	}
+
+	/**
+	 * An export is the one file its author cannot fix: half a block list is
+	 * better than none of it, and the handle that did not resolve is named
+	 * rather than dropped — a block that silently did not happen is the
+	 * failure that matters here.
+	 */
+	public function testImportBlocksReportsTheOnesItCouldNotResolve(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->cacheActorService->method('getFromAccount')
+			->willReturnCallback(function (string $account): Person {
+				if ($account === 'dave@other.example') {
+					throw new RuntimeException('instance unreachable');
+				}
+
+				return $this->person(self::CAROL, $account);
+			});
+
+		$result = $this->service->importBlocks('alice', "carol@remote.example\ndave@other.example\n");
+
+		$this->assertSame(1, $result['blocked']);
+		$this->assertSame(['dave@other.example' => 'instance unreachable'], $result['failed']);
+	}
+
+	public function testImportBlocksSkipsTheImportingAccountItself(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->relationshipService->expects($this->never())->method('block');
+
+		$result = $this->service->importBlocks('alice', "alice@cloud.example\n");
+
+		$this->assertSame(0, $result['blocked']);
+		$this->assertSame(1, $result['skipped']);
+	}
+
+	/**
+	 * The column says whether notifications are *hidden*; the relation stores
+	 * whether they are shown. Reading it the wrong way round would turn every
+	 * ordinary mute into a silent one.
+	 */
+	public function testImportMutesReadsTheHideNotificationsColumn(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->cacheActorService->method('getFromAccount')
+			->willReturnCallback(fn (string $account): Person => $this->person(
+				'https://remote.example/users/' . explode('@', $account)[0], $account
+			));
+
+		$notifications = [];
+		$this->relationshipService->method('mute')
+			->willReturnCallback(function (Person $actor, Person $target, bool $shown) use (&$notifications): void {
+				$notifications[$target->getAccount()] = $shown;
+			});
+
+		$result = $this->service->importMutes(
+			'alice',
+			"Account address,Hide notifications\ncarol@remote.example,true\ndave@remote.example,false\n"
+		);
+
+		$this->assertSame(2, $result['muted']);
+		$this->assertSame(
+			['carol@remote.example' => false, 'dave@remote.example' => true],
+			$notifications
+		);
+	}
+
+	public function testParseListsCsvGroupsTheHandlesUnderTheirList(): void {
+		$this->assertSame(
+			[
+				'Friends' => ['carol@remote.example', 'dave@other.example'],
+				'Work' => ['erin@third.example'],
+			],
+			MigrationService::parseListsCsv(
+				"Friends,carol@remote.example\nWork,erin@third.example\nFriends,@dave@other.example\n"
+			)
+		);
+	}
+
+	public function testParseListsCsvKeepsOneListPerTitleAndOneRowPerHandle(): void {
+		$this->assertSame(
+			['Friends' => ['carol@remote.example']],
+			MigrationService::parseListsCsv(
+				"Friends,carol@remote.example\nfriends,CAROL@remote.example\nFriends,not-a-handle\n"
+			)
+		);
+	}
+
+	public function testParseListsCsvSkipsAHeaderWhereThereIsOne(): void {
+		$this->assertSame(
+			['Friends' => ['carol@remote.example']],
+			MigrationService::parseListsCsv("List name,Account address\nFriends,carol@remote.example\n")
+		);
+	}
+
+	public function testImportListsMakesTheListAndFillsItWithWhoIsFollowed(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->listsRequest->method('getByActor')->willReturn([]);
+		$this->listsRequest->method('create')
+			->willReturnCallback(static function (MastodonList $list): MastodonList {
+				return $list->setId(7);
+			});
+		$carol = $this->person(self::CAROL, 'carol@remote.example');
+		$this->cacheActorService->method('getFromAccount')->willReturn($carol);
+		$this->followsRequest->method('getByPersons')->willReturn($this->follow(self::CAROL));
+
+		$this->listsRequest->expects($this->once())->method('addMember')
+			->with($this->callback(static fn (MastodonList $list): bool => $list->getTitle() === 'Friends'), self::CAROL);
+
+		$result = $this->service->importLists('alice', "Friends,carol@remote.example\n");
+
+		$this->assertSame(['lists' => 1, 'added' => 1, 'skipped' => 0, 'failed' => []], $result);
+	}
+
+	/**
+	 * A list here holds accounts this one follows, as Mastodon's do. Following
+	 * them from a button that says "lists" would federate a request nobody
+	 * asked for, so the row is counted as skipped instead.
+	 */
+	public function testImportListsSkipsAnAccountThatIsNotFollowed(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->listsRequest->method('getByActor')->willReturn([]);
+		$this->listsRequest->method('create')
+			->willReturnCallback(static fn (MastodonList $list): MastodonList => $list->setId(7));
+		$this->cacheActorService->method('getFromAccount')
+			->willReturn($this->person(self::CAROL, 'carol@remote.example'));
+		$this->followsRequest->method('getByPersons')
+			->willThrowException(new FollowNotFoundException());
+
+		$this->listsRequest->expects($this->never())->method('addMember');
+
+		$result = $this->service->importLists('alice', "Friends,carol@remote.example\n");
+
+		$this->assertSame(1, $result['skipped']);
+		$this->assertSame(0, $result['added']);
+	}
+
+	public function testImportListsFillsAListItAlreadyHasRatherThanMakingASecond(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->listsRequest->method('getByActor')->willReturn([$this->mastodonList(3, 'Friends')]);
+		$this->listsRequest->expects($this->never())->method('create');
+		$this->cacheActorService->method('getFromAccount')
+			->willReturn($this->person(self::CAROL, 'carol@remote.example'));
+		$this->followsRequest->method('getByPersons')->willReturn($this->follow(self::CAROL));
+
+		$this->listsRequest->expects($this->once())->method('addMember')
+			->with($this->callback(static fn (MastodonList $list): bool => $list->getId() === 3), self::CAROL);
+
+		$result = $this->service->importLists('alice', "friends,carol@remote.example\n");
+
+		$this->assertSame(0, $result['lists']);
+		$this->assertSame(1, $result['added']);
+	}
+
+	/** A group list's members are the group's; the next reconcile would undo it. */
+	public function testImportListsLeavesAGroupListAlone(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->listsRequest->method('getByActor')->willReturn([$this->mastodonList(3, 'Design', 'design')]);
+		$this->listsRequest->expects($this->never())->method('addMember');
+
+		$result = $this->service->importLists('alice', "Design,carol@remote.example\n");
+
+		$this->assertSame(1, $result['skipped']);
+		$this->assertSame(0, $result['added']);
+	}
+
+	// --- the CSV exports --------------------------------------------------
+
+	public function testExportCsvWritesTheFollowsMastodonReads(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$follow = $this->follow(self::CAROL);
+		$follow->setActor($this->person(self::CAROL, 'carol@remote.example'));
+		$this->followsRequest->method('getFollowingByActorId')
+			->willReturnCallback(static fn (string $id, int $limit, int $offset): array => $offset === 0 ? [$follow] : []);
+
+		[$name, $csv] = $this->service->exportCsv('alice', 'following');
+
+		$this->assertSame('following_accounts.csv', $name);
+		$this->assertSame(
+			"Account address,Show boosts,Notify on new posts,Languages\ncarol@remote.example,true,false,\n",
+			$csv
+		);
+	}
+
+	/**
+	 * Every local actor holds a loopback follow of itself, so both lists named
+	 * the exporter — and a `following_accounts.csv` naming you is a row
+	 * Mastodon's importer tries to follow you with. Found on devel, where the
+	 * export of a demo account listed the demo account.
+	 */
+	public function testExportCsvLeavesTheAccountOutOfItsOwnFollows(): void {
+		$alice = $this->alice();
+		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$loopback = $this->follow(self::ALICE);
+		$loopback->setActor($this->person(self::ALICE, 'alice@cloud.example', true));
+		$carol = $this->follow(self::CAROL);
+		$carol->setActor($this->person(self::CAROL, 'carol@remote.example'));
+		$this->followsRequest->method('getFollowingByActorId')
+			->willReturnCallback(static fn (string $id, int $limit, int $offset): array => $offset === 0 ? [$loopback, $carol] : []);
+
+		[, $csv] = $this->service->exportCsv('alice', 'following');
+
+		$this->assertSame(['carol@remote.example'], MigrationService::parseFollowsCsv($csv));
+	}
+
+	public function testExportCsvWritesTheBlocksAsABareList(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->actorRelationRequest->method('getByActor')
+			->willReturn([$this->relation(self::CAROL, ActorRelation::TYPE_BLOCK)]);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::CAROL, 'carol@remote.example'));
+
+		[$name, $csv] = $this->service->exportCsv('alice', 'blocks');
+
+		$this->assertSame('blocked_accounts.csv', $name);
+		$this->assertSame("carol@remote.example\n", $csv);
+	}
+
+	public function testExportCsvWritesWhetherAMutesNotificationsAreHidden(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->actorRelationRequest->method('getByActor')->willReturn([
+			$this->relation(self::CAROL, ActorRelation::TYPE_MUTE, false),
+			$this->relation('https://other.example/users/dave', ActorRelation::TYPE_MUTE, true),
+		]);
+		$this->cacheActorService->method('getFromId')
+			->willReturnCallback(fn (string $id): Person => $this->person(
+				$id, $id === self::CAROL ? 'carol@remote.example' : 'dave@other.example'
+			));
+
+		[$name, $csv] = $this->service->exportCsv('alice', 'mutes');
+
+		$this->assertSame('muted_accounts.csv', $name);
+		$this->assertSame(
+			"Account address,Hide notifications\ncarol@remote.example,true\ndave@other.example,false\n",
+			$csv
+		);
+	}
+
+	/** What leaves has to be able to come back: the reader is the same one. */
+	public function testExportCsvWritesListsTheImporterReadsBack(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->listsRequest->method('getByActor')->willReturn([$this->mastodonList(3, 'Friends')]);
+		$this->listsRequest->method('getMemberIds')->willReturn([self::CAROL]);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::CAROL, 'carol@remote.example'));
+
+		[$name, $csv] = $this->service->exportCsv('alice', 'lists');
+
+		$this->assertSame('lists.csv', $name);
+		$this->assertSame("Friends,carol@remote.example\n", $csv);
+		$this->assertSame(['Friends' => ['carol@remote.example']], MigrationService::parseListsCsv($csv));
+	}
+
+	public function testExportCsvRefusesAKindThisAccountKeepsNoListOf(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+
+		$this->expectException(InvalidResourceException::class);
+
+		$this->service->exportCsv('alice', 'secrets');
 	}
 }

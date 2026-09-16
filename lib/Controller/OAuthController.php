@@ -443,4 +443,169 @@ class OAuthController extends Controller {
 
 		return new DataResponse([], Http::STATUS_OK);
 	}
+
+	/**
+	 * Every scope this server understands, in the order Mastodon lists them.
+	 *
+	 * The narrow ones are what the routes actually ask for; the three broad
+	 * ones are what `checkTokenScope()` accepts in their place, so a client
+	 * that asks for `read` gets every `read:*` route. Published so a client can
+	 * ask for what it needs rather than for everything, which is the whole
+	 * point of the discovery document.
+	 */
+	public const SCOPES = [
+		'read', 'write', 'follow',
+		'read:accounts', 'read:blocks', 'read:collections', 'read:filters',
+		'read:notifications', 'read:statuses', 'read:stories',
+		'write:accounts', 'write:blocks', 'write:collections',
+		'write:conversations', 'write:favourites', 'write:filters',
+		'write:follows', 'write:lists', 'write:notifications',
+		'write:reports', 'write:statuses', 'write:stories',
+	];
+
+	/**
+	 * RFC 8414: where the OAuth endpoints are, and what they take.
+	 *
+	 * A Mastodon 4.3 client asks for this before it registers an app, and a
+	 * server that answers it saves a round of guessing — the client learns the
+	 * authorization and token endpoints, the scopes it may ask for and the
+	 * response types that work, instead of assuming Mastodon's own paths.
+	 *
+	 * The addresses are this app's real ones, under `/apps/social/`. That is
+	 * the honest answer and it is also the useful one: a client that reads
+	 * this document is told where the endpoints *are*, which is the one way a
+	 * client can reach them without the domain-root rewrite. A client that
+	 * does not read it looks at the root, finds nothing, and is no worse off.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/.well-known/oauth-authorization-server')]
+	public function oauthMetadata(): DataResponse {
+		// the app's own base, which is where the endpoints really are
+		$base = rtrim($this->configService->getSocialUrl(), '/');
+
+		return new DataResponse([
+			'issuer' => $base . '/',
+			'authorization_endpoint' => $base . '/oauth/authorize',
+			'token_endpoint' => $base . '/oauth/token',
+			'revocation_endpoint' => $base . '/oauth/revoke',
+			'userinfo_endpoint' => $base . '/oauth/userinfo',
+			'app_registration_endpoint' => $base . '/api/v1/apps',
+			'scopes_supported' => self::SCOPES,
+			'response_types_supported' => ['code'],
+			'grant_types_supported' => ['authorization_code', 'client_credentials'],
+			'token_endpoint_auth_methods_supported' => ['client_secret_post', 'client_secret_basic'],
+			'code_challenge_methods_supported' => ['S256'],
+			'service_documentation' => self::REPOSITORY,
+		], Http::STATUS_OK);
+	}
+
+	/**
+	 * Who the token belongs to, in OpenID Connect's shape.
+	 *
+	 * Mastodon 4.3 added this so a client can show "signed in as …" without
+	 * spending a `read:accounts` call on `verify_credentials`. It answers from
+	 * the token alone and needs no scope beyond having one, which is what
+	 * OpenID Connect expects of it.
+	 *
+	 * The claims are the four Mastodon sends. `sub` is the actor's ActivityPub
+	 * id rather than the Nextcloud user id: it is the identifier that means
+	 * the same thing to everybody, and handing out an internal user id to
+	 * every client that asks is not something to do by accident.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/oauth/userinfo')]
+	public function userinfo(): DataResponse {
+		try {
+			$client = $this->clientService->getFromToken($this->bearerToken());
+			$actor = $this->accountService->getActorFromUserId($client->getAuthUserId(), true);
+		} catch (Exception $e) {
+			return new DataResponse(
+				['error' => 'The access token is invalid'], Http::STATUS_UNAUTHORIZED
+			);
+		}
+
+		return new DataResponse([
+			'sub' => $actor->getId(),
+			'name' => ($actor->getName() !== '') ? $actor->getName() : $actor->getPreferredUsername(),
+			'preferred_username' => $actor->getPreferredUsername(),
+			'profile' => $actor->getId(),
+			'picture' => $actor->getAvatar(),
+		], Http::STATUS_OK);
+	}
+
+	/**
+	 * The apps this account has signed in to, newest first.
+	 *
+	 * Mastodon keeps this under Account → Authorized apps, and it is the first
+	 * place somebody looks after losing a phone. Every authorization has been
+	 * recorded in `social_client_auth` since the table was split out; nothing
+	 * showed it and nothing could take one back short of the app doing it
+	 * itself, which is no use at all when the app is the thing you have lost.
+	 *
+	 * A **session** route rather than a client-API one: a token must not be
+	 * able to read the list of tokens, and it certainly must not be able to
+	 * revoke its neighbours. What comes back never carries the token itself —
+	 * it is stored hashed, and there is nothing a client needs it for here.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/authorized_apps')]
+	public function authorizedApps(): DataResponse {
+		$userId = $this->userSession->getUser()?->getUID();
+		if ($userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		$apps = [];
+		foreach ($this->clientService->getAuthorizationsOf($userId) as $client) {
+			$apps[] = [
+				'id' => $client->getAuthId(),
+				'name' => $client->getAppName(),
+				'website' => $client->getAppWebsite(),
+				'scopes' => $client->getAuthScopes(),
+				// when *this account* granted it, not when the app registered
+				// itself on the instance — the second is the same date for
+				// everybody and says nothing about whose phone this is
+				'created_at' => $client->getAuthCreation(),
+				'last_used_at' => $client->getLastUpdate(),
+				// an authorization whose code was never exchanged: the browser
+				// came back and the app never asked for its token. Worth
+				// showing, because taking it back is still the right thing to
+				// do with it, and worth marking, because it is not a sign-in
+				'signed_in' => $client->getToken() !== '',
+			];
+		}
+
+		return new DataResponse($apps, Http::STATUS_OK);
+	}
+
+	/**
+	 * Takes one of them back. The app is signed out at once: the token is the
+	 * row, and the row is gone.
+	 *
+	 * An id that is not one of this account's own is a **404** and never a
+	 * 403 — the two answers together would say which ids exist.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/authorized_apps/{id}')]
+	public function revokeAuthorizedApp(int $id): DataResponse {
+		$userId = $this->userSession->getUser()?->getUID();
+		if ($userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		if (!$this->clientService->revokeAuthorizationOf($userId, $id)) {
+			return new DataResponse(['error' => 'no such authorization'], Http::STATUS_NOT_FOUND);
+		}
+
+		return new DataResponse([], Http::STATUS_OK);
+	}
+
+	/** The bearer token on this request, or '' when there is none. */
+	private function bearerToken(): string {
+		$header = $this->request->getHeader('Authorization');
+
+		return str_starts_with($header, 'Bearer ') ? substr($header, 7) : '';
+	}
 }

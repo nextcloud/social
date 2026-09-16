@@ -158,7 +158,7 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Twelve sections:
+**Administration → Social.** Fifteen sections:
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
@@ -187,6 +187,23 @@ when each was last tried.
   chosen rather than counted, and it is what makes Explore look like somewhere
   to start. Nothing is named by default and the section of the page is absent
   until something is.
+- **What may trend** — Explore shows whatever is being talked about, counted
+  and nothing else, so the first ugly hashtag to catch on does so on
+  everybody's Explore page and the only remedy used to be waiting. Keeping one
+  out hides it from every trending list here and from the discover grid; the
+  counters keep counting, so letting it back in restores the number it would
+  have had. Hashtags can be kept out from the live trending list beside them;
+  a link or a post is kept out by pasting its address. What is kept out is one
+  list whatever kind it is, because the question is "what am I keeping out of
+  Explore".
+- **Custom emoji** — the pictures people here can write into a post as
+  `:shortcode:`. They travel with the post, so somebody on another server sees
+  them too. The upload goes through the same code `occ social:emoji` uses, so
+  what is refused here is exactly what the command refuses.
+- **The rules of this server** — one per line. Every client shows them to
+  somebody deciding whether to join, and `/api/v1/instance/rules` serves them.
+  Both this and the emoji were `occ`-only until now, which is why most
+  instances had neither.
 - **Retention** — how long remote statuses nobody here cares about are kept.
 - **Storage** — what is on disk, split into what was posted here (somebody's
   own work, not going anywhere) and what is cached from other servers (what
@@ -199,6 +216,19 @@ when each was last tried.
 - **Announcements** — a notice every account here is shown once.
 - **Server** — the instance-wide settings below, which had no interface at all
   before and could only be set with `occ config:app:set`.
+- **Relays** — the relays this server subscribes to. A new server sees only
+  what the people on it follow, so its federated timeline is empty on the first
+  day and thin for months, and nobody out there has heard of it either. A relay
+  breaks that circle: it rebroadcasts the public posts of every server
+  subscribed to it, and sends this server's public posts on to all of them.
+  Paste the relay's address — relays publish it on their own front page, and it
+  usually ends in `/actor` — and the row will say **Waiting for an answer**
+  until the relay replies, which for some relays means when a human has looked
+  at the request. **Public posts and nothing else** are shared: a
+  followers-only post has an audience that was chosen, and a relay is the
+  opposite of a chosen audience. A relayed post is fetched from the server that
+  wrote it rather than believed from the relay, so it arrives as the post it is
+  and not as "relay.example boosted this".
 
 Each section is one settings card, like everywhere else in the administration
 settings, and the three things that cannot be taken back — suspending an
@@ -207,9 +237,11 @@ says what they will cost before they do it.
 
 The page can be **delegated**: hand the Social section to a group under
 *Administration privileges* and that group can moderate without administering
-the server. The Server section is the exception — it is not rendered for a
-delegate and its endpoint refuses them, because what it holds is a decision
-about the server rather than about a report.
+the server. Server and Relays are the exception — neither is rendered for a
+delegate and their endpoints refuse them, because what they hold is a decision
+about the server rather than about a report: a relay changes what every
+federated timeline here holds and where every public post written here is
+sent.
 
 ---
 

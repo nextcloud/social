@@ -314,7 +314,11 @@ class StreamQuoteTest extends TestCase {
 		$note->setAttributedTo('https://cloud.example.org/apps/social/@alice');
 
 		$this->assertSame(
-			['canQuote' => ['automaticApproval' => [ACore::CONTEXT_PUBLIC]]],
+			// the author beside the collection: they are always allowed, and
+			// naming them is what lets a peer see that without special-casing
+			['canQuote' => ['automaticApproval' => [
+				ACore::CONTEXT_PUBLIC, 'https://cloud.example.org/apps/social/@alice',
+			]]],
 			$note->exportAsActivityPub()['interactionPolicy']
 		);
 	}
@@ -373,5 +377,96 @@ class StreamQuoteTest extends TestCase {
 		$note->setVisibility(Stream::TYPE_PUBLIC);
 
 		$this->assertArrayNotHasKey('interactionPolicy', $note->exportAsActivityPub());
+	}
+
+	// --- who may quote it -------------------------------------------------
+
+	private function localPost(string $policy = '', string $visibility = Stream::TYPE_PUBLIC): Note {
+		$note = new Note();
+		$note->setId('https://cloud.example.org/apps/social/@alice/1');
+		$note->setLocal(true);
+		$note->setVisibility($visibility);
+		$note->setAttributedTo('https://cloud.example.org/apps/social/@alice');
+		$note->setQuotePolicy($policy);
+
+		return $note;
+	}
+
+	/**
+	 * Almost every stored post is in this state: nobody was ever asked, so the
+	 * answer is the one this app gave before the question existed.
+	 */
+	public function testAPostNobodyWasAskedAboutKeepsTheVisibilityRule(): void {
+		$this->assertSame(
+			Stream::QUOTE_POLICY_PUBLIC,
+			$this->localPost()->effectiveQuotePolicy()
+		);
+		$this->assertSame(
+			Stream::QUOTE_POLICY_NOBODY,
+			$this->localPost('', Stream::TYPE_FOLLOWERS)->effectiveQuotePolicy()
+		);
+	}
+
+	public function testAPolicyThatIsNotOneOfTheThreeIsNoPolicyAtAll(): void {
+		$this->assertSame('', $this->localPost()->setQuotePolicy('whenever')->getQuotePolicy());
+	}
+
+	public function testTheFollowersPolicyAdvertisesTheFollowersCollection(): void {
+		$policy = $this->localPost(Stream::QUOTE_POLICY_FOLLOWERS)
+			->exportAsActivityPub()['interactionPolicy'];
+
+		$this->assertSame(
+			['canQuote' => ['automaticApproval' => [
+				'https://cloud.example.org/apps/social/@alice/followers',
+				'https://cloud.example.org/apps/social/@alice',
+			]]],
+			$policy
+		);
+	}
+
+	public function testNobodyMeansTheAuthorAlone(): void {
+		$this->assertSame(
+			['canQuote' => ['automaticApproval' => ['https://cloud.example.org/apps/social/@alice']]],
+			$this->localPost(Stream::QUOTE_POLICY_NOBODY)->exportAsActivityPub()['interactionPolicy']
+		);
+	}
+
+	/**
+	 * Quoting your own post is how a thread is picked up later, and it is the
+	 * one case no policy refuses.
+	 */
+	public function testTheAuthorMayAlwaysQuoteTheirOwnPost(): void {
+		$post = $this->localPost(Stream::QUOTE_POLICY_NOBODY);
+
+		$this->assertTrue($post->mayBeQuotedBy('https://cloud.example.org/apps/social/@alice'));
+		$this->assertFalse($post->mayBeQuotedBy('https://remote.example/users/carol'));
+	}
+
+	public function testTheFollowersPolicyTurnsOnWhetherTheAskerFollows(): void {
+		$post = $this->localPost(Stream::QUOTE_POLICY_FOLLOWERS);
+
+		$this->assertTrue($post->mayBeQuotedBy('https://remote.example/users/carol', true));
+		$this->assertFalse($post->mayBeQuotedBy('https://remote.example/users/carol', false));
+	}
+
+	/**
+	 * `manual` is empty and honestly so: this app answers a QuoteRequest the
+	 * moment it arrives and has no queue for an author to work through, so a
+	 * "requested" state would be one nothing here would ever resolve.
+	 */
+	public function testQuoteApprovalSaysWhatIsAutomaticAndNothingIsManual(): void {
+		$approval = $this->localPost(Stream::QUOTE_POLICY_PUBLIC)->exportQuoteApproval('', false);
+
+		$this->assertSame(['public'], $approval['automatic']);
+		$this->assertSame([], $approval['manual']);
+		$this->assertSame('automatic', $approval['current_user']);
+	}
+
+	public function testQuoteApprovalSaysDeniedWhereNobodyMayQuote(): void {
+		$approval = $this->localPost(Stream::QUOTE_POLICY_NOBODY)
+			->exportQuoteApproval('https://remote.example/users/carol', false);
+
+		$this->assertSame([], $approval['automatic']);
+		$this->assertSame('denied', $approval['current_user']);
 	}
 }

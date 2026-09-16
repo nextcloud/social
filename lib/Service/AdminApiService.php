@@ -301,9 +301,17 @@ class AdminApiService {
 
 				return $account->setLevel($type);
 			case 'sensitive':
+				// the tier between doing nothing and silencing: every post
+				// this account makes from now on is marked sensitive, and it
+				// stays in the timelines. It was refused by name here until
+				// the app had it, and the refusal outlived the gap.
+				$this->moderationService->forceSensitive($account->getActorId(), true);
+
+				return $account;
 			case 'disable':
 				throw new \InvalidArgumentException(
-					'this instance has no "' . $type . '" state for an account'
+					'this instance has no "' . $type . '" state for an account: an account here'
+					. ' is a Nextcloud account, and disabling one is the server\'s to do'
 				);
 
 			default:
@@ -333,6 +341,53 @@ class AdminApiService {
 			$this->moderationService->lift($account->getActorId());
 			$account->setLevel('');
 		}
+
+		return $account;
+	}
+
+	/**
+	 * Files a report under a different category.
+	 *
+	 * @throws \InvalidArgumentException a category this app has no name for
+	 * @throws ReportNotFoundException
+	 */
+	public function recategoriseReport(int $id, string $category): AdminReport {
+		$category = trim($category);
+		if (!in_array($category, Report::CATEGORIES, true)) {
+			throw new \InvalidArgumentException(
+				'category must be one of ' . implode(', ', Report::CATEGORIES)
+			);
+		}
+
+		// read first, so an unknown id is a 404 rather than an update that
+		// quietly matched nothing — and the entity that comes back is the one
+		// this returns, with the new category on it, rather than a second read
+		$report = $this->report($id);
+		$this->reportsRequest->setCategory($id, $category);
+		$report->getReport()->setCategory($category);
+
+		return $report;
+	}
+
+	/** Lifts "everything this account posts is sensitive", and only that. */
+	public function unsensitive(AdminAccount $account): AdminAccount {
+		$this->moderationService->forceSensitive($account->getActorId(), false);
+
+		return $account;
+	}
+
+	/**
+	 * Deletes what an account posted here, leaving the account itself.
+	 *
+	 * The destructive half of a suspension without the refusal that goes with
+	 * one: the posts go, the cached actor goes, and a local account's deletion
+	 * is federated. Mastodon's `DELETE /admin/accounts/{id}` means exactly
+	 * this — it removes the data, not the login — and here it could not mean
+	 * anything else, because an account on this server is a Nextcloud account
+	 * that the server owns.
+	 */
+	public function purge(AdminAccount $account): AdminAccount {
+		$this->moderationService->purgeActor($account->getActorId());
 
 		return $account;
 	}
@@ -516,6 +571,91 @@ class AdminApiService {
 	 * applied something else would tell the client the domain was under a
 	 * block it is not.
 	 */
+	/**
+	 * The instances this server will talk to, when it is on an allowlist.
+	 *
+	 * Mastodon's `domain_allows` is the other half of `domain_blocks`, and it
+	 * only means anything in "allowlist federation" — which this app has had
+	 * all along as `access_type: none_but`, with no API over it. An admin
+	 * client could see the deny list and not the allow list, so on an
+	 * allowlisted instance it showed an empty screen and no way to tell why.
+	 *
+	 * @return array<int, array{id: string, domain: string, created_at: string}>
+	 */
+	public function domainAllows(): array {
+		$this->assertAllowList();
+
+		$allows = [];
+		foreach ($this->fediverseService->getListedAddresses() as $domain) {
+			$allows[] = $this->asDomainAllow($domain);
+		}
+
+		return $allows;
+	}
+
+	/**
+	 * @return array{id: string, domain: string, created_at: string}
+	 * @throws ItemNotFoundException
+	 */
+	public function domainAllow(string $reference): array {
+		// through domainAllows(), which is where the mode is checked
+		foreach ($this->domainAllows() as $allow) {
+			if ($allow['id'] === $reference || $allow['domain'] === $reference) {
+				return $allow;
+			}
+		}
+
+		throw new ItemNotFoundException('no such allowed domain');
+	}
+
+	/**
+	 * @return array{id: string, domain: string, created_at: string}
+	 * @throws Exception
+	 */
+	public function allowDomain(string $domain): array {
+		$this->assertAllowList();
+
+		$domain = strtolower(trim($domain));
+		if ($domain === '') {
+			throw new \InvalidArgumentException('domain is required');
+		}
+
+		$this->fediverseService->addAddress($domain);
+
+		return $this->asDomainAllow($domain);
+	}
+
+	/**
+	 * @return array{id: string, domain: string, created_at: string}
+	 * @throws ItemNotFoundException
+	 */
+	public function disallowDomain(string $reference): array {
+		$allow = $this->domainAllow($reference);
+		$this->fediverseService->removeAddress($allow['domain']);
+
+		return $allow;
+	}
+
+	/**
+	 * The id Mastodon's entity needs, derived rather than stored.
+	 *
+	 * The access list is a config array of domains with no ids of its own, and
+	 * giving it a table so an admin client could address a row by number would
+	 * be storing something for the client's benefit alone. The hash is stable,
+	 * which is all an id has to be, and `domainAllow()` takes the domain
+	 * itself as well — so a client that read the list can act on it either way.
+	 *
+	 * @return array{id: string, domain: string, created_at: string}
+	 */
+	private function asDomainAllow(string $domain): array {
+		return [
+			'id' => substr(md5($domain), 0, 12),
+			'domain' => $domain,
+			// the list records no times; Mastodon's entity requires the key
+			'created_at' => date('c', 0),
+		];
+	}
+
 	public function assertSeverity(string $severity): void {
 		$this->severity($severity);
 	}
@@ -561,6 +701,26 @@ class AdminApiService {
 	 *
 	 * @throws \InvalidArgumentException
 	 */
+	/**
+	 * The mirror of `assertBlockList()`, and it matters for the same reason.
+	 *
+	 * One app value holds both lists and only the mode says which it is. In
+	 * block-list mode its entries are the domains this instance **refuses** —
+	 * served as `domain_allows` they would read as their own opposite, and a
+	 * moderator reading "allowed: evil.example" would be reading the exact
+	 * inverse of the truth. Worse, a client that then removed an entry to
+	 * "disallow" it would have unblocked it.
+	 *
+	 * @throws \InvalidArgumentException
+	 */
+	private function assertAllowList(): void {
+		if ($this->fediverseService->getAccessType() !== $this->configService->accessTypeList['WHITELIST']) {
+			throw new \InvalidArgumentException(
+				'this instance federates by a block list, so its access list is not a list of allowed domains'
+			);
+		}
+	}
+
 	private function assertBlockList(): void {
 		if ($this->fediverseService->getAccessType() === $this->configService->accessTypeList['WHITELIST']) {
 			throw new \InvalidArgumentException(

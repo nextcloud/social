@@ -13,7 +13,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useAccountStore } from '../../../src/store/account.js'
 
 vi.mock('@nextcloud/axios', () => ({
-	default: { get: vi.fn(), post: vi.fn() },
+	default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
@@ -26,8 +26,8 @@ const bob = { id: '22', acct: 'bob@remote.tld', username: 'bob', display_name: '
 const carol = { id: '33', acct: 'carol@remote.tld', username: 'carol', display_name: 'Carol', avatar: 'https://remote.tld/carol.png' }
 const dave = { id: '44', acct: 'dave', username: 'dave', display_name: '', avatar: 'https://cloud.example.org/dave.png' }
 
-/** Answers /blocks and /mutes in the order the view requests them. */
-function serve(blocked, muted) {
+/** Answers /blocks, /mutes and /domain_blocks, whichever order they come in. */
+function serve(blocked, muted, domains = []) {
 	axios.get.mockImplementation((url) => {
 		if (url.endsWith('/blocks')) {
 			return Promise.resolve({ data: blocked })
@@ -35,12 +35,15 @@ function serve(blocked, muted) {
 		if (url.endsWith('/mutes')) {
 			return Promise.resolve({ data: muted })
 		}
+		if (url.endsWith('/domain_blocks')) {
+			return Promise.resolve({ data: domains })
+		}
 		return Promise.reject(new Error(`unexpected ${url}`))
 	})
 }
 
-async function mountView({ blocked = [bob], muted = [carol], dispatch } = {}) {
-	serve(blocked, muted)
+async function mountView({ blocked = [bob], muted = [carol], domains = [], dispatch } = {}) {
+	serve(blocked, muted, domains)
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	const accountStore = useAccountStore()
@@ -98,13 +101,14 @@ describe('BlockedAccounts', () => {
 		const { wrapper } = await mountView({ blocked: [], muted: [] })
 		const empty = wrapper.findAll('.empty-content').map((el) => el.text())
 
-		expect(empty).toEqual(['No blocked accounts', 'No muted accounts'])
+		expect(empty).toEqual(['No blocked accounts', 'No muted accounts', 'No hidden servers'])
 	})
 
 	it('shows the muted empty state while blocked accounts exist', async () => {
 		const { wrapper } = await mountView({ blocked: [bob], muted: [] })
 
-		expect(wrapper.findAll('.empty-content').map((el) => el.text())).toEqual(['No muted accounts'])
+		expect(wrapper.findAll('.empty-content').map((el) => el.text()))
+			.toEqual(['No muted accounts', 'No hidden servers'])
 		expect(rowNames(wrapper)).toEqual(['Bob'])
 	})
 
@@ -177,8 +181,9 @@ describe('BlockedAccounts', () => {
 			const { wrapper } = await mountView({ blocked: [bob, dave], muted: [carol] })
 			const groups = wrapper.findAll('transition-group-stub')
 
-			expect(groups).toHaveLength(2)
-			expect(groups.map((group) => group.attributes('name'))).toEqual(['collapse', 'collapse'])
+			expect(groups).toHaveLength(3)
+			expect(groups.map((group) => group.attributes('name')))
+				.toEqual(['collapse', 'collapse', 'collapse'])
 			expect(groups[0].findAll('.blocked-account')).toHaveLength(2)
 			expect(groups[1].findAll('.blocked-account')).toHaveLength(1)
 		})
@@ -200,18 +205,66 @@ describe('BlockedAccounts', () => {
 		})
 
 		it('brings the empty state in through a transition once the last one is gone', async () => {
-			const { wrapper } = await mountView({ blocked: [bob], muted: [carol] })
+			const { wrapper } = await mountView({
+				blocked: [bob],
+				muted: [carol],
+				domains: ['noisy.example'],
+			})
 			expect(wrapper.findAll('.empty-content')).toHaveLength(0)
 
 			await buttonByText(rows(wrapper)[0], 'Unblock').trigger('click')
 			await flushPromises()
 
 			const empty = wrapper.findAll('transition-stub')
-			expect(empty).toHaveLength(2)
+			expect(empty).toHaveLength(3)
 			expect(empty[0].attributes('name')).toBe('empty')
 			expect(empty[0].find('.empty-content').text()).toBe('No blocked accounts')
 			// the muted list still has Carol, so its empty state stays away
 			expect(empty[1].find('.empty-content').exists()).toBe(false)
+		})
+	})
+
+	describe('hiding a whole server', () => {
+		it('lists the servers this account has hidden', async () => {
+			const { wrapper } = await mountView({ domains: ['noisy.example', 'worse.example'] })
+
+			expect(wrapper.text()).toContain('noisy.example')
+			expect(wrapper.text()).toContain('worse.example')
+		})
+
+		/**
+		 * The server decides what a domain normalises to, so the list is read
+		 * again rather than guessed at — a row saying something else would be a
+		 * row the unhide button could not act on.
+		 */
+		it('sends the server to hide and reads the list back', async () => {
+			axios.post.mockResolvedValue({ data: [] })
+			const { wrapper } = await mountView({ domains: [] })
+
+			await wrapper.find('.blocked-domain__field input').setValue('  Noisy.Example  ')
+			await wrapper.find('.blocked-domain__add').trigger('submit')
+			await flushPromises()
+
+			expect(axios.post).toHaveBeenCalledWith(
+				expect.stringContaining('/api/v1/domain_blocks'),
+				{ domain: 'noisy.example' },
+			)
+			expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/domain_blocks'))
+		})
+
+		it('shows one again and takes it off the list', async () => {
+			axios.delete.mockResolvedValue({ data: [] })
+			const { wrapper } = await mountView({ domains: ['noisy.example'] })
+
+			const row = wrapper.findAll('.blocked-account').at(-1)
+			await buttonByText(row, 'Show again').trigger('click')
+			await flushPromises()
+
+			expect(axios.delete).toHaveBeenCalledWith(
+				expect.stringContaining('/api/v1/domain_blocks'),
+				{ data: { domain: 'noisy.example' } },
+			)
+			expect(wrapper.text()).toContain('No hidden servers')
 		})
 	})
 })

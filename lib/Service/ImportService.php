@@ -29,6 +29,7 @@ class ImportService {
 		private ConfigService $configService,
 		private MiscService $miscService,
 		private ModerationService $moderationService,
+		private RelayService $relayService,
 	) {
 	}
 
@@ -70,6 +71,17 @@ class ImportService {
 		}
 
 		$activity->setRequestToken($this->uuid());
+
+		// A relay speaks a dialect of its own: its `Announce` is a pointer at
+		// somebody else's post rather than a boost of it, and its `Accept`
+		// answers a Follow no local actor sent. Both would be mishandled by
+		// the ordinary interfaces — the Announce as a boost by an actor nobody
+		// follows, the Accept as a follow that does not exist. Scoped to
+		// actors this instance holds a subscription row for, so a server that
+		// merely calls itself a relay is still handled as what it is.
+		if ($this->relayService->handleIncoming($activity)) {
+			return;
+		}
 
 		$interface = AP::instance()->getInterfaceForItem($activity);
 		try {

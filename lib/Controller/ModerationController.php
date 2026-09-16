@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Db\MediaBlocksRequest;
+use OCA\Social\Db\TrendReviewRequest;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\Client\AdminAccount;
 use OCA\Social\Model\Report;
@@ -20,10 +21,13 @@ use OCA\Social\Model\Strike;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\TrendReviewService;
 use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -63,6 +67,9 @@ class ModerationController extends Controller {
 		private AccountService $accountService,
 		private MediaBlocksRequest $mediaBlocksRequest,
 		private DiscoverCategoriesRequest $discoverCategoriesRequest,
+		private TrendReviewService $trendReviewService,
+		private HashtagService $hashtagService,
+		private EmojiService $emojiService,
 		private IUserSession $userSession,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -511,5 +518,123 @@ class ModerationController extends Controller {
 		}
 
 		return new DataResponse(['accessType' => $this->fediverseService->getAccessType()]);
+	}
+
+	// What may trend, what the instance's emoji are, and what its rules say
+
+	/**
+	 * The hashtags, links and posts a moderator has decided about.
+	 *
+	 * All three kinds in one answer, because the panel shows one list: what is
+	 * being kept out of Explore, whatever kind of thing it is.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/trends')]
+	public function trendDecisions(): DataResponse {
+		return new DataResponse([
+			'tags' => $this->trendReviewService->decisions(TrendReviewRequest::KIND_TAG),
+			'links' => $this->trendReviewService->decisions(TrendReviewRequest::KIND_LINK),
+			'statuses' => $this->trendReviewService->decisions(TrendReviewRequest::KIND_STATUS),
+			'trending' => $this->hashtagService->getTrending(20),
+		]);
+	}
+
+	/** Keeps something out of what is trending. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/trends')]
+	public function trendReject(string $kind = '', string $ref = ''): DataResponse {
+		try {
+			$this->trendReviewService->decide($kind, $ref, false, $this->moderatorName());
+		} catch (\InvalidArgumentException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		return $this->trendDecisions();
+	}
+
+	/** Lets it back in, so it trends on its own merits again. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/moderation/trends')]
+	public function trendForget(string $kind = '', string $ref = ''): DataResponse {
+		try {
+			$this->trendReviewService->forget($kind, $ref);
+		} catch (\InvalidArgumentException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		return $this->trendDecisions();
+	}
+
+	/** The instance's own emoji, which were `occ`-only until now. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/emojis')]
+	public function emojis(): DataResponse {
+		return new DataResponse(['emojis' => $this->emojiService->all()]);
+	}
+
+	/**
+	 * Adds one from an uploaded picture.
+	 *
+	 * The upload is written to a temporary file and handed to the same service
+	 * `occ social:emoji` calls, so the checks on the shortcode, the size and
+	 * the format are in one place rather than two that could drift.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/emojis')]
+	public function emojiAdd(string $shortcode = '', string $category = ''): DataResponse {
+		$upload = $this->request->getUploadedFile('picture');
+		if (!is_array($upload) || ($upload['tmp_name'] ?? '') === '') {
+			return new DataResponse(
+				['error' => 'a picture is needed'], Http::STATUS_UNPROCESSABLE_ENTITY
+			);
+		}
+
+		try {
+			$this->emojiService->add($shortcode, (string)$upload['tmp_name'], $category);
+		} catch (\Exception $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		return $this->emojis();
+	}
+
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'DELETE', url: '/moderation/emojis')]
+	public function emojiRemove(string $shortcode = ''): DataResponse {
+		if (!$this->emojiService->remove($shortcode)) {
+			return new DataResponse(
+				['error' => 'there is no emoji with that shortcode'], Http::STATUS_NOT_FOUND
+			);
+		}
+
+		return $this->emojis();
+	}
+
+	/**
+	 * The rules this instance asks people to follow.
+	 *
+	 * One per line in an app value, which is how they were already stored and
+	 * how `occ config:app:set social rules` sets them; what was missing was a
+	 * place to read and write them without a shell. Every client shows them on
+	 * sign-up, and `/api/v1/instance/rules` serves them.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/rules')]
+	public function rules(): DataResponse {
+		return new DataResponse([
+			'rules' => $this->configService->getAppValue('rules'),
+		]);
+	}
+
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/rules')]
+	public function rulesSave(string $rules = ''): DataResponse {
+		// stored as it was typed, trimmed of the blank lines a text area
+		// collects; the reader splits on newlines and drops the empties anyway,
+		// and storing what somebody typed is easier to explain than storing a
+		// normalised version of it
+		$this->configService->setAppValue('rules', trim($rules));
+
+		return $this->rules();
 	}
 }

@@ -9,12 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Exceptions\SignatureException;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\InstanceActor;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Flag;
-use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Report;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use Psr\Log\LoggerInterface;
@@ -43,9 +40,10 @@ use Psr\Log\LoggerInterface;
  * by `HttpSignatureService::signDelivery()`, which resolves the signing key
  * from `oc_social_actor` by the queue row's author — and the instance actor is
  * deliberately not a row there (see `InstanceActorService`). So the one
- * activity that must be signed as the server is the one the queue cannot sign.
- * One report is one POST with a short timeout, it never blocks storing the
- * report, and a failure costs the forward and nothing else.
+ * activity that must be signed as the server is the one the queue cannot sign,
+ * and it goes out inline with `HttpSignatureService::signAsInstance()`. One
+ * report is one POST with a short timeout, it never blocks storing the report,
+ * and a failure costs the forward and nothing else.
  */
 class ReportForwardService {
 	/**
@@ -54,14 +52,6 @@ class ReportForwardService {
 	 * `ActivityService` gives its own inline delivery.
 	 */
 	private const TIMEOUT = 3;
-
-	/**
-	 * The headers Mastodon requires a POST signature to cover. `digest` is
-	 * what makes the signature cover the body: without it a signature on a
-	 * body-carrying request proves nothing about the body, and Mastodon
-	 * refuses the delivery outright.
-	 */
-	private const DELIVERY_HEADERS = ['(request-target)', 'content-length', 'date', 'host', 'digest'];
 
 	public function __construct(
 		private InstanceActorService $instanceActorService,
@@ -112,7 +102,7 @@ class ReportForwardService {
 
 		try {
 			$this->curlService->retrieveJson('post', $inbox, [
-				'headers' => $this->sign($actor, $inbox, (string)$body),
+				'headers' => $this->httpSignatureService->signAsInstance($inbox, (string)$body),
 				'body' => (string)$body,
 				'timeout' => self::TIMEOUT,
 			]);
@@ -149,55 +139,6 @@ class ReportForwardService {
 			->setContent($report->getComment());
 
 		return $flag;
-	}
-
-	/**
-	 * The HTTP signature, built here rather than by `HttpSignatureService`:
-	 * every signing path there takes either a `RequestQueue` row or a local
-	 * actor, and this request has neither. Only the assembly is local — the
-	 * digest is the same one every other delivery uses, and it covers the very
-	 * bytes that are sent.
-	 *
-	 * @return array<string, string> the headers to send
-	 *
-	 * @throws SignatureException an unusable key must fail loudly rather than
-	 *                            send an empty signature that the peer would
-	 *                            reject for the wrong reason
-	 * @throws SocialAppConfigException
-	 */
-	private function sign(InstanceActor $actor, string $inbox, string $body): array {
-		$path = new InstancePath($inbox);
-		$values = [
-			'(request-target)' => 'post ' . $path->getPath(),
-			'content-length' => (string)strlen($body),
-			'date' => gmdate(HttpSignatureService::DATE_HEADER),
-			'host' => $path->getAddress(),
-			'digest' => $this->httpSignatureService->digest($body),
-		];
-
-		$signing = [];
-		$headers = [];
-		foreach (self::DELIVERY_HEADERS as $element) {
-			$signing[] = $element . ': ' . $values[$element];
-			if ($element !== '(request-target)') {
-				$headers[$element] = $values[$element];
-			}
-		}
-
-		if (!@openssl_sign(implode("\n", $signing), $signed, $actor->getPrivateKey(), OPENSSL_ALGO_SHA256)) {
-			throw new SignatureException(
-				'cannot sign the forwarded report as ' . $actor->getId() . ': ' . openssl_error_string()
-			);
-		}
-
-		$headers['Signature'] = implode(',', [
-			'keyId="' . $actor->getKeyId() . '"',
-			'algorithm="rsa-sha256"',
-			'headers="' . implode(' ', self::DELIVERY_HEADERS) . '"',
-			'signature="' . base64_encode($signed) . '"',
-		]);
-
-		return $headers;
 	}
 
 	/**

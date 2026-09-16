@@ -76,6 +76,9 @@ class CoreRequestBuilder {
 	public const TABLE_PORTFOLIOS = 'social_portfolio';
 	public const TABLE_TEAMS = 'social_team';
 	public const TABLE_TEAM_POSTS = 'social_team_post';
+	public const TABLE_TREND_REVIEW = 'social_trend_review';
+	public const TABLE_RELAYS = 'social_relay';
+	public const TABLE_QUOTE_GRANTS = 'social_quote_grant';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -352,6 +355,37 @@ class CoreRequestBuilder {
 			'author_id_prim',
 			'creation'
 		],
+		self::TABLE_TREND_REVIEW => [
+			'id',
+			'kind',
+			'ref',
+			'ref_prim',
+			'approved',
+			'moderator',
+			'creation'
+		],
+		self::TABLE_RELAYS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'inbox',
+			'status',
+			'follow_id',
+			'error',
+			'creation',
+			'last_update'
+		],
+		self::TABLE_QUOTE_GRANTS => [
+			'id',
+			'target_id',
+			'target_id_prim',
+			'quoting_id',
+			'quoting_id_prim',
+			'actor_id',
+			'request_id',
+			'authorization',
+			'creation'
+		],
 		self::TABLE_CONVERSATION_STATE => [
 			'id',
 			'actor_id',
@@ -590,6 +624,7 @@ class CoreRequestBuilder {
 			'updated',
 			'quote',
 			'quote_authorization',
+			'quote_policy',
 			'place_id'
 		],
 		self::TABLE_STREAM_VIEWS => [

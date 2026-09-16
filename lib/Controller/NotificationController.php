@@ -294,6 +294,10 @@ class NotificationController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/notifications/policy')]
+	// Mastodon moved the policy to v2 in 4.3 and a 4.3 client looks there
+	// only; the v1 spelling stays for the clients written against 4.2, which
+	// is the release this server used to announce.
+	#[FrontpageRoute(verb: 'GET', url: '/api/v2/notifications/policy', postfix: 'v2')]
 	public function policy(): DataResponse {
 		try {
 			$this->initViewer(['read:notifications']);
@@ -316,6 +320,7 @@ class NotificationController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'PATCH', url: '/api/v1/notifications/policy')]
+	#[FrontpageRoute(verb: 'PATCH', url: '/api/v2/notifications/policy', postfix: 'v2')]
 	public function policyUpdate(): DataResponse {
 		try {
 			$this->initViewer(['write:notifications']);

@@ -191,7 +191,16 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
-	 * return Actor from database, based on the userId of the owner.
+	 * The **live** local account a Nextcloud user owns.
+	 *
+	 * Deleted rows are skipped, which is what makes deleting an account
+	 * something a person can do and then carry on: a deleted actor is kept for
+	 * an hour before `manageDeletedActors()` purges it, so that the handle
+	 * cannot be taken by somebody else straight away — and while it sat there,
+	 * this method went on answering with it. The person who had just deleted
+	 * their account was shown the account they had deleted, and `createActor()`
+	 * refused to make them a new one because "account for this user already
+	 * exist". The retention is about the *handle*, not about the person.
 	 *
 	 * @param string $userId
 	 *
@@ -202,6 +211,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function getFromUserId(string $userId): Person {
 		$qb = $this->getActorsSelectSql();
 		$qb->limitToUserId($userId);
+		$qb->andWhere($qb->expr()->isNull('a.deleted'));
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();

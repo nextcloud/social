@@ -529,7 +529,9 @@ class AdminApiServiceTest extends TestCase {
 		$this->moderationService->expects($this->never())->method('decide');
 		$this->moderationService->expects($this->never())->method('lift');
 
-		foreach (['sensitive', 'disable', 'banish'] as $type) {
+		// `disable` turns off a *login*, which on this server belongs to
+		// Nextcloud; `banish` is not an action anybody defines
+		foreach (['disable', 'banish'] as $type) {
 			try {
 				$this->service()->act($account, $type);
 				$this->fail('"' . $type . '" must not be applied');
@@ -537,6 +539,45 @@ class AdminApiServiceTest extends TestCase {
 				$this->assertNotSame('', $e->getMessage());
 			}
 		}
+	}
+
+	/**
+	 * `sensitive` was refused by name until this app had the tier, and the
+	 * refusal outlived the gap: force-sensitive has been the step between
+	 * doing nothing and silencing since the moderation wave, and an admin
+	 * client was still told the instance had no such state.
+	 */
+	public function testMarkingEverythingSensitiveIsAnActionNow(): void {
+		$account = AdminAccount::fromPerson($this->known(self::REMOTE));
+
+		$this->moderationService->expects($this->once())
+			->method('forceSensitive')->with(self::REMOTE, true);
+
+		$this->service()->act($account, 'sensitive');
+	}
+
+	public function testAndItCanBeLiftedAgain(): void {
+		$account = AdminAccount::fromPerson($this->known(self::REMOTE));
+
+		$this->moderationService->expects($this->once())
+			->method('forceSensitive')->with(self::REMOTE, false);
+
+		$this->service()->unsensitive($account);
+	}
+
+	/**
+	 * Mastodon's `DELETE /admin/accounts/{id}` removes the *data*, not the
+	 * login — and here it could not mean anything else, because an account on
+	 * this server is a Nextcloud account the server owns.
+	 */
+	public function testDeletingAnAccountRemovesWhatItPostedAndNotTheAccount(): void {
+		$account = AdminAccount::fromPerson($this->known(self::REMOTE));
+
+		$this->moderationService->expects($this->once())
+			->method('purgeActor')->with(self::REMOTE);
+		$this->moderationService->expects($this->never())->method('decide');
+
+		$this->service()->purge($account);
 	}
 
 	public function testEachLiftTouchesOnlyItsOwnDecision(): void {
@@ -821,5 +862,66 @@ class AdminApiServiceTest extends TestCase {
 		}
 
 		$this->assertSame(['friend.example'], $this->accessList);
+	}
+
+	/**
+	 * One app value holds both lists and only the mode says which it is, so
+	 * serving it as the wrong one would read as the exact inverse of the
+	 * truth — and a client removing an entry to "disallow" a domain would have
+	 * unblocked it. The block routes already refuse in allow-list mode; this
+	 * is the mirror.
+	 */
+	public function testTheAllowListRefusesToAnswerOnABlockListInstance(): void {
+		$this->accessType = 'all_but';
+		$this->configService->accessTypeList = ['BLACKLIST' => 'all_but', 'WHITELIST' => 'none_but'];
+
+		$this->expectException(\InvalidArgumentException::class);
+
+		$this->service()->domainAllows();
+	}
+
+	public function testOnAnAllowListInstanceItAnswersWithTheListedDomains(): void {
+		$this->accessType = 'none_but';
+		$this->accessList = ['friend.example', 'partner.example'];
+		$this->configService->accessTypeList = ['BLACKLIST' => 'all_but', 'WHITELIST' => 'none_but'];
+
+		$allows = $this->service()->domainAllows();
+
+		$this->assertSame(
+			['friend.example', 'partner.example'],
+			array_column($allows, 'domain')
+		);
+		$this->assertNotSame('', $allows[0]['id'], 'an id derived from the domain, since the list stores none');
+	}
+
+	/** And adding one is refused on a block-list instance for the same reason. */
+	public function testAllowingADomainIsRefusedOnABlockListInstance(): void {
+		$this->accessType = 'all_but';
+		$this->configService->accessTypeList = ['BLACKLIST' => 'all_but', 'WHITELIST' => 'none_but'];
+		$this->fediverseService->expects($this->never())->method('addAddress');
+
+		$this->expectException(\InvalidArgumentException::class);
+
+		$this->service()->allowDomain('friend.example');
+	}
+
+	/** A category a reporter chose was the category for ever until this. */
+	public function testAReportCanBeFiledUnderADifferentCategory(): void {
+		$this->reportRows = [$this->reportRow(['category' => 'spam'])];
+
+		$this->reportsRequest->expects($this->once())->method('setCategory')
+			->with(4, 'violation');
+
+		$changed = $this->service()->recategoriseReport(4, 'violation');
+
+		$this->assertSame('violation', $changed->getReport()->getCategory());
+	}
+
+	public function testACategoryThisAppHasNoNameForIsRefused(): void {
+		$this->reportsRequest->expects($this->never())->method('setCategory');
+
+		$this->expectException(\InvalidArgumentException::class);
+
+		$this->service()->recategoriseReport(4, 'unpleasant');
 	}
 }

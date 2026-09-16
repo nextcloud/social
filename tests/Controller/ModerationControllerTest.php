@@ -20,10 +20,13 @@ use OCA\Social\Model\Strike;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AdminApiService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\TrendReviewService;
 use OCA\Social\Settings\AdminSettings;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
@@ -40,6 +43,9 @@ class ModerationControllerTest extends TestCase {
 	private PostReviewService|MockObject $postReviewService;
 	private MediaBlocksRequest|MockObject $mediaBlocksRequest;
 	private DiscoverCategoriesRequest|MockObject $discoverCategoriesRequest;
+	private TrendReviewService|MockObject $trendReviewService;
+	private HashtagService|MockObject $hashtagService;
+	private EmojiService|MockObject $emojiService;
 	private \OCP\IUserSession|MockObject $userSession;
 	private AccountService|MockObject $accountService;
 	private ModerationController $controller;
@@ -67,6 +73,10 @@ class ModerationControllerTest extends TestCase {
 		$this->userSession = $this->createMock(\OCP\IUserSession::class);
 		$this->userSession->method('getUser')->willReturn($user);
 		$this->accountService = $this->createMock(AccountService::class);
+		$this->trendReviewService = $this->createMock(TrendReviewService::class);
+		$this->hashtagService = $this->createMock(HashtagService::class);
+		$this->emojiService = $this->createMock(EmojiService::class);
+
 		$this->controller = new ModerationController(
 			$this->createMock(IRequest::class),
 			$this->reportService,
@@ -78,6 +88,9 @@ class ModerationControllerTest extends TestCase {
 			$this->accountService,
 			$this->mediaBlocksRequest,
 			$this->discoverCategoriesRequest,
+			$this->trendReviewService,
+			$this->hashtagService,
+			$this->emojiService,
 			$this->userSession
 		);
 

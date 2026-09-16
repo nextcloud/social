@@ -231,6 +231,30 @@ own unified search. No external search engine to run.
   Pixelfed, moderatable, with its own followers. The membership is the group,
   asked live, so leaving it takes the account away with it. Who wrote each post
   is recorded and shown to the team and to moderators, and to nobody else.
+- **Your year, as a report** — Mastodon's `#Wrapstodon`: twelve months of what
+  you posted and who arrived, the hashtags you used, the three posts that
+  travelled furthest, and a one-word description of how you use the account.
+  Computed from the posts already here, so it cannot go stale and needs no job
+  to run.
+- **Quote controls** — who may quote each of your posts (anybody, your
+  followers, nobody), who already has, and a button that detaches one and tells
+  their server. Mastodon 4.5's `quote_approval_policy`, its quote list and its
+  revoke, over FEP-044f.
+- **Relays** — subscribe to one and a new server's federated timeline stops
+  being empty: a relay rebroadcasts the public posts of every server on it, and
+  carries this server's public posts out to all of them. Public posts only, and
+  a relayed post arrives as the post it is rather than as a boost by the relay.
+- **Delete your Social account** from Settings, keeping your Nextcloud one —
+  the posts, the follows and a `Delete` to every server that knew you. No
+  administrator, and no password to type for an account signed in through SSO.
+- **Authorized apps** — every app holding a key to your account, with what it
+  may do and when it was last used, and a button that signs one out. The page
+  to open after losing a phone.
+- **Filtered notifications** — the senders your notification policy is holding,
+  one row each, with Show these and Dismiss. The policy has been in the API since
+  4.3; this is the page that makes it usable.
+- **Hide a whole server** from yourself, beside the blocked and muted accounts.
+- **Edit history** — the "Edited" line under a post opens every version of it.
 - **A portfolio** — a page of your work with its own public address, to put on a
   CV. A title, a sentence, a grid or one picture at a time, and the pictures
   chosen from your recent public photos or one of your collections. A draft until
@@ -608,6 +632,29 @@ NEXTCLOUD_ROOT=/path/to/nextcloud composer run test:integration
 ```
 
 See `tests/Integration/README.md` for what it covers.
+
+### Interop tests
+
+A third PHP suite in `tests/Interop/` delivers this app's activities to a **real
+Mastodon** and reads them back out of Mastodon's own API — a `Create`, a post
+with a content warning, an `Update`, a `Delete` and an `Announce`, through the
+real queue and the real signer, to an instance that has been made to follow the
+account. Neither of the other two suites can prove the thing that decides
+whether federation works: that the other end *accepts* what we send. That gap
+is where a silent drop lives, and the Pixelfed work found three of them.
+
+Every test skips with a reason when there is no Mastodon to talk to, so running
+it without one is a pass that says so:
+
+```bash
+MASTODON_BASE_URL=http://localhost:3000 MASTODON_TOKEN=… composer run test:interop
+```
+
+`.github/workflows/interop-mastodon.yml` stands the whole thing up — Postgres,
+Redis, Mastodon, a Nextcloud and a token — weekly and on demand. Deliberately
+not on every pull request: it depends on a third-party image whose startup this
+repository does not control. See `tests/Interop/README.md`, including what it
+cannot prove.
 
 ### Browser tests
 

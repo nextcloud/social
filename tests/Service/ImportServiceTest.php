@@ -51,6 +51,7 @@ use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PeerTubeService;
+use OCA\Social\Service\RelayService;
 use OCA\Social\Service\SignatureService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -63,6 +64,7 @@ class ImportServiceTest extends TestCase {
 
 	private MiscService|MockObject $miscService;
 	private ModerationService|MockObject $moderationService;
+	private RelayService|MockObject $relayService;
 	private ImportService $service;
 
 	protected function setUp(): void {
@@ -70,7 +72,10 @@ class ImportServiceTest extends TestCase {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudUrl')->willReturn(self::CLOUD_URL);
 		$this->moderationService = $this->createMock(ModerationService::class);
-		$this->service = new ImportService($configService, $this->miscService, $this->moderationService);
+		$this->relayService = $this->createMock(RelayService::class);
+		$this->service = new ImportService(
+			$configService, $this->miscService, $this->moderationService, $this->relayService
+		);
 	}
 
 	protected function tearDown(): void {

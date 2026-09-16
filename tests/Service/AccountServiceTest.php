@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -20,6 +21,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Actor\PersonInterface;
@@ -54,6 +56,7 @@ class AccountServiceTest extends TestCase {
 	private IUserSession|MockObject $userSession;
 	private IAccountManager|MockObject $accountManager;
 	private ActorsRequest|MockObject $actorsRequest;
+	private ClientAuthRequest|MockObject $clientAuthRequest;
 	private FollowsRequest|MockObject $followsRequest;
 	private StreamRequest|MockObject $streamRequest;
 	private ActorService|MockObject $actorService;
@@ -87,6 +90,7 @@ class AccountServiceTest extends TestCase {
 		// unexpected output. Silence that single known deprecation around construction.
 		$this->errorReporting = error_reporting(E_ALL & ~E_DEPRECATED);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->clientAuthRequest = $this->createMock(ClientAuthRequest::class);
 		$this->accessBlockService = $this->createMock(AccessBlockService::class);
 		$this->accessBlockService->method('isBlockedEmail')->willReturnCallback(
 			fn (string $email): bool => in_array($email, $this->blockedEmails, true)
@@ -97,6 +101,7 @@ class AccountServiceTest extends TestCase {
 			$this->userSession,
 			$this->accountManager,
 			$this->actorsRequest,
+			$this->clientAuthRequest,
 			$this->followsRequest,
 			$this->streamRequest,
 			$this->actorService,
@@ -387,6 +392,84 @@ class AccountServiceTest extends TestCase {
 				return true;
 			}))
 			->willReturn('token');
+
+		$this->service->deleteActor('alice');
+	}
+
+	// --- deleting your own account --------------------------------------
+
+	/**
+	 * The handle typed out is the whole of the guard, and deliberately not a
+	 * password: an account signed in through SSO has none to give, and asking
+	 * for one would have made this an administrator's job again for exactly
+	 * the installations that federate most.
+	 */
+	public function testDeletingYourOwnAccountNeedsTheHandleTypedOut(): void {
+		$alice = $this->alice();
+		$alice->setAccount('alice@cloud.example');
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->actorsRequest->expects($this->once())->method('setAsDeleted')->with('alice');
+		$this->deleteThrough($alice);
+
+		$this->service->deleteOwnAccount('alice', 'alice@cloud.example');
+	}
+
+	public function testTheShortHandleConfirmsItToo(): void {
+		$alice = $this->alice();
+		$alice->setAccount('alice@cloud.example');
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->actorsRequest->expects($this->once())->method('setAsDeleted')->with('alice');
+		$this->deleteThrough($alice);
+
+		$this->service->deleteOwnAccount('alice', '@Alice');
+	}
+
+	public function testDeletingYourOwnAccountWithTheWrongHandleDeletesNothing(): void {
+		$alice = $this->alice();
+		$alice->setAccount('alice@cloud.example');
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->never())->method('setAsDeleted');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->expectException(InvalidResourceException::class);
+
+		$this->service->deleteOwnAccount('alice', 'bob@cloud.example');
+	}
+
+	public function testAnEmptyConfirmationDeletesNothing(): void {
+		$alice = $this->alice();
+		$alice->setAccount('alice@cloud.example');
+		$this->aliceIsKnown($alice);
+		$this->actorsRequest->expects($this->never())->method('setAsDeleted');
+
+		$this->expectException(InvalidResourceException::class);
+
+		$this->service->deleteOwnAccount('alice', '   ');
+	}
+
+	/** The rest of the deletion path, which these tests do not re-assert. */
+	private function deleteThrough(Person $actor): void {
+		$personInterface = $this->createMock(PersonInterface::class);
+		$ap = $this->createMock(AP::class);
+		$ap->method('getInterfaceFromType')->with(Person::TYPE)->willReturn($personInterface);
+		AP::set($ap);
+		$this->activityService->method('request')->willReturn('token');
+	}
+
+	/**
+	 * A token that outlived the account is a token that would bring it back:
+	 * `verify_credentials` creates an actor for a user who has none, so a
+	 * phone left running would quietly re-make the account under a derived
+	 * handle a minute after it was deleted. Found on devel, where one call to
+	 * `verify_credentials` after a delete answered with `deletetest_2`.
+	 */
+	public function testDeletingAnAccountTakesTheAppsSignedInToItWithIt(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->clientAuthRequest->expects($this->once())->method('deleteRelatedId')->with('alice');
+		$this->deleteThrough($alice);
 
 		$this->service->deleteActor('alice');
 	}

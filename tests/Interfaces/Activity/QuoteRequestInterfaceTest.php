@@ -9,7 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Activity;
 
+use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\QuoteGrantRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
@@ -17,8 +20,10 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\QuoteRequest;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\QuoteGrant;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
@@ -42,6 +47,8 @@ class QuoteRequestInterfaceTest extends ActivityPubTestCase {
 	private StreamRequest|MockObject $streamRequest;
 	private CacheActorService|MockObject $cacheActorService;
 	private ActivityService|MockObject $activityService;
+	private QuoteGrantRequest|MockObject $quoteGrantRequest;
+	private FollowsRequest|MockObject $followsRequest;
 	private QuoteRequestInterface $handler;
 
 	protected function setUp(): void {
@@ -50,10 +57,16 @@ class QuoteRequestInterfaceTest extends ActivityPubTestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
+		$this->quoteGrantRequest = $this->createMock(QuoteGrantRequest::class);
+		$this->followsRequest = $this->createMock(FollowsRequest::class);
+		$this->followsRequest->method('getByPersons')
+			->willThrowException(new FollowNotFoundException());
 		$this->handler = new QuoteRequestInterface(
 			$this->streamRequest,
 			$this->cacheActorService,
 			$this->activityService,
+			$this->quoteGrantRequest,
+			$this->followsRequest,
 			new NullLogger()
 		);
 
@@ -166,6 +179,92 @@ class QuoteRequestInterfaceTest extends ActivityPubTestCase {
 		$this->assertInstanceOf(Reject::class, $sent);
 		$this->assertSame(self::ALICE, $sent->getActorId());
 		$this->assertArrayNotHasKey('result', $sent->exportAsActivityPub());
+	}
+
+	/**
+	 * The author's own choice, where they made one, rather than the visibility
+	 * rule: a public post whose author said "nobody" is refused.
+	 */
+	public function testANobodyPolicyRefusesEvenAPublicPost(): void {
+		$post = $this->localPost();
+		$post->setQuotePolicy(Stream::QUOTE_POLICY_NOBODY);
+		$this->holding($post);
+		$sent = null;
+		$this->activityService->method('request')->willReturnCallback(
+			function (ACore $activity) use (&$sent): string {
+				$sent = $activity;
+
+				return 'token';
+			}
+		);
+
+		$this->handler->processIncomingRequest($this->request());
+
+		$this->assertInstanceOf(Reject::class, $sent);
+	}
+
+	public function testAFollowersPolicyAcceptsAFollowerAndRefusesAStranger(): void {
+		$post = $this->localPost();
+		$post->setQuotePolicy(Stream::QUOTE_POLICY_FOLLOWERS);
+		$this->holding($post);
+
+		$follow = new Follow();
+		$follow->setActorId(self::BOB)->setObjectId(self::ALICE)->setAccepted(true);
+		$follows = $this->createMock(FollowsRequest::class);
+		$follows->method('getByPersons')->with(self::BOB, self::ALICE)->willReturn($follow);
+		$handler = new QuoteRequestInterface(
+			$this->streamRequest,
+			$this->cacheActorService,
+			$this->activityService,
+			$this->quoteGrantRequest,
+			$follows,
+			new NullLogger()
+		);
+
+		$sent = null;
+		$this->activityService->method('request')->willReturnCallback(
+			function (ACore $activity) use (&$sent): string {
+				$sent = $activity;
+
+				return 'token';
+			}
+		);
+
+		$handler->processIncomingRequest($this->request());
+
+		$this->assertInstanceOf(Accept::class, $sent);
+	}
+
+	/**
+	 * Taking a quote back means sending a `Reject` naming the request that was
+	 * accepted, so the request has to be written down at the moment the grant
+	 * is made — there is nothing to name afterwards otherwise.
+	 */
+	public function testAnAcceptedRequestIsWrittenDownSoItCanBeTakenBack(): void {
+		$this->holding($this->localPost());
+		$this->activityService->method('request')->willReturn('token');
+
+		$saved = null;
+		$this->quoteGrantRequest->expects($this->once())->method('save')
+			->willReturnCallback(static function (QuoteGrant $grant) use (&$saved): void {
+				$saved = $grant;
+			});
+
+		$this->handler->processIncomingRequest($this->request());
+
+		$this->assertSame(self::LOCAL_POST, $saved->getTargetId());
+		$this->assertSame(self::REMOTE_QUOTING, $saved->getQuotingId());
+		$this->assertSame(self::BOB, $saved->getActorId());
+		$this->assertSame(self::REMOTE_URL . '/quote_requests/1', $saved->getRequestId());
+		$this->assertNotSame('', $saved->getAuthorization());
+	}
+
+	public function testARefusedRequestIsNotWrittenDown(): void {
+		$this->holding($this->localPost(Stream::TYPE_FOLLOWERS));
+		$this->activityService->method('request')->willReturn('token');
+		$this->quoteGrantRequest->expects($this->never())->method('save');
+
+		$this->handler->processIncomingRequest($this->request());
 	}
 
 	public function testAQuoteRequestForAPostWeDoNotHoldIsAnsweredWithNothing(): void {

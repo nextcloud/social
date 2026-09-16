@@ -95,14 +95,35 @@ class Instance implements IQueryRow, JsonSerializable {
 	 * `/api/v1/notifications/unread_count`. Claiming 3.5.0 was hiding all of
 	 * them — a client that believes the string never asks.
 	 *
-	 * The two 4.x features still missing are announced as missing rather than
-	 * left to fail: `configuration.translation.enabled` is `false`, and `urls`
-	 * is an empty object, which is how a client learns there is no streaming
-	 * endpoint. Web Push is absent, and a client that tries
-	 * `/api/v1/push/subscription` gets a 404 and falls back to polling, which
-	 * is what it does against any server without a VAPID key.
+	 * The features still missing are announced as missing rather than left to
+	 * fail: `urls` is an empty object, which is how a client learns there is no
+	 * streaming endpoint, and Web Push is absent, so a client that tries
+	 * `/api/v1/push/subscription` gets a 404 and falls back to polling — what
+	 * it does against any server without a VAPID key.
+	 *
+	 * **4.3 now, and it was 4.2 while the 4.3 surface was already being
+	 * served**: grouped notifications (`/api/v2/notifications` and its four
+	 * routes), the notification policy and its requests inbox, and a real
+	 * translation through `OCP\TaskProcessing`. A client reads this string
+	 * before it asks, so claiming 4.2 meant every one of those was built and
+	 * never reached. Raising it is a promise about the whole 4.3 client
+	 * surface, which is why it waited until that surface was there.
 	 */
-	public const COMPAT_VERSION = '4.2.0';
+	public const COMPAT_VERSION = '4.3.0';
+
+	/**
+	 * The API generations this server implements, as Mastodon 4.3 reports them.
+	 *
+	 * A client that knows about `api_versions` reads it *instead of* parsing
+	 * the version string, because a fork can implement Mastodon's API at a
+	 * generation that has nothing to do with its own version number — which is
+	 * exactly this app's situation. Absent, a 4.3 client falls back to the
+	 * string, and a fork's string is the least reliable thing about it.
+	 *
+	 * `mastodon: 3` is what 4.3 reports. It is the API generation, not the
+	 * release: 4.3 and 4.4 both say 3, and 4.5 says 4.
+	 */
+	public const API_VERSIONS = ['mastodon' => 3];
 
 	public function getCompatVersion(): string {
 		return self::COMPAT_VERSION . ' (compatible; Nextcloud Social ' . $this->version . ')';
@@ -379,6 +400,9 @@ class Instance implements IQueryRow, JsonSerializable {
 			'domain' => $this->getUri(),
 			'title' => $this->getTitle(),
 			'version' => $this->getCompatVersion(),
+			// read instead of the version string by a client that knows about
+			// it, and the string is the least reliable thing about a fork
+			'api_versions' => (object)self::API_VERSIONS,
 			'source_url' => 'https://github.com/nextcloud/social',
 			'description' => ($this->getShortDescription() !== '')
 				? $this->getShortDescription() : $this->getDescription(),

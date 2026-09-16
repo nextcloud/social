@@ -28,6 +28,8 @@ class Status implements \JsonSerializable {
 	 * whatever post happens to have that id.
 	 */
 	private string $quotedId = '';
+	/** who may quote the post being written: '', 'public', 'followers' or 'nobody' */
+	private string $quotePolicy = '';
 	/** the handle of a team account this post is written as, or '' */
 	private string $postAs = '';
 	private string $status = '';
@@ -121,6 +123,16 @@ class Status implements \JsonSerializable {
 		return $this;
 	}
 
+	public function setQuotePolicy(string $quotePolicy): self {
+		$this->quotePolicy = in_array($quotePolicy, Stream::QUOTE_POLICIES, true) ? $quotePolicy : '';
+
+		return $this;
+	}
+
+	public function getQuotePolicy(): string {
+		return $this->quotePolicy;
+	}
+
 	public function getQuotedId(): string {
 		return $this->quotedId;
 	}
@@ -185,6 +197,11 @@ class Status implements \JsonSerializable {
 		// client that sends something that is not a scalar quotes nothing
 		$quotedId = $data['quote_id'] ?? '';
 		$this->setQuotedId(is_scalar($quotedId) ? (string)$quotedId : '');
+
+		// who may quote the post being written; Mastodon 4.5's composer sends
+		// it on every post and its three values are the whole vocabulary
+		$policy = $data['quote_approval_policy'] ?? '';
+		$this->setQuotePolicy(is_scalar($policy) ? (string)$policy : '');
 		$this->setStatus($this->get('status', $data));
 		$this->setLanguage($this->get('language', $data));
 		$this->setPostAs($this->get('post_as', $data));

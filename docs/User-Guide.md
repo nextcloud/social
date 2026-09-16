@@ -364,6 +364,35 @@ Each profile has a **Tagged** tab: the photographs that account is named in,
 whoever took them. If you are named in one and would rather not be, **Remove me**
 under the post takes your name off, and needs nobody's permission.
 
+### Notifications your settings held back
+
+**Filtered notifications** in the sidebar. Your notification settings can hold
+some notifications back rather than show them — from accounts nobody here
+follows, from brand-new accounts, from people you do not follow. They wait on
+that page, one row per sender with how many they have sent and the first words
+of their most recent post.
+
+You decide about the **person**, not about each notification: **Show these**
+settles everything that account has sent and will send, and **Dismiss** stops
+you being asked about them again while leaving what they sent hidden. There are
+buttons for the whole list too. Until this page existed the setting held things
+back with nowhere to see them, which is worse than not having the setting.
+
+### Hiding a whole server
+
+**Settings → Blocked and muted accounts** now has a third list: the servers you
+have hidden. Hiding one hides every account on it and everything they post, and
+takes your follows in both directions with it. It is the answer to being
+bothered by a server rather than by one person — the alternative was blocking
+accounts one at a time as they appeared.
+
+### What a post used to say
+
+A post that has been edited says so under it. That line is a button now: it
+opens every version, oldest first, with the content warning and the pictures
+each one carried. A reader who has been quoted or replied to can see what
+changed rather than being told only that something did.
+
 ## Filtering out words
 
 Some words are not worth reading. **Settings → Filtered words** is where you say
@@ -469,6 +498,27 @@ hand, it is picked up as one.
 - **Reporting.** **Report** in a post's menu sends the post, with an optional
   note, to the moderators of this instance. From the web client it is never
   sent to the reported account or their server.
+- **Your year.** `GET /api/v1/annual_reports` serves what Mastodon calls
+  `#Wrapstodon`: one report per year you wrote anything in, with twelve months
+  of what you posted and who arrived, the hashtags you used most, your three
+  posts that travelled furthest, and a word for how you use the account. It is
+  worked out from the posts already here whenever it is asked for, so there is
+  nothing to wait for and nothing to go stale. The web client has no page for
+  it yet; a phone client that has the feature shows it.
+- **Who may quote your post.** A post's menu has **Quotes of this post** on
+  your own posts. The top half is who may quote it from now on — anybody, the
+  people who follow you, or nobody but you — and the bottom half is who already
+  has, with a button that detaches one. The two are separate on purpose:
+  changing the setting does not take back a quote somebody has already posted
+  and other people have read. Detaching tells the other server, which then
+  shows the quote as withdrawn; the post itself is theirs and stays where it is.
+- **Authorized apps.** **Settings → Authorized apps** lists every app you have
+  signed in to with this account — a phone client, a cross-poster, anything
+  that asked — with what it may do, when you granted it and when it was last
+  used. **Sign this app out** takes the key back, and the app asks you to sign
+  in again the next time you open it. It is the page to open after losing a
+  phone, and the only page where signing an app out does not depend on still
+  having the app.
 - **Export and migration.** **Settings → Migration** has three sections.
   **Export** downloads a zip of your profile, follows, followers, blocks,
   mutes, bookmarks, likes and every post you wrote — your private key is
@@ -477,6 +527,22 @@ hand, it is picked up as one.
   not published again. The third section imports the follows from another
   network's export — a `following_accounts.csv`, or Pixelfed's
   `pixelfed-following.json`.
+- **One list at a time, out.** Under the Export button, **Or one list at a
+  time** downloads your follows, your followers, your blocks, your mutes or
+  your lists as a single CSV, each written the way Mastodon writes it. It is
+  the same content as the files inside the zip, for when the other end wants
+  one file rather than an archive. The followers file is a record rather than
+  something an import can re-create: a follower follows you again, or their
+  server is told by the move.
+- **Blocks, mutes and lists, in.** **Bring your blocks, mutes and lists** reads
+  the other three files from the same export. Blocks and mutes are decisions
+  your account makes on its own, so they apply as soon as the file is read —
+  and a block federates, exactly as blocking somebody from here does. Do the
+  follows first and the lists after: a list here can only hold accounts you
+  follow, as on Mastodon, so anybody you have not followed again yet is counted
+  as skipped rather than followed by a button that says lists. A list you
+  already have is filled rather than made a second time, and a list that
+  follows a Nextcloud group is left alone — its members are the group's.
 - **Naming your old account.** Your old server will not send your followers
   here until this account says it is also you. **Settings → Migration →
   Accounts you also answer to** is where you say it: paste the old account's
@@ -507,9 +573,18 @@ hand, it is picked up as one.
   that first, in **Settings → Your account**, if you would rather they were not
   public. And your **stories, your archived posts and anything you deleted are
   not imported**: you put those away on purpose.
-- **Leaving.** Deleting the Nextcloud user deletes the Social account with
-  it: what you posted is dropped and a deletion is sent to the servers that
-  saw it.
+- **Leaving.** **Settings → Delete your Social account** deletes your fediverse
+  account and keeps your Nextcloud one. Everything you posted goes, your
+  followers and the people you follow are let go, and every server that knew
+  the account is told it is gone — a post already on somebody else's server is
+  deleted by asking that server to delete it, which almost all of them do and
+  none of them can be made to. You are asked to type your handle first, because
+  it cannot be undone; take an archive from **Settings → Migration → Export**
+  first if you might want one. Afterwards you are back at the setup screen and
+  can make a new account straight away, under a different handle: the old one
+  is held for an hour so that nobody can take it the moment you let it go.
+  Deleting the Nextcloud user does the same thing to the Social account along
+  the way.
 
 ## Keyboard shortcuts
 

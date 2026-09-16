@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -20,6 +21,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\NoUserException;
@@ -81,6 +83,7 @@ class AccountService {
 		private IUserSession $userSession,
 		private IAccountManager $accountManager,
 		private ActorsRequest $actorsRequest,
+		private ClientAuthRequest $clientAuthRequest,
 		private FollowsRequest $followsRequest,
 		private StreamRequest $streamRequest,
 		private ActorService $actorService,
@@ -312,12 +315,61 @@ class AccountService {
 		// set as deleted locally
 		$this->actorsRequest->setAsDeleted($actor->getPreferredUsername());
 
+		// Every app this account had signed in to. A token that outlived the
+		// account is a token that would bring it back: `verify_credentials`
+		// creates an actor for a user who has none, so a phone left running
+		// would quietly re-make the account under a derived handle a minute
+		// after it was deleted. The app registrations are the instance's and
+		// stay; only the authorizations go.
+		if ($actor->getUserId() !== '') {
+			$this->clientAuthRequest->deleteRelatedId($actor->getUserId());
+		}
+
 		// delete related data
 		/** @var PersonInterface $interface */
 		$interface = AP::instance()->getInterfaceFromType(Person::TYPE);
 		$interface->delete($actor);
 
 		$this->federateActorDelete($actor);
+	}
+
+	/**
+	 * The account's owner deleting it themselves.
+	 *
+	 * The same deletion an administrator's `occ social:account:delete` does —
+	 * the posts go, the follows go, a `Delete` goes out to every server that
+	 * knew the account — with one thing in front of it: the person has to type
+	 * the handle they are deleting. Somebody who wants their Social presence
+	 * gone but their Nextcloud account kept had to ask an administrator for
+	 * this, which meant explaining to somebody else why.
+	 *
+	 * The typed handle is the whole of the guard, and it is deliberately not a
+	 * password: an account signed in through SSO has none to give, and asking
+	 * for one would have made this an administrator's job again for exactly
+	 * the installations that federate most.
+	 *
+	 * The handle stays out of use for the retention hour, so nobody can take
+	 * it the moment it is let go; the person can make a *new* account under a
+	 * different one straight away.
+	 *
+	 * @throws ActorDoesNotExistException there is nothing to delete
+	 * @throws InvalidResourceException the confirmation does not name this account
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
+	 */
+	public function deleteOwnAccount(string $userId, string $confirmation): void {
+		$actor = $this->getActorFromUserId($userId);
+
+		$typed = strtolower(ltrim(trim($confirmation), '@'));
+		if ($typed === ''
+			|| ($typed !== strtolower($actor->getPreferredUsername())
+				&& $typed !== strtolower($actor->getAccount()))) {
+			throw new InvalidResourceException(
+				'type ' . $actor->getAccount() . ' to confirm that this is the account to delete'
+			);
+		}
+
+		$this->deleteActor($actor->getPreferredUsername());
 	}
 
 	/**

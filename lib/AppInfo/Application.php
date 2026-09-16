@@ -25,6 +25,7 @@ use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Middleware\AccessBlockMiddleware;
+use OCA\Social\Middleware\RateLimitHeadersMiddleware;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Reference\PostReferenceProvider;
 use OCA\Social\Search\UnifiedSearchProvider;
@@ -65,6 +66,8 @@ class Application extends App implements IBootstrap {
 		// before anything else it registers: an address at `no_access` is
 		// refused whatever it was asking for
 		$context->registerMiddleware(AccessBlockMiddleware::class);
+		// after the access check, so a refused address is never counted
+		$context->registerMiddleware(RateLimitHeadersMiddleware::class);
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
 		$context->registerReferenceProvider(PostReferenceProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);
