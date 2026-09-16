@@ -31,6 +31,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 
@@ -51,6 +52,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 	private $activityService;
 	/** @var MiscService&MockObject */
 	private $miscService;
+	private TimelineRevisionService|MockObject $timelineRevisionService;
 	private FollowInterface $handler;
 
 	private Person $alice;
@@ -67,6 +69,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->miscService = $this->createMock(MiscService::class);
+		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
 
 		$this->handler = new FollowInterface(
 			$this->followsRequest,
@@ -75,6 +78,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 			$this->cacheActorService,
 			$this->accountService,
 			$this->activityService,
+			$this->timelineRevisionService,
 			$this->miscService,
 		);
 

@@ -26,6 +26,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\RelationshipService;
+use OCA\Social\Service\TimelineRevisionService;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -48,6 +49,7 @@ class RelationshipServiceTest extends TestCase {
 	private $cacheActorService;
 	/** @var ConfigService&MockObject */
 	private $configService;
+	private TimelineRevisionService|MockObject $timelineRevisionService;
 	/** @var LoggerInterface&MockObject */
 	private $logger;
 	private RelationshipService $service;
@@ -61,6 +63,7 @@ class RelationshipServiceTest extends TestCase {
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
 
 		$this->service = new RelationshipService(
 			$this->actorRelationRequest,
@@ -68,6 +71,7 @@ class RelationshipServiceTest extends TestCase {
 			$this->activityService,
 			$this->cacheActorService,
 			$this->configService,
+			$this->timelineRevisionService,
 			$this->logger
 		);
 	}
@@ -212,6 +216,22 @@ class RelationshipServiceTest extends TestCase {
 		$this->activityService->expects($this->never())->method('request');
 
 		$this->service->unmute($this->alice(), $this->bob());
+	}
+
+	/**
+	 * Every one of the four changes what the reader's timelines may show, and
+	 * none of it moves an id the polling tag is built from — see
+	 * TimelineRevisionService.
+	 */
+	public function testEachRelationshipChangeMovesTheReadersTimelineRevision(): void {
+		$this->timelineRevisionService->expects($this->exactly(4))
+			->method('bumpForActor')
+			->with(self::ALICE_ID);
+
+		$this->service->mute($this->alice(), $this->bob());
+		$this->service->unmute($this->alice(), $this->bob());
+		$this->service->block($this->alice(), $this->bob());
+		$this->service->unblock($this->alice(), $this->bob());
 	}
 
 	public function testMutingYourselfIsRefused(): void {

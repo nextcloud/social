@@ -72,6 +72,7 @@ class FollowService {
 		private FollowInterface $followInterface,
 		private ModerationService $moderationService,
 		private AccountRelationService $accountRelationService,
+		private TimelineRevisionService $timelineRevisionService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -197,6 +198,9 @@ class FollowService {
 			]);
 		} catch (FollowNotFoundException $e) {
 			$this->followsRequest->save($follow);
+			// their home timeline holds different posts from now on, which its
+			// ETag has no other way of knowing — see TimelineRevisionService
+			$this->timelineRevisionService->bumpForActor($actor->getId());
 			$this->logger->info('FollowService::followAccount - saved new follow', [
 				'followId' => $follow->getId(),
 				'actor' => $actor->getId(),
@@ -273,6 +277,7 @@ class FollowService {
 		try {
 			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
+			$this->timelineRevisionService->bumpForActor($actor->getId());
 
 			$undo = AP::instance()->getItemFromType(Undo::TYPE);
 			$follow->setParent($undo);

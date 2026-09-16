@@ -20,6 +20,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -63,6 +64,7 @@ class TagController extends Controller {
 		private ClientService $clientService,
 		private HashtagService $hashtagService,
 		private FollowedTagsRequest $followedTagsRequest,
+		private TimelineRevisionService $timelineRevisionService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -137,6 +139,9 @@ class TagController extends Controller {
 			$this->initViewer(['write', 'follow']);
 			$tag = $this->tag($hashtag);
 			$this->followedTagsRequest->save($this->viewer->getId(), $tag);
+			// posts carrying it are part of their home timeline from now on,
+			// which no id it is keyed on says — see TimelineRevisionService
+			$this->timelineRevisionService->bumpForActor($this->viewer->getId());
 
 			return new DataResponse($this->hashtagService->tagEntity($tag, true), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -153,6 +158,7 @@ class TagController extends Controller {
 			$this->initViewer(['write', 'follow']);
 			$tag = $this->tag($hashtag);
 			$this->followedTagsRequest->delete($this->viewer->getId(), $tag);
+			$this->timelineRevisionService->bumpForActor($this->viewer->getId());
 
 			return new DataResponse($this->hashtagService->tagEntity($tag, false), Http::STATUS_OK);
 		} catch (Throwable $e) {

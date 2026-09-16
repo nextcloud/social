@@ -30,6 +30,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ModerationService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -53,6 +54,7 @@ class FollowServiceTest extends TestCase {
 	/** @var FollowInterface&MockObject */
 	/** @var ConfigService&MockObject */
 	private $configService;
+	private TimelineRevisionService|MockObject $timelineRevisionService;
 	private $followInterface;
 	private ModerationService|MockObject $moderationService;
 	private FollowService $service;
@@ -69,6 +71,7 @@ class FollowServiceTest extends TestCase {
 		$this->followInterface = $this->createMock(FollowInterface::class);
 		$this->moderationService = $this->createMock(ModerationService::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
 
 		$this->service = new FollowService(
 			$this->urlGenerator,
@@ -80,6 +83,7 @@ class FollowServiceTest extends TestCase {
 			$this->followInterface,
 			$this->moderationService,
 			$this->accountRelationService,
+			$this->timelineRevisionService,
 			new NullLogger()
 		);
 	}
@@ -311,7 +315,32 @@ class FollowServiceTest extends TestCase {
 		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
 		$this->followsRequest->expects($this->never())->method('delete');
 		$this->activityService->expects($this->never())->method('request');
+		$this->timelineRevisionService->expects($this->never())->method('bumpForActor');
 
+		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
+	}
+
+	/**
+	 * Their home timeline holds different posts from this moment, and the tag
+	 * it is polled with is built from ids that none of this moves — so without
+	 * this the reader is answered `304` and goes on being shown the account
+	 * they just stopped following. See TimelineRevisionService.
+	 */
+	public function testFollowingAndUnfollowingMoveTheReadersTimelineRevision(): void {
+		$bob = $this->person(self::BOB_ID, 'bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
+		$this->activityService->method('request')->willReturn('token');
+		$this->timelineRevisionService->expects($this->exactly(2))
+			->method('bumpForActor')
+			->with(self::ALICE_ID);
+
+		$this->followsRequest->method('getByPersons')
+			->willReturnOnConsecutiveCalls(
+				$this->throwException(new FollowNotFoundException()),
+				$this->follow(self::ALICE_ID, self::BOB_ID, true)
+			);
+
+		$this->service->followAccount($this->alice(), 'bob@remote.example');
 		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
 	}
 

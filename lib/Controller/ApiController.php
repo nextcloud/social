@@ -93,6 +93,7 @@ use OCA\Social\Service\SearchService;
 use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\VideoLadderService;
 use OCA\Social\Service\VideoThumbnailService;
@@ -251,6 +252,7 @@ class ApiController extends Controller {
 		private AnnualReportService $annualReportService,
 		private WatchService $watchService,
 		private IFactory $l10nFactory,
+		private TimelineRevisionService $timelineRevisionService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -2307,8 +2309,14 @@ class ApiController extends Controller {
 			// timeline is worth tagging: a page reached with `max_id` is
 			// historical and a client asks for it once.
 			if ($timeline === ProbeOptions::HOME && $max_id === 0 && $min_id === 0) {
+				// the newest id says whether anything arrived; the revision
+				// says whether the reader has changed what they are shown —
+				// a follow, a block, a mute, a filter, a followed hashtag —
+				// none of which moves an id. See TimelineRevisionService.
 				$notModified = $this->notModified(
-					'h' . $this->streamRequest->newestNidFor($this->viewerCollections()) . '-' . $limit
+					'h' . $this->streamRequest->newestNidFor($this->viewerCollections())
+					. '-' . $limit
+					. '-' . $this->timelineRevisionService->of($this->currentSession())
 				);
 				if ($notModified !== null) {
 					return $notModified;

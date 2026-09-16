@@ -787,6 +787,21 @@ for — so a poll that has not changed is answered `304`. Media carries the stor
 file's own tag, which matters because a timeline is forty to sixty pictures a
 screen and each was a full Nextcloud boot.
 
+The tag carries a second number: the reader's **timeline revision**
+(`TimelineRevisionService`), one integer per account in its user config. The
+newest id answers "has anything arrived"; everything else that decides what the
+page holds is a decision the reader made — following or unfollowing an account,
+blocking or muting one, adding a keyword filter, following a hashtag — and none
+of those moves an id. Without it, a reader who unfollows a noisy account is
+answered `304` on every poll and goes on seeing it until somebody else happens
+to post: the page they are looking at is the one they just asked to change. The
+number is incremented where those rows are written, so it moves whether the
+change came from the web app, a Mastodon client or the inbox. What it
+deliberately does not cover is somebody else deleting a post further down a page
+the reader already holds — making that reach every follower's tag is a write per
+follower, which is the fan-out this design exists to avoid, and the page is
+revalidated when anything else changes.
+
 The two json routes hand back a **`JSONResponse` rather than a `DataResponse`**,
 and that is what makes any of it work. A returned `DataResponse` is rebuilt by
 Nextcloud's default json responder, which merges the *fresh* response's headers

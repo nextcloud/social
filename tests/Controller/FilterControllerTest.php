@@ -20,6 +20,7 @@ use OCA\Social\Model\Client\FilterStatus;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
 use OCP\IUser;
@@ -48,6 +49,7 @@ class FilterControllerTest extends TestCase {
 	private AccountService|MockObject $accountService;
 	private ClientService|MockObject $clientService;
 	private FiltersRequest|MockObject $filtersRequest;
+	private TimelineRevisionService|MockObject $timelineRevisionService;
 	private IUserSession|MockObject $userSession;
 
 	/** @var array<string, string> the request headers the controller will see */
@@ -101,6 +103,7 @@ class FilterControllerTest extends TestCase {
 
 	private function stubStore(): void {
 		$this->filtersRequest = $this->createMock(FiltersRequest::class);
+		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
 
 		$this->filtersRequest->method('save')
 			->willReturnCallback(function (Filter $filter): int {
@@ -304,6 +307,7 @@ class FilterControllerTest extends TestCase {
 			$this->accountService,
 			$this->clientService,
 			$this->filtersRequest,
+			$this->timelineRevisionService,
 		);
 	}
 

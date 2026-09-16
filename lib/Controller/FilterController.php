@@ -23,6 +23,7 @@ use OCA\Social\Model\Client\FilterStatus;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -73,6 +74,7 @@ class FilterController extends Controller {
 		private AccountService $accountService,
 		private ClientService $clientService,
 		private FiltersRequest $filtersRequest,
+		private TimelineRevisionService $timelineRevisionService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -814,6 +816,16 @@ class FilterController extends Controller {
 		try {
 			$userId = $this->currentSession($scopes);
 			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
+			// Every route here that is not a read changes which posts this
+			// account is shown, and its timelines' ETag is built from ids that
+			// none of it moves — see TimelineRevisionService. It is recorded
+			// here rather than beside each of the eleven writes below: one
+			// place that cannot be forgotten, at the cost of also moving the
+			// number when a write is attempted and refused, which spends one
+			// revalidation and is the harmless direction to be wrong in.
+			if ($this->request->getMethod() !== 'GET') {
+				$this->timelineRevisionService->bumpForActor($this->viewer->getId());
+			}
 		} catch (InsufficientScopeException $e) {
 			throw $e;
 		} catch (Exception $e) {

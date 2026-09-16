@@ -76,6 +76,7 @@ use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\ViewCountService;
 use OCP\App\IAppManager;
@@ -169,6 +170,7 @@ class ApiControllerTest extends TestCase {
 	private IFactory|MockObject $l10nFactory;
 	private QuoteService|MockObject $quoteService;
 	private AnnualReportService|MockObject $annualReportService;
+	private TimelineRevisionService|MockObject $timelineRevisionService;
 	private IAppManager|MockObject $appManager;
 	private FediverseService|MockObject $fediverseService;
 
@@ -294,6 +296,7 @@ class ApiControllerTest extends TestCase {
 		$this->l10nFactory = $this->createMock(IFactory::class);
 		$this->quoteService = $this->createMock(QuoteService::class);
 		$this->annualReportService = $this->createMock(AnnualReportService::class);
+		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
 		$this->appManager = $this->createMock(IAppManager::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->fediverseService->method('getAccessType')->willReturnCallback(fn (): string => $this->accessType);
@@ -400,7 +403,8 @@ class ApiControllerTest extends TestCase {
 			$this->quoteService,
 			$this->annualReportService,
 			$this->createMock(\OCA\Social\Service\WatchService::class),
-			$this->l10nFactory
+			$this->l10nFactory,
+			$this->timelineRevisionService
 		);
 	}
 

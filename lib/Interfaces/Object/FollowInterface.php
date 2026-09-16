@@ -37,6 +37,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -57,6 +58,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		private CacheActorService $cacheActorService,
 		private AccountService $accountService,
 		private ActivityService $activityService,
+		private TimelineRevisionService $timelineRevisionService,
 		private MiscService $miscService,
 	) {
 	}
@@ -264,11 +266,16 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		if ($activity->getType() === Reject::TYPE) {
 			$activity->checkOrigin($item->getObjectId());
 			$this->followsRequest->delete($item);
+			$this->timelineRevisionService->bumpForActor($item->getActorId());
 		}
 
 		if ($activity->getType() === Accept::TYPE) {
 			$activity->checkOrigin($item->getObjectId());
 			$this->followsRequest->accepted($item);
+			// the follower's home timeline holds different posts from this
+			// moment, and no id it is keyed on says so — see
+			// TimelineRevisionService
+			$this->timelineRevisionService->bumpForActor($item->getActorId());
 		}
 	}
 

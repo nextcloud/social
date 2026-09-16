@@ -1,0 +1,91 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Service;
+
+use OCA\Social\Db\ActorsRequest;
+use Throwable;
+
+/**
+ * A number that moves whenever a reader changes what their own timeline shows.
+ *
+ * The home timeline's `ETag` is built from the newest post the reader can see,
+ * which answers "has anything new arrived" and nothing else. Everything else
+ * that decides what the page holds is a decision the reader made — following or
+ * unfollowing an account, blocking or muting one, adding a keyword filter,
+ * following a hashtag — and none of those move the newest id. Without this, a
+ * reader who unfollows a noisy account is answered `304` on every poll and goes
+ * on seeing it until somebody else happens to post: the page they are looking
+ * at is the one they just asked to change.
+ *
+ * So the tag carries this alongside. It is one integer per Nextcloud account,
+ * incremented where the rows that decide the page are written — in the request
+ * classes that own them, so it moves whether the change came from the web app,
+ * a Mastodon client or the inbox, and no caller has to remember to say so.
+ *
+ * Reading it is one user-config lookup, which Nextcloud has usually already
+ * loaded for the session; a remote actor has no Nextcloud account behind it and
+ * bumping for one costs a lookup and does nothing.
+ *
+ * The increment is read-modify-write and deliberately not locked: two changes
+ * racing may end on the same number, which loses nothing that matters — the
+ * number is still different from the one before either of them, which is the
+ * only thing the tag is asked.
+ *
+ * What it does **not** cover is a post being deleted further down a page the
+ * reader already holds: the newest id does not move, this number does not move
+ * for a stranger's decision, and the page is revalidated when either next
+ * changes. Making a deletion reach every follower's tag means writing to every
+ * follower's row, which is the fan-out this whole design exists to avoid.
+ */
+class TimelineRevisionService {
+	public const KEY = 'timeline_revision';
+
+	public function __construct(
+		private ActorsRequest $actorsRequest,
+		private ConfigService $configService,
+	) {
+	}
+
+	/** What the reader's timelines are at, for the tag. */
+	public function of(string $userId): int {
+		if ($userId === '') {
+			return 0;
+		}
+
+		return (int)$this->configService->getValueForUser($userId, self::KEY);
+	}
+
+	/** Something this account decided has changed what its timelines show. */
+	public function bump(string $userId): void {
+		if ($userId === '') {
+			return;
+		}
+
+		$this->configService->setValueForUser($userId, self::KEY, (string)($this->of($userId) + 1));
+	}
+
+	/**
+	 * The same, for the places that hold an actor rather than an account: the
+	 * request classes write rows keyed by actor id, and a row written for a
+	 * remote actor belongs to nobody here.
+	 */
+	public function bumpForActor(string $actorId): void {
+		if ($actorId === '') {
+			return;
+		}
+
+		try {
+			$this->bump($this->actorsRequest->getFromId($actorId)->getUserId());
+		} catch (Throwable $e) {
+			// not a local account, or none any more: there is no timeline here
+			// whose tag this would key, and a follow is not worth failing over
+		}
+	}
+}

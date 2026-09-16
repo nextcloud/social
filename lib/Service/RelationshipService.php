@@ -40,6 +40,7 @@ class RelationshipService {
 		private ActivityService $activityService,
 		private CacheActorService $cacheActorService,
 		private ConfigService $configService,
+		private TimelineRevisionService $timelineRevisionService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -82,16 +83,21 @@ class RelationshipService {
 		$this->actorRelationRequest->save(
 			$viewer->getId(), $target->getId(), ActorRelation::TYPE_MUTE, $notifications
 		);
+		// their timelines hide different posts from now on, which no id the
+		// ETag is built from reflects — see TimelineRevisionService
+		$this->timelineRevisionService->bumpForActor($viewer->getId());
 	}
 
 	public function unmute(Person $viewer, Person $target): void {
 		$this->actorRelationRequest->delete($viewer->getId(), $target->getId(), ActorRelation::TYPE_MUTE);
+		$this->timelineRevisionService->bumpForActor($viewer->getId());
 	}
 
 	public function block(Person $viewer, Person $target): void {
 		$this->requireOtherAccount($viewer, $target, 'block');
 		$this->actorRelationRequest->save($viewer->getId(), $target->getId(), ActorRelation::TYPE_BLOCK);
 		$this->severFollows($viewer, $target);
+		$this->timelineRevisionService->bumpForActor($viewer->getId());
 
 		if (!$target->isLocal() && $this->configService->isBlockFederationEnabled()) {
 			/** @var Block $block */
@@ -105,6 +111,7 @@ class RelationshipService {
 
 	public function unblock(Person $viewer, Person $target): void {
 		$this->actorRelationRequest->delete($viewer->getId(), $target->getId(), ActorRelation::TYPE_BLOCK);
+		$this->timelineRevisionService->bumpForActor($viewer->getId());
 
 		if (!$target->isLocal() && $this->configService->isBlockFederationEnabled()) {
 			/** @var Block $block */
