@@ -1978,12 +1978,19 @@ class ApiController extends Controller {
 	 * is handed a master with no rungs in it reports a broken video, where one
 	 * that gets a 404 falls back to the plain file, which is what should
 	 * happen.
+	 *
+	 * Every address in this group ends in the extension its content actually
+	 * has, and the three of them are at different depths so none can be read
+	 * as another. Browsers and hls.js go by the `Content-Type`, but ffmpeg's
+	 * HLS demuxer checks the *extension* of every segment URI it is given and
+	 * refuses one it does not recognise — found on devel, where ffprobe would
+	 * not open a playlist this server had written correctly.
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 60, period: 60)]
 	#[UserRateLimit(limit: 300, period: 60)]
-	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}')]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/master.m3u8')]
 	public function mediaLadder(string $uuid): Response {
 		try {
 			$master = $this->documentService->masterPlaylist(
@@ -2022,7 +2029,7 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 120, period: 60)]
 	#[UserRateLimit(limit: 600, period: 60)]
-	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/{height}')]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/{height}/index.m3u8')]
 	public function mediaLadderRung(string $uuid, int $height): Response {
 		try {
 			$playlist = $this->documentService->rungPlaylist(
@@ -2063,7 +2070,7 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 600, period: 60)]
 	#[UserRateLimit(limit: 3000, period: 60)]
-	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/{height}/file')]
+	#[FrontpageRoute(verb: 'GET', url: '/media/hls/{uuid}/{height}/video.mp4')]
 	public function mediaLadderFile(string $uuid, int $height): Response {
 		try {
 			$rung = $this->documentService->rungFile($uuid, $height);
