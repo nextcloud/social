@@ -11,8 +11,10 @@ namespace OCA\Social\Migration;
 
 use Closure;
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Service\ConfigService;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\Types;
+use OCP\IAppConfig;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
@@ -55,6 +57,7 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 
 	public function __construct(
 		private IDBConnection $connection,
+		private IAppConfig $appConfig,
 	) {
 	}
 
@@ -116,6 +119,9 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 			'SELECT COUNT(*) FROM `' . $stream . '`'
 		)->fetchOne();
 		if ($total < 1) {
+			// nothing to fill in, which is the same as having filled it in
+			$this->markFilled();
+
 			return;
 		}
 
@@ -160,6 +166,20 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 			}
 		}
 
+		$this->markFilled();
 		$output->info('  done');
+	}
+
+	/**
+	 * Records that every recipient row now carries its post's nid.
+	 *
+	 * What the read path consults. It cannot ask the table instead: there is
+	 * no index that answers "is any nid still zero", so the question is a full
+	 * scan of the largest table this app has — measured at 427 ms on 800,000
+	 * rows, which on every request would have cost more than the query the
+	 * flag exists to enable.
+	 */
+	private function markFilled(): void {
+		$this->appConfig->setValueString('social', ConfigService::SOCIAL_DEST_NID_FILLED, '1');
 	}
 }

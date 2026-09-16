@@ -234,6 +234,18 @@ class ConfigService {
 	 * A year covers what anybody is looking for; an instance small enough to
 	 * search all of it can say so.
 	 */
+	/**
+	 * Whether every recipient row carries its post's sort key yet.
+	 *
+	 * Set by `Version1000Date20260917000001` when its backfill finishes, and
+	 * read on every home timeline to decide whether the fast page query may be
+	 * used. A *flag*, because the obvious check — "is there a row with a zero
+	 * nid" — has no index to answer it and is a full scan of the largest table
+	 * this app has: measured at 427 ms on 800,000 rows, on every request, which
+	 * would have made the thing it guards slower than what it replaced.
+	 */
+	public const SOCIAL_DEST_NID_FILLED = 'dest_nid_filled';
+
 	public const SOCIAL_SEARCH_WINDOW_DAYS = 'search_window_days';
 
 	public const SOCIAL_NSFW_POLICY = 'nsfw_policy';
@@ -312,6 +324,7 @@ class ConfigService {
 		self::SOCIAL_VIDEO_LADDER_HEIGHTS => '360,720,1080',
 		self::SOCIAL_VIDEO_QUOTA => '0',
 		self::SOCIAL_LOCAL_ACTOR_CURSOR => '',
+		self::SOCIAL_DEST_NID_FILLED => '0',
 		self::SOCIAL_SEARCH_WINDOW_DAYS => '365',
 		self::SOCIAL_NSFW_POLICY => 'default',
 		self::SOCIAL_REVIEW_VIDEOS => '0',

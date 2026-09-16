@@ -1259,33 +1259,17 @@ class StreamRequest extends StreamRequestBuilder {
 	/**
 	 * Whether the recipient rows carry their post's sort key yet.
 	 *
-	 * The migration backfills twenty million rows on a large instance, in
-	 * batches, and until it has finished the fast path would silently show a
-	 * short timeline. One row with a zero nid is enough to say "not yet" —
-	 * asked once per request and answered from the index.
+	 * A flag written by the migration when its backfill finishes, not a
+	 * question asked of the table. The obvious check — "is there a row with a
+	 * zero nid" — has no index that can answer it, so it is a full scan of the
+	 * largest table this app has: **427 ms on 800,000 rows**, on every request.
+	 * A guard that costs more than the query it guards is worse than no guard,
+	 * and this one was measured rather than assumed.
 	 */
 	private function recipientNidsAreFilled(): bool {
-		if ($this->recipientNidsFilled !== null) {
-			return $this->recipientNidsFilled;
-		}
-
-		try {
-			$qb = $this->getQueryBuilder();
-			$qb->select('nid')
-				->from(self::TABLE_STREAM_DEST)
-				->where($qb->expr()->eq('nid', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
-				->setMaxResults(1);
-
-			$cursor = $qb->executeQuery();
-			$unfilled = $cursor->fetch();
-			$cursor->closeCursor();
-
-			$this->recipientNidsFilled = ($unfilled === false);
-		} catch (\Throwable $e) {
-			// the column is not there at all: an instance whose migration has
-			// not run, which is the same answer
-			$this->recipientNidsFilled = false;
-		}
+		$this->recipientNidsFilled ??= $this->configService->getAppValueBool(
+			ConfigService::SOCIAL_DEST_NID_FILLED
+		);
 
 		return $this->recipientNidsFilled;
 	}
