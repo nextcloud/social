@@ -43,7 +43,7 @@ use OCP\Migration\SimpleMigrationStep;
  * is every row written until now.
  *
  * A `size` column goes onto `social_cache_doc` in the same step, for the same
- * feature, and `social_watch` beside it: see the comments on each below.
+ * feature: see the comment on it below.
  *
  * Channels belong to an account, not to a person's Nextcloud user: the owner is
  * the `Person` actor, so a channel survives a rename and points at the same
@@ -126,33 +126,6 @@ class Version1000Date20260916000004 extends SimpleMigrationStep {
 			$table->addUniqueIndex(['actor_id_prim'], 'social_chan_aid');
 			// "the channels of this account", which is every read there is
 			$table->addIndex(['owner_id_prim'], 'social_chan_own');
-		}
-
-		// Where somebody stopped watching. PeerTube's `WatchAction`, and a fact
-		// about a reader rather than about a video: it is never federated, and
-		// a count that arrived from another server would be a number about
-		// their readers. One row per (post, viewer), which is what makes
-		// "continue watching" a list rather than a history of every play.
-		if (!$schema->hasTable(CoreRequestBuilder::TABLE_WATCH)) {
-			$table = $schema->createTable(CoreRequestBuilder::TABLE_WATCH);
-			$table->addColumn('id', Types::BIGINT, [
-				'autoincrement' => true,
-				'notnull' => true,
-				'length' => 11,
-				'unsigned' => true,
-			]);
-			$table->addColumn('stream_id_prim', Types::STRING, ['notnull' => false, 'length' => 32]);
-			$table->addColumn('actor_id_prim', Types::STRING, ['notnull' => false, 'length' => 32]);
-			/** how many seconds in, and how long the video runs */
-			$table->addColumn('position', Types::INTEGER, ['notnull' => false, 'default' => 0]);
-			$table->addColumn('duration', Types::INTEGER, ['notnull' => false, 'default' => 0]);
-			$table->addColumn('last_update', Types::DATETIME, ['notnull' => false]);
-
-			$table->setPrimaryKey(['id']);
-			$table->addUniqueIndex(['stream_id_prim', 'actor_id_prim'], 'social_watch_sa');
-			// "what this reader was in the middle of", newest first, which is
-			// the only read there is
-			$table->addIndex(['actor_id_prim', 'last_update'], 'social_watch_al');
 		}
 
 		return $schema;
