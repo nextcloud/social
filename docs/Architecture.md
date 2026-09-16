@@ -742,6 +742,11 @@ overlaid on it where the row is parsed, and the counting still happens in the
 cron's walk, which is where drift is reconciled. `-1` means "never counted"
 rather than "none".
 
+The overlay is applied in **`Person::importFromDatabase()`**, where a row
+becomes an actor, rather than in either of the two query builders that parse one
+— one of them did it and did not select the columns, so the overlay had nothing
+to lay on and every profile showed whatever the last cron walk had written.
+
 **Each move has to obey the recount's own rule**, or the two disagree and the
 number visibly wobbles between cron passes. The recount counts *public*
 statuses, so `count_posts` moves only for a post that names the public
