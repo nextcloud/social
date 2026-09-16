@@ -74,6 +74,39 @@ class ClientService {
 	}
 
 	/**
+	 * A client registration for a PeerTube app, made on the spot.
+	 *
+	 * PeerTube's `/oauth-clients/local` hands out **one** pair per instance,
+	 * the same one to everybody, for ever. This app mints a pair per client
+	 * and **hashes the secret** — deliberately, and as a fix to a real
+	 * problem — so there is no stored plaintext to hand back a second time,
+	 * and a route that promised the same pair every call would have to undo
+	 * that.
+	 *
+	 * So it registers a fresh one each time and answers with its credentials.
+	 * That satisfies what the route is actually for: a client fetches a pair
+	 * immediately before logging in and uses it at once. Nothing in PeerTube's
+	 * flow requires the pair to be the *same* one, only a working one — and a
+	 * registration per call is exactly what a Mastodon client does through
+	 * `/api/v1/apps`, which is what the rest of this API is built on.
+	 *
+	 * @throws ClientException
+	 */
+	public function registerPeerTubeClient(): SocialClient {
+		$client = new SocialClient();
+		$client->setAppName('PeerTube client')
+			->setAppWebsite('https://joinpeertube.org')
+			// the out-of-band urn, which is what a client with no callback of
+			// its own uses and what `OAuthController` already understands
+			->setAppRedirectUris(['urn:ietf:wg:oauth:2.0:oob'])
+			->setAppScopes(['read', 'write', 'follow']);
+
+		$this->createApp($client);
+
+		return $client;
+	}
+
+	/**
 	 * Records that this account has authorized this app, and returns the code
 	 * to hand back.
 	 *

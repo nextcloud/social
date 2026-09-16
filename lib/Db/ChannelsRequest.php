@@ -71,6 +71,24 @@ class ChannelsRequest extends CoreRequestBuilder {
 	}
 
 	/**
+	 * Every channel on this instance, oldest first.
+	 *
+	 * Capped rather than paged: the PeerTube client route that reads this
+	 * lists what an instance publishes under, and an instance with more
+	 * channels than one page is one where a directory rather than a list is
+	 * the right answer — a page nobody asked for would be worse than a short
+	 * one that says so.
+	 *
+	 * @return Channel[]
+	 */
+	public function all(int $limit = 50): array {
+		$qb = $this->getQueryBuilder();
+		$this->select($qb)->orderBy('id', 'asc')->setMaxResults($limit);
+
+		return $this->rows($qb);
+	}
+
+	/**
 	 * Who owns a channel, or '' when the id names no channel of ours.
 	 *
 	 * The hottest of the reads — every serving of a channel actor asks it —

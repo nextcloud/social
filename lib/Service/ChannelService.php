@@ -283,6 +283,51 @@ class ChannelService {
 	}
 
 	/** The handle half of a channel's address, which is its actor's username. */
+	/**
+	 * Every channel on this instance, with its handle filled in.
+	 *
+	 * @return Channel[]
+	 */
+	public function all(int $limit = 50): array {
+		$channels = $this->channelsRequest->all($limit);
+		foreach ($channels as $channel) {
+			$channel->setHandle($this->handleOf($channel));
+		}
+
+		return $channels;
+	}
+
+	/**
+	 * One channel by its handle, or null.
+	 *
+	 * A handle is an actor's `preferredUsername` and is not stored on the
+	 * channel row, so this resolves the actor first — which is also what
+	 * decides that a handle belonging to an ordinary account is not a channel,
+	 * rather than a channel nobody can find.
+	 */
+	public function byHandle(string $handle): ?Channel {
+		$handle = trim($handle);
+		// a client that was handed `alice_channel@cloud.example` sends it back
+		if (str_contains($handle, '@')) {
+			[$handle] = explode('@', $handle, 2);
+		}
+
+		if ($handle === '') {
+			return null;
+		}
+
+		try {
+			$actor = $this->accountService->getActor($handle);
+		} catch (Throwable $e) {
+			return null;
+		}
+
+		$channel = $this->channelsRequest->getByActorId($actor->getId());
+		$channel?->setHandle($handle);
+
+		return $channel;
+	}
+
 	private function handleOf(Channel $channel): string {
 		try {
 			return $this->accountService->getFromId($channel->getActorId())->getPreferredUsername();

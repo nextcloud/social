@@ -870,8 +870,12 @@ class PeerTubeService {
 	 * what it is: a hash of a name in a namespace. The two nibbles that carry
 	 * the version and the variant are set by hand, since what matters is that
 	 * `isUUIDValid` accepts it and that it is stable.
+	 *
+	 * Public because `PeerTubeApiService` needs the **same** answer: a video
+	 * seen through the PeerTube client API and the same video seen over
+	 * ActivityPub must carry one uuid and not two that nothing can tell apart.
 	 */
-	private static function uuidFor(string $id): string {
+	public static function uuidFor(string $id): string {
 		$hash = sha1('social:video:' . $id);
 
 		return sprintf(

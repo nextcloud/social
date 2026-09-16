@@ -823,6 +823,47 @@ uploaded. What stands in for it is the same thing in both places — one
 deliberate act, rate-limited, producing an ordinary post of the account that
 asked for it, which moderation and reporting reach like any other.
 
+**PeerTube's own client API** is `PeerTubeApiController` and
+`PeerTubeApiService` — the same move the Pixelfed routes are, and for the same
+reason: the official PeerTube app, Tubelab and Fedilab all exist and are good,
+and a client somebody already has is worth more than one nobody has written.
+PeerTube's API is not Mastodon's, so this is a **translation and not an alias**;
+the shapes live in the service so that what one client is promised can be read
+in one place.
+
+Two things decide how to judge it. It is **read-only**: PeerTube's upload is a
+resumable protocol with a transcoding state machine behind it, and a half-built
+one that took somebody's file and lost it would be worse than none — comments
+are read and not posted for the same reason the Pixelfed routes do not post,
+that a client posting through them would go round the review queue the composer
+goes through. And it is **gated on the domain root**: no PeerTube client will
+ask under `/apps/social/`, because they all build `https://<host>/api/v1/…`
+from the address a person types. Every route is correct and none is reachable
+by a real client until this instance answers at its own root — item 1 of the
+Mastodon compatibility list, a decision for whoever runs the server rather than
+something this app can do to a Nextcloud.
+
+Three translations are worth stating because each could have been faked. A
+video's **uuid is the one this app already publishes on the wire**, so a video
+seen through this API and the same video seen over ActivityPub carry one uuid
+rather than two nothing can tell apart — and because that uuid is a one-way hash
+of the post's address, a video is addressable here by its numeric id only, which
+a client that lists before it fetches already has. A category, licence or
+language is `{id: 0, label}`: PeerTube's ids are indexes into its own lists,
+which this app does not have and must not guess at, and a wrong id is a client
+showing the wrong category with confidence. And `total` on every list is the
+size of **that page**, because these timelines are keyed on a cursor and have no
+count to give — a number invented for the shape's sake is one a client would
+draw a pager from.
+
+`/oauth-clients/local` is the one place the two designs genuinely disagree.
+PeerTube hands out one pair per instance, the same to everybody for ever; this
+app mints a pair per client and hashes the secret, deliberately, so there is no
+stored plaintext to hand back twice. A fresh registration is answered instead,
+which is what the route is actually for — a client fetches a pair immediately
+before logging in and uses it at once — and is exactly what a Mastodon client
+does through `/api/v1/apps`.
+
 **Playlists** are collections. PeerTube's `Playlist` is an ordered set of a
 channel's videos with a title, a description and a visibility, which is what
 this app already calls a collection — so it is stored as one rather than given
