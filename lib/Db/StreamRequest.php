@@ -1208,7 +1208,7 @@ class StreamRequest extends StreamRequestBuilder {
 			return null;
 		}
 
-		$collections = $this->followsRequest->getFollowedCollectionPrims($this->viewer->getId());
+		$collections = $this->followsRequest->getHomeCollectionPrims($this->viewer->getId());
 		// an account's own posts reach its own timeline through the recipient
 		// row addressed to its own follower collection, which it is not a
 		// follower of

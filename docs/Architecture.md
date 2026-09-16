@@ -690,6 +690,16 @@ no index can span. With `(actor_id, type, nid)` the page is a descending index
 range per followed collection, merged, stopping at the limit: **50 ms** against
 the same 1,661, and index-only. Thirty-three times.
 
+The rows it reads over are the ones the join matched, which is **every accepted
+follow row of the viewer's, whatever its type** — not only the ones of type
+`Follow`. The row that makes the difference is the **Loopback**, the self-follow
+every local actor is given, whose target is the account's own id: it is how a
+post addressed to the reader *by name* — a mention, a reply from somebody they
+do not follow — reaches their home timeline at all. Narrowing the set to
+`type = 'Follow'` dropped every one of them; the notification still arrived and
+the post was still readable at its own address, so what it looked like from
+outside was a timeline that paged straight past it.
+
 The guard on it is a **flag written by the migration**, not a question asked of
 the table. The obvious check — "is any nid still zero?" — has no index that can
 answer it and is a full scan of the largest table this app has, 427 ms on

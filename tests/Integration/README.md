@@ -41,6 +41,10 @@ to stop.
   post carrying a followed tag reaches home whatever case its author typed the
   tag in, a followers-only one does not, and a post carrying two followed tags
   is listed once.
+- `Db/HomeMentionTest` — a post that names the reader is on their home timeline
+  whether the fast page query or the old join answers it: the Loopback row is
+  what carries a mention from an account they do not follow, and a set of
+  recipient rows built without it drops every one of them.
 - `Db/ActorRelationRequestTest` / `Db/StreamFilterTest` — block/mute storage and
   the hidden-actor anti-join on every timeline.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with

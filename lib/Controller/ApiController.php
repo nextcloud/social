@@ -4603,7 +4603,7 @@ class ApiController extends Controller {
 			return [];
 		}
 
-		$collections = $this->followsRequest->getFollowedCollectionPrims($this->viewer->getId());
+		$collections = $this->followsRequest->getHomeCollectionPrims($this->viewer->getId());
 		if ($this->viewer->getFollowers() !== '') {
 			$collections[] = md5($this->viewer->getFollowers());
 		}

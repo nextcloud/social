@@ -458,12 +458,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
-	 * @param string $actorId
-	 *
-	 * @return Follow[]
-	 */
-	/**
-	 * The follower collections this account follows, as prims.
+	 * The recipient rows a home timeline is read from, as prims.
 	 *
 	 * What the home timeline is actually built on: a recipient row names the
 	 * author's **followers collection**, never the author, so this is the set
@@ -473,16 +468,27 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * otherwise build two thousand `Follow` objects to read one string off
 	 * each.
 	 *
+	 * Every accepted row of the account's counts, whatever its type, because
+	 * that is exactly what the join this replaced matched:
+	 * `f.actor_id_prim = viewer AND f.accepted = 1 AND f.follow_id_prim =
+	 * sd.actor_id`, with no condition on the type. The row that makes the
+	 * difference is the **Loopback**, the self-follow every local actor is
+	 * given, whose `follow_id_prim` is the account's own prim: it is how a
+	 * post addressed to the reader *by name* — a mention, a reply from someone
+	 * they do not follow — reaches their home timeline at all. Narrowing this
+	 * to `type = 'Follow'` dropped every one of them: the notification arrived,
+	 * the post was readable at its own URL, and the timeline paged straight
+	 * past it.
+	 *
 	 * @return string[] md5 hashes, deduplicated
 	 */
-	public function getFollowedCollectionPrims(string $actorId, int $limit = 0): array {
+	public function getHomeCollectionPrims(string $actorId, int $limit = 0): array {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 
 		$qb->selectDistinct('follow_id_prim')
 			->from(self::TABLE_FOLLOWS)
 			->where($expr->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
-			->andWhere($expr->eq('type', $qb->createNamedParameter(Follow::TYPE)))
 			->andWhere($expr->eq('accepted', $qb->createNamedParameter('1')))
 			->andWhere($expr->neq('follow_id_prim', $qb->createNamedParameter('')));
 
