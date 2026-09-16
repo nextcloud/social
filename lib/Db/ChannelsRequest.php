@@ -36,6 +36,9 @@ class ChannelsRequest extends CoreRequestBuilder {
 			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
 
 		$qb->executeStatement();
+		// the row's own id, which is how a client names the channel afterwards:
+		// without it every channel answered as 0 and none could be renamed
+		$channel->setId($qb->getLastInsertId());
 	}
 
 	public function update(Channel $channel): void {

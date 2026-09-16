@@ -253,4 +253,24 @@ class ChannelServiceTest extends TestCase {
 		// prefix reserved rather than merely unlikely
 		$this->assertFalse(ChannelService::isChannelUserId('team/design'));
 	}
+
+	/**
+	 * `parseActorsSelectSql()` used to set the type from the `bot` flag on
+	 * every read, so the `Group` written into the column was overwritten before
+	 * anything saw it — the channel was stored correctly and served as a
+	 * `Person`, which is the one thing PeerTube will not accept.
+	 */
+	public function testAStoredGroupSurvivesBeingReadBack(): void {
+		$actor = new Person();
+		$actor->setType(Group::TYPE);
+
+		$this->assertSame(Group::TYPE, $actor->storedActorType());
+
+		// and an ordinary account still says "decide as before", which is what
+		// keeps the bot flag in charge of every row written until now
+		$plain = new Person();
+		$this->assertSame('', $plain->storedActorType());
+		$plain->setBot(true);
+		$this->assertSame('', $plain->storedActorType());
+	}
 }

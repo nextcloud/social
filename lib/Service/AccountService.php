@@ -793,6 +793,18 @@ class AccountService {
 			return;
 		}
 
+		// A channel belongs to an account rather than to a person, so there is
+		// no Nextcloud user here either, and the same rule applies for the same
+		// reason: an actor that is not cached is one every read of it 404s on,
+		// which is exactly what happened to the first channel ever made.
+		if (str_starts_with($actor->getUserId(), 'channel/')) {
+			if ($actor->getName() === '') {
+				$actor->setName($actor->getPreferredUsername());
+			}
+
+			return;
+		}
+
 		$user = $this->userManager->get($actor->getUserId());
 		if ($user === null) {
 			throw new NoUserException();
