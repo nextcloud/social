@@ -362,8 +362,18 @@ class StreamService {
 			return;
 		}
 
-		$author = $this->getAuthorFromPostId($replyTo);
+		$parent = $this->streamRequest->getStreamById($replyTo);
+		$author = $this->cacheActorService->getFromId($parent->getAttributedTo());
 		$note->setInReplyTo($replyTo);
+
+		// A PeerTube video whose comments need approving takes a reply in and
+		// shows it to nobody until a human has looked. Saying so here is what
+		// stops the reply looking posted when it is waiting: the state moves to
+		// `approved` when the `ApproveReply` arrives (FEP-5624). Read off the
+		// parent that was just fetched, rather than fetching it again.
+		if ($parent->repliesNeedApproval()) {
+			$note->setReplyState(Stream::REPLY_PENDING);
+		}
 
 		// The author of the post being replied to is the one recipient that
 		// matters most, and `endpoints.sharedInbox` is optional — without the

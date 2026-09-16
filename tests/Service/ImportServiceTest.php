@@ -119,6 +119,8 @@ class ImportServiceTest extends TestCase {
 			$this->createMock(UpdateInterface::class),
 			$this->createMock(QuoteRequestInterface::class),
 			$configService,
+			$this->createMock(\OCA\Social\Interfaces\Activity\ApproveReplyInterface::class),
+			$this->createMock(\OCA\Social\Interfaces\Object\DislikeInterface::class),
 			new PeerTubeService(
 				$this->createMock(DocumentInterface::class),
 				$this->createMock(IURLGenerator::class),

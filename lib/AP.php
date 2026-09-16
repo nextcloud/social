@@ -13,6 +13,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Interfaces\Activity\AcceptInterface;
 use OCA\Social\Interfaces\Activity\AddInterface;
+use OCA\Social\Interfaces\Activity\ApproveReplyInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
@@ -31,6 +32,7 @@ use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
+use OCA\Social\Interfaces\Object\DislikeInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
 use OCA\Social\Interfaces\Object\EmojiReactInterface;
 use OCA\Social\Interfaces\Object\FlagInterface;
@@ -42,6 +44,7 @@ use OCA\Social\Interfaces\Object\StoryInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Add;
+use OCA\Social\Model\ActivityPub\Activity\ApproveReply;
 use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
@@ -61,6 +64,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Dislike;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\EmojiReact;
 use OCA\Social\Model\ActivityPub\Object\Flag;
@@ -146,6 +150,8 @@ class AP {
 		public UpdateInterface $updateInterface,
 		public QuoteRequestInterface $quoteRequestInterface,
 		public ConfigService $configService,
+		public ApproveReplyInterface $approveReplyInterface,
+		public DislikeInterface $dislikeInterface,
 		public PeerTubeService $peerTubeService,
 	) {
 	}
@@ -320,6 +326,13 @@ class AP {
 
 		$item->setContent($this->peerTubeService->content($data));
 
+		// whether a reply to this will be shown to anybody before a human has
+		// looked at it: a reply written here to a moderated video is held on
+		// the other side, and this is what lets the client say so
+		if ($this->peerTubeService->repliesNeedApproval($data)) {
+			$item->setReplyPolicy(Stream::REPLY_POLICY_APPROVAL);
+		}
+
 		$attachments = $this->peerTubeService->attachments($data, $item);
 		if ($attachments !== []) {
 			$item->setAttachments($attachments);
@@ -338,6 +351,14 @@ class AP {
 
 			case View::TYPE:
 				$item = new View();
+				break;
+
+			case ApproveReply::TYPE:
+				$item = new ApproveReply();
+				break;
+
+			case Dislike::TYPE:
+				$item = new Dislike();
 				break;
 
 			case StoryReaction::TYPE:
@@ -491,6 +512,10 @@ class AP {
 			case StoryReaction::TYPE:
 			case StoryReply::TYPE:
 				return $this->storyAnswerInterface;
+			case ApproveReply::TYPE:
+				return $this->approveReplyInterface;
+			case Dislike::TYPE:
+				return $this->dislikeInterface;
 			case Announce::TYPE:
 				return $this->announceInterface;
 			case Block::TYPE:

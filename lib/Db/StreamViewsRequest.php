@@ -27,7 +27,12 @@ class StreamViewsRequest extends CoreRequestBuilder {
 	 * A repeat is the ordinary case and is not an error: the unique index
 	 * settles it, and nothing here needs to know which of the two it was.
 	 */
-	public function seen(string $streamId, string $actorId): void {
+	/**
+	 * @return bool whether this is the first time this account has opened it —
+	 *              which is what decides whether a receipt goes out to the
+	 *              server that holds it, so a second play is not a second view
+	 */
+	public function seen(string $streamId, string $actorId): bool {
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_STREAM_VIEWS)
 			->setValue('stream_id_prim', $qb->createNamedParameter($qb->prim($streamId)))
@@ -36,11 +41,15 @@ class StreamViewsRequest extends CoreRequestBuilder {
 
 		try {
 			$qb->executeStatement();
+
+			return true;
 		} catch (DBException $e) {
 			if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
 				throw $e;
 			}
 		}
+
+		return false;
 	}
 
 	/** How many accounts have opened one post. */

@@ -161,6 +161,48 @@ class PeerTubeService {
 	}
 
 	/**
+	 * Whether replies to this video have to be approved before anybody sees
+	 * them — FEP-5624, which PeerTube ≥ 6.2 implements as `commentsPolicy`.
+	 *
+	 * `1` is enabled, `2` disabled and `3` "requires approval"; `canReply`
+	 * names who may reply without being approved, so a video that publishes one
+	 * which does not include the public collection is moderating its comments
+	 * too. Read in both spellings because the two arrived a version apart and
+	 * instances run both.
+	 *
+	 * Without this a reply written here looked posted, sat in a queue on the
+	 * other side, and either appeared a day later or never — with nothing
+	 * anywhere to say which.
+	 *
+	 * @param array $data the wire `Video`
+	 */
+	public function repliesNeedApproval(array $data): bool {
+		$policy = $data['commentsPolicy'] ?? null;
+		if (is_array($policy)) {
+			// newer PeerTube sends `{id: 3, label: "Requires approval"}`
+			$policy = $policy['id'] ?? null;
+		}
+		if (is_numeric($policy)) {
+			return (int)$policy === 3;
+		}
+
+		if (!array_key_exists('canReply', $data)) {
+			return false;
+		}
+
+		// an audience that is stated and is not everybody: the ones left out
+		// are the ones who have to be approved, and from here that is us
+		foreach ($this->asList($data['canReply']) as $who) {
+			$id = is_array($who) ? (string)($who['id'] ?? '') : (string)$who;
+			if ($id === ACore::CONTEXT_PUBLIC) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * How long it runs, in whole seconds.
 	 *
 	 * ActivityStreams says `duration` is an xsd:duration, and PeerTube always

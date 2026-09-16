@@ -558,7 +558,13 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   string. The channel wins: it is what the `Create` is signed by, what a reader
   follows, and what the video is listed under on PeerTube itself. `Stream::import()`
   asks for a string and got neither, so a federated video used to arrive
-  attributed to nobody.
+  attributed to nobody. A channel also announces its own
+  video to its followers the moment it publishes it, so a followed channel
+  arrived **twice** — once as the video, once as "the channel boosted the
+  video". That `Announce` is skipped, narrowly: only a video, and only where the
+  announcer is the account the video is already attributed to, because somebody
+  boosting their own post to resurface it is a thing people do and this must not
+  swallow that.
 - **The title is in `name`**, which a `Note` has no use for — and must not be
   copied into, since `name` on a note means the option a poll vote chose. So the
   title becomes the first paragraph of the content, linked to the watch page.
@@ -577,6 +583,49 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   is one this app wrote, and a link is only made of an `http(s)` target.
   Headings, lists and code fences are deliberately not handled — rare in a
   video description, and each one a way to get this wrong.
+
+- **Whether replies have to be approved.** PeerTube ≥ 6.2 moderates comments
+  (FEP-5624): a video whose `commentsPolicy` is 3 takes a reply in and shows it
+  to nobody until a human has looked, then sends an `ApproveReply` back to the
+  server the reply came from. Read in both spellings — the numeric
+  `commentsPolicy` PeerTube sends and the FEP's own `canReply`, which names who
+  may reply *without* being approved — because the two arrived a version apart
+  and instances run both. Without it a reply written here looked posted, sat in
+  a queue on the other side, and either appeared a day later or never, with
+  nothing anywhere to say which. It is kept on the post as
+  `Stream::DETAIL_REPLY_POLICY`, and a reply written to such a post carries
+  `DETAIL_REPLY_STATE` — `pending` until the `ApproveReply` arrives. Both are
+  local, derived facts, which is what the details column is for: neither is a
+  property of the wire object, and the second is about somebody else's document.
+- **`Dislike`**, which Mastodon has never had and which therefore had no model
+  here at all: every one that arrived was logged as an unknown type and
+  dropped, so a video whose author cared about the number showed none of them.
+  Stored the way a `Like` is — a row in `social_action` keyed by (actor,
+  object, type) — and counted onto the post as `dislikes`. **It never
+  notifies**: a like tells an author somebody liked them, and a dislike
+  arriving as a notification would be a way to needle somebody from anywhere,
+  one activity at a time.
+- **`View`**, which PeerTube sends to the owner of a video for every watch.
+  This is the one place `social_stream_view` takes a number from another
+  server, and it does so on exactly the terms it counts a local one: **one row
+  per (post, person)**, so it counts people rather than plays, and the person
+  is the actor the sending server signed for — inflating it costs an actor id
+  per view, which is the same bar a local account faces. Only ever on our own
+  posts: a view of somebody else's video is their server's business. Outbound,
+  a `View` goes to the origin the **first** time somebody here opens a
+  federated video and not afterwards, because `seen()` is idempotent on (post,
+  viewer) and one press of play is not a second view. An instance whose readers
+  watch without ever saying so is a freeloader on everybody else's counters.
+
+A pasted **watch page** resolves too. `SearchService::resolveStatus()` accepted
+`Note` and `Question` only, so a PeerTube address found nothing at all —
+although the very same object would have been stored had it arrived by
+following the channel, which is the inbox and the search disagreeing about what
+a post is. It now accepts every `AP::NOTE_LIKE_TYPES`. A PeerTube watch page is
+`/w/{shortUUID}`, which is the address a person copies out of their browser and
+*not* the object's id, so the "a document is only evidence about itself" rule
+is satisfied one level in: the document is trusted when it names the address it
+was fetched from among its own `url` links.
 
 A document arriving a **second** time — a redelivery, an `Update` of the post it
 hangs off — describes a file on somebody else's server and knows nothing about

@@ -109,11 +109,25 @@ class SearchService {
 			$object = AP::instance()->getItemFromData($data);
 
 			if ($object->getId() !== $uri) {
-				// a document is only evidence about itself
-				throw new InvalidOriginException('the document does not claim the address it came from');
+				// A document is only evidence about itself — with one
+				// exception this app has to make: a PeerTube watch page is
+				// `/w/{shortUUID}`, which is the address a person copies out
+				// of their browser and *not* the object's own id. PeerTube
+				// answers an ActivityPub request there with the video whose id
+				// is the long form, so the document is trusted when it names
+				// the address it was fetched from among its own `url` links —
+				// which is the same evidence, one level in.
+				if (!$this->claimsUrl($data, $uri)) {
+					throw new InvalidOriginException('the document does not claim the address it came from');
+				}
 			}
 
-			if (!in_array($object->getType(), [Note::TYPE, Question::TYPE], true)) {
+			// Every type another server `Create`s into a timeline, not only the
+			// two this app writes itself. Pasting a PeerTube video's address
+			// found nothing at all, although the very same object would have
+			// been stored had it arrived by following the channel — the inbox
+			// and the search disagreed about what a post is.
+			if (!in_array($object->getType(), array_merge([Note::TYPE, Question::TYPE], AP::NOTE_LIKE_TYPES), true)) {
 				throw new InvalidResourceException('not a post');
 			}
 
@@ -136,6 +150,40 @@ class SearchService {
 
 			return null;
 		}
+	}
+
+	/**
+	 * Whether a fetched document names the address it was fetched from.
+	 *
+	 * For a PeerTube `Video` that is the `text/html` link in its `url` list —
+	 * the short `/w/xxx` watch page a person copies out of their browser,
+	 * which is not the object's id. Checked against the links the document
+	 * itself publishes, so what is trusted is still only the document's own
+	 * word about itself.
+	 *
+	 * @param array<string, mixed> $data
+	 */
+	private function claimsUrl(array $data, string $uri): bool {
+		$urls = $data['url'] ?? [];
+		if (is_string($urls)) {
+			return $urls === $uri;
+		}
+
+		if (!is_array($urls)) {
+			return false;
+		}
+
+		foreach ($urls as $link) {
+			if (is_string($link) && $link === $uri) {
+				return true;
+			}
+
+			if (is_array($link) && ((string)($link['href'] ?? $link['url'] ?? '')) === $uri) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public function searchUri(string $search): array {
