@@ -493,10 +493,21 @@ php occ social:benchmark [--actors=200] [--notes=5000] [--follows=150] [--viewer
 | `--actors` | int (200) | Remote actors to seed |
 | `--notes` | int (5000) | Public notes to seed, spread over the preceding weeks |
 | `--follows` | int (150) | How many of those actors the viewer follows, which is what the home timeline joins through |
+| `--followers` | int (0) | How many of those actors follow the viewer **back**, which is what delivery reads: one queue row per distinct inbox when the viewer posts. An instance seeded without it measures reads and says nothing about writes |
 | `--viewer` | username | The local account the timelines are read as; the first local actor by default |
 | `--seed-only` | none | Write the rows without timing anything |
 | `--time-only` | none | Time what is already seeded |
 | `--clean` | none | Delete everything the command wrote and nothing else |
+
+Seeding writes **multi-row `INSERT`s directly**, not through the model layer: a
+`Note` built and saved one at a time is three statements and a transaction per
+row, about 400 rows a second, which makes ten million posts a seven-hour wait —
+so nobody ever seeded enough to find out what the queries cost. The rows are
+still *shaped* like real ones (the prim hashes, the recipient rows, the follower
+collections), because a query plan is only worth measuring against rows the
+planner sees the way it sees real data. The cost is that a column added to
+`social_stream` later is one this command forgets to write; that is the right
+trade for a development-only command and would be the wrong one anywhere else.
 | `-f`, `--force` | none | Seed without asking (required with `--no-interaction`) |
 
 Seeding says how many rows it is about to write and asks before writing any of
