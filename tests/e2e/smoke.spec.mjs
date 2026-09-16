@@ -108,6 +108,55 @@ test.describe('Social, in a browser', () => {
 		await expect(composer).toHaveClass(/new-post--collapsed/)
 	})
 
+	/**
+	 * The picker was rendered inside the toolbar row, which hides its
+	 * overflow: the suggestions and the country box under them were cut off,
+	 * so a place the instance had not seen before could not be named at all.
+	 */
+	test('the place picker has room for the box that names a new place', async ({ page }) => {
+		await openApp(page)
+		const composer = page.locator('.social__wrapper .new-post').first()
+		await composer.locator('.message').click()
+		await composer.getByRole('button', { name: 'Say where this was taken' }).click()
+
+		const picker = composer.locator('.place-picker')
+		await picker.locator('input').first().fill('Nowhere-on-Sea')
+		const country = picker.locator('.place-picker__country input')
+		await expect(country).toBeInViewport()
+
+		const box = await country.boundingBox()
+		const panel = await picker.boundingBox()
+		expect(box.y + box.height).toBeLessThanOrEqual(panel.y + panel.height + 1)
+
+		await picker.locator('.place-picker__close').click()
+		await expect(picker).toBeHidden()
+	})
+
+	/**
+	 * `@nextcloud/dialogs` renders no confirm button unless the builder is
+	 * given one, so a file could be selected and there was nothing to press.
+	 */
+	test('the Files dialog has a button to confirm the pick', async ({ page }) => {
+		await openApp(page)
+		const composer = page.locator('.social__wrapper .new-post').first()
+		await composer.locator('.message').click()
+		await composer.getByRole('button', { name: 'Add from Files' }).click()
+
+		const dialog = page.getByRole('dialog')
+		await expect(dialog.getByRole('button', { name: 'Attach' })).toBeVisible()
+		await page.keyboard.press('Escape')
+	})
+
+	/** Reference at the end, and the one thing that cannot be undone last. */
+	test('the settings page ends with the shortcuts above the deletion', async ({ page }) => {
+		await openApp(page, '/settings')
+		const headings = page.locator('.settings__section-heading')
+		await expect(headings.first()).toBeVisible()
+
+		expect((await headings.allInnerTexts()).slice(-3))
+			.toEqual(['Migration', 'Keyboard shortcuts', 'Delete your Social account'])
+	})
+
 	test('Discover has its sections', async ({ page }) => {
 		await openApp(page, '/discover')
 
