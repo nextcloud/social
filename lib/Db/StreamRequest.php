@@ -2480,6 +2480,12 @@ class StreamRequest extends StreamRequestBuilder {
 			[self::TABLE_STREAM_VIEWS, 'stream_id_prim'],
 			// and the people named in its pictures
 			[self::TABLE_MEDIA_TAGS, 'stream_id_prim'],
+			// where readers had got to in it, which is a bookmark into a video
+			// that no longer exists
+			[self::TABLE_WATCH, 'stream_id_prim'],
+			// and which member of a team wrote it, which is the trail a team
+			// account keeps and has nothing left to be about
+			[self::TABLE_TEAM_POSTS, 'stream_id_prim'],
 		] as [$table, $field]) {
 			$qb = $this->getQueryBuilder();
 			$qb->delete($table)

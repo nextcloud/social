@@ -11,6 +11,7 @@ namespace OCA\Social\Command;
 
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\StreamQueueService;
@@ -77,6 +78,7 @@ class Worker extends SocialCommand {
 		private StreamQueueService $streamQueueService,
 		private ActivityService $activityService,
 		private ConfigService $configService,
+		private CacheActorService $cacheActorService,
 		private IDBConnection $connection,
 		private LoggerInterface $logger,
 	) {
@@ -128,6 +130,10 @@ class Worker extends SocialCommand {
 				$this->requestQueueService->purgeFinished();
 				$reapedAt = time();
 			}
+
+			// a long-running process has no "one request" to bound the
+			// per-request memo, so it is emptied between batches
+			$this->cacheActorService->forgetMemoised();
 
 			$did = $this->deliverBatch() + $this->cacheBatch();
 			$delivered += $did;
