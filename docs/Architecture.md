@@ -697,11 +697,21 @@ answer it and is a full scan of the largest table this app has, 427 ms on
 is worse than no guard. That one was found by measuring, which is what the
 seeding harness is for.
 
-The per-viewer filters — blocks, mutes, hidden boosts, the media narrowing —
-are what forced the join, so they no longer ride in the page query. They are
-applied to the twenty rows it chose, where each is a lookup against twenty ids;
-the page is read three times wider than asked so that one which loses rows to a
-block still fills. The old query is kept as the fallback for an instance whose
+The per-viewer filters — blocks, mutes, hidden boosts — are what forced the
+join, so they no longer ride in the page query. They are applied to the twenty
+rows it chose, where each is a lookup against twenty ids; the page is read three
+times wider than asked so that one which loses rows to a block still fills.
+
+A **media narrowing is the exception**, and the reason is worth keeping: it is a
+question about the *post*, and the page query reads only the recipient rows,
+which carry no such column. Moving it to the rows was right for blocks, which
+drop a few posts, and wrong for this, which drops nearly all of them — on the
+seeded instance 143 of 402,725 posts carry media, so the Photos and Videos
+timelines read the newest sixty ids, discarded all sixty and came back **empty**
+while the pictures sat further down. Those timelines take the join path, which
+has the predicate in the query; they are read far less often than the home
+timeline, and with `media_kind` indexed they are now faster than the fast path
+was anyway. The old query is kept as the fallback for an instance whose
 backfill has not finished, and is slower and always correct.
 
 **Counters are added to, not counted.** The three on an account lived only in
