@@ -676,17 +676,26 @@ account had ever produced, join each to `social_stream` to find out when its
 post was published, and sort the lot in a temporary table to keep twenty —
 `EXPLAIN` said `Using temporary; Using filesort` in as many words. One page load
 therefore cost Σ(all posts of everyone you follow), and a client asks for one
-every thirty seconds. Measured on 402,725 posts: **338 ms**, against **1.8 ms**
-for the public timeline over the same rows, whose recipient is a single constant
-and which therefore walks posts newest-first and probes one row each.
+every thirty seconds. Measured on a seeded instance of 402,725 posts and 805,212
+recipient rows, with both paths run against the same machine in the same pass:
+the old query takes **1,661 ms** and the public timeline over the same rows
+**4.2 ms** — the public one's recipient is a single constant, so it walks posts
+newest-first and probes one row each.
 
 `social_stream_dest.nid` is the post's own nid, copied onto the recipient row
 when it is written. It is safe to denormalise because a nid never changes after
 the row exists — there is no update path to keep in step, only an insert — and
 it is the only way to have the sort key and the filter on the same table, which
 no index can span. With `(actor_id, type, nid)` the page is a descending index
-range per followed collection, merged, stopping at the limit: **25.8 ms**, and
-index-only.
+range per followed collection, merged, stopping at the limit: **50 ms** against
+the same 1,661, and index-only. Thirty-three times.
+
+The guard on it is a **flag written by the migration**, not a question asked of
+the table. The obvious check — "is any nid still zero?" — has no index that can
+answer it and is a full scan of the largest table this app has, 427 ms on
+800,000 rows on every request; a guard that costs more than the query it guards
+is worse than no guard. That one was found by measuring, which is what the
+seeding harness is for.
 
 The per-viewer filters — blocks, mutes, hidden boosts, the media narrowing —
 are what forced the join, so they no longer ride in the page query. They are
