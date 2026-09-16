@@ -1765,6 +1765,45 @@ class StreamRequest extends StreamRequestBuilder {
 	 * find that out. The cap keeps the answer cheap — past it the badge says
 	 * "lots", which is all anyone reads from a two-digit number anyway.
 	 */
+	/**
+	 * The newest thing this account has been sent, as a nid, or 0.
+	 *
+	 * An entity tag for a timeline. A client polls the home page and the unread
+	 * count every thirty seconds, and the answer is usually the same one it
+	 * already has; the newest id a viewer can see changes exactly when that
+	 * stops being true, so it is what an `ETag` should be built from.
+	 *
+	 * One index-only probe: the recipient rows are ordered by `nid` within a
+	 * collection, so the newest is the first row of a descending range. The
+	 * whole point is that it must cost far less than the page it stands in for
+	 * — a validator that cost the same as the answer would save nothing.
+	 *
+	 * @param string[] $collections the prims to look in
+	 */
+	public function newestNidFor(array $collections, string $type = 'recipient'): int {
+		if ($collections === []) {
+			return 0;
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->select('nid')
+			->from(self::TABLE_STREAM_DEST)
+			->where($expr->in(
+				'actor_id',
+				$qb->createNamedParameter($collections, IQueryBuilder::PARAM_STR_ARRAY)
+			))
+			->andWhere($expr->eq('type', $qb->createNamedParameter($type)))
+			->orderBy('nid', 'desc')
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ($data === false) ? 0 : (int)$data['nid'];
+	}
+
 	public function countNotificationsSince(Person $actor, int $sinceNid, int $cap = 99): int {
 		$qb = $this->getStreamSelectSql();
 		$qb->setViewer($actor);
