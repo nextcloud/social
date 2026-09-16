@@ -107,9 +107,10 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 	 */
 	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
-		$prefix = $this->connection->getPrefix();
-		$dest = $prefix . CoreRequestBuilder::TABLE_STREAM_DEST;
-		$stream = $prefix . CoreRequestBuilder::TABLE_STREAM;
+		// `*PREFIX*` is what the connection rewrites; there is no public API
+		// that hands the prefix over as a string
+		$dest = '*PREFIX*' . CoreRequestBuilder::TABLE_STREAM_DEST;
+		$stream = '*PREFIX*' . CoreRequestBuilder::TABLE_STREAM;
 
 		$total = (int)$this->connection->executeQuery(
 			'SELECT COUNT(*) FROM `' . $stream . '`'
