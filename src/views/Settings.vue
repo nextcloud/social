@@ -56,17 +56,7 @@
 			<FiltersSettings />
 		</section>
 
-		<section id="shortcuts" class="settings__section">
-			<h3 class="settings__section-heading">
-				{{ t('social', 'Keyboard shortcuts') }}
-			</h3>
-			<p class="settings__section-lede">
-				{{ t('social', 'The keys this app listens for while you are reading.') }}
-			</p>
-			<ShortcutList />
-		</section>
-
-		<section id="migration" class="settings__section">
+		<section id="scheduled" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Scheduled posts') }}
 			</h3>
@@ -126,7 +116,7 @@
 			<AuthorizedApps />
 		</section>
 
-		<section class="settings__section">
+		<section id="migration" class="settings__section">
 			<h3 class="settings__section-heading">
 				{{ t('social', 'Migration') }}
 			</h3>
@@ -134,6 +124,20 @@
 				{{ t('social', 'Your account is yours. Take a copy of it whenever you like, move it to another server, or bring one here from somewhere else — including the posts you wrote there, with their pictures.') }}
 			</p>
 			<MigrationSettings />
+		</section>
+
+		<!-- Reference rather than a setting: nothing here is changed, it is a
+		     list to look something up in. So it sits at the end, under the
+		     things that are done to the account, rather than between two of
+		     them. -->
+		<section id="shortcuts" class="settings__section">
+			<h3 class="settings__section-heading">
+				{{ t('social', 'Keyboard shortcuts') }}
+			</h3>
+			<p class="settings__section-lede">
+				{{ t('social', 'The keys this app listens for while you are reading.') }}
+			</p>
+			<ShortcutList />
 		</section>
 
 		<section id="delete" class="settings__section settings__section--danger">

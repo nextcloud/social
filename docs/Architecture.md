@@ -1487,9 +1487,16 @@ description in an `alt` attribute and nowhere else.
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
 
 **The Settings page, and what is on it.** `src/views/Settings.vue` is a list of
-sections, each with an id — `#account`, `#lists`, `#shortcuts`, `#migration` —
-because other pages link to one of them: the Follow requests page's empty state
-sends the reader to `#account` for the switch it talks about. The two large
+sections, each with an id — `#account`, `#lists`, `#scheduled`, `#migration`,
+`#shortcuts` — because other pages link to one of them: the Follow requests
+page's empty state sends the reader to `#account` for the switch it talks about.
+An id names the section it is on, which the scheduled posts' did not: it said
+`#migration`, so that link scrolled to the wrong section and the migration tools
+had no anchor at all. The order is the things done to the account first and the
+**keyboard shortcuts at the end**, under them: they are reference rather than a
+setting, nothing on them is changed, and only the account deletion is below them
+— last, and on its own, because it is the one thing on the page that cannot be
+undone. The two large
 sections are `defineAsyncComponent` imports in a `settings` chunk, since nobody
 loads them until they open the page, and a section that arrives after the page
 did is why the scroll to the hash is retried in `updated()`.
