@@ -94,6 +94,31 @@
 				:helperText="t('social', 'Sizes at or above a video\'s own height are skipped rather than enlarged.')" />
 
 			<NcTextField
+				v-model="form.videoQuota"
+				class="server__number"
+				type="number"
+				min="0"
+				max="10485760"
+				:label="t('social', 'Video one account may keep (MB)')"
+				:helperText="t('social', '0 is no quota, which is what every instance has today: the only limit is the disk. A ceiling on one file is not the same question as a ceiling on a year of them. The ladders this server builds do not count against it.')" />
+
+			<!-- PeerTube's three NSFW policies, under the names Mastodon's own
+			     preference already uses for the same three states -->
+			<label class="server__label" for="social-nsfw-policy">
+				{{ t('social', 'Media marked sensitive') }}
+			</label>
+			<NcSelect
+				id="social-nsfw-policy"
+				v-model="nsfwChoice"
+				class="server__field"
+				:options="nsfwOptions"
+				label="label"
+				:clearable="false" />
+			<p class="server__hint">
+				{{ t('social', 'What a reader who has not chosen for themselves gets. Anybody can override it in their own settings. A content warning is a different thing and always covers its post.') }}
+			</p>
+
+			<NcTextField
 				v-model="form.inboxThrottle"
 				class="server__field"
 				type="number"
@@ -147,6 +172,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcSettingsSection from '@nextcloud/vue/components/NcSettingsSection'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { errorMessage, serverUrl } from '../../services/adminApi.js'
 import { showError, showSuccess } from '../../services/toast.js'
@@ -169,6 +195,7 @@ export default {
 		NcNoteCard,
 		NcSettingsSection,
 		NcTextArea,
+		NcSelect,
 		NcTextField,
 	},
 
@@ -193,6 +220,8 @@ export default {
 				videoMaxHeight: String(this.settings.video_max_height ?? 1080),
 				videoLadder: this.settings.video_ladder === true,
 				videoLadderHeights: String(this.settings.video_ladder_heights ?? '360,720,1080'),
+				videoQuota: String(this.settings.video_quota ?? 0),
+				nsfwPolicy: String(this.settings.nsfw_policy ?? 'default'),
 				inboxThrottle: String(this.settings.inbox_throttle ?? 300),
 				secureMode: this.settings.secure_mode === true,
 				publishBlocks: this.settings.publish_blocks === true,
@@ -206,6 +235,32 @@ export default {
 	},
 
 	computed: {
+		/** @return {Array<{id: string, label: string}>} the three policies */
+		nsfwOptions() {
+			return [
+				{ id: 'show_all', label: t('social', 'Shown like anything else') },
+				{ id: 'default', label: t('social', 'Covered, one press away') },
+				{ id: 'hide_all', label: t('social', 'Not shown; open the post to see it') },
+			]
+		},
+
+		/**
+		 * The select works in objects and the form holds the word, so this
+		 * translates between them rather than keeping the same state twice.
+		 *
+		 * @return {{id: string, label: string}}
+		 */
+		nsfwChoice: {
+			get() {
+				return this.nsfwOptions.find((option) => option.id === this.form.nsfwPolicy)
+					?? this.nsfwOptions[1]
+			},
+
+			set(option) {
+				this.form.nsfwPolicy = option?.id ?? 'default'
+			},
+		},
+
 		description() {
 			return t('social', 'What this instance tells other servers and their clients about itself, and the limits it holds them to. Every one of these could only be set with "occ config:app:set social" until now, which meant most of them were never set at all.')
 		},
@@ -237,6 +292,8 @@ export default {
 					videoMaxHeight: parseInt(this.form.videoMaxHeight, 10),
 					videoLadder: this.form.videoLadder,
 					videoLadderHeights: this.form.videoLadderHeights.trim(),
+					videoQuota: parseInt(this.form.videoQuota, 10),
+					nsfwPolicy: this.form.nsfwPolicy,
 					inboxThrottle: parseInt(this.form.inboxThrottle, 10),
 					secureMode: this.form.secureMode,
 					publishBlocks: this.form.publishBlocks,
@@ -285,6 +342,12 @@ export default {
 	&__number {
 		flex: 1 1 240px;
 	}
+}
+
+.server__label {
+	display: block;
+	margin-block: 12px 4px;
+	font-weight: bold;
 }
 
 .server__hint {

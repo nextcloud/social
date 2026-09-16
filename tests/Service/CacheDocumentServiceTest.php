@@ -92,6 +92,7 @@ class CacheDocumentServiceTest extends TestCase {
 			$this->videoThumbnailService,
 			$this->tempManager,
 			$this->mediaBlocksRequest,
+			$this->createMock(\OCA\Social\Service\VideoQuotaService::class),
 			new NullLogger(),
 		);
 	}

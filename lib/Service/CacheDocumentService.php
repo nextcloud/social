@@ -64,6 +64,7 @@ class CacheDocumentService {
 		private VideoThumbnailService $videoThumbnailService,
 		private ITempManager $tempManager,
 		private MediaBlocksRequest $mediaBlocksRequest,
+		private VideoQuotaService $videoQuotaService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -225,6 +226,7 @@ class CacheDocumentService {
 
 		$this->filterMimeTypes($mime);
 		$this->filterSize($mime, (int)filesize($tmpPath));
+		$this->filterQuota($document, $mime, (int)filesize($tmpPath));
 		$this->filterBlockedMedia($tmpPath);
 
 		if (!str_starts_with($mime, 'image/')) {
@@ -251,6 +253,33 @@ class CacheDocumentService {
 		$this->resizeImage($document, $content);
 		$resized = $this->generateFileFromContent($content);
 		$document->setResizedCopy($resized);
+	}
+
+	/**
+	 * The per-account video quota, applied before anything is written.
+	 *
+	 * Local uploads only. This one funnel carries both an upload and a
+	 * *fetched remote attachment*, and charging somebody's quota for a video
+	 * this instance chose to cache on their behalf would be a limit nobody
+	 * could explain — the bytes are there because a post they follow had a
+	 * video in it.
+	 *
+	 * @throws CacheContentSizeException
+	 */
+	public function filterQuota(Document $document, string $mime, int $size): void {
+		if (!$document->isLocal() || !str_starts_with($mime, 'video/')) {
+			return;
+		}
+
+		$account = $document->getAccount();
+		if ($this->videoQuotaService->fits($account, $size)) {
+			return;
+		}
+
+		throw new CacheContentSizeException(
+			'this account has used its ' . $this->videoQuotaService->quota()
+			. 'MB of video storage on this instance'
+		);
 	}
 
 	/**

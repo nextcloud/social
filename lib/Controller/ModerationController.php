@@ -341,18 +341,32 @@ class ModerationController extends Controller {
 		}
 	}
 
-	/** Turns first-post review and the spam rules on and off. */
+	/**
+	 * Turns the three rules on and off: a new account's first post, the spam
+	 * rules, and videos.
+	 *
+	 * `reviewVideos` defaults to off in the signature as well as in the config
+	 * so that an older card, which sends two fields and not three, does not
+	 * silently turn it on — or off, once somebody has turned it on. That is why
+	 * the card sends all three together.
+	 */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	#[FrontpageRoute(verb: 'POST', url: '/moderation/review/settings')]
-	public function reviewSettings(bool $reviewFirstPost, bool $autospam): DataResponse {
+	public function reviewSettings(
+		bool $reviewFirstPost, bool $autospam, bool $reviewVideos = false,
+	): DataResponse {
 		$this->configService->setAppValue(
 			ConfigService::SOCIAL_REVIEW_FIRST_POST, $reviewFirstPost ? '1' : '0'
 		);
 		$this->configService->setAppValue(ConfigService::SOCIAL_AUTOSPAM, $autospam ? '1' : '0');
+		$this->configService->setAppValue(
+			ConfigService::SOCIAL_REVIEW_VIDEOS, $reviewVideos ? '1' : '0'
+		);
 
 		return new DataResponse([
 			'reviewFirstPost' => $this->postReviewService->reviewsFirstPost(),
 			'autospam' => $this->postReviewService->autospam(),
+			'reviewVideos' => $this->postReviewService->reviewsVideos(),
 		]);
 	}
 

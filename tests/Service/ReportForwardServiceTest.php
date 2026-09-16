@@ -39,6 +39,7 @@ class ReportForwardServiceTest extends TestCase {
 
 	private InstanceActorService|MockObject $instanceActorService;
 	private CurlService|MockObject $curlService;
+	private \OCA\Social\Db\StreamRequest|MockObject $streamRequest;
 	private ReportForwardService $service;
 	private string $privateKey = '';
 	/** @var list<array{method: string, url: string, options: array}> every request handed to curl */
@@ -48,6 +49,7 @@ class ReportForwardServiceTest extends TestCase {
 		$this->instanceActorService = $this->createMock(InstanceActorService::class);
 		$this->curlService = $this->createMock(CurlService::class);
 
+		$this->streamRequest = $this->createMock(\OCA\Social\Db\StreamRequest::class);
 		$this->service = new ReportForwardService(
 			$this->instanceActorService,
 			new HttpSignatureService(
@@ -56,6 +58,7 @@ class ReportForwardServiceTest extends TestCase {
 				new NullLogger()
 			),
 			$this->curlService,
+			$this->streamRequest,
 			new NullLogger()
 		);
 	}
@@ -135,6 +138,91 @@ class ReportForwardServiceTest extends TestCase {
 		$this->assertSame([self::SPAMMER, self::SPAMMER . '/statuses/1'], $body['object']);
 		$this->assertSame('this is spam', $body['content']);
 		$this->assertSame(self::SPAMMER, $body['to']);
+	}
+
+	// --- the ids the other server can actually find ------------------------
+
+	/** Builds a stream the lookup will answer with. */
+	private function stream(string $id, bool $local = false): \OCA\Social\Model\ActivityPub\Stream {
+		$stream = new \OCA\Social\Model\ActivityPub\Stream();
+		$stream->setId($id)->setLocal($local);
+
+		return $stream;
+	}
+
+	/**
+	 * A client reports a post by the id **this** API gave it — a snowflake nid
+	 * — and those were going into the `Flag` as they arrived. No other server
+	 * has ever seen them, so a forwarded report named one account the
+	 * receiving moderators could find and a list of numbers they could not. A
+	 * report about a **video**, where the video is the whole complaint, thus
+	 * carried nothing at all.
+	 */
+	public function testAReportedPostIsNamedByTheAddressTheOtherServerKnows(): void {
+		$this->instanceActorService->method('getSigningActor')->willReturn($this->instanceActor());
+		$this->captureDelivery();
+		$this->streamRequest->method('getStreamByNid')->with(4242)
+			->willReturn($this->stream('https://peertube.example/videos/watch/abc'));
+
+		$report = $this->report();
+		$report->setStatusIds(['4242']);
+
+		$this->service->forward($report, $this->remote());
+
+		$body = json_decode($this->body(), true);
+		$this->assertSame(
+			[self::SPAMMER, 'https://peertube.example/videos/watch/abc'], $body['object']
+		);
+	}
+
+	/** An id that is already an address is left as it is. */
+	public function testAnAddressIsPassedOnUnchanged(): void {
+		$this->instanceActorService->method('getSigningActor')->willReturn($this->instanceActor());
+		$this->captureDelivery();
+		$this->streamRequest->expects($this->never())->method('getStreamByNid');
+
+		$report = $this->report();
+		$report->setStatusIds(['https://remote.example/users/spammer/statuses/9']);
+
+		$this->service->forward($report, $this->remote());
+
+		$body = json_decode($this->body(), true);
+		$this->assertContains('https://remote.example/users/spammer/statuses/9', $body['object']);
+	}
+
+	/**
+	 * The statuses in a report about a remote account are that account's
+	 * posts; one of ours in the list is a reply somebody picked up by mistake,
+	 * and naming it would be telling another instance's moderators about a
+	 * post of our own.
+	 */
+	public function testOneOfOurOwnPostsIsNotNamedToAnotherInstancesModerators(): void {
+		$this->instanceActorService->method('getSigningActor')->willReturn($this->instanceActor());
+		$this->captureDelivery();
+		$this->streamRequest->method('getStreamByNid')
+			->willReturn($this->stream('https://cloud.example/@alice/1', local: true));
+
+		$report = $this->report();
+		$report->setStatusIds(['7']);
+
+		$this->service->forward($report, $this->remote());
+
+		$body = json_decode($this->body(), true);
+		$this->assertSame([self::SPAMMER], $body['object']);
+	}
+
+	/** A post this instance no longer holds; the account is still named. */
+	public function testAPostThatIsGoneIsLeftOutRatherThanFailingTheForward(): void {
+		$this->instanceActorService->method('getSigningActor')->willReturn($this->instanceActor());
+		$this->captureDelivery();
+		$this->streamRequest->method('getStreamByNid')
+			->willThrowException(new \Exception('gone'));
+
+		$report = $this->report();
+		$report->setStatusIds(['7']);
+
+		$this->assertTrue($this->service->forward($report, $this->remote()));
+		$this->assertSame([self::SPAMMER], json_decode($this->body(), true)['object']);
 	}
 
 	public function testTheDeliveryIsSignedWithTheInstanceActorsKeyOverTheBody(): void {

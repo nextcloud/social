@@ -78,6 +78,8 @@ describe('the server card', () => {
 			videoMaxHeight: 1080,
 			videoLadder: false,
 			videoLadderHeights: '360,720,1080',
+			videoQuota: 0,
+			nsfwPolicy: 'default',
 			inboxThrottle: 0,
 			secureMode: true,
 			publishBlocks: false,

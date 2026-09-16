@@ -149,6 +149,82 @@ class PostReviewServiceTest extends TestCase {
 		);
 	}
 
+	// --- videos ------------------------------------------------------------
+
+	/**
+	 * The rule an instance that hosts video wants: a video is minutes of
+	 * somebody's attention and a great deal of somebody else's disk.
+	 */
+	public function testAPostWithAVideoIsHeldWhenTheInstanceAsksForThat(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_VIDEOS] = '1';
+		$this->established();
+
+		$this->assertSame(
+			HeldPost::REASON_VIDEO,
+			$this->service->assess($this->alice(), 'watch this', Stream::TYPE_PUBLIC, true)
+		);
+	}
+
+	/**
+	 * Unlike the other four rules, this one is not about the account: it
+	 * applies to a trusted account with a thousand posts behind it too, every
+	 * time, because what it is about is the video.
+	 */
+	public function testAnEstablishedAccountsVideoIsHeldJustTheSame(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_VIDEOS] = '1';
+		$this->established();
+		// an account a moderator has already made a decision about, which is
+		// what makes the other rules stop applying to it
+		$this->moderationService->method('levelOf')->willReturn('silence');
+
+		$this->assertSame(
+			HeldPost::REASON_VIDEO,
+			$this->service->assess($this->alice(), 'watch this', Stream::TYPE_PUBLIC, true)
+		);
+	}
+
+	public function testAPostWithNoVideoIsNotHeldByTheVideoRule(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_VIDEOS] = '1';
+		$this->established();
+
+		$this->assertSame(
+			'', $this->service->assess($this->alice(), 'just words', Stream::TYPE_PUBLIC, false)
+		);
+	}
+
+	public function testAVideoIsNotHeldOnAnInstanceThatHasNotAskedForThat(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_VIDEOS] = '0';
+		$this->established();
+
+		$this->assertSame(
+			'', $this->service->assess($this->alice(), 'watch this', Stream::TYPE_PUBLIC, true)
+		);
+	}
+
+	/** A moderator's own video is not held for them to approve, like their first post. */
+	public function testAModeratorsVideoIsNotHeld(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_VIDEOS] = '1';
+		$this->established();
+		$this->groupManager->method('isAdmin')->willReturn(true);
+
+		$actor = $this->alice();
+		$actor->setUserId('alice');
+
+		$this->assertSame(
+			'', $this->service->assess($actor, 'watch this', Stream::TYPE_PUBLIC, true)
+		);
+	}
+
+	/** A direct message is nobody else's business, video or not. */
+	public function testADirectMessageWithAVideoIsNotHeld(): void {
+		$this->settings[ConfigService::SOCIAL_REVIEW_VIDEOS] = '1';
+		$this->established();
+
+		$this->assertSame(
+			'', $this->service->assess($this->alice(), 'watch this', Stream::TYPE_DIRECT, true)
+		);
+	}
+
 	public function testThePostAfterThatIsNotHeld(): void {
 		$this->established();
 

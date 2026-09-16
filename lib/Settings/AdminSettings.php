@@ -18,7 +18,9 @@ use OCA\Social\Service\MediaUsageService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\ServerSettingsService;
+use OCA\Social\Service\VideoQuotaService;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IGroupManager;
@@ -64,6 +66,8 @@ class AdminSettings implements IDelegatedSettings {
 		private PostReviewService $postReviewService,
 		private StreamRequest $streamRequest,
 		private MediaUsageService $mediaUsageService,
+		private VideoQuotaService $videoQuotaService,
+		private SensitiveMediaService $sensitiveMediaService,
 		private FederationHealthService $federationHealthService,
 		private IL10N $l10n,
 		private ServerSettingsService $serverSettingsService,
@@ -112,12 +116,27 @@ class AdminSettings implements IDelegatedSettings {
 			// what is on disk, as the cron last measured it: adding it up is a
 			// `stat` per stored file and has no business in a page load
 			'storage' => $this->mediaUsageService->lastMeasured(),
+			// who is holding the video, which is the one question a full disk
+			// actually raises and the one the storage figures could not answer.
+			// Live rather than from the last measurement: it is one grouped
+			// query over a column the rows already carry, not a walk of the
+			// files.
+			'videoStorage' => $this->isAdministrator() ? [
+				'quota' => $this->videoQuotaService->quota(),
+				'accounts' => $this->videoQuotaService->byAccount(),
+				'renditions' => $this->videoQuotaService->renditionBytes(),
+				'store' => $this->videoQuotaService->storage(),
+			] : null,
 			// the first page of the review queue, in the shape
 			// `ModerationController::review()` answers in
 			'review' => $this->postReviewService->pending(),
 			'reviewTotal' => $this->postReviewService->countPending(),
 			'reviewFirstPost' => $this->postReviewService->reviewsFirstPost(),
 			'autospam' => $this->postReviewService->autospam(),
+			'reviewVideos' => $this->postReviewService->reviewsVideos(),
+			// what this instance does with a post somebody marked sensitive,
+			// for readers who have not chosen for themselves
+			'nsfwPolicy' => $this->sensitiveMediaService->instancePolicy(),
 		]);
 
 		return new TemplateResponse('social', 'settings/admin');

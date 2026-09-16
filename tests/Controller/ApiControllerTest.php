@@ -154,6 +154,7 @@ class ApiControllerTest extends TestCase {
 	private AccountRelationService|MockObject $accountRelationService;
 	private ScheduledStatusService|MockObject $scheduledStatusService;
 	private PostReviewService|MockObject $postReviewService;
+	private \OCA\Social\Service\SensitiveMediaService|MockObject $sensitiveMediaService;
 	private ViewCountService|MockObject $viewCountService;
 	private TeamService|MockObject $teamService;
 	private EmojiService|MockObject $emojiService;
@@ -271,6 +272,11 @@ class ApiControllerTest extends TestCase {
 		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 		$this->scheduledStatusService = $this->createMock(ScheduledStatusService::class);
 		$this->postReviewService = $this->createMock(PostReviewService::class);
+		$this->sensitiveMediaService = $this->createMock(\OCA\Social\Service\SensitiveMediaService::class);
+		// the three states PeerTube's NSFW policies map onto; `default` is
+		// what an instance that has not chosen does
+		$this->sensitiveMediaService->method('policyFor')->willReturn('default');
+		$this->sensitiveMediaService->method('instancePolicy')->willReturn('default');
 		$this->viewCountService = $this->createMock(ViewCountService::class);
 		$this->teamService = $this->createMock(TeamService::class);
 		$this->emojiService = $this->createMock(EmojiService::class);
@@ -376,6 +382,7 @@ class ApiControllerTest extends TestCase {
 			$this->accountRelationService,
 			$this->scheduledStatusService,
 			$this->postReviewService,
+			$this->sensitiveMediaService,
 			$this->viewCountService,
 			$this->teamService,
 			$this->emojiService,

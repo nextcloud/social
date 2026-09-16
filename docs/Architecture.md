@@ -713,6 +713,77 @@ PeerTube sees it as a streaming-playlist `Link` with a `Link` tag per rung,
 because PeerTube takes the resolutions from the tags rather than by fetching the
 playlist and a link with no tags is one it accepts and then has no files for.
 
+**How much video one account may keep** is `video_quota`, off by default. There
+was a ceiling on how big one *file* could be and none at all on how many of
+them one account could upload, so the only real limit was the disk — and the
+administrator found out about it from the disk. It is checked once, in
+`CacheDocumentService::saveFromTempToCache()`, which is the one place both an
+upload and a fetched remote attachment pass through; a **fetched** one is
+exempt, because charging somebody's quota for a video this instance chose to
+cache on their behalf would be a limit nobody could explain. The **ladders are
+exempt too**: they are made because an administrator asked for them, are
+several times the size of the upload, and would turn a quota somebody was told
+about into one several times smaller than the number they were given — but they
+*are* counted in what an administrator is shown, because they are real disk.
+
+Counted from the stored `size` rather than by walking the files, since this is
+asked on every video upload. Rows written before that column existed carry `0`,
+so `MediaUsageService` — already doing a `stat` per stored file on the daily
+cron — writes the answer down as it passes, and the quota becomes accurate
+after one pass rather than never. Who is holding what is a single grouped query
+on the Storage card. **Where the files are is not a setting**: Nextcloud has no
+per-app object store, and an app that offered one would be offering something
+it cannot deliver; the card says whether the instance-wide `objectstore` in
+`config.php` is in force, which is the supported way to put this elsewhere and
+covers Social's appdata along with everything else's.
+
+**What happens to a post somebody marked sensitive** is `SensitiveMediaService`.
+PeerTube gives an instance three NSFW policies and lets a person override the
+one their instance chose; this app had one, hard-coded. The three are the same
+three, under **Mastodon's** names rather than PeerTube's — `show_all`,
+`default`, `hide_all` — because Mastodon already has a field for exactly this
+(`reading:expand:media`), every client that speaks this API reads it, and a
+fourth vocabulary for the same three states would be one no client could act
+on. `show_all` is PeerTube's *display*, `default` its *blur* (covered, the
+blurhash showing, one press away — what this app has always done, and the
+default so an upgrade changes nothing), `hide_all` its *hide* (not drawn, and
+no button to draw it: opening the post is what it takes).
+
+A **content warning is not subject to it**: the policy is about media somebody
+marked sensitive, and a warning is an author saying something about the whole
+post in their own words — a reader who asked to see sensitive media has not
+asked to be shown past every warning anybody writes. An account's choice is
+stored against its Nextcloud user rather than its actor, because it is a fact
+about a person reading and not an identity other servers see, and **"follow the
+instance" stays a state of its own**: it looks the same as choosing what the
+instance currently does until an administrator changes the default, at which
+point a settings page that could not tell them apart would have silently pinned
+everybody to the old one. The effective policy travels in the page's own
+initial state rather than behind a request, because it decides what the first
+screenful looks like and a timeline that uncovered itself a moment after it
+drew would be worse than either policy.
+
+**Videos can be held for a moderator** with `review_videos`, the third rule of
+the review queue beside a new account's first post and the spam rules. Unlike
+the other two it is **not about the account**: a trusted account with a
+thousand posts behind it is held by it too, every time, because what it is
+about is the video — so it is asked before the "a moderator has already decided
+about this account" gate that stops the others. A moderator's own video is not
+held, for the same reason their first post is not.
+
+**A forwarded report names the posts by the address the receiving server knows
+them by.** A client reports a post by the id *this* API gave it — a snowflake
+nid — and those were going into the `Flag` as they arrived. No other server has
+ever seen them, so every forwarded report named one account the receiving
+moderators could find and a list of numbers they could not: a report about an
+account read as a complaint with no evidence, and a report about a **video**,
+where the video is the entire complaint, carried nothing at all — PeerTube
+resolves an abuse by the video's own address and would have found nothing every
+time. `ReportForwardService` resolves each one through `social_stream` now, and
+leaves out anything local: the statuses in a report about a remote account are
+that account's posts, and one of ours in the list is a reply somebody picked up
+by mistake.
+
 **Playlists** are collections. PeerTube's `Playlist` is an ordered set of a
 channel's videos with a title, a description and a visibility, which is what
 this app already calls a collection — so it is stored as one rather than given

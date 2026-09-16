@@ -11,15 +11,22 @@
 				type="switch"
 				:modelValue="reviewFirstPostOn"
 				:disabled="savingSettings"
-				@update:modelValue="saveSettings($event, autospamOn)">
+				@update:modelValue="saveSettings($event, autospamOn, reviewVideosOn)">
 				{{ t('social', 'Hold the first post of a new account') }}
 			</NcCheckboxRadioSwitch>
 			<NcCheckboxRadioSwitch
 				type="switch"
 				:modelValue="autospamOn"
 				:disabled="savingSettings"
-				@update:modelValue="saveSettings(reviewFirstPostOn, $event)">
+				@update:modelValue="saveSettings(reviewFirstPostOn, $event, reviewVideosOn)">
 				{{ t('social', 'Hold posts that read like spam') }}
+			</NcCheckboxRadioSwitch>
+			<NcCheckboxRadioSwitch
+				type="switch"
+				:modelValue="reviewVideosOn"
+				:disabled="savingSettings"
+				@update:modelValue="saveSettings(reviewFirstPostOn, autospamOn, $event)">
+				{{ t('social', 'Hold every post with a video on it') }}
 			</NcCheckboxRadioSwitch>
 		</div>
 
@@ -161,6 +168,11 @@ export default {
 		},
 
 		/** whether the spam rules are applied */
+		reviewVideos: {
+			type: Boolean,
+			default: false,
+		},
+
 		autospam: {
 			type: Boolean,
 			default: true,
@@ -178,6 +190,7 @@ export default {
 			pending: null,
 			reviewFirstPostOn: this.reviewFirstPost,
 			autospamOn: this.autospam,
+			reviewVideosOn: this.reviewVideos,
 			savingSettings: false,
 		}
 	},
@@ -216,6 +229,8 @@ export default {
 					return t('social', 'Mentions of accounts with no connection to this one')
 				case 'repeat':
 					return t('social', 'The same text as a post already waiting')
+				case 'video':
+					return t('social', 'It has a video on it')
 				default:
 					return reason
 			}
@@ -295,17 +310,23 @@ export default {
 		/**
 		 * @param {boolean} first whether a new account's first post is held
 		 * @param {boolean} spam whether the spam rules are applied
-		 * @return {Promise<void>} once both are saved
+		 * @param {boolean} videos whether every post with a video on it is held
+		 * @return {Promise<void>} once all three are saved
 		 */
-		async saveSettings(first, spam) {
+		async saveSettings(first, spam, videos) {
 			this.savingSettings = true
 			try {
+				// all three together, never one: the endpoint writes what it is
+				// sent and a card that sent only the switch that moved would
+				// turn the other two off
 				const { data } = await axios.post(moderationUrl('/review/settings'), {
 					reviewFirstPost: first,
 					autospam: spam,
+					reviewVideos: videos,
 				})
 				this.reviewFirstPostOn = data.reviewFirstPost
 				this.autospamOn = data.autospam
+				this.reviewVideosOn = data.reviewVideos
 			} catch {
 				showError(t('social', 'Could not save the setting'))
 			} finally {

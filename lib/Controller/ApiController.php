@@ -76,6 +76,7 @@ use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\NotificationService;
+use OCA\Social\Service\PeerTubeService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
@@ -88,6 +89,7 @@ use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\ScheduledStatusService;
 use OCA\Social\Service\SearchService;
+use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TranslationService;
@@ -205,6 +207,7 @@ class ApiController extends Controller {
 		private AccountRelationService $accountRelationService,
 		private ScheduledStatusService $scheduledStatusService,
 		private PostReviewService $postReviewService,
+		private SensitiveMediaService $sensitiveMediaService,
 		private ViewCountService $viewCountService,
 		private TeamService $teamService,
 		private EmojiService $emojiService,
@@ -1291,7 +1294,13 @@ class ApiController extends Controller {
 			// review is about an account nobody has vouched for yet, and a team
 			// account exists because an administrator made it
 			$reason = $this->postReviewService->assess(
-				$author, $post->getContent(), $post->getType()
+				$author,
+				$post->getContent(),
+				$post->getType(),
+				// asked of the attachments that were actually resolved, not of
+				// the ids the client sent: an id that named nothing, or
+				// somebody else's upload, is not a video on this post
+				PeerTubeService::soleVideo($post->getMedias()) !== null
 			);
 			if ($reason !== '') {
 				$held = $this->postReviewService->hold(
@@ -3141,11 +3150,59 @@ class ApiController extends Controller {
 				'posting:default:sensitive' => (bool)($source['sensitive'] ?? false),
 				'posting:default:language' => ($source['language'] ?? '') !== ''
 					? $source['language'] : null,
-				// this app has no per-account reading preferences; Mastodon's
-				// defaults are what a client assumes when they are absent, so
-				// sending them is what stops it assuming something else
-				'reading:expand:media' => 'default',
+				// PeerTube's three NSFW policies, under the names Mastodon
+				// already has for the same three states: what this account
+				// chose, or what the instance does for somebody who has not.
+				// See `SensitiveMediaService`.
+				'reading:expand:media' => $this->sensitiveMediaService->policyFor(
+					$this->currentSession()
+				),
+				// still Mastodon's default: a content warning is a different
+				// thing from sensitive media and this app keeps no preference
+				// about it
 				'reading:expand:spoilers' => false,
+			], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Records what this account wants done with sensitive media.
+	 *
+	 * Not a Mastodon route — Mastodon has no write for preferences, and its
+	 * own reading preferences are set on its web front end rather than through
+	 * the API. The value is Mastodon's all the same, so a client that reads
+	 * `/api/v1/preferences` and a client that writes here agree about what the
+	 * three words mean.
+	 *
+	 * `''` is a fourth thing and not a fourth policy: it puts the account back
+	 * to following whatever the instance does, which is different from
+	 * choosing what the instance happens to do today.
+	 *
+	 * `PublicPage` with no CSRF like every other route of this controller:
+	 * `currentSession()` is what authenticates, and it checks the CSRF token
+	 * itself for a caller with a session rather than a bearer token.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/preferences')]
+	public function preferencesUpdate(string $expandMedia = ''): DataResponse {
+		try {
+			$userId = $this->currentSession();
+			if (!$this->sensitiveMediaService->choose($userId, $expandMedia)) {
+				return new DataResponse(
+					['error' => 'expand_media must be show_all, default, hide_all, or empty'],
+					Http::STATUS_UNPROCESSABLE_ENTITY
+				);
+			}
+
+			return new DataResponse([
+				'reading:expand:media' => $this->sensitiveMediaService->policyFor($userId),
+				// what was chosen, as it was chosen: a settings page has to be
+				// able to show "follow the instance" as the state it is
+				'choice' => $this->sensitiveMediaService->choiceOf($userId),
+				'instance' => $this->sensitiveMediaService->instancePolicy(),
 			], Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);

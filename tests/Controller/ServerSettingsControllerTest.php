@@ -47,11 +47,11 @@ class ServerSettingsControllerTest extends TestCase {
 
 	public function testWhatTheCardSentReachesTheServiceUnchanged(): void {
 		$this->serverSettingsService->expects($this->once())->method('save')
-			->with('admin@instance.example', 'a friendly place', 20, 4096, 0, 85, true, 720, true, '360,720', 0, true, true, false)
+			->with('admin@instance.example', 'a friendly place', 20, 4096, 0, 85, true, 720, true, '360,720', 0, 'hide_all', 0, true, true, false)
 			->willReturn(['contact_email' => 'admin@instance.example']);
 
 		$response = $this->controller->save(
-			'admin@instance.example', 'a friendly place', 20, 4096, 0, 85, true, 720, true, '360,720', 0, true, true, false
+			'admin@instance.example', 'a friendly place', 20, 4096, 0, 85, true, 720, true, '360,720', 0, 'hide_all', 0, true, true, false
 		);
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
@@ -93,7 +93,7 @@ class ServerSettingsControllerTest extends TestCase {
 	/** The defaults are the app's own, so an older card cannot blank a field. */
 	public function testTheDefaultsAreWhatTheAppShipsWith(): void {
 		$this->serverSettingsService->expects($this->once())->method('save')
-			->with('', '', 10, 2048, 0, 85, false, 1080, false, '360,720,1080', 300, false, false, false)
+			->with('', '', 10, 2048, 0, 85, false, 1080, false, '360,720,1080', 0, 'default', 300, false, false, false)
 			->willReturn([]);
 
 		$this->controller->save();

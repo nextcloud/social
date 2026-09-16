@@ -21,6 +21,7 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
@@ -63,6 +64,7 @@ class NavigationController extends Controller {
 		private DocumentService $documentService,
 		private ConfigService $configService,
 		private CheckService $checkService,
+		private SensitiveMediaService $sensitiveMediaService,
 		private MiscService $miscService,
 		private LoggerInterface $logger,
 	) {
@@ -111,7 +113,19 @@ class NavigationController extends Controller {
 			'setup' => false,
 			'isAdmin' => $this->userId !== null && Server::get(IGroupManager::class)
 				->isAdmin($this->userId),
-			'cliUrl' => $this->getCliUrl()
+			'cliUrl' => $this->getCliUrl(),
+			// what to do with a post somebody marked sensitive: this reader's
+			// own choice, or what the instance does for somebody who has not
+			// chosen. In the page rather than behind a request because it
+			// decides what the very first screenful looks like, and a timeline
+			// that uncovered itself a moment after it drew would be worse than
+			// either policy.
+			'nsfwPolicy' => $this->sensitiveMediaService->policyFor((string)$this->userId),
+			// and what this reader *chose*, which is a different thing: the
+			// settings page has to be able to show "follow the instance" as
+			// the state it is rather than as whichever policy that currently
+			// resolves to
+			'nsfwChoice' => $this->sensitiveMediaService->choiceOf((string)$this->userId),
 		];
 
 		$this->logger->debug('[NavigationController] Initial serverData', ['serverData' => $serverData]);

@@ -52,6 +52,8 @@ class ServerSettingsController extends Controller {
 	 * @param int $videoMaxHeight the tallest a converted video is written
 	 * @param bool $videoLadder also write each video at a ladder of smaller sizes, as HLS
 	 * @param string $videoLadderHeights which sizes, comma-separated
+	 * @param int $videoQuota megabytes of video one account may keep here; 0 is no quota
+	 * @param string $nsfwPolicy show_all, default or hide_all — what a reader who has not chosen gets
 	 * @param int $inboxThrottle inbox requests per origin host per minute; 0 disables
 	 * @param bool $secureMode refuse ActivityPub fetches that are not signed
 	 * @param bool $publishBlocks publish the domain deny list on the instance API
@@ -69,6 +71,8 @@ class ServerSettingsController extends Controller {
 		int $videoMaxHeight = 1080,
 		bool $videoLadder = false,
 		string $videoLadderHeights = '360,720,1080',
+		int $videoQuota = 0,
+		string $nsfwPolicy = 'default',
 		int $inboxThrottle = 300,
 		bool $secureMode = false,
 		bool $publishBlocks = false,
@@ -86,6 +90,8 @@ class ServerSettingsController extends Controller {
 				$videoMaxHeight,
 				$videoLadder,
 				$videoLadderHeights,
+				$videoQuota,
+				$nsfwPolicy,
 				$inboxThrottle,
 				$secureMode,
 				$publishBlocks,

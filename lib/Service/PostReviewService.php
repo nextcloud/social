@@ -119,6 +119,11 @@ class PostReviewService {
 		));
 	}
 
+	/** Whether an administrator has asked to see videos before they are published. */
+	public function reviewsVideos(): bool {
+		return $this->configService->getAppValueBool(ConfigService::SOCIAL_REVIEW_VIDEOS);
+	}
+
 	/** Whether an administrator has asked for the spam rules to be applied. */
 	public function autospam(): bool {
 		return $this->configService->getAppValueBool(ConfigService::SOCIAL_AUTOSPAM);
@@ -133,27 +138,34 @@ class PostReviewService {
 	 * @param string $visibility as the post will be published, not as the
 	 *                           client sent it — an absent visibility has
 	 *                           already become the account's default by here
+	 * @param bool $hasVideo whether a video is going out with it
 	 */
-	public function assess(Person $actor, string $text, string $visibility): string {
+	public function assess(Person $actor, string $text, string $visibility, bool $hasVideo = false): string {
 		if ($visibility === Stream::TYPE_DIRECT) {
 			return '';
 		}
 
-		if (!$this->reviewsFirstPost() && !$this->autospam()) {
+		if (!$this->reviewsFirstPost() && !$this->autospam() && !$this->reviewsVideos()) {
 			return '';
+		}
+
+		// Somebody who can empty the queue is not somebody to put in it, and
+		// that holds for the video rule as much as for the other three — the
+		// case that made it obvious was the first post on a brand-new
+		// instance; see `mayModerate()`.
+		if ($this->mayModerate($actor)) {
+			return '';
+		}
+
+		// Before the "already decided" gate, and deliberately: the other rules
+		// are about an account nobody has vouched for yet and stop applying
+		// once somebody has, while this one is about the video. An instance
+		// that has asked to see videos has asked to see all of them.
+		if ($hasVideo && $this->reviewsVideos()) {
+			return HeldPost::REASON_VIDEO;
 		}
 
 		if ($this->alreadyDecided($actor->getId())) {
-			return '';
-		}
-
-		// Somebody who can empty the queue is not somebody to put in it. The
-		// case that made this obvious is the first post on a brand-new
-		// instance: it is the administrator's, it was held for a moderator who
-		// was the same person, and a fresh install looked broken — you wrote
-		// your first post, it did not appear, and the only place it existed was
-		// a panel you had not opened yet.
-		if ($this->mayModerate($actor)) {
 			return '';
 		}
 
