@@ -787,6 +787,20 @@ for — so a poll that has not changed is answered `304`. Media carries the stor
 file's own tag, which matters because a timeline is forty to sixty pictures a
 screen and each was a full Nextcloud boot.
 
+The two json routes hand back a **`JSONResponse` rather than a `DataResponse`**,
+and that is what makes any of it work. A returned `DataResponse` is rebuilt by
+Nextcloud's default json responder, which merges the *fresh* response's headers
+over the controller's — and every response's defaults include `Cache-Control:
+no-cache, no-store, must-revalidate`. The header the route set was therefore
+replaced on the way out, and `no-store` forbids the browser to keep the body at
+all: it never sends `If-None-Match`, so the `304` was never asked for and the
+whole thing was decoration, as the wire showed — our `ETag` and Nextcloud's
+`no-store` side by side. The dispatcher rebuilds only a `DataResponse`, so a
+route that builds the `JSONResponse` itself reaches the wire as it is.
+`tests/Controller/PollCacheHeaderTest` pins both halves against the real
+framework class. The media routes were never affected: a `FileDisplayResponse`
+does not go through the responder.
+
 With `notify_push` installed the client is told instead of asking, and the poll
 interval drops from thirty seconds to five minutes; that is the single largest
 reduction available to an administrator and it is one app install.
