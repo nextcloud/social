@@ -63,7 +63,17 @@ use ZipArchive;
  *    **URLs rather than files**: those pictures are fetched from the old
  *    server, which therefore has to still be running.
  *
- * And a fifth that is not a Fediverse export at all: **Instagram's** "Download
+ * And a fifth that *is* a Fediverse export but is not a timeline: **PeerTube's**
+ * (`/api/v1/users/me/exports`), read from `peertube/videos.json`. Its own JSON
+ * rather than the `activity-pub/outbox.json` sitting beside it, because the
+ * ActivityPub half names each video's file by its address on the old server
+ * while the PeerTube half names the copy that is **inside the archive** — so
+ * one import needs the old server to still be running and the other does not.
+ * It also states the privacy as a number rather than leaving it to be read out
+ * of an audience, and carries the title, the tags, the category and the
+ * licence, which is most of what a video is.
+ *
+ * And a sixth that is not a Fediverse export at all: **Instagram's** "Download
  * your information" archive, which is the way most people arrive at Pixelfed.
  * It is read from `content/posts_*.json` and the reels beside them, with the
  * pictures out of the archive's own `media/` folder — nothing is fetched,
@@ -91,9 +101,31 @@ class PostImportService {
 	/** The two kinds of export, which are parsed by two different readers. */
 	private const FORMAT_ACTIVITYPUB = 'activitypub';
 	private const FORMAT_INSTAGRAM = 'instagram';
+	private const FORMAT_PEERTUBE = 'peertube';
 
 	/** Where an archive keeps the posts, ours first. */
 	private const OUTBOX_PATHS = ['social/outbox.json', 'outbox.json'];
+
+	/**
+	 * Where PeerTube keeps the videos, and the key it wraps them in.
+	 *
+	 * Not `activity-pub/outbox.json`, which is in the same archive: see the
+	 * class comment for why the richer half is the one worth reading.
+	 */
+	private const PEERTUBE_PATH = 'peertube/videos.json';
+
+	/**
+	 * PeerTube's `VideoPrivacy`, as far as it maps onto an audience here.
+	 *
+	 * 3 (private), 4 (internal) and 5 (password-protected) are deliberately
+	 * absent: each is a video its author decided not to publish, and an
+	 * importer that quietly made one public would be undoing that decision.
+	 * Unlisted becomes unlisted, which is the same promise on both sides.
+	 */
+	private const PEERTUBE_PRIVACY = [
+		1 => Stream::TYPE_PUBLIC,
+		2 => Stream::TYPE_UNLISTED,
+	];
 
 	/**
 	 * Where Instagram keeps them.
@@ -144,8 +176,199 @@ class PostImportService {
 		private AccountService $accountService,
 		private ITempManager $tempManager,
 		private IURLGenerator $urlGenerator,
+		private CurlService $curlService,
+		private PeerTubeService $peerTubeService,
+		private ConfigService $configService,
 		private LoggerInterface $logger,
 	) {
+	}
+
+	/**
+	 * Brings **one** video over, by its address.
+	 *
+	 * PeerTube has this and people use it: you have a video on an instance you
+	 * are leaving, or on one you only ever used to publish, and you want it
+	 * here. An export is the right tool for a channel and a heavy one for a
+	 * single video — and somebody who has lost their account on the old server
+	 * cannot take an export at all, while the video is still there to be
+	 * fetched.
+	 *
+	 * The same three rules as an archive import: **nothing is federated**, the
+	 * **id is ours** with the original remembered in `social_import_post` so a
+	 * second attempt is a no-op, and it is written as a **new local post of the
+	 * importing account**.
+	 *
+	 * What it will not do:
+	 *
+	 * - **A video hosted here.** Bringing a neighbour's post over as your own
+	 *   is not an import, and this is the one case the server can actually
+	 *   tell.
+	 * - **A document that is not a video.** This is not a way to copy a post.
+	 * - **A video whose address it was not given.** The document has to name
+	 *   the address it was fetched from, the same evidence
+	 *   `SearchService::resolveStatus()` requires, so a redirect cannot
+	 *   substitute one video for another.
+	 *
+	 * What it cannot check is whether the video is **yours**. Neither can
+	 * PeerTube's own importer, and neither can the archive import above — an
+	 * archive is a file somebody uploaded. What stands in for it is the same
+	 * thing that stands in for it there: it is one deliberate act, it is rate
+	 * limited, and what it produces is an ordinary post of the account that
+	 * asked for it, which moderation and reporting reach like any other.
+	 *
+	 * @return array<string, mixed> the same tally an archive import answers with
+	 * @throws InvalidResourceException with a sentence saying what was wrong
+	 */
+	public function importVideo(Person $actor, string $url, bool $fetchMedia = true): array {
+		$url = trim($url);
+		if (!str_starts_with($url, 'https://') && !str_starts_with($url, 'http://')) {
+			throw new InvalidResourceException('that is not a video address');
+		}
+
+		$cloud = rtrim($this->configService->getCloudUrl(), '/');
+		if ($cloud !== '' && str_starts_with($url, $cloud)) {
+			throw new InvalidResourceException(
+				'that video is already on this server — an import is for bringing one over from another'
+			);
+		}
+
+		try {
+			$data = $this->curlService->retrieveObject($url);
+		} catch (Throwable $e) {
+			throw new InvalidResourceException('that address could not be read: ' . $e->getMessage());
+		}
+
+		$post = $this->parseFetchedVideo($data, $url);
+		if ($post === null) {
+			throw new InvalidResourceException(
+				'that address is not a video this app can bring over'
+			);
+		}
+
+		$tally = [
+			'imported' => 0, 'skipped' => 0, 'already' => 0,
+			'media' => 0, 'failed' => 0, 'total' => 1, 'capped' => false,
+		];
+
+		$known = $this->importedPostsRequest->knownAmong($actor->getId(), [$post['source']]);
+		if (isset($known[$post['source']])) {
+			$tally['already'] = 1;
+
+			return $tally;
+		}
+
+		$written = $this->write($actor, $post, $known, null, $fetchMedia, $tally);
+		$this->importedPostsRequest->remember($actor->getId(), $post['source'], $written->getId());
+		$tally['imported'] = 1;
+		$this->accountService->cacheLocalActorDetailCount($actor);
+
+		return $tally;
+	}
+
+	/**
+	 * One fetched `Video` document, in the shape every other reader produces.
+	 *
+	 * The file is the playable link out of `url`, which is an **absolute**
+	 * address — so it is fetched from the server that holds it, the same way
+	 * an export that named only addresses is. There is no archive here to take
+	 * it out of.
+	 *
+	 * @param array<string, mixed> $data
+	 * @return array<string, mixed>|null
+	 */
+	private function parseFetchedVideo(array $data, string $url): ?array {
+		if ((string)($data['type'] ?? '') !== 'Video') {
+			return null;
+		}
+
+		$id = (string)($data['id'] ?? '');
+		if ($id === '' || (!$this->claimsAddress($data, $url) && $id !== $url)) {
+			// the same evidence `SearchService::resolveStatus()` requires: a
+			// PeerTube watch page is not the object's id, but the object names
+			// it among its own `url` links
+			return null;
+		}
+
+		$file = $this->playableLink($data);
+		if ($file === '') {
+			return null;
+		}
+
+		$title = trim((string)($data['name'] ?? ''));
+		$description = trim(strip_tags((string)($data['content'] ?? '')));
+		$text = trim($title . (($description === '') ? '' : "\n\n" . $description));
+		if ($text === '') {
+			return null;
+		}
+
+		$published = strtotime((string)($data['published'] ?? ''));
+
+		return [
+			'source' => $id,
+			'text' => $text,
+			'published' => ($published === false || $published <= 0) ? time() : $published,
+			// whatever its audience was there, it is this account's own post
+			// here and is published as the thing everybody can see. An
+			// unlisted video brought over as public would be a decision the
+			// person did not make, so the *object's* own audience is read
+			// first and only the two that mean something here are kept.
+			'visibility' => $this->visibility($data) === Stream::TYPE_UNLISTED
+				? Stream::TYPE_UNLISTED : Stream::TYPE_PUBLIC,
+			'sensitive' => (bool)($data['sensitive'] ?? false),
+			'spoiler' => '',
+			'language' => $this->language($data),
+			'replyTo' => '',
+			'attachments' => [['url' => $file, 'name' => $title]],
+			'hashtags' => $this->hashtags($data),
+			'video' => $this->peerTubeService->videoMeta($data),
+		];
+	}
+
+	/** Whether a document names the address it was fetched from. */
+	private function claimsAddress(array $data, string $url): bool {
+		foreach ($this->listOf($data, 'url') as $link) {
+			$href = is_array($link) ? (string)($link['href'] ?? '') : (string)$link;
+			if ($href === $url) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * The best file link a `Video` offers.
+	 *
+	 * An HLS playlist is deliberately passed over: what this wants is a file
+	 * to store, and a playlist is a list of a few hundred segments on somebody
+	 * else's server — importing it would store a text file and call it a
+	 * video.
+	 *
+	 * @param array<string, mixed> $data
+	 */
+	private function playableLink(array $data): string {
+		$best = '';
+		$bestHeight = -1;
+
+		foreach ($this->listOf($data, 'url') as $link) {
+			if (!is_array($link)) {
+				continue;
+			}
+
+			$type = strtolower((string)($link['mediaType'] ?? ''));
+			$href = (string)($link['href'] ?? '');
+			if ($href === '' || !str_starts_with($type, 'video/')) {
+				continue;
+			}
+
+			$height = (int)($link['height'] ?? 0);
+			if ($height > $bestHeight) {
+				$best = $href;
+				$bestHeight = $height;
+			}
+		}
+
+		return $best;
 	}
 
 	/**
@@ -174,6 +397,7 @@ class PostImportService {
 			// the whole run: the account's own default, which is what their next
 			// post would be posted with
 			$instagram = ($read['format'] === self::FORMAT_INSTAGRAM);
+			$peertube = ($read['format'] === self::FORMAT_PEERTUBE);
 			$visibility = $instagram
 				? $this->accountService->getDefaultPrivacy($actor->getUserId()) : '';
 
@@ -184,8 +408,11 @@ class PostImportService {
 					continue;
 				}
 
-				$post = $instagram
-					? $this->parseInstagram($item, $visibility) : $this->parse($item);
+				$post = match (true) {
+					$instagram => $this->parseInstagram($item, $visibility),
+					$peertube => $this->parsePeerTube($item),
+					default => $this->parse($item),
+				};
 				if ($post === null) {
 					$tally['skipped']++;
 					continue;
@@ -266,6 +493,27 @@ class PostImportService {
 		$contents = null;
 
 		if ($zip !== null) {
+			// PeerTube first, because its archive also holds an
+			// `activity-pub/outbox.json` that the loop below would find — and
+			// that half names each video's file on the old server, where this
+			// one names the copy inside the archive
+			$peertube = $this->peerTubeItems($zip);
+			if ($peertube !== []) {
+				// PeerTube's export is offered with and without the video
+				// files. Without them the JSON is a catalogue: every entry
+				// names a file that is not in the archive, so the run would
+				// report "nothing imported" about an archive that is perfectly
+				// valid and simply not the one to ask for.
+				if ($this->peerTubeHasNoFiles($zip)) {
+					throw new InvalidResourceException(
+						'this PeerTube export was taken without its video files, so there is'
+						. ' nothing to bring over — ask for the export again with the videos included'
+					);
+				}
+
+				return ['format' => self::FORMAT_PEERTUBE, 'items' => $peertube];
+			}
+
 			foreach (self::OUTBOX_PATHS as $candidate) {
 				$found = $zip->getFromName($candidate);
 				if ($found !== false) {
@@ -302,6 +550,45 @@ class PostImportService {
 		}
 
 		return ['format' => self::FORMAT_ACTIVITYPUB, 'items' => array_values($items)];
+	}
+
+	/**
+	 * The videos a PeerTube export names, or `[]` when this is not one.
+	 *
+	 * Looked for by suffix rather than by exact name, like every other file in
+	 * an archive here: a zip saved by a browser and re-packed by a person is
+	 * nested under a folder of its own, and nothing above it would match.
+	 *
+	 * @return array<int, mixed>
+	 */
+	private function peerTubeItems(ZipArchive $zip): array {
+		$name = $zip->statName(self::PEERTUBE_PATH) !== false
+			? self::PEERTUBE_PATH
+			: $this->endingWith($zip, self::PEERTUBE_PATH);
+		if ($name === null) {
+			return [];
+		}
+
+		$contents = $zip->getFromName($name);
+		if ($contents === false) {
+			return [];
+		}
+
+		$decoded = json_decode($contents, true);
+		$videos = is_array($decoded) ? ($decoded['videos'] ?? null) : null;
+
+		return is_array($videos) ? array_values($videos) : [];
+	}
+
+	/** Whether a PeerTube archive carries no video file at all. */
+	private function peerTubeHasNoFiles(ZipArchive $zip): bool {
+		for ($i = 0; $i < $zip->numFiles; $i++) {
+			if (str_contains((string)$zip->getNameIndex($i), '/video-files/')) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -451,6 +738,181 @@ class PostImportService {
 			'attachments' => $attachments,
 			'hashtags' => $this->hashtags($item),
 		];
+	}
+
+	/**
+	 * One video out of a PeerTube export.
+	 *
+	 * The shape is the same one every other reader produces, plus a `video`
+	 * key: a video has a title, a running time, a category and a licence, and
+	 * an import that dropped all of that would turn a video page into a post
+	 * with a rectangle in it.
+	 *
+	 * Three things are refused rather than translated:
+	 *
+	 * - **A private, internal or password-protected video.** Each is one its
+	 *   author decided not to publish; an importer that made it public would
+	 *   be undoing that decision, and there is no audience here that means
+	 *   "the people who had the password".
+	 * - **A live.** There is no recording to bring over unless one was saved,
+	 *   in which case the saved replay is a video of its own and is exported
+	 *   as one.
+	 * - **A video with no file in the archive.** The export is asked for
+	 *   `withVideoFiles`, and one taken without them is a catalogue: importing
+	 *   it would write a page per video with nothing to play, which is worse
+	 *   than importing nothing.
+	 *
+	 * @param array<string, mixed> $item one entry of `peertube/videos.json`
+	 * @return array<string, mixed>|null
+	 */
+	private function parsePeerTube(array $item): ?array {
+		$visibility = self::PEERTUBE_PRIVACY[(int)($item['privacy'] ?? 0)] ?? '';
+		if ($visibility === '' || ($item['isLive'] ?? false) === true) {
+			return null;
+		}
+
+		$file = $this->peerTubeFile($item);
+		if ($file === '') {
+			return null;
+		}
+
+		$source = (string)($item['url'] ?? '');
+		if ($source === '') {
+			// an export from an instance that did not state it: the uuid is
+			// what the archive keys everything else on, and is what makes a
+			// second run of the same archive a no-op
+			$uuid = (string)($item['uuid'] ?? '');
+			if ($uuid === '') {
+				return null;
+			}
+			$source = 'urn:peertube:' . $uuid;
+		}
+
+		$title = trim((string)($item['name'] ?? ''));
+		$description = trim((string)($item['description'] ?? ''));
+
+		// the title leads, because that is where this app keeps a video's name
+		// and what `PeerTubeService` reads back out when it publishes one
+		$text = trim($title . (($description === '') ? '' : "\n\n" . $description));
+		if ($text === '') {
+			$text = $title;
+		}
+
+		$published = strtotime(
+			(string)($item['originallyPublishedAt'] ?? '') ?: (string)($item['publishedAt'] ?? '')
+		);
+
+		return [
+			'source' => $source,
+			'text' => $text,
+			'published' => ($published === false || $published <= 0) ? time() : $published,
+			'visibility' => $visibility,
+			'sensitive' => (bool)($item['nsfw'] ?? false),
+			'spoiler' => '',
+			'language' => $this->peerTubeLabel($item['language'] ?? null),
+			'replyTo' => '',
+			'attachments' => [['url' => $file, 'name' => $title]],
+			'hashtags' => $this->peerTubeTags($item),
+			'video' => $this->peerTubeMeta($item, $title),
+		];
+	}
+
+	/**
+	 * Where the video's own file is inside the archive.
+	 *
+	 * `archiveFiles.videoFile` is written relative to `peertube/`, so it
+	 * arrives as `../files/videos/video-files/<uuid>.mp4`; the `..` is
+	 * resolved here rather than left for the suffix match, which would
+	 * otherwise be looking for a path that begins with a segment no entry has.
+	 *
+	 * @param array<string, mixed> $item
+	 */
+	private function peerTubeFile(array $item): string {
+		$files = $item['archiveFiles'] ?? null;
+		$path = is_array($files) ? trim((string)($files['videoFile'] ?? '')) : '';
+		if ($path === '') {
+			return '';
+		}
+
+		$parts = [];
+		foreach (explode('/', str_replace('\\', '/', $path)) as $segment) {
+			if ($segment === '' || $segment === '.') {
+				continue;
+			}
+			if ($segment === '..') {
+				array_pop($parts);
+				continue;
+			}
+			$parts[] = $segment;
+		}
+
+		return implode('/', $parts);
+	}
+
+	/**
+	 * What this app keeps about a video, out of what PeerTube exported.
+	 *
+	 * The same shape `PeerTubeService::videoMeta()` builds from the wire, so
+	 * an imported video and a federated one are the same kind of thing to
+	 * everything downstream — including the publisher, which reads it back to
+	 * make the `Video` this instance sends out.
+	 *
+	 * @param array<string, mixed> $item
+	 * @return array<string, mixed>
+	 */
+	private function peerTubeMeta(array $item, string $title): array {
+		$meta = array_filter([
+			'title' => $title,
+			'category' => $this->peerTubeLabel($item['category'] ?? null),
+			'licence' => $this->peerTubeLabel($item['licence'] ?? null),
+			'language' => $this->peerTubeLabel($item['language'] ?? null),
+			'support' => trim((string)($item['support'] ?? '')),
+			'originally_published_at' => trim((string)($item['originallyPublishedAt'] ?? '')),
+		], static fn (string $value): bool => $value !== '');
+
+		$duration = (int)($item['duration'] ?? 0);
+		if ($duration > 0) {
+			$meta['duration'] = $duration;
+		}
+
+		// the counters are **not** carried over. They are numbers about the
+		// old instance's readers, and a post here that arrived with four
+		// thousand views would be claiming four thousand people had watched it
+		// on this server.
+		if (($item['downloadEnabled'] ?? true) === false) {
+			$meta['download'] = false;
+		}
+
+		return $meta;
+	}
+
+	/**
+	 * PeerTube states a category, a licence and a language as `{id, label}` in
+	 * its API and as a bare id in parts of its export. The label is the only
+	 * half that means anything off its own instance.
+	 */
+	private function peerTubeLabel(mixed $value): string {
+		if (is_array($value)) {
+			return trim((string)($value['label'] ?? ''));
+		}
+
+		return is_string($value) ? trim($value) : '';
+	}
+
+	/**
+	 * @param array<string, mixed> $item
+	 * @return string[]
+	 */
+	private function peerTubeTags(array $item): array {
+		$tags = [];
+		foreach ($this->listOf($item, 'tags') as $tag) {
+			$tag = trim((string)$tag);
+			if ($tag !== '') {
+				$tags[] = $tag;
+			}
+		}
+
+		return $tags;
 	}
 
 	/**
@@ -809,6 +1271,16 @@ class PostImportService {
 
 		$this->streamService->addHashtags($note, $post['hashtags']);
 		$note->setContent($this->linkifyService->toHtml($post['text'], $note->getTags()));
+
+		// what the author said the video is: its title, how long it runs, its
+		// category and its licence. Kept because it is most of what a video
+		// *is*, and because this app reads it back out when it publishes one —
+		// an imported video therefore leaves here as the same `Video` it
+		// arrived as, rather than as a post with a rectangle in it.
+		if (($post['video'] ?? []) !== []) {
+			$note->setVideoMeta($post['video']);
+		}
+
 		$note->setSource(json_encode($note, JSON_UNESCAPED_SLASHES));
 
 		$attachments = $this->store($actor, $note, $post, $zip, $fetchMedia, $tally);

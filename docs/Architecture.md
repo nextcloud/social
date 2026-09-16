@@ -784,6 +784,45 @@ leaves out anything local: the statuses in a report about a remote account are
 that account's posts, and one of ours in the list is a reply somebody picked up
 by mistake.
 
+**Bringing a channel over** is `PostImportService`, which already read four
+networks' archives and now reads PeerTube's. Their export carries two halves of
+the same data: `activity-pub/outbox.json`, whose `Video` objects name each
+file by its address on the **old server**, and `peertube/videos.json`, whose
+`archiveFiles` name the copy **inside the archive**. The second is the one read,
+because an import that needs the server somebody is leaving to still be running
+is one that stops working exactly when it is needed — and it states the privacy
+as a number rather than leaving it to be read out of an audience, and carries
+the title, the tags, the category and the licence, which is most of what a video
+is.
+
+Three kinds are refused rather than translated. A **private, internal or
+password-protected** video is one its author decided not to publish, and there
+is no audience here that means "the people who had the password". A **live** has
+no recording to bring over; a saved replay is a video of its own and is exported
+as one. A video with **no file in the archive** would be a page with nothing to
+play — and an export taken without its video files is refused by name, because
+the JSON alone is a catalogue and the run would otherwise report "nothing
+imported" about a perfectly valid archive that was simply not the one to ask
+for. The old instance's **view, like and dislike counts are not carried over**:
+they are numbers about its readers, and a post here claiming four thousand
+people had watched it on this server would be false.
+
+**One video by its address** is the other half, as PeerTube has it: an export is
+a heavy tool for a single video, and somebody who has lost their account on the
+old server cannot take one at all while the video is still there to be fetched.
+The fetched document has to be a `Video` that **names the address it was fetched
+from**, which is the same evidence `SearchService::resolveStatus()` requires and
+is what stops a redirect substituting one video for another; the tallest
+playable file link is stored, and an HLS playlist is passed over, since storing a
+list of segments on somebody else's server and calling it a video is not an
+import. A video **already on this server** is refused — bringing a neighbour's
+post over as your own is not an import, and it is the one case the server can
+actually tell. What it cannot check is whether the video is *yours*: neither can
+PeerTube's own importer, nor the archive import, which reads a file somebody
+uploaded. What stands in for it is the same thing in both places — one
+deliberate act, rate-limited, producing an ordinary post of the account that
+asked for it, which moderation and reporting reach like any other.
+
 **Playlists** are collections. PeerTube's `Playlist` is an ordered set of a
 channel's videos with a title, a description and a visibility, which is what
 this app already calls a collection — so it is stored as one rather than given
