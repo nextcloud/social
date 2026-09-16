@@ -227,6 +227,160 @@ class PeerTubeService {
 	}
 
 	/**
+	 * Everything else a `Video` says that a `Note` has nowhere to put.
+	 *
+	 * A video is not a post with a rectangle in it. It has a category, a
+	 * licence, a language, chapters, captions, a "support the author" line and
+	 * two counters — every one of which PeerTube publishes and none of which
+	 * this app read, so a federated video arrived as a paragraph and a player
+	 * with all of that thrown away.
+	 *
+	 * Kept together in one block on the post's details rather than spread over
+	 * a dozen columns: it is local, derived data about somebody else's
+	 * document, which is what the details column is for, and a watch page wants
+	 * all of it or none.
+	 *
+	 * @param array $data the wire `Video`
+	 *
+	 * @return array<string, mixed> empty when the object says none of it
+	 */
+	public function videoMeta(array $data): array {
+		$meta = array_filter([
+			// PeerTube sends these as `{id, label}`; the label is what a reader
+			// wants and the id means nothing off its own instance
+			'category' => $this->labelOf($data['category'] ?? null),
+			'licence' => $this->labelOf($data['licence'] ?? null),
+			'language' => $this->labelOf($data['language'] ?? null),
+			'support' => trim((string)($data['support'] ?? '')),
+			'originally_published_at' => trim((string)($data['originallyPublishedAt'] ?? '')),
+		], static fn (string $value): bool => $value !== '');
+
+		foreach (['views' => 'views', 'likes' => 'likes', 'dislikes' => 'dislikes'] as $key => $field) {
+			$count = $data[$field] ?? null;
+			if (is_numeric($count)) {
+				$meta[$key] = max(0, (int)$count);
+			}
+		}
+
+		// `downloadEnabled` is the author saying whether the file may be saved.
+		// Absent means yes, which is PeerTube's own default, so only a stated
+		// refusal is recorded — an absent field must not read as one.
+		if (array_key_exists('downloadEnabled', $data)) {
+			$meta['download'] = (bool)$data['downloadEnabled'];
+		}
+
+		if (!empty($data['isLiveBroadcast'])) {
+			$meta['live'] = true;
+		}
+
+		$chapters = $this->chapters($data);
+		if ($chapters !== []) {
+			$meta['chapters'] = $chapters;
+		}
+
+		$captions = $this->captions($data);
+		if ($captions !== []) {
+			$meta['captions'] = $captions;
+		}
+
+		return $meta;
+	}
+
+	/**
+	 * A field PeerTube sends as `{id, label}`, as the label — or as itself
+	 * where an instance sends a bare string.
+	 */
+	private function labelOf(mixed $value): string {
+		if (is_string($value)) {
+			return trim($value);
+		}
+
+		if (is_array($value)) {
+			return trim((string)($value['label'] ?? $value['identifier'] ?? ''));
+		}
+
+		return '';
+	}
+
+	/**
+	 * The chapters of a video, from FEP-6f7d's `hasParts`.
+	 *
+	 * A chapter is a name and a moment, which is all a seek list needs. The
+	 * offsets are seconds; anything that is not a number is not a chapter.
+	 *
+	 * @return array<int, array{title: string, start: int}>
+	 */
+	private function chapters(array $data): array {
+		$parts = $data['hasParts'] ?? $data['hasPart'] ?? null;
+		if (is_array($parts) && isset($parts['orderedItems'])) {
+			$parts = $parts['orderedItems'];
+		}
+
+		$chapters = [];
+		foreach ($this->asList($parts) as $part) {
+			if (!is_array($part)) {
+				continue;
+			}
+
+			$title = trim((string)($part['name'] ?? ''));
+			$start = $part['startOffset'] ?? null;
+			if ($title === '' || !is_numeric($start)) {
+				continue;
+			}
+
+			$chapters[] = ['title' => mb_substr($title, 0, 200), 'start' => max(0, (int)$start)];
+		}
+
+		usort($chapters, static fn (array $a, array $b): int => $a['start'] <=> $b['start']);
+
+		return array_slice($chapters, 0, 200);
+	}
+
+	/**
+	 * The subtitle tracks a video publishes.
+	 *
+	 * PeerTube hangs them off `url` as `text/vtt` links carrying the language,
+	 * which is the only place they are actually addressable — `subtitleLanguage`
+	 * on its own names languages with nothing to fetch for them.
+	 *
+	 * @return array<int, array{language: string, url: string}>
+	 */
+	private function captions(array $data): array {
+		$languages = [];
+		foreach ($this->asList($data['subtitleLanguage'] ?? null) as $entry) {
+			$id = is_array($entry) ? (string)($entry['identifier'] ?? $entry['id'] ?? '') : (string)$entry;
+			$url = is_array($entry) ? (string)($entry['url'] ?? '') : '';
+			if ($id !== '' && $url !== '' && $this->isHttp($url)) {
+				$languages[] = ['language' => mb_substr($id, 0, 15), 'url' => $url];
+			}
+		}
+
+		foreach ($this->links($data) as $link) {
+			if ($link['mediaType'] !== 'text/vtt') {
+				continue;
+			}
+
+			$languages[] = [
+				'language' => mb_substr($link['language'], 0, 15),
+				'url' => $link['href'],
+			];
+		}
+
+		$seen = [];
+		$captions = [];
+		foreach ($languages as $caption) {
+			if ($caption['url'] === '' || isset($seen[$caption['url']])) {
+				continue;
+			}
+
+			$seen[$caption['url']] = true;
+			$captions[] = $caption;
+		}
+
+		return array_slice($captions, 0, 40);
+	}
+
+	/**
 	 * Who published it.
 	 *
 	 * PeerTube sends `attributedTo` as a list of two actors -- the channel, a
@@ -382,7 +536,7 @@ class PeerTubeService {
 	 * that Chrome and Firefox cannot open must never be preferred over an mp4
 	 * that they can.
 	 *
-	 * @param array<int, array{href: string, mediaType: string, width: int, height: int}> $links
+	 * @param array<int, array{href: string, mediaType: string, width: int, height: int, language: string}> $links
 	 */
 	private function bestSource(array $links): ?array {
 		$best = null;
@@ -428,7 +582,7 @@ class PeerTubeService {
 	 *
 	 * @param int $depth guards against a `tag` that refers back to its own link
 	 *
-	 * @return array<int, array{href: string, mediaType: string, width: int, height: int}>
+	 * @return array<int, array{href: string, mediaType: string, width: int, height: int, language: string}>
 	 */
 	private function links(array $data, string $key = 'url', int $depth = 0): array {
 		if ($depth > self::MAX_LINK_DEPTH) {
@@ -467,6 +621,11 @@ class PeerTubeService {
 				'mediaType' => (string)($link['mediaType'] ?? ''),
 				'width' => (int)($link['width'] ?? 0),
 				'height' => (int)($link['height'] ?? 0),
+				// a caption link says which language it is in, and nothing
+				// else in the list has one
+				'language' => is_array($link['language'] ?? null)
+					? (string)($link['language']['identifier'] ?? '')
+					: (string)($link['language'] ?? ''),
 			];
 		}
 

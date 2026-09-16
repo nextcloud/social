@@ -117,6 +117,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * fact is a property of the wire object this instance holds, and the second
 	 * one is about somebody else's document entirely.
 	 */
+	/**
+	 * Everything a `Video` says that a `Note` has nowhere to put: the category,
+	 * the licence, the language, the chapters, the captions, the counters and
+	 * the author's support line.
+	 *
+	 * One block rather than a dozen columns, because it is local derived data
+	 * about somebody else's document — which is what this column is for — and
+	 * because a watch page wants all of it or none of it.
+	 */
+	public const DETAIL_VIDEO = 'video';
+
 	public const DETAIL_REPLY_POLICY = 'reply_policy';
 	public const DETAIL_REPLY_STATE = 'reply_state';
 
@@ -649,6 +660,27 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	public function setQuoteState(string $state): self {
 		$this->setDetail(self::DETAIL_QUOTE_STATE, $state);
+
+		return $this;
+	}
+
+	/**
+	 * What a `Video` said beyond what a post can hold, or `[]` for every post
+	 * that is not one.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function getVideoMeta(): array {
+		$meta = $this->getDetailsAll()[self::DETAIL_VIDEO] ?? [];
+
+		return is_array($meta) ? $meta : [];
+	}
+
+	/**
+	 * @param array<string, mixed> $meta
+	 */
+	public function setVideoMeta(array $meta): self {
+		$this->setDetailArray(self::DETAIL_VIDEO, $meta);
 
 		return $this;
 	}
@@ -1469,6 +1501,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// test for a key it will almost never see is a client that will
 			// get it wrong.
 			'reply_approval' => $this->exportReplyApproval(),
+			// what a video is, beyond being a post with a file on it: null for
+			// every post that is not one, which is almost all of them
+			'video' => ($video = $this->getVideoMeta()) === [] ? null : $video,
 			'mentions' => $this->exportMentionsAsLocal(),
 			'emojis' => $this->getEmojis(),
 			'tags' => $this->exportTagsAsLocal(),

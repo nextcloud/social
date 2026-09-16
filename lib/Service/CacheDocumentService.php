@@ -746,6 +746,32 @@ class CacheDocumentService {
 		return $this->curlService->openStream($url, $headers);
 	}
 
+	/**
+	 * A remote file read whole, up to a ceiling.
+	 *
+	 * For the one thing this app fetches from a streamed document rather than
+	 * passing on: an HLS playlist, which is text, is kilobytes, and has to be
+	 * rewritten before a player sees it. The ceiling is what stops a server
+	 * that answers a `.m3u8` with a film from being read into memory.
+	 *
+	 * @throws RequestServerException
+	 */
+	public function readRemoteFile(Document $document, int $max): string {
+		$opened = $this->openRemoteFile($document);
+		$body = stream_get_contents($opened['stream'], $max + 1);
+		fclose($opened['stream']);
+
+		if ($body === false) {
+			throw new RequestServerException('could not read the file');
+		}
+
+		if (strlen($body) > $max) {
+			throw new RequestServerException('that file is larger than a playlist should be');
+		}
+
+		return $body;
+	}
+
 	public function retrieveContent(string $url): string {
 		$parsed = parse_url($url);
 		if (!is_array($parsed)) {

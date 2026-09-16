@@ -20,15 +20,26 @@
 		     reader is choosing from. -->
 		<video
 			v-if="attachment !== null && attachment.type === 'video'"
+			ref="video"
 			class="attachment__preview"
-			:src="interactive ? attachment.url : undefined"
+			:src="plainSource"
 			:poster="poster"
 			:aria-label="attachment.description || ''"
 			:controls="interactive"
 			:preload="interactive ? preload : 'none'"
 			playsinline
 			@click="onMediaClick"
-			@loadedmetadata="previewLoaded = true" />
+			@loadedmetadata="previewLoaded = true">
+			<!-- the subtitle tracks the video published, which PeerTube hangs
+			     off its `url` list and nothing here used to read -->
+			<track
+				v-for="caption in captions"
+				:key="caption.url"
+				kind="subtitles"
+				:src="caption.url"
+				:srclang="caption.language"
+				:label="caption.language || t('social', 'Subtitles')">
+		</video>
 		<audio
 			v-else-if="attachment !== null && attachment.type === 'audio'"
 			class="attachment__audio"
@@ -84,7 +95,7 @@
 
 <script>
 import { decode } from 'blurhash'
-import { translate } from '@nextcloud/l10n'
+import { translate, translate as t } from '@nextcloud/l10n'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import ImageOff from 'vue-material-design-icons/ImageOff.vue'
@@ -117,6 +128,19 @@ export default {
 			type: Boolean,
 			default: true,
 		},
+
+		/**
+		 * What the post said about the video beyond the file: its captions and
+		 * whether it is live. Passed in rather than read off the attachment,
+		 * because it is a fact about the *post* — one `Video` object, one set
+		 * of subtitles — and the attachment is only its file.
+		 *
+		 * @type {import('vue').PropType<object|null>}
+		 */
+		video: {
+			type: Object,
+			default: null,
+		},
 	},
 
 	emits: ['click'],
@@ -125,10 +149,51 @@ export default {
 		return {
 			previewLoaded: false,
 			previewFailed: false,
+			/** the hls.js player, where one was needed; not reactive */
+			hls: null,
 		}
 	},
 
 	computed: {
+		/**
+		 * The subtitle tracks the video published, if any.
+		 *
+		 * @return {Array<{language: string, url: string}>}
+		 */
+		captions() {
+			return Array.isArray(this.video?.captions) ? this.video.captions : []
+		},
+
+		/**
+		 * Whether this needs hls.js rather than a `src` a browser can open.
+		 *
+		 * A PeerTube transcoding to HLS — its default — publishes a `.m3u8`
+		 * playlist and nothing else, which Safari plays natively and no other
+		 * browser opens at all. Until this, those videos showed a poster and a
+		 * player that did nothing.
+		 *
+		 * @return {boolean}
+		 */
+		isPlaylist() {
+			const type = (this.attachment?.media_type || '').toLowerCase()
+
+			return type === 'application/x-mpegurl' || type === 'application/vnd.apple.mpegurl'
+		},
+
+		/**
+		 * The `src` the element itself carries — empty for a playlist, which is
+		 * handed to the element by hls.js instead.
+		 *
+		 * @return {string|undefined}
+		 */
+		plainSource() {
+			if (!this.interactive || this.isPlaylist) {
+				return undefined
+			}
+
+			return this.attachment.url
+		},
+
 		/** @return {boolean} */
 		isAv() {
 			return this.attachment?.type === 'video' || this.attachment?.type === 'audio'
@@ -235,14 +300,86 @@ export default {
 			this.previewLoaded = false
 			this.previewFailed = false
 			this.drawBlurhash()
+			this.attachPlaylist()
 		},
 	},
 
 	mounted() {
 		this.drawBlurhash()
+		this.attachPlaylist()
+	},
+
+	beforeUnmount() {
+		this.detachPlaylist()
 	},
 
 	methods: {
+		t,
+
+		/**
+		 * Points the element at an HLS playlist, through hls.js where the
+		 * browser cannot open one itself.
+		 *
+		 * Safari plays a `.m3u8` natively and nothing else does, so everywhere
+		 * else the library is fetched — **lazily**, the first time somebody
+		 * actually opens such a video, because it is a few hundred kilobytes
+		 * and almost every post is not a video at all.
+		 *
+		 * The playlist it is given is the proxied one: a playlist names its
+		 * segments relative to itself, so pointing the player at the origin's
+		 * copy would have every segment fetched from there — the very thing
+		 * the media proxy exists to prevent.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async attachPlaylist() {
+			this.detachPlaylist()
+
+			if (!this.interactive || !this.isPlaylist) {
+				return
+			}
+
+			const element = this.$refs.video
+			const source = this.attachment.url
+			if (!element || !source) {
+				return
+			}
+
+			if (element.canPlayType('application/vnd.apple.mpegurl')) {
+				element.src = source
+
+				return
+			}
+
+			try {
+				const { default: Hls } = await import(/* webpackChunkName: "hls" */'hls.js')
+				if (!Hls.isSupported()) {
+					return
+				}
+
+				// the component may have been torn down while the library was
+				// being fetched; attaching then would leak a player nobody can
+				// reach
+				if (this.$refs.video !== element) {
+					return
+				}
+
+				this.hls = new Hls({ enableWorker: false })
+				this.hls.loadSource(source)
+				this.hls.attachMedia(element)
+			} catch (error) {
+				logger.error('could not start an HLS video', { error })
+			}
+		},
+
+		/** Lets go of the player, which otherwise goes on fetching segments. */
+		detachPlaylist() {
+			if (this.hls) {
+				this.hls.destroy()
+				this.hls = null
+			}
+		},
+
 		/**
 		 * A press on the player itself.
 		 *

@@ -373,6 +373,9 @@ class DocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
+	/** A playlist is text and is read whole; this is the ceiling on that. */
+	private const MAX_PLAYLIST = 2 * 1024 * 1024;
+
 	public function openStreamed(int $nid, string $range = ''): array {
 		if ($nid < 1) {
 			throw new NotFoundException('invalid document');
@@ -391,6 +394,166 @@ class DocumentService {
 		$opened = $this->cacheService->openRemoteFile($document, $range);
 
 		return array_merge(['document' => $document], $opened);
+	}
+
+	/**
+	 * An HLS playlist, with every URI in it pointed back through this server.
+	 *
+	 * A PeerTube transcoding to HLS — the default, and what a public instance
+	 * federates — publishes a `.m3u8` and nothing a browser other than Safari
+	 * can open. hls.js fixes the browser half; this fixes the privacy half.
+	 * A playlist names its segments **relative to itself**, so handing one to a
+	 * player verbatim would have every segment fetched straight from the
+	 * origin — which is exactly the thing the byte proxy exists to prevent, and
+	 * worse, because it is one request per few seconds of video.
+	 *
+	 * So the playlist is read whole (they are kilobytes), every URI in it is
+	 * rewritten to `/media/hls/{nid}?u=…`, and the segments come back through
+	 * the same proxy. A nested playlist — the master listing one per
+	 * resolution — is rewritten the same way and its children are playlists
+	 * again, which is why the rewrite is on URIs rather than on file
+	 * extensions.
+	 *
+	 * @return array{document: Document, playlist: string}
+	 * @throws NotFoundException
+	 */
+	public function openPlaylist(int $nid, callable $proxyUrl): array {
+		$document = $this->openStreamed($nid)['document'];
+		if (!self::isPlaylist($document->getMediaType())) {
+			throw new NotFoundException('document is not a playlist');
+		}
+
+		$body = $this->cacheService->readRemoteFile($document, self::MAX_PLAYLIST);
+
+		return [
+			'document' => $document,
+			'playlist' => $this->rewritePlaylist($body, $document->getUrl(), $proxyUrl),
+		];
+	}
+
+	/**
+	 * One file out of a playlist, fetched from the origin and streamed on.
+	 *
+	 * The url is **not** trusted from the caller: it has to be on the same host
+	 * as the playlist the nid names, which is what keeps this from being a
+	 * proxy for the whole internet with a server behind it. That is the same
+	 * property `openStreamed()` has by taking a row id rather than a url, one
+	 * level further in.
+	 *
+	 * @return array{type: string, stream: resource, status: int, headers: array}
+	 * @throws NotFoundException
+	 */
+	public function openPlaylistFile(int $nid, string $url, string $range = ''): array {
+		$document = $this->openStreamed($nid)['document'];
+		if (!self::isPlaylist($document->getMediaType())) {
+			throw new NotFoundException('document is not a playlist');
+		}
+
+		if (!$this->sameOrigin($document->getUrl(), $url)) {
+			throw new NotFoundException('that file is not part of this playlist');
+		}
+
+		$segment = new Document();
+		$segment->setUrl($url);
+		$segment->setMediaType($this->playlistPartType($url));
+		$segment->setLocalCopy(Document::COPY_STREAMED);
+
+		return array_merge(
+			['type' => $segment->getMediaType()],
+			$this->cacheService->openRemoteFile($segment, $range)
+		);
+	}
+
+	/** Whether a media type is one of the two spellings of an HLS playlist. */
+	public static function isPlaylist(string $mediaType): bool {
+		return in_array(
+			strtolower($mediaType),
+			['application/x-mpegurl', 'application/vnd.apple.mpegurl'],
+			true
+		);
+	}
+
+	/**
+	 * Every URI in a playlist, pointed back through this server.
+	 *
+	 * A line that is not a comment is a URI; a comment that carries one does so
+	 * in a `URI="…"` attribute (the keys and the encryption keys among them).
+	 * Both are rewritten, because a player follows both.
+	 *
+	 * @param callable(string): string $proxyUrl
+	 */
+	private function rewritePlaylist(string $body, string $base, callable $proxyUrl): string {
+		$lines = [];
+		foreach (preg_split('/\R/', $body) ?: [] as $line) {
+			$trimmed = trim($line);
+
+			if ($trimmed === '') {
+				$lines[] = $line;
+				continue;
+			}
+
+			if ($trimmed[0] === '#') {
+				$lines[] = (string)preg_replace_callback(
+					'/URI="([^"]+)"/',
+					fn (array $m): string => 'URI="' . $proxyUrl($this->absolute($m[1], $base)) . '"',
+					$line
+				);
+				continue;
+			}
+
+			$lines[] = $proxyUrl($this->absolute($trimmed, $base));
+		}
+
+		return implode("\n", $lines);
+	}
+
+	/** A URI in a playlist, against the playlist's own address. */
+	private function absolute(string $uri, string $base): string {
+		if (str_starts_with($uri, 'http://') || str_starts_with($uri, 'https://')) {
+			return $uri;
+		}
+
+		$parts = parse_url($base);
+		$root = ($parts['scheme'] ?? 'https') . '://' . ($parts['host'] ?? '')
+			. (isset($parts['port']) ? ':' . $parts['port'] : '');
+
+		if (str_starts_with($uri, '/')) {
+			return $root . $uri;
+		}
+
+		$path = $parts['path'] ?? '/';
+
+		return $root . substr($path, 0, (int)strrpos($path, '/') + 1) . $uri;
+	}
+
+	/** Whether two addresses are on the same host, scheme and port. */
+	private function sameOrigin(string $one, string $other): bool {
+		$a = parse_url($one);
+		$b = parse_url($other);
+
+		return $a !== false && $b !== false
+			&& ($a['host'] ?? null) !== null
+			&& strcasecmp($a['host'] ?? '', $b['host'] ?? '') === 0
+			&& ($a['scheme'] ?? '') === ($b['scheme'] ?? '')
+			&& ($a['port'] ?? null) === ($b['port'] ?? null);
+	}
+
+	/**
+	 * What a file inside a playlist is, by its name.
+	 *
+	 * Stated rather than sniffed, and narrow: these are the only four things a
+	 * playlist ever points at, and a player is handed a type it can act on
+	 * rather than one it has to guess.
+	 */
+	private function playlistPartType(string $url): string {
+		$path = strtolower((string)parse_url($url, PHP_URL_PATH));
+
+		return match (true) {
+			str_ends_with($path, '.m3u8') => 'application/x-mpegURL',
+			str_ends_with($path, '.m4s'), str_ends_with($path, '.mp4') => 'video/mp4',
+			str_ends_with($path, '.ts') => 'video/mp2t',
+			default => 'application/octet-stream',
+		};
 	}
 
 	/**

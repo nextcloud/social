@@ -40,6 +40,7 @@ use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Interfaces\Object\PlaylistInterface;
 use OCA\Social\Interfaces\Object\StoryInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
@@ -72,6 +73,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Playlist;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Object\Story;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
@@ -152,6 +154,7 @@ class AP {
 		public ConfigService $configService,
 		public ApproveReplyInterface $approveReplyInterface,
 		public DislikeInterface $dislikeInterface,
+		public PlaylistInterface $playlistInterface,
 		public PeerTubeService $peerTubeService,
 	) {
 	}
@@ -333,6 +336,14 @@ class AP {
 			$item->setReplyPolicy(Stream::REPLY_POLICY_APPROVAL);
 		}
 
+		// everything else the object says that a `Note` has nowhere to put —
+		// the category, the licence, the chapters, the captions, the counters.
+		// A video is not a post with a rectangle in it.
+		$meta = $this->peerTubeService->videoMeta($data);
+		if ($meta !== []) {
+			$item->setVideoMeta($meta);
+		}
+
 		$attachments = $this->peerTubeService->attachments($data, $item);
 		if ($attachments !== []) {
 			$item->setAttachments($attachments);
@@ -359,6 +370,10 @@ class AP {
 
 			case Dislike::TYPE:
 				$item = new Dislike();
+				break;
+
+			case Playlist::TYPE:
+				$item = new Playlist();
 				break;
 
 			case StoryReaction::TYPE:
@@ -516,6 +531,8 @@ class AP {
 				return $this->approveReplyInterface;
 			case Dislike::TYPE:
 				return $this->dislikeInterface;
+			case Playlist::TYPE:
+				return $this->playlistInterface;
 			case Announce::TYPE:
 				return $this->announceInterface;
 			case Block::TYPE:

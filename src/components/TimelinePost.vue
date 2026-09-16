@@ -187,6 +187,7 @@
 				v-if="mediaRevealed"
 				mediaFirst
 				:to="mediaRoute"
+				:video="item.video"
 				:attachments="item.media_attachments || []" />
 			<div v-else class="post-sensitive post-sensitive--leading">
 				<NcButton
@@ -223,6 +224,7 @@
 			<PostAttachment
 				v-if="hasAttachments && !mediaLeads"
 				:to="mediaRoute"
+				:video="item.video"
 				:attachments="item.media_attachments || []" />
 			<PostCard v-if="showCard" :card="item.card" />
 		</template>

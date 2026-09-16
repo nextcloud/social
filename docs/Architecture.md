@@ -155,6 +155,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_trend_review` | What a moderator has decided about something that is trending: one row per rejected (or approved) tag, link or status |
 | `social_relay` | The relays this instance subscribes to: one row per subscription, with the `Follow` it sent, the inbox to deliver to and whether the relay answered |
 | `social_channel` | The `Group` actors an account publishes videos under: one row per channel, binding it to the account that owns it |
+
 | `social_quote_grant` | The permissions this instance has given out to quote its posts: one row per (quoted post, quoting post), with the `QuoteRequest` it answered so the grant can be taken back |
 | `social_team` | The accounts a Nextcloud group posts from: one row per team account, bound to the group whose members may speak as it |
 | `social_team_post` | Who actually wrote each post from a team account: one row per post, shown to the team and to moderators |
@@ -617,6 +618,30 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   viewer) and one press of play is not a second view. An instance whose readers
   watch without ever saying so is a freeloader on everybody else's counters.
 
+- **Everything else the object says.** A video is not a post with a rectangle
+  in it: it has a category, a licence, a language, chapters (FEP-6f7d's
+  `hasParts`), subtitle tracks, a "support the author" line, `downloadEnabled`
+  and three counters. None of it was read, so a federated video arrived as a
+  paragraph and a player with all of that thrown away. It is kept together in
+  one block on the post's details (`Stream::DETAIL_VIDEO`) rather than spread
+  over a dozen columns — it is local, derived data about somebody else's
+  document, and a watch page wants all of it or none — and reaches a client as
+  `video` on the status, null for every post that is not one. The `{id, label}`
+  pairs PeerTube sends are read as their **label**: the id means nothing off
+  its own instance. An absent `downloadEnabled` is PeerTube's own default of
+  "yes", so only a stated refusal is recorded.
+- **HLS.** An instance transcoding to HLS — the default — publishes an `.m3u8`
+  that only Safari opens, so those videos showed a poster and a player that did
+  nothing. The client now loads **hls.js**, lazily and only when such a video is
+  actually opened, because it is a few hundred kilobytes and almost every post
+  is not a video. The playlist it is given is the **proxied** one
+  (`/media/playlist/{nid}`): a playlist names its segments relative to itself,
+  so pointing a player at the origin's copy would have every segment fetched
+  from there — the very thing the byte proxy exists to prevent, and worse, at
+  one request per few seconds of video. Both plain URI lines and `URI="…"`
+  attributes are rewritten, because a player follows both, and the segment
+  route refuses any address that is not on the playlist's own host.
+
 A pasted **watch page** resolves too. `SearchService::resolveStatus()` accepted
 `Note` and `Question` only, so a PeerTube address found nothing at all —
 although the very same object would have been stored had it arrived by
@@ -626,6 +651,18 @@ a post is. It now accepts every `AP::NOTE_LIKE_TYPES`. A PeerTube watch page is
 *not* the object's id, so the "a document is only evidence about itself" rule
 is satisfied one level in: the document is trusted when it names the address it
 was fetched from among its own `url` links.
+
+**Playlists** are collections. PeerTube's `Playlist` is an ordered set of a
+channel's videos with a title, a description and a visibility, which is what
+this app already calls a collection — so it is stored as one rather than given
+a table of its own, and appears as a tab on the channel's profile. **Read-only
+and rebuilt**: it is somebody else's document and the document is the whole
+truth about it, so what arrives replaces what was there — which is the only way
+a video *removed* from a playlist can leave this copy. Only videos this
+instance already holds go in one: a playlist naming forty videos nobody here
+has seen is not a reason to fetch forty videos, and it fills in as the rest
+arrives by following the channel. A playlist of nothing we hold is not stored
+at all, because an empty page with a title on it is worse than nothing.
 
 A document arriving a **second** time — a redelivery, an `Update` of the post it
 hangs off — describes a file on somebody else's server and knows nothing about

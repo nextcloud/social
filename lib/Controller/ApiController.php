@@ -107,6 +107,7 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
@@ -1844,6 +1845,94 @@ class ApiController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
 			$this->logger->warning('issues while mediaStream', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
+		}
+	}
+
+	/**
+	 * An HLS playlist, with every URI in it pointed back through this server.
+	 *
+	 * A PeerTube transcoding to HLS — the default, and what a public instance
+	 * federates — publishes a `.m3u8` and nothing but Safari can open one. So
+	 * the client loads hls.js and asks for this; without the rewrite it would
+	 * then fetch every segment straight from the origin, which is the very
+	 * thing `mediaStream()` exists to prevent, and worse, because it is one
+	 * request per few seconds of video.
+	 *
+	 * Unauthenticated for the same reason the other two media routes are: it is
+	 * a media url handed out with the post it belongs to, and it takes a row id
+	 * rather than a url.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/playlist/{nid}')]
+	public function mediaPlaylist(int $nid): Response {
+		try {
+			$opened = $this->documentService->openPlaylist(
+				$nid,
+				fn (string $url): string => $this->urlGenerator->linkToRouteAbsolute(
+					'social.Api.mediaPlaylistFile', ['nid' => $nid, 'u' => $url]
+				)
+			);
+
+			$response = new DataDisplayResponse($opened['playlist'], Http::STATUS_OK, [
+				'Content-Type' => 'application/vnd.apple.mpegurl',
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				'X-Content-Type-Options' => 'nosniff',
+			]);
+
+			return $response;
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaPlaylist', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
+		}
+	}
+
+	/**
+	 * One file out of such a playlist — a segment, a key, or a nested playlist.
+	 *
+	 * The url is **not** trusted from the caller: it has to be on the same host
+	 * as the playlist the nid names. That is the same property `mediaStream()`
+	 * has by taking a row id rather than a url, one level further in, and it is
+	 * what keeps this from being a proxy for the whole internet.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	// a segment is a few seconds of video, so a film is hundreds of them
+	#[AnonRateLimit(limit: 600, period: 60)]
+	#[UserRateLimit(limit: 3000, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/playlist/{nid}/file')]
+	public function mediaPlaylistFile(int $nid, string $u = ''): Response {
+		try {
+			$opened = $this->documentService->openPlaylistFile(
+				$nid, $u, $this->request->getHeader('Range')
+			);
+
+			$headers = [
+				'Content-Type' => (string)($opened['type'] ?? 'application/octet-stream'),
+				'Accept-Ranges' => 'bytes',
+				'Cache-Control' => 'private, max-age=' . self::MEDIA_CACHE_SECONDS,
+				'X-Content-Type-Options' => 'nosniff',
+			];
+
+			foreach (['Content-Length', 'Content-Range'] as $header) {
+				$value = $opened['headers'][$header] ?? $opened['headers'][strtolower($header)] ?? [];
+				if ($value !== []) {
+					$headers[$header] = (string)$value[0];
+				}
+			}
+
+			return new StreamedRemoteResponse($opened['stream'], $opened['status'], $headers);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaPlaylistFile', ['exception' => $e]);
 
 			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
 		}
