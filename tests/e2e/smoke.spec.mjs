@@ -44,6 +44,119 @@ test.describe('Social, in a browser', () => {
 		await expect(page.locator('.social__timeline article').filter({ hasText: text }).first()).toBeVisible()
 	})
 
+	/**
+	 * The box opens on a click and stays open for as long as it holds
+	 * anything — so before the close button, a reader who had typed a word and
+	 * changed their mind had to delete the word to get their feed back. Closing
+	 * it keeps the word: what was asked for is the feed, not a blank page.
+	 */
+	test('the composer in the feed closes without losing what was written', async ({ page }) => {
+		await openApp(page)
+
+		const composer = page.locator('.social__wrapper .new-post').first()
+		await composer.locator('.message').click()
+		await page.keyboard.type('half a thought')
+		await expect(composer).not.toHaveClass(/new-post--collapsed/)
+
+		await composer.getByRole('button', { name: 'Close the composer' }).click()
+		await expect(composer).toHaveClass(/new-post--collapsed/)
+		await expect(composer.locator('.message')).toHaveText('half a thought')
+
+		// and it is all still there when the box is asked for again
+		await composer.locator('.message').click()
+		await expect(composer).not.toHaveClass(/new-post--collapsed/)
+		await expect(composer.locator('.message')).toHaveText('half a thought')
+
+		// down to the next visit to the page, which is what the draft is for
+		await openApp(page)
+		await expect(page.locator('.social__wrapper .new-post .message').first())
+			.toHaveText('half a thought')
+
+		// leave the feed as it was found
+		await page.locator('.social__wrapper .new-post .message').first().click()
+		await page.keyboard.press('ControlOrMeta+A')
+		await page.keyboard.press('Backspace')
+	})
+
+	/**
+	 * Each was opened by a button in the toolbar and could be shut only by
+	 * finding that same button and pressing it again — a row further down, and
+	 * a thing to work out rather than to see.
+	 */
+	test('each composer panel closes from itself', async ({ page }) => {
+		await openApp(page)
+		const composer = page.locator('.social__wrapper .new-post').first()
+		await composer.locator('.message').click()
+
+		await composer.getByRole('button', { name: 'Add poll' }).click()
+		await expect(composer.locator('.poll-editor')).toBeVisible()
+		await composer.locator('.poll-editor__remove').click()
+		await expect(composer.locator('.poll-editor')).toBeHidden()
+
+		await composer.getByRole('button', { name: 'Add content warning' }).click()
+		await composer.locator('.content-warning').fill('spoilers')
+		await composer.locator('.content-warning-row__remove').click()
+		await expect(composer.locator('.content-warning')).toBeHidden()
+
+		await composer.getByRole('button', { name: 'Preview this post' }).click()
+		await expect(composer.locator('.composer-preview')).toBeVisible()
+		await composer.locator('.composer-preview__close').click()
+		await expect(composer.locator('.composer-preview')).toBeHidden()
+
+		// and the box itself still closes, with nothing left behind in it
+		await composer.getByRole('button', { name: 'Close the composer' }).click()
+		await expect(composer).toHaveClass(/new-post--collapsed/)
+	})
+
+	/**
+	 * The picker was rendered inside the toolbar row, which hides its
+	 * overflow: the suggestions and the country box under them were cut off,
+	 * so a place the instance had not seen before could not be named at all.
+	 */
+	test('the place picker has room for the box that names a new place', async ({ page }) => {
+		await openApp(page)
+		const composer = page.locator('.social__wrapper .new-post').first()
+		await composer.locator('.message').click()
+		await composer.getByRole('button', { name: 'Say where this was taken' }).click()
+
+		const picker = composer.locator('.place-picker')
+		await picker.locator('input').first().fill('Nowhere-on-Sea')
+		const country = picker.locator('.place-picker__country input')
+		await expect(country).toBeInViewport()
+
+		const box = await country.boundingBox()
+		const panel = await picker.boundingBox()
+		expect(box.y + box.height).toBeLessThanOrEqual(panel.y + panel.height + 1)
+
+		await picker.locator('.place-picker__close').click()
+		await expect(picker).toBeHidden()
+	})
+
+	/**
+	 * `@nextcloud/dialogs` renders no confirm button unless the builder is
+	 * given one, so a file could be selected and there was nothing to press.
+	 */
+	test('the Files dialog has a button to confirm the pick', async ({ page }) => {
+		await openApp(page)
+		const composer = page.locator('.social__wrapper .new-post').first()
+		await composer.locator('.message').click()
+		await composer.getByRole('button', { name: 'Add from Files' }).click()
+
+		const dialog = page.getByRole('dialog')
+		await expect(dialog.getByRole('button', { name: 'Attach' })).toBeVisible()
+		await page.keyboard.press('Escape')
+	})
+
+	/** Reference at the end, and the one thing that cannot be undone last. */
+	test('the settings page ends with the shortcuts above the deletion', async ({ page }) => {
+		await openApp(page, '/settings')
+		const headings = page.locator('.settings__section-heading')
+		await expect(headings.first()).toBeVisible()
+
+		expect((await headings.allInnerTexts()).slice(-3))
+			.toEqual(['Migration', 'Keyboard shortcuts', 'Delete your Social account'])
+	})
+
 	test('Discover has its sections', async ({ page }) => {
 		await openApp(page, '/discover')
 

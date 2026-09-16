@@ -4,9 +4,24 @@
 -->
 <template>
 	<div class="composer-preview" aria-live="polite">
-		<p class="composer-preview__caption">
-			{{ t('social', 'How this will read') }}
-		</p>
+		<div class="composer-preview__head">
+			<p class="composer-preview__caption">
+				{{ t('social', 'How this will read') }}
+			</p>
+			<!-- pressing the toolbar button again also closes it, which is a
+			     row further down and a thing to work out; the way out of a
+			     panel belongs on the panel -->
+			<NcButton
+				variant="tertiary"
+				class="composer-preview__close"
+				:title="t('social', 'Hide the preview')"
+				:aria-label="t('social', 'Hide the preview')"
+				@click="$emit('close')">
+				<template #icon>
+					<Close :size="18" />
+				</template>
+			</NcButton>
+		</div>
 		<div v-if="warning" class="composer-preview__warning">
 			{{ warning }}
 		</div>
@@ -36,6 +51,8 @@
 
 <script>
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
+import Close from 'vue-material-design-icons/Close.vue'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import { linkifyRuns } from '../../utils/linkify.js'
 import { tagStyle } from '../../utils/tagColour.js'
 
@@ -58,6 +75,11 @@ import { tagStyle } from '../../utils/tagColour.js'
 export default {
 	name: 'ComposerPreview',
 
+	components: {
+		Close,
+		NcButton,
+	},
+
 	props: {
 		/** the text as it has been typed */
 		text: {
@@ -71,6 +93,8 @@ export default {
 			default: '',
 		},
 	},
+
+	emits: ['close'],
 
 	computed: {
 		/**
@@ -147,12 +171,23 @@ export default {
 	background: var(--color-background-hover);
 }
 
+.composer-preview__head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+}
+
 .composer-preview__caption {
-	margin: 0 0 6px;
+	margin: 0;
 	color: var(--color-text-maxcontrast);
 	font-size: 12px;
 	text-transform: uppercase;
 	letter-spacing: .04em;
+}
+
+.composer-preview__close {
+	margin-inline-start: auto;
 }
 
 /* drawn the way a warning is drawn on a card, so the preview of a post with

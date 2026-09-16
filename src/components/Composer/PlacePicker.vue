@@ -4,6 +4,25 @@
 -->
 <template>
 	<div class="place-picker">
+		<div class="place-picker__head">
+			<span class="place-picker__title">{{ t('social', 'Place') }}</span>
+			<!-- the pin in the toolbar also closes this, and it is a row
+			     further down and a thing to work out; the way out of a panel
+			     belongs on the panel. Unlike "Remove the place" below, which
+			     clears the choice and leaves the search open, this puts the
+			     panel away — and a post with no pin pressed has no place. -->
+			<NcButton
+				variant="tertiary"
+				class="place-picker__close"
+				:title="t('social', 'Close the place picker')"
+				:ariaLabel="t('social', 'Close the place picker')"
+				@click="$emit('close')">
+				<template #icon>
+					<Close :size="18" />
+				</template>
+			</NcButton>
+		</div>
+
 		<div v-if="place" class="place-picker__chosen">
 			<MapMarkerOutline :size="18" />
 			<span class="place-picker__chosen-name">{{ label(place) }}</span>
@@ -111,7 +130,7 @@ export default {
 		},
 	},
 
-	emits: ['update:place'],
+	emits: ['update:place', 'close'],
 
 	data() {
 		return {
@@ -208,6 +227,23 @@ export default {
 	gap: 6px;
 	width: 100%;
 	margin: 6px 0;
+}
+
+.place-picker__head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.place-picker__title {
+	color: var(--color-text-maxcontrast);
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+}
+
+.place-picker__close {
+	margin-inline-start: auto;
 }
 
 .place-picker__chosen {

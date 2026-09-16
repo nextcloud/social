@@ -9,6 +9,7 @@ import { getFilePickerBuilder } from '@nextcloud/dialogs'
 import { setLanguage } from '@nextcloud/l10n'
 import { showError, showSuccess } from '../../../src/services/toast.js'
 import Composer from '../../../src/components/Composer/Composer.vue'
+import ComposerPreview from '../../../src/components/Composer/ComposerPreview.vue'
 import LanguageSelect from '../../../src/components/Composer/LanguageSelect.vue'
 import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vue'
 import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusButton.vue'
@@ -213,6 +214,7 @@ function filePicker(result) {
 		setMultiSelect: vi.fn(() => builder),
 		setMimeTypeFilter: vi.fn(() => builder),
 		allowDirectories: vi.fn(() => builder),
+		addButton: vi.fn(() => builder),
 		build: vi.fn(() => ({ pick: vi.fn(() => result) })),
 	}
 	getFilePickerBuilder.mockReturnValue(builder)
@@ -632,6 +634,163 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('closing it', () => {
+		const closeButton = (wrapper) => wrapper.find('.new-post-author__close')
+		const collapsed = (wrapper) => wrapper.find('.new-post').classes().includes('new-post--collapsed')
+		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft') ?? 'null')
+
+		it('offers no way out while there is nothing to come out of', () => {
+			const { wrapper } = mountComposer()
+
+			expect(closeButton(wrapper).exists()).toBe(false)
+		})
+
+		it('offers one as soon as the box is open', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+
+			expect(closeButton(wrapper).exists()).toBe(true)
+		})
+
+		it('closes an empty box all the way', async () => {
+			const { wrapper, store } = mountComposer()
+			await input(wrapper).trigger('focusin')
+
+			await closeButton(wrapper).trigger('click')
+
+			expect(collapsed(wrapper)).toBe(true)
+			expect(store.setComposerDisplayStatus).toHaveBeenCalledWith(false)
+		})
+
+		/**
+		 * A click elsewhere already collapses an idle composer and may do no
+		 * more than that, so before the close button the only way out of a box
+		 * with a word in it was to delete the word. Closing it now keeps the
+		 * word: what is asked for is the feed back, not the writing gone.
+		 */
+		it('keeps what was written when the box is closed', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+
+			await closeButton(wrapper).trigger('click')
+
+			expect(collapsed(wrapper)).toBe(true)
+			expect(typed(wrapper)).toBe('half a thought')
+			expect(stored()).toMatchObject({ text: 'half a thought' })
+		})
+
+		it('gives it back when the box is opened again', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+			await closeButton(wrapper).trigger('click')
+
+			await input(wrapper).trigger('focusin')
+
+			expect(collapsed(wrapper)).toBe(false)
+			expect(typed(wrapper)).toBe('half a thought')
+		})
+
+		/** Being asked to reply is a request to write one, closed box or not. */
+		it('opens again when a reply is asked for', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+			await closeButton(wrapper).trigger('click')
+
+			eventBus.emit('composer-reply', replyTo(bob))
+			await flushPromises()
+
+			expect(collapsed(wrapper)).toBe(false)
+		})
+
+		/** A box somebody is writing in stays where they can get back to it. */
+		it('leaves a written box on the page rather than taking it away', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+
+			await closeButton(wrapper).trigger('click')
+
+			expect(store.setComposerDisplayStatus).not.toHaveBeenCalled()
+		})
+
+		/**
+		 * The New post dialog has its own way out, and a composer that is the
+		 * whole reason the dialog is on screen has nothing to close itself to.
+		 */
+		it('is not offered where there is nothing to close to', async () => {
+			const { wrapper } = mountComposer({ startExpanded: true })
+			await setContent(wrapper, 'half a thought')
+
+			expect(closeButton(wrapper).exists()).toBe(false)
+		})
+	})
+
+	describe('the panels the toolbar opens', () => {
+		const toolbarButton = (wrapper, label) => wrapper.findAll('button')
+			.find((button) => button.attributes('aria-label') === label)
+
+		/**
+		 * Pressing the toolbar button again closed them, which is a row
+		 * further down and a thing to work out; the way out of a panel belongs
+		 * on the panel.
+		 */
+		it('closes the poll from the poll itself', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Add poll').trigger('click')
+			expect(wrapper.find('.poll-editor').exists()).toBe(true)
+
+			await wrapper.find('.poll-editor__remove').trigger('click')
+
+			expect(wrapper.find('.poll-editor').exists()).toBe(false)
+		})
+
+		it('closes the content warning from the row it is typed in', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Add content warning').trigger('click')
+			expect(wrapper.find('.content-warning').exists()).toBe(true)
+
+			await wrapper.find('.content-warning-row__remove').trigger('click')
+
+			expect(wrapper.find('.content-warning').exists()).toBe(false)
+		})
+
+		it('closes the preview from the preview', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'something to look at')
+			await toolbarButton(wrapper, 'Preview this post').trigger('click')
+			expect(wrapper.findComponent(ComposerPreview).exists()).toBe(true)
+
+			await wrapper.find('.composer-preview__close').trigger('click')
+
+			expect(wrapper.findComponent(ComposerPreview).exists()).toBe(false)
+		})
+
+		it('closes the place picker from the picker', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Say where this was taken').trigger('click')
+			expect(wrapper.find('.place-picker').exists()).toBe(true)
+
+			await wrapper.find('.place-picker__close').trigger('click')
+
+			expect(wrapper.find('.place-picker').exists()).toBe(false)
+		})
+
+		/** What was typed in it goes with it, as pressing the button again does. */
+		it('takes the warning text with the warning', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Add content warning').trigger('click')
+			await wrapper.find('.content-warning').setValue('spoilers')
+
+			await wrapper.find('.content-warning-row__remove').trigger('click')
+			await toolbarButton(wrapper, 'Add content warning').trigger('click')
+
+			expect(wrapper.find('.content-warning').element.value).toBe('')
+		})
+	})
+
 	describe('the draft', () => {
 		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft') ?? 'null')
 
@@ -837,6 +996,12 @@ describe('Composer', () => {
 			expect(builder.setMultiSelect).toHaveBeenCalledWith(true)
 			expect(builder.setMimeTypeFilter).toHaveBeenCalledWith(expect.arrayContaining(['image/*', 'video/*', 'application/pdf', 'text/plain']))
 			expect(builder.allowDirectories).toHaveBeenCalledWith(false)
+			// a picker built with no button renders none: a file could be
+			// selected and there was nothing to press to confirm it
+			expect(builder.addButton).toHaveBeenCalledWith(expect.objectContaining({
+				label: 'Attach',
+				variant: 'primary',
+			}))
 			expect(store.createMediaFromFile).toHaveBeenCalledWith({ path: beach })
 		})
 

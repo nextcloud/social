@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.24.0  
+**App version:** 0.24.1  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -1487,9 +1487,16 @@ description in an `alt` attribute and nowhere else.
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
 
 **The Settings page, and what is on it.** `src/views/Settings.vue` is a list of
-sections, each with an id — `#account`, `#lists`, `#shortcuts`, `#migration` —
-because other pages link to one of them: the Follow requests page's empty state
-sends the reader to `#account` for the switch it talks about. The two large
+sections, each with an id — `#account`, `#lists`, `#scheduled`, `#migration`,
+`#shortcuts` — because other pages link to one of them: the Follow requests
+page's empty state sends the reader to `#account` for the switch it talks about.
+An id names the section it is on, which the scheduled posts' did not: it said
+`#migration`, so that link scrolled to the wrong section and the migration tools
+had no anchor at all. The order is the things done to the account first and the
+**keyboard shortcuts at the end**, under them: they are reference rather than a
+setting, nothing on them is changed, and only the account deletion is below them
+— last, and on its own, because it is the one thing on the page that cannot be
+undone. The two large
 sections are `defineAsyncComponent` imports in a `settings` chunk, since nobody
 loads them until they open the page, and a section that arrives after the page
 did is why the scroll to the hash is retried in `updated()`.
@@ -1740,6 +1747,42 @@ placeholder until somebody clicks into it, and it closes again once the reply
 has been sent. Pressing reply on the post it sits under sets `openedByHand`
 directly — the target does not change there, so opening is the whole of what
 that button can do.
+
+**And it closes by hand, without losing anything.** A click elsewhere collapses
+an idle composer and may do no more than that — a stray click must not take a
+half-written post with it — so a box with a single word in it stayed open, and
+the only way back to a line of placeholder was to delete the word. The close
+button in the composer's header is the way out, and it **throws nothing away**:
+`closedByHand` wins over everything `expanded` would otherwise stay open for,
+the text stays in the box, and the draft stays on disk. Opening it again — a
+click, a reply, the compose shortcut, or the next visit to the page — puts the
+reader back where they were. A half-written post is not something to ask
+somebody about at the moment they are trying to get it out of their way; it is
+something to still be there when they come back. The button is not offered where
+there is nothing to close *to*, which is the New post dialog, whose own way out
+is the dialog's. Posting still empties the box, through one `clearComposer()`, so
+a field added to the composer cannot survive a post by being missed off one of
+two lists.
+
+**Every panel the toolbar opens closes from itself.** The poll, the content
+warning, the preview and the place picker were opened by a button in the toolbar
+and could be shut only by finding that same button and pressing it again — a row
+further down, and a thing to work out rather than see. Each carries its own close
+now, beside the schedule editor's, which has had one all along; the button in the
+toolbar keeps working and still says which state it is in. Closing takes what
+belongs to the panel with it, as pressing the toolbar button always did: the
+poll's options, the warning's text, the place. The place picker keeps its
+narrower `Remove the place` as well — that one clears the choice and leaves the
+search open, where the close puts the panel away and leaves the post without a
+place, which is what an unpressed pin means.
+
+The draft on disk (`src/services/draft.js`) is the same promise across a reload:
+the text, the content warning, the audience and **the team account it was being
+written as** — which the store took and dropped until the field was added to it,
+so the line in the composer that reads it back could never fire. Attachments are
+deliberately not in it: they are uploaded media the server holds a handle to, and
+restoring an id whose upload has been reaped would fail on the next send. They
+survive a close, because nothing is cleared; they do not survive a reload.
 
 And when the thread is shorter than the post says it is, the page says so.
 `replies_count` is what the post's own instance reported plus what has arrived

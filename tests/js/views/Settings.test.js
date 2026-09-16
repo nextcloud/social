@@ -85,14 +85,39 @@ describe('Settings', () => {
 		expect(dialog.findAll('.shortcut-list__row')).toHaveLength(rows)
 	})
 
-	/** The frame is a list of sections, and Migration was the second. */
+	/**
+	 * The frame is a list of sections, and Migration was the second.
+	 *
+	 * The shortcuts are reference rather than a setting — nothing there is
+	 * changed, it is a list to look something up in — so they sit at the end,
+	 * under the things that are done to the account, with only the deletion
+	 * below them, which is last because it cannot be undone.
+	 */
 	it('is a page of sections rather than a page about shortcuts', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 		await flushPromises()
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Filtered words', 'Keyboard shortcuts', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Migration', 'Delete your Social account'])
+			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Filtered words', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Migration', 'Keyboard shortcuts', 'Delete your Social account'])
+	})
+
+	/**
+	 * Each section is linked to from somewhere, and the scheduled posts wore
+	 * the migration tools' id: `#migration` scrolled to the wrong section and
+	 * the tools it names had no anchor at all.
+	 */
+	it('gives each section the id that names it', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		const idOf = (heading) => wrapper.findAll('.settings__section')
+			.find((section) => section.find('.settings__section-heading').text() === heading)
+			.attributes('id')
+
+		expect(idOf('Scheduled posts')).toBe('scheduled')
+		expect(idOf('Migration')).toBe('migration')
+		expect(idOf('Keyboard shortcuts')).toBe('shortcuts')
 	})
 
 	/**
