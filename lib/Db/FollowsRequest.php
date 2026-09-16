@@ -462,6 +462,47 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 *
 	 * @return Follow[]
 	 */
+	/**
+	 * The follower collections this account follows, as prims.
+	 *
+	 * What the home timeline is actually built on: a recipient row names the
+	 * author's **followers collection**, never the author, so this is the set
+	 * the page query matches `social_stream_dest.actor_id` against. One
+	 * projected column and no hydration — the page needs the hashes and
+	 * nothing else, and an account following two thousand people would
+	 * otherwise build two thousand `Follow` objects to read one string off
+	 * each.
+	 *
+	 * @return string[] md5 hashes, deduplicated
+	 */
+	public function getFollowedCollectionPrims(string $actorId, int $limit = 0): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+
+		$qb->selectDistinct('follow_id_prim')
+			->from(self::TABLE_FOLLOWS)
+			->where($expr->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($expr->eq('type', $qb->createNamedParameter(Follow::TYPE)))
+			->andWhere($expr->eq('accepted', $qb->createNamedParameter('1')))
+			->andWhere($expr->neq('follow_id_prim', $qb->createNamedParameter('')));
+
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
+
+		$prims = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$prim = (string)($data['follow_id_prim'] ?? '');
+			if ($prim !== '') {
+				$prims[] = $prim;
+			}
+		}
+		$cursor->closeCursor();
+
+		return $prims;
+	}
+
 	public function getFollowingByActorId(string $actorId, int $limit = 0, int $offset = 0): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'actor_id_prim', $actorId);

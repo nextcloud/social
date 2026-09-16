@@ -56,6 +56,7 @@ class NavigationControllerTest extends TestCase {
 	/** @var CheckService&MockObject */
 	private $checkService;
 	private $sensitiveMediaService;
+	private $streamService;
 	/** @var IGroupManager&MockObject */
 	private $groupManager;
 	private array $states = [];
@@ -73,6 +74,7 @@ class NavigationControllerTest extends TestCase {
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->checkService = $this->createMock(CheckService::class);
+		$this->streamService = $this->createMock(\OCA\Social\Service\StreamService::class);
 		$this->sensitiveMediaService = $this->createMock(\OCA\Social\Service\SensitiveMediaService::class);
 		$this->sensitiveMediaService->method('policyFor')->willReturn('default');
 		$this->sensitiveMediaService->method('choiceOf')->willReturn('');
@@ -110,6 +112,7 @@ class NavigationControllerTest extends TestCase {
 			$this->configService,
 			$this->checkService,
 			$this->sensitiveMediaService,
+			$this->streamService,
 			$this->createMock(MiscService::class),
 			new NullLogger()
 		);
@@ -451,5 +454,52 @@ class NavigationControllerTest extends TestCase {
 		$this->assertSame(-1, $response->getData()['status']);
 		$this->assertSame('request failed', $response->getData()['error']);
 		$this->assertArrayNotHasKey('exception', $response->getData(), 'internals must not leak');
+	}
+	// --- the first screenful ------------------------------------------------
+
+	/**
+	 * Without this the first screen is a staircase: fetch 290 KB of
+	 * JavaScript, mount, and only *then* ask the server for the posts — a
+	 * second round trip and a full Nextcloud boot before anything a person
+	 * came to read is on screen.
+	 */
+	public function testTheHomePageIsHandedItsFirstScreenful(): void {
+		$this->systemValues([]);
+		$this->configuredCloud();
+		$this->existingActor();
+		$posts = [$this->createMock(\OCA\Social\Model\ActivityPub\Stream::class)];
+		$this->streamService->method('getTimeline')->willReturn($posts);
+
+		$this->controller()->navigate();
+
+		$this->assertSame($posts, $this->states['social']['firstPage'] ?? null);
+	}
+
+	/**
+	 * Seeding a profile or a hashtag page would be seeding whatever happened
+	 * to be in the URL.
+	 */
+	public function testOnlyTheHomeTimelineIsSeeded(): void {
+		$this->systemValues([]);
+		$this->configuredCloud();
+		$this->existingActor();
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$this->controller()->navigate('profile/alice');
+
+		$this->assertNull($this->states['social']['firstPage'] ?? null);
+	}
+
+	/** A page the server could not build asks, which is what it did before. */
+	public function testAFailureToBuildItLeavesThePageToAsk(): void {
+		$this->systemValues([]);
+		$this->configuredCloud();
+		$this->existingActor();
+		$this->streamService->method('getTimeline')
+			->willThrowException(new \Exception('no'));
+
+		$this->controller()->navigate();
+
+		$this->assertNull($this->states['social']['firstPage'] ?? null);
 	}
 }

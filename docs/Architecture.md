@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.22.0  
+**App version:** 0.23.0  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -662,6 +662,130 @@ counted into anything, one row per (post, viewer) moved rather than appended. A
 video watched past 95% is **forgotten** rather than bookmarked at the credits,
 and one under ten seconds in was never really started — a "continue watching"
 row that offers back either is a row nobody presses twice.
+
+## Reading a timeline at scale
+
+Three things decide whether this app works on an instance with a million
+accounts and ten million posts, and all three were measured rather than
+reasoned about — `occ social:benchmark` seeds a realistic instance and times the
+queries against it, and `EXPLAIN` was read for each of the plans below.
+
+**The home timeline pages over the recipient rows' own sort key.** It used to
+drive from the viewer's follows, fetch every recipient row every followed
+account had ever produced, join each to `social_stream` to find out when its
+post was published, and sort the lot in a temporary table to keep twenty —
+`EXPLAIN` said `Using temporary; Using filesort` in as many words. One page load
+therefore cost Σ(all posts of everyone you follow), and a client asks for one
+every thirty seconds. Measured on a seeded instance of 402,725 posts and 805,212
+recipient rows, with both paths run against the same machine in the same pass:
+the old query takes **1,661 ms** and the public timeline over the same rows
+**4.2 ms** — the public one's recipient is a single constant, so it walks posts
+newest-first and probes one row each.
+
+`social_stream_dest.nid` is the post's own nid, copied onto the recipient row
+when it is written. It is safe to denormalise because a nid never changes after
+the row exists — there is no update path to keep in step, only an insert — and
+it is the only way to have the sort key and the filter on the same table, which
+no index can span. With `(actor_id, type, nid)` the page is a descending index
+range per followed collection, merged, stopping at the limit: **50 ms** against
+the same 1,661, and index-only. Thirty-three times.
+
+The guard on it is a **flag written by the migration**, not a question asked of
+the table. The obvious check — "is any nid still zero?" — has no index that can
+answer it and is a full scan of the largest table this app has, 427 ms on
+800,000 rows on every request; a guard that costs more than the query it guards
+is worse than no guard. That one was found by measuring, which is what the
+seeding harness is for.
+
+The per-viewer filters — blocks, mutes, hidden boosts — are what forced the
+join, so they no longer ride in the page query. They are applied to the twenty
+rows it chose, where each is a lookup against twenty ids; the page is read three
+times wider than asked so that one which loses rows to a block still fills.
+
+A **media narrowing is the exception**, and the reason is worth keeping: it is a
+question about the *post*, and the page query reads only the recipient rows,
+which carry no such column. Moving it to the rows was right for blocks, which
+drop a few posts, and wrong for this, which drops nearly all of them — on the
+seeded instance 143 of 402,725 posts carry media, so the Photos and Videos
+timelines read the newest sixty ids, discarded all sixty and came back **empty**
+while the pictures sat further down. Those timelines take the join path, which
+has the predicate in the query; they are read far less often than the home
+timeline, and with `media_kind` indexed they are now faster than the fast path
+was anyway. The old query is kept as the fallback for an instance whose
+backfill has not finished, and is slower and always correct.
+
+**Counters are added to, not counted.** The three on an account lived only in
+the `details` JSON, so moving one meant recomputing all of them — four aggregate
+queries, on every post written and every follow accepted. For an account with a
+million followers that is a million index entries counted so a number on a
+profile can go up by one. They are columns now, because a column can be
+incremented atomically; the JSON is still what is read, with the columns
+overlaid on it where the row is parsed, and the counting still happens in the
+cron's walk, which is where drift is reconciled. `-1` means "never counted"
+rather than "none".
+
+**The cron walks rather than reads.** `Cron\Cache` refreshed *every* local
+account on every pass — the whole table in one PHP array, twelve minutes apart,
+with a dozen queries and an avatar read behind each row. At a million accounts
+that array does not fit in memory, and the failure is silent: the cron simply
+falls behind. It pages, stops at the pass deadline, and remembers in app config
+where it got to.
+
+Two smaller things in the same shape. `social_stream.media_kind` is what the
+Photos and Videos timelines ask instead of searching the attachment JSON with
+`LIKE`, which no index can serve and which was applied after the join. And a
+content search is bounded by `search_window_days`, because a leading wildcard
+can never use an index and an unbounded `ILIKE` is a table scan per keystroke.
+
+## Delivering at scale
+
+`Cron\Queue` reads 200 rows every twelve minutes and delivers them one after
+another with a 30-second timeout each inside a 300-second budget: about a
+thousand deliveries an hour at best and **ten** at worst, since ten unresponsive
+peers fill the whole pass. An instance whose accounts are followed across
+twenty thousand servers therefore takes the better part of a day to deliver one
+popular post, and Nextcloud runs one `cron.php` at a time so there is no
+parallelism to be had by adding servers.
+
+`occ social:worker` is the same delivery in a loop that does not stop. Claiming
+a row was already atomic — `setAsRunning()` is an `UPDATE … WHERE status =
+standby` that throws when it loses the race — so several workers may run at once
+and will not collide, which is what makes this scale by adding processes rather
+than by rewriting anything. It finishes the row in hand on `SIGTERM`, because a
+delivery abandoned halfway is one the peer may already have taken.
+
+The circuit breaker used to be per-pass: `manageInit()` emptied it at the start
+of every run, so a dead peer was rediscovered every twelve minutes, one
+30-second timeout at a time, for every row addressed to it. It is in the
+distributed cache now, shared between the cron, the async worker and every
+`social:worker` process, with the wait doubling per consecutive failure up to an
+hour and clearing the moment the host answers.
+
+And the **inbox no longer walks a whole thread inline**. That walk runs after the
+response is flushed but while the FPM worker is still held, and each item can be
+a fetch from a server that is slow or gone; at a million users' worth of inbound
+traffic it is the pool. It does five items or three seconds, whichever comes
+first, and leaves the rest to the stream queue that exists for it.
+
+## What a poll costs
+
+A client asks for the home timeline and the unread count every thirty seconds,
+and the answer is almost always the one it already holds. Both carry an `ETag`
+built from the newest id the viewer can see — which changes exactly when the
+answer does and costs one index-only probe, far less than the page it stands in
+for — so a poll that has not changed is answered `304`. Media carries the stored
+file's own tag, which matters because a timeline is forty to sixty pictures a
+screen and each was a full Nextcloud boot.
+
+With `notify_push` installed the client is told instead of asking, and the poll
+interval drops from thirty seconds to five minutes; that is the single largest
+reduction available to an administrator and it is one app install.
+
+The page also carries **the first screenful of the home timeline** in its
+initial state. Without it the first screen is a staircase: fetch the bundle,
+mount, and only then ask the server — a second round trip and a full boot before
+anything a person came to read is on screen. It is consumed once, and only by
+the list it was rendered for.
 
 **A ladder of sizes** is `social_video_rendition`. A stored video used to be one
 file at whatever height it was uploaded at, so a reader on a phone on a train

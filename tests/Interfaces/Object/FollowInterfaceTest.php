@@ -164,7 +164,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 
 		$this->followsRequest->expects($this->once())->method('accepted')->with($this->identicalTo($follow));
 		$this->accountService->expects($this->once())
-			->method('cacheLocalActorDetailCount')->with($this->identicalTo($this->alice));
+			->method('bumpActorCount')->with($this->alice->getId(), 'count_followers', 1);
 
 		$this->handler->processIncomingRequest($follow);
 	}

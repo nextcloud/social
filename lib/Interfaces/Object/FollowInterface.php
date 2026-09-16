@@ -122,8 +122,9 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		try {
 			$this->followsRequest->accepted($follow);
 
-			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
-			$this->accountService->cacheLocalActorDetailCount($actor);
+			// the followed account has one follower more; the three counters
+			// are not recomputed for it — see `AccountService::bumpActorCount()`
+			$this->accountService->bumpActorCount($follow->getObjectId(), 'count_followers', 1);
 
 			$this->generateNotification($follow);
 		} catch (Exception $e) {

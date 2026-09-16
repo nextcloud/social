@@ -101,6 +101,7 @@ class ActivityServiceTest extends TestCase {
 			$this->configService,
 			$this->actorsRequest,
 			$this->relayRequest,
+			$this->createMock(\OCP\ICacheFactory::class),
 			new NullLogger()
 		);
 	}

@@ -46,6 +46,19 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Service
  */
 class CacheActorService {
+	/**
+	 * Actors already resolved during this request.
+	 *
+	 * A page of twenty posts asks for the same author several times over, and
+	 * each ask was a query. Not a cache — there is no lifetime and no
+	 * invalidation — but the same answer to the same question inside one
+	 * response, which is what makes it safe: nothing can change underneath it
+	 * that this request would have seen anyway.
+	 *
+	 * @var array<string, Person>
+	 */
+	private array $memo = [];
+
 	use TArrayTools;
 
 	public function __construct(
@@ -98,6 +111,16 @@ class CacheActorService {
 			$id = substr($id, 0, $posAnchor);
 		}
 
+		// A page of twenty posts asks for the same author several times over —
+		// the author is joined for the row, but a mention, a boost, a quoted
+		// post and a tagged person each ask again by id, and every one of those
+		// was a query. Memoised per request, which is where the repetition is:
+		// this is not a cache with a lifetime, it is the same answer to the
+		// same question inside one response.
+		if (!$refresh && array_key_exists($id, $this->memo)) {
+			return $this->memo[$id];
+		}
+
 		try {
 			if ($refresh) {
 				throw new CacheActorDoesNotExistException();
@@ -138,7 +161,20 @@ class CacheActorService {
 			}
 		}
 
+		$this->memo[$id] = $actor;
+
 		return $actor;
+	}
+
+	/**
+	 * Forgets the memoised actors.
+	 *
+	 * For the long-running processes — `social:worker`, the cron — where "one
+	 * request" is not a bound at all and an unbounded map is a leak. Every
+	 * short-lived request throws the whole object away instead.
+	 */
+	public function forgetMemoised(): void {
+		$this->memo = [];
 	}
 
 	/**

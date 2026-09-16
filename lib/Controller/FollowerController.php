@@ -108,7 +108,7 @@ class FollowerController extends Controller {
 				// the viewer has one follower fewer, and the count their own
 				// profile reports is cached — `accountFollow` refreshes it on
 				// the other side of the same relationship for the same reason
-				$this->accountService->cacheLocalActorDetailCount($this->viewer);
+				$this->accountService->bumpActorCount($this->viewer->getId(), 'count_followers', -1);
 			} catch (FollowNotFoundException $e) {
 				// not a follower, so there is nothing to remove and nothing to
 				// tell the other server about

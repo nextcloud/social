@@ -167,7 +167,12 @@ class PostService {
 		$this->snapshotSource($note);
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
-		$this->accountService->cacheLocalActorDetailCount($actor);
+		// One counter, moved by one. This used to recompute all three with
+		// aggregate queries on **every post written** — including a
+		// `COUNT(*)` over `social_follow`, which for an account with a million
+		// followers is a million index entries counted so that the post count
+		// on a profile can go up.
+		$this->accountService->bumpActorCount($actor->getId(), 'count_posts', 1);
 
 		// after the post exists: the request names it as the instrument, and
 		// the quoted author's server dereferences both before approving

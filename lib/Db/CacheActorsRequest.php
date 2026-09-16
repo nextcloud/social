@@ -21,6 +21,9 @@ use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
+	/** The counter columns `bumpCount()` will touch, and nothing else. */
+	private const COUNT_COLUMNS = ['count_followers', 'count_following', 'count_posts'];
+
 	public const CACHE_TTL = 60 * 24 * 10; // 10d
 	/** Remote actors synced per cron pass. */
 	public const SYNC_BATCH = 50;
@@ -174,6 +177,86 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$this->limitToIdPrimString($qb, $actor->getId());
 
 		return $qb->executeStatement();
+	}
+
+	/**
+	 * Moves one of an account's counters, without counting anything.
+	 *
+	 * The three counters used to live only in the `details` JSON, so the only
+	 * way to change one was to recompute all of them — four aggregate queries,
+	 * on every post written and every follow accepted. For an account with a
+	 * million followers that is a million index entries counted so a number can
+	 * go up by one.
+	 *
+	 * `SET col = col + ?` is one row and is atomic, which is the whole reason
+	 * the counters are columns: a read-modify-write of the JSON would lose
+	 * updates whenever two follows arrived together, and the drift would be
+	 * unexplainable. A counter that has never been counted (`-1`) is left
+	 * alone — adding one to "unknown" gives a number that looks authoritative
+	 * and is not; the cron's walk will count it properly.
+	 *
+	 * @param string $column one of `count_followers`, `count_following`, `count_posts`
+	 */
+	public function bumpCount(string $actorId, string $column, int $by): void {
+		if (!in_array($column, self::COUNT_COLUMNS, true) || $by === 0) {
+			return;
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->update(self::TABLE_CACHE_ACTORS)
+			->set($column, $qb->createFunction(
+				'`' . $column . '` + ' . (($by > 0) ? '' : '-') . abs($by)
+			))
+			->where($expr->eq('id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($expr->gte($column, $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Writes the counters the cron walk counted, which is what reconciles the
+	 * drift the increments above can accumulate.
+	 *
+	 * @param array{followers?: int, following?: int, post?: int} $count
+	 */
+	public function setCounts(string $actorId, array $count): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_CACHE_ACTORS)
+			->set('count_followers', $qb->createNamedParameter(max(0, (int)($count['followers'] ?? 0)), IQueryBuilder::PARAM_INT))
+			->set('count_following', $qb->createNamedParameter(max(0, (int)($count['following'] ?? 0)), IQueryBuilder::PARAM_INT))
+			->set('count_posts', $qb->createNamedParameter(max(0, (int)($count['post'] ?? 0)), IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('id_prim', $qb->createNamedParameter($qb->prim($actorId))));
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * The three counters as they stand, or null where this account has never
+	 * been counted — which is every row written before they were columns.
+	 *
+	 * @return array{followers: int, following: int, post: int}|null
+	 */
+	public function getCounts(string $actorId): ?array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('count_followers', 'count_following', 'count_posts')
+			->from(self::TABLE_CACHE_ACTORS)
+			->where($qb->expr()->eq('id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false || (int)$data['count_followers'] < 0) {
+			return null;
+		}
+
+		return [
+			'followers' => (int)$data['count_followers'],
+			'following' => (int)$data['count_following'],
+			'post' => max(0, (int)$data['count_posts']),
+		];
 	}
 
 	public function updateDetails(Person $actor): int {

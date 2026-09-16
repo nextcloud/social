@@ -19,6 +19,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -44,6 +45,18 @@ class Benchmark extends SocialCommand {
 	/** How many seeded posts one round of `--clean` takes with it. */
 	private const CLEAN_PAGE = 1000;
 
+	/**
+	 * How many rows one `INSERT` carries.
+	 *
+	 * Five hundred tuples of a dozen columns is a statement of a few thousand
+	 * placeholders — comfortably inside every driver's limit, and large enough
+	 * that the per-statement cost stops mattering.
+	 */
+	private const CHUNK = 500;
+
+	/** `--followers`, read in `execute()` and used by the seeder. */
+	private int $followersWanted = 0;
+
 	public function __construct(
 		private StreamRequest $streamRequest,
 		private StreamDestRequest $streamDestRequest,
@@ -65,6 +78,10 @@ class Benchmark extends SocialCommand {
 			->addOption('actors', '', InputOption::VALUE_REQUIRED, 'remote actors to seed', '200')
 			->addOption('notes', '', InputOption::VALUE_REQUIRED, 'notes to seed', '5000')
 			->addOption('follows', '', InputOption::VALUE_REQUIRED, 'of those actors, how many the viewer follows', '150')
+			->addOption(
+				'followers', '', InputOption::VALUE_REQUIRED,
+				'seeded actors that follow the viewer back, to size the delivery fan-out', '0'
+			)
 			->addOption('viewer', '', InputOption::VALUE_REQUIRED, 'the local account the timelines are read as', '')
 			->addOption('seed-only', '', InputOption::VALUE_NONE, 'seed without timing')
 			->addOption('time-only', '', InputOption::VALUE_NONE, 'time what is already seeded')
@@ -99,6 +116,7 @@ class Benchmark extends SocialCommand {
 				return 1;
 			}
 
+			$this->followersWanted = (int)$input->getOption('followers');
 			$this->seed(
 				(int)$input->getOption('actors'),
 				(int)$input->getOption('notes'),
@@ -180,52 +198,328 @@ class Benchmark extends SocialCommand {
 		}
 	}
 
+	/**
+	 * Writes the rows, in bulk.
+	 *
+	 * **Not through the model layer.** An earlier version of this built a
+	 * `Note`, called `StreamRequest::save()` and then `generateStreamDest()`
+	 * for each post: three statements and a transaction per row, which is
+	 * about 400 rows a second and makes ten million posts a seven-hour wait —
+	 * so nobody ever seeded enough to find out what the queries cost, which is
+	 * the entire purpose of the command. Multi-row `INSERT`s of
+	 * `self::CHUNK` tuples do the same work at tens of thousands of rows a
+	 * second.
+	 *
+	 * The cost of going around the model is that this has to write the columns
+	 * the model would have written, and a column added later is one this
+	 * forgets. That is the right trade for a development-only command and the
+	 * wrong one for anything else: what is seeded has to be *shaped* like real
+	 * data — the prim hashes, the recipient rows, the follower collections —
+	 * because a query plan is only worth measuring against rows the planner
+	 * sees the way it sees real ones.
+	 */
 	private function seed(int $actors, int $notes, int $follows, Person $viewer, OutputInterface $output): void {
-		$output->writeln(sprintf('seeding %d actors, %d notes, %d follows…', $actors, $notes, $follows));
+		$followers = max(0, $this->followersWanted);
+		$output->writeln(sprintf(
+			'seeding %s actors, %s notes, %s follows, %s followers…',
+			number_format($actors), number_format($notes),
+			number_format($follows), number_format($followers)
+		));
 
+		$started = microtime(true);
+		$ids = $this->seedActors($actors, $output);
+		$this->seedFollows($ids, $follows, $followers, $viewer, $output);
+		$this->seedNotes($ids, $notes, $output);
+
+		$output->writeln(sprintf('seeded in %.1f s.', microtime(true) - $started));
+	}
+
+	/**
+	 * The remote accounts everything else hangs off.
+	 *
+	 * @return string[] their ids, in the order they were written
+	 */
+	private function seedActors(int $actors, OutputInterface $output): array {
 		$ids = [];
+		$rows = [];
+		$now = $this->stamp();
+
 		for ($i = 0; $i < $actors; $i++) {
 			$id = 'https://' . self::HOST . '/users/actor' . $i;
 			$ids[] = $id;
+			$rows[] = [
+				'id' => $id,
+				'id_prim' => md5($id),
+				'type' => Person::TYPE,
+				'account' => 'actor' . $i . '@' . self::HOST,
+				'preferred_username' => 'actor' . $i,
+				'name' => 'Actor ' . $i,
+				'inbox' => $id . '/inbox',
+				'shared_inbox' => 'https://' . self::HOST . '/inbox',
+				'outbox' => $id . '/outbox',
+				'followers' => $id . '/followers',
+				'following' => $id . '/following',
+				'source' => '{}',
+				'details' => '{}',
+				'local' => 0,
+				'creation' => $now,
+			];
 
-			$actor = new Person();
-			$actor->setId($id);
-			$actor->setPreferredUsername('actor' . $i)
-				->setFollowers($id . '/followers');
-			$actor->setAccount('actor' . $i . '@' . self::HOST);
-			$this->cacheActorsRequest->save($actor);
-
-			if ($i < $follows) {
-				$follow = new Follow();
-				$follow->setId($id . '/follow/' . $viewer->getPreferredUsername());
-				$follow->setActorId($viewer->getId());
-				$follow->setObjectId($id);
-				// the followed actor's followers collection, which is what the
-				// home timeline matches stream_dest rows against
-				$follow->setFollowId($id . '/followers');
-				$this->followsRequest->save($follow);
-				$this->followsRequest->accepted($follow);
+			if (count($rows) >= self::CHUNK) {
+				$this->insertMany(CoreRequestBuilder::TABLE_CACHE_ACTORS, $rows);
+				$rows = [];
+				$this->progress($output, 'actors', $i + 1, $actors);
 			}
 		}
 
-		$now = time();
-		for ($i = 0; $i < $notes; $i++) {
-			$author = $ids[$i % count($ids)];
-			$note = new Note();
-			$note->setId('https://' . self::HOST . '/notes/' . $i);
-			$note->setAttributedTo($author);
-			$note->setTo(ACore::CONTEXT_PUBLIC);
-			$note->addCc($author . '/followers');
-			$note->setVisibility('public');
-			$note->setContent('<p>seeded note ' . $i . ' #benchmark</p>');
-			// spread them over the last thirty days, newest first
-			$note->setPublishedTime($now - $i * 500);
-			$note->setPublished(gmdate('Y-m-d\TH:i:s\Z', $now - $i * 500));
-			$this->streamRequest->save($note);
-			$this->streamDestRequest->generateStreamDest($note);
+		$this->insertMany(CoreRequestBuilder::TABLE_CACHE_ACTORS, $rows);
+		$this->progress($output, 'actors', $actors, $actors, true);
+
+		return $ids;
+	}
+
+	/**
+	 * Who follows whom.
+	 *
+	 * Two directions, because they cost different things. The viewer following
+	 * seeded accounts is what the **home timeline** reads: its page query
+	 * resolves the viewer's follows and then the posts addressed to each of
+	 * their follower collections. Seeded accounts following the viewer is what
+	 * **delivery** reads: one queue row per distinct inbox when the viewer
+	 * posts. An instance seeded with only the first measures reads and says
+	 * nothing about writes.
+	 *
+	 * @param string[] $ids
+	 */
+	private function seedFollows(
+		array $ids, int $follows, int $followers, Person $viewer, OutputInterface $output,
+	): void {
+		if ($ids === []) {
+			return;
 		}
 
-		$output->writeln('seeded.');
+		$rows = [];
+		$now = $this->stamp();
+		$written = 0;
+		$wanted = min($follows, count($ids)) + min($followers, count($ids));
+
+		for ($i = 0; $i < min($follows, count($ids)); $i++) {
+			$id = $ids[$i];
+			// the followed actor's **followers collection**, which is what a
+			// recipient row names — not the actor itself
+			$rows[] = $this->followRow(
+				$id . '/follow/' . $viewer->getPreferredUsername(),
+				$viewer->getId(), $id, $id . '/followers', $now
+			);
+			$written++;
+			if (count($rows) >= self::CHUNK) {
+				$this->insertMany(CoreRequestBuilder::TABLE_FOLLOWS, $rows);
+				$rows = [];
+				$this->progress($output, 'follows', $written, $wanted);
+			}
+		}
+
+		for ($i = 0; $i < min($followers, count($ids)); $i++) {
+			$id = $ids[$i];
+			$rows[] = $this->followRow(
+				$id . '/follows-back/' . $viewer->getPreferredUsername(),
+				$id, $viewer->getId(), $viewer->getFollowers(), $now
+			);
+			$written++;
+			if (count($rows) >= self::CHUNK) {
+				$this->insertMany(CoreRequestBuilder::TABLE_FOLLOWS, $rows);
+				$rows = [];
+				$this->progress($output, 'follows', $written, $wanted);
+			}
+		}
+
+		$this->insertMany(CoreRequestBuilder::TABLE_FOLLOWS, $rows);
+		$this->progress($output, 'follows', $wanted, $wanted, true);
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private function followRow(
+		string $id, string $actorId, string $objectId, string $followId, string $now,
+	): array {
+		return [
+			'id' => $id,
+			'id_prim' => md5($id),
+			'type' => Follow::TYPE,
+			'actor_id' => $actorId,
+			'actor_id_prim' => md5($actorId),
+			'object_id' => $objectId,
+			'object_id_prim' => md5($objectId),
+			'follow_id' => $followId,
+			'follow_id_prim' => md5($followId),
+			'accepted' => 1,
+			'creation' => $now,
+		];
+	}
+
+	/**
+	 * The posts, and the recipient rows that put them in a timeline.
+	 *
+	 * Both are written here rather than one being derived from the other,
+	 * because `generateStreamDest()` is a statement per recipient and the
+	 * whole point of this path is not to do that. What it writes is what that
+	 * method would have: the public collection, and the author's own follower
+	 * collection.
+	 *
+	 * @param string[] $ids
+	 */
+	private function seedNotes(array $ids, int $notes, OutputInterface $output): void {
+		if ($ids === [] || $notes < 1) {
+			return;
+		}
+
+		$streamRows = [];
+		$destRows = [];
+		$now = time();
+		$publicPrim = md5(ACore::CONTEXT_PUBLIC);
+
+		for ($i = 0; $i < $notes; $i++) {
+			$author = $ids[$i % count($ids)];
+			$id = 'https://' . self::HOST . '/notes/' . $i;
+			$prim = md5($id);
+			// spread over the recent past, newest first, so that a page of
+			// twenty is a page of twenty *recent* posts as it would be in life
+			$published = $now - $i * 5;
+			$followers = $author . '/followers';
+
+			$streamRows[] = [
+				// the same snowflake `StreamRequest::save()` mints: the second
+				// it was published in, times the limit, plus a random offset.
+				// It is the column every timeline pages and orders on, so a
+				// seeded row whose nid did not sort with the real ones would
+				// measure a different query than the one being served.
+				'nid' => $published * StreamRequest::NID_LIMIT + random_int(1, StreamRequest::NID_LIMIT),
+				'id' => $id,
+				'id_prim' => $prim,
+				'type' => Note::TYPE,
+				'subtype' => '',
+				'to' => ACore::CONTEXT_PUBLIC,
+				'to_array' => '[]',
+				'cc' => json_encode([$followers]),
+				'bcc' => '[]',
+				'content' => '<p>seeded note ' . $i . ' #benchmark</p>',
+				'summary' => '',
+				'published' => gmdate('Y-m-d\TH:i:s\Z', $published),
+				'published_time' => $this->stamp($published),
+				'attributed_to' => $author,
+				'attributed_to_prim' => md5($author),
+				'visibility' => Stream::TYPE_PUBLIC,
+				'hashtags' => '["benchmark"]',
+				'details' => '{}',
+				'source' => '{}',
+				'instances' => '[]',
+				'attachments' => '[]',
+				'cache' => '{}',
+				'local' => 0,
+				'filter_duplicate' => 0,
+				'creation' => $this->stamp($published),
+			];
+
+			$destRows[] = ['stream_id' => $prim, 'actor_id' => $publicPrim, 'type' => 'recipient', 'subtype' => 'to'];
+			$destRows[] = ['stream_id' => $prim, 'actor_id' => md5($followers), 'type' => 'recipient', 'subtype' => 'cc'];
+
+			if (count($streamRows) >= self::CHUNK) {
+				$this->insertMany(CoreRequestBuilder::TABLE_STREAM, $streamRows);
+				$this->insertMany(CoreRequestBuilder::TABLE_STREAM_DEST, $destRows);
+				$streamRows = [];
+				$destRows = [];
+				$this->progress($output, 'notes', $i + 1, $notes);
+			}
+		}
+
+		$this->insertMany(CoreRequestBuilder::TABLE_STREAM, $streamRows);
+		$this->insertMany(CoreRequestBuilder::TABLE_STREAM_DEST, $destRows);
+		$this->progress($output, 'notes', $notes, $notes, true);
+	}
+
+	/**
+	 * One `INSERT` carrying many rows.
+	 *
+	 * Written as SQL rather than through `IQueryBuilder`, which has no
+	 * multi-row form: the placeholders are positional and every value is bound,
+	 * so it is the same escaping the builder would do and it runs unchanged on
+	 * MySQL, PostgreSQL and SQLite. The column list comes from the first row,
+	 * and every row is required to have the same keys — which they do, because
+	 * each is built by one loop above.
+	 *
+	 * @param array<int, array<string, mixed>> $rows
+	 */
+	private function insertMany(string $table, array $rows): void {
+		if ($rows === []) {
+			return;
+		}
+
+		$columns = array_keys($rows[0]);
+		// The platform classes live in Doctrine, which the OCP stub this app is
+		// analysed against does not carry, so the platform is identified by
+		// name rather than by `instanceof`.
+		/** @psalm-suppress UndefinedDocblockClass the ocp stub carries no Doctrine platform classes */
+		$platform = strtolower(get_class($this->connection->getDatabasePlatform()));
+		$postgres = str_contains($platform, 'postgres');
+		$sqlite = str_contains($platform, 'sqlite');
+
+		$quote = $postgres ? '"' : '`';
+		$quoted = array_map(static fn (string $c): string => $quote . $c . $quote, $columns);
+
+		$tuple = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
+		$values = [];
+		foreach ($rows as $row) {
+			foreach ($columns as $column) {
+				$values[] = $row[$column];
+			}
+		}
+
+		// A seed that dies halfway and cannot be run again is a tool nobody
+		// uses twice: the second attempt collides with the actors the first
+		// one wrote. Every database spells "insert what is new and say nothing
+		// about the rest" differently, and all three of them have it.
+		$verb = 'INSERT IGNORE';
+		$suffix = '';
+		if ($postgres) {
+			$verb = 'INSERT';
+			$suffix = ' ON CONFLICT DO NOTHING';
+		} elseif ($sqlite) {
+			$verb = 'INSERT OR IGNORE';
+		}
+
+		$sql = $verb . ' INTO `*PREFIX*' . $table . '` (' . implode(', ', $quoted) . ') VALUES '
+			. implode(', ', array_fill(0, count($rows), $tuple)) . $suffix;
+
+		$this->connection->executeStatement($sql, $values);
+	}
+
+	/** The datetime string every `creation` column in this app carries. */
+	private function stamp(?int $at = null): string {
+		return date('Y-m-d H:i:s', $at ?? time());
+	}
+
+	/**
+	 * Says how far it has got, on one line.
+	 *
+	 * Seeding ten million rows is minutes, and a command that prints nothing
+	 * for minutes is one somebody kills.
+	 */
+	private function progress(
+		OutputInterface $output, string $what, int $done, int $total, bool $last = false,
+	): void {
+		if ($total < 1) {
+			return;
+		}
+
+		$output->write(sprintf(
+			"\r  %-8s %s / %s (%d%%)   ",
+			$what, number_format($done), number_format($total), (int)((float)$done / (float)$total * 100.0)
+		));
+
+		if ($last) {
+			$output->writeln('');
+		}
 	}
 
 	private function time(Person $viewer, OutputInterface $output): void {

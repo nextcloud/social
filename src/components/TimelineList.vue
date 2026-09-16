@@ -183,7 +183,7 @@ export default {
 	/**
 	 * `settled` fires whenever a fetch finishes, successfully or not — what a
 	 * view needs to know before it can say anything about what the list does
-	 * *not* hold. It is not "loaded": a failure settles the list too.
+	 * not* hold. It is not "loaded": a failure settles the list too.
 	 */
 	emits: ['settled'],
 

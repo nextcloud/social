@@ -180,8 +180,37 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		$this->assignViewerLink($qb, $actor);
 		$this->assignDetails($actor, $data);
+		$this->assignCounts($actor, $data);
 
 		return $actor;
+	}
+
+	/**
+	 * The three counters, from the columns that hold them.
+	 *
+	 * They are also in the `details` JSON, which is where they used to live
+	 * alone — and which is still what is written when the cron walk counts them
+	 * properly. The columns are what the *increments* move, so between two
+	 * walks they are the more recent of the two and they win. A row that has
+	 * never been counted carries `-1` and is left to the JSON.
+	 *
+	 * `follow_requests` is not among them: it is bounded by how many people are
+	 * waiting for an answer, it has to be right the moment the screen that
+	 * shows it opens, and it is counted where it is asked for.
+	 *
+	 * @param array<string, mixed> $data
+	 */
+	private function assignCounts(Person $actor, array $data): void {
+		if (!array_key_exists('count_followers', $data) || (int)$data['count_followers'] < 0) {
+			return;
+		}
+
+		$count = $actor->getDetails('count');
+		$count['followers'] = (int)$data['count_followers'];
+		$count['following'] = max(0, (int)($data['count_following'] ?? 0));
+		$count['post'] = max(0, (int)($data['count_posts'] ?? 0));
+
+		$actor->setDetailArray('count', $count);
 	}
 
 	/**

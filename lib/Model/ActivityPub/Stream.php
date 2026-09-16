@@ -44,6 +44,16 @@ use OCP\Server;
  * @package OCA\Social\Model\ActivityPub
  */
 class Stream extends ACore implements IQueryRow, JsonSerializable {
+	/**
+	 * The six values `social_stream.media_kind` holds.
+	 *
+	 * The four `MediaAttachment` types this app stores, plus `''` for a post
+	 * carrying nothing and `mixed` for one carrying more than one kind — a post
+	 * with a photograph and a video is both, and a column has to choose.
+	 */
+	public const MEDIA_KIND_NONE = '';
+	public const MEDIA_KIND_MIXED = 'mixed';
+
 	use TDetails;
 
 	public const TYPE = 'Stream';
@@ -670,6 +680,53 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return array<string, mixed>
 	 */
+	/**
+	 * What kind of media a post carries, from the attachment list it was
+	 * stored with.
+	 *
+	 * Static, and taking the raw JSON, because the backfill migration asks the
+	 * same question of rows it reads straight out of the database without
+	 * building a `Stream` for each of ten million of them.
+	 *
+	 * A PeerTube `Video` counts as a video whether or not this instance found
+	 * a file in it a browser can play: its whole existence is the video, and it
+	 * arrives as a `Note` carrying `Video` in `subtype`. That is the same rule
+	 * `SocialLimitsQueryBuilder::limitToVideo()` applies, kept in step here
+	 * because the two must not come to disagree about what a video is.
+	 *
+	 * @param string $attachments the stored JSON list
+	 * @param string $subType the post's ActivityPub subtype
+	 */
+	public static function mediaKindOf(string $attachments, string $subType = ''): string {
+		$kinds = [];
+
+		if ($subType === 'Video') {
+			$kinds['video'] = true;
+		}
+
+		$decoded = ($attachments === '') ? [] : json_decode($attachments, true);
+		if (is_array($decoded)) {
+			foreach ($decoded as $attachment) {
+				if (!is_array($attachment)) {
+					continue;
+				}
+
+				$type = (string)($attachment['type'] ?? '');
+				if ($type !== '' && $type !== 'unknown') {
+					$kinds[$type] = true;
+				}
+			}
+		}
+
+		if ($kinds === []) {
+			return self::MEDIA_KIND_NONE;
+		}
+
+		return (count($kinds) === 1)
+			? array_key_first($kinds)
+			: self::MEDIA_KIND_MIXED;
+	}
+
 	public function getVideoMeta(): array {
 		$meta = $this->getDetailsAll()[self::DETAIL_VIDEO] ?? [];
 

@@ -281,6 +281,15 @@ own unified search. No external search engine to run.
   chosen from your recent public photos or one of your collections. A draft until
   you publish it; readable without signing in once you do, and built only out of
   public posts whatever else is set.
+- **Built for a large instance.** The home timeline pages over an indexed sort
+  key rather than joining and sorting everything you have ever been sent — on a
+  seeded instance of 400,000 posts that is 50 ms against 1,661. An account's
+  counters are added to rather than recomputed, so a follow no longer counts a
+  million rows to move a number by one. The cron walks the accounts a page at a
+  time instead of loading all of them into memory. `occ social:worker` delivers
+  continuously and several may run at once, where the cron manages about a
+  thousand deliveries an hour. Polls that have not changed are answered `304`,
+  and the page arrives with its first screenful already in it.
 - **Videos that play elsewhere** — an administrator can turn on a background job
   that converts stored videos to H.264 in an MP4, which is the one format the rest
   of the network plays: Pixelfed's default accepts `video/mp4` and nothing else, so

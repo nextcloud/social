@@ -383,6 +383,7 @@ class ApiControllerTest extends TestCase {
 			$this->scheduledStatusService,
 			$this->postReviewService,
 			$this->sensitiveMediaService,
+			$this->createMock(\OCA\Social\Db\FollowsRequest::class),
 			$this->viewCountService,
 			$this->teamService,
 			$this->emojiService,
@@ -1829,7 +1830,7 @@ class ApiControllerTest extends TestCase {
 		$this->followService->expects($this->once())
 			->method('followAccount')->with($this->identicalTo($viewer), 'bob@remote.example');
 		$this->accountService->expects($this->once())
-			->method('cacheLocalActorDetailCount')->with($this->identicalTo($viewer));
+			->method('bumpActorCount')->with($viewer->getId(), 'count_following', 1);
 
 		$relationship = new Relationship(42);
 		$this->followService->method('getRelationshipWith')->willReturn($relationship);

@@ -46,11 +46,13 @@ class RangedFileResponse extends Response implements ICallbackResponse {
 	private int $size;
 	private int $offset = 0;
 	private int $length;
+	private string $etag = '';
 
 	public function __construct(
 		private ISimpleFile $file,
 		string $contentType,
 		string $range = '',
+		string $ifNoneMatch = '',
 	) {
 		parent::__construct();
 
@@ -60,6 +62,23 @@ class RangedFileResponse extends Response implements ICallbackResponse {
 		$this->addHeader('Content-Type', $contentType);
 		// the offer has to be made before a browser will make use of it
 		$this->addHeader('Accept-Ranges', 'bytes');
+
+		// The bytes behind one of these are immutable — every route that
+		// answers with this one is addressed by a uuid or a (uuid, height)
+		// pair that names bytes which never change — so the tag can be
+		// anything that identifies them. A timeline is forty to sixty of these
+		// per screen, each of which is a full Nextcloud boot and, measured on
+		// devel, nineteen queries before the first byte; a conditional request
+		// that comes back empty is the difference between that and nothing.
+		$this->etag = '"' . $this->file->getETag() . '"';
+		$this->addHeader('ETag', $this->etag);
+
+		if ($ifNoneMatch !== '' && $this->matches($ifNoneMatch)) {
+			$this->setStatus(Http::STATUS_NOT_MODIFIED);
+			$this->length = 0;
+
+			return;
+		}
 
 		$asked = $this->parseRange($range);
 		if ($asked === null) {
@@ -128,6 +147,33 @@ class RangedFileResponse extends Response implements ICallbackResponse {
 		}
 
 		return [$offset, $end - $offset + 1];
+	}
+
+	/**
+	 * Whether the tag the client sent is the one this file has.
+	 *
+	 * `*` matches anything, which is what a client sends when it means "only
+	 * if it exists"; a list is comma-separated; and a weak tag differs only by
+	 * its `W/` prefix, which for a byte-for-byte comparison of immutable
+	 * content means the same thing.
+	 */
+	private function matches(string $ifNoneMatch): bool {
+		foreach (explode(',', $ifNoneMatch) as $candidate) {
+			$candidate = trim($candidate);
+			if ($candidate === '*') {
+				return true;
+			}
+
+			if (str_starts_with($candidate, 'W/')) {
+				$candidate = substr($candidate, 2);
+			}
+
+			if ($candidate === $this->etag) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	#[\Override]

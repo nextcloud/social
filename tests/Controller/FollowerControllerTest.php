@@ -76,9 +76,9 @@ class FollowerControllerTest extends TestCase {
 
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->accountService->method('getActorFromUserId')->willReturn($this->person(self::VIEWER, 1));
-		$this->accountService->method('cacheLocalActorDetailCount')
-			->willReturnCallback(function (Person $actor): void {
-				$this->writes[] = ['cacheLocalActorDetailCount', $actor->getId()];
+		$this->accountService->method('bumpActorCount')
+			->willReturnCallback(function (string $actorId): void {
+				$this->writes[] = ['bumpActorCount', $actorId];
 			});
 
 		$this->clientService = $this->createMock(ClientService::class);
@@ -177,7 +177,7 @@ class FollowerControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame(
-			[['rejectFollowRequest', self::BOB], ['cacheLocalActorDetailCount', self::VIEWER]],
+			[['rejectFollowRequest', self::BOB], ['bumpActorCount', self::VIEWER]],
 			$this->writes
 		);
 	}
@@ -205,7 +205,7 @@ class FollowerControllerTest extends TestCase {
 		$this->controller()->remove('2');
 
 		$this->assertSame(
-			[['rejectFollowRequest', self::BOB], ['cacheLocalActorDetailCount', self::VIEWER]],
+			[['rejectFollowRequest', self::BOB], ['bumpActorCount', self::VIEWER]],
 			$this->writes,
 			'no block, no unfollow, no mute'
 		);

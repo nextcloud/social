@@ -171,7 +171,10 @@ class CoreRequestBuilder {
 			'details_update',
 			'sync_attempt',
 			'sync_failures',
-			'creation'
+			'creation',
+			'count_followers',
+			'count_following',
+			'count_posts'
 		],
 		self::TABLE_CACHE_DOCUMENTS => [
 			'nid',
@@ -650,6 +653,7 @@ class CoreRequestBuilder {
 			'source',
 			'instances',
 			'attachments',
+			'media_kind',
 			'cache',
 			'creation',
 			'local',
@@ -684,7 +688,8 @@ class CoreRequestBuilder {
 			'stream_id',
 			'actor_id',
 			'type',
-			'subtype'
+			'subtype',
+			'nid'
 		],
 		self::TABLE_STREAM_QUEUE => [
 			'id',

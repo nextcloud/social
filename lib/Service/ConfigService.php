@@ -213,6 +213,41 @@ class ConfigService {
 	 * (covered, one press away) or `hide_all`. PeerTube's three NSFW policies
 	 * under Mastodon's names for them — see `SensitiveMediaService`.
 	 */
+	/**
+	 * Where the local-account refresh walk got to, as an `id_prim`.
+	 *
+	 * Bookkeeping rather than a setting. The walk used to read every local
+	 * account into memory on every cron pass; it pages now, and this is what
+	 * makes the next pass carry on rather than start again. `''` is "begin at
+	 * the top", which is also what it is set back to when the walk reaches the
+	 * end.
+	 */
+	public const SOCIAL_LOCAL_ACTOR_CURSOR = 'local_actor_cursor';
+
+	/**
+	 * How far back a content search looks, in days; `0` searches everything.
+	 *
+	 * `content ILIKE '%term%'` cannot use an index — a leading wildcard never
+	 * can — so an unbounded search reads every post the instance has ever
+	 * stored, joined to seven other tables, on every keystroke. At ten million
+	 * rows that is a table scan the rate limit is the only defence against.
+	 * A year covers what anybody is looking for; an instance small enough to
+	 * search all of it can say so.
+	 */
+	/**
+	 * Whether every recipient row carries its post's sort key yet.
+	 *
+	 * Set by `Version1000Date20260917000001` when its backfill finishes, and
+	 * read on every home timeline to decide whether the fast page query may be
+	 * used. A *flag*, because the obvious check — "is there a row with a zero
+	 * nid" — has no index to answer it and is a full scan of the largest table
+	 * this app has: measured at 427 ms on 800,000 rows, on every request, which
+	 * would have made the thing it guards slower than what it replaced.
+	 */
+	public const SOCIAL_DEST_NID_FILLED = 'dest_nid_filled';
+
+	public const SOCIAL_SEARCH_WINDOW_DAYS = 'search_window_days';
+
 	public const SOCIAL_NSFW_POLICY = 'nsfw_policy';
 
 	/**
@@ -288,6 +323,9 @@ class ConfigService {
 		self::SOCIAL_VIDEO_LADDER => '0',
 		self::SOCIAL_VIDEO_LADDER_HEIGHTS => '360,720,1080',
 		self::SOCIAL_VIDEO_QUOTA => '0',
+		self::SOCIAL_LOCAL_ACTOR_CURSOR => '',
+		self::SOCIAL_DEST_NID_FILLED => '0',
+		self::SOCIAL_SEARCH_WINDOW_DAYS => '365',
 		self::SOCIAL_NSFW_POLICY => 'default',
 		self::SOCIAL_REVIEW_VIDEOS => '0',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',

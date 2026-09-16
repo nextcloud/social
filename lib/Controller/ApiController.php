@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -133,6 +134,13 @@ use Throwable;
  * @package OCA\Social\Controller
  */
 class ApiController extends Controller {
+	/**
+	 * The entity tag of the poll being answered, held between the check and
+	 * the answer so that a route that got past `notModified()` still carries
+	 * the tag the next request will send back.
+	 */
+	private string $pollTag = '';
+
 	use TNCDataResponse;
 
 	private IURLGenerator $urlGenerator;
@@ -208,6 +216,7 @@ class ApiController extends Controller {
 		private ScheduledStatusService $scheduledStatusService,
 		private PostReviewService $postReviewService,
 		private SensitiveMediaService $sensitiveMediaService,
+		private FollowsRequest $followsRequest,
 		private ViewCountService $viewCountService,
 		private TeamService $teamService,
 		private EmojiService $emojiService,
@@ -1781,7 +1790,10 @@ class ApiController extends Controller {
 			$response = new RangedFileResponse(
 				$file,
 				$this->servedMediaType($document, $uuid),
-				$this->request->getHeader('Range')
+				$this->request->getHeader('Range'),
+				// a timeline is forty to sixty of these a screen, and the bytes
+				// behind a uuid never change
+				$this->request->getHeader('If-None-Match')
 			);
 
 			// The bytes behind a uuid never change, so they may be kept for good —
@@ -2089,7 +2101,10 @@ class ApiController extends Controller {
 
 			[$file, $document] = $rung;
 			$response = new RangedFileResponse(
-				$file, VideoLadderService::RENDITION_TYPE, $this->request->getHeader('Range')
+				$file,
+				VideoLadderService::RENDITION_TYPE,
+				$this->request->getHeader('Range'),
+				$this->request->getHeader('If-None-Match')
 			);
 			// the same terms the video itself is served on: for ever in the
 			// reader's own cache, and in a shared one only when the post it
@@ -2268,6 +2283,21 @@ class ApiController extends Controller {
 				throw new UnknownProbeException('unknown timeline');
 			}
 
+			// A client polls this every thirty seconds and the answer is
+			// almost always the one it already holds. The newest id the viewer
+			// can see changes exactly when that stops being true, and costs one
+			// index-only probe — see `notModified()`. Only the head of the home
+			// timeline is worth tagging: a page reached with `max_id` is
+			// historical and a client asks for it once.
+			if ($timeline === ProbeOptions::HOME && $max_id === 0 && $min_id === 0) {
+				$notModified = $this->notModified(
+					'h' . $this->streamRequest->newestNidFor($this->viewerCollections()) . '-' . $limit
+				);
+				if ($notModified !== null) {
+					return $notModified;
+				}
+			}
+
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
 			$options->setProbe($timeline)
@@ -2287,11 +2317,11 @@ class ApiController extends Controller {
 
 			// the unfiltered page is what says whether a further page exists: a
 			// page shortened by a `hide` filter says nothing about what is older
-			return $this->paged(
+			return $this->tagged($this->paged(
 				$this->filterService->apply($posts, $this->filterContext($timeline), $this->viewer),
 				$options->getLimit(),
 				$posts
-			);
+			));
 		} catch (Throwable $e) {
 			$this->logger->error('[ApiController] Timeline request failed', [
 				'timeline' => $timeline,
@@ -3260,7 +3290,9 @@ class ApiController extends Controller {
 			$target = $this->resolveTargetAccount($id);
 
 			$this->followService->followAccount($this->viewer, $target->getAccount());
-			$this->accountService->cacheLocalActorDetailCount($this->viewer);
+			// one counter moved by one, rather than all three recomputed with
+			// aggregate queries: see `AccountService::bumpActorCount()`
+			$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', 1);
 
 			// the bell on a profile, which Mastodon sends *with* the follow.
 			// Absent means "leave it as it is": a client re-following to change
@@ -3293,7 +3325,7 @@ class ApiController extends Controller {
 			$target = $this->resolveTargetAccount($id);
 
 			$this->followService->unfollowAccount($this->viewer, $target->getAccount());
-			$this->accountService->cacheLocalActorDetailCount($this->viewer);
+			$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', -1);
 
 			return new DataResponse(
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
@@ -3925,12 +3957,21 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 			$userId = $this->currentSession();
+			$marker = $this->markerService->lastReadId($userId, 'notifications');
 
-			return new DataResponse([
-				'count' => $this->streamRequest->countNotificationsSince(
-					$this->viewer, $this->markerService->lastReadId($userId, 'notifications')
-				),
-			], Http::STATUS_OK);
+			// the count changes when a notification arrives or the marker
+			// moves, and nothing else; both are in the tag
+			$newest = $this->streamRequest->newestNidFor(
+				[md5($this->viewer->getId())], 'notif'
+			);
+			$notModified = $this->notModified($newest . '-' . $marker);
+			if ($notModified !== null) {
+				return $notModified;
+			}
+
+			return $this->tagged(new DataResponse([
+				'count' => $this->streamRequest->countNotificationsSince($this->viewer, $marker),
+			], Http::STATUS_OK));
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -4497,6 +4538,77 @@ class ApiController extends Controller {
 			ProbeOptions::PUBLIC => Filter::CONTEXT_PUBLIC,
 			default => '',
 		};
+	}
+
+	/**
+	 * Answers `304` when the caller already has this version of a poll.
+	 *
+	 * A client asks for the home timeline and the unread count every thirty
+	 * seconds, and the answer is almost always the one it already holds. Fifty
+	 * thousand open tabs is about seventeen hundred requests a second, each of
+	 * which is a Nextcloud boot and — measured on devel — twenty to thirty
+	 * queries, to send back bytes the browser already has.
+	 *
+	 * The tag is the newest id the viewer can see, which changes exactly when
+	 * the answer does and costs one index-only probe: far less than the page it
+	 * stands in for, which is the only thing that makes this worth doing.
+	 *
+	 * `private` because the answer is one account's, and no shared cache may
+	 * hold it; `no-cache` because the browser must revalidate rather than serve
+	 * it blind — which is precisely what turns the poll into a conditional
+	 * request.
+	 *
+	 * @return DataResponse|null the 304 to return, or null to carry on
+	 */
+	private function notModified(string $tag): ?DataResponse {
+		if ($tag === '') {
+			return null;
+		}
+
+		$etag = '"' . $tag . '"';
+		$sent = trim($this->request->getHeader('If-None-Match'));
+
+		if ($sent !== '' && ($sent === $etag || $sent === $tag || $sent === 'W/' . $etag)) {
+			$response = new DataResponse([], Http::STATUS_NOT_MODIFIED);
+			$response->addHeader('ETag', $etag);
+			$response->addHeader('Cache-Control', 'private, no-cache');
+
+			return $response;
+		}
+
+		$this->pollTag = $etag;
+
+		return null;
+	}
+
+	/** Puts the tag on the answer that earned it. */
+	private function tagged(DataResponse $response): DataResponse {
+		if ($this->pollTag !== '') {
+			$response->addHeader('ETag', $this->pollTag);
+			$response->addHeader('Cache-Control', 'private, no-cache');
+			$this->pollTag = '';
+		}
+
+		return $response;
+	}
+
+	/**
+	 * What the viewer's timelines are keyed on: the collections a page of the
+	 * home timeline is read from.
+	 *
+	 * @return string[]
+	 */
+	private function viewerCollections(): array {
+		if ($this->viewer === null) {
+			return [];
+		}
+
+		$collections = $this->followsRequest->getFollowedCollectionPrims($this->viewer->getId());
+		if ($this->viewer->getFollowers() !== '') {
+			$collections[] = md5($this->viewer->getFollowers());
+		}
+
+		return $collections;
 	}
 
 	private function paged(array $items, int $limit, ?array $page = null): DataResponse {

@@ -61,7 +61,9 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 * post is lost. `insertIgnoreConflict()` asks the database to skip the row
 	 * instead, so nothing fails in the first place.
 	 */
-	public function create(string $streamId, string $actorId, string $type, string $subType = ''): void {
+	public function create(
+		string $streamId, string $actorId, string $type, string $subType = '', int $nid = 0,
+	): void {
 		$qb = $this->getQueryBuilder();
 
 		try {
@@ -72,6 +74,12 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 					'actor_id' => $qb->prim($actorId),
 					'type' => $type,
 					'subtype' => $subType,
+					// the post's own sort key, copied here because this is the
+					// row a timeline pages over: without it the home page has
+					// to join every one of these rows to `social_stream` to
+					// find out when its post was published, and then sort the
+					// result. See `Version1000Date20260917000001`.
+					'nid' => $nid,
 				]
 			);
 		} catch (DBException $e) {
@@ -148,7 +156,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		);
 
 		foreach ($recipients as $actorId => $subtype) {
-			$this->create($stream->getId(), $actorId, 'recipient', $subtype);
+			$this->create($stream->getId(), $actorId, 'recipient', $subtype, $stream->getNid());
 		}
 
 		return true;
@@ -172,7 +180,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		}
 
 		foreach (self::uniqueRecipients(['dm' => $all]) as $actorId => $subtype) {
-			$this->create($stream->getId(), $actorId, $subtype);
+			$this->create($stream->getId(), $actorId, $subtype, '', $stream->getNid());
 		}
 
 		return true;
@@ -184,7 +192,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		}
 
 		foreach (self::uniqueRecipients(['notif' => $stream->getToAll()]) as $actorId => $type) {
-			$this->create($stream->getId(), $actorId, $type);
+			$this->create($stream->getId(), $actorId, $type, '', $stream->getNid());
 		}
 
 		return true;
