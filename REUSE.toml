@@ -18,6 +18,15 @@ SPDX-FileCopyrightText = "2018 Nextcloud translators"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
+# The list of Google's Noto Animated Emoji the composer offers. Only the list
+# is here; the pictures are fetched by the instance and kept in appdata, and
+# they carry the same licence. See lib/Service/GifPackService.php.
+path = "data/noto-animated-emoji.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Google LLC"
+SPDX-License-Identifier = "CC-BY-4.0"
+
+[[annotations]]
 path = "img/nextcloud.png"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2016 Nextcloud GmbH"

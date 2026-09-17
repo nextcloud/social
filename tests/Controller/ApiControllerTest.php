@@ -80,6 +80,7 @@ use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\ViewCountService;
 use OCP\App\IAppManager;
+use OCA\Social\Model\Gif;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -91,6 +92,7 @@ use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IRequest;
+use OCP\ISession;
 use OCP\ITempManager;
 use OCP\IURLGenerator;
 use OCP\IUser;
@@ -137,6 +139,7 @@ class ApiControllerTest extends TestCase {
 	/** @var PollService&MockObject */
 	private $pollService;
 	/** @var PinService&MockObject */
+	private $session;
 	private $pinService;
 	private MarkerService|MockObject $markerService;
 	private StreamRequest|MockObject $streamRequest;
@@ -246,6 +249,7 @@ class ApiControllerTest extends TestCase {
 		$this->pollService = $this->createMock(PollService::class);
 		$this->markerService = $this->createMock(MarkerService::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
+		$this->session = $this->createMock(ISession::class);
 		$this->pinService = $this->createMock(PinService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->reportService = $this->createMock(ReportService::class);
@@ -367,6 +371,7 @@ class ApiControllerTest extends TestCase {
 			$this->actionService,
 			$this->postService,
 			$this->pollService,
+			$this->session,
 			$this->pinService,
 			$this->hashtagService,
 			$this->markerService,
@@ -4115,6 +4120,52 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(
 			Http::STATUS_SERVICE_UNAVAILABLE, $this->controller()->statusTranslate(42)->getStatus()
 		);
+	}
+
+	/**
+	 * The picker's library is 881 pictures now that the animated emoji are in
+	 * it, and every one drawn is one this instance may have to go and fetch.
+	 */
+	public function testTheGifLibraryIsPaged(): void {
+		$this->loggedInAs();
+		$this->gifService->method('search')->willReturn(array_map(
+			static fn (int $i): Gif => new Gif('g' . $i, $i . '.gif', 'image/gif', 'one'),
+			range(1, 150)
+		));
+		$this->gifService->method('attribution')->willReturn('by somebody, CC BY 4.0');
+
+		$answer = $this->controller()->gifs('', 20, 40)->getData();
+
+		$this->assertCount(20, $answer['gifs']);
+		$this->assertSame(150, $answer['total']);
+		$this->assertSame('g41', $answer['gifs'][0]->getSlug());
+		// CC BY asks for it and the picker shows what this says
+		$this->assertSame('by somebody, CC BY 4.0', $answer['attribution']);
+	}
+
+	public function testTheGifLibraryWillNotBeAskedForEverythingAtOnce(): void {
+		$this->loggedInAs();
+		$this->gifService->method('search')->willReturn([]);
+		$this->gifService->method('attribution')->willReturn('');
+
+		// a client asking for a thousand gets two hundred
+		$this->assertSame(0, count($this->controller()->gifs('', 1000)->getData()['gifs']));
+	}
+
+	/**
+	 * A picture is the same bytes for everybody, and holding the session while
+	 * it is fetched is what made a picker of sixty of them serialise: PHP runs
+	 * requests holding one session one at a time, so the sixtieth thumbnail —
+	 * and anything the reader did meanwhile — waited for the other fifty-nine.
+	 */
+	public function testServingAPictureLetsTheSessionGo(): void {
+		$this->session->expects($this->once())->method('close');
+		$this->gifService->method('bySlug')
+			->willReturn(new Gif('noto-1f994', '1f994.webp', 'image/webp', 'hedgehog'));
+		$this->gifService->method('file')->willThrowException(new NotFoundException('not here'));
+
+		// what it answers is beside the point; that it let the session go is not
+		$this->controller()->gifOpen('noto-1f994');
 	}
 
 }

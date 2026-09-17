@@ -65,8 +65,14 @@ One box, and everything a post can carry.
   until a reader asks for it.
 - **Custom emoji.** Type `:shortcode:` and the post travels with a matching `Emoji`
   tag, so it renders on servers that have never heard of it.
-- **A GIF picker backed by the instance's own library** — no Giphy, no Tenor, nobody's
-  tracker.
+- **A GIF picker with 881 animated emoji in it from the day you install the app**,
+  and no Giphy, no Tenor, nobody's tracker. They are Google's Noto Animated Emoji,
+  CC BY 4.0. Only the *list* ships — half a gigabyte of pictures does not — so your
+  server fetches each one the first time somebody here uses it and keeps it from
+  then on. The grid points at your own Nextcloud throughout: no search term leaves
+  the instance and no reader's browser ever talks to anybody else. An administrator
+  can add their own on top with `occ social:gif add`, or turn the shipped set off
+  with `occ config:app:set social gif_pack --value=0`.
 - **Quote a post**, with the original author's permission carried on the wire (FEP-044f).
 - **Say what language it is in**, starting from your Nextcloud language.
 - **Send it later.** Pick a time at least five minutes out and Post becomes Schedule.

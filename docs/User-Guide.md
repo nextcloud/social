@@ -110,6 +110,12 @@ network hiccup.
   metadata (including the location a phone writes) removed before it is
   stored or sent anywhere. A picture can be given one of eight mild filters,
   previewed live and baked into the copy that is posted.
+- **The GIF button** opens a picker with 881 animated emoji in it, searchable by
+  name — "party", "sad", "hedgehog" — plus whatever your administrator has added
+  for this instance, which comes first. Nothing you type goes anywhere but your
+  own Nextcloud, and neither does your browser: your server keeps its own copy of
+  every picture it has been asked for. Picking one attaches it to the post you are
+  writing, exactly as though you had uploaded it.
 - **Alt text.** Each attachment has a **Describe this for people who cannot
   see it** field. Posting with an undescribed attachment shows a nudge, never
   a refusal.
@@ -198,13 +204,6 @@ The sidebar is the map:
   The sidebar badge counts what arrived since you last looked, and the same
   events reach the Nextcloud bell and its mail digest; a follow request can be
   accepted or declined from the bell itself. The page says how many that is at
-  the top — *3 new activities*, with a **Mark all as read** button that clears
-  the badge whichever filter you are looking at — and marks the activities
-  themselves: each new one carries a **New** tag beside its timestamp, and a
-  **New** heading separates them from **Earlier** where the page holds both.
-  Otherwise the page marks itself read after a couple of seconds in front of
-  you, and that position is the one every other Fediverse client shares: a
-  badge cleared on your phone is cleared here too. The page says how many that is at
   the top — *3 new activities*, with a **Mark all as read** button that clears
   the badge whichever filter you are looking at — and marks the activities
   themselves: each new one carries a **New** tag beside its timestamp, and a

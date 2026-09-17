@@ -63,6 +63,7 @@ class GifService {
 	public const MAX_SIZE = 8 * 1024 * 1024;
 
 	public function __construct(
+		private GifPackService $pack,
 		private GifRequest $gifRequest,
 		private IAppData $appData,
 		private IURLGenerator $urlGenerator,
@@ -84,6 +85,19 @@ class GifService {
 	}
 
 	/**
+	 * The library as the picker is offered it: what this instance added, and
+	 * then the animated emoji every instance has.
+	 *
+	 * The instance's own come first whatever the order asks: somebody put them
+	 * there on purpose, and they are the ones nowhere else has.
+	 *
+	 * @return Gif[]
+	 */
+	public function offered(): array {
+		return array_merge($this->all(), $this->pack->all());
+	}
+
+	/**
 	 * The library, narrowed to what somebody typed.
 	 *
 	 * Matched on the title and the slug, case-insensitively, in PHP rather
@@ -97,21 +111,29 @@ class GifService {
 	public function search(string $term): array {
 		$term = trim($term);
 		if ($term === '') {
-			return $this->all();
+			return $this->offered();
 		}
 
 		$needle = mb_strtolower($term);
 
-		return array_values(array_filter(
+		$own = array_values(array_filter(
 			$this->all(),
 			static fn (Gif $gif): bool => str_contains(mb_strtolower($gif->getTitle()), $needle)
 				|| str_contains($gif->getSlug(), $needle)
 		));
+
+		return array_merge($own, $this->pack->search($term));
 	}
 
 	/** One by its slug, or null. */
 	public function bySlug(string $slug): ?Gif {
 		$slug = strtolower(trim($slug));
+
+		// the pack first, and by name rather than by a scan: it is 881 of them
+		// against the handful an instance adds, and its slugs are its own
+		if ($this->pack->owns($slug)) {
+			return $this->pack->bySlug($slug);
+		}
 
 		foreach ($this->all() as $gif) {
 			if ($gif->getSlug() === $slug) {
@@ -214,12 +236,23 @@ class GifService {
 	 * @throws NotFoundException
 	 */
 	public function file(string $slug): ISimpleFile {
+		$slug = strtolower(trim($slug));
+		// the pack keeps its own bytes, and fetches them the first time
+		if ($this->pack->owns($slug)) {
+			return $this->pack->file($slug);
+		}
+
 		$gif = $this->bySlug($slug);
 		if ($gif === null) {
 			throw new NotFoundException('no such picture');
 		}
 
 		return $this->folder()->getFile($gif->getFilename());
+	}
+
+	/** What the licence of the shipped pack requires to be said. */
+	public function attribution(): string {
+		return $this->pack->attribution();
 	}
 
 	private function urlOf(Gif $gif): string {

@@ -88,6 +88,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<job>OCA\Social\Cron\ExpiredStories</job>
 		<job>OCA\Social\Cron\Transcode</job>
 		<job>OCA\Social\Cron\Ladder</job>
+		<job>OCA\Social\Cron\GifPack</job>
 	</background-jobs>
 
 	<repair-steps>

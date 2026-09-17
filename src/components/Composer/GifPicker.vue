@@ -22,7 +22,7 @@
 			</NcButton>
 		</div>
 
-		<p v-if="loading" class="gif-picker__note">
+		<p v-if="loading && gifs.length === 0" class="gif-picker__note">
 			{{ t('social', 'Loading…') }}
 		</p>
 		<p v-else-if="gifs.length === 0" class="gif-picker__note">
@@ -39,14 +39,35 @@
 					@click="choose(gif)">
 					<!-- `loading="lazy"`: the whole library is in this grid and
 					     most of it is below the fold, and these are animations -->
+					<!-- `fetchpriority="low"`: a cold picture holds one of the
+					     browser's six connections to this host while the server
+					     fetches it, and what must not be stuck behind them is
+					     the reader's next search -->
 					<img
 						class="gif-picker__image"
 						:src="gif.url"
 						:alt="gif.title || gif.slug"
-						loading="lazy">
+						loading="lazy"
+						decoding="async"
+						fetchpriority="low">
 				</button>
 			</li>
+			<!-- the rest arrives when the reader reaches the bottom of the
+			     grid rather than all at once: the library is 881 pictures and
+			     drawing them all is 881 the server would go and fetch -->
+			<li v-if="hasMore" class="gif-picker__more">
+				<NcButton variant="tertiary" :disabled="loading" @click="loadMore">
+					{{ loading ? t('social', 'Loading…') : t('social', 'Show more') }}
+				</NcButton>
+			</li>
 		</ul>
+
+		<!-- what the licence of the shipped emoji asks for, wherever they are
+		     shown; the server says it, so regenerating the list cannot leave
+		     the credit behind -->
+		<p v-if="attribution !== '' && gifs.length > 0" class="gif-picker__credit">
+			{{ attribution }}
+		</p>
 	</div>
 </template>
 
@@ -61,6 +82,23 @@ import logger from '../../services/logger.js'
 
 /** how long the search waits after the last keystroke */
 const DEBOUNCE = 250
+
+/**
+ * How many to ask for at a time.
+ *
+ * Every picture in the grid is a request, and for one of the shipped emoji
+ * this instance has not shown before it is a request the server answers by
+ * fetching it from Google. A screenful at a time keeps that to what somebody
+ * is actually looking at.
+ *
+ * Twenty-four rather than sixty, which is what a grid this tall shows without
+ * scrolling. The number that matters is not how many are drawn but how many
+ * cold pictures are in flight at once: a browser opens six connections to a
+ * host over HTTP/1.1, so sixty of them queue four deep and the search that
+ * followed them waited half a minute for a connection. Measured on a cold
+ * instance: sixty took 33s, twenty-four a few.
+ */
+const PAGE = 24
 
 /**
  * The instance's shared picture library, as a grid in the composer.
@@ -89,6 +127,10 @@ export default {
 		return {
 			term: '',
 			gifs: [],
+			/** how many there are altogether, as the server counted them */
+			total: 0,
+			/** the credit the shipped pack is shown under */
+			attribution: '',
 			loading: true,
 			/** true while an attachment is being made, so nothing is chosen twice */
 			busy: false,
@@ -104,8 +146,13 @@ export default {
 		 */
 		emptyMessage() {
 			return this.term === ''
-				? t('social', 'Nobody has added any pictures to this instance yet.')
+				? t('social', 'There are no pictures on this instance.')
 				: t('social', 'Nothing here matches that.')
+		},
+
+		/** @return {boolean} whether the server has more than has been drawn */
+		hasMore() {
+			return this.gifs.length < this.total
 		},
 	},
 
@@ -129,18 +176,43 @@ export default {
 			this.debounce = setTimeout(() => this.load(), DEBOUNCE)
 		},
 
-		/** Reads the library, or the part of it that matches. */
-		async load() {
+		/** Reads the first screenful of the library, or of what matches. */
+		load() {
+			return this.fetch(0)
+		},
+
+		/** Reads the next screenful, keeping what is already drawn. */
+		loadMore() {
+			return this.fetch(this.gifs.length)
+		},
+
+		/**
+		 * @param {number} offset where to carry on from; 0 starts again
+		 */
+		async fetch(offset) {
 			this.loading = true
+			// which search this answer belongs to: a slow answer for a term
+			// the reader has moved on from must not land in the grid
+			const term = this.term
 			try {
 				const { data } = await axios.get(generateUrl('/apps/social/api/v1/gifs'), {
-					params: { q: this.term },
+					params: { q: term, limit: PAGE, offset },
 				})
 
-				this.gifs = Array.isArray(data) ? data : []
+				if (term !== this.term) {
+					return
+				}
+
+				const page = Array.isArray(data?.gifs) ? data.gifs : []
+				this.gifs = offset === 0 ? page : [...this.gifs, ...page]
+				this.total = Number(data?.total) || this.gifs.length
+				this.attribution = String(data?.attribution ?? '')
 			} catch (error) {
 				logger.error('Could not read the picture library', { error })
-				this.gifs = []
+				if (offset === 0) {
+					this.gifs = []
+					this.total = 0
+				}
 			} finally {
 				this.loading = false
 			}
@@ -204,6 +276,21 @@ export default {
 	padding: 0;
 	overflow-y: auto;
 	list-style: none;
+}
+
+/* the row the "Show more" button sits on, across whatever the grid's columns
+   happen to be */
+.gif-picker__more {
+	grid-column: 1 / -1;
+	display: flex;
+	justify-content: center;
+	padding: 4px 0;
+}
+
+.gif-picker__credit {
+	margin: 6px 2px 0;
+	color: var(--color-text-maxcontrast);
+	font-size: 11px;
 }
 
 .gif-picker__item {

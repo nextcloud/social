@@ -939,7 +939,11 @@ the shortcode shows as text again.
 
 ### `social:gif`
 
-The shared pictures the composer offers in its GIF picker.
+The shared pictures the composer offers in its GIF picker, on top of the 881
+animated emoji every instance has (`gif_pack`, on by default — see
+[Architecture](Architecture.md)). These are the ones that are *this* instance's:
+the in-joke, the team's own, the thing nowhere else has. They are offered first,
+above the emoji.
 
 ```
 php occ social:gif [-t|--title TITLE] [<action>] [<slug>] [<file>]
