@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.24.3  
+**App version:** 0.24.4  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -1482,6 +1482,8 @@ against whatever frame holds them, which therefore has to be
 `PostAttachment.vue`. It was `GalleryMedia`'s own markup and so appeared on the
 media-first mosaic only; the same picture in an ordinary two-up card had its
 description in an `alt` attribute and nowhere else.
+
+**The action row.** How many replies, boosts and likes a post has is a fact *about the post*, so it is always drawn — as type, in the card's bottom padding: no button, no border, no surface, the glyphs dimmed to a hairline and the whole row out of the tab order's way until it is wanted. What arrives on hover (and on `:focus-within`, which is the entire keyboard path) is the **controls**: a pill fades in *behind* the row at the size the row already occupies, the glyphs come up to full, and the overflow menu appears. **Nothing moves** — no track widens, no digit shifts, so a pointer is never chasing a button that is still travelling, and a reader scanning a timeline can see which posts landed without pointing at each one in turn. The surface is a `::before` rather than the row's own background, border and shadow, so the whole thing arrives as one `opacity` — one compositor property on a page that can be showing a hundred of these — and it leaves in 100ms flat, because a pointer crossing four cards on its way somewhere else must not leave four pills fading behind it. The one thing lit at rest is a like or a boost this reader has already given (`[aria-pressed="true"]`), which is state rather than chrome. Touch gets none of it: the `@media (hover: none)` block turns the row back into a row with everything visible, since no pointer will ever arrive to reveal anything.
 
 **Phone layout.** One breakpoint, 600px, stated twice on purpose: as `PHONE_WIDTH` in `src/services/phone.js` (a shared `matchMedia` query with `isPhone()` and `onPhoneChange()`) and as the `@media (max-width: 600px)` rule in the stylesheets that lay themselves out differently on a phone — `TimelineEntry.vue` (the avatar column goes; the face, 36px, sits inside the card over the corner `.post-header` leaves for it, which is why `TimelineAvatar` takes a `size`), `TimelinePost.vue` (less padding), `TimelineSinglePost.vue` (the 64px the fine print and the spine kept for the avatar column), and `Composer.vue` (the toolbar wraps, the visibility menu is icon-only, Post keeps the end of its row). Nextcloud's own mobile breakpoint, 1024px, is where the sidebar collapses; the only rule at that width is `Timeline.vue`'s, which starts the page's first element below the sidebar toggle. A tablet in portrait is between the two and keeps the avatar column.
 

@@ -254,80 +254,75 @@
 			:modelValue="item.reactions || []"
 			:canReact="!serverData.public"
 			@update:modelValue="onReactionsChanged" />
-		<!-- The row is revealed by the pointer and the card grows to make
-		     room for it. The grid row going from 0fr to 1fr is the one way
-		     to animate to a height nobody can know in advance, and the
-		     dialogs below stay outside it: a box collapsing to nothing is
-		     no place to put a modal. -->
+		<!-- The counts are always here; the controls arrive with the pointer.
+		     Nothing widens and nothing moves — see the stylesheet for what is
+		     at rest and what is revealed. The dialogs below stay outside this
+		     row. -->
 		<div
 			v-if="$route && $route.params.type !== 'notifications' && !serverData.public"
 			class="post-actions-reveal"
 			:class="{ 'post-actions-reveal--held': menuOpen }">
 			<div class="post-actions">
-				<!-- everything but the menu lives in the rail, which is what
-				     widens; the menu is the pill at rest and never moves -->
-				<div class="post-actions__rail">
-					<div class="post-actions__groups">
-						<div class="post-action-group">
-							<NcButton
-								:title="t('social', 'Reply')"
-								:aria-label="t('social', 'Reply')"
-								variant="tertiary"
-								@click="reply">
-								<template #icon>
-									<Reply :size="20" />
-								</template>
-							</NcButton>
-							<RollingCount :count="item.replies_count || 0" />
-						</div>
-						<div
-							class="post-action-group"
-							:class="{ 'post-action-group--refused': refused === 'boost' }">
-							<NcButton
-								v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
-								:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-								:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-								:aria-pressed="isBoosted ? 'true' : 'false'"
-								variant="tertiary"
-								:class="{ 'post-action--spun': celebrate === 'boost' }"
-								@click="boost">
-								<template #icon>
-									<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
-								</template>
-							</NcButton>
-							<RollingCount :count="item.reblogs_count || 0" />
-						</div>
-						<div
-							class="post-action-group post-action-group--like"
-							:class="{ 'post-action-group--refused': refused === 'like' }">
-							<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
-							<!-- one button whose label changes, not two swapped by v-if:
+				<div class="post-actions__groups">
+					<div class="post-action-group">
+						<NcButton
+							:title="t('social', 'Reply')"
+							:aria-label="t('social', 'Reply')"
+							variant="tertiary"
+							@click="reply">
+							<template #icon>
+								<Reply :size="20" />
+							</template>
+						</NcButton>
+						<RollingCount :count="item.replies_count || 0" />
+					</div>
+					<div
+						class="post-action-group"
+						:class="{ 'post-action-group--refused': refused === 'boost' }">
+						<NcButton
+							v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+							:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+							:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+							:aria-pressed="isBoosted ? 'true' : 'false'"
+							variant="tertiary"
+							:class="{ 'post-action--spun': celebrate === 'boost' }"
+							@click="boost">
+							<template #icon>
+								<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+							</template>
+						</NcButton>
+						<RollingCount :count="item.reblogs_count || 0" />
+					</div>
+					<div
+						class="post-action-group post-action-group--like"
+						:class="{ 'post-action-group--refused': refused === 'like' }">
+						<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
+						<!-- one button whose label changes, not two swapped by v-if:
 							     unmounting the button someone just pressed drops their focus
 							     to the body and loses their place in the timeline -->
-							<NcButton
-								:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-								:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-								:aria-pressed="isLiked ? 'true' : 'false'"
-								variant="tertiary"
-								:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
-								@click="like">
-								<template #icon>
-									<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
-									<HeartOutline v-else :size="20" />
-								</template>
-							</NcButton>
-							<RollingCount :count="item.favourites_count || 0" />
-						</div>
-						<!-- only ever on the author's own copy: the server sends
+						<NcButton
+							:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+							:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+							:aria-pressed="isLiked ? 'true' : 'false'"
+							variant="tertiary"
+							:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
+							@click="like">
+							<template #icon>
+								<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
+								<HeartOutline v-else :size="20" />
+							</template>
+						</NcButton>
+						<RollingCount :count="item.favourites_count || 0" />
+					</div>
+					<!-- only ever on the author's own copy: the server sends
 						     `view_count` as null on everybody else's, because how
 						     many people read a post is the author's business -->
-						<div
-							v-if="item.view_count !== null && item.view_count !== undefined"
-							class="post-action post-action--views"
-							:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
-							<IconEyeOutline :size="20" />
-							<RollingCount :count="item.view_count" />
-						</div>
+					<div
+						v-if="item.view_count !== null && item.view_count !== undefined"
+						class="post-action post-action--views"
+						:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
+						<IconEyeOutline :size="20" />
+						<RollingCount :count="item.view_count" />
 					</div>
 				</div>
 				<!-- the menu opens in a portal, so the pointer leaving the card
@@ -1742,10 +1737,10 @@ export default {
 }
 
 .post-content {
-	/* the bottom padding is what the pill sits in: it is 20px so that the
-	   whole of the pill is either in this padding or in the 14px gap below the
-	   card, and none of it is over anything anybody is reading */
-	padding: 18px 20px 20px;
+	/* the bottom padding is what the row sits in, and it holds all of it: the
+	   counts are legible at rest now, so the row can no longer hang over the
+	   edge with its digits half on the card and half on the page behind it */
+	padding: 18px 20px 32px;
 	font-size: 15px;
 	line-height: 1.65;
 	border-radius: 8px;
@@ -2035,75 +2030,96 @@ export default {
 	 * a deliberate one — a mark on every card in a timeline is a hundred marks
 	 * on a screen. Touch does not pay it: see the `hover: none` block at the
 	 * end of this file, where the row is not a pill at all.
+	 *
+	 * **What is at rest and what arrives.** How many replies, boosts and
+	 * likes a post has is *about the post* — it belongs to a reader running
+	 * down a timeline deciding what to open, and hiding it until the pointer
+	 * lands meant the only way to see which posts had landed was to point at
+	 * each of them in turn. So the counts are always drawn, as type: no
+	 * button, no border, no surface, with the glyphs dimmed to a hairline.
+	 *
+	 * What arrives on hover is the *controls* — the pill fades in behind the
+	 * row at the size the row already occupies, and the glyphs come up to
+	 * full. Nothing moves: no track widens, no digit shifts, and the pointer
+	 * is never chasing a button that is still travelling. The one thing that
+	 * stays lit at rest is a like or a boost this reader has already given,
+	 * because that is state rather than chrome.
 	 */
 	.post-actions-reveal {
 		position: absolute;
-		/* 20px of the pill sits in the card's own bottom padding and 12px
-		   hangs into the 14px gap: it covers neither the text above it nor the
-		   card below it */
-		top: calc(100% - 20px);
+		/* the whole row is inside the card, in the bottom padding that exists
+		   for it: 32px of padding for a 30px row, on the baseline the reaction
+		   bar sits on */
+		top: calc(100% - 32px);
 		inset-inline-end: 14px;
 		z-index: 2;
 		display: flex;
 		padding: 1px;
+		border: 1px solid transparent;
+		border-radius: 999px;
+	}
+
+	/*
+	 * The surface, drawn *behind* the row at the size the row already has.
+	 * A pseudo-element rather than the background, border and shadow of the
+	 * row itself, so the whole thing arrives as one opacity — one compositor
+	 * property, on a page that can be showing a hundred of these.
+	 */
+	.post-actions-reveal::before {
+		content: '';
+		position: absolute;
+		inset: -1px;
+		border-radius: 999px;
 		background: var(--color-main-background);
 		border: 1px solid var(--color-primary-element);
-		border-radius: 999px;
 		box-shadow: var(--social-elevation-raised);
-		/* nothing at all on a card nobody is pointing at */
 		opacity: 0;
+		/* out in a tenth of a second and flat: a pointer crossing four cards
+		   on its way somewhere else must not leave four pills fading behind it */
+		transition: opacity .1s linear;
 		pointer-events: none;
-		transition: opacity .14s ease;
 	}
 
 	/*
 	 * `focus-within` is not decoration here: it is the whole of the keyboard
 	 * path. Tabbing into a card has to open the same pill the pointer does, or
-	 * the buttons are focusable and invisible.
+	 * the controls are focusable and unmarked.
 	 */
-	&:hover .post-actions-reveal,
-	&:focus-within .post-actions-reveal,
-	.post-actions-reveal--held {
+	&:hover .post-actions-reveal::before,
+	&:focus-within .post-actions-reveal::before,
+	.post-actions-reveal--held::before {
 		opacity: 1;
-		pointer-events: auto;
+		transition: opacity .2s ease;
 	}
 
-	&:hover .post-actions__rail,
-	&:focus-within .post-actions__rail,
-	.post-actions-reveal--held .post-actions__rail {
-		grid-template-columns: 1fr;
-
-		.post-action-group {
-			opacity: 1;
-		}
-
-		/* each one a beat behind the last, so the row arrives as a movement
-		   rather than as three things at once */
-		.post-action-group:nth-child(1) { transition-delay: .1s; }
-		.post-action-group:nth-child(2) { transition-delay: .14s; }
-		.post-action-group:nth-child(3) { transition-delay: .18s; }
+	/* the menu is a control rather than a fact about the post, so it keeps to
+	   the same rule as the glyphs: out of the way until it is asked for */
+	.post-actions :deep(.action-item),
+	.post-actions :deep(.actions) {
+		opacity: 0;
+		transition: opacity .16s ease;
 	}
 
-	.post-actions__rail {
-		display: grid;
-		grid-template-columns: 0fr;
-		transition: grid-template-columns .34s cubic-bezier(.22, 1.1, .4, 1);
+	&:hover .post-actions :deep(.action-item),
+	&:hover .post-actions :deep(.actions),
+	&:focus-within .post-actions :deep(.action-item),
+	&:focus-within .post-actions :deep(.actions),
+	.post-actions-reveal--held :deep(.action-item),
+	.post-actions-reveal--held :deep(.actions) {
+		opacity: 1;
 	}
 
 	.post-actions__groups {
 		display: flex;
 		align-items: center;
 		gap: 2px;
-		/* the two halves of the column trick: the track may be zero wide, and
-		   what is in it must be willing to be clipped rather than set a floor
-		   under the track */
 		min-inline-size: 0;
-		overflow: hidden;
+	}
 
-		.post-action-group {
-			opacity: 0;
-			transition: opacity .18s ease;
-		}
+	&:hover .post-actions :deep(.button-vue__icon),
+	&:focus-within .post-actions :deep(.button-vue__icon),
+	.post-actions-reveal--held :deep(.button-vue__icon) {
+		opacity: 1;
 	}
 
 	.post-actions {
@@ -2130,6 +2146,20 @@ export default {
 			&:hover {
 				background: var(--color-background-dark);
 			}
+		}
+
+		/* a hairline at rest: enough to say what the number counts, not enough
+		   to read as a button somebody should press */
+		:deep(.button-vue__icon) {
+			opacity: .38;
+			transition: opacity .2s ease;
+		}
+
+		/* except a like or a boost this reader has already given. That is the
+		   state of the post as far as they are concerned, and it is the one
+		   thing on this row worth seeing without pointing at it. */
+		:deep(.button-vue[aria-pressed="true"] .button-vue__icon) {
+			opacity: 1;
 		}
 
 		/* 28px rather than the 34px a button is elsewhere: this is a
@@ -2370,28 +2400,27 @@ export default {
 	.post-content .post-actions-reveal {
 		position: static;
 		padding: 0;
-		background: none;
 		border: none;
 		border-radius: 0;
-		box-shadow: none;
-		/* the base state hides the pill until a pointer arrives, and none ever
-		   does here */
+	}
+
+	/* no surface either: there is no pointer to arrive and reveal one, so the
+	   row is a row */
+	.post-content .post-actions-reveal::before {
+		display: none;
+	}
+
+	/* and nothing is dimmed waiting for a hover that never comes */
+	.post-content .post-actions :deep(.button-vue__icon),
+	.post-content .post-actions :deep(.action-item),
+	.post-content .post-actions :deep(.actions) {
 		opacity: 1;
-		pointer-events: auto;
 	}
 
 	.post-content .post-actions {
 		margin-top: 10px;
 		padding-top: 8px;
 		border-top: 1px solid var(--color-border);
-	}
-
-	.post-content .post-actions__rail {
-		grid-template-columns: 1fr;
-	}
-
-	.post-content .post-action-group {
-		opacity: 1;
 	}
 
 	/* the menu goes back to the far end of a full-width row */
@@ -2401,17 +2430,16 @@ export default {
 }
 
 /*
- * Reduced motion takes the movement away, not the reveal: the row still has to
- * arrive when the pointer does, it just stops widening to get there.
+ * Reduced motion takes the fade away, not the reveal: the pill and the glyphs
+ * still have to arrive when the pointer does, they just stop easing into it.
+ * Nothing here moves in the first place, so there is no movement left to cut.
  */
 @media (prefers-reduced-motion: reduce) {
-	.post-content .post-actions__rail {
-		transition-duration: .01ms;
-	}
-
-	.post-content .post-action-group {
-		transition: none;
-		transition-delay: 0ms !important;
+	.post-content .post-actions-reveal::before,
+	.post-content .post-actions :deep(.button-vue__icon),
+	.post-content .post-actions :deep(.action-item),
+	.post-content .post-actions :deep(.actions) {
+		transition-duration: .01ms !important;
 	}
 }
 </style>
