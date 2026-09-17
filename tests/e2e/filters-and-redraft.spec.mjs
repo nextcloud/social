@@ -19,8 +19,10 @@ test.describe('filters, and writing a post again', () => {
 		await login(page)
 	})
 
-	test('Settings can add and remove a filtered word', async ({ page }) => {
-		await openApp(page, '/settings')
+	test('Blocking can add and remove a filtered word', async ({ page }) => {
+		// with the accounts and servers a reader silences, rather than in
+		// Settings: filtering a word is the same decision aimed at a word
+		await openApp(page, '/blocked')
 
 		const section = page.locator('#filters')
 		await expect(section).toBeVisible()

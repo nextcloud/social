@@ -56,6 +56,9 @@ async function mountView({ blocked = [bob], muted = [carol], domains = [], dispa
 			stubs: {
 				ActorAvatar: true,
 				NcEmptyContent: { props: ['name'], template: '<div class="empty-content">{{ name }}</div>' },
+				// it reads the reader's filters on mount, and its own suite covers
+				// what it does with them
+				FiltersSettings: { template: '<div class="filters-settings-stub" />' },
 				RouterLink: RouterLinkStub,
 			},
 		},
@@ -86,6 +89,20 @@ describe('BlockedAccounts', () => {
 		const { wrapper } = await mountView({ blocked: [dave], muted: [] })
 
 		expect(rowNames(wrapper)).toEqual(['dave'])
+	})
+
+	/**
+	 * A reader who wants to stop reading something looks in one place, whether
+	 * the something is a person, a server or a word. The keyword filters used
+	 * to be in Settings, which is where a reader goes to change how the app
+	 * behaves rather than to silence anything.
+	 */
+	it('holds the keyword filters, at an id another page can link to', async () => {
+		const { wrapper } = await mountView()
+
+		expect(wrapper.find('#filters .filters-settings-stub').exists()).toBe(true)
+		expect(wrapper.findAll('h3').map((heading) => heading.text()))
+			.toEqual(['Blocked', 'Muted', 'Hidden servers', 'Filtered words'])
 	})
 
 	it('links each account to its profile', async () => {
@@ -157,6 +174,9 @@ describe('BlockedAccounts', () => {
 				stubs: {
 					ActorAvatar: true,
 					NcEmptyContent: { props: ['name'], template: '<div class="empty-content">{{ name }}</div>' },
+					// it reads the reader's filters on mount, and its own suite covers
+					// what it does with them
+					FiltersSettings: { template: '<div class="filters-settings-stub" />' },
 					RouterLink: RouterLinkStub,
 				},
 			},

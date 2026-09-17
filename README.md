@@ -138,7 +138,7 @@ you follow, of this instance and of the whole Fediverse are one click apart.
 - **Lists**, made and filled in Settings or from anybody's profile — and **every
   Nextcloud group you are in is already a list**, built and maintained by nobody.
 - **Follow a hashtag** and it reads exactly like following a person.
-- **Filter out words you would rather not read** — **Settings → Filtered words**. A
+- **Filter out words you would rather not read** — **Blocking → Filtered words**. A
   filter is a handful of words, the timelines it applies in, and whether a matching
   post is **folded away behind the filter's name**, with a *Show anyway*, or taken out
   of the timeline altogether; it can be set to expire on its own. A folded post is not
@@ -449,7 +449,7 @@ the same app, not a second design.
   rather than as the person who filed it, because they would otherwise be handing their
   handle to the very instance they are complaining about.
 - **Locked accounts**, so follows must be approved, with a Follow requests page.
-- **Keyword filters**, written and read in **Settings → Filtered words**: they are
+- **Keyword filters**, written and read in **Blocking → Filtered words**: they are
   yours alone, they apply to every timeline this app draws, and a filter set months ago
   from a phone is finally visible from here.
 - **What you see from an account you follow**, on its profile: the bell that says

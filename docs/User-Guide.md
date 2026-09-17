@@ -204,6 +204,13 @@ The sidebar is the map:
   **New** heading separates them from **Earlier** where the page holds both.
   Otherwise the page marks itself read after a couple of seconds in front of
   you, and that position is the one every other Fediverse client shares: a
+  badge cleared on your phone is cleared here too. The page says how many that is at
+  the top — *3 new activities*, with a **Mark all as read** button that clears
+  the badge whichever filter you are looking at — and marks the activities
+  themselves: each new one carries a **New** tag beside its timestamp, and a
+  **New** heading separates them from **Earlier** where the page holds both.
+  Otherwise the page marks itself read after a couple of seconds in front of
+  you, and that position is the one every other Fediverse client shares: a
   badge cleared on your phone is cleared here too.
 - **Direct messages** — the posts addressed to you and nobody else, with the
   composer already set to direct.
@@ -402,10 +409,11 @@ changed rather than being told only that something did.
 
 ## Filtering out words
 
-Some words are not worth reading. **Settings → Filtered words** is where you say
-so, and it is the same list a Mastodon app on your phone writes to — a filter you
-made there has been applying here all along, and this is the first page that shows
-it.
+Some words are not worth reading. **Blocking → Filtered words** is where you say
+so — with the accounts you have blocked and muted and the servers you have hidden,
+because it is the same decision aimed at a word rather than at a person. It is the
+same list a Mastodon app on your phone writes to: a filter you made there has been
+applying here all along, and this is the first page that shows it.
 
 A filter is four things:
 

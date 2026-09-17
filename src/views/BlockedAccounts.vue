@@ -6,7 +6,7 @@
 	<div class="social__blocked">
 		<h2>{{ t('social', 'Blocked and muted accounts') }}</h2>
 		<p class="social__blocked-hint">
-			{{ t('social', 'Blocking severs the relationship in both directions and hides the account everywhere. Muting only hides it from you, without the account knowing.') }}
+			{{ t('social', 'Blocking severs the relationship in both directions and hides the account everywhere. Muting only hides it from you, without the account knowing. A whole server can be hidden, and words can be filtered out wherever they appear.') }}
 		</p>
 
 		<section>
@@ -130,6 +130,16 @@
 			</transition-group>
 		</section>
 
+		<!-- last: the three lists above are people and servers, and this one
+		     applies to everybody, the people you follow included -->
+		<section id="filters">
+			<h3>{{ t('social', 'Filtered words') }}</h3>
+			<p class="social__blocked-hint">
+				{{ t('social', 'Words you would rather not read, wherever they appear — from the people you follow as much as from anybody else. A post carrying one is folded away behind the name of the filter, or taken out of your timelines altogether. Filters are yours alone, nobody is told about them, and a filter set in a phone app has been applying here all along.') }}
+			</p>
+			<FiltersSettings />
+		</section>
+
 		<div v-if="loading" class="loading-indicator">
 			{{ t('social', 'Loading…') }}
 		</div>
@@ -141,6 +151,7 @@ import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
 import ActorAvatar from '../components/ActorAvatar.vue'
+import FiltersSettings from '../components/FiltersSettings.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
@@ -155,6 +166,7 @@ export default {
 	name: 'BlockedAccounts',
 	components: {
 		ActorAvatar,
+		FiltersSettings,
 		NcButton,
 		NcEmptyContent,
 		NcTextField,
