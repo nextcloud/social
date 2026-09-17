@@ -20,7 +20,6 @@ const CollectionPage = () => import(/* webpackChunkName: "profile" */'./views/Co
 const PlacePage = () => import(/* webpackChunkName: "profile" */'./views/PlacePage.vue')
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
-const NotificationRequests = () => import(/* webpackChunkName: "profile" */'./views/NotificationRequests.vue')
 const Discover = () => import('./views/Discover.vue')
 const Settings = () => import(/* webpackChunkName: "profile" */'./views/Settings.vue')
 const Statistics = () => import(/* webpackChunkName: "profile" */'./views/Statistics.vue')
@@ -270,11 +269,11 @@ const router = createRouter({
 			name: 'blocked-accounts',
 		},
 		{
+			// The held senders are a card on the Blocking page now. The path
+			// stays so that a bookmark, or a link somebody was sent, lands
+			// where the thing they wanted actually is rather than on a 404.
 			path: '/filtered',
-			components: {
-				default: NotificationRequests,
-			},
-			name: 'notification-requests',
+			redirect: { name: 'blocked-accounts' },
 		},
 		{
 			path: '/settings',

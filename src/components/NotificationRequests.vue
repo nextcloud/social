@@ -4,11 +4,6 @@
 -->
 <template>
 	<div class="social__requests">
-		<h2>{{ t('social', 'Filtered notifications') }}</h2>
-		<p class="social__requests-hint">
-			{{ t('social', 'Your notification settings hold some notifications back instead of showing them — from accounts nobody here follows, from brand-new accounts, from people you do not follow. They wait here, one row per sender, so you decide about the person once rather than about every notification they send.') }}
-		</p>
-
 		<NcLoadingIcon v-if="loading" class="social__requests-loading" :size="32" />
 
 		<NcEmptyContent
@@ -77,7 +72,7 @@ import IconInboxOutline from 'vue-material-design-icons/InboxOutline.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import ActorAvatar from '../components/ActorAvatar.vue'
+import ActorAvatar from './ActorAvatar.vue'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
 import { htmlToPlainText } from '../utils/plainText.js'
@@ -88,7 +83,9 @@ import { htmlToPlainText } from '../utils/plainText.js'
  * The API has had this since the 4.3 policy landed and there was no page for
  * it, so somebody with a policy stricter than the default lost mentions with
  * no way to see that anything had been held — which is worse than not having
- * the policy at all.
+ * the policy at all. It is a card on the Blocking page rather than a page of
+ * its own: it is one more thing the reader is not being shown, and it was a
+ * sidebar entry that stayed empty for most people.
  *
  * One row per *sender*, which is the shape the API answers in and the shape
  * the decision has: accepting settles everything that account has sent and
@@ -219,17 +216,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.social__requests {
-	max-width: var(--social-column);
-	margin: 15px auto;
-	padding: 0 10px;
-}
-
-.social__requests-hint {
-	color: var(--color-text-maxcontrast);
-	margin-block-end: 12px;
-}
-
 .social__requests-loading {
 	margin-block: 32px;
 }

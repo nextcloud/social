@@ -620,11 +620,10 @@ describe('Navigation', () => {
 			'Discover',
 			'My profile',
 			'Follow requests',
-			'Filtered notifications',
 			'Liked posts',
 			'Bookmarks',
 			'Statistics',
-			'Blocked and muted accounts',
+			'Blocking',
 			'Settings',
 		])
 	})
@@ -640,11 +639,10 @@ describe('Navigation', () => {
 		expect(moreNames(wrapper)).toEqual([
 			'My profile',
 			'Follow requests',
-			'Filtered notifications',
 			'Liked posts',
 			'Bookmarks',
 			'Statistics',
-			'Blocked and muted accounts',
+			'Blocking',
 			'Settings',
 		])
 
@@ -713,7 +711,6 @@ describe('Navigation', () => {
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
 		['Statistics', { name: 'statistics' }],
 		['Follow requests', { name: 'follow-requests' }],
-		['Filtered notifications', { name: 'notification-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
 		['My profile', { name: 'profile', params: { account: 'alice' } }],
 		['Settings', { name: 'settings' }],
@@ -731,10 +728,10 @@ describe('Navigation', () => {
 
 	it('offers the blocked and muted accounts in the settings section', () => {
 		const wrapper = mountNavigation()
-		const entry = item(wrapper, 'Blocked and muted accounts')
+		const entry = item(wrapper, 'Blocking')
 
 		expect(entry.attributes('data-href')).toBe(router.resolve({ name: 'blocked-accounts' }).href)
-		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
+		expect(wrapper.find('.nav-settings').text()).toContain('Blocking')
 	})
 
 	// these rows live inside the Explore entry; that they do, and what they may
@@ -1096,8 +1093,7 @@ describe('Navigation entries are links', () => {
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
 		['My profile', '/index.php/apps/social/@alice'],
-		['Filtered notifications', '/index.php/apps/social/filtered'],
-		['Blocked and muted accounts', '/index.php/apps/social/blocked'],
+		['Blocking', '/index.php/apps/social/blocked'],
 	])('gives %s a real href', async (name, href) => {
 		expect(link(await mountReal(), name).attributes('href')).toBe(href)
 	})

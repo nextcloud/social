@@ -26,6 +26,18 @@ interface Window {
 	OC: any
 	OCA: any
 	_oc_webroot: string
+	/**
+	 * What the server says about the reader's own avatar. The version is
+	 * bumped whenever the picture changes, and goes in the address of every
+	 * avatar this app builds by hand; see services/avatar.js. Absent on a page
+	 * nobody is signed in to.
+	 */
+	oc_userconfig?: {
+		avatar?: {
+			version?: number
+			generated?: boolean
+		}
+	}
 }
 
 /**

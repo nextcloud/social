@@ -333,7 +333,10 @@ describe('Composer', () => {
 
 			expect(avatar.exists()).toBe(true)
 			expect(avatar.attributes('user')).toBeUndefined()
-			expect(avatar.attributes('url')).toMatch(/\/avatar\/[^/]+\/64$/)
+			// with the version Nextcloud bumps when the picture changes: the
+			// avatar route is served `immutable`, so without it the browser
+			// keeps the old face for a day
+			expect(avatar.attributes('url')).toMatch(/\/avatar\/[^/]+\/64\?v=\d+$/)
 		})
 
 		it('shows a ring that fills as the post grows, and only once there is text', async () => {

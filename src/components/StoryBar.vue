@@ -79,6 +79,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import logger from '../services/logger.js'
+import { ownAvatarUrl } from '../services/avatar.js'
 import { useAccountStore } from '../store/account.js'
 
 // the viewer and the composer are the heavy halves and most visits open
@@ -147,7 +148,7 @@ export default {
 				acct: user.uid,
 				username: user.uid,
 				display_name: user.displayName || user.uid,
-				avatar: generateUrl('/avatar/{uid}/64', { uid: user.uid }),
+				avatar: ownAvatarUrl(64),
 			}
 		},
 

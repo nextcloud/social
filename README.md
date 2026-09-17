@@ -291,9 +291,9 @@ own unified search. No external search engine to run.
 - **Authorized apps** — every app holding a key to your account, with what it
   may do and when it was last used, and a button that signs one out. The page
   to open after losing a phone.
-- **Filtered notifications** — the senders your notification policy is holding,
-  one row each, with Show these and Dismiss. The policy has been in the API since
-  4.3; this is the page that makes it usable.
+- **Filtered notifications** — on the Blocking page, the senders your notification
+  policy is holding, one row each, with Show these and Dismiss. The policy has been
+  in the API since 4.3; this is what makes it usable.
 - **Hide a whole server** from yourself, beside the blocked and muted accounts.
 - **Edit history** — the "Edited" line under a post opens every version of it.
 - **A portfolio** — a page of your work with its own public address, to put on a

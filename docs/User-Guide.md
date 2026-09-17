@@ -394,11 +394,11 @@ under the post takes your name off, and needs nobody's permission.
 
 ### Notifications your settings held back
 
-**Filtered notifications** in the sidebar. Your notification settings can hold
-some notifications back rather than show them — from accounts nobody here
-follows, from brand-new accounts, from people you do not follow. They wait on
-that page, one row per sender with how many they have sent and the first words
-of their most recent post.
+**Settings → Blocking**, under **Filtered notifications**. Your notification
+settings can hold some notifications back rather than show them — from accounts
+nobody here follows, from brand-new accounts, from people you do not follow.
+They wait in that card, one row per sender with how many they have sent and the
+first words of their most recent post.
 
 You decide about the **person**, not about each notification: **Show these**
 settles everything that account has sent and will send, and **Dismiss** stops
@@ -408,7 +408,7 @@ back with nowhere to see them, which is worse than not having the setting.
 
 ### Hiding a whole server
 
-**Settings → Blocked and muted accounts** now has a third list: the servers you
+**Settings → Blocking** now has a third list: the servers you
 have hidden. Hiding one hides every account on it and everything they post, and
 takes your follows in both directions with it. It is the answer to being
 bothered by a server rather than by one person — the alternative was blocking
@@ -517,7 +517,7 @@ hand, it is picked up as one.
   **Block** severs the relationship in both directions, hides the account
   everywhere, and tells the other server (unless the administrator turned
   that off). **Mute** hides the account from your timelines and notifications
-  without it ever knowing. **Blocked and muted accounts**, under **Settings**
+  without it ever knowing. **Blocking**, under **Settings**
   in the sidebar, lists both with unblock and unmute inline.
 - **Follow requests.** When your account is locked, people asking to follow
   you appear under **Follow requests** in the sidebar — **Accept** or
