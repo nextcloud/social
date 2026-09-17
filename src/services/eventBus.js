@@ -30,3 +30,14 @@ export const LISTS_CHANGED = 'social:lists-changed'
  * sizes this would have broken.
  */
 export const REACTION_PICK = 'social:reaction-pick'
+
+/**
+ * The reader pressed "Mark all as read" on the Activities page.
+ *
+ * The payload is the id the marker was moved to. The page owns that button
+ * and the list below it owns the line between what is new and what was
+ * already there -- frozen for the length of the visit, on purpose -- so the
+ * one has to tell the other. Without this the "New" heading and the pills
+ * would stay up over activities the badge has stopped counting.
+ */
+export const NOTIFICATIONS_READ = 'social:notifications-read'

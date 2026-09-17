@@ -197,7 +197,14 @@ The sidebar is the map:
   followers and follow requests, poll results, edits of posts you boosted.
   The sidebar badge counts what arrived since you last looked, and the same
   events reach the Nextcloud bell and its mail digest; a follow request can be
-  accepted or declined from the bell itself.
+  accepted or declined from the bell itself. The page says how many that is at
+  the top — *3 new activities*, with a **Mark all as read** button that clears
+  the badge whichever filter you are looking at — and marks the activities
+  themselves: each new one carries a **New** tag beside its timestamp, and a
+  **New** heading separates them from **Earlier** where the page holds both.
+  Otherwise the page marks itself read after a couple of seconds in front of
+  you, and that position is the one every other Fediverse client shares: a
+  badge cleared on your phone is cleared here too.
 - **Direct messages** — the posts addressed to you and nobody else, with the
   composer already set to direct.
 - **Explore** — one collapsible entry holding everything there is to look at

@@ -7,7 +7,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { showError } from '../../../src/services/toast.js'
 import TimelineList from '../../../src/components/TimelineList.vue'
-import eventBus from '../../../src/services/eventBus.js'
+import eventBus, { NOTIFICATIONS_READ } from '../../../src/services/eventBus.js'
 import { listen } from '@nextcloud/notify_push'
 import EmptyContent from '../../../src/components/EmptyContent.vue'
 import TimelineSkeleton from '../../../src/components/TimelineSkeleton.vue'
@@ -504,7 +504,7 @@ describe('TimelineList', () => {
 			await look(2000)
 
 			// the highest id on screen, not the first or the last in the array
-			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith(1788875057712412)
+			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith('1788875057712412')
 		})
 
 		it('covers every id a grouped card stands for', async () => {
@@ -520,7 +520,7 @@ describe('TimelineList', () => {
 
 			await look(2000)
 
-			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith(41)
+			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith('41')
 		})
 
 		it('does not count a tab nobody is looking at as looking', async () => {
@@ -536,7 +536,7 @@ describe('TimelineList', () => {
 			document.dispatchEvent(new Event('visibilitychange'))
 			await look(2000)
 
-			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith(1788875057712412)
+			expect(notificationsStore.markNotificationsRead).toHaveBeenCalledWith('1788875057712412')
 		})
 
 		it('says it once for the same newest notification', async () => {
@@ -598,6 +598,56 @@ describe('TimelineList', () => {
 			await flushPromises()
 
 			expect(headings(wrapper)).toEqual([])
+			// but every card on it is still marked: a heading over the whole
+			// page separates nothing, which is not the same as there being
+			// nothing new on it. The marks used to be read off the heading's
+			// index, so this -- the case the badge is loudest about -- showed
+			// the reader nothing at all
+			expect(unread(wrapper)).toEqual(['yes', 'yes', 'yes'])
+		})
+
+		it('marks the lot for an account that has never read anything', async () => {
+			// a marker of 0 is "nothing read yet", which is also what the badge
+			// counts against; it used to be taken for "all read" and left the
+			// page bare under a badge saying there were four
+			const { wrapper } = onNotifications(0)
+			await flushPromises()
+
+			expect(unread(wrapper)).toEqual(['yes', 'yes', 'yes'])
+			expect(headings(wrapper)).toEqual([])
+		})
+
+		it('marks nothing until the server has said where the marker is', async () => {
+			const { wrapper } = onNotifications(30)
+
+			// the answer has not arrived: a page that lit up and then settled
+			// would read as a fault
+			expect(unread(wrapper)).toEqual(['no', 'no', 'no'])
+
+			await flushPromises()
+			expect(unread(wrapper)).toEqual(['yes', 'no', 'no'])
+		})
+
+		it('takes the marks down when the page above says the lot was read', async () => {
+			const { wrapper } = onNotifications(30)
+			await flushPromises()
+			expect(unread(wrapper)).toEqual(['yes', 'no', 'no'])
+
+			eventBus.emit(NOTIFICATIONS_READ, 40)
+			await wrapper.vm.$nextTick()
+
+			expect(headings(wrapper)).toEqual([])
+			expect(unread(wrapper)).toEqual(['no', 'no', 'no'])
+		})
+
+		it('never takes the line backwards when told of an older marker', async () => {
+			const { wrapper } = onNotifications(30)
+			await flushPromises()
+
+			eventBus.emit(NOTIFICATIONS_READ, 10)
+			await wrapper.vm.$nextTick()
+
+			expect(unread(wrapper)).toEqual(['yes', 'no', 'no'])
 		})
 
 		it('draws no line when nothing has arrived since', async () => {

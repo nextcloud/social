@@ -10,6 +10,8 @@ import {
 	NOTIFICATION_TYPES,
 	excludeTypesFor,
 	groupNotifications,
+	isNewerId,
+	newerId,
 	newestIdOf,
 	notificationSummary,
 	rememberFilter,
@@ -223,19 +225,55 @@ describe('grouping the notifications', () => {
 
 describe('newestIdOf', () => {
 	it('takes the id of a notification', () => {
-		expect(newestIdOf({ id: '1788875057712399' })).toBe(1788875057712399)
+		expect(newestIdOf({ id: '1788875057712399' })).toBe('1788875057712399')
 	})
 
 	it('takes the newest of the ids a grouped card stands for', () => {
 		// the read marker is "up to", so anything less leaves the rest unread
-		expect(newestIdOf({ id: '5', ids: ['5', '9', '3'] })).toBe(9)
+		expect(newestIdOf({ id: '5', ids: ['5', '9', '3'] })).toBe('9')
 	})
 
 	it('falls back to the nid a status carries', () => {
-		expect(newestIdOf({ nid: 42 })).toBe(42)
+		expect(newestIdOf({ nid: 42 })).toBe('42')
 	})
 
 	it('answers 0 for something with no id at all', () => {
-		expect(newestIdOf({})).toBe(0)
+		expect(newestIdOf({})).toBe('0')
+	})
+
+	it('keeps every digit of a twenty-digit id', () => {
+		// `Number('1789553297940456473')` is 1789553297940456400: a marker set
+		// from it lands *behind* the notification it was meant to cover, so
+		// the badge came back however often the reader cleared it
+		expect(newestIdOf({ id: '1789553297940456473' })).toBe('1789553297940456473')
+		expect(newestIdOf({ ids: ['1789553297940456400', '1789553297940456473'] }))
+			.toBe('1789553297940456473')
+	})
+
+	it('reads something that was never an id as no id at all', () => {
+		expect(newestIdOf({ id: 'not-a-number' })).toBe('0')
+	})
+})
+
+describe('isNewerId', () => {
+	it('tells two twenty-digit ids apart', () => {
+		expect(isNewerId('1789553297940456473', '1789553297940456400')).toBe(true)
+		expect(isNewerId('1789553297940456400', '1789553297940456473')).toBe(false)
+	})
+
+	it('is false for the same id, so a marker never moves for nothing', () => {
+		expect(isNewerId('42', '42')).toBe(false)
+	})
+
+	it('holds anything unreadable at nothing', () => {
+		expect(isNewerId(undefined, '0')).toBe(false)
+		expect(isNewerId('1', undefined)).toBe(true)
+	})
+})
+
+describe('newerId', () => {
+	it('answers the newer of the two, as a string', () => {
+		expect(newerId('1789553297940456473', '1789553297940456400')).toBe('1789553297940456473')
+		expect(newerId('1789553297940456400', '1789553297940456473')).toBe('1789553297940456473')
 	})
 })

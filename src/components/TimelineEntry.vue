@@ -34,6 +34,13 @@
 				{{ actionSummary }}
 			</span>
 			<span class="notification__details">
+				<!-- what the badge was counting, said on the card itself: the
+				     tint behind an unread notification is a pale frame around
+				     an opaque post, which is easy to miss and impossible to
+				     see at all for a reader who cannot tell the two apart -->
+				<span v-if="unread" class="notification__new">
+					{{ t('social', 'New') }}
+				</span>
 				<router-link
 					v-if="!notificationIsAboutAnAccount && notification.status"
 					:to="{ name: 'single-post', params: {
@@ -484,7 +491,24 @@ export default {
 	}
 
 	&__details {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		font-size: 12px;
+
+		/* the word rather than a dot: a dot has to be learnt, and there is
+		   room for three letters beside a relative timestamp */
+		.notification__new {
+			padding: 1px 6px;
+			border-radius: 8px;
+			background: var(--color-primary-element);
+			color: var(--color-primary-element-text);
+			font-size: 10px;
+			font-weight: 700;
+			letter-spacing: .04em;
+			text-transform: uppercase;
+			white-space: nowrap;
+		}
 
 		.post-timestamp {
 			color: var(--color-text-lighter);

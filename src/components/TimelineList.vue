@@ -34,7 +34,7 @@
 			<template v-for="(entry, index) in entries" :key="entry.id">
 				<!-- the two headings only appear when there is a boundary to
 				     mark: a page that is all new, or all seen, is one run -->
-				<li v-if="index === 0 && dividerAt > 0" class="timeline-divider">
+				<li v-if="index === 0 && dividerAt > 0" class="timeline-divider timeline-divider--new">
 					{{ t('social', 'New') }}
 				</li>
 				<li v-else-if="dividerAt > 0 && index === dividerAt" class="timeline-divider">
@@ -46,7 +46,7 @@
 					:type="type"
 					:index="index"
 					:depth="depths[entry.id] ?? 0"
-					:unread="index < dividerAt" />
+					:unread="isUnread(entry)" />
 			</template>
 		</transition-group>
 		<TimelineSkeleton v-if="display !== 'grid' && loading && timeline.length === 0" />
@@ -92,8 +92,8 @@ import TimelineEntry from './TimelineEntry.vue'
 import TimelineSkeleton from './TimelineSkeleton.vue'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
-import eventBus from '../services/eventBus.js'
-import { groupNotifications, newestIdOf } from '../services/notifications.js'
+import eventBus, { NOTIFICATIONS_READ } from '../services/eventBus.js'
+import { groupNotifications, isNewerId, newerId, newestIdOf } from '../services/notifications.js'
 import { mapStores } from 'pinia'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -230,13 +230,19 @@ export default {
 			 * the page moves the marker, and a line that moved with it would
 			 * rub out the very boundary it is there to show.
 			 */
-			seenUpTo: 0,
+			seenUpTo: '0',
 			/** the dwell in progress, -1 when none */
 			seenTimer: -1,
 			/** the newest id already reported read, so it is reported once */
-			markedUpTo: 0,
+			markedUpTo: '0',
 			/** whether the marker has been asked for on this visit */
 			markerAsked: false,
+			/**
+			 * Whether the server has answered where the marker is. Not the
+			 * same question as `seenUpTo > 0`: an account that has never read
+			 * anything has a marker of 0, and everything it has is new.
+			 */
+			markerKnown: false,
 			emptyContent: {
 				default: {
 					illustration: 'quiet-timeline',
@@ -560,11 +566,11 @@ export default {
 		 * @return {number}
 		 */
 		dividerAt() {
-			if (this.type !== 'notifications' || this.seenUpTo === 0) {
+			if (this.type !== 'notifications' || this.seenUpTo === '0') {
 				return 0
 			}
 
-			const older = this.entries.findIndex((entry) => newestIdOf(entry) <= this.seenUpTo)
+			const older = this.entries.findIndex((entry) => !isNewerId(newestIdOf(entry), this.seenUpTo))
 
 			// every card is newer than the marker: the whole page is new, and
 			// a heading over all of it separates nothing
@@ -622,6 +628,11 @@ export default {
 		document.addEventListener('visibilitychange', this.armSeenTimer)
 		this.ensureMarker()
 
+		// the page header above this list can mark everything read; the line
+		// this list froze when it opened has to move with it, or the heading
+		// and the pills stay up over activities the badge no longer counts
+		eventBus.on(NOTIFICATIONS_READ, this.onMarkedAllRead)
+
 		this.loadFirstPage()
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
@@ -640,6 +651,7 @@ export default {
 		clearTimeout(this.seenTimer)
 		eventBus.off('shortcut:next', this.focusNext)
 		eventBus.off('shortcut:previous', this.focusPrevious)
+		eventBus.off(NOTIFICATIONS_READ, this.onMarkedAllRead)
 		clearInterval(this.intervalId)
 		this.unwatchComposer()
 		if (this.observer) {
@@ -735,8 +747,9 @@ export default {
 		ensureMarker() {
 			if (this.type !== 'notifications' || this.showParents) {
 				this.markerAsked = false
-				this.seenUpTo = 0
-				this.markedUpTo = 0
+				this.markerKnown = false
+				this.seenUpTo = '0'
+				this.markedUpTo = '0'
 
 				return
 			}
@@ -747,6 +760,7 @@ export default {
 			this.markerAsked = true
 			this.notificationsStore.fetchLastRead().then((marker) => {
 				this.seenUpTo = marker
+				this.markerKnown = true
 				this.armSeenTimer()
 			})
 		},
@@ -771,6 +785,44 @@ export default {
 		},
 
 		/**
+		 * Whether this card arrived since the reader last looked.
+		 *
+		 * Taken against the marker rather than against `dividerAt`, which is
+		 * where it used to come from. That index is 0 both when none of the
+		 * page is new and when all of it is -- a heading over everything
+		 * separates nothing -- so reading the highlight off it left exactly
+		 * the case the badge is loudest about, a page whose every card is new,
+		 * with nothing marked on it at all.
+		 *
+		 * @param {object} entry a card, grouped or not
+		 * @return {boolean}
+		 */
+		isUnread(entry) {
+			// nothing is marked until the server has said where the marker is,
+			// or a page would light up entirely for the moment before the
+			// answer arrives and then settle, which reads as a fault
+			if (this.type !== 'notifications' || this.showParents || !this.markerKnown) {
+				return false
+			}
+
+			// a marker of 0 is an account that has never read anything -- not
+			// one that has read everything. It is what the badge is counting
+			// against, so it is what the cards are marked against
+			return isNewerId(newestIdOf(entry), this.seenUpTo)
+		},
+
+		/**
+		 * The reader said they were done with the lot, from the page header.
+		 *
+		 * @param {number|string} marker the id it was marked up to
+		 */
+		onMarkedAllRead(marker) {
+			this.seenUpTo = newerId(marker, this.seenUpTo)
+			// the dwell must not report it again: it is already reported
+			this.markedUpTo = newerId(marker, this.markedUpTo)
+		},
+
+		/**
 		 * Reports everything now on screen as read.
 		 *
 		 * The marker is "up to", so the newest id covers the whole page —
@@ -781,10 +833,10 @@ export default {
 		markSeen() {
 			this.seenTimer = -1
 			const newest = this.entries.reduce(
-				(highest, entry) => Math.max(highest, newestIdOf(entry)),
-				0,
+				(highest, entry) => newerId(newestIdOf(entry), highest),
+				'0',
 			)
-			if (newest > this.markedUpTo) {
+			if (isNewerId(newest, this.markedUpTo)) {
 				this.markedUpTo = newest
 				this.notificationsStore.markNotificationsRead(newest)
 			}
@@ -1107,6 +1159,26 @@ export default {
 	letter-spacing: .04em;
 	text-transform: uppercase;
 	list-style: none;
+}
+
+/* "New" is the boundary the sidebar badge was pointing at, so it is drawn in
+   the accent and carries a rule across the rest of the row: at 12px uppercase,
+   maxcontrast grey is exactly as quiet as the timestamps it has to stand out
+   from, and the heading read as the first line of the card beneath it.
+   "Earlier" stays grey -- it labels what has already been read. */
+.timeline-divider--new {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--color-primary-element);
+
+	&::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--color-primary-element);
+		opacity: .35;
+	}
 }
 
 /* where the keyboard is, for j/k readers */

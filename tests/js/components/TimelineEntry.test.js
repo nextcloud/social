@@ -238,6 +238,20 @@ describe('TimelineEntry', () => {
 				.not.toContain('timeline-entry--unread')
 		})
 
+		it('says "New" on the card itself, where the badge can be answered', () => {
+			// the tint behind an unread card is a pale frame around an opaque
+			// post, so the word is what actually carries this
+			const { wrapper } = mountEntry(notification('favourite'), { type: 'notifications', unread: true })
+
+			expect(wrapper.find('.notification__new').text()).toBe('New')
+		})
+
+		it('says nothing on a card that was already there', () => {
+			const { wrapper } = mountEntry(notification('favourite'), { type: 'notifications' })
+
+			expect(wrapper.find('.notification__new').exists()).toBe(false)
+		})
+
 		it('previews the account a notification is about when their avatar is hovered', () => {
 			const { wrapper } = mountEntry(notification('favourite'), { type: 'notifications' })
 
