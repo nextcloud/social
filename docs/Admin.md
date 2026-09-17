@@ -158,7 +158,9 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Sixteen sections:
+**Administration → Social.** Seventeen cards, grouped by what they are for --
+Overview, Moderation, What people see, What is kept, Federation, Server -- with
+a list of them beside the page on a wide screen:
 
 
 - **Reports** — what people here and peers elsewhere have complained about.

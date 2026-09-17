@@ -95,6 +95,7 @@ import IconScheduled from 'vue-material-design-icons/ClockOutline.vue'
 import IconTags from 'vue-material-design-icons/Pound.vue'
 import { defineAsyncComponent } from 'vue'
 import { t } from '@nextcloud/l10n'
+import { currentSection, scrollToSection, watchSections } from '../services/sectionRail.js'
 
 // Two forms of some size that nobody sees until they open this page, so they
 // travel in a chunk of their own rather than in the entry every reader loads.
@@ -314,14 +315,12 @@ export default {
 		 * @param {MouseEvent} event the click
 		 */
 		jumpTo(id, event) {
-			const section = document.getElementById(id)
-			if (!section || typeof section.scrollIntoView !== 'function') {
+			if (!scrollToSection(id)) {
 				return
 			}
 			event.preventDefault()
 			this.current = id
 			this.scrolledTo = id
-			section.scrollIntoView({ behavior: this.reducedMotion() ? 'auto' : 'smooth', block: 'start' })
 			this.$router?.replace({ hash: `#${id}` }).catch(() => {})
 		},
 
@@ -329,52 +328,17 @@ export default {
 		 * Watches for a section coming into or out of view.
 		 *
 		 * Rebuilt on `updated` because the sections that arrive with their
-		 * chunk were not there to be watched when the page mounted. The
-		 * observer is only the trigger; which section is the current one is
-		 * worked out from all of them, in `markCurrent`.
+		 * chunk were not there to be watched when the page mounted.
 		 */
 		watchSections() {
-			if (typeof IntersectionObserver !== 'function') {
-				return
-			}
 			this.observer?.disconnect()
-			this.observer = new IntersectionObserver(() => this.markCurrent(), { threshold: 0 })
-
-			for (const section of this.sections) {
-				const el = document.getElementById(section.id)
-				if (el) {
-					this.observer.observe(el)
-				}
-			}
+			this.observer = watchSections(this.sections.map((section) => section.id), () => this.markCurrent())
 			this.markCurrent()
 		},
 
-		/**
-		 * Marks the section the reader is looking at in the rail.
-		 *
-		 * The last one whose heading has passed the top of the window.
-		 *
-		 * Taking the topmost section that is merely visible instead marked the
-		 * wrong one as soon as a tall section straddled the top: it starts above
-		 * the window, so it is the highest thing on screen while the reader is
-		 * looking at the section after it. Measuring against a band further down
-		 * the window -- a third of it, say -- has the opposite fault: a short
-		 * section leaves the one below it inside the band as well, and clicking a
-		 * rail link then marked the section after the one it scrolled to. So:
-		 * near the top, just past the section's own scroll margin.
-		 */
+		/** Marks the section the reader is looking at in the rail. */
 		markCurrent() {
-			const band = 96
-			let current = this.current
-
-			for (const section of this.sections) {
-				const el = document.getElementById(section.id)
-				if (el && el.getBoundingClientRect().top <= band) {
-					current = section.id
-				}
-			}
-
-			this.current = current
+			this.current = currentSection(this.sections.map((section) => section.id), this.current)
 		},
 
 		/** @return {boolean} whether the reader asked their system for less movement */

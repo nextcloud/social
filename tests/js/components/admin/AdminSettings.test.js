@@ -80,7 +80,12 @@ describe('the administration page', () => {
 		axios.get.mockResolvedValue({ data: { accounts: [], cursors: [], announcements: [] } })
 	})
 
-	it('is the seventeen sections, in the order an administrator reads them', async () => {
+	/**
+	 * Seventeen cards in one run is a list nobody reads to the end of, so they
+	 * are grouped by what they are for. The order inside a group is the order
+	 * they were in; the groups are what changed.
+	 */
+	it('is the seventeen cards, grouped by what they are for', async () => {
 		const wrapper = await mountPage(STATE)
 		const headings = wrapper.findAll('h2').map((heading) => heading.text())
 
@@ -90,19 +95,30 @@ describe('the administration page', () => {
 			'Posts waiting to be looked at',
 			'Accounts',
 			'Refused pictures',
+			'The rules of this server',
 			'What this server is about',
 			'What may trend',
 			'Custom emoji',
-			'The rules of this server',
+			'Announcements',
+			'Sections',
 			'Retention',
 			'Storage',
 			'Federation health',
 			'Fediverse access',
-			'Announcements',
-			'Sections',
-			'Server',
 			'Relays',
+			'Server',
 		])
+	})
+
+	it('names every group, and gives every card an anchor of its own', async () => {
+		const wrapper = await mountPage(STATE)
+
+		expect(wrapper.findAll('.social-admin__group-name').map((h) => h.text()))
+			.toEqual(['Overview', 'Moderation', 'What people see', 'What is kept', 'Federation', 'Server'])
+		// the rail is the same list, so it cannot drift from the page
+		expect(wrapper.findAll('.social-admin__rail-link')).toHaveLength(17)
+		expect(wrapper.findAll('.social-admin__card').map((card) => card.attributes('id')))
+			.toEqual(wrapper.findAll('.social-admin__rail-link').map((link) => link.attributes('href').slice(1)))
 	})
 
 	/**
@@ -111,16 +127,20 @@ describe('the administration page', () => {
 	 */
 	it('leaves the Server card out for a delegated administrator', async () => {
 		const wrapper = await mountPage({ ...STATE, server: null, sections: null, groups: null })
+		const headings = wrapper.findAll('h2').map((heading) => heading.text())
 
-		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Server')
-		// nor what the app offers everybody, which is a decision about the
-		// instance rather than about a report
-		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Sections')
+		expect(headings).not.toContain('Server')
 		// nor the relays, which change what every federated timeline here
 		// holds and where every public post written here is sent
-		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Relays')
-		// and the fourteen sections a delegate does hold are all still there
+		expect(headings).not.toContain('Relays')
+		// nor what the app offers everybody, which is a decision about the
+		// instance rather than about a report
+		expect(headings).not.toContain('Sections')
+		// and the fourteen cards a delegate does hold are all still there
 		expect(wrapper.findAll('h2')).toHaveLength(14)
+		// with the group that has nothing left in it drawing no heading
+		expect(wrapper.findAll('.social-admin__group-name').map((h) => h.text()))
+			.not.toContain('Server')
 	})
 
 	it('draws a page the server told nothing about without breaking', async () => {
