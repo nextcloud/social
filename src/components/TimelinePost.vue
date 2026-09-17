@@ -245,28 +245,27 @@
 				{{ t('social', 'Sensitive media, hidden by your settings') }}
 			</span>
 		</div>
-		<!-- The reactions stay on the card rather than joining the row below:
-		     that row is revealed by the pointer, and a reaction somebody left
-		     is something to be seen without hovering. -->
-		<ReactionBar
-			v-if="$route && $route.params.type !== 'notifications'"
-			:statusId="String(item.id || '')"
-			:modelValue="item.reactions || []"
-			:canReact="!serverData.public"
-			@update:modelValue="onReactionsChanged" />
-		<!-- The row is revealed by the pointer and the card grows to make
-		     room for it. The grid row going from 0fr to 1fr is the one way
-		     to animate to a height nobody can know in advance, and the
-		     dialogs below stay outside it: a box collapsing to nothing is
-		     no place to put a modal. -->
+		<!-- One row across the foot of the card: the reactions somebody left,
+		     then the counts and the controls at the far end. They were two
+		     rows while the second one was revealed by the pointer and had to
+		     live in the padding; now that the counts are always drawn there is
+		     no reason for the card to carry the height of both. -->
 		<div
-			v-if="$route && $route.params.type !== 'notifications' && !serverData.public"
-			class="post-actions-reveal"
-			:class="{ 'post-actions-reveal--held': menuOpen }">
-			<div class="post-actions">
-				<!-- everything but the menu lives in the rail, which is what
-				     widens; the menu is the pill at rest and never moves -->
-				<div class="post-actions__rail">
+			v-if="$route && $route.params.type !== 'notifications'"
+			class="post-footer">
+			<ReactionBar
+				:statusId="String(item.id || '')"
+				:modelValue="item.reactions || []"
+				:canReact="!serverData.public"
+				@update:modelValue="onReactionsChanged" />
+			<!-- The counts are always here; the controls arrive with the
+			     pointer. Nothing widens and nothing moves — see the stylesheet
+			     for what is at rest and what is revealed. -->
+			<div
+				v-if="!serverData.public"
+				class="post-actions-reveal"
+				:class="{ 'post-actions-reveal--held': menuOpen }">
+				<div class="post-actions">
 					<div class="post-actions__groups">
 						<div class="post-action-group">
 							<NcButton
@@ -329,160 +328,160 @@
 							<RollingCount :count="item.view_count" />
 						</div>
 					</div>
-				</div>
-				<!-- the menu opens in a portal, so the pointer leaving the card
+					<!-- the menu opens in a portal, so the pointer leaving the card
 				     while it is open would take the row it belongs to away -->
-				<NcActions @update:open="menuOpen = $event">
-					<NcActionButton v-if="canQuote" @click="quote">
-						<template #icon>
-							<FormatQuoteClose :size="20" />
-						</template>
-						{{ t('social', 'Quote') }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct"
-						icon="icon-rename"
-						@click="editPost">
-						{{ t('social', 'Edit') }}
-					</NcActionButton>
-					<!-- the answer to "this no longer belongs on my profile" that
+					<NcActions @update:open="menuOpen = $event">
+						<NcActionButton v-if="canQuote" @click="quote">
+							<template #icon>
+								<FormatQuoteClose :size="20" />
+							</template>
+							{{ t('social', 'Quote') }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct"
+							icon="icon-rename"
+							@click="editPost">
+							{{ t('social', 'Edit') }}
+						</NcActionButton>
+						<!-- the answer to "this no longer belongs on my profile" that
 					     is not destroying it. Nothing federates: the post stays on
 					     every server that received it, which is what deleting is
 					     for -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-						:disabled="archiving"
-						closeAfterClick
-						@click="toggleArchive">
-						<template #icon>
-							<IconArchiveOutline :size="20" />
-						</template>
-						{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
-					</NcActionButton>
-					<!-- who may quote it, and who already has. The two are
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+							:disabled="archiving"
+							closeAfterClick
+							@click="toggleArchive">
+							<template #icon>
+								<IconArchiveOutline :size="20" />
+							</template>
+							{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
+						</NcActionButton>
+						<!-- who may quote it, and who already has. The two are
 					     deliberately one dialog: the reason to let people quote
 					     you is the same reason to be able to stop one of them -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-						closeAfterClick
-						@click="managingQuotes = true">
-						<template #icon>
-							<FormatQuoteClose :size="20" />
-						</template>
-						{{ t('social', 'Quotes of this post') }}
-					</NcActionButton>
-					<!-- who is in the picture, which only the author may say:
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+							closeAfterClick
+							@click="managingQuotes = true">
+							<template #icon>
+								<FormatQuoteClose :size="20" />
+							</template>
+							{{ t('social', 'Quotes of this post') }}
+						</NcActionButton>
+						<!-- who is in the picture, which only the author may say:
 					     anybody able to write a name onto anybody's photograph
 					     could put a post in front of an audience that did not
 					     ask for it -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct && hasPictures"
-						closeAfterClick
-						@click="taggingPeople = true">
-						<template #icon>
-							<IconAccountBoxMultiple :size="20" />
-						</template>
-						{{ t('social', 'Tag people') }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct"
-						icon="icon-delete"
-						@click="askToDelete(false)">
-						{{ t('social', 'Delete') }}
-					</NcActionButton>
-					<!-- the correction people actually make: the post goes and
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct && hasPictures"
+							closeAfterClick
+							@click="taggingPeople = true">
+							<template #icon>
+								<IconAccountBoxMultiple :size="20" />
+							</template>
+							{{ t('social', 'Tag people') }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct"
+							icon="icon-delete"
+							@click="askToDelete(false)">
+							{{ t('social', 'Delete') }}
+						</NcActionButton>
+						<!-- the correction people actually make: the post goes and
 					     its words come back in the composer, to be posted again
 					     as a new post -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct"
-						@click="askToDelete(true)">
-						<template #icon>
-							<PencilBoxOutline :size="20" />
-						</template>
-						{{ t('social', 'Delete & re-draft') }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="canTranslate"
-						:disabled="translating"
-						closeAfterClick
-						@click="toggleTranslation">
-						<template #icon>
-							<Translate :size="20" />
-						</template>
-						{{ translation === null
-							? t('social', 'Translate')
-							: t('social', 'Show original') }}
-					</NcActionButton>
-					<!-- where the post got to: the queue knows, and this asks it
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct"
+							@click="askToDelete(true)">
+							<template #icon>
+								<PencilBoxOutline :size="20" />
+							</template>
+							{{ t('social', 'Delete & re-draft') }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="canTranslate"
+							:disabled="translating"
+							closeAfterClick
+							@click="toggleTranslation">
+							<template #icon>
+								<Translate :size="20" />
+							</template>
+							{{ translation === null
+								? t('social', 'Translate')
+								: t('social', 'Show original') }}
+						</NcActionButton>
+						<!-- where the post got to: the queue knows, and this asks it
 					     for the author, who is the only one it is answered for -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-						@click="openDelivery">
-						<template #icon>
-							<SendCheck :size="20" />
-						</template>
-						{{ t('social', 'Delivery status') }}
-					</NcActionButton>
-					<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
-					<NcActionLink
-						v-if="!origin.local && item.url"
-						:href="item.url"
-						target="_blank">
-						<template #icon>
-							<OpenInNew :size="20" />
-						</template>
-						{{ t('social', 'Open on original instance') }}
-					</NcActionLink>
-					<NcActionButton @click="toggleBookmark">
-						<template #icon>
-							<Bookmark v-if="item.bookmarked" :size="20" />
-							<BookmarkOutline v-else :size="20" />
-						</template>
-						{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
-					</NcActionButton>
-					<!-- an album is made of the reader's own pictures; where the
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+							@click="openDelivery">
+							<template #icon>
+								<SendCheck :size="20" />
+							</template>
+							{{ t('social', 'Delivery status') }}
+						</NcActionButton>
+						<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
+						<NcActionLink
+							v-if="!origin.local && item.url"
+							:href="item.url"
+							target="_blank">
+							<template #icon>
+								<OpenInNew :size="20" />
+							</template>
+							{{ t('social', 'Open on original instance') }}
+						</NcActionLink>
+						<NcActionButton @click="toggleBookmark">
+							<template #icon>
+								<Bookmark v-if="item.bookmarked" :size="20" />
+								<BookmarkOutline v-else :size="20" />
+							</template>
+							{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
+						</NcActionButton>
+						<!-- an album is made of the reader's own pictures; where the
 					     picture is, is where it is put into one -->
-					<NcActionButton
-						v-if="canCollect"
-						@click="showCollectionDialog = true">
-						<template #icon>
-							<FolderMultiplePlusOutline :size="20" />
-						</template>
-						{{ t('social', 'Add to a collection') }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="canPin"
-						@click="togglePin">
-						<template #icon>
-							<Pin v-if="!item.pinned" :size="20" />
-							<PinOff v-else :size="20" />
-						</template>
-						{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
-					</NcActionButton>
-					<!-- what to do about somebody else, from the post that
+						<NcActionButton
+							v-if="canCollect"
+							@click="showCollectionDialog = true">
+							<template #icon>
+								<FolderMultiplePlusOutline :size="20" />
+							</template>
+							{{ t('social', 'Add to a collection') }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="canPin"
+							@click="togglePin">
+							<template #icon>
+								<Pin v-if="!item.pinned" :size="20" />
+								<PinOff v-else :size="20" />
+							</template>
+							{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
+						</NcActionButton>
+						<!-- what to do about somebody else, from the post that
 					     made the reader want to: both take their posts out of
 					     every timeline at once -->
-					<NcActionButton v-if="canModerateAuthor" @click="showMuteDialog = true">
-						<template #icon>
-							<VolumeOff :size="20" />
-						</template>
-						{{ t('social', 'Mute {account}', { account: item.account.acct }) }}
-					</NcActionButton>
-					<NcActionButton v-if="canModerateAuthor" @click="showBlockDialog = true">
-						<template #icon>
-							<Cancel :size="20" />
-						</template>
-						{{ t('social', 'Block {account}', { account: item.account.acct }) }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="item.account.acct !== currentAccount?.acct"
-						@click="showReportDialog = true">
-						<template #icon>
-							<Flag :size="20" />
-						</template>
-						{{ t('social', 'Report') }}
-					</NcActionButton>
-				</NcActions>
+						<NcActionButton v-if="canModerateAuthor" @click="showMuteDialog = true">
+							<template #icon>
+								<VolumeOff :size="20" />
+							</template>
+							{{ t('social', 'Mute {account}', { account: item.account.acct }) }}
+						</NcActionButton>
+						<NcActionButton v-if="canModerateAuthor" @click="showBlockDialog = true">
+							<template #icon>
+								<Cancel :size="20" />
+							</template>
+							{{ t('social', 'Block {account}', { account: item.account.acct }) }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="item.account.acct !== currentAccount?.acct"
+							@click="showReportDialog = true">
+							<template #icon>
+								<Flag :size="20" />
+							</template>
+							{{ t('social', 'Report') }}
+						</NcActionButton>
+					</NcActions>
+				</div>
 			</div>
 		</div>
 		<MuteDialog
@@ -1742,10 +1741,9 @@ export default {
 }
 
 .post-content {
-	/* the bottom padding is what the pill sits in: it is 20px so that the
-	   whole of the pill is either in this padding or in the 14px gap below the
-	   card, and none of it is over anything anybody is reading */
-	padding: 18px 20px 20px;
+	/* the foot of the card is one row in flow, so the padding is padding
+	   again: it holds nothing and needs only to look like the sides */
+	padding: 18px 20px 14px;
 	font-size: 15px;
 	line-height: 1.65;
 	border-radius: 8px;
@@ -2035,75 +2033,113 @@ export default {
 	 * a deliberate one — a mark on every card in a timeline is a hundred marks
 	 * on a screen. Touch does not pay it: see the `hover: none` block at the
 	 * end of this file, where the row is not a pill at all.
+	 *
+	 * **What is at rest and what arrives.** How many replies, boosts and
+	 * likes a post has is *about the post* — it belongs to a reader running
+	 * down a timeline deciding what to open, and hiding it until the pointer
+	 * lands meant the only way to see which posts had landed was to point at
+	 * each of them in turn. So the counts are always drawn, as type: no
+	 * button, no border, no surface, with the glyphs dimmed to a hairline.
+	 *
+	 * What arrives on hover is the *controls* — the pill fades in behind the
+	 * row at the size the row already occupies, and the glyphs come up to
+	 * full. Nothing moves: no track widens, no digit shifts, and the pointer
+	 * is never chasing a button that is still travelling. The one thing that
+	 * stays lit at rest is a like or a boost this reader has already given,
+	 * because that is state rather than chrome.
 	 */
+	/*
+	 * One row across the foot: the reactions at the near end, the counts and
+	 * their controls at the far one. It wraps, so a post with a dozen
+	 * reactions puts the controls on a line of their own rather than crushing
+	 * them, and `align-items: center` keeps the two halves on one baseline
+	 * whatever height the reactions take.
+	 */
+	.post-footer {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+		margin-top: 2px;
+	}
+
 	.post-actions-reveal {
-		position: absolute;
-		/* 20px of the pill sits in the card's own bottom padding and 12px
-		   hangs into the 14px gap: it covers neither the text above it nor the
-		   card below it */
-		top: calc(100% - 20px);
-		inset-inline-end: 14px;
-		z-index: 2;
+		/* in flow now, at the far end of the footer. `relative` is what the
+		   surface below is drawn against */
+		position: relative;
+		margin-inline-start: auto;
 		display: flex;
 		padding: 1px;
+		border: 1px solid transparent;
+		border-radius: 999px;
+	}
+
+	/*
+	 * The surface, drawn *behind* the row at the size the row already has.
+	 * A pseudo-element rather than the background, border and shadow of the
+	 * row itself, so the whole thing arrives as one opacity — one compositor
+	 * property, on a page that can be showing a hundred of these.
+	 */
+	.post-actions-reveal::before {
+		content: '';
+		position: absolute;
+		inset: -1px;
+		border-radius: 999px;
 		background: var(--color-main-background);
 		border: 1px solid var(--color-primary-element);
-		border-radius: 999px;
 		box-shadow: var(--social-elevation-raised);
-		/* nothing at all on a card nobody is pointing at */
 		opacity: 0;
+		/* out in a tenth of a second and flat: a pointer crossing four cards
+		   on its way somewhere else must not leave four pills fading behind it */
+		transition: opacity .1s linear;
 		pointer-events: none;
-		transition: opacity .14s ease;
 	}
 
 	/*
 	 * `focus-within` is not decoration here: it is the whole of the keyboard
 	 * path. Tabbing into a card has to open the same pill the pointer does, or
-	 * the buttons are focusable and invisible.
+	 * the controls are focusable and unmarked.
 	 */
-	&:hover .post-actions-reveal,
-	&:focus-within .post-actions-reveal,
-	.post-actions-reveal--held {
+	&:hover .post-actions-reveal::before,
+	&:focus-within .post-actions-reveal::before,
+	.post-actions-reveal--held::before {
 		opacity: 1;
-		pointer-events: auto;
+		transition: opacity .2s ease;
 	}
 
-	&:hover .post-actions__rail,
-	&:focus-within .post-actions__rail,
-	.post-actions-reveal--held .post-actions__rail {
-		grid-template-columns: 1fr;
-
-		.post-action-group {
-			opacity: 1;
-		}
-
-		/* each one a beat behind the last, so the row arrives as a movement
-		   rather than as three things at once */
-		.post-action-group:nth-child(1) { transition-delay: .1s; }
-		.post-action-group:nth-child(2) { transition-delay: .14s; }
-		.post-action-group:nth-child(3) { transition-delay: .18s; }
+	/* the menu is a control rather than a fact about the post, so it keeps to
+	   the same rule as the glyphs: out of the way until it is asked for */
+	.post-actions :deep(.action-item),
+	.post-actions :deep(.actions) {
+		opacity: 0;
+		transition: opacity .16s ease;
 	}
 
-	.post-actions__rail {
-		display: grid;
-		grid-template-columns: 0fr;
-		transition: grid-template-columns .34s cubic-bezier(.22, 1.1, .4, 1);
+	&:hover .post-actions :deep(.action-item),
+	&:hover .post-actions :deep(.actions),
+	&:focus-within .post-actions :deep(.action-item),
+	&:focus-within .post-actions :deep(.actions),
+	.post-actions-reveal--held :deep(.action-item),
+	.post-actions-reveal--held :deep(.actions) {
+		opacity: 1;
 	}
 
 	.post-actions__groups {
 		display: flex;
 		align-items: center;
 		gap: 2px;
-		/* the two halves of the column trick: the track may be zero wide, and
-		   what is in it must be willing to be clipped rather than set a floor
-		   under the track */
 		min-inline-size: 0;
-		overflow: hidden;
+	}
 
-		.post-action-group {
-			opacity: 0;
-			transition: opacity .18s ease;
-		}
+	/* it had a top margin from when it was a row of its own */
+	.post-footer :deep(.reaction-bar) {
+		margin-top: 0;
+	}
+
+	&:hover .post-actions :deep(.button-vue__icon),
+	&:focus-within .post-actions :deep(.button-vue__icon),
+	.post-actions-reveal--held :deep(.button-vue__icon) {
+		opacity: 1;
 	}
 
 	.post-actions {
@@ -2130,6 +2166,20 @@ export default {
 			&:hover {
 				background: var(--color-background-dark);
 			}
+		}
+
+		/* a hairline at rest: enough to say what the number counts, not enough
+		   to read as a button somebody should press */
+		:deep(.button-vue__icon) {
+			opacity: .38;
+			transition: opacity .2s ease;
+		}
+
+		/* except a like or a boost this reader has already given. That is the
+		   state of the post as far as they are concerned, and it is the one
+		   thing on this row worth seeing without pointing at it. */
+		:deep(.button-vue[aria-pressed="true"] .button-vue__icon) {
+			opacity: 1;
 		}
 
 		/* 28px rather than the 34px a button is elsewhere: this is a
@@ -2368,30 +2418,28 @@ export default {
  */
 @media (hover: none) {
 	.post-content .post-actions-reveal {
-		position: static;
 		padding: 0;
-		background: none;
 		border: none;
 		border-radius: 0;
-		box-shadow: none;
-		/* the base state hides the pill until a pointer arrives, and none ever
-		   does here */
+	}
+
+	/* no surface either: there is no pointer to arrive and reveal one, so the
+	   row is a row */
+	.post-content .post-actions-reveal::before {
+		display: none;
+	}
+
+	/* and nothing is dimmed waiting for a hover that never comes */
+	.post-content .post-actions :deep(.button-vue__icon),
+	.post-content .post-actions :deep(.action-item),
+	.post-content .post-actions :deep(.actions) {
 		opacity: 1;
-		pointer-events: auto;
 	}
 
 	.post-content .post-actions {
 		margin-top: 10px;
 		padding-top: 8px;
 		border-top: 1px solid var(--color-border);
-	}
-
-	.post-content .post-actions__rail {
-		grid-template-columns: 1fr;
-	}
-
-	.post-content .post-action-group {
-		opacity: 1;
 	}
 
 	/* the menu goes back to the far end of a full-width row */
@@ -2401,17 +2449,16 @@ export default {
 }
 
 /*
- * Reduced motion takes the movement away, not the reveal: the row still has to
- * arrive when the pointer does, it just stops widening to get there.
+ * Reduced motion takes the fade away, not the reveal: the pill and the glyphs
+ * still have to arrive when the pointer does, they just stop easing into it.
+ * Nothing here moves in the first place, so there is no movement left to cut.
  */
 @media (prefers-reduced-motion: reduce) {
-	.post-content .post-actions__rail {
-		transition-duration: .01ms;
-	}
-
-	.post-content .post-action-group {
-		transition: none;
-		transition-delay: 0ms !important;
+	.post-content .post-actions-reveal::before,
+	.post-content .post-actions :deep(.button-vue__icon),
+	.post-content .post-actions :deep(.action-item),
+	.post-content .post-actions :deep(.actions) {
+		transition-duration: .01ms !important;
 	}
 }
 </style>

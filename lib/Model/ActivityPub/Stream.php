@@ -214,9 +214,31 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return [];
 	}
 
-	/** Translate this app's vocabulary back into what a client expects. */
+	/**
+	 * Translate this app's vocabulary back into what a client expects.
+	 *
+	 * An empty one is answered `public`. Mastodon's `Status` entity has four
+	 * legal visibilities and `''` is not among them, so a row written without
+	 * one -- an import, a seed, anything that reached `social_stream` by a
+	 * path that did not set it -- handed every client a value it could not
+	 * read. This one stopped offering Boost on the post, because the composer
+	 * and the timeline both ask whether the post is public before they offer
+	 * to republish it; a post with nine boosts on it was not boostable here.
+	 *
+	 * `public` rather than the cautious `direct` because this is a *label*,
+	 * not a permission: what may actually be read, forwarded or boosted is
+	 * decided against the stored value everywhere it matters --
+	 * `ForwardService::shouldForward()`, the visibility filter every timeline
+	 * query carries -- and none of that goes through here. Two other places
+	 * had already made the same call for the same reason: `PixelfedService`'s
+	 * scope mapping and `AccountService`'s default posting privacy.
+	 */
 	public static function visibilityForClient(string $visibility): string {
-		return ($visibility === self::TYPE_FOLLOWERS) ? 'private' : $visibility;
+		return match ($visibility) {
+			self::TYPE_FOLLOWERS => 'private',
+			'' => self::TYPE_PUBLIC,
+			default => $visibility,
+		};
 	}
 
 	/**
