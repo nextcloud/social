@@ -527,6 +527,7 @@ import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
+import { ownAvatarUrl } from '../../services/avatar.js'
 import PreviewGrid from './PreviewGrid.vue'
 import ComposerPreview from './ComposerPreview.vue'
 import LanguageSelect from './LanguageSelect.vue'
@@ -984,10 +985,7 @@ export default {
 		 * @return {string} the avatar of the account writing this post
 		 */
 		ownAvatarUrl() {
-			return generateUrl('/avatar/{userId}/{size}', {
-				userId: this.currentUser.uid,
-				size: 64,
-			})
+			return ownAvatarUrl(64)
 		},
 
 		/** @return {number} what the server accepts in one status */

@@ -283,6 +283,7 @@ import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { afterFirstTimeline } from '../services/boot.js'
 import eventBus, { LISTS_CHANGED } from '../services/eventBus.js'
+import { ownAvatarUrl } from '../services/avatar.js'
 
 // the composer pulls the emoji picker and the attachment stack with it:
 // its own chunk keeps all of that out of the entry bundle
@@ -450,15 +451,13 @@ export default {
 		 * when nobody has uploaded a picture — so the button is never a blank
 		 * circle, and it is the same picture the rest of Nextcloud shows.
 		 *
+		 * The version in the address is what makes a newly uploaded picture
+		 * appear: see services/avatar.js.
+		 *
 		 * @return {string} where the picture is
 		 */
 		avatarUrl() {
-			const uid = this.currentUser?.uid
-			if (!uid) {
-				return ''
-			}
-
-			return generateUrl('/avatar/{uid}/64', { uid })
+			return ownAvatarUrl(64)
 		},
 
 		currentAccount() {
