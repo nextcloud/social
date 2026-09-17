@@ -624,7 +624,7 @@ describe('Navigation', () => {
 			'Liked posts',
 			'Bookmarks',
 			'Statistics',
-			'Blocked and muted accounts',
+			'Blocking',
 			'Settings',
 		])
 	})
@@ -644,7 +644,7 @@ describe('Navigation', () => {
 			'Liked posts',
 			'Bookmarks',
 			'Statistics',
-			'Blocked and muted accounts',
+			'Blocking',
 			'Settings',
 		])
 
@@ -731,10 +731,10 @@ describe('Navigation', () => {
 
 	it('offers the blocked and muted accounts in the settings section', () => {
 		const wrapper = mountNavigation()
-		const entry = item(wrapper, 'Blocked and muted accounts')
+		const entry = item(wrapper, 'Blocking')
 
 		expect(entry.attributes('data-href')).toBe(router.resolve({ name: 'blocked-accounts' }).href)
-		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
+		expect(wrapper.find('.nav-settings').text()).toContain('Blocking')
 	})
 
 	// these rows live inside the Explore entry; that they do, and what they may
@@ -1097,7 +1097,7 @@ describe('Navigation entries are links', () => {
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
 		['My profile', '/index.php/apps/social/@alice'],
 		['Filtered notifications', '/index.php/apps/social/filtered'],
-		['Blocked and muted accounts', '/index.php/apps/social/blocked'],
+		['Blocking', '/index.php/apps/social/blocked'],
 	])('gives %s a real href', async (name, href) => {
 		expect(link(await mountReal(), name).attributes('href')).toBe(href)
 	})

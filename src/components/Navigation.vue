@@ -164,7 +164,7 @@
 					</NcAppNavigationItem>
 					<NcAppNavigationItem
 						:style="{ '--entry-index': menu.more.length }"
-						:name="t('social', 'Blocked and muted accounts')"
+						:name="t('social', 'Blocking')"
 						:href="hrefFor({ name: 'blocked-accounts' })"
 						:active="isActive({ to: { name: 'blocked-accounts' } })"
 						@click="navigate({ name: 'blocked-accounts' }, $event)">
