@@ -130,7 +130,7 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @type {Array|null}
 		 */
 		seededPage: loadState('social', 'firstPage', null),
-		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string, filter?: string}} */
+		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string, filter?: string, url?: string}} */
 		params: {},
 		account: '',
 		/**
