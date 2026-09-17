@@ -49,6 +49,7 @@ class AdminSettingsTest extends TestCase {
 	private MediaUsageService|MockObject $mediaUsageService;
 	private ReportService|MockObject $reportService;
 	private ServerSettingsService|MockObject $serverSettingsService;
+	private $sectionsService;
 	private IInitialState|MockObject $initialState;
 	private AdminSettings $settings;
 
@@ -72,6 +73,15 @@ class AdminSettingsTest extends TestCase {
 
 		$this->serverSettingsService = $this->createMock(ServerSettingsService::class);
 		$this->serverSettingsService->method('current')->willReturn($this->serverSettings());
+
+		$this->sectionsService = $this->createMock(\OCA\Social\Service\SectionsService::class);
+		$this->sectionsService->method('current')->willReturn([
+			'stories' => true,
+			'section_photos' => true,
+			'section_videos' => true,
+			'section_news' => true,
+			'group_lists' => [],
+		]);
 
 		$this->settings = $this->settingsFor(true);
 	}
@@ -118,6 +128,7 @@ class AdminSettingsTest extends TestCase {
 			$this->federationHealthService,
 			$this->l10n(),
 			$this->serverSettingsService,
+			$this->sectionsService,
 			$userSession,
 			$groupManager,
 			$this->initialState,

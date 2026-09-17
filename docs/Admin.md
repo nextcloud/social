@@ -158,7 +158,8 @@ when each was last tried.
 
 ## The administration page
 
-**Administration → Social.** Fifteen sections:
+**Administration → Social.** Sixteen sections:
+
 
 - **Reports** — what people here and peers elsewhere have complained about.
   The open ones are the table; the resolved ones are folded away below them and
@@ -174,6 +175,18 @@ when each was last tried.
   go and read it. *Publish* sends it out; *Refuse* deletes it and tells its
   author. Two switches at the top turn first-post review and the spam rules on
   and off.
+- **Sections** — what this instance offers the people using it. Four switches,
+  **all on by default**: *Stories*, and the *Photos*, *Videos* and *News*
+  timelines. Turning one off takes it out of the sidebar and stops it being
+  offered; nothing already posted is touched, so a video posted while Videos
+  was off is still a video and appears again the moment it is turned back on.
+  The fifth setting is the Nextcloud groups that become Social lists, and it is
+  **empty by default**: everybody in a chosen group gets a list for it holding
+  the members who have a Social account, nobody is followed by it and nothing
+  federates, but a group list does tell everybody in the group who else is in
+  it -- which is why no group becomes one until an administrator chooses.
+  Deselecting a group takes its lists away on the next cron reconcile.
+  Administrators only, not delegates.
 - **Accounts** — every account this instance knows, whether or not anybody has
   complained. Search by username, by handle or by instance, filter by origin
   and by what stands against them, and act on any of them.

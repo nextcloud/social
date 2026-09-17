@@ -54,6 +54,7 @@ class GroupListService {
 		private IUserManager $userManager,
 		private ActorsRequest $actorsRequest,
 		private ListsRequest $listsRequest,
+		private SectionsService $sectionsService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -124,7 +125,12 @@ class GroupListService {
 		$seen = 0;
 		foreach ($this->listsRequest->getGroupIds() as $groupId) {
 			$group = $this->groupManager->get($groupId);
-			if ($group === null) {
+			// gone, or no longer one of the groups the administrator chose:
+			// either way the lists made for it stop being made and the ones
+			// that exist go, which is the only place a deselected group is
+			// cleaned up -- `ensureForViewer` only ever looks at the groups
+			// the viewer is in
+			if ($group === null || !$this->isListable($group)) {
 				$this->listsRequest->deleteByGroup($groupId);
 				continue;
 			}
@@ -208,6 +214,13 @@ class GroupListService {
 	}
 
 	private function isListable(IGroup $group): bool {
+		// nothing at all until an administrator has chosen, which is what the
+		// empty default means: a group becoming a list tells everybody in it
+		// who else is in it, and that is not the instance's to give away
+		if (!$this->sectionsService->groupHasList($group->getGID())) {
+			return false;
+		}
+
 		$count = $group->count();
 		if ($count === false) {
 			// a backend that cannot count; counting what it can list is the

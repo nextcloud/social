@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<section v-if="viewer" class="story-bar" :aria-label="t('social', 'Stories')">
+	<section v-if="viewer && offered" class="story-bar" :aria-label="t('social', 'Stories')">
 		<ul class="story-bar__list">
 			<!-- the reader's own place is always there, with or without a
 			     story in it: it is where a story is added from -->
@@ -81,6 +81,7 @@ import ActorAvatar from './ActorAvatar.vue'
 import logger from '../services/logger.js'
 import { ownAvatarUrl } from '../services/avatar.js'
 import { useAccountStore } from '../store/account.js'
+import { useSettingsStore } from '../store/settings.js'
 
 // the viewer and the composer are the heavy halves and most visits open
 // neither; they are fetched when one is
@@ -120,7 +121,7 @@ export default {
 	},
 
 	computed: {
-		...mapStores(useAccountStore),
+		...mapStores(useAccountStore, useSettingsStore),
 
 		/**
 		 * The reader, as something to draw a face from.
@@ -150,6 +151,19 @@ export default {
 				display_name: user.displayName || user.uid,
 				avatar: ownAvatarUrl(64),
 			}
+		},
+
+		/**
+		 * Whether this instance offers stories at all.
+		 *
+		 * Asked here rather than where the bar is drawn, so that every place that
+		 * draws one is covered. Default on, and on for a server that said nothing
+		 * about it.
+		 *
+		 * @return {boolean} whether to draw the bar
+		 */
+		offered() {
+			return this.settingsStore.getServerData?.sections?.stories !== false
 		},
 
 		/** @return {string} the reader's handle, for telling their own stories apart */

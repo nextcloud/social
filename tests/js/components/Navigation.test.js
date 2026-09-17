@@ -609,6 +609,50 @@ describe('Navigation', () => {
 		})
 	})
 
+	/**
+	 * Photos, Videos and News are three timelines an administrator can turn
+	 * off, and the sidebar is where that shows. Default on, and on for a
+	 * server that said nothing about it -- a sidebar that lost three entries
+	 * because an older server sent no `sections` would read as the app being
+	 * broken rather than as a setting.
+	 */
+	describe('the sections an instance offers', () => {
+		const offering = (sections) => {
+			useSettingsStore().setServerData({ public: false, sections })
+
+			return mountNavigation()
+		}
+
+		it('draws all three when the server says nothing', () => {
+			expect(itemNames(offering(undefined)))
+				.toEqual(expect.arrayContaining(['Photos', 'Videos', 'News']))
+		})
+
+		it('draws all three when the instance offers them', () => {
+			const names = itemNames(offering({ section_photos: true, section_videos: true, section_news: true }))
+
+			expect(names).toEqual(expect.arrayContaining(['Photos', 'Videos', 'News']))
+		})
+
+		it('leaves out the ones the instance has turned off', () => {
+			const names = itemNames(offering({ section_photos: false, section_videos: true, section_news: false }))
+
+			expect(names).not.toContain('Photos')
+			expect(names).toContain('Videos')
+			expect(names).not.toContain('News')
+			// and the rest of the sidebar is untouched
+			expect(names).toContain('My Feed')
+			expect(names).toContain('Direct messages')
+		})
+
+		it('keeps the entries it draws whole', () => {
+			const wrapper = offering({ section_photos: true, section_videos: false, section_news: true })
+
+			expect(item(wrapper, 'Photos').attributes('data-name')).toBe('Photos')
+			expect(item(wrapper, 'Videos')).toBeUndefined()
+		})
+	})
+
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {
 		expect(itemNames(mountNavigation())).toEqual([
 			'My Feed',

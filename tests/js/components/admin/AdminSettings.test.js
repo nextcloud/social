@@ -33,6 +33,14 @@ const STATE = {
 		publish_blocks: false,
 		allow_self_signed: false,
 	},
+	sections: {
+		stories: true,
+		section_photos: true,
+		section_videos: true,
+		section_news: true,
+		group_lists: [],
+	},
+	groups: [{ id: 'design', name: 'Design' }],
 	accessType: 'all_but',
 	accessList: [],
 	retentionDays: 0,
@@ -72,7 +80,7 @@ describe('the administration page', () => {
 		axios.get.mockResolvedValue({ data: { accounts: [], cursors: [], announcements: [] } })
 	})
 
-	it('is the sixteen sections, in the order an administrator reads them', async () => {
+	it('is the seventeen sections, in the order an administrator reads them', async () => {
 		const wrapper = await mountPage(STATE)
 		const headings = wrapper.findAll('h2').map((heading) => heading.text())
 
@@ -91,6 +99,7 @@ describe('the administration page', () => {
 			'Federation health',
 			'Fediverse access',
 			'Announcements',
+			'Sections',
 			'Server',
 			'Relays',
 		])
@@ -101,9 +110,12 @@ describe('the administration page', () => {
 	 * server settings to one, so there is nothing for the card to draw.
 	 */
 	it('leaves the Server card out for a delegated administrator', async () => {
-		const wrapper = await mountPage({ ...STATE, server: null })
+		const wrapper = await mountPage({ ...STATE, server: null, sections: null, groups: null })
 
 		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Server')
+		// nor what the app offers everybody, which is a decision about the
+		// instance rather than about a report
+		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Sections')
 		// nor the relays, which change what every federated timeline here
 		// holds and where every public post written here is sent
 		expect(wrapper.findAll('h2').map((heading) => heading.text())).not.toContain('Relays')

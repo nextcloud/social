@@ -32,6 +32,10 @@
 		     same kind of decision — it changes what every federated timeline
 		     here holds and where every public post written here is sent — so
 		     it is behind the same condition -->
+		<SectionsSection
+			v-if="state.sections"
+			:settings="state.sections"
+			:groups="state.groups ?? []" />
 		<ServerSection v-if="state.server !== null" :settings="state.server" />
 		<RelaysSection v-if="state.server !== null" />
 	</div>
@@ -52,6 +56,7 @@ import ReportsSection from './ReportsSection.vue'
 import RetentionSection from './RetentionSection.vue'
 import RulesSection from './RulesSection.vue'
 import ReviewSection from './ReviewSection.vue'
+import SectionsSection from './SectionsSection.vue'
 import ServerSection from './ServerSection.vue'
 import StorageSection from './StorageSection.vue'
 import TrendsSection from './TrendsSection.vue'
@@ -113,6 +118,7 @@ export default {
 		RetentionSection,
 		RulesSection,
 		ReviewSection,
+		SectionsSection,
 		ServerSection,
 		StorageSection,
 		TrendsSection,
