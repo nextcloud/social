@@ -50,9 +50,26 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * The four `MediaAttachment` types this app stores, plus `''` for a post
 	 * carrying nothing and `mixed` for one carrying more than one kind — a post
 	 * with a photograph and a video is both, and a column has to choose.
+	 *
+	 * **Closed, and it has to be.** The column is seven characters wide, and
+	 * what fills it is read out of the stored attachment JSON — which was
+	 * written by older versions of this app and by every server it federates
+	 * with. `Document::convertToMediaAttachment()` has narrowed an attachment's
+	 * type to these four since "Files as attachments", but a row written before
+	 * that kept the whole first half of the MIME type, so a PDF attached in
+	 * 0.23.0 is stored as `"type":"application"` — eleven characters, and on
+	 * MySQL in strict mode an upgrade that ends in *Data too long for column
+	 * media_kind*.
 	 */
 	public const MEDIA_KIND_NONE = '';
 	public const MEDIA_KIND_MIXED = 'mixed';
+
+	/**
+	 * The attachment types that are a kind of their own. Everything else is a
+	 * file a client cannot render, which is what `unknown` has meant since the
+	 * conversion learnt to say it.
+	 */
+	public const MEDIA_KINDS = ['image', 'video', 'audio', 'gifv'];
 
 	/**
 	 * The three values `social_stream.news_kind` holds.
@@ -736,6 +753,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * `SocialLimitsQueryBuilder::limitToVideo()` applies, kept in step here
 	 * because the two must not come to disagree about what a video is.
 	 *
+	 * Only `MEDIA_KINDS` are kinds. An attachment of any other type is
+	 * skipped, exactly as `unknown` is — which is what this app already
+	 * decides for a PDF attached *today*, so an old row and a new one now
+	 * agree about the same file. Before this, the whole of whatever an older
+	 * version happened to store went into a seven-character column, and an
+	 * instance with a PDF in its history could not be upgraded at all.
+	 *
 	 * @param string $attachments the stored JSON list
 	 * @param string $subType the post's ActivityPub subtype
 	 */
@@ -754,7 +778,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				}
 
 				$type = (string)($attachment['type'] ?? '');
-				if ($type !== '' && $type !== 'unknown') {
+				if (in_array($type, self::MEDIA_KINDS, true)) {
 					$kinds[$type] = true;
 				}
 			}
@@ -764,9 +788,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			return self::MEDIA_KIND_NONE;
 		}
 
-		return (count($kinds) === 1)
-			? array_key_first($kinds)
-			: self::MEDIA_KIND_MIXED;
+		if (count($kinds) > 1) {
+			return self::MEDIA_KIND_MIXED;
+		}
+
+		// cast because `array_key_first()` is nullable and psalm cannot see
+		// that the two returns above have already dealt with an empty list
+		return (string)array_key_first($kinds);
 	}
 
 	/**
