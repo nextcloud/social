@@ -51,6 +51,10 @@
 		     of time it means is a question only this list has -->
 		<TrendingHashtags v-else-if="active === 'tags'" />
 
+		<!-- and the links tab likewise: the same window control over a
+		     different thing being counted -->
+		<TrendingLinks v-else-if="active === 'news'" />
+
 		<template v-else-if="active === 'packs'">
 			<!-- one pack open: its accounts, with a follow-all -->
 			<div v-if="openPack" class="discover__pack">
@@ -199,10 +203,12 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import PlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import Pound from 'vue-material-design-icons/Pound.vue'
+import NewspaperVariantOutline from 'vue-material-design-icons/NewspaperVariantOutline.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import DiscoverCategories from '../components/DiscoverCategories.vue'
 import TrendingHashtags from '../components/TrendingHashtags.vue'
+import TrendingLinks from '../components/TrendingLinks.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '../services/toast.js'
@@ -243,6 +249,7 @@ export default {
 		TimelineSwitcher,
 		DiscoverCategories,
 		TrendingHashtags,
+		TrendingLinks,
 		Refresh,
 	},
 
@@ -293,6 +300,10 @@ export default {
 				{ value: 'posts', label: t('social', 'Pictures'), icon: ImageMultiple },
 				{ value: 'videos', label: t('social', 'Videos'), icon: PlayBoxMultiple },
 				{ value: 'tags', label: t('social', 'Hashtags'), icon: Pound },
+				// last, and the only one of these that is about what is being read
+				// rather than who is here: the sidebar's News entry is where a
+				// reader goes for the posts, and this is the ranking behind it
+				{ value: 'news', label: t('social', 'News'), icon: NewspaperVariantOutline },
 			]
 		},
 	},
@@ -316,8 +327,8 @@ export default {
 		 * @param {boolean} force ask again even if it has been asked once
 		 */
 		async load(tab, force = false) {
-			// the hashtags tab asks for itself, per window
-			if (tab === 'tags' || (!force && this.loaded.includes(tab))) {
+			// the hashtags and the links ask for themselves, per window
+			if (tab === 'tags' || tab === 'news' || (!force && this.loaded.includes(tab))) {
 				return
 			}
 

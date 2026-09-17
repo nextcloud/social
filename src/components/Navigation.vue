@@ -251,6 +251,7 @@ import IconHome from 'vue-material-design-icons/Home.vue'
 import IconCompass from 'vue-material-design-icons/Compass.vue'
 import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
+import IconNewspaperVariantOutline from 'vue-material-design-icons/NewspaperVariantOutline.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
@@ -504,6 +505,21 @@ export default {
 						icon: IconPlayBoxMultiple,
 						title: t('social', 'Videos'),
 						to: { name: 'timeline', params: { type: 'videos' } },
+					},
+					// the third of the kind filters, after Photos and Videos:
+					// what people are reading rather than what they showed.
+					// Above Activities because it is something to read, and
+					// everything below this line is something that happened
+					{
+						key: 'social-news',
+						icon: IconNewspaperVariantOutline,
+						title: t('social', 'News'),
+						to: { name: 'timeline', params: { type: 'news' } },
+						// the page about one article belongs to this entry as
+						// much as the list does: a reader who followed a
+						// headline is still reading the news, and a sidebar
+						// with nothing lit says they are nowhere
+						covers: ['news', 'link'],
 					},
 					{
 						key: 'social-notifications',

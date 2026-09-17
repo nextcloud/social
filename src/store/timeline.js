@@ -972,6 +972,34 @@ export const useTimelineStore = defineStore('timeline', {
 						params.media_type = 'image'
 					}
 					break
+				case 'news':
+				// what people are reading rather than what they are saying: the
+				// posts that are an article, and the posts that link to one.
+				// Read at the same three distances as Photos and Videos, and for
+				// the same reason -- news from the people you follow and news on
+				// the whole fediverse are the same page asked of a wider circle.
+					if (this.params.scope === 'timeline' || this.params.scope === 'federated') {
+						url = generateUrl('apps/social/api/v1/timelines/public')
+						if (this.params.scope === 'timeline') {
+							params.local = true
+						}
+					} else {
+						url = generateUrl('apps/social/api/v1/timelines/home')
+					}
+					// this app's own, like `only_video`. Not `only_media`: an
+					// article with no picture in it is still news, and asking
+					// Mastodon's question here would leave exactly the plain
+					// links this page is for out of it
+					params.only_news = true
+					break
+				case 'link':
+				// everything said here about one article. The link is the
+				// subject, so it rides in the query rather than the path: a URL
+				// inside a path segment is a URL that has to survive two rounds
+				// of encoding and one web server's idea of what a slash means.
+					url = generateUrl('apps/social/api/v1/timelines/link')
+					params.url = this.params.url ?? ''
+					break
 				case 'notifications': {
 					url = generateUrl('apps/social/api/v1/notifications')
 					// the page's filter, as the server takes it: what to leave

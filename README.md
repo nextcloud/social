@@ -105,6 +105,12 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   stories only to instances it has identified as Pixelfed.
 - **Photos and Videos are timelines of their own**, drawn as grids and asked of the
   server rather than filtered out of a page you already have.
+- **News** — a third one beside them, over what people are reading rather than what
+  they showed: posts linking to an article, and articles themselves, which is what a
+  blog on Plume, WriteFreely, Ghost or WordPress federates. Drawn as a list, led by
+  the headline. The **News** tab of Discover ranks the articles being shared here
+  most often, and each one opens into what people here said about it — which is the
+  thing a feed reader cannot do.
 ![Videos, including federated PeerTube channels](img/readme/videos.jpg)
 
 - **PeerTube, properly — in both directions.** A PeerTube video arrives with its
