@@ -170,4 +170,67 @@ describe('Settings', () => {
 		// the section supplies the heading, so the panel no longer repeats it
 		expect(wrapper.findComponent(MigrationSettings).find('h2').exists()).toBe(false)
 	})
+
+	/**
+	 * Twelve sections is a long scroll, and the one a reader came for was
+	 * somewhere in it. The rail is that scroll as a list, so it has to name
+	 * every section and point at it -- a rail that has drifted from the page
+	 * is worse than no rail, because it sends people to the wrong place.
+	 */
+	it('lists every section in the rail, in the order they are read', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		const railed = wrapper.findAll('.settings__toc-link')
+		const headings = wrapper.findAll('.settings__section-heading')
+
+		expect(railed.map((link) => link.text())).toEqual(headings.map((h) => h.text()))
+	})
+
+	it('points each rail link at the section it names', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		const hrefs = wrapper.findAll('.settings__toc-link').map((link) => link.attributes('href'))
+		const ids = wrapper.findAll('.settings__section').map((section) => `#${section.attributes('id')}`)
+
+		expect(hrefs).toEqual(ids)
+	})
+
+	/**
+	 * The deletion is the one thing on the page that cannot be undone, and it
+	 * is marked in both places a reader meets it.
+	 */
+	/**
+	 * The mark follows the reader, and where it lands is the whole point of
+	 * the rail: the section whose heading has last passed the top of the
+	 * window, not whichever section happens to be the highest thing visible.
+	 * A tall section straddling the top is still the highest thing on screen
+	 * while the reader is already reading the one after it.
+	 */
+	it('marks the last section whose heading has passed the top', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		// account and featured-tags start above the window, lists is just
+		// below its top, and scheduled is further down the page
+		const tops = { account: -800, 'featured-tags': -240, lists: 40, scheduled: 320 }
+		const real = document.getElementById.bind(document)
+		vi.spyOn(document, 'getElementById').mockImplementation((id) => (
+			id in tops ? { getBoundingClientRect: () => ({ top: tops[id] }) } : real(id)
+		))
+
+		wrapper.vm.markCurrent()
+		expect(wrapper.vm.current).toBe('lists')
+
+		vi.restoreAllMocks()
+	})
+
+	it('marks the section that cannot be undone', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		expect(wrapper.find('#delete').classes()).toContain('settings__section--danger')
+		expect(wrapper.findAll('.settings__toc-link--danger')).toHaveLength(1)
+	})
 })
