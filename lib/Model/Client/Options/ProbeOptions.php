@@ -47,6 +47,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private bool $remote = false;
 	private bool $onlyMedia = false;
 	private bool $onlyVideo = false;
+	private bool $onlyNews = false;
 	private string $mediaType = '';
 	private int $minId = 0;
 	private int $maxId = 0;
@@ -172,6 +173,24 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 
 	public function setOnlyVideo(bool $onlyVideo): self {
 		$this->onlyVideo = $onlyVideo;
+
+		return $this;
+	}
+
+	/**
+	 * Whether the caller wants only the posts that are news.
+	 *
+	 * This app's own, like `only_video`, and a narrowing of nothing: news is not
+	 * a kind of media. A post is news when it is an `Article` or a `Page`, or
+	 * when its text links somewhere else — see `Stream::newsKindOf()`, which is
+	 * where that is decided, once, on the write.
+	 */
+	public function isOnlyNews(): bool {
+		return $this->onlyNews;
+	}
+
+	public function setOnlyNews(bool $onlyNews): self {
+		$this->onlyNews = $onlyNews;
 
 		return $this;
 	}
@@ -379,6 +398,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		$this->setRemote($this->getBool('remote', $arr, $this->isRemote()));
 		$this->setOnlyMedia($this->getBool('only_media', $arr, $this->isOnlyMedia()));
 		$this->setOnlyVideo($this->getBool('only_video', $arr, $this->isOnlyVideo()));
+		$this->setOnlyNews($this->getBool('only_news', $arr, $this->isOnlyNews()));
 		$this->setMediaType($this->get('media_type', $arr, $this->getMediaType()));
 		$this->setMinId($this->getInt('min_id', $arr, $this->getMinId()));
 		$this->setMaxId($this->getInt('max_id', $arr, $this->getMaxId()));
@@ -402,6 +422,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 				'remote' => $this->isRemote(),
 				'only_media' => $this->isOnlyMedia(),
 				'only_video' => $this->isOnlyVideo(),
+				'only_news' => $this->isOnlyNews(),
 				'media_type' => $this->getMediaType(),
 				'min_id' => $this->getMinId(),
 				'max_id' => $this->getMaxId(),

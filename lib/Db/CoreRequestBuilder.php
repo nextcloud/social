@@ -654,6 +654,7 @@ class CoreRequestBuilder {
 			'instances',
 			'attachments',
 			'media_kind',
+			'news_kind',
 			'cache',
 			'creation',
 			'local',

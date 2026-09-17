@@ -54,6 +54,26 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const MEDIA_KIND_NONE = '';
 	public const MEDIA_KIND_MIXED = 'mixed';
 
+	/**
+	 * The three values `social_stream.news_kind` holds.
+	 *
+	 * `article` is a post that *is* an article: a `Article` or `Page` object,
+	 * which is what Plume, WriteFreely, Ghost and the WordPress plugin publish
+	 * and which arrives here as a `Note` carrying that word in `subtype` (see
+	 * `AP::NOTE_LIKE_TYPES`). `link` is a post that *points at* one — an
+	 * ordinary note whose text carries an external link, which is how most
+	 * news actually travels on the fediverse. `''` is neither.
+	 *
+	 * Two values rather than one because they are not the same thing and a
+	 * reader may well want only the first; the News timeline asks for both.
+	 */
+	public const NEWS_KIND_NONE = '';
+	public const NEWS_KIND_LINK = 'link';
+	public const NEWS_KIND_ARTICLE = 'article';
+
+	/** The subtypes that make a post an article in its own right. */
+	public const ARTICLE_SUBTYPES = ['Article', 'Page'];
+
 	use TDetails;
 
 	public const TYPE = 'Stream';
@@ -747,6 +767,108 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return (count($kinds) === 1)
 			? array_key_first($kinds)
 			: self::MEDIA_KIND_MIXED;
+	}
+
+	/**
+	 * Whether a post is news, and in which of the two senses.
+	 *
+	 * Static and taking the raw columns, for the same reason `mediaKindOf()`
+	 * is: the backfill migration asks this of rows it reads straight out of
+	 * the database without building a `Stream` for each of ten million of
+	 * them.
+	 *
+	 * The article half is the post's own type. The link half is "does the text
+	 * carry a link to somewhere else", which is exactly the question
+	 * `LinkPreviewService` asks before it fetches a preview — so it is asked
+	 * here by calling the same code (`firstLinkIn()`), and the News timeline
+	 * and the card under a post cannot come to disagree about whether a post
+	 * links anywhere.
+	 *
+	 * Deliberately *not* asked: whether a card was fetched successfully. Cards
+	 * are read from the linked page after the post is stored and may never
+	 * arrive — the page may be slow, private, or refuse this instance — and a
+	 * post that dropped out of the News timeline hours after being posted,
+	 * because somebody else's web server was down, would be worse than one
+	 * that is there without a picture.
+	 *
+	 * @param string $content the post's stored content, markup and all
+	 * @param string $subType the post's ActivityPub subtype
+	 */
+	public static function newsKindOf(string $content, string $subType = ''): string {
+		if (in_array($subType, self::ARTICLE_SUBTYPES, true)) {
+			return self::NEWS_KIND_ARTICLE;
+		}
+
+		return (self::firstLinkIn($content) === '')
+			? self::NEWS_KIND_NONE
+			: self::NEWS_KIND_LINK;
+	}
+
+	/**
+	 * The first link in a post's content that points somewhere else, or '' when
+	 * it carries none.
+	 *
+	 * A mention and a hashtag are links too, so both are dropped whole before
+	 * anything is looked for: the class that says which is which sits on the
+	 * anchor (this app) or on a wrapping span (Mastodon).
+	 *
+	 * This lived in `LinkPreviewService`, which still asks it and is still the
+	 * only thing that *fetches* anything. It is here because two things now
+	 * need the answer and one of them is a migration reading raw rows, which
+	 * cannot build a service.
+	 */
+	public static function firstLinkIn(string $content): string {
+		if ($content === '') {
+			return '';
+		}
+
+		$plain = preg_replace(
+			[
+				'/<span\b[^>]*class=["\'][^"\']*\b(?:mention|hashtag)\b[^"\']*["\'][^>]*>.*?<\/span>/is',
+				'/<a\b[^>]*class=["\'][^"\']*\b(?:mention|hashtag|u-url)\b[^"\']*["\'][^>]*>.*?<\/a>/is',
+			],
+			' ',
+			$content
+		) ?? $content;
+
+		// an anchor the composer or a remote server built
+		if (preg_match_all('/<a\s[^>]*href=["\']([^"\']+)["\'][^>]*>/i', $plain, $anchors, PREG_SET_ORDER)) {
+			foreach ($anchors as $anchor) {
+				$url = html_entity_decode($anchor[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+				if (self::isExternalLink($url)) {
+					return $url;
+				}
+			}
+
+			return '';
+		}
+
+		// plain text (a post written through the API without markup)
+		if (preg_match('/https?:\/\/[^\s<>"\']+/i', strip_tags($plain), $match) === 1) {
+			$url = rtrim($match[0], '.,;:!?)');
+
+			return self::isExternalLink($url) ? $url : '';
+		}
+
+		return '';
+	}
+
+	/**
+	 * A link counts when it is a plain http(s) URL to a host. Everything
+	 * beyond that — local addresses, redirects to other protocols, oversized
+	 * bodies, blocked hosts — is `CurlService`'s job on the one path that
+	 * fetches the page.
+	 *
+	 * Public because `LinkPreviewService` asks the same of the picture a page
+	 * offers, which is a URL from the same untrusted source.
+	 */
+	public static function isExternalLink(string $url): bool {
+		$scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+		if (!in_array($scheme, ['http', 'https'], true)) {
+			return false;
+		}
+
+		return (string)parse_url($url, PHP_URL_HOST) !== '';
 	}
 
 	public function getVideoMeta(): array {

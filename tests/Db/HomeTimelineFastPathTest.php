@@ -98,6 +98,7 @@ class HomeTimelineFastPathTest extends TestCase {
 		match ($narrowing) {
 			'only_media' => $options->setOnlyMedia(true),
 			'only_video' => $options->setOnlyVideo(true),
+			'only_news' => $options->setOnlyNews(true),
 			default => $options->setMediaType($narrowing),
 		};
 
@@ -109,6 +110,9 @@ class HomeTimelineFastPathTest extends TestCase {
 		return [
 			'only_media' => ['only_media'],
 			'only_video' => ['only_video'],
+			// the same shape of question as the media ones, and a rarer kind
+			// of post than a photograph: News would have come back empty
+			'only_news' => ['only_news'],
 			'media_type=image' => ['image'],
 			'media_type=audio' => ['audio'],
 		];
