@@ -151,6 +151,12 @@
 		</template>
 
 		<template v-else>
+			<!-- above the suggestions, because it answers the question this
+			     page's own suggestions structurally cannot: the follow graph
+			     has nothing to say to an account that is not in it yet, and
+			     "who is there" is a question for a directory -->
+			<FediverseSearch />
+
 			<ul v-if="accounts.length" class="discover__accounts">
 				<li v-for="account in accounts" :key="account.id" class="discover__account">
 					<router-link
@@ -177,7 +183,7 @@
 			<NcEmptyContent
 				v-else-if="!loading"
 				:name="t('social', 'Nobody to suggest yet')"
-				:description="t('social', 'Accounts this server knows about will appear here.')">
+				:description="t('social', 'Accounts this server knows about will appear here. Until it knows any, the search above asks other servers’ directories instead.')">
 				<template #icon>
 					<AccountMultipleOutline />
 				</template>
@@ -207,6 +213,7 @@ import NewspaperVariantOutline from 'vue-material-design-icons/NewspaperVariantO
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import DiscoverCategories from '../components/DiscoverCategories.vue'
+import FediverseSearch from '../components/FediverseSearch.vue'
 import TrendingHashtags from '../components/TrendingHashtags.vue'
 import TrendingLinks from '../components/TrendingLinks.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
@@ -248,6 +255,7 @@ export default {
 		ProfileMediaGrid,
 		TimelineSwitcher,
 		DiscoverCategories,
+		FediverseSearch,
 		TrendingHashtags,
 		TrendingLinks,
 		Refresh,

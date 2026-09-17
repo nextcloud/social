@@ -26,6 +26,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\FeaturedTagService;
+use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
@@ -91,6 +92,7 @@ class DiscoveryController extends Controller {
 		private StarterPackService $starterPackService,
 		private ProfileHighlightsService $profileHighlightsService,
 		private AccountRelationService $accountRelationService,
+		private FediverseDirectoryService $fediverseDirectoryService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -133,6 +135,63 @@ class DiscoveryController extends Controller {
 
 			return new DataResponse(
 				$this->directoryService->page($order, $limit, $offset), Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The directories this instance will ask about people, in the order it asks
+	 * them — this instance first.
+	 *
+	 * Published rather than assumed by the client, because which servers get
+	 * asked is an administrator's decision and a reader is entitled to see
+	 * whose directory they are searching before they search it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/directories')]
+	public function directories(): DataResponse {
+		try {
+			$this->initViewer(['read'], true);
+
+			return new DataResponse($this->fediverseDirectoryService->sources(), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Looks for people in those directories.
+	 *
+	 * A viewer is required, unlike the local directory beside it. This one
+	 * makes requests to other servers on the caller's say-so, and an
+	 * endpoint that does that for anonymous callers is an open proxy with
+	 * extra steps — the rate limit is the second half of the same argument.
+	 *
+	 * The answer carries `sources` as well as `accounts`, and a client is
+	 * expected to show it: "nobody by that name" and "that server did not
+	 * answer" are different answers, and a reader deciding whether to try
+	 * another spelling needs to know which one they got.
+	 *
+	 * @param string $q what to look for; empty asks each source who is active
+	 * @param string $source one host to ask, or '' for all of them
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 30, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/directories/search')]
+	public function searchDirectories(
+		string $q = '',
+		string $source = '',
+		int $limit = FediverseDirectoryService::LIMIT,
+	): DataResponse {
+		try {
+			$this->initViewer(['read'], true);
+
+			return new DataResponse(
+				$this->fediverseDirectoryService->search($q, $source, $limit), Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);
