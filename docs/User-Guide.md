@@ -56,6 +56,13 @@ skipped, and once closed it does not come back.
   trending, ranked over a window you pick, and **News** — the articles being
   shared here most often in that window, each with the number of posts that
   carried it and a way into what those posts said.
+- **Find people across the fediverse** sits at the top of the People tab. Type a
+  name, a handle or a subject and this server asks several directories at once —
+  its own first, then the ones its administrator configured — and offers a
+  **Follow** on every row. Pick one directory with the buttons under the box to
+  ask only that one. Servers that did not answer are named under the results, so
+  a short list is never mistaken for an empty fediverse. Somebody this server
+  already knows opens here; a stranger opens on their own server.
 - **Starter packs** are named handfuls of accounts with a **Follow everyone**
   button. Two ship with the app — the projects behind the network, and
   photography — and an administrator can curate more.

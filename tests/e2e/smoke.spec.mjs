@@ -166,6 +166,10 @@ test.describe('Social, in a browser', () => {
 		for (const option of ['People', 'Starter packs']) {
 			await expect(switcher.getByRole('radio', { name: option })).toBeVisible()
 		}
+
+		// the People tab leads with the question its own suggestions cannot
+		// answer: who is out there, on servers this one may never have met
+		await expect(page.locator('.finder input')).toBeVisible()
 	})
 
 	test('the timeline switcher moves between the three scopes', async ({ page }) => {

@@ -207,8 +207,14 @@ button at all rather than handing back the original text.
 ![Discover](img/readme/discover.png)
 
 The hardest part of a new Fediverse account is the first ten follows. This answers it
-four ways:
+six ways:
 
+- **A search across other servers' directories.** Type a name, a handle or a subject
+  and this server asks several directories at once — its own, then the ones its
+  administrator configured — and offers a Follow on every row. It uses the APIs those
+  servers publish for strangers to read and holds no credentials for any of them,
+  aggregates nothing and stores nobody. Directories that did not answer are named
+  under the results, so a short list is never mistaken for an empty Fediverse.
 - **The people you already share a Nextcloud with.** Every Nextcloud profile has a
   `fediverse` field; this app fills in yours and reads everybody else's, so your
   colleagues are suggested before any algorithm has a thing to say.
@@ -218,6 +224,8 @@ four ways:
   busiest hour and the busiest ten days are genuinely different lists, not one list
   relabelled.
 - **Trending pictures and videos.**
+- **The articles being shared here**, under **News** — with what people here said about
+  each one, which is the part a feed reader cannot do.
 
 The sidebar has its own way in: **Explore**, one collapsible entry holding the
 hashtags you follow, your lists, and what this server is busy with right now — in that
