@@ -245,239 +245,243 @@
 				{{ t('social', 'Sensitive media, hidden by your settings') }}
 			</span>
 		</div>
-		<!-- The reactions stay on the card rather than joining the row below:
-		     that row is revealed by the pointer, and a reaction somebody left
-		     is something to be seen without hovering. -->
-		<ReactionBar
-			v-if="$route && $route.params.type !== 'notifications'"
-			:statusId="String(item.id || '')"
-			:modelValue="item.reactions || []"
-			:canReact="!serverData.public"
-			@update:modelValue="onReactionsChanged" />
-		<!-- The counts are always here; the controls arrive with the pointer.
-		     Nothing widens and nothing moves — see the stylesheet for what is
-		     at rest and what is revealed. The dialogs below stay outside this
-		     row. -->
+		<!-- One row across the foot of the card: the reactions somebody left,
+		     then the counts and the controls at the far end. They were two
+		     rows while the second one was revealed by the pointer and had to
+		     live in the padding; now that the counts are always drawn there is
+		     no reason for the card to carry the height of both. -->
 		<div
-			v-if="$route && $route.params.type !== 'notifications' && !serverData.public"
-			class="post-actions-reveal"
-			:class="{ 'post-actions-reveal--held': menuOpen }">
-			<div class="post-actions">
-				<div class="post-actions__groups">
-					<div class="post-action-group">
-						<NcButton
-							:title="t('social', 'Reply')"
-							:aria-label="t('social', 'Reply')"
-							variant="tertiary"
-							@click="reply">
-							<template #icon>
-								<Reply :size="20" />
-							</template>
-						</NcButton>
-						<RollingCount :count="item.replies_count || 0" />
-					</div>
-					<div
-						class="post-action-group"
-						:class="{ 'post-action-group--refused': refused === 'boost' }">
-						<NcButton
-							v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
-							:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-							:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-							:aria-pressed="isBoosted ? 'true' : 'false'"
-							variant="tertiary"
-							:class="{ 'post-action--spun': celebrate === 'boost' }"
-							@click="boost">
-							<template #icon>
-								<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
-							</template>
-						</NcButton>
-						<RollingCount :count="item.reblogs_count || 0" />
-					</div>
-					<div
-						class="post-action-group post-action-group--like"
-						:class="{ 'post-action-group--refused': refused === 'like' }">
-						<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
-						<!-- one button whose label changes, not two swapped by v-if:
+			v-if="$route && $route.params.type !== 'notifications'"
+			class="post-footer">
+			<ReactionBar
+				:statusId="String(item.id || '')"
+				:modelValue="item.reactions || []"
+				:canReact="!serverData.public"
+				@update:modelValue="onReactionsChanged" />
+			<!-- The counts are always here; the controls arrive with the
+			     pointer. Nothing widens and nothing moves — see the stylesheet
+			     for what is at rest and what is revealed. -->
+			<div
+				v-if="!serverData.public"
+				class="post-actions-reveal"
+				:class="{ 'post-actions-reveal--held': menuOpen }">
+				<div class="post-actions">
+					<div class="post-actions__groups">
+						<div class="post-action-group">
+							<NcButton
+								:title="t('social', 'Reply')"
+								:aria-label="t('social', 'Reply')"
+								variant="tertiary"
+								@click="reply">
+								<template #icon>
+									<Reply :size="20" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.replies_count || 0" />
+						</div>
+						<div
+							class="post-action-group"
+							:class="{ 'post-action-group--refused': refused === 'boost' }">
+							<NcButton
+								v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+								:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+								:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+								:aria-pressed="isBoosted ? 'true' : 'false'"
+								variant="tertiary"
+								:class="{ 'post-action--spun': celebrate === 'boost' }"
+								@click="boost">
+								<template #icon>
+									<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.reblogs_count || 0" />
+						</div>
+						<div
+							class="post-action-group post-action-group--like"
+							:class="{ 'post-action-group--refused': refused === 'like' }">
+							<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
+							<!-- one button whose label changes, not two swapped by v-if:
 							     unmounting the button someone just pressed drops their focus
 							     to the body and loses their place in the timeline -->
-						<NcButton
-							:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-							:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-							:aria-pressed="isLiked ? 'true' : 'false'"
-							variant="tertiary"
-							:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
-							@click="like">
-							<template #icon>
-								<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
-								<HeartOutline v-else :size="20" />
-							</template>
-						</NcButton>
-						<RollingCount :count="item.favourites_count || 0" />
-					</div>
-					<!-- only ever on the author's own copy: the server sends
+							<NcButton
+								:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+								:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+								:aria-pressed="isLiked ? 'true' : 'false'"
+								variant="tertiary"
+								:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
+								@click="like">
+								<template #icon>
+									<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
+									<HeartOutline v-else :size="20" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.favourites_count || 0" />
+						</div>
+						<!-- only ever on the author's own copy: the server sends
 						     `view_count` as null on everybody else's, because how
 						     many people read a post is the author's business -->
-					<div
-						v-if="item.view_count !== null && item.view_count !== undefined"
-						class="post-action post-action--views"
-						:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
-						<IconEyeOutline :size="20" />
-						<RollingCount :count="item.view_count" />
+						<div
+							v-if="item.view_count !== null && item.view_count !== undefined"
+							class="post-action post-action--views"
+							:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
+							<IconEyeOutline :size="20" />
+							<RollingCount :count="item.view_count" />
+						</div>
 					</div>
-				</div>
-				<!-- the menu opens in a portal, so the pointer leaving the card
+					<!-- the menu opens in a portal, so the pointer leaving the card
 				     while it is open would take the row it belongs to away -->
-				<NcActions @update:open="menuOpen = $event">
-					<NcActionButton v-if="canQuote" @click="quote">
-						<template #icon>
-							<FormatQuoteClose :size="20" />
-						</template>
-						{{ t('social', 'Quote') }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct"
-						icon="icon-rename"
-						@click="editPost">
-						{{ t('social', 'Edit') }}
-					</NcActionButton>
-					<!-- the answer to "this no longer belongs on my profile" that
+					<NcActions @update:open="menuOpen = $event">
+						<NcActionButton v-if="canQuote" @click="quote">
+							<template #icon>
+								<FormatQuoteClose :size="20" />
+							</template>
+							{{ t('social', 'Quote') }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct"
+							icon="icon-rename"
+							@click="editPost">
+							{{ t('social', 'Edit') }}
+						</NcActionButton>
+						<!-- the answer to "this no longer belongs on my profile" that
 					     is not destroying it. Nothing federates: the post stays on
 					     every server that received it, which is what deleting is
 					     for -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-						:disabled="archiving"
-						closeAfterClick
-						@click="toggleArchive">
-						<template #icon>
-							<IconArchiveOutline :size="20" />
-						</template>
-						{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
-					</NcActionButton>
-					<!-- who may quote it, and who already has. The two are
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+							:disabled="archiving"
+							closeAfterClick
+							@click="toggleArchive">
+							<template #icon>
+								<IconArchiveOutline :size="20" />
+							</template>
+							{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
+						</NcActionButton>
+						<!-- who may quote it, and who already has. The two are
 					     deliberately one dialog: the reason to let people quote
 					     you is the same reason to be able to stop one of them -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-						closeAfterClick
-						@click="managingQuotes = true">
-						<template #icon>
-							<FormatQuoteClose :size="20" />
-						</template>
-						{{ t('social', 'Quotes of this post') }}
-					</NcActionButton>
-					<!-- who is in the picture, which only the author may say:
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+							closeAfterClick
+							@click="managingQuotes = true">
+							<template #icon>
+								<FormatQuoteClose :size="20" />
+							</template>
+							{{ t('social', 'Quotes of this post') }}
+						</NcActionButton>
+						<!-- who is in the picture, which only the author may say:
 					     anybody able to write a name onto anybody's photograph
 					     could put a post in front of an audience that did not
 					     ask for it -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct && hasPictures"
-						closeAfterClick
-						@click="taggingPeople = true">
-						<template #icon>
-							<IconAccountBoxMultiple :size="20" />
-						</template>
-						{{ t('social', 'Tag people') }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct"
-						icon="icon-delete"
-						@click="askToDelete(false)">
-						{{ t('social', 'Delete') }}
-					</NcActionButton>
-					<!-- the correction people actually make: the post goes and
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct && hasPictures"
+							closeAfterClick
+							@click="taggingPeople = true">
+							<template #icon>
+								<IconAccountBoxMultiple :size="20" />
+							</template>
+							{{ t('social', 'Tag people') }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct"
+							icon="icon-delete"
+							@click="askToDelete(false)">
+							{{ t('social', 'Delete') }}
+						</NcActionButton>
+						<!-- the correction people actually make: the post goes and
 					     its words come back in the composer, to be posted again
 					     as a new post -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct"
-						@click="askToDelete(true)">
-						<template #icon>
-							<PencilBoxOutline :size="20" />
-						</template>
-						{{ t('social', 'Delete & re-draft') }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="canTranslate"
-						:disabled="translating"
-						closeAfterClick
-						@click="toggleTranslation">
-						<template #icon>
-							<Translate :size="20" />
-						</template>
-						{{ translation === null
-							? t('social', 'Translate')
-							: t('social', 'Show original') }}
-					</NcActionButton>
-					<!-- where the post got to: the queue knows, and this asks it
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct"
+							@click="askToDelete(true)">
+							<template #icon>
+								<PencilBoxOutline :size="20" />
+							</template>
+							{{ t('social', 'Delete & re-draft') }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="canTranslate"
+							:disabled="translating"
+							closeAfterClick
+							@click="toggleTranslation">
+							<template #icon>
+								<Translate :size="20" />
+							</template>
+							{{ translation === null
+								? t('social', 'Translate')
+								: t('social', 'Show original') }}
+						</NcActionButton>
+						<!-- where the post got to: the queue knows, and this asks it
 					     for the author, who is the only one it is answered for -->
-					<NcActionButton
-						v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-						@click="openDelivery">
-						<template #icon>
-							<SendCheck :size="20" />
-						</template>
-						{{ t('social', 'Delivery status') }}
-					</NcActionButton>
-					<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
-					<NcActionLink
-						v-if="!origin.local && item.url"
-						:href="item.url"
-						target="_blank">
-						<template #icon>
-							<OpenInNew :size="20" />
-						</template>
-						{{ t('social', 'Open on original instance') }}
-					</NcActionLink>
-					<NcActionButton @click="toggleBookmark">
-						<template #icon>
-							<Bookmark v-if="item.bookmarked" :size="20" />
-							<BookmarkOutline v-else :size="20" />
-						</template>
-						{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
-					</NcActionButton>
-					<!-- an album is made of the reader's own pictures; where the
+						<NcActionButton
+							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
+							@click="openDelivery">
+							<template #icon>
+								<SendCheck :size="20" />
+							</template>
+							{{ t('social', 'Delivery status') }}
+						</NcActionButton>
+						<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
+						<NcActionLink
+							v-if="!origin.local && item.url"
+							:href="item.url"
+							target="_blank">
+							<template #icon>
+								<OpenInNew :size="20" />
+							</template>
+							{{ t('social', 'Open on original instance') }}
+						</NcActionLink>
+						<NcActionButton @click="toggleBookmark">
+							<template #icon>
+								<Bookmark v-if="item.bookmarked" :size="20" />
+								<BookmarkOutline v-else :size="20" />
+							</template>
+							{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
+						</NcActionButton>
+						<!-- an album is made of the reader's own pictures; where the
 					     picture is, is where it is put into one -->
-					<NcActionButton
-						v-if="canCollect"
-						@click="showCollectionDialog = true">
-						<template #icon>
-							<FolderMultiplePlusOutline :size="20" />
-						</template>
-						{{ t('social', 'Add to a collection') }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="canPin"
-						@click="togglePin">
-						<template #icon>
-							<Pin v-if="!item.pinned" :size="20" />
-							<PinOff v-else :size="20" />
-						</template>
-						{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
-					</NcActionButton>
-					<!-- what to do about somebody else, from the post that
+						<NcActionButton
+							v-if="canCollect"
+							@click="showCollectionDialog = true">
+							<template #icon>
+								<FolderMultiplePlusOutline :size="20" />
+							</template>
+							{{ t('social', 'Add to a collection') }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="canPin"
+							@click="togglePin">
+							<template #icon>
+								<Pin v-if="!item.pinned" :size="20" />
+								<PinOff v-else :size="20" />
+							</template>
+							{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
+						</NcActionButton>
+						<!-- what to do about somebody else, from the post that
 					     made the reader want to: both take their posts out of
 					     every timeline at once -->
-					<NcActionButton v-if="canModerateAuthor" @click="showMuteDialog = true">
-						<template #icon>
-							<VolumeOff :size="20" />
-						</template>
-						{{ t('social', 'Mute {account}', { account: item.account.acct }) }}
-					</NcActionButton>
-					<NcActionButton v-if="canModerateAuthor" @click="showBlockDialog = true">
-						<template #icon>
-							<Cancel :size="20" />
-						</template>
-						{{ t('social', 'Block {account}', { account: item.account.acct }) }}
-					</NcActionButton>
-					<NcActionButton
-						v-if="item.account.acct !== currentAccount?.acct"
-						@click="showReportDialog = true">
-						<template #icon>
-							<Flag :size="20" />
-						</template>
-						{{ t('social', 'Report') }}
-					</NcActionButton>
-				</NcActions>
+						<NcActionButton v-if="canModerateAuthor" @click="showMuteDialog = true">
+							<template #icon>
+								<VolumeOff :size="20" />
+							</template>
+							{{ t('social', 'Mute {account}', { account: item.account.acct }) }}
+						</NcActionButton>
+						<NcActionButton v-if="canModerateAuthor" @click="showBlockDialog = true">
+							<template #icon>
+								<Cancel :size="20" />
+							</template>
+							{{ t('social', 'Block {account}', { account: item.account.acct }) }}
+						</NcActionButton>
+						<NcActionButton
+							v-if="item.account.acct !== currentAccount?.acct"
+							@click="showReportDialog = true">
+							<template #icon>
+								<Flag :size="20" />
+							</template>
+							{{ t('social', 'Report') }}
+						</NcActionButton>
+					</NcActions>
+				</div>
 			</div>
 		</div>
 		<MuteDialog
@@ -1737,10 +1741,9 @@ export default {
 }
 
 .post-content {
-	/* the bottom padding is what the row sits in, and it holds all of it: the
-	   counts are legible at rest now, so the row can no longer hang over the
-	   edge with its digits half on the card and half on the page behind it */
-	padding: 18px 20px 32px;
+	/* the foot of the card is one row in flow, so the padding is padding
+	   again: it holds nothing and needs only to look like the sides */
+	padding: 18px 20px 14px;
 	font-size: 15px;
 	line-height: 1.65;
 	border-radius: 8px;
@@ -2045,14 +2048,26 @@ export default {
 	 * stays lit at rest is a like or a boost this reader has already given,
 	 * because that is state rather than chrome.
 	 */
+	/*
+	 * One row across the foot: the reactions at the near end, the counts and
+	 * their controls at the far one. It wraps, so a post with a dozen
+	 * reactions puts the controls on a line of their own rather than crushing
+	 * them, and `align-items: center` keeps the two halves on one baseline
+	 * whatever height the reactions take.
+	 */
+	.post-footer {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+		margin-top: 2px;
+	}
+
 	.post-actions-reveal {
-		position: absolute;
-		/* the whole row is inside the card, in the bottom padding that exists
-		   for it: 32px of padding for a 30px row, on the baseline the reaction
-		   bar sits on */
-		top: calc(100% - 32px);
-		inset-inline-end: 14px;
-		z-index: 2;
+		/* in flow now, at the far end of the footer. `relative` is what the
+		   surface below is drawn against */
+		position: relative;
+		margin-inline-start: auto;
 		display: flex;
 		padding: 1px;
 		border: 1px solid transparent;
@@ -2114,6 +2129,11 @@ export default {
 		align-items: center;
 		gap: 2px;
 		min-inline-size: 0;
+	}
+
+	/* it had a top margin from when it was a row of its own */
+	.post-footer :deep(.reaction-bar) {
+		margin-top: 0;
 	}
 
 	&:hover .post-actions :deep(.button-vue__icon),
@@ -2398,7 +2418,6 @@ export default {
  */
 @media (hover: none) {
 	.post-content .post-actions-reveal {
-		position: static;
 		padding: 0;
 		border: none;
 		border-radius: 0;
