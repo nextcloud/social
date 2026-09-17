@@ -27,6 +27,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\FeaturedTagService;
+use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\ProfileHighlightsService;
@@ -75,6 +76,7 @@ class DiscoveryControllerTest extends TestCase {
 	private StarterPackService|MockObject $starterPackService;
 	private ProfileHighlightsService|MockObject $profileHighlightsService;
 	private AccountRelationService|MockObject $accountRelationService;
+	private FediverseDirectoryService|MockObject $fediverseDirectoryService;
 	private IUserSession|MockObject $userSession;
 
 	/** @var array<string, string> the request headers the controller will see */
@@ -212,6 +214,8 @@ class DiscoveryControllerTest extends TestCase {
 
 		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 
+		$this->fediverseDirectoryService = $this->createMock(FediverseDirectoryService::class);
+
 		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 		$this->linkPreviewService->method('attachCards')
 			->willReturnCallback(function (): void {
@@ -242,7 +246,8 @@ class DiscoveryControllerTest extends TestCase {
 			$this->createMock(PlaceService::class),
 			$this->starterPackService,
 			$this->profileHighlightsService,
-			$this->accountRelationService
+			$this->accountRelationService,
+			$this->fediverseDirectoryService
 		);
 	}
 
@@ -292,6 +297,59 @@ class DiscoveryControllerTest extends TestCase {
 
 		$this->assertSame(DiscoveryRequest::ORDER_ACTIVE, $this->directoryAsked['order']);
 		$this->assertSame(DirectoryService::LIMIT, $this->directoryAsked['limit']);
+	}
+
+	/**
+	 * This route makes requests to other servers on the caller's say-so, and an
+	 * endpoint that does that for anonymous callers is an open proxy with extra
+	 * steps.
+	 */
+	public function testSearchingOtherDirectoriesRefusesACallerWithNoCredentials(): void {
+		$this->anonymous();
+
+		$response = $this->controller()->searchDirectories('jens');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	/** And neither is the list of which servers get asked. */
+	public function testTheDirectoryListRefusesACallerWithNoCredentials(): void {
+		$this->anonymous();
+
+		$response = $this->controller()->directories();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	public function testSearchingOtherDirectoriesPassesItsParametersThrough(): void {
+		$asked = [];
+		$this->fediverseDirectoryService->method('search')
+			->willReturnCallback(function (string $q, string $host, int $limit) use (&$asked): array {
+				$asked = ['q' => $q, 'source' => $host, 'limit' => $limit];
+
+				return ['accounts' => [], 'sources' => []];
+			});
+
+		$this->controller()->searchDirectories('jens', 'chaos.social', 5);
+
+		$this->assertSame(['q' => 'jens', 'source' => 'chaos.social', 'limit' => 5], $asked);
+	}
+
+	/**
+	 * The client is expected to show which sources were quiet, so the route has
+	 * to hand both halves over rather than only the people.
+	 */
+	public function testSearchingOtherDirectoriesAnswersWithTheSourcesAsWellAsThePeople(): void {
+		$this->fediverseDirectoryService->method('search')->willReturn([
+			'accounts' => [],
+			'sources' => [['host' => 'misskey.io', 'status' => 'failed', 'count' => 0]],
+		]);
+
+		$response = $this->controller()->searchDirectories('jens');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertArrayHasKey('accounts', $response->getData());
+		$this->assertSame('failed', $response->getData()['sources'][0]['status']);
 	}
 
 	/** There is no anonymous answer to "who should I follow". */
