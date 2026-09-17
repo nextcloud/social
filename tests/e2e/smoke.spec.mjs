@@ -45,6 +45,52 @@ test.describe('Social, in a browser', () => {
 	})
 
 	/**
+	 * The poll's three controls are one sentence — add an option, say whether
+	 * more than one may be picked, say how long it runs — and they have to read
+	 * as one line.
+	 *
+	 * They did not. The label around the checkbox was an inline box, so the
+	 * checkbox sat with its bottom edge on the words' baseline and the words
+	 * dropped eleven pixels below everything beside them. Nothing catches that
+	 * but a browser: every one of these elements is `align-items: center` and
+	 * reports a centred *box*, while the ink inside one of them is not.
+	 *
+	 * Measured as ink, therefore: the words are a Range over the text node, not
+	 * the element that holds them.
+	 */
+	test('the poll settings read as one line', async ({ page }) => {
+		await openApp(page)
+
+		await page.locator('.navigation__compose').click()
+		const composer = page.locator('.modal-composer')
+		await expect(composer).toBeVisible()
+		await composer.locator('.message').click()
+		await composer.getByRole('button', { name: 'Add poll' }).click()
+
+		const settings = composer.locator('.poll-editor__settings')
+		await expect(settings).toBeVisible()
+
+		const middles = await settings.evaluate((row) => {
+			const mid = (rect) => rect.top + rect.height / 2
+			const label = row.querySelector('label')
+			const words = [...label.childNodes].find((node) => node.nodeType === 3 && node.textContent.trim())
+			const range = document.createRange()
+			range.selectNodeContents(words)
+
+			return {
+				addOption: mid(row.querySelector('button').getBoundingClientRect()),
+				checkbox: mid(row.querySelector('input[type=checkbox]').getBoundingClientRect()),
+				words: mid(range.getBoundingClientRect()),
+				duration: mid(row.querySelector('select').getBoundingClientRect()),
+			}
+		})
+
+		const values = Object.values(middles)
+		const drift = Math.max(...values) - Math.min(...values)
+		expect(drift, `the four controls sit at ${JSON.stringify(middles)}`).toBeLessThanOrEqual(2)
+	})
+
+	/**
 	 * The box opens on a click and stays open for as long as it holds
 	 * anything — so before the close button, a reader who had typed a word and
 	 * changed their mind had to delete the word to get their feed back. Closing
