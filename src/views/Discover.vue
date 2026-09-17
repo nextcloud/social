@@ -99,11 +99,29 @@
 				</ul>
 
 				<!-- a pack that quietly shrinks looks like one somebody wrote
-				     badly; say which handles could not be reached -->
-				<p v-if="openPack.unresolved && openPack.unresolved.length" class="discover__unresolved">
-					{{ n('social', 'One account could not be reached: %n', 'Some accounts could not be reached: %n', openPack.unresolved.length) }}
-					<span>{{ openPack.unresolved.join(', ') }}</span>
-				</p>
+				     badly; say which handles could not be reached, and why it
+				     is worth trying again. `%n` used to be the *count* and the
+				     handles were appended after it, so this read "Some
+				     accounts could not be reached: 2 a@b, c@d" -->
+				<div v-if="openPack.unresolved && openPack.unresolved.length" class="discover__unresolved">
+					<p>
+						{{ n('social',
+							'One account could not be reached from this server:',
+							'%n accounts could not be reached from this server:',
+							openPack.unresolved.length) }}
+						<span class="discover__unresolved-handles">{{ openPack.unresolved.join(', ') }}</span>
+					</p>
+					<p class="discover__unresolved-why">
+						{{ t('social', 'Their server did not answer. That is often a passing rate limit — and permanent if this Nextcloud cannot be reached from the internet, because a server that only answers signed requests has to fetch this one’s key to check the signature.') }}
+					</p>
+					<NcButton variant="tertiary" :disabled="packLoading" @click="loadPack(openPack.id)">
+						<template #icon>
+							<NcLoadingIcon v-if="packLoading" :size="20" />
+							<Refresh v-else :size="20" />
+						</template>
+						{{ t('social', 'Try again') }}
+					</NcButton>
+				</div>
 			</div>
 
 			<ul v-else-if="packs.length" class="discover__packs">

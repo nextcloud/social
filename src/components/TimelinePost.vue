@@ -28,13 +28,6 @@
 					<span v-if="!hasDisplayName" class="post-author-id">
 						@{{ item.account.username }}
 					</span>
-					<span
-						v-if="!origin.local"
-						class="post-instance"
-						:style="{ '--instance-colour': origin.colour }"
-						:title="t('social', 'Posted from {instance}', { instance: origin.instance })">
-						{{ origin.instance }}
-					</span>
 				</router-link>
 			</div>
 			<button
@@ -621,7 +614,6 @@ import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { onTick } from '../services/clock.js'
-import { originOf } from '../utils/instanceIdentity.js'
 import { filterCoverLabel, matchedFilters } from '../utils/filters.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
@@ -634,6 +626,7 @@ import { mapStores } from 'pinia'
 import { htmlToPlainText } from '../utils/plainText.js'
 import { defaultLanguage, languageName } from '../utils/postLanguage.js'
 import { useAccountStore } from '../store/account.js'
+import { originOf } from '../utils/instanceIdentity.js'
 import { useInstanceStore } from '../store/instance.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
@@ -940,7 +933,13 @@ export default {
 			return t('social', 'Post by {account}', { account: this.item.account?.acct ?? '' })
 		},
 
-		/** @return {{instance: string, colour: string, local: boolean}} where the author lives */
+		/**
+		 * Where the author lives. Nothing is drawn from it any more — the
+		 * hostname moved to the account card — but the overflow menu still
+		 * asks it whether there *is* an original instance to open.
+		 *
+		 * @return {{instance: string, colour: string, local: boolean}}
+		 */
 		origin() {
 			return originOf(this.item.account?.acct ?? '')
 		},
@@ -2200,21 +2199,6 @@ export default {
 	}
 }
 
-.post-instance {
-	flex-shrink: 0;
-	margin-inline-start: 6px;
-	padding: 1px 7px;
-	border-radius: var(--border-radius-pill, 10px);
-	font-size: 11px;
-	font-weight: 600;
-	letter-spacing: .01em;
-	color: var(--color-primary-element-text);
-	background: var(--instance-colour);
-	max-width: 12ch;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
 /**
  * A content warning is the author asking for their post not to be shown
  * until the reader chooses to see it. Honouring that is the whole point,

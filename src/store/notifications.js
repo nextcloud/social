@@ -10,6 +10,7 @@ import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'
 
 import logger from '../services/logger.js'
+import { isNewerId, newerId } from '../services/notifications.js'
 
 /**
  * How many notifications have arrived since the reader last looked, and where
@@ -25,10 +26,13 @@ export const useNotificationsStore = defineStore('notifications', {
 		unread: 0,
 		/**
 		 * The row id the reader had read up to, the last time the server was
-		 * asked; 0 while unknown or when nothing has ever been read. What the
-		 * notifications page draws its "New" line from.
+		 * asked; '0' while unknown or when nothing has ever been read. What
+		 * the notifications page draws its "New" line from.
+		 *
+		 * A string: it is a twenty-digit snowflake, and a Number holds
+		 * seventeen of them. See `newestIdOf()`.
 		 */
-		lastReadId: 0,
+		lastReadId: '0',
 	}),
 
 	getters: {
@@ -64,21 +68,21 @@ export const useNotificationsStore = defineStore('notifications', {
 		 * agrees it is. A failure answers 0 — no line at all — rather than
 		 * guessing, and says nothing: the list itself is still readable.
 		 *
-		 * @return {Promise<number>} the marker; 0 when unknown
+		 * @return {Promise<string>} the marker; '0' when unknown
 		 */
 		async fetchLastRead() {
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/markers'), {
 					params: { timeline: ['notifications'] },
 				})
-				const marker = Number(data?.notifications?.last_read_id) || 0
-				this.lastReadId = Math.max(this.lastReadId, marker)
+				const marker = newerId(data?.notifications?.last_read_id, '0')
+				this.lastReadId = newerId(marker, this.lastReadId)
 
 				return marker
 			} catch (error) {
 				logger.error('Failed to read the notifications marker', { error })
 
-				return 0
+				return '0'
 			}
 		},
 
@@ -90,13 +94,13 @@ export const useNotificationsStore = defineStore('notifications', {
 		 * @param {string|number} lastReadId the newest notification now seen
 		 */
 		async markNotificationsRead(lastReadId) {
-			if (!lastReadId) {
+			if (!isNewerId(lastReadId, '0')) {
 				return
 			}
 
 			this.setUnreadNotifications(0)
 			// the server never moves a marker backwards, and neither does this
-			this.lastReadId = Math.max(this.lastReadId, Number(lastReadId) || 0)
+			this.lastReadId = newerId(lastReadId, this.lastReadId)
 
 			try {
 				await axios.post(generateUrl('apps/social/api/v1/markers'), {
@@ -108,6 +112,46 @@ export const useNotificationsStore = defineStore('notifications', {
 				// put back whatever the server actually thinks
 				this.fetchUnreadNotifications()
 			}
+		},
+
+		/**
+		 * Marks everything read, whatever the page is filtered to.
+		 *
+		 * The marker is "read up to", so what it needs is the id of the newest
+		 * notification there is -- not the newest of the kind the reader
+		 * happens to be looking at. Filtered to Mentions, the newest mention
+		 * can be older than a dozen favourites, and moving the marker there
+		 * would leave the badge up over the very activities the reader had
+		 * just said they were done with. So the newest is asked for
+		 * unfiltered, and only then committed.
+		 *
+		 * @return {Promise<string>} the id it marked up to; '0' when it could not
+		 */
+		async markAllRead() {
+			let newest
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/notifications'), {
+					params: { limit: 1 },
+				})
+				newest = newerId(data?.[0]?.id, '0')
+			} catch (error) {
+				showError(t('social', 'Could not mark your activities as read'))
+				logger.error('Failed to read the newest notification', { error })
+
+				return '0'
+			}
+
+			if (newest === '0') {
+				// a badge over an empty list: there is nothing to mark, and the
+				// count was wrong rather than the marker
+				this.setUnreadNotifications(0)
+
+				return '0'
+			}
+
+			await this.markNotificationsRead(newest)
+
+			return this.lastReadId
 		},
 	},
 })

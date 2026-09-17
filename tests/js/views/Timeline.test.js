@@ -12,8 +12,9 @@ import FirstPostCelebration from '../../../src/components/FirstPostCelebration.v
 import HashtagFollowButton from '../../../src/components/HashtagFollowButton.vue'
 import HashtagFollowedList from '../../../src/components/HashtagFollowedList.vue'
 import TimelineSwitcher from '../../../src/components/TimelineSwitcher.vue'
-import eventBus from '../../../src/services/eventBus.js'
+import eventBus, { NOTIFICATIONS_READ } from '../../../src/services/eventBus.js'
 import { useAccountStore } from '../../../src/store/account.js'
+import { useNotificationsStore } from '../../../src/store/notifications.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
@@ -640,6 +641,76 @@ describe('Timeline', () => {
 			const second = mountTimeline({ params: { type: 'notifications' } })
 
 			expect(filters(second).props('value')).toBe('follows')
+		})
+	})
+
+	// The badge in the sidebar says how many; until this there was nothing at
+	// the other end of it saying so, and no way to answer it except to look at
+	// the page for two seconds and let it mark itself.
+	describe('the count above the activities', () => {
+		const header = (wrapper) => wrapper.find('.new-activities')
+
+		const withUnread = (count) => {
+			const notificationsStore = useNotificationsStore()
+			notificationsStore.setUnreadNotifications(count)
+
+			return notificationsStore
+		}
+
+		it('says how many there are, in the badge\'s own number', () => {
+			withUnread(12)
+
+			expect(header(mountTimeline({ params: { type: 'notifications' } })).text())
+				.toContain('12 new activities')
+		})
+
+		it('counts one of them in the singular', () => {
+			withUnread(1)
+
+			expect(header(mountTimeline({ params: { type: 'notifications' } })).text())
+				.toContain('1 new activity')
+		})
+
+		it('is not there at all when nothing has arrived', () => {
+			withUnread(0)
+
+			expect(header(mountTimeline({ params: { type: 'notifications' } })).exists()).toBe(false)
+		})
+
+		it('belongs to the activities and to no other page', () => {
+			withUnread(5)
+
+			expect(header(mountTimeline({ params: {} })).exists()).toBe(false)
+		})
+
+		it('marks the lot read and tells the list where the line went', async () => {
+			const notificationsStore = withUnread(4)
+			vi.spyOn(notificationsStore, 'markAllRead').mockResolvedValue('90')
+			const heard = vi.fn()
+			eventBus.on(NOTIFICATIONS_READ, heard)
+
+			const wrapper = mountTimeline({ params: { type: 'notifications' } })
+			await header(wrapper).find('button').trigger('click')
+			await flushPromises()
+
+			expect(notificationsStore.markAllRead).toHaveBeenCalled()
+			// the list froze its line when it opened, so it has to be told
+			expect(heard).toHaveBeenCalledWith('90')
+			eventBus.off(NOTIFICATIONS_READ, heard)
+		})
+
+		it('says nothing to the list when the marker did not move', async () => {
+			const notificationsStore = withUnread(4)
+			vi.spyOn(notificationsStore, 'markAllRead').mockResolvedValue('0')
+			const heard = vi.fn()
+			eventBus.on(NOTIFICATIONS_READ, heard)
+
+			const wrapper = mountTimeline({ params: { type: 'notifications' } })
+			await header(wrapper).find('button').trigger('click')
+			await flushPromises()
+
+			expect(heard).not.toHaveBeenCalled()
+			eventBus.off(NOTIFICATIONS_READ, heard)
 		})
 	})
 

@@ -110,6 +110,12 @@ network hiccup.
   metadata (including the location a phone writes) removed before it is
   stored or sent anywhere. A picture can be given one of eight mild filters,
   previewed live and baked into the copy that is posted.
+- **The GIF button** opens a picker with 881 animated emoji in it, searchable by
+  name — "party", "sad", "hedgehog" — plus whatever your administrator has added
+  for this instance, which comes first. Nothing you type goes anywhere but your
+  own Nextcloud, and neither does your browser: your server keeps its own copy of
+  every picture it has been asked for. Picking one attaches it to the post you are
+  writing, exactly as though you had uploaded it.
 - **Alt text.** Each attachment has a **Describe this for people who cannot
   see it** field. Posting with an undescribed attachment shows a nudge, never
   a refusal.
@@ -197,7 +203,14 @@ The sidebar is the map:
   followers and follow requests, poll results, edits of posts you boosted.
   The sidebar badge counts what arrived since you last looked, and the same
   events reach the Nextcloud bell and its mail digest; a follow request can be
-  accepted or declined from the bell itself.
+  accepted or declined from the bell itself. The page says how many that is at
+  the top — *3 new activities*, with a **Mark all as read** button that clears
+  the badge whichever filter you are looking at — and marks the activities
+  themselves: each new one carries a **New** tag beside its timestamp, and a
+  **New** heading separates them from **Earlier** where the page holds both.
+  Otherwise the page marks itself read after a couple of seconds in front of
+  you, and that position is the one every other Fediverse client shares: a
+  badge cleared on your phone is cleared here too.
 - **Direct messages** — the posts addressed to you and nobody else, with the
   composer already set to direct.
 - **Explore** — one collapsible entry holding everything there is to look at
@@ -395,10 +408,11 @@ changed rather than being told only that something did.
 
 ## Filtering out words
 
-Some words are not worth reading. **Settings → Filtered words** is where you say
-so, and it is the same list a Mastodon app on your phone writes to — a filter you
-made there has been applying here all along, and this is the first page that shows
-it.
+Some words are not worth reading. **Blocking → Filtered words** is where you say
+so — with the accounts you have blocked and muted and the servers you have hidden,
+because it is the same decision aimed at a word rather than at a person. It is the
+same list a Mastodon app on your phone writes to: a filter you made there has been
+applying here all along, and this is the first page that shows it.
 
 A filter is four things:
 

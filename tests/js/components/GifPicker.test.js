@@ -29,11 +29,23 @@ const library = [
 ]
 
 /**
+ * What the paged endpoint answers with.
+ *
+ * @param {Array} gifs the screenful
+ * @param {number} total how many there are altogether
+ * @return {object} an axios answer
+ */
+function page(gifs, total = gifs.length) {
+	return { data: { gifs, total, attribution: 'Noto Animated Emoji, by Google, licensed CC BY 4.0' } }
+}
+
+/**
  * @param {Array} gifs what the server answers
+ * @param {number} total how many it says there are
  * @return {Promise<object>} the mounted picker, once its request has settled
  */
-async function mountPicker(gifs = library) {
-	axios.get.mockResolvedValue({ data: gifs })
+async function mountPicker(gifs = library, total = gifs.length) {
+	axios.get.mockResolvedValue(page(gifs, total))
 
 	const wrapper = mount(GifPicker, { global: { stubs } })
 	await flushPromises()
@@ -90,7 +102,7 @@ describe('GifPicker', () => {
 		vi.advanceTimersByTime(300)
 		await flushPromises()
 
-		expect(axios.get).toHaveBeenCalledWith(expect.any(String), { params: { q: 'cat' } })
+		expect(axios.get).toHaveBeenCalledWith(expect.any(String), { params: { q: 'cat', limit: 24, offset: 0 } })
 	})
 
 	it('searches once for a run of keystrokes', async () => {
@@ -113,18 +125,85 @@ describe('GifPicker', () => {
 			const wrapper = await mountPicker([])
 
 			expect(wrapper.find('.gif-picker__note').text())
-				.toBe('Nobody has added any pictures to this instance yet.')
+				.toBe('There are no pictures on this instance.')
 		})
 
 		it('says a search found nothing', async () => {
 			const wrapper = await mountPicker([])
-			axios.get.mockResolvedValue({ data: [] })
+			axios.get.mockResolvedValue(page([]))
 
 			await wrapper.find('input').setValue('aardvark')
 			vi.advanceTimersByTime(300)
 			await flushPromises()
 
 			expect(wrapper.find('.gif-picker__note').text()).toBe('Nothing here matches that.')
+		})
+	})
+
+	/**
+	 * The library is 881 pictures now that the animated emoji are in it, and
+	 * every one drawn is one this instance goes and fetches the first time.
+	 * A screenful at a time keeps that to what somebody is looking at.
+	 */
+	describe('a library too large to draw at once', () => {
+		it('asks for a screenful, not for everything', async () => {
+			await mountPicker()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				expect.stringContaining('/api/v1/gifs'),
+				{ params: { q: '', limit: 24, offset: 0 } },
+			)
+		})
+
+		it('offers the rest only while there is a rest', async () => {
+			const all = await mountPicker(library, 2)
+			expect(all.find('.gif-picker__more').exists()).toBe(false)
+
+			const some = await mountPicker(library, 900)
+			expect(some.find('.gif-picker__more').exists()).toBe(true)
+		})
+
+		it('adds the next screenful to what is already drawn', async () => {
+			const wrapper = await mountPicker(library, 4)
+			axios.get.mockResolvedValue(page([
+				{ slug: 'noto-1f600', title: 'smile', url: '/gif/noto-1f600', media_type: 'image/webp' },
+				{ slug: 'noto-1f603', title: 'smile with big eyes', url: '/gif/noto-1f603', media_type: 'image/webp' },
+			], 4))
+
+			await wrapper.find('.gif-picker__more button').trigger('click')
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenLastCalledWith(
+				expect.stringContaining('/api/v1/gifs'),
+				{ params: { q: '', limit: 24, offset: 2 } },
+			)
+			expect(wrapper.findAll('.gif-picker__item')).toHaveLength(4)
+			expect(wrapper.find('.gif-picker__more').exists()).toBe(false)
+		})
+
+		it('starts again rather than appending when the search changes', async () => {
+			const wrapper = await mountPicker(library, 900)
+			axios.get.mockResolvedValue(page([library[0]], 1))
+
+			await wrapper.find('input').setValue('cat')
+			vi.advanceTimersByTime(300)
+			await flushPromises()
+
+			expect(wrapper.findAll('.gif-picker__item')).toHaveLength(1)
+		})
+
+		/** CC BY asks for it, and the server says what it is. */
+		it('credits the emoji it did not draw itself', async () => {
+			const wrapper = await mountPicker()
+
+			expect(wrapper.find('.gif-picker__credit').text())
+				.toBe('Noto Animated Emoji, by Google, licensed CC BY 4.0')
+		})
+
+		it('credits nothing when there is nothing to show', async () => {
+			const wrapper = await mountPicker([])
+
+			expect(wrapper.find('.gif-picker__credit').exists()).toBe(false)
 		})
 	})
 

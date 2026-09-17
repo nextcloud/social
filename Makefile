@@ -119,6 +119,7 @@ appstore: release-setup lint build-js-production composer
 	--exclude=/src \
 	--exclude=/stylelint.config.js \
 	--exclude=/tests \
+	--exclude=/tools \
 	--exclude=/translationfiles \
 	--exclude=/vitest.config.js \
 	--exclude=/webpack.*.js \

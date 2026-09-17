@@ -60,6 +60,18 @@
 							<AccountDisplayName :text="account.display_name || account.username || handle" :emojis="account.emojis" />
 						</span>
 						<span class="account-hover-card__handle">@{{ account.acct || handle }}</span>
+						<!-- Where this account lives. It used to be a chip on every
+						     remote post, which put a hostname beside every byline
+						     in a timeline whose whole point is that it spans
+						     servers. It belongs here: the ring around the avatar
+						     says there is another server involved, and this says
+						     which one, to the reader who asked. -->
+						<span
+							v-if="origin.instance"
+							class="account-hover-card__instance"
+							:style="{ '--instance-colour': origin.colour }">
+							{{ origin.instance }}
+						</span>
 						<span v-if="joined" class="account-hover-card__joined">{{ joined }}</span>
 					</span>
 				</div>
@@ -121,6 +133,7 @@ import NcPopover from '@nextcloud/vue/components/NcPopover'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { emojifyPlain } from './MessageContent.js'
 import VerifiedCheck from './VerifiedCheck.vue'
+import { originOf } from '../utils/instanceIdentity.js'
 import { profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import { mapStores } from 'pinia'
@@ -284,6 +297,20 @@ export default {
 		/** @return {boolean} */
 		isLocal() {
 			return !(this.account?.acct ?? this.handle).includes('@')
+		},
+
+		/**
+		 * Which server this account is on, and the colour that server is drawn
+		 * in everywhere else — the ring around its avatars, most visibly.
+		 *
+		 * `instance` is '' for a local account, and the row is then absent:
+		 * everything here is on this server, and naming it would be noise on
+		 * every card a reader opens.
+		 *
+		 * @return {{instance: string, colour: string, local: boolean}}
+		 */
+		origin() {
+			return originOf(this.account?.acct ?? this.handle ?? '')
 		},
 
 		/** @return {string} the bio, reduced to markup that is safe to inject */
@@ -662,6 +689,24 @@ export default {
 
 	&__handle {
 		color: var(--color-text-lighter);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* the hostname, in that host's own colour: the same one the ring around
+	   the avatar is drawn in, so the card answers the question the ring asks */
+	&__instance {
+		align-self: flex-start;
+		max-width: 100%;
+		margin-top: 2px;
+		padding: 1px 8px;
+		border-radius: var(--border-radius-pill, 10px);
+		background: var(--instance-colour);
+		color: var(--color-primary-element-text);
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: .01em;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;

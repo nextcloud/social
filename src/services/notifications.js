@@ -171,13 +171,56 @@ export function groupNotifications(entries) {
  * favourites has to report the newest of the nine or eight of them stay
  * unread for ever.
  *
+ * Carried as a string and compared as a BigInt, never as a Number: these are
+ * twenty-digit snowflakes, and `Number('1789553297940456473')` is
+ * 1789553297940456400 -- a marker set from it sits *behind* the notification
+ * it was meant to cover, so the badge came back however often the reader
+ * cleared it.
+ *
  * @param {object} card a notification, or a card from groupNotifications()
- * @return {number} the id, 0 when there is none to read
+ * @return {string} the id, '0' when there is none to read
  */
 export function newestIdOf(card) {
 	const ids = Array.isArray(card.ids) ? card.ids : [card.id ?? card.nid]
 
-	return ids.reduce((highest, id) => Math.max(highest, Number(id) || 0), 0)
+	return ids.reduce((highest, id) => (isNewerId(id, highest) ? String(id) : highest), '0')
+}
+
+/**
+ * One row id as the number it is, for comparing against another.
+ *
+ * @param {string|number|undefined} id the id
+ * @return {bigint} it as a number; 0 for anything that is not one
+ */
+function asId(id) {
+	try {
+		return BigInt(String(id ?? '0'))
+	} catch {
+		// a client that made an id up, or a field that was never one
+		return 0n
+	}
+}
+
+/**
+ * Whether one row id is newer than another.
+ *
+ * @param {string|number|undefined} id the id in question
+ * @param {string|number|undefined} than what to hold it against
+ * @return {boolean}
+ */
+export function isNewerId(id, than) {
+	return asId(id) > asId(than)
+}
+
+/**
+ * The newer of two row ids.
+ *
+ * @param {string|number|undefined} a one id
+ * @param {string|number|undefined} b the other
+ * @return {string} whichever is newer
+ */
+export function newerId(a, b) {
+	return isNewerId(a, b) ? String(a) : String(b ?? '0')
 }
 
 /**

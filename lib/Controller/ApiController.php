@@ -123,6 +123,7 @@ use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use OCP\ICacheFactory;
 use OCP\IRequest;
+use OCP\ISession;
 use OCP\ITempManager;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -215,6 +216,7 @@ class ApiController extends Controller {
 		ActionService $actionService,
 		PostService $postService,
 		PollService $pollService,
+		private ISession $session,
 		private PinService $pinService,
 		private HashtagService $hashtagService,
 		private MarkerService $markerService,
@@ -851,15 +853,30 @@ class ApiController extends Controller {
 	 * A viewer is required: this is a picker inside the composer, not
 	 * something the public page needs, and there is no reason to hand the
 	 * whole library to anybody who asks.
+	 *
+	 * Paged, which it did not need to be while the library was whatever an
+	 * administrator had added: with the animated emoji in it there are 881,
+	 * and a grid of 881 is 881 pictures this instance would go and fetch
+	 * because somebody opened the picker. `limit` is how many to answer with
+	 * and `offset` where to carry on from, so the picker asks for the next
+	 * screenful when the reader scrolls to it.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/gifs')]
-	public function gifs(string $q = ''): DataResponse {
+	public function gifs(string $q = '', int $limit = 24, int $offset = 0): DataResponse {
 		try {
 			$this->initViewer(true);
 
-			return new DataResponse($this->gifService->search($q), Http::STATUS_OK);
+			$limit = max(1, min(200, $limit));
+			$found = $this->gifService->search($q);
+
+			return new DataResponse([
+				'gifs' => array_slice($found, max(0, $offset), $limit),
+				'total' => count($found),
+				// said wherever the pack is shown, because CC BY asks for it
+				'attribution' => $this->gifService->attribution(),
+			], Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -879,6 +896,16 @@ class ApiController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/gif/{slug}')]
 	public function gifOpen(string $slug): Response {
 		try {
+			// Nothing here reads the session, and holding it is what made the
+			// picker unusable: PHP serialises requests that hold one, so the
+			// sixty thumbnails a picker draws went out one at a time — and for
+			// one of the shipped emoji this instance has not seen, each of
+			// those is a fetch from Google. Measured on a cold instance, the
+			// search that followed them waited forty seconds for its turn.
+			// Letting it go makes them parallel and costs nothing: these are
+			// the same bytes for everybody, which is why the route is public.
+			$this->session->close();
+
 			$gif = $this->gifService->bySlug($slug);
 			if ($gif === null) {
 				return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);

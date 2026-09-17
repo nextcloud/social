@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Db\GifRequest;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Model\Gif;
+use OCA\Social\Service\GifPackService;
 use OCA\Social\Service\GifService;
 use OCA\Social\Service\ImageMetadataService;
 use OCP\Files\IAppData;
@@ -32,6 +33,7 @@ use Psr\Log\NullLogger;
 class GifServiceTest extends TestCase {
 	private GifRequest&MockObject $gifRequest;
 	private ISimpleFolder&MockObject $folder;
+	private GifPackService&MockObject $pack;
 	private GifService $service;
 
 	protected function setUp(): void {
@@ -50,9 +52,59 @@ class GifServiceTest extends TestCase {
 		$metadata = $this->createMock(ImageMetadataService::class);
 		$metadata->method('strip')->willReturnArgument(0);
 
-		$this->service = new GifService(
-			$this->gifRequest, $appData, $urlGenerator, $metadata, new NullLogger()
+		// the shipped emoji have their own suite; here they would put 881
+		// rows in front of every assertion about the handful an instance adds
+		$this->pack = $this->createMock(GifPackService::class);
+		$this->pack->method('all')->willReturn([]);
+		$this->pack->method('search')->willReturn([]);
+		$this->pack->method('owns')->willReturnCallback(
+			static fn (string $slug): bool => str_starts_with($slug, 'noto-')
 		);
+
+		$this->service = new GifService(
+			$this->pack, $this->gifRequest, $appData, $urlGenerator, $metadata, new NullLogger()
+		);
+	}
+
+	/**
+	 * The instance's own first, then the emoji every instance has: somebody
+	 * put the first lot there on purpose and they are the ones nowhere else
+	 * has.
+	 */
+	public function testTheLibraryIsTheInstanceOwnAndThenThePack(): void {
+		$this->gifRequest->method('all')->willReturn($this->library());
+		$packed = new Gif('noto-1f600', '1f600.webp', 'image/webp', 'smile');
+		$service = $this->serviceWithPack([$packed], []);
+
+		$slugs = array_map(static fn (Gif $gif): string => $gif->getSlug(), $service->offered());
+
+		$this->assertCount(4, $slugs);
+		$this->assertSame('noto-1f600', end($slugs));
+	}
+
+	/** A search asks both, and the instance's own answer comes first. */
+	public function testSearchingReachesThePackToo(): void {
+		$this->gifRequest->method('all')->willReturn($this->library());
+		$packed = new Gif('noto-1f603', '1f603.webp', 'image/webp', 'happy face');
+		$service = $this->serviceWithPack([], [$packed]);
+
+		$slugs = array_map(static fn (Gif $gif): string => $gif->getSlug(), $service->search('happy'));
+
+		$this->assertSame(['happy-cat', 'noto-1f603'], $slugs);
+	}
+
+	public function testAPackSlugIsAnsweredByThePack(): void {
+		$pack = $this->createMock(GifPackService::class);
+		$pack->method('owns')->willReturn(true);
+		$pack->expects($this->once())
+			->method('bySlug')
+			->with('noto-1f600')
+			->willReturn(new Gif('noto-1f600', '1f600.webp', 'image/webp', 'smile'));
+		// the rows must not be read to answer for one of 881 the pack knows by
+		// name
+		$this->gifRequest->expects($this->never())->method('all');
+
+		$this->assertNotNull($this->serviceWithMock($pack)->bySlug('noto-1f600'));
 	}
 
 	public static function slugProvider(): array {
@@ -79,6 +131,36 @@ class GifServiceTest extends TestCase {
 	#[DataProvider('slugProvider')]
 	public function testWhatMayNameAPicture(string $slug, bool $allowed): void {
 		$this->assertSame($allowed, Gif::isSlug($slug));
+	}
+
+	/**
+	 * The service again, with a pack that answers with these.
+	 *
+	 * @param Gif[] $all what the pack holds
+	 * @param Gif[] $found what it answers a search with
+	 */
+	private function serviceWithPack(array $all, array $found): GifService {
+		$pack = $this->createMock(GifPackService::class);
+		$pack->method('all')->willReturn($all);
+		$pack->method('search')->willReturn($found);
+		$pack->method('owns')->willReturnCallback(
+			static fn (string $slug): bool => str_starts_with($slug, 'noto-')
+		);
+
+		return $this->serviceWithMock($pack);
+	}
+
+	private function serviceWithMock(GifPackService&MockObject $pack): GifService {
+		$appData = $this->createMock(IAppData::class);
+		$appData->method('getFolder')->willReturn($this->folder);
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example/gif/x');
+		$metadata = $this->createMock(ImageMetadataService::class);
+		$metadata->method('strip')->willReturnArgument(0);
+
+		return new GifService(
+			$pack, $this->gifRequest, $appData, $urlGenerator, $metadata, new NullLogger()
+		);
 	}
 
 	/** @return Gif[] */

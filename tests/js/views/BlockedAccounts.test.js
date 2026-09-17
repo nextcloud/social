@@ -56,6 +56,9 @@ async function mountView({ blocked = [bob], muted = [carol], domains = [], dispa
 			stubs: {
 				ActorAvatar: true,
 				NcEmptyContent: { props: ['name'], template: '<div class="empty-content">{{ name }}</div>' },
+				// it reads the reader's filters on mount, and its own suite covers
+				// what it does with them
+				FiltersSettings: { template: '<div class="filters-settings-stub" />' },
 				RouterLink: RouterLinkStub,
 			},
 		},
@@ -88,6 +91,20 @@ describe('BlockedAccounts', () => {
 		expect(rowNames(wrapper)).toEqual(['dave'])
 	})
 
+	/**
+	 * A reader who wants to stop reading something looks in one place, whether
+	 * the something is a person, a server or a word. The keyword filters used
+	 * to be in Settings, which is where a reader goes to change how the app
+	 * behaves rather than to silence anything.
+	 */
+	it('holds the keyword filters, at an id another page can link to', async () => {
+		const { wrapper } = await mountView()
+
+		expect(wrapper.find('#filters .filters-settings-stub').exists()).toBe(true)
+		expect(wrapper.findAll('h3').map((heading) => heading.text()))
+			.toEqual(['Blocked', 'Muted', 'Hidden servers', 'Filtered words'])
+	})
+
 	it('links each account to its profile', async () => {
 		const { wrapper } = await mountView({ blocked: [bob], muted: [] })
 
@@ -99,17 +116,28 @@ describe('BlockedAccounts', () => {
 
 	it('shows an empty state per list', async () => {
 		const { wrapper } = await mountView({ blocked: [], muted: [] })
-		const empty = wrapper.findAll('.empty-content').map((el) => el.text())
+		const empty = wrapper.findAll('.block-card__empty').map((el) => el.text())
 
-		expect(empty).toEqual(['No blocked accounts', 'No muted accounts', 'No hidden servers'])
+		// a line apiece rather than an illustration apiece: two of the four
+		// are empty on almost every instance, and a full empty state each
+		// pushed the lists that do hold something off the screen
+		expect(empty.map((line) => line.split(' — ')[0]))
+			.toEqual(['No blocked accounts', 'No muted accounts', 'No hidden servers'])
 	})
 
 	it('shows the muted empty state while blocked accounts exist', async () => {
 		const { wrapper } = await mountView({ blocked: [bob], muted: [] })
 
-		expect(wrapper.findAll('.empty-content').map((el) => el.text()))
+		expect(wrapper.findAll('.block-card__empty').map((line) => line.text().split(' — ')[0]))
 			.toEqual(['No muted accounts', 'No hidden servers'])
 		expect(rowNames(wrapper)).toEqual(['Bob'])
+	})
+
+	/** How many, where the eye already is; and nothing at all at zero. */
+	it('counts each list in its own heading', async () => {
+		const { wrapper } = await mountView({ blocked: [bob], muted: [] })
+
+		expect(wrapper.findAll('.block-card__count').map((el) => el.text())).toEqual(['1'])
 	})
 
 	it('unblocks through the store and takes the row off the list', async () => {
@@ -157,6 +185,9 @@ describe('BlockedAccounts', () => {
 				stubs: {
 					ActorAvatar: true,
 					NcEmptyContent: { props: ['name'], template: '<div class="empty-content">{{ name }}</div>' },
+					// it reads the reader's filters on mount, and its own suite covers
+					// what it does with them
+					FiltersSettings: { template: '<div class="filters-settings-stub" />' },
 					RouterLink: RouterLinkStub,
 				},
 			},
@@ -204,23 +235,22 @@ describe('BlockedAccounts', () => {
 			expect(rowNames(wrapper)).toEqual(['dave'])
 		})
 
-		it('brings the empty state in through a transition once the last one is gone', async () => {
+		it('says the list is empty once the last one is gone, and only that list', async () => {
 			const { wrapper } = await mountView({
 				blocked: [bob],
 				muted: [carol],
 				domains: ['noisy.example'],
 			})
-			expect(wrapper.findAll('.empty-content')).toHaveLength(0)
+			expect(wrapper.findAll('.block-card__empty')).toHaveLength(0)
 
 			await buttonByText(rows(wrapper)[0], 'Unblock').trigger('click')
 			await flushPromises()
 
-			const empty = wrapper.findAll('transition-stub')
-			expect(empty).toHaveLength(3)
-			expect(empty[0].attributes('name')).toBe('empty')
-			expect(empty[0].find('.empty-content').text()).toBe('No blocked accounts')
-			// the muted list still has Carol, so its empty state stays away
-			expect(empty[1].find('.empty-content').exists()).toBe(false)
+			// the muted list still has Carol and the servers still have one, so
+			// only the list that emptied says anything
+			const empty = wrapper.findAll('.block-card__empty')
+			expect(empty).toHaveLength(1)
+			expect(empty[0].text()).toContain('No blocked accounts')
 		})
 	})
 

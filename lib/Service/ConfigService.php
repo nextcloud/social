@@ -126,6 +126,16 @@ class ConfigService {
 	public const SOCIAL_AUTOSPAM = 'autospam';
 
 	/**
+	 * Whether the composer offers the 881 animated emoji.
+	 *
+	 * On by default. What ships is the list, not the pictures — see
+	 * `GifPackService` for why, and for what the instance fetches and when.
+	 * An administrator who wants nothing fetched sets this to 0 and is left
+	 * with whatever they added with `occ social:gif add`.
+	 */
+	public const SOCIAL_GIF_PACK = 'gif_pack';
+
+	/**
 	 * How many posts an account must have published here before its posts stop
 	 * being held.
 	 *
@@ -315,6 +325,7 @@ class ConfigService {
 		self::SOCIAL_PUBLISH_BLOCKS => '0',
 		self::SOCIAL_REVIEW_FIRST_POST => '0',
 		self::SOCIAL_AUTOSPAM => '1',
+		self::SOCIAL_GIF_PACK => '1',
 		self::SOCIAL_REVIEW_POSTS => '1',
 		self::SOCIAL_IMAGE_MAX_EDGE => '0',
 		self::SOCIAL_IMAGE_QUALITY => '85',

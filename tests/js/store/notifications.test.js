@@ -38,21 +38,31 @@ describe('notifications store', () => {
 				expect.stringContaining('/api/v1/markers'),
 				{ params: { timeline: ['notifications'] } },
 			)
-			expect(marker).toBe(1788875057712399)
-			expect(store.lastReadId).toBe(1788875057712399)
+			expect(marker).toBe('1788875057712399')
+			expect(store.lastReadId).toBe('1788875057712399')
 		})
 
 		it('answers 0 for an account that has never read anything', async () => {
 			axios.get.mockResolvedValue({ data: {} })
 
-			expect(await store.fetchLastRead()).toBe(0)
+			expect(await store.fetchLastRead()).toBe('0')
 		})
 
 		it('answers 0 rather than guessing when the server cannot be asked', async () => {
 			axios.get.mockRejectedValue(new Error('nope'))
 
-			expect(await store.fetchLastRead()).toBe(0)
-			expect(store.lastReadId).toBe(0)
+			expect(await store.fetchLastRead()).toBe('0')
+			expect(store.lastReadId).toBe('0')
+		})
+
+		it('keeps every digit of a twenty-digit marker', () => {
+			// a marker rounded to a Number sits behind the notification it was
+			// meant to cover, and the badge comes back
+			axios.get.mockResolvedValue({
+				data: { notifications: { last_read_id: '1789553297940456473' } },
+			})
+
+			return expect(store.fetchLastRead()).resolves.toBe('1789553297940456473')
 		})
 	})
 
@@ -135,6 +145,54 @@ describe('notifications store', () => {
 			await store.markNotificationsRead(0)
 
 			expect(axios.post).not.toHaveBeenCalled()
+		})
+	})
+
+	describe('markAllRead', () => {
+		it('asks for the newest activity of any kind, not of the filter on screen', async () => {
+			store.setUnreadNotifications(9)
+			axios.get.mockResolvedValue({ data: [{ id: '90', type: 'favourite' }] })
+			axios.post.mockResolvedValue({ data: {} })
+
+			const marker = await store.markAllRead()
+
+			// no exclude_types: filtered to Mentions, the newest mention can be
+			// older than a dozen favourites, and marking up to it would leave
+			// the badge up over what the reader had just dismissed
+			expect(axios.get).toHaveBeenCalledWith(
+				expect.stringContaining('/api/v1/notifications'),
+				{ params: { limit: 1 } },
+			)
+			expect(axios.post).toHaveBeenCalledWith(
+				expect.stringContaining('/api/v1/markers'),
+				{ notifications: { last_read_id: '90' } },
+			)
+			expect(store.unreadNotifications).toBe(0)
+			expect(marker).toBe('90')
+		})
+
+		it('clears a badge that was counting notifications no longer there', async () => {
+			store.setUnreadNotifications(3)
+			axios.get.mockResolvedValue({ data: [] })
+
+			const marker = await store.markAllRead()
+
+			expect(axios.post).not.toHaveBeenCalled()
+			expect(store.unreadNotifications).toBe(0)
+			expect(marker).toBe('0')
+		})
+
+		it('moves nothing and says so when the newest cannot be read', async () => {
+			store.setUnreadNotifications(3)
+			axios.get.mockRejectedValue(new Error('nope'))
+
+			const marker = await store.markAllRead()
+
+			expect(showError).toHaveBeenCalled()
+			expect(axios.post).not.toHaveBeenCalled()
+			// the badge is left alone: nothing was marked, so it is still right
+			expect(store.unreadNotifications).toBe(3)
+			expect(marker).toBe('0')
 		})
 	})
 })

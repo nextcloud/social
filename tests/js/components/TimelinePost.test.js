@@ -740,27 +740,21 @@ describe('TimelinePost', () => {
 	})
 
 	describe('where the post came from', () => {
-		it('marks a remote post with its instance, in that instance\'s colour', () => {
+		/**
+		 * It used to be a chip beside the byline, on every remote post. In a
+		 * timeline whose whole point is that it spans servers that is a
+		 * hostname next to almost every name, and the ring around the avatar
+		 * was already saying the same thing in colour. The words moved to the
+		 * card that opens when the avatar is hovered, where somebody who wants
+		 * the hostname asks for it -- see `AccountHoverCard`.
+		 */
+		it('does not put the instance beside the byline', () => {
 			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
-			const chip = wrapper.find('.post-instance')
 
-			expect(chip.text()).toBe('remote.example')
-			expect(chip.attributes('style')).toContain('--instance-colour: hsl(')
-			expect(chip.attributes('title')).toContain('remote.example')
-		})
-
-		it('says nothing about the instance for a local post', () => {
-			// everything here is on this server; naming it would be noise
-			expect(mountPost().wrapper.find('.post-instance').exists()).toBe(false)
-		})
-
-		it('gives two accounts on the same instance the same colour', () => {
-			const other = { ...bob, id: '9', acct: 'carol@remote.example', username: 'carol' }
-			const first = mountPost({ item: makeItem({ account: bob }) }).wrapper
-			const second = mountPost({ item: makeItem({ account: other }) }).wrapper
-
-			expect(first.find('.post-instance').attributes('style'))
-				.toBe(second.find('.post-instance').attributes('style'))
+			expect(wrapper.find('.post-instance').exists()).toBe(false)
+			// the byline is the name and nothing else; the hostname survives
+			// only in the overflow menu's "Open on original instance"
+			expect(wrapper.find('.post-author').text()).toBe('Bob')
 		})
 	})
 

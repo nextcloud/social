@@ -99,7 +99,7 @@ describe('Settings', () => {
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Filtered words', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Migration', 'Keyboard shortcuts', 'Delete your Social account'])
+			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Migration', 'Keyboard shortcuts', 'Delete your Social account'])
 	})
 
 	/**
@@ -133,15 +133,15 @@ describe('Settings', () => {
 	})
 
 	/**
-	 * Keyword filters apply to every timeline this app reads and were until
-	 * now reachable only from a Mastodon client, which is the one combination
-	 * a reader cannot get out of on their own.
+	 * They were here, under "Filtered words", until it was pointed out that a
+	 * reader looking for them looks where the accounts they have silenced are.
+	 * Blocking owns them now; Settings must not grow a second copy.
 	 */
-	it('holds the keyword filters, at an id another page can link to', async () => {
+	it('leaves the keyword filters to the Blocking page', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 		await flushPromises()
 
-		expect(wrapper.find('#filters .filters-settings-stub').exists()).toBe(true)
+		expect(wrapper.find('.filters-settings-stub').exists()).toBe(false)
 	})
 
 	/**

@@ -9,7 +9,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import FirstRun from '../../../src/components/FirstRun.vue'
 import eventBus from '../../../src/services/eventBus.js'
-import { showError } from '../../../src/services/toast.js'
+import { showError, showSuccess } from '../../../src/services/toast.js'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 
@@ -141,6 +141,25 @@ describe('FirstRun', () => {
 
 		expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/starter_packs/fediverse/follow')
 		expect(button(wrapper, 'Following')).toBeDefined()
+	})
+
+	/**
+	 * Every handle in the pack is on a server this one could not reach. The
+	 * button used to go green and the toast used to say "Followed 0 accounts",
+	 * which is the app reporting success for something that did not happen.
+	 */
+	it('does not claim to have followed a pack that reached nobody', async () => {
+		serverHas({ packs: [pack] })
+		axios.post.mockResolvedValue({ data: { followed: [], failed: [] } })
+		const wrapper = await mountFirstRun()
+		await next(wrapper)
+
+		await button(wrapper, 'Follow all 4').trigger('click')
+		await flushPromises()
+
+		expect(showError).toHaveBeenCalled()
+		expect(showSuccess).not.toHaveBeenCalled()
+		expect(button(wrapper, 'Following')).toBeUndefined()
 	})
 
 	it('says so when there is nobody yet, rather than showing an empty list', async () => {

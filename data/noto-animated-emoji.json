@@ -1,0 +1,4414 @@
+{
+	"name": "Noto Animated Emoji",
+	"source": "https://googlefonts.github.io/noto-emoji-animation/",
+	"license": "CC-BY-4.0",
+	"attribution": "Noto Animated Emoji, by Google, licensed CC BY 4.0",
+	"generator": "tools/noto-manifest.mjs",
+	"emoji": [
+		{
+			"c": "1f600",
+			"t": "smile",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f603",
+			"t": "smile with big eyes",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f604",
+			"t": "grin",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f601",
+			"t": "grinning",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f606",
+			"t": "laughing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f605",
+			"t": "grin sweat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f602",
+			"t": "joy",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f923",
+			"t": "rofl",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f62d",
+			"t": "loudly crying",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f609",
+			"t": "wink",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f617",
+			"t": "kissing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f619",
+			"t": "kissing smiling eyes",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f61a",
+			"t": "kissing closed eyes",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f618",
+			"t": "kissing heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f970",
+			"t": "heart face",
+			"k": "3 hearts smileys and emotions"
+		},
+		{
+			"c": "1f60d",
+			"t": "heart eyes",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f929",
+			"t": "star struck",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f973",
+			"t": "partying face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fae0",
+			"t": "melting",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f643",
+			"t": "upside down face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f642",
+			"t": "slightly happy",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f972",
+			"t": "happy cry",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f979",
+			"t": "holding back tears",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f60a",
+			"t": "blush",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "263a_fe0f",
+			"t": "warm smile",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f60c",
+			"t": "relieved",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f642_200d_2195_fe0f",
+			"t": "head nod",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f642_200d_2194_fe0f",
+			"t": "head shake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f60f",
+			"t": "smirk",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f924",
+			"t": "drool",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f60b",
+			"t": "yum",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f61b",
+			"t": "stuck out tongue",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f61d",
+			"t": "squinting tongue",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f61c",
+			"t": "winky tongue",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f92a",
+			"t": "zany face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faea",
+			"t": "distorted face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f614",
+			"t": "pensive",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f97a",
+			"t": "pleading",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f62c",
+			"t": "grimacing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f611",
+			"t": "expressionless",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f610",
+			"t": "neutral face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f636",
+			"t": "mouth none",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f636_200d_1f32b_fe0f",
+			"t": "face in clouds",
+			"k": "lost smileys and emotions"
+		},
+		{
+			"c": "1fae5",
+			"t": "dotted line face",
+			"k": "invisible smileys and emotions"
+		},
+		{
+			"c": "1f910",
+			"t": "zipper face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fae1",
+			"t": "salute",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f914",
+			"t": "thinking face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f92b",
+			"t": "shushing face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fae2",
+			"t": "hand over mouth",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f92d",
+			"t": "smiling eyes with hand over mouth",
+			"k": "chuckling smileys and emotions"
+		},
+		{
+			"c": "1f971",
+			"t": "yawn",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f917",
+			"t": "hug face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fae3",
+			"t": "peeking",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f631",
+			"t": "screaming",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f928",
+			"t": "raised eyebrow",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9d0",
+			"t": "monocle",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f612",
+			"t": "unamused",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f644",
+			"t": "rolling eyes",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f62e_200d_1f4a8",
+			"t": "exhale",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f624",
+			"t": "triumph",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f620",
+			"t": "angry",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f621",
+			"t": "rage",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f92c",
+			"t": "cursing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f61e",
+			"t": "sad",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f613",
+			"t": "sweat",
+			"k": "downcast smileys and emotions"
+		},
+		{
+			"c": "1f61f",
+			"t": "worried",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f625",
+			"t": "concerned",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f622",
+			"t": "cry",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2639_fe0f",
+			"t": "big frown",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f641",
+			"t": "frown",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fae4",
+			"t": "diagonal mouth",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f615",
+			"t": "slightly frowning",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f630",
+			"t": "anxious with sweat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f628",
+			"t": "scared",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f627",
+			"t": "anguished",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f626",
+			"t": "gasp",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f62e",
+			"t": "mouth open",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f62f",
+			"t": "surprised",
+			"k": "hushed smileys and emotions"
+		},
+		{
+			"c": "1f632",
+			"t": "astonished",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f633",
+			"t": "flushed",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f92f",
+			"t": "mind blown",
+			"k": "exploding head smileys and emotions"
+		},
+		{
+			"c": "1f616",
+			"t": "scrunched mouth",
+			"k": "confounded zigzag mouth smileys and emotions"
+		},
+		{
+			"c": "1f623",
+			"t": "scrunched eyes",
+			"k": "persevering smileys and emotions"
+		},
+		{
+			"c": "1f629",
+			"t": "weary",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f62b",
+			"t": "distraught",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f635",
+			"t": "x eyes",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f635_200d_1f4ab",
+			"t": "dizzy face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fae8",
+			"t": "shaking face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f974",
+			"t": "woozy",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f975",
+			"t": "hot face",
+			"k": "sweat face smileys and emotions"
+		},
+		{
+			"c": "1f976",
+			"t": "cold face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f922",
+			"t": "sick",
+			"k": "nauseated smileys and emotions"
+		},
+		{
+			"c": "1f92e",
+			"t": "vomit",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fae9",
+			"t": "tired",
+			"k": "bags under eyes smileys and emotions"
+		},
+		{
+			"c": "1f634",
+			"t": "sleep",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f62a",
+			"t": "sleepy",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f927",
+			"t": "sneeze",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f912",
+			"t": "thermometer face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f915",
+			"t": "bandage face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f637",
+			"t": "mask",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f925",
+			"t": "liar",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f607",
+			"t": "halo",
+			"k": "innocent smileys and emotions"
+		},
+		{
+			"c": "1f920",
+			"t": "cowboy",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f911",
+			"t": "money face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f913",
+			"t": "nerd face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f60e",
+			"t": "sunglasses face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f978",
+			"t": "disguise",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f921",
+			"t": "clown",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f4a9",
+			"t": "poop",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f608",
+			"t": "imp smile",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f47f",
+			"t": "imp frown",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f47b",
+			"t": "ghost",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f480",
+			"t": "skull",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f916",
+			"t": "robot",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f479",
+			"t": "ogre",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2603_fe0f",
+			"t": "snowman with snow",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "26c4",
+			"t": "snowman",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f47d",
+			"t": "alien",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f47e",
+			"t": "alien monster",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f31a",
+			"t": "moon face new",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f31d",
+			"t": "moon face full",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f31e",
+			"t": "sun with face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f31b",
+			"t": "moon face first quarter",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f31c",
+			"t": "moon face last quarter",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f63a",
+			"t": "smiley cat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f638",
+			"t": "smile cat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f639",
+			"t": "joy cat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f63b",
+			"t": "heart eyes cat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f63c",
+			"t": "smirk cat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f63d",
+			"t": "kissing cat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f640",
+			"t": "scream cat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f63f",
+			"t": "crying cat face",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f63e",
+			"t": "pouting cat",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f648",
+			"t": "see no evil monkey",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f649",
+			"t": "hear no evil monkey",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f64a",
+			"t": "speak no evil monkey",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2b50",
+			"t": "star",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f31f",
+			"t": "glowing star",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2728",
+			"t": "sparkles",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "26a1",
+			"t": "electricity",
+			"k": "zap lightning smileys and emotions"
+		},
+		{
+			"c": "1f4a5",
+			"t": "collision",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faef",
+			"t": "fight",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f573_fe0f",
+			"t": "hole",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f525",
+			"t": "fire",
+			"k": "burn lit smileys and emotions"
+		},
+		{
+			"c": "1f4af",
+			"t": "100",
+			"k": "one hundred hundred points smileys and emotions"
+		},
+		{
+			"c": "1f389",
+			"t": "party popper",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f38a",
+			"t": "confetti ball",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2764_fe0f",
+			"t": "red heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9e1",
+			"t": "orange heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f49b",
+			"t": "yellow heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f49a",
+			"t": "green heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fa75",
+			"t": "light blue heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f499",
+			"t": "blue heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f49c",
+			"t": "purple heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90e",
+			"t": "brown heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f5a4",
+			"t": "black heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fa76",
+			"t": "grey heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90d",
+			"t": "white heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fa77",
+			"t": "pink heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f498",
+			"t": "cupid",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f49d",
+			"t": "gift heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f496",
+			"t": "sparkling heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f497",
+			"t": "heart grow",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f493",
+			"t": "beating heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f49e",
+			"t": "revolving hearts",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f495",
+			"t": "two hearts",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f48c",
+			"t": "love letter",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f49f",
+			"t": "heart box",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2665_fe0f",
+			"t": "heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2763_fe0f",
+			"t": "heart exclamation point",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2764_fe0f_200d_1fa79",
+			"t": "bandaged heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f494",
+			"t": "broken heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "2764_fe0f_200d_1f525",
+			"t": "fire heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f48b",
+			"t": "kiss",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fac2",
+			"t": "hugging",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f5e3_fe0f",
+			"t": "speaking head",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f463",
+			"t": "footprints",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fac6",
+			"t": "fingerprint",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9e0",
+			"t": "brain",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fac0",
+			"t": "anatomical heart",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fa78",
+			"t": "blood",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9a0",
+			"t": "microbe",
+			"k": "virus smileys and emotions"
+		},
+		{
+			"c": "1f9b4",
+			"t": "bone",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f440",
+			"t": "eyes",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f441_fe0f",
+			"t": "eye",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fae6",
+			"t": "biting lip",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f443",
+			"t": "nose",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f443_1f3fb",
+			"t": "nose",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f443_1f3fc",
+			"t": "nose",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f443_1f3fd",
+			"t": "nose",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f443_1f3fe",
+			"t": "nose",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f443_1f3ff",
+			"t": "nose",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f442",
+			"t": "ear",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f442_1f3fb",
+			"t": "ear",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f442_1f3fc",
+			"t": "ear",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f442_1f3fd",
+			"t": "ear",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f442_1f3fe",
+			"t": "ear",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f442_1f3ff",
+			"t": "ear",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9bb",
+			"t": "hearing aid",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9bb_1f3fb",
+			"t": "hearing aid",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9bb_1f3fc",
+			"t": "hearing aid",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9bb_1f3fd",
+			"t": "hearing aid",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9bb_1f3fe",
+			"t": "hearing aid",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9bb_1f3ff",
+			"t": "hearing aid",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b6",
+			"t": "foot",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b6_1f3fb",
+			"t": "foot",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b6_1f3fc",
+			"t": "foot",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b6_1f3fd",
+			"t": "foot",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b6_1f3fe",
+			"t": "foot",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b6_1f3ff",
+			"t": "foot",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b5",
+			"t": "leg",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b5_1f3fb",
+			"t": "leg",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b5_1f3fc",
+			"t": "leg",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b5_1f3fd",
+			"t": "leg",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b5_1f3fe",
+			"t": "leg",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9b5_1f3ff",
+			"t": "leg",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9bf",
+			"t": "leg mechanical",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f9be",
+			"t": "arm mechanical",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f4aa",
+			"t": "muscle",
+			"k": "flex bicep strong smileys and emotions"
+		},
+		{
+			"c": "1f4aa_1f3fb",
+			"t": "muscle",
+			"k": "flex bicep strong smileys and emotions"
+		},
+		{
+			"c": "1f4aa_1f3fc",
+			"t": "muscle",
+			"k": "flex bicep strong smileys and emotions"
+		},
+		{
+			"c": "1f4aa_1f3fd",
+			"t": "muscle",
+			"k": "flex bicep strong smileys and emotions"
+		},
+		{
+			"c": "1f4aa_1f3fe",
+			"t": "muscle",
+			"k": "flex bicep strong smileys and emotions"
+		},
+		{
+			"c": "1f4aa_1f3ff",
+			"t": "muscle",
+			"k": "flex bicep strong smileys and emotions"
+		},
+		{
+			"c": "1f44f",
+			"t": "clap",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44f_1f3fb",
+			"t": "clap",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44f_1f3fc",
+			"t": "clap",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44f_1f3fd",
+			"t": "clap",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44f_1f3fe",
+			"t": "clap",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44f_1f3ff",
+			"t": "clap",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44d",
+			"t": "thumbs up",
+			"k": "+1 smileys and emotions"
+		},
+		{
+			"c": "1f44d_1f3fb",
+			"t": "thumbs up",
+			"k": "+1 smileys and emotions"
+		},
+		{
+			"c": "1f44d_1f3fc",
+			"t": "thumbs up",
+			"k": "+1 smileys and emotions"
+		},
+		{
+			"c": "1f44d_1f3fd",
+			"t": "thumbs up",
+			"k": "+1 smileys and emotions"
+		},
+		{
+			"c": "1f44d_1f3fe",
+			"t": "thumbs up",
+			"k": "+1 smileys and emotions"
+		},
+		{
+			"c": "1f44d_1f3ff",
+			"t": "thumbs up",
+			"k": "+1 smileys and emotions"
+		},
+		{
+			"c": "1f44e",
+			"t": "thumbs down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44e_1f3fb",
+			"t": "thumbs down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44e_1f3fc",
+			"t": "thumbs down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44e_1f3fd",
+			"t": "thumbs down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44e_1f3fe",
+			"t": "thumbs down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44e_1f3ff",
+			"t": "thumbs down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf6",
+			"t": "heart hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf6_1f3fb",
+			"t": "heart hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf6_1f3fc",
+			"t": "heart hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf6_1f3fd",
+			"t": "heart hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf6_1f3fe",
+			"t": "heart hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf6_1f3ff",
+			"t": "heart hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f64c",
+			"t": "raising hands",
+			"k": "hooray smileys and emotions"
+		},
+		{
+			"c": "1f64c_1f3fb",
+			"t": "raising hands",
+			"k": "hooray smileys and emotions"
+		},
+		{
+			"c": "1f64c_1f3fc",
+			"t": "raising hands",
+			"k": "hooray smileys and emotions"
+		},
+		{
+			"c": "1f64c_1f3fd",
+			"t": "raising hands",
+			"k": "hooray smileys and emotions"
+		},
+		{
+			"c": "1f64c_1f3fe",
+			"t": "raising hands",
+			"k": "hooray smileys and emotions"
+		},
+		{
+			"c": "1f64c_1f3ff",
+			"t": "raising hands",
+			"k": "hooray smileys and emotions"
+		},
+		{
+			"c": "1f450",
+			"t": "open hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f450_1f3fb",
+			"t": "open hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f450_1f3fc",
+			"t": "open hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f450_1f3fd",
+			"t": "open hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f450_1f3fe",
+			"t": "open hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f450_1f3ff",
+			"t": "open hands",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f932",
+			"t": "palms up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f932_1f3fb",
+			"t": "palms up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f932_1f3fc",
+			"t": "palms up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f932_1f3fd",
+			"t": "palms up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f932_1f3fe",
+			"t": "palms up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f932_1f3ff",
+			"t": "palms up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91c",
+			"t": "fist rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91c_1f3fb",
+			"t": "fist rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91c_1f3fc",
+			"t": "fist rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91c_1f3fd",
+			"t": "fist rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91c_1f3fe",
+			"t": "fist rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91c_1f3ff",
+			"t": "fist rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91b",
+			"t": "fist leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91b_1f3fb",
+			"t": "fist leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91b_1f3fc",
+			"t": "fist leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91b_1f3fd",
+			"t": "fist leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91b_1f3fe",
+			"t": "fist leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91b_1f3ff",
+			"t": "fist leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270a",
+			"t": "raised fist",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270a_1f3fb",
+			"t": "raised fist",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270a_1f3fc",
+			"t": "raised fist",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270a_1f3fd",
+			"t": "raised fist",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270a_1f3fe",
+			"t": "raised fist",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270a_1f3ff",
+			"t": "raised fist",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44a",
+			"t": "fist",
+			"k": "bump smileys and emotions"
+		},
+		{
+			"c": "1f44a_1f3fb",
+			"t": "fist",
+			"k": "bump smileys and emotions"
+		},
+		{
+			"c": "1f44a_1f3fc",
+			"t": "fist",
+			"k": "bump smileys and emotions"
+		},
+		{
+			"c": "1f44a_1f3fd",
+			"t": "fist",
+			"k": "bump smileys and emotions"
+		},
+		{
+			"c": "1f44a_1f3fe",
+			"t": "fist",
+			"k": "bump smileys and emotions"
+		},
+		{
+			"c": "1f44a_1f3ff",
+			"t": "fist",
+			"k": "bump smileys and emotions"
+		},
+		{
+			"c": "1faf3",
+			"t": "palm down",
+			"k": "drop smileys and emotions"
+		},
+		{
+			"c": "1faf3_1f3fb",
+			"t": "palm down",
+			"k": "drop smileys and emotions"
+		},
+		{
+			"c": "1faf3_1f3fc",
+			"t": "palm down",
+			"k": "drop smileys and emotions"
+		},
+		{
+			"c": "1faf3_1f3fd",
+			"t": "palm down",
+			"k": "drop smileys and emotions"
+		},
+		{
+			"c": "1faf3_1f3fe",
+			"t": "palm down",
+			"k": "drop smileys and emotions"
+		},
+		{
+			"c": "1faf3_1f3ff",
+			"t": "palm down",
+			"k": "drop smileys and emotions"
+		},
+		{
+			"c": "1faf4",
+			"t": "palm up",
+			"k": "throw smileys and emotions"
+		},
+		{
+			"c": "1faf4_1f3fb",
+			"t": "palm up",
+			"k": "throw smileys and emotions"
+		},
+		{
+			"c": "1faf4_1f3fc",
+			"t": "palm up",
+			"k": "throw smileys and emotions"
+		},
+		{
+			"c": "1faf4_1f3fd",
+			"t": "palm up",
+			"k": "throw smileys and emotions"
+		},
+		{
+			"c": "1faf4_1f3fe",
+			"t": "palm up",
+			"k": "throw smileys and emotions"
+		},
+		{
+			"c": "1faf4_1f3ff",
+			"t": "palm up",
+			"k": "throw smileys and emotions"
+		},
+		{
+			"c": "1faf1",
+			"t": "rightwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fb",
+			"t": "rightwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fc",
+			"t": "rightwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fd",
+			"t": "rightwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fe",
+			"t": "rightwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3ff",
+			"t": "rightwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf2",
+			"t": "leftwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf2_1f3fb",
+			"t": "leftwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf2_1f3fc",
+			"t": "leftwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf2_1f3fd",
+			"t": "leftwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf2_1f3fe",
+			"t": "leftwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf2_1f3ff",
+			"t": "leftwards hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf8",
+			"t": "push rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf8_1f3fb",
+			"t": "push rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf8_1f3fc",
+			"t": "push rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf8_1f3fd",
+			"t": "push rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf8_1f3fe",
+			"t": "push rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf8_1f3ff",
+			"t": "push rightwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf7",
+			"t": "push leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf7_1f3fb",
+			"t": "push leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf7_1f3fc",
+			"t": "push leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf7_1f3fd",
+			"t": "push leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf7_1f3fe",
+			"t": "push leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf7_1f3ff",
+			"t": "push leftwards",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44b",
+			"t": "wave",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44b_1f3fb",
+			"t": "wave",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44b_1f3fc",
+			"t": "wave",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44b_1f3fd",
+			"t": "wave",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44b_1f3fe",
+			"t": "wave",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44b_1f3ff",
+			"t": "wave",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91a",
+			"t": "back hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91a_1f3fb",
+			"t": "back hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91a_1f3fc",
+			"t": "back hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91a_1f3fd",
+			"t": "back hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91a_1f3fe",
+			"t": "back hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91a_1f3ff",
+			"t": "back hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f590_fe0f",
+			"t": "palm",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f590_1f3fb",
+			"t": "palm",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f590_1f3fc",
+			"t": "palm",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f590_1f3fd",
+			"t": "palm",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f590_1f3fe",
+			"t": "palm",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f590_1f3ff",
+			"t": "palm",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270b",
+			"t": "raised hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270b_1f3fb",
+			"t": "raised hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270b_1f3fc",
+			"t": "raised hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270b_1f3fd",
+			"t": "raised hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270b_1f3fe",
+			"t": "raised hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270b_1f3ff",
+			"t": "raised hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f596",
+			"t": "vulcan",
+			"k": "prosper spock smileys and emotions"
+		},
+		{
+			"c": "1f596_1f3fb",
+			"t": "vulcan",
+			"k": "prosper spock smileys and emotions"
+		},
+		{
+			"c": "1f596_1f3fc",
+			"t": "vulcan",
+			"k": "prosper spock smileys and emotions"
+		},
+		{
+			"c": "1f596_1f3fd",
+			"t": "vulcan",
+			"k": "prosper spock smileys and emotions"
+		},
+		{
+			"c": "1f596_1f3fe",
+			"t": "vulcan",
+			"k": "prosper spock smileys and emotions"
+		},
+		{
+			"c": "1f596_1f3ff",
+			"t": "vulcan",
+			"k": "prosper spock smileys and emotions"
+		},
+		{
+			"c": "1f91f",
+			"t": "love you gesture",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91f_1f3fb",
+			"t": "love you gesture",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91f_1f3fc",
+			"t": "love you gesture",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91f_1f3fd",
+			"t": "love you gesture",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91f_1f3fe",
+			"t": "love you gesture",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91f_1f3ff",
+			"t": "love you gesture",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f918",
+			"t": "metal",
+			"k": "horns smileys and emotions"
+		},
+		{
+			"c": "1f918_1f3fb",
+			"t": "metal",
+			"k": "horns smileys and emotions"
+		},
+		{
+			"c": "1f918_1f3fc",
+			"t": "metal",
+			"k": "horns smileys and emotions"
+		},
+		{
+			"c": "1f918_1f3fd",
+			"t": "metal",
+			"k": "horns smileys and emotions"
+		},
+		{
+			"c": "1f918_1f3fe",
+			"t": "metal",
+			"k": "horns smileys and emotions"
+		},
+		{
+			"c": "1f918_1f3ff",
+			"t": "metal",
+			"k": "horns smileys and emotions"
+		},
+		{
+			"c": "270c_fe0f",
+			"t": "victory",
+			"k": "v peace hand smileys and emotions"
+		},
+		{
+			"c": "270c_1f3fb",
+			"t": "victory",
+			"k": "v peace hand smileys and emotions"
+		},
+		{
+			"c": "270c_1f3fc",
+			"t": "victory",
+			"k": "v peace hand smileys and emotions"
+		},
+		{
+			"c": "270c_1f3fd",
+			"t": "victory",
+			"k": "v peace hand smileys and emotions"
+		},
+		{
+			"c": "270c_1f3fe",
+			"t": "victory",
+			"k": "v peace hand smileys and emotions"
+		},
+		{
+			"c": "270c_1f3ff",
+			"t": "victory",
+			"k": "v peace hand smileys and emotions"
+		},
+		{
+			"c": "1f91e",
+			"t": "crossed fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91e_1f3fb",
+			"t": "crossed fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91e_1f3fc",
+			"t": "crossed fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91e_1f3fd",
+			"t": "crossed fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91e_1f3fe",
+			"t": "crossed fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91e_1f3ff",
+			"t": "crossed fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf0",
+			"t": "hand with index finger and thumb crossed",
+			"k": "snap finger heart smileys and emotions"
+		},
+		{
+			"c": "1faf0_1f3fb",
+			"t": "hand with index finger and thumb crossed",
+			"k": "snap finger heart smileys and emotions"
+		},
+		{
+			"c": "1faf0_1f3fc",
+			"t": "hand with index finger and thumb crossed",
+			"k": "snap finger heart smileys and emotions"
+		},
+		{
+			"c": "1faf0_1f3fd",
+			"t": "hand with index finger and thumb crossed",
+			"k": "snap finger heart smileys and emotions"
+		},
+		{
+			"c": "1faf0_1f3fe",
+			"t": "hand with index finger and thumb crossed",
+			"k": "snap finger heart smileys and emotions"
+		},
+		{
+			"c": "1faf0_1f3ff",
+			"t": "hand with index finger and thumb crossed",
+			"k": "snap finger heart smileys and emotions"
+		},
+		{
+			"c": "1f919",
+			"t": "call me hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f919_1f3fb",
+			"t": "call me hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f919_1f3fc",
+			"t": "call me hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f919_1f3fd",
+			"t": "call me hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f919_1f3fe",
+			"t": "call me hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f919_1f3ff",
+			"t": "call me hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90c",
+			"t": "pinched fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90c_1f3fb",
+			"t": "pinched fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90c_1f3fc",
+			"t": "pinched fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90c_1f3fd",
+			"t": "pinched fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90c_1f3fe",
+			"t": "pinched fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90c_1f3ff",
+			"t": "pinched fingers",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90f",
+			"t": "pinch",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90f_1f3fb",
+			"t": "pinch",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90f_1f3fc",
+			"t": "pinch",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90f_1f3fd",
+			"t": "pinch",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90f_1f3fe",
+			"t": "pinch",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f90f_1f3ff",
+			"t": "pinch",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44c",
+			"t": "ok",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44c_1f3fb",
+			"t": "ok",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44c_1f3fc",
+			"t": "ok",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44c_1f3fd",
+			"t": "ok",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44c_1f3fe",
+			"t": "ok",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f44c_1f3ff",
+			"t": "ok",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf5",
+			"t": "pointing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf5_1f3fb",
+			"t": "pointing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf5_1f3fc",
+			"t": "pointing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf5_1f3fd",
+			"t": "pointing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf5_1f3fe",
+			"t": "pointing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf5_1f3ff",
+			"t": "pointing",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f449",
+			"t": "point right",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f449_1f3fb",
+			"t": "point right",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f449_1f3fc",
+			"t": "point right",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f449_1f3fd",
+			"t": "point right",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f449_1f3fe",
+			"t": "point right",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f449_1f3ff",
+			"t": "point right",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f448",
+			"t": "point left",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f448_1f3fb",
+			"t": "point left",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f448_1f3fc",
+			"t": "point left",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f448_1f3fd",
+			"t": "point left",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f448_1f3fe",
+			"t": "point left",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f448_1f3ff",
+			"t": "point left",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "261d_fe0f",
+			"t": "index finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "261d_1f3fb",
+			"t": "index finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "261d_1f3fc",
+			"t": "index finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "261d_1f3fd",
+			"t": "index finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "261d_1f3fe",
+			"t": "index finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "261d_1f3ff",
+			"t": "index finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f446",
+			"t": "point up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f446_1f3fb",
+			"t": "point up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f446_1f3fc",
+			"t": "point up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f446_1f3fd",
+			"t": "point up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f446_1f3fe",
+			"t": "point up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f446_1f3ff",
+			"t": "point up",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f447",
+			"t": "point down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f447_1f3fb",
+			"t": "point down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f447_1f3fc",
+			"t": "point down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f447_1f3fd",
+			"t": "point down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f447_1f3fe",
+			"t": "point down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f447_1f3ff",
+			"t": "point down",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f595",
+			"t": "middle finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f595_1f3fb",
+			"t": "middle finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f595_1f3fc",
+			"t": "middle finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f595_1f3fd",
+			"t": "middle finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f595_1f3fe",
+			"t": "middle finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f595_1f3ff",
+			"t": "middle finger",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270d_fe0f",
+			"t": "writing hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270d_1f3fb",
+			"t": "writing hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270d_1f3fc",
+			"t": "writing hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270d_1f3fd",
+			"t": "writing hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270d_1f3fe",
+			"t": "writing hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "270d_1f3ff",
+			"t": "writing hand",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f933",
+			"t": "selfie",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f933_1f3fb",
+			"t": "selfie",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f933_1f3fc",
+			"t": "selfie",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f933_1f3fd",
+			"t": "selfie",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f933_1f3fe",
+			"t": "selfie",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f933_1f3ff",
+			"t": "selfie",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f64f",
+			"t": "folded hands",
+			"k": "please pray hope wish thank you high five smileys and emotions"
+		},
+		{
+			"c": "1f64f_1f3fb",
+			"t": "folded hands",
+			"k": "please pray hope wish thank you high five smileys and emotions"
+		},
+		{
+			"c": "1f64f_1f3fc",
+			"t": "folded hands",
+			"k": "please pray hope wish thank you high five smileys and emotions"
+		},
+		{
+			"c": "1f64f_1f3fd",
+			"t": "folded hands",
+			"k": "please pray hope wish thank you high five smileys and emotions"
+		},
+		{
+			"c": "1f64f_1f3fe",
+			"t": "folded hands",
+			"k": "please pray hope wish thank you high five smileys and emotions"
+		},
+		{
+			"c": "1f64f_1f3ff",
+			"t": "folded hands",
+			"k": "please pray hope wish thank you high five smileys and emotions"
+		},
+		{
+			"c": "1f485",
+			"t": "nail care",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f485_1f3fb",
+			"t": "nail care",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f485_1f3fc",
+			"t": "nail care",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f485_1f3fd",
+			"t": "nail care",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f485_1f3fe",
+			"t": "nail care",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f485_1f3ff",
+			"t": "nail care",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91d",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91d_1f3fb",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fb_200d_1faf2_1f3fc",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fb_200d_1faf2_1f3fd",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fb_200d_1faf2_1f3fe",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fb_200d_1faf2_1f3ff",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fc_200d_1faf2_1f3fb",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91d_1f3fc",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fc_200d_1faf2_1f3fd",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fc_200d_1faf2_1f3fe",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fc_200d_1faf2_1f3ff",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fd_200d_1faf2_1f3fb",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fd_200d_1faf2_1f3fc",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91d_1f3fd",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fd_200d_1faf2_1f3fe",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fd_200d_1faf2_1f3ff",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fe_200d_1faf2_1f3fb",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fe_200d_1faf2_1f3fc",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fe_200d_1faf2_1f3fd",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91d_1f3fe",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3fe_200d_1faf2_1f3ff",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3ff_200d_1faf2_1f3fb",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3ff_200d_1faf2_1f3fc",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3ff_200d_1faf2_1f3fd",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1faf1_1f3ff_200d_1faf2_1f3fe",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1f91d_1f3ff",
+			"t": "handshake",
+			"k": "smileys and emotions"
+		},
+		{
+			"c": "1fa82",
+			"t": "parachute",
+			"k": "people"
+		},
+		{
+			"c": "1fac8",
+			"t": "hairy creature",
+			"k": "people"
+		},
+		{
+			"c": "1f483",
+			"t": "dancer woman",
+			"k": "people"
+		},
+		{
+			"c": "1f483_1f3fb",
+			"t": "dancer woman",
+			"k": "people"
+		},
+		{
+			"c": "1f483_1f3fc",
+			"t": "dancer woman",
+			"k": "people"
+		},
+		{
+			"c": "1f483_1f3fd",
+			"t": "dancer woman",
+			"k": "people"
+		},
+		{
+			"c": "1f483_1f3fe",
+			"t": "dancer woman",
+			"k": "people"
+		},
+		{
+			"c": "1f483_1f3ff",
+			"t": "dancer woman",
+			"k": "people"
+		},
+		{
+			"c": "1f490",
+			"t": "bouquet",
+			"k": "flowers animals and nature"
+		},
+		{
+			"c": "1f339",
+			"t": "rose",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f940",
+			"t": "wilted flower",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f337",
+			"t": "tulip",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fab7",
+			"t": "lotus",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f338",
+			"t": "cherry blossom",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fabb",
+			"t": "hyacinth",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f33c",
+			"t": "blossom",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f342",
+			"t": "fallen leaf",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f341",
+			"t": "maple leaf",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f344",
+			"t": "mushroom",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f33f",
+			"t": "herb",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f331",
+			"t": "plant",
+			"k": "seed animals and nature"
+		},
+		{
+			"c": "1f343",
+			"t": "leaves",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f340",
+			"t": "luck",
+			"k": "four leaf clover animals and nature"
+		},
+		{
+			"c": "1f335",
+			"t": "cactus",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fabe",
+			"t": "leafless tree",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f332",
+			"t": "evergreen tree",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1faa8",
+			"t": "rock",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f6d8",
+			"t": "debris",
+			"k": "landslide animals and nature"
+		},
+		{
+			"c": "1f30b",
+			"t": "volcano",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f3de_fe0f",
+			"t": "national park",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f305",
+			"t": "sunrise",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f304",
+			"t": "sunrise over mountains",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f30a",
+			"t": "ocean",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f32c_fe0f",
+			"t": "wind face",
+			"k": "animals and nature"
+		},
+		{
+			"c": "2744_fe0f",
+			"t": "snowflake",
+			"k": "winter cold animals and nature"
+		},
+		{
+			"c": "1f300",
+			"t": "cyclone",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f32a_fe0f",
+			"t": "tornado",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f308",
+			"t": "rainbow",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f4a7",
+			"t": "droplet",
+			"k": "animals and nature"
+		},
+		{
+			"c": "2601_fe0f",
+			"t": "cloud",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f327_fe0f",
+			"t": "rain cloud",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f329_fe0f",
+			"t": "cloud with lightning",
+			"k": "animals and nature"
+		},
+		{
+			"c": "26c5",
+			"t": "partly sunny",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fa90",
+			"t": "ringed planet",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f30d",
+			"t": "globe showing europe africa",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f30e",
+			"t": "globe showing americas",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f30f",
+			"t": "globe showing asia australia",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f30c",
+			"t": "milky way",
+			"k": "animals and nature"
+		},
+		{
+			"c": "2604_fe0f",
+			"t": "comet",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f981",
+			"t": "lion face",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f43a",
+			"t": "wolf",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f43b",
+			"t": "bear face",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f43c",
+			"t": "panda",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f98a",
+			"t": "fox face",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f42e",
+			"t": "cow face",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f984",
+			"t": "unicorn",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f98e",
+			"t": "lizard",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f409",
+			"t": "dragon",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f996",
+			"t": "t rex",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f995",
+			"t": "dinosaur",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f422",
+			"t": "turtle",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f40a",
+			"t": "crocodile",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f40d",
+			"t": "snake",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f438",
+			"t": "frog",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f407",
+			"t": "rabbit",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f400",
+			"t": "rat",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f429",
+			"t": "poodle",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f415",
+			"t": "dog",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f9ae",
+			"t": "guide dog",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f415_200d_1f9ba",
+			"t": "service dog",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f416",
+			"t": "pig",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f40e",
+			"t": "racehorse",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1facf",
+			"t": "donkey",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f402",
+			"t": "ox",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f410",
+			"t": "goat",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f9a5",
+			"t": "sloth",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f998",
+			"t": "kangaroo",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f405",
+			"t": "tiger",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f412",
+			"t": "monkey",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f98d",
+			"t": "gorilla",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f9a7",
+			"t": "orangutan",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f43f_fe0f",
+			"t": "chipmunk",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f99d",
+			"t": "raccoon",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f994",
+			"t": "hedgehog",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f9a6",
+			"t": "otter",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f987",
+			"t": "bat",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f426",
+			"t": "bird",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f426_200d_2b1b",
+			"t": "black bird",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f413",
+			"t": "rooster",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f423",
+			"t": "hatching chick",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f424",
+			"t": "baby chick",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f425",
+			"t": "hatched chick",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f985",
+			"t": "eagle",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f989",
+			"t": "owl",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f54a_fe0f",
+			"t": "peace",
+			"k": "dove animals and nature"
+		},
+		{
+			"c": "1fabf",
+			"t": "goose",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f9a9",
+			"t": "flamingo",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f99a",
+			"t": "peacock",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f426_200d_1f525",
+			"t": "phoenix",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f427",
+			"t": "penguin",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f9ad",
+			"t": "seal",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f988",
+			"t": "shark",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1facd",
+			"t": "orca",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f42c",
+			"t": "dolphin",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f433",
+			"t": "whale",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f41f",
+			"t": "fish",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f421",
+			"t": "blowfish",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f99e",
+			"t": "lobster",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f980",
+			"t": "crab",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f419",
+			"t": "octopus",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fabc",
+			"t": "jellyfish",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fae7",
+			"t": "bubbles",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f982",
+			"t": "scorpion",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f577_fe0f",
+			"t": "spider",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f40c",
+			"t": "snail",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f41c",
+			"t": "ant",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f997",
+			"t": "cricket",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f99f",
+			"t": "mosquito",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fab3",
+			"t": "cockroach",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fab0",
+			"t": "fly",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f41d",
+			"t": "bee",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f41e",
+			"t": "lady bug",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f98b",
+			"t": "butterfly",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f41b",
+			"t": "bug",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1fab1",
+			"t": "worm",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f43e",
+			"t": "paw prints",
+			"k": "animals and nature"
+		},
+		{
+			"c": "1f353",
+			"t": "strawberry",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f352",
+			"t": "cherries",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f34e",
+			"t": "red apple",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f345",
+			"t": "tomato",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f349",
+			"t": "watermelon",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f34a",
+			"t": "tangerine",
+			"k": "orange mandarin food and drink"
+		},
+		{
+			"c": "1f955",
+			"t": "carrot",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f96d",
+			"t": "mango",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f34d",
+			"t": "pineapple",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f33d",
+			"t": "ear of corn",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f34b",
+			"t": "lemon",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f348",
+			"t": "melon",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f350",
+			"t": "pear",
+			"k": "food and drink"
+		},
+		{
+			"c": "1fadb",
+			"t": "pea pod",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f96c",
+			"t": "leafy green",
+			"k": "food and drink"
+		},
+		{
+			"c": "1fad1",
+			"t": "bell pepper",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f95d",
+			"t": "kiwi fruit",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f951",
+			"t": "avocado",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f966",
+			"t": "broccoli",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f952",
+			"t": "cucumber",
+			"k": "food and drink"
+		},
+		{
+			"c": "1fad0",
+			"t": "blueberries",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f347",
+			"t": "grapes",
+			"k": "food and drink"
+		},
+		{
+			"c": "1fadc",
+			"t": "root vegetable",
+			"k": "beet turnip food and drink"
+		},
+		{
+			"c": "1f954",
+			"t": "potato",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f9c5",
+			"t": "onion",
+			"k": "food and drink"
+		},
+		{
+			"c": "1fada",
+			"t": "ginger",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f9c4",
+			"t": "garlic",
+			"k": "food and drink"
+		},
+		{
+			"c": "1fad8",
+			"t": "beans",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f35e",
+			"t": "bread",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f95e",
+			"t": "pancakes",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f373",
+			"t": "cooking",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f9c0",
+			"t": "cheese wedge",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f953",
+			"t": "bacon",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f357",
+			"t": "poultry leg",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f354",
+			"t": "hamburger",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f32d",
+			"t": "hot dog",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f968",
+			"t": "pretzel",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f355",
+			"t": "pizza",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f32e",
+			"t": "taco",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f32f",
+			"t": "burrito",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f35d",
+			"t": "spaghetti",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f957",
+			"t": "green salad",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f35c",
+			"t": "steaming bowl",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f362",
+			"t": "oden",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f361",
+			"t": "dango",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f368",
+			"t": "ice cream",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f366",
+			"t": "soft ice cream",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f967",
+			"t": "pie",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f369",
+			"t": "doughnut",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f36a",
+			"t": "cookie",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f9c2",
+			"t": "salt",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f37f",
+			"t": "popcorn",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f9cb",
+			"t": "bubble tea",
+			"k": "milk tea food and drink"
+		},
+		{
+			"c": "1f9c3",
+			"t": "beverage box",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f37c",
+			"t": "baby bottle",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f375",
+			"t": "teacup without handle",
+			"k": "food and drink"
+		},
+		{
+			"c": "2615",
+			"t": "hot beverage",
+			"k": "food and drink"
+		},
+		{
+			"c": "1fad6",
+			"t": "teapot",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f9c9",
+			"t": "mate",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f37b",
+			"t": "clinking beer mugs",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f942",
+			"t": "clinking glasses",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f37e",
+			"t": "bottle with popping cork",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f377",
+			"t": "wine glass",
+			"k": "food and drink"
+		},
+		{
+			"c": "1fad7",
+			"t": "pour",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f379",
+			"t": "tropical drink",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f962",
+			"t": "chopsticks",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f37d_fe0f",
+			"t": "fork and knife with plate",
+			"k": "food and drink"
+		},
+		{
+			"c": "1f6d1",
+			"t": "stop sign",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6a7",
+			"t": "construction",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6a8",
+			"t": "police car light",
+			"k": "travel and places"
+		},
+		{
+			"c": "26fd",
+			"t": "fuel pump",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6df",
+			"t": "ring buoy",
+			"k": "travel and places"
+		},
+		{
+			"c": "2693",
+			"t": "anchor",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6a6",
+			"t": "vertical traffic light",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6b2",
+			"t": "bicycle",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f3cd_fe0f",
+			"t": "motorcycle",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f697",
+			"t": "automobile",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f69a",
+			"t": "delivery truck",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f69c",
+			"t": "tractor",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f3ce_fe0f",
+			"t": "racing car",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f695",
+			"t": "taxi",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f68c",
+			"t": "bus",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f682",
+			"t": "locomotive",
+			"k": "travel and places"
+		},
+		{
+			"c": "26f5",
+			"t": "sailboat",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6f6",
+			"t": "canoe",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6f8",
+			"t": "flying saucer",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f680",
+			"t": "rocket",
+			"k": "travel and places"
+		},
+		{
+			"c": "2708_fe0f",
+			"t": "airplane",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6eb",
+			"t": "airplane departure",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f6ec",
+			"t": "airplane arrival",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f3a2",
+			"t": "roller coaster",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f3a1",
+			"t": "ferris wheel",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f3a0",
+			"t": "carousel horse",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f5ff",
+			"t": "moai",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f3da_fe0f",
+			"t": "derelict house",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f3e0",
+			"t": "house",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f3d5_fe0f",
+			"t": "camping",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f307",
+			"t": "sunset",
+			"k": "travel and places"
+		},
+		{
+			"c": "1f388",
+			"t": "balloon",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f382",
+			"t": "birthday cake",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f381",
+			"t": "wrapped gift",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f386",
+			"t": "fireworks",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa94",
+			"t": "diya lamp",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa85",
+			"t": "piñata",
+			"k": "activities and events"
+		},
+		{
+			"c": "1faa9",
+			"t": "mirror ball",
+			"k": "disco ball activities and events"
+		},
+		{
+			"c": "1f947",
+			"t": "gold medal",
+			"k": "1st place medal activities and events"
+		},
+		{
+			"c": "1f948",
+			"t": "silver medal",
+			"k": "2nd place medal activities and events"
+		},
+		{
+			"c": "1f949",
+			"t": "bronze medal",
+			"k": "3rd place medal activities and events"
+		},
+		{
+			"c": "1f3c6",
+			"t": "trophy",
+			"k": "activities and events"
+		},
+		{
+			"c": "26bd",
+			"t": "soccer ball",
+			"k": "activities and events"
+		},
+		{
+			"c": "26be",
+			"t": "baseball",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f94e",
+			"t": "softball",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3c0",
+			"t": "basketball",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3c9",
+			"t": "rugby football",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3be",
+			"t": "tennis",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3f8",
+			"t": "badminton",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f94d",
+			"t": "lacrosse",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3cf",
+			"t": "cricket game",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3d1",
+			"t": "field hockey",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3d2",
+			"t": "ice hockey",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3bf",
+			"t": "skis",
+			"k": "activities and events"
+		},
+		{
+			"c": "26f8_fe0f",
+			"t": "ice skate",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f6fc",
+			"t": "roller skates",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa70",
+			"t": "ballet shoes",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f6f9",
+			"t": "skateboard",
+			"k": "activities and events"
+		},
+		{
+			"c": "26f3",
+			"t": "flag in hole",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3af",
+			"t": "direct hit",
+			"k": "target activities and events"
+		},
+		{
+			"c": "1f94f",
+			"t": "flying disc",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa83",
+			"t": "boomerang",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa81",
+			"t": "kite",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3a3",
+			"t": "fishing pole",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f94b",
+			"t": "martial arts uniform",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3b1",
+			"t": "8 ball",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3d3",
+			"t": "ping pong",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3b3",
+			"t": "bowling",
+			"k": "activities and events"
+		},
+		{
+			"c": "265f_fe0f",
+			"t": "chess pawn",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3b2",
+			"t": "die",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3b0",
+			"t": "slot machine",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa84",
+			"t": "wand",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f4f7",
+			"t": "camera",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f4f8",
+			"t": "camera flash",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fadf",
+			"t": "splatter",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3b7",
+			"t": "saxophone",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3ba",
+			"t": "trumpet",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa8a",
+			"t": "trombone",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3b8",
+			"t": "guitar",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa95",
+			"t": "banjo",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3bb",
+			"t": "violin",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa89",
+			"t": "harp",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f941",
+			"t": "drum",
+			"k": "activities and events"
+		},
+		{
+			"c": "1fa87",
+			"t": "maracas",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f4fa",
+			"t": "television",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f39e_fe0f",
+			"t": "film",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3ac",
+			"t": "clapper",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f3ad",
+			"t": "performing arts",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f39f_fe0f",
+			"t": "admission tickets",
+			"k": "activities and events"
+		},
+		{
+			"c": "1f4df",
+			"t": "pager",
+			"k": "objects"
+		},
+		{
+			"c": "1f50c",
+			"t": "electric plug",
+			"k": "objects"
+		},
+		{
+			"c": "1f50b",
+			"t": "battery full",
+			"k": "objects"
+		},
+		{
+			"c": "1faab",
+			"t": "battery low",
+			"k": "objects"
+		},
+		{
+			"c": "1f4bf",
+			"t": "optical disk",
+			"k": "objects"
+		},
+		{
+			"c": "1f4bb",
+			"t": "laptop computer",
+			"k": "objects"
+		},
+		{
+			"c": "1f5a8_fe0f",
+			"t": "printer",
+			"k": "objects"
+		},
+		{
+			"c": "1fa8e",
+			"t": "treasure",
+			"k": "objects"
+		},
+		{
+			"c": "1fa99",
+			"t": "coin",
+			"k": "objects"
+		},
+		{
+			"c": "1f48e",
+			"t": "gem stone",
+			"k": "objects"
+		},
+		{
+			"c": "1f4b8",
+			"t": "money with wings",
+			"k": "objects"
+		},
+		{
+			"c": "2696_fe0f",
+			"t": "balance scale",
+			"k": "objects"
+		},
+		{
+			"c": "1f6d2",
+			"t": "shopping cart",
+			"k": "objects"
+		},
+		{
+			"c": "1f4a1",
+			"t": "light bulb",
+			"k": "objects"
+		},
+		{
+			"c": "1f9f9",
+			"t": "broom",
+			"k": "objects"
+		},
+		{
+			"c": "1f9e6",
+			"t": "socks",
+			"k": "objects"
+		},
+		{
+			"c": "1f393",
+			"t": "graduation cap",
+			"k": "objects"
+		},
+		{
+			"c": "1f451",
+			"t": "crown",
+			"k": "objects"
+		},
+		{
+			"c": "1f48d",
+			"t": "ring",
+			"k": "objects"
+		},
+		{
+			"c": "1faad",
+			"t": "fan",
+			"k": "objects"
+		},
+		{
+			"c": "2602_fe0f",
+			"t": "umbrella",
+			"k": "objects"
+		},
+		{
+			"c": "1f460",
+			"t": "high heeled shoe",
+			"k": "objects"
+		},
+		{
+			"c": "1f45f",
+			"t": "running shoe",
+			"k": "objects"
+		},
+		{
+			"c": "1f321_fe0f",
+			"t": "thermometer",
+			"k": "objects"
+		},
+		{
+			"c": "1fa7a",
+			"t": "stethoscope",
+			"k": "objects"
+		},
+		{
+			"c": "1f6e0_fe0f",
+			"t": "hammer and wrench",
+			"k": "objects"
+		},
+		{
+			"c": "1fa8f",
+			"t": "shovel",
+			"k": "dig objects"
+		},
+		{
+			"c": "2699_fe0f",
+			"t": "gear",
+			"k": "objects"
+		},
+		{
+			"c": "26d3_fe0f_200d_1f4a5",
+			"t": "broken chain",
+			"k": "objects"
+		},
+		{
+			"c": "26d3_fe0f",
+			"t": "chains",
+			"k": "objects"
+		},
+		{
+			"c": "1f587_fe0f",
+			"t": "linked paperclips",
+			"k": "objects"
+		},
+		{
+			"c": "2702_fe0f",
+			"t": "scissors",
+			"k": "objects"
+		},
+		{
+			"c": "270f_fe0f",
+			"t": "pencil",
+			"k": "objects"
+		},
+		{
+			"c": "1f4da",
+			"t": "books",
+			"k": "objects"
+		},
+		{
+			"c": "1f4ca",
+			"t": "bar chart",
+			"k": "objects"
+		},
+		{
+			"c": "1f4c8",
+			"t": "chart increasing",
+			"k": "objects"
+		},
+		{
+			"c": "1f4c9",
+			"t": "chart decreasing",
+			"k": "objects"
+		},
+		{
+			"c": "1f5d1_fe0f",
+			"t": "wastebasket",
+			"k": "objects"
+		},
+		{
+			"c": "1f4e6",
+			"t": "package",
+			"k": "objects"
+		},
+		{
+			"c": "1f5f3_fe0f",
+			"t": "ballot box",
+			"k": "objects"
+		},
+		{
+			"c": "23f0",
+			"t": "alarm clock",
+			"k": "objects"
+		},
+		{
+			"c": "231b",
+			"t": "hourglass done",
+			"k": "objects"
+		},
+		{
+			"c": "23f3",
+			"t": "hourglass not done",
+			"k": "objects"
+		},
+		{
+			"c": "1f6ce_fe0f",
+			"t": "bellhop bell",
+			"k": "objects"
+		},
+		{
+			"c": "1f514",
+			"t": "bell",
+			"k": "objects"
+		},
+		{
+			"c": "1f4e3",
+			"t": "megaphone",
+			"k": "objects"
+		},
+		{
+			"c": "1f50e",
+			"t": "magnifying glass tilted right",
+			"k": "objects"
+		},
+		{
+			"c": "1f52e",
+			"t": "crystal ball",
+			"k": "objects"
+		},
+		{
+			"c": "1f4a3",
+			"t": "bomb",
+			"k": "objects"
+		},
+		{
+			"c": "1faa4",
+			"t": "mouse trap",
+			"k": "objects"
+		},
+		{
+			"c": "1f512",
+			"t": "locked",
+			"k": "objects"
+		},
+		{
+			"c": "2660_fe0f",
+			"t": "spade",
+			"k": "symbols"
+		},
+		{
+			"c": "2648",
+			"t": "aries",
+			"k": "symbols"
+		},
+		{
+			"c": "2649",
+			"t": "taurus",
+			"k": "symbols"
+		},
+		{
+			"c": "264a",
+			"t": "gemini",
+			"k": "symbols"
+		},
+		{
+			"c": "264b",
+			"t": "cancer",
+			"k": "symbols"
+		},
+		{
+			"c": "264c",
+			"t": "leo",
+			"k": "symbols"
+		},
+		{
+			"c": "264d",
+			"t": "virgo",
+			"k": "symbols"
+		},
+		{
+			"c": "264e",
+			"t": "libra",
+			"k": "symbols"
+		},
+		{
+			"c": "264f",
+			"t": "scorpio",
+			"k": "symbols"
+		},
+		{
+			"c": "2650",
+			"t": "sagittarius",
+			"k": "symbols"
+		},
+		{
+			"c": "2651",
+			"t": "capricorn",
+			"k": "symbols"
+		},
+		{
+			"c": "2652",
+			"t": "aquarius",
+			"k": "symbols"
+		},
+		{
+			"c": "2653",
+			"t": "pisces",
+			"k": "symbols"
+		},
+		{
+			"c": "26ce",
+			"t": "ophiuchus",
+			"k": "symbols"
+		},
+		{
+			"c": "1f5ef_fe0f",
+			"t": "anger bubble",
+			"k": "symbols"
+		},
+		{
+			"c": "1f4ac",
+			"t": "speech bubble",
+			"k": "symbols"
+		},
+		{
+			"c": "2757",
+			"t": "exclamation",
+			"k": "exclamation mark symbols"
+		},
+		{
+			"c": "2753",
+			"t": "question",
+			"k": "question mark ? symbols"
+		},
+		{
+			"c": "2049_fe0f",
+			"t": "exclamation question mark",
+			"k": "!? symbols"
+		},
+		{
+			"c": "203c_fe0f",
+			"t": "exclamation double",
+			"k": "!! symbols"
+		},
+		{
+			"c": "274c",
+			"t": "cross mark",
+			"k": "x symbols"
+		},
+		{
+			"c": "1f198",
+			"t": "sos",
+			"k": "symbols"
+		},
+		{
+			"c": "2668_fe0f",
+			"t": "hot springs",
+			"k": "symbols"
+		},
+		{
+			"c": "1f4f4",
+			"t": "phone off",
+			"k": "symbols"
+		},
+		{
+			"c": "2622_fe0f",
+			"t": "radioactive",
+			"k": "symbols"
+		},
+		{
+			"c": "2623_fe0f",
+			"t": "biohazard",
+			"k": "symbols"
+		},
+		{
+			"c": "26a0_fe0f",
+			"t": "warning",
+			"k": "symbols"
+		},
+		{
+			"c": "2705",
+			"t": "check mark",
+			"k": "check mark green symbols"
+		},
+		{
+			"c": "1f195",
+			"t": "new",
+			"k": "symbols"
+		},
+		{
+			"c": "1f193",
+			"t": "free",
+			"k": "symbols"
+		},
+		{
+			"c": "1f199",
+			"t": "up!",
+			"k": "symbols"
+		},
+		{
+			"c": "1f197",
+			"t": "ok button",
+			"k": "symbols"
+		},
+		{
+			"c": "1f192",
+			"t": "cool",
+			"k": "symbols"
+		},
+		{
+			"c": "1f6ae",
+			"t": "litter",
+			"k": "symbols"
+		},
+		{
+			"c": "262e_fe0f",
+			"t": "peace symbol",
+			"k": "symbols"
+		},
+		{
+			"c": "262f_fe0f",
+			"t": "yin yang",
+			"k": "symbols"
+		},
+		{
+			"c": "267e_fe0f",
+			"t": "infinity",
+			"k": "symbols"
+		},
+		{
+			"c": "1f3b6",
+			"t": "musical notes",
+			"k": "symbols"
+		},
+		{
+			"c": "2795",
+			"t": "plus sign",
+			"k": "+ symbols"
+		},
+		{
+			"c": "a9_fe0f",
+			"t": "copyright",
+			"k": "symbols"
+		},
+		{
+			"c": "ae_fe0f",
+			"t": "registered",
+			"k": "symbols"
+		},
+		{
+			"c": "2122_fe0f",
+			"t": "trade mark",
+			"k": "symbols"
+		},
+		{
+			"c": "1f3c1",
+			"t": "chequered flag",
+			"k": "flags"
+		},
+		{
+			"c": "1f6a9",
+			"t": "triangular flag",
+			"k": "flags"
+		},
+		{
+			"c": "1f3f4",
+			"t": "black flag",
+			"k": "flags"
+		},
+		{
+			"c": "1f3f3_fe0f",
+			"t": "white flag",
+			"k": "flags"
+		}
+	]
+}

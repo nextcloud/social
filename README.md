@@ -65,8 +65,14 @@ One box, and everything a post can carry.
   until a reader asks for it.
 - **Custom emoji.** Type `:shortcode:` and the post travels with a matching `Emoji`
   tag, so it renders on servers that have never heard of it.
-- **A GIF picker backed by the instance's own library** — no Giphy, no Tenor, nobody's
-  tracker.
+- **A GIF picker with 881 animated emoji in it from the day you install the app**,
+  and no Giphy, no Tenor, nobody's tracker. They are Google's Noto Animated Emoji,
+  CC BY 4.0. Only the *list* ships — half a gigabyte of pictures does not — so your
+  server fetches each one the first time somebody here uses it and keeps it from
+  then on. The grid points at your own Nextcloud throughout: no search term leaves
+  the instance and no reader's browser ever talks to anybody else. An administrator
+  can add their own on top with `occ social:gif add`, or turn the shipped set off
+  with `occ config:app:set social gif_pack --value=0`.
 - **Quote a post**, with the original author's permission carried on the wire (FEP-044f).
 - **Say what language it is in**, starting from your Nextcloud language.
 - **Send it later.** Pick a time at least five minutes out and Post becomes Schedule.
@@ -138,7 +144,7 @@ you follow, of this instance and of the whole Fediverse are one click apart.
 - **Lists**, made and filled in Settings or from anybody's profile — and **every
   Nextcloud group you are in is already a list**, built and maintained by nobody.
 - **Follow a hashtag** and it reads exactly like following a person.
-- **Filter out words you would rather not read** — **Settings → Filtered words**. A
+- **Filter out words you would rather not read** — **Blocking → Filtered words**. A
   filter is a handful of words, the timelines it applies in, and whether a matching
   post is **folded away behind the filter's name**, with a *Show anyway*, or taken out
   of the timeline altogether; it can be set to expire on its own. A folded post is not
@@ -449,7 +455,7 @@ the same app, not a second design.
   rather than as the person who filed it, because they would otherwise be handing their
   handle to the very instance they are complaining about.
 - **Locked accounts**, so follows must be approved, with a Follow requests page.
-- **Keyword filters**, written and read in **Settings → Filtered words**: they are
+- **Keyword filters**, written and read in **Blocking → Filtered words**: they are
   yours alone, they apply to every timeline this app draws, and a filter set months ago
   from a phone is finally visible from here.
 - **What you see from an account you follow**, on its profile: the bell that says

@@ -41,6 +41,23 @@
 
 		<HashtagFollowedList v-if="type === 'tags'" ref="followedHashtags" />
 
+		<!-- what the sidebar badge was counting, where pressing it lands.
+		     The page marks itself read after a dwell, which is something that
+		     happens rather than something anybody did: this says how much
+		     there is, and gives the reader a way to say they are done with it
+		     without reading down to the bottom of the list. -->
+		<div v-if="type === 'notifications' && unreadActivities > 0" class="new-activities">
+			<span class="new-activities__count">
+				{{ n('social', '%n new activity', '%n new activities', unreadActivities) }}
+			</span>
+			<NcButton variant="tertiary" :disabled="markingAllRead" @click="markAllRead">
+				<template #icon>
+					<IconCheckAll :size="20" />
+				</template>
+				{{ t('social', 'Mark all as read') }}
+			</NcButton>
+		</div>
+
 		<!-- which kinds of activity to show; the same control as the scopes
 		     above the feed, choosing a filter of this page rather than a page -->
 		<TimelineSwitcher
@@ -74,6 +91,7 @@ import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
 import IconAccountPlusOutline from 'vue-material-design-icons/AccountPlusOutline.vue'
 import IconAt from 'vue-material-design-icons/At.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
+import IconCheckAll from 'vue-material-design-icons/CheckAll.vue'
 import IconEarth from 'vue-material-design-icons/Earth.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconHome from 'vue-material-design-icons/Home.vue'
@@ -93,10 +111,12 @@ import { tagStyle } from '../utils/tagColour.js'
 import HashtagFollowedList from './../components/HashtagFollowedList.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import eventBus from './../services/eventBus.js'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import eventBus, { NOTIFICATIONS_READ } from './../services/eventBus.js'
 import { rememberFilter, rememberedFilter } from './../services/notifications.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useNotificationsStore } from '../store/notifications.js'
 import { useSettingsStore } from '../store/settings.js'
 import { useTimelineStore } from '../store/timeline.js'
 
@@ -107,6 +127,8 @@ export default {
 	components: {
 		Announcements,
 		Composer,
+		IconCheckAll,
+		NcButton,
 		FirstPostCelebration,
 		FirstRun,
 		HashtagFollowButton,
@@ -128,11 +150,28 @@ export default {
 			 * browser remembers the choice, so the page opens where it was left
 			 */
 			notificationFilter: rememberedFilter(),
+			/** while the marker is being moved, so it cannot be moved twice */
+			markingAllRead: false,
 		}
 	},
 
 	computed: {
-		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
+		...mapStores(useAccountStore, useNotificationsStore, useSettingsStore, useTimelineStore),
+
+		/**
+		 * How many activities the sidebar badge is counting.
+		 *
+		 * The same number from the same place, rather than something counted
+		 * off this page: the page holds one filter's worth and the badge
+		 * counts them all, and two numbers that disagree would be worse than
+		 * the one that was hard to find.
+		 *
+		 * @return {number}
+		 */
+		unreadActivities() {
+			return this.notificationsStore.unreadNotifications
+		},
+
 		/**
 		 * The tag's own colour, so `#design` reads as `#design` wherever it is
 		 * met. Only a tag page has one; everywhere else the heading keeps the
@@ -435,6 +474,26 @@ export default {
 		},
 
 		/**
+		 * Says the reader is done with the lot, whatever the filter shows.
+		 *
+		 * The list below has frozen where the line between new and already
+		 * seen goes, so it is told where the marker ended up rather than left
+		 * drawing a boundary that has stopped meaning anything.
+		 */
+		async markAllRead() {
+			this.markingAllRead = true
+			try {
+				const marker = await this.notificationsStore.markAllRead()
+				// a string, and a twenty-digit one: see `newestIdOf()`
+				if (marker !== '0') {
+					eventBus.emit(NOTIFICATIONS_READ, marker)
+				}
+			} finally {
+				this.markingAllRead = false
+			}
+		},
+
+		/**
 		 * A post went out. Whether that is the reader's first is the store's
 		 * decision; asking costs nothing and nothing here waits on the answer,
 		 * so the post itself appears exactly as it did before.
@@ -537,6 +596,26 @@ export default {
  * the same thing itself further down; this only brings the point forward for a
  * row twice as long as the ones it was built for.
  */
+/* The row the badge lands on: how much there is on one side, the way out of
+   it on the other. Tinted rather than bordered -- it is the page saying
+   something, not another card to read -- and gone entirely at zero, so the
+   list does not keep a permanent header it has no news for. */
+.new-activities {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 8px;
+	padding: 4px 4px 4px 14px;
+	border-radius: var(--border-radius-large);
+	background: var(--color-primary-element-light);
+}
+
+.new-activities__count {
+	font-weight: 600;
+	color: var(--color-primary-element-light-text);
+}
+
 @media (max-width: 800px) {
 	.notifications-filter :deep(.switcher__label) {
 		position: absolute;
