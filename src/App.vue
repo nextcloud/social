@@ -24,8 +24,18 @@
 			<!-- not keyed on the full path: that remounted the whole view on
 			     every route change, so opening a post and pressing Back
 			     refetched page one and landed at the top of the timeline.
-			     The views watch their own route params instead. -->
-			<router-view />
+			     The views watch their own route params instead.
+
+			     Which is also what decides when the page animates: the
+			     transition runs when the view itself changes -- one sidebar
+			     entry to another -- and not when the same view is handed new
+			     params, where a fade would be the timeline blinking at
+			     somebody who only opened a post. -->
+			<router-view v-slot="{ Component }">
+				<transition name="page" mode="out-in">
+					<component :is="Component" />
+				</transition>
+			</router-view>
 		</NcAppContent>
 	</NcContent>
 	<NcContent v-else appName="social">
@@ -322,6 +332,47 @@ a.external_link {
 </style>
 
 <style lang="scss">
+/* Moving between the pages the sidebar lists.
+
+   Short, and downwards only on the way in: the eye is already at the top of
+   the content when a sidebar entry is clicked, and something arriving from
+   slightly below reads as the page being replaced rather than as the window
+   scrolling. `out-in` keeps the two pages from overlapping, which would
+   otherwise push the incoming one down the height of the outgoing one for a
+   frame. Not applied to the leave of a page being scrolled away from, because
+   that is the same view keeping its place. */
+.page-enter-active {
+	transition: opacity 0.18s ease-out, transform 0.18s cubic-bezier(0.2, 0, 0.1, 1);
+}
+
+.page-leave-active {
+	transition: opacity 0.09s ease-in, transform 0.09s ease-in;
+}
+
+.page-enter-from {
+	opacity: 0;
+	transform: translateY(8px);
+}
+
+.page-leave-to {
+	opacity: 0;
+	transform: translateY(-4px);
+}
+
+/* a reader who has asked their system for less movement gets the change
+   without the movement -- the crossfade still says a page was replaced */
+@media (prefers-reduced-motion: reduce) {
+	.page-enter-active,
+	.page-leave-active {
+		transition: opacity 0.12s linear;
+	}
+
+	.page-enter-from,
+	.page-leave-to {
+		transform: none;
+	}
+}
+
 /**
  * Two levels of elevation, defined once, so every card in the app agrees about
  * what "resting" and "lifted" look like.
