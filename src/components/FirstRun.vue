@@ -355,6 +355,17 @@ export default {
 			try {
 				const { data } = await axios.post(generateUrl(`apps/social/api/v1/starter_packs/${pack.id}/follow`))
 				const count = Array.isArray(data?.followed) ? data.followed.length : 0
+
+				// nobody was followed: every handle in the pack is on a server
+				// this one could not reach. Marking it "Following" and saying
+				// "Followed 0 accounts" was the app reporting success for
+				// something that did not happen
+				if (count === 0) {
+					showError(t('social', 'None of these accounts could be reached. Their servers may be busy — Discover has the pack, and says which ones.'))
+
+					return
+				}
+
 				this.followedPacks.push(pack.id)
 				showSuccess(n('social', 'Followed %n account', 'Followed %n accounts', count))
 			} catch (error) {

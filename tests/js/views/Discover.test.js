@@ -171,6 +171,31 @@ describe('Discover', () => {
 			expect(self.packLoading).toBe(false)
 		})
 
+		/**
+		 * A handle that will not resolve is usually a server that is busy, and
+		 * the next try often works — so the pack says which ones and offers
+		 * the try. Asking again is the same call that opened it.
+		 */
+		it('can be asked again for the accounts it could not reach', async () => {
+			const pack = { id: 'friends', name: 'Friends', size: 3 }
+			get.mockResolvedValue({
+				data: { ...pack, accounts: [{ id: '1', acct: 'a@b.c' }], unresolved: ['c@d.e', 'f@g.h'] },
+			})
+			const self = view({ packs: [pack] })
+
+			await self.loadPack.call(self, 'friends')
+			expect(self.openPack.unresolved).toEqual(['c@d.e', 'f@g.h'])
+
+			get.mockResolvedValue({
+				data: { ...pack, accounts: [{ id: '1', acct: 'a@b.c' }, { id: '2', acct: 'c@d.e' }], unresolved: [] },
+			})
+			await self.loadPack.call(self, 'friends')
+
+			expect(get).toHaveBeenCalledTimes(2)
+			expect(self.openPack.accounts).toHaveLength(2)
+			expect(self.openPack.unresolved).toEqual([])
+		})
+
 		it('closes back to the list without leaving an error behind', () => {
 			const self = view({ openPack: { id: 'x' }, error: 'something' })
 
