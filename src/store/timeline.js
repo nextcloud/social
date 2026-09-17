@@ -955,15 +955,21 @@ export const useTimelineStore = defineStore('timeline', {
 					} else {
 						url = generateUrl('apps/social/api/v1/timelines/home')
 					}
-					// `only_media` is Mastodon's question and would answer a
-					// video page with every photo on the instance; `only_video`
-					// is this app's own and is the narrower of the two. Both go
-					// out, so a server that has not been upgraded yet still
-					// answers a video page with media rather than with
-					// everything.
+					// `only_media` is Mastodon's question — "does this post
+					// carry an attachment" — and it is not the question either
+					// of these pages is asking: it answered Photos with every
+					// video on the instance and Videos with every photograph.
+					// `media_type` and `only_video` are this app's own and name
+					// the kind. All of them go out, so a server that has not
+					// been upgraded yet still answers with media rather than
+					// with everything.
 					params.only_media = true
 					if (this.type === 'videos') {
 						params.only_video = true
+					} else {
+						// a post carrying both is `mixed` and is in both pages,
+						// which is what `limitToMediaType()` already says
+						params.media_type = 'image'
 					}
 					break
 				case 'notifications': {

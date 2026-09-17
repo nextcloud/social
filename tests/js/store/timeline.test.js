@@ -930,12 +930,15 @@ describe('timeline store actions', () => {
 			['federated', {}, `${API}/timelines/public`, { limit: 15 }],
 			['tags', { tag: 'nextcloud' }, `${API}/timelines/tag/nextcloud`, { limit: 15 }],
 			['list', { id: '4' }, `${API}/timelines/list/4`, { limit: 15 }],
-			// the same three feeds as above, with the text-only posts left out
-			['photos', {}, `${API}/timelines/home`, { limit: 15, only_media: true }],
-			['photos', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_media: true, local: true }],
-			['photos', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_media: true }],
+			// the same three feeds as above, with the text-only posts left out.
+			// `media_type` as well as `only_media`, or the page answers with
+			// every video on the instance: "carries an attachment" is not the
+			// question a page called Photos is asking.
+			['photos', {}, `${API}/timelines/home`, { limit: 15, only_media: true, media_type: 'image' }],
+			['photos', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_media: true, media_type: 'image', local: true }],
+			['photos', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_media: true, media_type: 'image' }],
 			// a scope from the address bar that names nothing is read as the default
-			['photos', { scope: 'favourites' }, `${API}/timelines/home`, { limit: 15, only_media: true }],
+			['photos', { scope: 'favourites' }, `${API}/timelines/home`, { limit: 15, only_media: true, media_type: 'image' }],
 			// the same page again, one predicate narrower. `only_media` goes
 			// out as well, so a server that has not been upgraded yet answers
 			// with media rather than with everything.
@@ -951,6 +954,30 @@ describe('timeline store actions', () => {
 			expect(axios.get).toHaveBeenCalledWith(url, { params: query })
 			expect(result).toEqual(statuses)
 			expect(tl().timeline).toEqual(['1', '2'])
+		})
+
+		/**
+		 * Photos asked `only_media`, which is Mastodon's question — "does this
+		 * post carry an attachment" — and answered a page called Photos with
+		 * every video on the instance. Measured against a real instance: forty
+		 * posts carried twenty-five video attachments. The profile's Photos tab
+		 * and Explore's Pictures tab were both already asking the narrower
+		 * question; this one was not.
+		 */
+		it('asks Photos and Videos for different things', async () => {
+			await store.changeTimelineType({ type: 'photos', params: {} })
+			await store.fetchTimeline()
+			const photos = axios.get.mock.calls[0][1].params
+
+			axios.get.mockClear()
+			await store.changeTimelineType({ type: 'videos', params: {} })
+			await store.fetchTimeline()
+			const videos = axios.get.mock.calls[0][1].params
+
+			expect(photos.media_type).toBe('image')
+			expect(photos.only_video).toBeUndefined()
+			expect(videos.only_video).toBe(true)
+			expect(videos.media_type).toBeUndefined()
 		})
 
 		it('asks for every kind of notification when nothing is filtered', async () => {

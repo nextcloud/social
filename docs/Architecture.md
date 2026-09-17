@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.24.2  
+**App version:** 0.24.3  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -1872,9 +1872,19 @@ quoted post that itself quotes something is not nested a second time — the
 component prints one line and stops, so no chain and no cycle can recurse.
 
 **The Photos view.** The sidebar's `Photos`, directly under Home, is a timeline
-with `only_media` — what people showed rather than what they said. It is the
-same query and the same filters, one predicate narrower, so nothing about
+with `media_type=image` — what people showed rather than what they said. It is
+the same query and the same filters, one predicate narrower, so nothing about
 visibility, blocks, mutes or silencing is decided twice.
+
+It asked `only_media` alone until 0.24.3, which is Mastodon's question — *does
+this post carry an attachment* — and is not the one a page called Photos is
+asking: measured against a live instance, forty posts of that timeline carried
+twenty-five video attachments. `media_type` is the app's own narrowing and the
+profile's Photos tab and Explore's Pictures tab were both already sending it;
+this one page was not. `only_media` still goes out beside it, so a server that
+has not been upgraded yet answers with media rather than with everything. A post
+carrying both a picture and a video is `mixed` and is in both pages, which is
+what `limitToMediaType()` already said.
 
 Which people is the same switcher: Photos carries it too, so the photos of the
 people you follow, of this instance and of everywhere are one control apart.
