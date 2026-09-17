@@ -59,6 +59,9 @@ async function mountView({ blocked = [bob], muted = [carol], domains = [], dispa
 				// it reads the reader's filters on mount, and its own suite covers
 				// what it does with them
 				FiltersSettings: { template: '<div class="filters-settings-stub" />' },
+				// likewise: it asks the server what is being held, and its own
+				// suite covers what it does with the answer
+				NotificationRequests: { template: '<div class="notification-requests-stub" />' },
 				RouterLink: RouterLinkStub,
 			},
 		},
@@ -102,7 +105,18 @@ describe('BlockedAccounts', () => {
 
 		expect(wrapper.find('#filters .filters-settings-stub').exists()).toBe(true)
 		expect(wrapper.findAll('h3').map((heading) => heading.text()))
-			.toEqual(['Blocked', 'Muted', 'Hidden servers', 'Filtered words'])
+			.toEqual(['Blocked', 'Muted', 'Hidden servers', 'Filtered words', 'Filtered notifications'])
+	})
+
+	/**
+	 * The senders a notification policy is holding are one more thing the
+	 * reader is not being shown, so they belong with the rest of it rather
+	 * than behind a sidebar entry that is empty for most people.
+	 */
+	it('holds the senders a notification policy is keeping back', async () => {
+		const { wrapper } = await mountView()
+
+		expect(wrapper.find('#filtered-notifications .notification-requests-stub').exists()).toBe(true)
 	})
 
 	it('links each account to its profile', async () => {
@@ -188,6 +202,9 @@ describe('BlockedAccounts', () => {
 					// it reads the reader's filters on mount, and its own suite covers
 					// what it does with them
 					FiltersSettings: { template: '<div class="filters-settings-stub" />' },
+					// likewise: it asks the server what is being held, and its own
+					// suite covers what it does with the answer
+					NotificationRequests: { template: '<div class="notification-requests-stub" />' },
 					RouterLink: RouterLinkStub,
 				},
 			},

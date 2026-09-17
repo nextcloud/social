@@ -6,10 +6,10 @@
 	<div class="social__blocked">
 		<h2 class="social__blocked-title">{{ t('social', 'Blocking') }}</h2>
 		<p class="social__blocked-lede">
-			{{ t('social', 'Everything you have decided not to read, in one place: the accounts you have blocked or muted, the servers you have hidden, and the words you would rather not see.') }}
+			{{ t('social', 'Everything you have decided not to read, in one place: the accounts you have blocked or muted, the servers you have hidden, the words you would rather not see — and the senders your notification settings are holding back, waiting on you.') }}
 		</p>
 
-		<!-- One card per decision, all four the same shape: what it is, one
+		<!-- One card per decision, all of them the same shape: what it is, one
 		     line saying what it does, then the list. They used to be four runs
 		     of text with a bold word over each, and the two that are usually
 		     empty took a screenful apiece to say so. -->
@@ -153,6 +153,23 @@
 			<FiltersSettings />
 		</section>
 
+		<!-- and after the standing rules, the one thing here that is still
+		     waiting on the reader: the senders a notification policy is
+		     holding. It was a sidebar entry of its own, which stayed empty
+		     for anybody whose policy holds nothing. -->
+		<section id="filtered-notifications" class="block-card">
+			<header class="block-card__head">
+				<span class="block-card__icon">
+					<IconInboxOutline :size="20" />
+				</span>
+				<h3 class="block-card__title">{{ t('social', 'Filtered notifications') }}</h3>
+			</header>
+			<p class="block-card__lede">
+				{{ t('social', 'Your notification settings hold some notifications back instead of showing them — from accounts nobody here follows, from brand-new accounts, from people you do not follow. They wait here, one row per sender, so you decide about the person once rather than about every notification they send.') }}
+			</p>
+			<NotificationRequests />
+		</section>
+
 		<div v-if="loading" class="loading-indicator">
 			{{ t('social', 'Loading…') }}
 		</div>
@@ -165,12 +182,14 @@ import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
 import ActorAvatar from '../components/ActorAvatar.vue'
 import FiltersSettings from '../components/FiltersSettings.vue'
+import NotificationRequests from '../components/NotificationRequests.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import AccountCancelOutline from 'vue-material-design-icons/AccountCancelOutline.vue'
 import Cancel from 'vue-material-design-icons/Cancel.vue'
 import DomainOff from 'vue-material-design-icons/DomainOff.vue'
 import FilterOutline from 'vue-material-design-icons/FilterOutline.vue'
+import IconInboxOutline from 'vue-material-design-icons/InboxOutline.vue'
 import VolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import logger from '../services/logger.js'
@@ -185,6 +204,8 @@ export default {
 		DomainOff,
 		FilterOutline,
 		FiltersSettings,
+		IconInboxOutline,
+		NotificationRequests,
 		NcButton,
 		NcTextField,
 		Cancel,

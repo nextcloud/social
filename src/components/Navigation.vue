@@ -257,7 +257,6 @@ import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
-import IconInboxOutline from 'vue-material-design-icons/InboxOutline.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
 import IconPound from 'vue-material-design-icons/Pound.vue'
@@ -566,12 +565,6 @@ export default {
 						icon: IconAccountClock,
 						title: t('social', 'Follow requests'),
 						to: { name: 'follow-requests' },
-					},
-					{
-						key: 'social-filtered',
-						icon: IconInboxOutline,
-						title: t('social', 'Filtered notifications'),
-						to: { name: 'notification-requests' },
 					},
 					{
 						key: 'social-liked',

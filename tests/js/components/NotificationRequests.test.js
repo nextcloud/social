@@ -5,7 +5,7 @@
 
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import NotificationRequests from '../../../src/views/NotificationRequests.vue'
+import NotificationRequests from '../../../src/components/NotificationRequests.vue'
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock('@nextcloud/axios', () => ({ default: { get, post } }))
