@@ -66,11 +66,11 @@ describe('Discover', () => {
 			expect(tabs[1].value).toBe('packs')
 		})
 
-		it('offers Videos beside Pictures', () => {
+		it('offers Videos beside Pictures, and the links last', () => {
 			const tabs = Discover.computed.tabs.call({})
 
 			expect(tabs.map((tab) => tab.value))
-				.toEqual(['accounts', 'packs', 'posts', 'videos', 'tags'])
+				.toEqual(['accounts', 'packs', 'posts', 'videos', 'tags', 'news'])
 		})
 
 		it('lets the switcher hand the pick back rather than routing', () => {

@@ -49,11 +49,13 @@ skipped, and once closed it does not come back.
   people, hashtags and posts this server knows. Somebody this server has never
   met is found by their full handle, `@user@example.org`: the app resolves it
   over WebFinger and shows the account.
-- **Discover** (in the sidebar) has five tabs: **People** (suggestions, with
+- **Discover** (in the sidebar) has six tabs: **People** (suggestions, with
   the people who share your Nextcloud and have said where they are on the
   fediverse listed first under *On your Nextcloud*), **Starter packs**,
-  **Pictures** and **Videos** being looked at, and **Hashtags** that are
-  trending, ranked over a window you pick.
+  **Pictures** and **Videos** being looked at, **Hashtags** that are
+  trending, ranked over a window you pick, and **News** — the articles being
+  shared here most often in that window, each with the number of posts that
+  carried it and a way into what those posts said.
 - **Starter packs** are named handfuls of accounts with a **Follow everyone**
   button. Two ship with the app — the projects behind the network, and
   photography — and an administrator can curate more.
@@ -199,6 +201,12 @@ The sidebar is the map:
   received. **Photos** and **Videos** carry the same switcher over posts that
   are pictures, or videos — including videos from PeerTube channels anyone
   here follows.
+- **News** — the same three scopes again, over what people are reading: posts
+  that link to an article, and posts that *are* one (blogs on Plume,
+  WriteFreely, Ghost or WordPress publish them, and they arrive here whole).
+  A list rather than a grid, each row led by the headline and the source the
+  page gave. A mention or a hashtag is a link too and neither puts a post
+  here, so this stays news rather than becoming your feed again.
 - **Activities** — your notifications: mentions, favourites, boosts, new
   followers and follow requests, poll results, edits of posts you boosted.
   The sidebar badge counts what arrived since you last looked, and the same

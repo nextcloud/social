@@ -41,46 +41,16 @@ class LinkPreviewService {
 	}
 
 	/**
-	 * The first link in a post's content, or '' when it carries none. Mentions
-	 * and hashtags are links too, so only plain external links count.
+	 * The first link in a post's content, or '' when it carries none.
+	 *
+	 * The question itself is `Stream::firstLinkIn()`, because the News timeline
+	 * asks it too and a migration asks it of raw rows. It is still offered here,
+	 * under the name the rest of this service and its tests use: this is the
+	 * class that decides what is worth previewing, and it decides by asking
+	 * that.
 	 */
 	public function extractUrl(string $content): string {
-		if ($content === '') {
-			return '';
-		}
-
-		// a mention or a hashtag is a link too, and the class that says so sits
-		// on the anchor (this app) or on a wrapping span (Mastodon): drop both
-		// whole elements before looking for a link worth previewing
-		$plain = preg_replace(
-			[
-				'/<span\b[^>]*class=["\'][^"\']*\b(?:mention|hashtag)\b[^"\']*["\'][^>]*>.*?<\/span>/is',
-				'/<a\b[^>]*class=["\'][^"\']*\b(?:mention|hashtag|u-url)\b[^"\']*["\'][^>]*>.*?<\/a>/is',
-			],
-			' ',
-			$content
-		) ?? $content;
-
-		// an anchor the composer or a remote server built
-		if (preg_match_all('/<a\s[^>]*href=["\']([^"\']+)["\'][^>]*>/i', $plain, $anchors, PREG_SET_ORDER)) {
-			foreach ($anchors as $anchor) {
-				$url = html_entity_decode($anchor[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-				if ($this->isPreviewable($url)) {
-					return $url;
-				}
-			}
-
-			return '';
-		}
-
-		// plain text (a post written through the API without markup)
-		if (preg_match('/https?:\/\/[^\s<>"\']+/i', strip_tags($plain), $match) === 1) {
-			$url = rtrim($match[0], '.,;:!?)');
-
-			return $this->isPreviewable($url) ? $url : '';
-		}
-
-		return '';
+		return Stream::firstLinkIn($content);
 	}
 
 	/**
@@ -157,20 +127,6 @@ class LinkPreviewService {
 	}
 
 	/**
-	 * A link is previewable when it is a plain http(s) URL to somewhere else.
-	 * Everything beyond that — local addresses, redirects to other protocols,
-	 * oversized bodies, blocked hosts — is CurlService's job.
-	 */
-	private function isPreviewable(string $url): bool {
-		$scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
-		if (!in_array($scheme, ['http', 'https'], true)) {
-			return false;
-		}
-
-		return (string)parse_url($url, PHP_URL_HOST) !== '';
-	}
-
-	/**
 	 * @throws Exception
 	 */
 	private function fetch(string $url): string {
@@ -205,7 +161,7 @@ class LinkPreviewService {
 			$image = $this->absoluteUrl($image, $url);
 			// the client loads this straight from the origin; only plain
 			// http(s) may ever reach an <img src>
-			if ($this->isPreviewable($image)) {
+			if (Stream::isExternalLink($image)) {
 				$card->setImage($image);
 			}
 		}

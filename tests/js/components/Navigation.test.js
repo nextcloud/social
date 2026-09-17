@@ -614,6 +614,7 @@ describe('Navigation', () => {
 			'My Feed',
 			'Photos',
 			'Videos',
+			'News',
 			'Activities',
 			'Direct messages',
 			'Discover',
@@ -652,6 +653,7 @@ describe('Navigation', () => {
 			'My Feed',
 			'Photos',
 			'Videos',
+			'News',
 			'Activities',
 			'Direct messages',
 			'Discover',
@@ -808,6 +810,10 @@ describe('Navigation', () => {
 		['/timeline/federated', 'My Feed'],
 		['/timeline/photos', 'Photos'],
 		['/timeline/videos', 'Videos'],
+		['/timeline/news', 'News'],
+		// the page about one article is still the News entry's: a reader who
+		// followed a headline has not left the section
+		['/timeline/link', 'News'],
 		['/timeline/favourites', 'Liked posts'],
 		['/timeline/bookmarks', 'Bookmarks'],
 		['/follow_requests', 'Follow requests'],

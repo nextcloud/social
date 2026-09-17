@@ -2290,6 +2290,7 @@ class ApiController extends Controller {
 		int $since_id = 0,
 		bool $only_media = false,
 		bool $only_video = false,
+		bool $only_news = false,
 	): Response {
 		$this->logger->debug('[ApiController] timelines called', [
 			'timeline' => $timeline,
@@ -2359,7 +2360,8 @@ class ApiController extends Controller {
 				->setMinId($min_id)
 				->setSince($since_id)
 				->setOnlyMedia($only_media)
-				->setOnlyVideo($only_video);
+				->setOnlyVideo($only_video)
+				->setOnlyNews($only_news);
 
 			$posts = $this->streamService->getTimeline($options);
 			$this->logger->debug('[ApiController] Timeline retrieved', [
@@ -4169,6 +4171,7 @@ class ApiController extends Controller {
 		bool $local = false,
 		bool $only_media = false,
 		bool $only_video = false,
+		bool $only_news = false,
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -4183,6 +4186,7 @@ class ApiController extends Controller {
 				->setLocal($local)
 				->setOnlyMedia($only_media)
 				->setOnlyVideo($only_video)
+				->setOnlyNews($only_news)
 				->setArgument($hashtag);
 
 			$posts = $this->streamService->getTimeline($options);

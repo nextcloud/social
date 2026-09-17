@@ -196,6 +196,13 @@ export default {
 					return t('social', 'Photos')
 				case 'videos':
 					return t('social', 'Videos')
+				case 'news':
+					return t('social', 'News')
+				case 'link':
+					// the article is the subject of this page, and the only
+					// thing known about it before the first post arrives is
+					// where it lives
+					return this.linkHost || t('social', 'Link')
 				case 'notifications':
 					// the sidebar calls it Activities; the route keeps the name
 					// the API gives it
@@ -222,19 +229,19 @@ export default {
 		 * @return {boolean} whether the three scopes are what this page shows
 		 */
 		isFeed() {
-			return ['home', 'timeline', 'federated', 'photos', 'videos'].includes(this.type)
+			return ['home', 'timeline', 'federated', 'photos', 'videos', 'news'].includes(this.type)
 		},
 
 		/**
 		 * Whether this page is one page read at three scopes rather than three
-		 * pages. Photos and Videos both are: the sidebar entry stays lit
+		 * pages. Photos, Videos and News all are: the sidebar entry stays lit
 		 * whichever of the three the reader chose, which it would not if each
 		 * scope were a `type` of its own.
 		 *
 		 * @return {boolean}
 		 */
 		isScopedPage() {
-			return this.type === 'photos' || this.type === 'videos'
+			return ['photos', 'videos', 'news'].includes(this.type)
 		},
 
 		/**
@@ -250,10 +257,14 @@ export default {
 		 * look like a list would be asking the reader to settle something the
 		 * page has already answered by being Photos.
 		 *
+		 * News is a scoped page like those two and is still a list: what it
+		 * shows is headlines, and a headline in a tile is a picture with
+		 * writing on it.
+		 *
 		 * @return {string} 'grid' or 'list'
 		 */
 		display() {
-			return this.isScopedPage ? 'grid' : 'list'
+			return ['photos', 'videos'].includes(this.type) ? 'grid' : 'list'
 		},
 
 		/**
@@ -380,12 +391,40 @@ export default {
 				// part of what identifies this timeline, so that changing the
 				// scope refetches rather than leaving the previous photos up
 				return { scope: this.scope }
+			} else if (this.type === 'link') {
+				// the article being talked about. Same reason: another link is
+				// another page, not the same page filtered
+				return { url: this.linkUrl }
 			} else if (this.type === 'notifications') {
 				// the same reason: a filter is a question for the server, and
 				// a different one is a different list
 				return { filter: this.notificationFilter }
 			}
 			return {}
+		},
+
+		/**
+		 * The article a `link` page is about, as the address bar carries it.
+		 *
+		 * @return {string} the URL, or '' when the page was opened without one
+		 */
+		linkUrl() {
+			return String(this.$route.query.url ?? '')
+		},
+
+		/**
+		 * Where that article lives, which is what the page is headed with.
+		 * A URL that will not parse is not one this page can say anything
+		 * about, and the heading falls back to the plain word.
+		 *
+		 * @return {string} the host, or '' when there is nothing to show
+		 */
+		linkHost() {
+			try {
+				return new URL(this.linkUrl).host
+			} catch {
+				return ''
+			}
 		},
 
 		type() {

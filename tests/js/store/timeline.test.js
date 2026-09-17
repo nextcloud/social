@@ -945,6 +945,17 @@ describe('timeline store actions', () => {
 			['videos', {}, `${API}/timelines/home`, { limit: 15, only_media: true, only_video: true }],
 			['videos', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_media: true, local: true, only_video: true }],
 			['videos', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_media: true, only_video: true }],
+			// the third kind page, read at the same three distances. No
+			// `only_media`: an article with no picture in it is still news,
+			// and Mastodon's question would leave out exactly the plain links
+			// this page is for.
+			['news', {}, `${API}/timelines/home`, { limit: 15, only_news: true }],
+			['news', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_news: true, local: true }],
+			['news', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_news: true }],
+			// everything said here about one article. The link rides in the
+			// query, not the path: a URL inside a path segment has to survive
+			// two rounds of encoding and one web server's idea of a slash.
+			['link', { url: 'https://paper.example/piece' }, `${API}/timelines/link`, { limit: 15, url: 'https://paper.example/piece' }],
 		])('requests the %s timeline from its endpoint and appends the result', async (type, params, url, query) => {
 			await store.changeTimelineType({ type, params })
 
@@ -978,6 +989,22 @@ describe('timeline store actions', () => {
 			expect(photos.only_video).toBeUndefined()
 			expect(videos.only_video).toBe(true)
 			expect(videos.media_type).toBeUndefined()
+		})
+
+		/**
+		 * News is not a kind of media. Asking `only_media` here would have
+		 * kept exactly the posts this page is for — a headline and a link,
+		 * with nothing attached — out of it, which is the mistake Photos made
+		 * in the other direction.
+		 */
+		it('does not ask News for media', async () => {
+			await store.changeTimelineType({ type: 'news', params: {} })
+			await store.fetchTimeline()
+
+			const news = axios.get.mock.calls[0][1].params
+			expect(news.only_news).toBe(true)
+			expect(news.only_media).toBeUndefined()
+			expect(news.media_type).toBeUndefined()
 		})
 
 		it('asks for every kind of notification when nothing is filtered', async () => {

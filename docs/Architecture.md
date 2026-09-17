@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.24.4  
+**App version:** 0.25.0  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -721,16 +721,18 @@ ended in the middle while older posts the reader can see sat further down. The
 bound is what keeps a reader who has muted everything they follow from turning
 one request into a walk of the table.
 
-A **media narrowing is the exception**, and the reason is worth keeping: it is a
-question about the *post*, and the page query reads only the recipient rows,
-which carry no such column. Moving it to the rows was right for blocks, which
+A **media or news narrowing is the exception**, and the reason is worth keeping:
+it is a question about the *post*, and the page query reads only the recipient
+rows, which carry no such column. Moving it to the rows was right for blocks, which
 drop a few posts, and wrong for this, which drops nearly all of them — on the
 seeded instance 143 of 402,725 posts carry media, so the Photos and Videos
 timelines read the newest sixty ids, discarded all sixty and came back **empty**
 while the pictures sat further down. Those timelines take the join path, which
 has the predicate in the query; they are read far less often than the home
 timeline, and with `media_kind` indexed they are now faster than the fast path
-was anyway. The old query is kept as the fallback for an instance whose
+was anyway. News is the same shape of question over `news_kind` and takes the
+same path, for the same reason and with more of it: an article is rarer than a
+photograph. The old query is kept as the fallback for an instance whose
 backfill has not finished, and is slower and always correct.
 
 **Counters are added to, not counted.** The three on an account lived only in
@@ -765,11 +767,20 @@ that array does not fit in memory, and the failure is silent: the cron simply
 falls behind. It pages, stops at the pass deadline, and remembers in app config
 where it got to.
 
-Two smaller things in the same shape. `social_stream.media_kind` is what the
+Three smaller things in the same shape. `social_stream.media_kind` is what the
 Photos and Videos timelines ask instead of searching the attachment JSON with
-`LIKE`, which no index can serve and which was applied after the join. And a
-content search is bounded by `search_window_days`, because a leading wildcard
-can never use an index and an unbounded `ILIKE` is a table scan per keystroke.
+`LIKE`, which no index can serve and which was applied after the join.
+`social_stream.news_kind` is the same idea one step further: the News timeline's
+question — is this an `Article`, or does its text link to one — is not one a
+database can be asked of stored markup **at all**, so there is no slow-but-correct
+query to fall back to. It is decided once on the write by `Stream::newsKindOf()`
+and read through `(news_kind, nid)`; a row the backfill has not reached is simply
+not news yet, which is the one place this differs from `media_kind` and is a
+deliberate trade — every new post is classified from the moment the column
+exists, so the top of the page, which is the end a reader looks at, is right
+immediately. And a content search is bounded by `search_window_days`, because a
+leading wildcard can never use an index and an unbounded `ILIKE` is a table scan
+per keystroke.
 
 ## Delivering at scale
 
@@ -1932,6 +1943,48 @@ attachment whose Mastodon `type` is `video`, or a post that arrived as a PeerTub
 `Video`. The second counts whether or not this instance found a playable file in
 it — the post is a video either way, and a timeline that hid the ones it could
 not play would be hiding exactly the videos worth reporting.
+
+**The News view.** The sidebar's `News`, under Videos, is the third page of the
+same shape: the three feeds with one predicate on them, the scope in the query
+(`/timeline/news?scope=federated`), the same `isScopedPage` branch. It differs
+from its two siblings in one visible way — it is drawn as a **list**, not a
+grid. What it shows is headlines, and a headline in a tile is a picture with
+writing on it.
+
+What counts as news is two things, and the app takes both rather than choosing:
+a post that **is** an article — an `Article` or a `Page`, which is what Plume,
+WriteFreely, Ghost and the WordPress plugin publish, and which arrives here as a
+`Note` carrying that word in `subtype` (`AP::NOTE_LIKE_TYPES`) — and a post that
+**points at** one, meaning an ordinary note whose text carries a link to
+somewhere else. The second is where the volume is: most news on the fediverse
+travels as somebody's sentence with a URL after it.
+
+The question "does this text link anywhere" is asked by `Stream::firstLinkIn()`,
+which is the same code `LinkPreviewService` asks before it fetches a preview.
+That is deliberate rather than tidy: if the two disagreed, a post could be in the
+News timeline with no card to draw, or carry a card and not be there. A mention
+and a hashtag are anchors too, and both are dropped whole before anything is
+looked for — counting them would have made News a copy of the home timeline.
+
+What is deliberately **not** asked is whether the preview was actually fetched.
+Cards are read from the linked page after the post is stored and may never
+arrive; a post that dropped out of the News timeline hours later because
+somebody else's web server was down would be worse than one that sits there
+without a picture.
+
+Boosts are not in it. A boost is a row of its own with no content of its own, so
+`news_kind` is `''` for it — which on this page is the right answer rather than a
+gap: a news page whose top five entries are the same article five times is a
+worse page.
+
+**Where the links themselves are.** `/api/v1/trends/links` has counted the URLs
+this instance shares since the trends were written and nothing ever asked it.
+`TrendingLinks.vue`, the **News** tab of Discover, is that list: the headline,
+the source, the picture the page offers, and how many posts carried it. Each row
+has two ways out — the article, and `/timeline/link?url=…`, which is
+`/api/v1/timelines/link` and is everything said *here* about that article. That
+second one is the whole reason this is in a social app rather than in a feed
+reader, and the endpoint for it was already written too.
 
 In the player, a video attachment with a **preview that is not the video itself**
 gets that preview as its `poster` and `preload="none"`. Only a federated video

@@ -153,6 +153,12 @@ class StreamRequest extends StreamRequestBuilder {
 					// a Photos or Videos timeline
 					->setValue('media_kind', $qb->createNamedParameter(
 						Stream::mediaKindOf($encoded, $stream->getSubType())
+					))
+					// and whether it is news, decided here for the same reason:
+					// the question is one no database can be asked of stored
+					// markup on the way past
+					->setValue('news_kind', $qb->createNamedParameter(
+						Stream::newsKindOf($stream->getContent(), $stream->getSubType())
 					));
 			}
 
@@ -258,6 +264,12 @@ class StreamRequest extends StreamRequestBuilder {
 			$qb->set('attachments', $qb->createNamedParameter($encoded));
 			$qb->set('media_kind', $qb->createNamedParameter(
 				Stream::mediaKindOf($encoded, $stream->getSubType())
+			));
+			// an edit that took the link out takes the post out of the News
+			// timeline, and one that added a link puts it in: the column is
+			// derived from the content this same statement is rewriting
+			$qb->set('news_kind', $qb->createNamedParameter(
+				Stream::newsKindOf($stream->getContent(), $stream->getSubType())
 			));
 		}
 		$qb->set('published', $qb->createNamedParameter($stream->getPublished()));
@@ -1143,6 +1155,32 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * Narrows a timeline to one kind of post, when the caller asked for one.
+	 *
+	 * The one seam every timeline query goes through, so that a question a
+	 * client may put to any of them is answered the same way by all of them.
+	 * Each filter below does nothing unless it was asked for.
+	 */
+	private function filterKind(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		$this->filterMedia($qb, $options);
+		$this->filterNews($qb, $options);
+	}
+
+	/**
+	 * Applies `only_news` when the caller asked for it.
+	 *
+	 * Independent of the media filters rather than a narrowing of them: an
+	 * article with no picture is news, and a holiday photograph with a link in
+	 * the caption is both. A client that sends `only_media` and `only_news`
+	 * gets the posts that are both, which is what the two words together say.
+	 */
+	private function filterNews(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		if ($options->isOnlyNews()) {
+			$qb->limitToNews();
+		}
+	}
+
+	/**
 	 * Applies `only_media` and `only_video` when the caller asked for them.
 	 *
 	 * The first has been parsed off the request since the hashtag timeline
@@ -1259,17 +1297,19 @@ class StreamRequest extends StreamRequestBuilder {
 			return null;
 		}
 
-		// A media narrowing is a question about the **post**, and this query
-		// reads only the recipient rows — which carry no such column. Asking it
-		// anyway would read the newest rows and then throw most of them away:
-		// on an instance where a small fraction of posts carry a picture, a
-		// Photos or Videos timeline would come back empty while the pictures
-		// sat a few thousand rows further down. So the narrowed timelines take
-		// the join path, which has the predicate *in* the query and finds them
-		// wherever they are. They are also read far less often than the home
-		// timeline, which is what makes that the right trade rather than a
-		// concession.
-		if ($options->isOnlyMedia() || $options->isOnlyVideo() || $options->getMediaType() !== '') {
+		// A media or news narrowing is a question about the **post**, and this
+		// query reads only the recipient rows — which carry no such column.
+		// Asking it anyway would read the newest rows and then throw most of
+		// them away: on an instance where a small fraction of posts carry a
+		// picture, a Photos or Videos timeline would come back empty while the
+		// pictures sat a few thousand rows further down. News is the same
+		// shape of question and the same trap, and a rarer kind of post than a
+		// photograph at that. So the narrowed timelines take the join path,
+		// which has the predicate *in* the query and finds them wherever they
+		// are. They are also read far less often than the home timeline, which
+		// is what makes that the right trade rather than a concession.
+		if ($options->isOnlyMedia() || $options->isOnlyVideo()
+			|| $options->getMediaType() !== '' || $options->isOnlyNews()) {
 			return null;
 		}
 
@@ -1371,7 +1411,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$page->filterType(SocialAppNotification::TYPE);
 		$page->paginate($options);
-		$this->filterMedia($page, $options);
+		$this->filterKind($page, $options);
 		$page->limitToFollowedTags('ft_st', 'ft');
 		$page->selectDestFollowing('ft_sd', '');
 		$page->innerJoinStreamDest('recipient', 'id_prim', 'ft_sd', 's');
@@ -1492,7 +1532,7 @@ class StreamRequest extends StreamRequestBuilder {
 			// Σ(everything the viewer follows). Here the driving set is the
 			// page itself.
 			$qb->filterType(SocialAppNotification::TYPE);
-			$this->filterMedia($qb, $options);
+			$this->filterKind($qb, $options);
 			$qb->filterHiddenBoosts();
 			$qb->filterHiddenActors();
 			$qb->filterDuplicate();
@@ -1519,7 +1559,7 @@ class StreamRequest extends StreamRequestBuilder {
 	): void {
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
-		$this->filterMedia($qb, $options);
+		$this->filterKind($qb, $options);
 		$qb->limitToViewer('sd', 'f', false);
 		// "show me this account, not what they pass on"
 		$qb->filterHiddenBoosts();
@@ -1561,7 +1601,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$page = $this->getStreamNidsSelectSql(false);
 		$page->filterType(SocialAppNotification::TYPE);
 		$page->paginate($options);
-		$this->filterMedia($page, $options);
+		$this->filterKind($page, $options);
 
 		// the author is joined for the filters below, not for its columns
 		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
@@ -1615,7 +1655,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$page->limitToStatusTypes();
 		$page->paginate($options);
-		$this->filterMedia($page, $options);
+		$this->filterKind($page, $options);
 		$page->limitToAttributedTo($actorId, true);
 
 		$page->selectDestFollowing('sd', '');
@@ -1662,7 +1702,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$viewer = $page->createNamedParameter($page->prim($page->getViewer()->getId()));
 		$page->limitToStatusTypes();
 		$page->paginate($options);
-		$this->filterMedia($page, $options);
+		$this->filterKind($page, $options);
 		$page->innerJoin(
 			's', CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
 			$page->expr()->andX(
@@ -1725,7 +1765,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$page = $this->getStreamNidsSelectSql(true);
 		$page->limitToStatusTypes();
 		$page->paginate($options);
-		$this->filterMedia($page, $options);
+		$this->filterKind($page, $options);
 
 		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
 		$page->linkToStreamTags('st', 's.id_prim');
@@ -2021,7 +2061,7 @@ class StreamRequest extends StreamRequestBuilder {
 		// type, which the unique index makes at most one row
 		$page = $this->getStreamNidsSelectSql(false);
 		$page->paginate($options);
-		$this->filterMedia($page, $options);
+		$this->filterKind($page, $options);
 
 		// `local=true` is this instance's own posts, `remote=true` every other
 		// instance's: Mastodon's two ways of narrowing the same timeline

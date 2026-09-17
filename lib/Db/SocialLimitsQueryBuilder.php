@@ -592,6 +592,31 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
+	 * Limit to posts that are news: an article, or a post linking to one.
+	 *
+	 * One indexed column, unlike its media siblings, and with no `LIKE`
+	 * fallback for a row the backfill has not reached — see
+	 * `Version1000Date20260917000005`. The question this answers cannot be put
+	 * to a database at all ("is there a link in this markup that is not a
+	 * mention"), so there is nothing to fall back *to*: an unclassified row is
+	 * not news yet, and the backfill is what makes it so.
+	 *
+	 * `IN` rather than `!= ''` because the column is nullable and `NULL` must
+	 * not match, and because naming the two values is what lets a caller later
+	 * ask for only one of them.
+	 */
+	public function limitToNews(): self {
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->andWhere($expr->in($pf . '.news_kind', $this->createNamedParameter(
+			[Stream::NEWS_KIND_LINK, Stream::NEWS_KIND_ARTICLE], IQueryBuilder::PARAM_STR_ARRAY
+		)));
+
+		return $this;
+	}
+
+	/**
 	 * Limit to posts carrying a hashtag the viewer follows.
 	 *
 	 * Two inner joins: the post's tags, and the ones this account follows. It
