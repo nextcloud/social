@@ -238,6 +238,34 @@ describe('AccountHoverCard', () => {
 			expect(rows[1].querySelector('dd').textContent.trim()).toBe('they/them')
 		})
 
+		/**
+		 * The hostname used to be a chip beside the byline of every remote
+		 * post, which in a timeline that spans servers is a hostname next to
+		 * almost every name. It is here now, in the same colour the ring
+		 * around the avatar is drawn in, for the reader who asked.
+		 */
+		it('says which server the account is on, in that server\'s colour', async () => {
+			axios.get.mockResolvedValue({ data: bob })
+			const wrapper = mountCard()
+
+			await hoverUntilOpen(wrapper)
+
+			const chip = card().querySelector('.account-hover-card__instance')
+			expect(chip.textContent.trim()).toBe('remote.example')
+			expect(chip.getAttribute('style')).toContain('--instance-colour: hsl(')
+		})
+
+		it('says nothing about the server for an account on this one', async () => {
+			// everything here is on this server; naming it would be noise on
+			// every card a reader opens
+			axios.get.mockResolvedValue({ data: { ...bob, acct: 'alice', url: 'https://cloud.example.org/@alice' } })
+			const wrapper = mountCard({ handle: 'alice' })
+
+			await hoverUntilOpen(wrapper)
+
+			expect(card().querySelector('.account-hover-card__instance')).toBeNull()
+		})
+
 		it('never follows a field into a scheme a profile should not name', async () => {
 			axios.get.mockResolvedValue({ data: { ...bob, fields: [{ name: 'Site', value: '<a href="javascript:alert(1)">click</a>' }] } })
 			const wrapper = mountCard()
