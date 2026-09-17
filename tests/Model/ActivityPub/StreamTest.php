@@ -858,6 +858,18 @@ class StreamTest extends TestCase {
 		$this->assertSame('direct', Stream::visibilityForClient(Stream::TYPE_DIRECT));
 	}
 
+	/**
+	 * A row written without a visibility -- an import, a seed, anything that
+	 * reached the table by a path that did not set one -- used to hand the
+	 * client `''`, which is not one of Mastodon's four and which this app's
+	 * own timeline read as "not public": it stopped offering Boost on posts
+	 * that had been boosted nine times. There were two thousand such rows on
+	 * the instance this was found on.
+	 */
+	public function testAVisibilityThatWasNeverSetIsPublicToAClient(): void {
+		$this->assertSame('public', Stream::visibilityForClient(''));
+	}
+
 	public function testIsKnownClientVisibility(): void {
 		$this->assertTrue(Stream::isKnownClientVisibility('private'));
 		$this->assertTrue(Stream::isKnownClientVisibility('PUBLIC'));
