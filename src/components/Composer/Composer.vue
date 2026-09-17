@@ -3158,11 +3158,40 @@ $composer-duration: 220ms;
 		}
 	}
 
+	/* One row: add an option, say whether more than one may be picked, say how
+	   long it runs. They are three controls of one sentence and they read as
+	   one line or as nothing. */
 	&__settings {
 		display: flex;
 		align-items: center;
 		gap: 12px;
 		flex-wrap: wrap;
+
+		/* The checkbox and its words are one control, so they are laid out as
+		   a row that centres them on each other. Left to itself the label is
+		   an inline box and the checkbox sits with its *bottom edge* on the
+		   text's baseline — which is why the words read as though they had
+		   slipped a line below everything beside them. */
+		label {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			margin: 0;
+			/* against a wrap that would leave the checkbox on one line and the
+			   words it labels on the next */
+			white-space: nowrap;
+		}
+
+		/* The server gives a bare checkbox and a bare select margins of their
+		   own, and they are what tips each of them off the line its
+		   neighbours sit on. */
+		input[type='checkbox'] {
+			margin: 0;
+		}
+
+		select {
+			margin: 0;
+		}
 	}
 }
 
