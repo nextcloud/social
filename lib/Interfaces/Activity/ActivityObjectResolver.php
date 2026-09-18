@@ -47,26 +47,39 @@ class ActivityObjectResolver {
 	}
 
 	/**
-	 * The embedded object if the activity carries one, otherwise whatever
-	 * `objectId` names in the local store.
+	 * What the activity is about: the stored row when there is one, and the
+	 * embedded copy only when there is not.
+	 *
+	 * The stored row wins because the embedded copy is written by the sender.
+	 * Every one of these activities removes or moves a row that is found by
+	 * the object's id — a like and a follow are both deleted by id — while the
+	 * `actor` the callers check against is a field of the same payload, so a
+	 * copy naming one account's id and another's `actor` acted on a row it did
+	 * not own. The row says who it belongs to; the payload only claims.
 	 *
 	 * @throws ItemNotFoundException when there is neither
 	 */
 	public function resolve(ACore $activity): ACore {
 		$embedded = $activity->hasObject() ? $activity->getObject() : null;
+		$objectId = ($embedded !== null) ? $embedded->getId() : $activity->getObjectId();
+
+		if ($objectId !== '') {
+			try {
+				$item = $this->fromStore($objectId);
+				$item->setParent($activity);
+
+				return $item;
+			} catch (ItemNotFoundException $e) {
+			}
+		}
+
 		if ($embedded !== null) {
 			return $embedded;
 		}
 
-		$objectId = $activity->getObjectId();
-		if ($objectId === '') {
-			throw new ItemNotFoundException('activity carries no object');
-		}
-
-		$item = $this->fromStore($objectId);
-		$item->setParent($activity);
-
-		return $item;
+		throw new ItemNotFoundException(
+			($objectId === '') ? 'activity carries no object' : 'unknown object: ' . $objectId
+		);
 	}
 
 	/**

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Activity;
 
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Interfaces\Activity\ActivityObjectResolver;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -41,6 +42,7 @@ class RejectInterfaceTest extends DispatchingActivityTestCase {
 	public function testRejectCarryingTheFollowAsALinkReachesTheFollowInterface(): void {
 		$follow = new Follow();
 		$follow->setId(self::LOCAL_URL . '/follows/1');
+		$follow->setObjectId(self::REMOTE_URL . '/users/bob');
 		$this->objectResolver = $this->objectResolverOver([self::LOCAL_URL . '/follows/1' => $follow]);
 
 		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/1', self::REMOTE_URL . '/users/bob');
@@ -49,6 +51,30 @@ class RejectInterfaceTest extends DispatchingActivityTestCase {
 		$this->followInterface->expects($this->once())
 			->method('activity')
 			->with($this->identicalTo($reject), $this->identicalTo($follow));
+
+		$this->createHandler()->processIncomingRequest($reject);
+	}
+
+	/**
+	 * A Reject takes a follow away, and the account it was addressed to is the
+	 * only one entitled to send it: the follow interface checks the host of
+	 * that account, which on a shared server is every account on it.
+	 */
+	public function testRejectOfAFollowAddressedToSomebodyElseIsRefused(): void {
+		$follow = new Follow();
+		$follow->setId(self::LOCAL_URL . '/follows/1');
+		$follow->setActorId(self::LOCAL_URL . '/users/alice');
+		$follow->setObjectId(self::REMOTE_URL . '/users/bob');
+		$this->objectResolver = $this->objectResolverOver([self::LOCAL_URL . '/follows/1' => $follow]);
+
+		$reject = $this->incoming(
+			Reject::TYPE, self::REMOTE_URL . '/rejects/1', self::REMOTE_URL . '/users/mallory'
+		);
+		$reject->setObjectId(self::LOCAL_URL . '/follows/1');
+
+		$this->followInterface->expects($this->never())->method('activity');
+
+		$this->expectException(InvalidOriginException::class);
 
 		$this->createHandler()->processIncomingRequest($reject);
 	}

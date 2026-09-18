@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Activity;
 
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Interfaces\Activity\ActivityObjectResolver;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -43,6 +44,7 @@ class UndoInterfaceTest extends DispatchingActivityTestCase {
 	public function testUndoOfALikeGoesToTheLikeInterface(): void {
 		$like = new Like();
 		$like->setId(self::REMOTE_URL . '/likes/1');
+		$like->setActorId(self::REMOTE_URL . '/users/bob');
 		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/bob', $like);
 
 		$this->likeInterface->expects($this->once())
@@ -57,6 +59,7 @@ class UndoInterfaceTest extends DispatchingActivityTestCase {
 	public function testUndoOfABoostGoesToTheAnnounceInterface(): void {
 		$announce = new Announce();
 		$announce->setId(self::REMOTE_URL . '/announces/1');
+		$announce->setActorId(self::REMOTE_URL . '/users/bob');
 		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/bob', $announce);
 
 		$this->announceInterface->expects($this->once())
@@ -84,10 +87,57 @@ class UndoInterfaceTest extends DispatchingActivityTestCase {
 		$this->createHandler()->processIncomingRequest($undo);
 	}
 
+	/**
+	 * The interfaces below check the host an Undo came from, which on a shared
+	 * server says nothing about which of its accounts sent it — and an action
+	 * is deleted by its id, so naming a neighbour's like and one's own `actor`
+	 * took the neighbour's like down.
+	 */
+	public function testUndoOfANeighboursLikeIsRefused(): void {
+		$like = new Like();
+		$like->setId(self::REMOTE_URL . '/likes/1');
+		$like->setActorId(self::REMOTE_URL . '/users/bob');
+		$undo = $this->incoming(
+			Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/mallory', $like
+		);
+
+		$this->likeInterface->expects($this->never())->method('activity');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->createHandler()->processIncomingRequest($undo);
+	}
+
+	/**
+	 * The embedded copy is written by the sender, so it is only ever consulted
+	 * when this instance holds nothing under that id: naming a neighbour's like
+	 * and calling it one's own is exactly what the stored row disproves.
+	 */
+	public function testTheStoredRowIsPreferredOverTheEmbeddedCopy(): void {
+		$stored = new Like();
+		$stored->setId(self::REMOTE_URL . '/likes/1');
+		$stored->setActorId(self::REMOTE_URL . '/users/bob');
+		$this->objectResolver = $this->objectResolverOver([self::REMOTE_URL . '/likes/1' => $stored]);
+
+		$claimed = new Like();
+		$claimed->setId(self::REMOTE_URL . '/likes/1');
+		$claimed->setActorId(self::REMOTE_URL . '/users/mallory');
+		$undo = $this->incoming(
+			Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/mallory', $claimed
+		);
+
+		$this->likeInterface->expects($this->never())->method('activity');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->createHandler()->processIncomingRequest($undo);
+	}
+
 	/** An unlike from a peer that links its Like instead of embedding it. */
 	public function testUndoCarryingTheLikeAsALinkReachesTheLikeInterface(): void {
 		$like = new Like();
 		$like->setId(self::REMOTE_URL . '/likes/1');
+		$like->setActorId(self::REMOTE_URL . '/users/bob');
 		$this->objectResolver = $this->objectResolverOver([self::REMOTE_URL . '/likes/1' => $like]);
 
 		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/bob');

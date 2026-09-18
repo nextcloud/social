@@ -27,9 +27,11 @@ use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
@@ -181,5 +183,50 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->reportsRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
 
 		$this->handler->activity($delete, $bob);
+	}
+
+	/**
+	 * The origin check is host-wide, and a server holds more than one account:
+	 * without an actor-level check any of them could delete any other, or hand
+	 * `updateActor()` a profile carrying its own public key under a
+	 * neighbour's id and sign as that neighbour from then on.
+	 */
+	public function testDeleteOfANeighbouringAccountIsRefused(): void {
+		$bob = $this->bob();
+		$mallory = self::REMOTE_URL . '/users/mallory';
+		$delete = $this->incoming(Delete::TYPE, $mallory . '#delete', $mallory, $bob);
+
+		$this->cacheActorsRequest->expects($this->never())->method('deleteCacheById');
+		$this->streamRequest->expects($this->never())->method('deleteByAuthor');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->activity($delete, $bob);
+	}
+
+	public function testUpdateOfANeighboursProfileIsRefused(): void {
+		$bob = $this->bob();
+		$bob->setPublicKey('-----BEGIN PUBLIC KEY-----mallory');
+		$mallory = self::REMOTE_URL . '/users/mallory';
+		$update = $this->incoming(Update::TYPE, $mallory . '#update', $mallory, $bob);
+
+		$this->cacheActorsRequest->expects($this->never())->method('update');
+		$this->cacheActorsRequest->expects($this->never())->method('save');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->activity($update, $bob);
+	}
+
+	public function testAnAccountUpdatingItsOwnProfileIsApplied(): void {
+		$bob = $this->bob();
+		$update = $this->incoming(Update::TYPE, self::BOB . '#update', self::BOB, $bob);
+		$stored = $this->bob();
+		$stored->setCreation(1);
+		$this->cacheActorsRequest->method('getFromId')->with(self::BOB)->willReturn($stored);
+
+		$this->cacheActorsRequest->expects($this->once())->method('update')->with($this->identicalTo($bob));
+
+		$this->handler->activity($update, $bob);
 	}
 }

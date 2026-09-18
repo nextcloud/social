@@ -114,6 +114,12 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 	public function activity(Acore $activity, ACore $item): void {
 		/** @var Person $item */
 		$activity->checkOrigin($item->getId());
+		// An actor speaks for itself and for nothing else. The origin check
+		// above stops at the host, which on a shared server is every account
+		// on it: without this, any of them could delete a neighbour's account
+		// from here, or hand `updateActor()` a profile carrying its own public
+		// key under the neighbour's id and sign as them from then on.
+		$activity->checkActor($item->getId(), $activity->getActorId());
 
 		switch ($activity->getType()) {
 			case Update::TYPE:

@@ -33,8 +33,14 @@ class AddInterface extends AbstractActivityPubInterface implements IActivityPubI
 		// followers; Mastodon adds a post to a `featured` collection with it,
 		// which is a pin. What the activity carries tells them apart: a story
 		// arrives as the object itself, a pin as an id and a target.
-		if ($item->hasObject() && $item->getObject() instanceof Story) {
-			$story = $item->getObject();
+		$story = $item->hasObject() ? $item->getObject() : null;
+		if ($story instanceof Story) {
+			// The author is whoever performed the Add, whatever the payload's
+			// `attributedTo` says — the rule NoteInterface applies to a Create,
+			// for the same reason: the origin check StoryInterface then makes
+			// is host-wide, and let one account of a server publish a story
+			// onto a neighbour's profile.
+			$story->setAttributedTo($item->getActorId());
 			// checked against the activity's own origin, which is what stops
 			// one server publishing a story onto another's account
 			$story->setOrigin($item->getOrigin(), $item->getOriginSource(), $item->getOriginCreationTime());

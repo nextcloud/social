@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Activity;
 
 use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -23,6 +24,9 @@ class UndoInterface extends AbstractActivityPubInterface implements IActivityPub
 	) {
 	}
 
+	/**
+	 * @throws InvalidOriginException the object belongs to another actor
+	 */
 	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
 		// `object` may be a link rather than an embedded object: Mastodon embeds,
@@ -39,6 +43,12 @@ class UndoInterface extends AbstractActivityPubInterface implements IActivityPub
 
 			return;
 		}
+
+		// Only what an actor did is theirs to undo. The interfaces below check
+		// the host the Undo came from, which on a shared server says nothing
+		// about which of its accounts sent it: without this, one account undid
+		// a neighbour's like, boost or follow.
+		$item->checkActor($item->getActorId(), $object->getActorId());
 
 		try {
 			$interface = AP::instance()->getInterfaceForItem($object);

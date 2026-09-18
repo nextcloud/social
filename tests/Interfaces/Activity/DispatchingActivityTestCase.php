@@ -45,14 +45,21 @@ abstract class DispatchingActivityTestCase extends ActivityPubTestCase {
 		// Tombstone is a known model but has no handler in the registry
 		$tombstone = new Tombstone();
 		$tombstone->setId(self::REMOTE_URL . '/objects/1');
+		$tombstone->setActorId(self::REMOTE_URL . '/users/bob');
 		$activity = $this->incoming($this->activityType(), self::REMOTE_URL . '/activities/1', self::REMOTE_URL . '/users/bob', $tombstone);
 
 		$this->createHandler()->processIncomingRequest($activity);
 	}
 
 	public function testActivityIsHandedToTheObjectsInterfaceTogetherWithTheObject(): void {
+		// the sending actor on both sides of the follow, so that the one
+		// fixture satisfies every dispatcher's actor rule: an Undo is only for
+		// what the sender did, an Accept or Reject only for a follow addressed
+		// to the sender
 		$follow = new Follow();
 		$follow->setId(self::REMOTE_URL . '/follows/1');
+		$follow->setActorId(self::REMOTE_URL . '/users/bob');
+		$follow->setObjectId(self::REMOTE_URL . '/users/bob');
 		$activity = $this->incoming($this->activityType(), self::REMOTE_URL . '/activities/1', self::REMOTE_URL . '/users/bob', $follow);
 
 		$this->followInterface->expects($this->once())

@@ -277,6 +277,15 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 			return;
 		}
 		$activity->checkOrigin($post->getQuote());
+		// and from the quoted post's author rather than from anybody on their
+		// server: the origin check above stops at the host. Only when the
+		// quoted post is here to say who wrote it — until it arrives the
+		// origin is all there is.
+		try {
+			$quoted = $this->streamRequest->getStreamById($post->getQuote());
+			$activity->checkActor($quoted->getAttributedTo(), $activity->getActorId());
+		} catch (StreamNotFoundException $e) {
+		}
 
 		if ($type === Accept::TYPE) {
 			$this->approve($post, $activity);
