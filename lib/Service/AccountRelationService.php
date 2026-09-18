@@ -370,6 +370,40 @@ class AccountRelationService {
 		return $expiresAt;
 	}
 
+	/**
+	 * Records an expiry that was decided elsewhere, as the moment itself.
+	 *
+	 * `setMuteExpiry()` takes a duration, which is what a client sends and
+	 * what a mute taken now is made of; an account export carries the moment
+	 * the mute runs out, and turning it back into a duration would move every
+	 * expiry forward by however long the archive sat in a download folder. A
+	 * moment already past is stored as it is: it says the mute has ended, and
+	 * every read of it already knows what that means.
+	 *
+	 * @param int $expiresAt unix time; 0 clears the expiry, as elsewhere here
+	 */
+	public function setMuteExpiresAt(Person $viewer, Person $target, int $expiresAt): void {
+		if ($expiresAt <= 0) {
+			$this->muteExpiryRequest->delete($viewer->getId(), $target->getId());
+
+			return;
+		}
+
+		$this->muteExpiryRequest->save($viewer->getId(), $target->getId(), $expiresAt);
+	}
+
+	/**
+	 * When each of these mutes runs out, in one query.
+	 *
+	 * @param string[] $actorIds
+	 *
+	 * @return array<string, int> actor id => unix time; a mute with no expiry
+	 *                            is absent, not 0
+	 */
+	public function muteExpiries(string $viewerId, array $actorIds): array {
+		return $this->muteExpiryRequest->getExpiries($viewerId, $actorIds);
+	}
+
 	/** Unmuting takes the expiry with it: the mute it belonged to is gone. */
 	public function clearMuteExpiry(Person $viewer, Person $target): void {
 		$this->muteExpiryRequest->delete($viewer->getId(), $target->getId());

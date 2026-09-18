@@ -24,6 +24,7 @@ use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
@@ -55,6 +56,7 @@ class SocialMigratorTest extends TestCase {
 		. self::UUID . '.jpeg';
 
 	private AccountService|MockObject $accountService;
+	private AccountRelationService|MockObject $accountRelationService;
 	private MigrationService|MockObject $migrationService;
 	private CacheActorService|MockObject $cacheActorService;
 	private CacheDocumentService|MockObject $cacheDocumentService;
@@ -76,6 +78,7 @@ class SocialMigratorTest extends TestCase {
 		$l10n->method('t')->willReturnArgument(0);
 
 		$this->accountService = $this->createMock(AccountService::class);
+		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 		$this->migrationService = $this->createMock(MigrationService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
@@ -106,6 +109,7 @@ class SocialMigratorTest extends TestCase {
 		$this->migrator = new SocialMigrator(
 			$l10n,
 			$this->accountService,
+			$this->accountRelationService,
 			$this->migrationService,
 			$this->cacheActorService,
 			$this->cacheDocumentService,
@@ -441,7 +445,37 @@ class SocialMigratorTest extends TestCase {
 
 		$this->assertSame("carol@remote.example\n", $archive->contents('social/blocked_accounts.csv'));
 		$this->assertSame(
-			"Account address,Hide notifications\ndave@other.example,true\n",
+			"Account address,Hide notifications,Expires at\ndave@other.example,true,\n",
+			$archive->contents('social/muted_accounts.csv')
+		);
+	}
+
+	/**
+	 * A mute given a duration travelled as a permanent one: the file carried
+	 * the handle and the notifications flag and nothing else, so an account
+	 * muted for an hour came back from an archive muted for good, and the user
+	 * had to find it and undo it by hand.
+	 */
+	public function testATimedMuteIsExportedWithTheMomentItRunsOut(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->followsRequest->method('getFollowingByActorId')->willReturn([]);
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
+		$this->actorRelationRequest->method('getByActor')
+			->willReturnCallback(fn (string $actorId, string $type): array => $type === ActorRelation::TYPE_MUTE
+				? [$this->relation(self::DAVE, ActorRelation::TYPE_MUTE, true)]
+				: []);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::DAVE, 'dave@other.example'));
+		$this->accountRelationService->method('muteExpiries')
+			->with(self::ALICE, [self::DAVE])
+			->willReturn([self::DAVE => 1789000000]);
+		$this->streamRequest->method('getTimeline')->willReturn([]);
+
+		$archive = $this->export();
+
+		$this->assertSame(
+			"Account address,Hide notifications,Expires at\ndave@other.example,false,"
+			. gmdate('c', 1789000000) . "\n",
 			$archive->contents('social/muted_accounts.csv')
 		);
 	}
@@ -858,6 +892,42 @@ class SocialMigratorTest extends TestCase {
 			[self::ALICE, self::CAROL, ActorRelation::TYPE_BLOCK, true],
 			[self::ALICE, self::DAVE, ActorRelation::TYPE_MUTE, false],
 		], $saved, 'the mute hid notifications, so the relation must not notify');
+	}
+
+	public function testATimedMuteIsRestoredWithItsExpiry(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/actor.json', $this->actorFile());
+			$a->put(
+				'social/muted_accounts.csv',
+				"Account address,Hide notifications,Expires at\ndave@other.example,true,"
+				. gmdate('c', 1789000000) . "\n"
+			);
+		});
+		$alice = $this->alice();
+		$dave = $this->person(self::DAVE, 'dave@other.example');
+		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$this->cacheActorService->method('getFromAccount')->willReturn($dave);
+
+		$this->accountRelationService->expects($this->once())
+			->method('setMuteExpiresAt')
+			->with($this->identicalTo($alice), $this->identicalTo($dave), 1789000000);
+
+		$this->importing($archive);
+	}
+
+	/** Mastodon's own file has two columns, and every mute in it is permanent. */
+	public function testAMuteWithoutAnExpiryColumnStaysPermanent(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/actor.json', $this->actorFile());
+			$a->put('social/muted_accounts.csv', "Account address,Hide notifications\ndave@other.example,true\n");
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->cacheActorService->method('getFromAccount')
+			->willReturn($this->person(self::DAVE, 'dave@other.example'));
+
+		$this->accountRelationService->expects($this->never())->method('setMuteExpiresAt');
+
+		$this->importing($archive);
 	}
 
 	public function testABlockedAccountThatCannotBeResolvedIsReportedAndTheRestStillLand(): void {
