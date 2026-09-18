@@ -632,6 +632,24 @@ class CurlServiceTest extends TestCase {
 		$this->service()->doRequest('get', $url);
 	}
 
+	/**
+	 * This instance's own address, which behind a reverse proxy or in a
+	 * container resolves to a private address like any other internal service.
+	 * Refusing it left every fan-out after the first inline delivery waiting
+	 * for the cron.
+	 */
+	public function testTheSelfCallMayReachALocalAddress(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
+		$this->configService->method('getCloudHost')->willReturn('127.0.0.1');
+		$sent = $this->captureRequest($this->answer('{}'));
+
+		$this->service()->asyncWithToken('tok-1');
+
+		$this->assertSame('post', $sent()['method']);
+		$this->assertSame('https://127.0.0.1/apps/social/async/request/tok-1', $sent()['url']);
+		$this->assertTrue($sent()['options']['nextcloud']['allow_local_address']);
+	}
+
 	private function service(): CurlService {
 		return new CurlService(
 			$this->configService, $this->fediverseService, $this->clientService,

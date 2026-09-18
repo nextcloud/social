@@ -344,7 +344,14 @@ class CurlService {
 		$url = parse_url($address, PHP_URL_SCHEME) . '://' . $this->configService->getCloudHost() . $path;
 
 		try {
-			$this->retrieveJson('post', $url);
+			// This instance's own address, which behind a reverse proxy or in a
+			// container resolves to a private or loopback address like any other
+			// internal service. Refusing it left every fan-out after the first
+			// inline delivery waiting for the cron -- up to twelve minutes -- so
+			// the local-address guard is lifted for this one call. It is the
+			// configured cloud host and nothing a request can influence; every
+			// genuinely remote address is still refused.
+			$this->retrieveJson('post', $url, ['allow_local_address' => true]);
 		} catch (RequestResultNotJsonException $e) {
 		} catch (Exception $e) {
 			$this->logger->error('Cannot initiate AsyncWithToken', ['token' => $token, 'exception' => $e]);
@@ -354,7 +361,7 @@ class CurlService {
 	/**
 	 * Sends the request and reads the answer as JSON.
 	 *
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool} $options
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -379,7 +386,7 @@ class CurlService {
 	 * doRequestOverUrls().
 	 *
 	 * @param string[] $urls
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool} $options
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -415,7 +422,7 @@ class CurlService {
 	/**
 	 * Sends the request and returns the body.
 	 *
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool} $options
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -518,7 +525,7 @@ class CurlService {
 	 * differ only in their scheme.
 	 *
 	 * @param string[] $urls
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool} $options
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -568,7 +575,7 @@ class CurlService {
 	 * Redirects are followed by `send()` rather than by the client, so that the
 	 * federation checks run on every hop -- see `redirectTarget()`.
 	 *
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool} $options
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -587,6 +594,10 @@ class CurlService {
 		// the status code belongs to the caller, not to an exception
 		$clientOptions['http_errors'] = false;
 		$clientOptions['stream'] = true;
+
+		if ($options['allow_local_address'] ?? false) {
+			$clientOptions['nextcloud']['allow_local_address'] = true;
+		}
 
 		if (($options['body'] ?? '') !== '' && strtolower($method) !== 'get') {
 			$clientOptions['body'] = $options['body'];
