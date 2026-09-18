@@ -47,6 +47,7 @@ use Psr\Log\NullLogger;
 
 class SocialMigratorTest extends TestCase {
 	private const ALICE = 'https://cloud.example/apps/social/@alice';
+	private const BOB = 'https://cloud.example/apps/social/@bob';
 	private const CAROL = 'https://remote.example/users/carol';
 	private const DAVE = 'https://other.example/users/dave';
 	private const UUID = '8f14e45f-ceea-467a-9c58-0cfa2b3e0f43';
@@ -245,6 +246,7 @@ class SocialMigratorTest extends TestCase {
 		$note->setNid($nid);
 		$note->setContent($content);
 		$note->setAttributedTo(self::ALICE);
+		$note->setLocal(true);
 		$note->setPublished('2026-01-0' . $nid . 'T00:00:00Z');
 
 		return $note;
@@ -1010,6 +1012,63 @@ class SocialMigratorTest extends TestCase {
 		$this->importing($archive);
 
 		$this->assertStringContainsString('1 were not in the archive', $this->output->text());
+	}
+
+	/**
+	 * The ids in the archive are the user's, and an id naming another account's
+	 * post used to resolve and have its pictures replaced out of the archive —
+	 * for every viewer of this instance.
+	 */
+	public function testAPostAnotherAccountWroteIsNotRewrittenFromTheArchive(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/outbox.json', $this->outboxFile('media_attachments/files/12/original.jpg'));
+			$a->put('social/media_attachments/files/12/original.jpg', 'PICTURE');
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$bobs = $this->noteWithAPicture();
+		$bobs->setAttributedTo(self::BOB);
+		$this->streamRequest->method('getStreamById')->willReturn($bobs);
+		// its own picture is gone, so nothing but the owner check stands
+		// between the archive and bob's post
+		$this->cacheDocumentService->method('getFromUuid')
+			->willThrowException(new NotFoundException('swept away'));
+
+		$this->documentService->expects($this->never())->method('storeLocalAttachment');
+		$this->streamRequest->expects($this->never())->method('setStoredAttachmentCopies');
+
+		$this->importing($archive);
+
+		$this->assertStringContainsString(
+			'1 name posts this account did not write',
+			$this->output->text()
+		);
+	}
+
+	/**
+	 * A cached copy of a remote post is that server's to change: rewriting one
+	 * would make this instance show something its origin never published.
+	 */
+	public function testACachedRemotePostIsNotRewrittenFromTheArchive(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/outbox.json', $this->outboxFile('media_attachments/files/12/original.jpg'));
+			$a->put('social/media_attachments/files/12/original.jpg', 'PICTURE');
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$cached = $this->noteWithAPicture();
+		$cached->setLocal(false);
+		$this->streamRequest->method('getStreamById')->willReturn($cached);
+		$this->cacheDocumentService->method('getFromUuid')
+			->willThrowException(new NotFoundException('swept away'));
+
+		$this->documentService->expects($this->never())->method('storeLocalAttachment');
+		$this->streamRequest->expects($this->never())->method('setStoredAttachmentCopies');
+
+		$this->importing($archive);
+
+		$this->assertStringContainsString(
+			'1 name posts this account did not write',
+			$this->output->text()
+		);
 	}
 
 	public function testAPostThisServerDoesNotHaveLeavesItsFilesInTheArchive(): void {

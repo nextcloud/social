@@ -1177,8 +1177,9 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * That is the case an archive is read in after the pictures were lost and
 	 * the rows were not: a purge of the storage, a database restored from a
 	 * backup the files did not survive. Where the post is here and its picture
-	 * still is too, nothing happens; where the post is not here at all, the
-	 * file stays in the archive rather than becoming a row nothing can show.
+	 * still is too, nothing happens; where the post is not here at all, or
+	 * where it is somebody else's, the file stays in the archive rather than
+	 * becoming a row nothing can show or one somebody else has to look at.
 	 *
 	 * The outbox is read whole, which it can be: it is the text of the posts,
 	 * and the files it names were never in it.
@@ -1217,7 +1218,10 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			return;
 		}
 
-		$tally = ['restored' => 0, 'here' => 0, 'missingFile' => 0, 'missingPost' => 0, 'failed' => 0];
+		$tally = [
+			'restored' => 0, 'here' => 0, 'missingFile' => 0, 'missingPost' => 0,
+			'notYours' => 0, 'failed' => 0,
+		];
 		foreach ($items as $item) {
 			if (!is_array($item)) {
 				continue;
@@ -1235,6 +1239,11 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				continue;
 			}
 
+			if (!$this->wrotePost($actor, $post)) {
+				$tally['notYours'] += count($archived);
+				continue;
+			}
+
 			$this->restorePostMedia($actor, $post, $archived, $importSource, $tally);
 		}
 
@@ -1246,9 +1255,29 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			'Restored ' . $tally['restored'] . ' file(s) onto the posts this server has; '
 			. $tally['here'] . ' were already here, ' . $tally['missingFile']
 			. ' were not in the archive, ' . $tally['missingPost']
-			. ' belong to posts this server does not have and ' . $tally['failed']
+			. ' belong to posts this server does not have, ' . $tally['notYours']
+			. ' name posts this account did not write and ' . $tally['failed']
 			. ' could not be stored…'
 		);
+	}
+
+	/**
+	 * Whether a post named in the archive is one the importing account wrote
+	 * here.
+	 *
+	 * The ids in `outbox.json` are the user's: an archive is a file the user
+	 * hands the server, and every id in it is chosen by whoever wrote the file.
+	 * Without this, an id naming any other post on the instance — a cached
+	 * remote status, another local account's post — resolved, and its
+	 * attachments were rewritten to files out of the archive, for every viewer
+	 * of this instance.
+	 *
+	 * Local as well as the author, because the attachments of a remote post are
+	 * that server's to change: what is stored here is a copy, and rewriting it
+	 * would make this instance show something its origin never published.
+	 */
+	private function wrotePost(Person $actor, Stream $post): bool {
+		return $post->isLocal() && $post->getAttributedTo() === $actor->getId();
 	}
 
 	/**
