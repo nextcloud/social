@@ -939,6 +939,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media/from-gif')]
 	public function mediaFromGif(): DataResponse {
@@ -1230,6 +1231,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses')]
 	public function statusNew(): DataResponse {
@@ -1542,6 +1544,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media')]
 	public function mediaNew(): DataResponse {
@@ -1603,6 +1606,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media/from-file')]
 	public function mediaFromFile(): DataResponse {
@@ -1729,6 +1733,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v2/media')]
 	public function mediaNewV2(): DataResponse {
@@ -1934,6 +1939,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	// a player reports as it goes, so this is asked for often and is cheap
+	#[AnonRateLimit(limit: 600, period: 60)]
 	#[UserRateLimit(limit: 600, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/watched')]
 	public function statusWatched(int $nid, int $position = 0, int $duration = 0): DataResponse {
@@ -1951,6 +1957,7 @@ class ApiController extends Controller {
 	/** Takes a video off the reader's own "continue watching" list. */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/statuses/{nid}/watched')]
 	public function statusUnwatched(int $nid): DataResponse {
@@ -2874,6 +2881,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/statuses/{nid}/interaction_policy')]
 	public function statusInteractionPolicy(int $nid): DataResponse {
@@ -2906,6 +2914,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/quotes/{quoting}/revoke')]
 	public function statusQuoteRevoke(int $nid, int $quoting): DataResponse {
@@ -3027,6 +3036,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/annual_reports/{year}/generate')]
 	public function annualReportGenerate(int $year): DataResponse {

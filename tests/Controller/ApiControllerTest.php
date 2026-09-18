@@ -82,6 +82,8 @@ use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\ViewCountService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\File;
@@ -103,6 +105,8 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use ReflectionClass;
+use ReflectionMethod;
 use stdClass;
 
 class ApiControllerTest extends TestCase {
@@ -4166,6 +4170,24 @@ class ApiControllerTest extends TestCase {
 
 		// what it answers is beside the point; that it let the session go is not
 		$this->controller()->gifOpen('noto-1f994');
+	}
+
+	/**
+	 * Nextcloud applies `UserRateLimit` only to a caller with a session. An
+	 * OAuth client has a token and no session, so a route carrying only that
+	 * attribute has no limit at all for the callers it is written for — while
+	 * `RateLimitHeadersMiddleware` tells that same client what its budget is.
+	 */
+	public function testEveryRateLimitedRouteAlsoLimitsSessionlessCallers(): void {
+		$bare = [];
+		foreach ((new ReflectionClass(ApiController::class))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+			if ($method->getAttributes(UserRateLimit::class) !== []
+				&& $method->getAttributes(AnonRateLimit::class) === []) {
+				$bare[] = $method->getName();
+			}
+		}
+
+		$this->assertSame([], $bare, 'these routes are unthrottled for a bearer-token client');
 	}
 
 }
