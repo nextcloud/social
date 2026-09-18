@@ -230,8 +230,11 @@ class CurlService {
 		$signature = $acceptActivityJson ? $this->httpSignatureService->signFetch($id) : [];
 
 		$status = 0;
+		$contentType = '';
 		try {
-			$result = $this->retrieveJson('get', $id, ['headers' => $headers + $signature], $status);
+			$result = $this->retrieveJson(
+				'get', $id, ['headers' => $headers + $signature], $status, $contentType
+			);
 		} catch (RequestContentException $e) {
 			if ($signature === [] || !$this->refusedTheSignature($e->getCode())) {
 				throw $e;
@@ -246,13 +249,38 @@ class CurlService {
 				'id' => $id, 'status' => $e->getCode(),
 			]);
 
-			$result = $this->retrieveJson('get', $id, ['headers' => $headers], $status);
+			$result = $this->retrieveJson('get', $id, ['headers' => $headers], $status, $contentType);
 		}
 
 		$result['_host'] = $parsed['host'];
 		$result['_resultCode'] = $status;
+		$result['_contentType'] = $contentType;
 
 		return $result;
+	}
+
+	/**
+	 * Whether a document was served as ActivityPub.
+	 *
+	 * An actor is only an actor when the host says so with the media type:
+	 * without the check, any URL answering JSON — a public share on a
+	 * Nextcloud, a paste, an upload — is a document that can claim to be any
+	 * actor of its host.
+	 *
+	 * `application/ld+json` counts only with the ActivityStreams profile on
+	 * it, which is what the AP specification requires of it.
+	 *
+	 * Static because it is a statement about a string and nothing else: a
+	 * caller holding a mocked CurlService still gets the real answer.
+	 */
+	public static function isActivityPubMediaType(string $contentType): bool {
+		$type = strtolower(trim(explode(';', $contentType, 2)[0]));
+		if ($type === 'application/activity+json') {
+			return true;
+		}
+
+		return $type === 'application/ld+json'
+			&& str_contains(strtolower($contentType), 'https://www.w3.org/ns/activitystreams');
 	}
 
 	/**
@@ -300,8 +328,14 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveJson(string $method, string $url, array $options = [], ?int &$statusCode = null): array {
-		return $this->retrieveJsonFromFirstReachable([$url], $options, $method, $statusCode);
+	public function retrieveJson(
+		string $method,
+		string $url,
+		array $options = [],
+		?int &$statusCode = null,
+		?string &$contentType = null,
+	): array {
+		return $this->retrieveJsonFromFirstReachable([$url], $options, $method, $statusCode, $contentType);
 	}
 
 	/**
@@ -324,6 +358,7 @@ class CurlService {
 		array $options = [],
 		string $method = 'get',
 		?int &$statusCode = null,
+		?string &$contentType = null,
 	): array {
 		$contentType = '';
 		$result = $this->doRequestOverUrls($method, $urls, $options, $contentType, $statusCode);

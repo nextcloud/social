@@ -278,7 +278,10 @@ class CurlServiceTest extends TestCase {
 		$result = $this->service()->retrieveObject('https://' . self::PUBLIC_IP . '/users/bob?page=2&min_id=7');
 
 		$this->assertSame(
-			['id' => self::BOB, 'type' => 'Person', '_host' => self::PUBLIC_IP, '_resultCode' => 200],
+			[
+				'id' => self::BOB, 'type' => 'Person', '_host' => self::PUBLIC_IP,
+				'_resultCode' => 200, '_contentType' => 'application/json',
+			],
 			$result
 		);
 		$this->assertSame('get', $sent()['method']);

@@ -42,6 +42,11 @@ class CacheActorServiceTest extends TestCase {
 	private const ALICE = 'https://cloud.example.com/apps/social/@alice';
 	private const NOW = 1_700_000_000;
 
+	/** the annotations `CurlService::retrieveObject()` adds to a fetched actor */
+	private const ACTIVITY_JSON = [
+		'_host' => 'remote.example', '_contentType' => 'application/activity+json',
+	];
+
 	private ActorsRequest|MockObject $actorsRequest;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private CurlService|MockObject $curlService;
@@ -97,7 +102,10 @@ class CacheActorServiceTest extends TestCase {
 
 	public function testGetFromIdFetchesSavesAndReturnsAnUnknownActor(): void {
 		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
-		$data = ['id' => self::BOB, 'type' => 'Person', 'preferredUsername' => 'bob', '_host' => 'remote.example'];
+		$data = [
+			'id' => self::BOB, 'type' => 'Person', 'preferredUsername' => 'bob',
+			'_host' => 'remote.example', '_contentType' => 'application/activity+json',
+		];
 		$this->curlService->expects($this->once())->method('retrieveObject')->with(self::BOB)->willReturn($data);
 		$bob = $this->person(self::BOB);
 		$this->ap->expects($this->once())->method('getItemFromData')->with($data)->willReturn($bob);
@@ -111,7 +119,7 @@ class CacheActorServiceTest extends TestCase {
 
 	public function testGetFromIdWithRefreshSkipsTheCache(): void {
 		$this->cacheActorsRequest->expects($this->never())->method('getFromId');
-		$this->curlService->method('retrieveObject')->willReturn(['_host' => 'remote.example']);
+		$this->curlService->method('retrieveObject')->willReturn(self::ACTIVITY_JSON);
 		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
 
 		$this->assertSame(self::BOB, $this->service->getFromId(self::BOB, true)->getId());
@@ -129,7 +137,7 @@ class CacheActorServiceTest extends TestCase {
 
 	public function testGetFromIdRejectsAnActorClaimingAnotherHost(): void {
 		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
-		$this->curlService->method('retrieveObject')->willReturn(['_host' => 'remote.example']);
+		$this->curlService->method('retrieveObject')->willReturn(self::ACTIVITY_JSON);
 		$this->ap->method('getItemFromData')->willReturn($this->person('https://evil.example/users/bob'));
 		$this->personInterface->expects($this->never())->method('save');
 
@@ -137,9 +145,50 @@ class CacheActorServiceTest extends TestCase {
 		$this->service->getFromId(self::BOB);
 	}
 
+	/**
+	 * The row is keyed by the actor's own id, so a document answering with a
+	 * stranger's id rewrites the stranger's row — public key included. Matching
+	 * hosts was not enough: any URL on a host that serves JSON somebody else
+	 * wrote (on a Nextcloud, a public share) could claim that host's admin
+	 * account, and an inbox POST naming such a URL as its `keyId` is what makes
+	 * this instance go and fetch it.
+	 */
+	public function testGetFromIdRejectsAnActorClaimingAnotherIdOnTheSameHost(): void {
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$this->curlService->method('retrieveObject')->willReturn(self::ACTIVITY_JSON);
+		$this->ap->method('getItemFromData')->willReturn($this->person('https://remote.example/users/admin'));
+		$this->personInterface->expects($this->never())->method('save');
+
+		$this->expectException(InvalidOriginException::class);
+		$this->service->getFromId(self::BOB);
+	}
+
+	/** An actor is only an actor when its host serves it as ActivityPub. */
+	public function testGetFromIdRejectsADocumentNotServedAsActivityPub(): void {
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$this->curlService->method('retrieveObject')
+			->willReturn(['_host' => 'remote.example', '_contentType' => 'application/json; charset=utf-8']);
+		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
+		$this->personInterface->expects($this->never())->method('save');
+
+		$this->expectException(InvalidOriginException::class);
+		$this->service->getFromId(self::BOB);
+	}
+
+	public function testGetFromIdAcceptsLdJsonWithTheActivityStreamsProfile(): void {
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$this->curlService->method('retrieveObject')->willReturn([
+			'_host' => 'remote.example',
+			'_contentType' => 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+		]);
+		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
+
+		$this->assertSame(self::BOB, $this->service->getFromId(self::BOB)->getId());
+	}
+
 	public function testGetFromIdWrapsSaveFailures(): void {
 		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
-		$this->curlService->method('retrieveObject')->willReturn(['_host' => 'remote.example']);
+		$this->curlService->method('retrieveObject')->willReturn(self::ACTIVITY_JSON);
 		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
 		$this->personInterface->method('save')->willThrowException(new ItemAlreadyExistsException('dup'));
 
@@ -279,7 +328,7 @@ class CacheActorServiceTest extends TestCase {
 			->willReturnCallback(function (string $id) use (&$retrieved) {
 				$retrieved[] = $id;
 				if ($id === self::BOB) {
-					return ['_host' => 'remote.example'];
+					return self::ACTIVITY_JSON;
 				}
 				throw new RequestNetworkException('down');
 			});
@@ -308,7 +357,7 @@ class CacheActorServiceTest extends TestCase {
 					throw new RequestNetworkException('down');
 				}
 
-				return ['_host' => 'remote.example'];
+				return self::ACTIVITY_JSON;
 			}
 		);
 		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
@@ -344,7 +393,7 @@ class CacheActorServiceTest extends TestCase {
 
 	public function testAnActorThatCanBeFetchedAgainHasItsFailureCountCleared(): void {
 		$bob = $this->person(self::BOB);
-		$this->curlService->method('retrieveObject')->willReturn(['_host' => 'remote.example']);
+		$this->curlService->method('retrieveObject')->willReturn(self::ACTIVITY_JSON);
 		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
 		$this->cacheActorsRequest->expects($this->once())->method('recordSyncAttempt')
 			->with(self::BOB, true, self::NOW);
