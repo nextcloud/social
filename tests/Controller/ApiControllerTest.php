@@ -436,6 +436,9 @@ class ApiControllerTest extends TestCase {
 	/** @var array<string, mixed> what the viewer's `source` half answers */
 	private array $viewerSource = ['privacy' => 'public', 'follow_requests_count' => 2];
 
+	/** What the last timeline query read, when a test wants it to differ from the page. */
+	private ?int $timelineRows = null;
+
 	private function loggedInAs(string $uid = 'alice'): Person {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
@@ -509,6 +512,10 @@ class ApiControllerTest extends TestCase {
 
 				return $posts;
 			});
+		// how many rows the query read: the page itself, unless a test says the
+		// page lost a boost of a post already in it
+		$this->streamService->method('lastTimelineRowCount')
+			->willReturnCallback(fn (): int => $this->timelineRows ?? count($posts));
 
 		return function () use (&$captured): ProbeOptions {
 			$this->assertInstanceOf(ProbeOptions::class, $captured, 'getTimeline() was not called');
@@ -2919,6 +2926,24 @@ class ApiControllerTest extends TestCase {
 			$link
 		);
 		$this->assertStringContainsString('min_id=30>; rel="prev"', $link);
+	}
+
+	/**
+	 * A page that lost a boost of a post already in it is still a full page.
+	 * Deciding `rel="next"` from what was left of it stopped every client that
+	 * pages on the Link header — Mastodon's own web client, Elk, Phanpy —
+	 * one page in.
+	 */
+	public function testAPageThatDroppedADuplicateBoostStillOffersTheNextPage(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home');
+		// the query read twenty rows; one was a boost of a post also in the page
+		$this->timelineRows = 20;
+		$this->captureTimelineOptions($this->pageOfStreams(30, 12));
+
+		$link = $this->controller()->timelines('home', false, 20)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString('max_id=12>; rel="next"', $link);
 	}
 
 	public function testAPageShorterThanTheLimitHasNoNextLink(): void {

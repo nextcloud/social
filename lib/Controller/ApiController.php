@@ -2382,7 +2382,8 @@ class ApiController extends Controller {
 			return $this->tagged($this->paged(
 				$this->filterService->apply($posts, $this->filterContext($timeline), $this->viewer),
 				$options->getLimit(),
-				$posts
+				$posts,
+				$this->streamService->lastTimelineRowCount()
 			));
 		} catch (Throwable $e) {
 			$this->logger->error('[ApiController] Timeline request failed', [
@@ -4875,12 +4876,15 @@ class ApiController extends Controller {
 		return $collections;
 	}
 
-	private function paged(array $items, int $limit, ?array $page = null): DataResponse {
+	private function paged(array $items, int $limit, ?array $page = null, ?int $rows = null): DataResponse {
 		$response = new DataResponse($items, Http::STATUS_OK);
 
 		// what the query returned, which is what says whether there is more —
 		// $items may have been filtered since
 		$page ??= $items;
+		// and $page itself may be shorter than the rows the query read, where
+		// the page dropped a boost of a post already in it
+		$rows ??= count($page);
 
 		$ids = $this->pageIds($page);
 		if ($ids === []) {
@@ -4888,7 +4892,7 @@ class ApiController extends Controller {
 		}
 
 		$links = [];
-		if (count($page) >= $limit) {
+		if ($rows >= $limit) {
 			// the next page is older than everything here
 			$links[] = '<' . $this->pageUrl(['max_id' => (string)min($ids)]) . '>; rel="next"';
 		}

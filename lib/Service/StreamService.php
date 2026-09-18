@@ -46,6 +46,9 @@ class StreamService {
 	/** Who is reading, once somebody has said; null for an anonymous read. */
 	private ?Person $viewer = null;
 
+	/** How many rows the last `getTimeline()` read; see `lastTimelineRowCount()`. */
+	private int $lastTimelineRows = 0;
+
 	/** How far up a thread one context request walks; Mastodon's cap. */
 	private const ANCESTOR_LIMIT = 40;
 
@@ -590,9 +593,9 @@ class StreamService {
 	 * @return Note[]
 	 */
 	public function getTimeline(ProbeOptions $options): array {
-		$posts = $this->withoutRepeatsOfPostsAlreadyInThePage(
-			$this->streamRequest->getTimeline($options), $options
-		);
+		$rows = $this->streamRequest->getTimeline($options);
+		$this->lastTimelineRows = count($rows);
+		$posts = $this->withoutRepeatsOfPostsAlreadyInThePage($rows, $options);
 		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
 			// one query each for the whole page, and only for pages a client
 			// reads -- none of them is part of the wire object
@@ -710,6 +713,20 @@ class StreamService {
 		}
 
 		return $page;
+	}
+
+	/**
+	 * How many rows the last `getTimeline()` read, before the page lost any
+	 * boost of a post already in it.
+	 *
+	 * Whether a further page exists is a question about what the query
+	 * answered, not about what survived deduplication: a page of twenty that
+	 * dropped one boost is still a full page, and a `rel="next"` decided from
+	 * the nineteen left is no `rel="next"` at all — every client that pages on
+	 * the Link header stops at that page.
+	 */
+	public function lastTimelineRowCount(): int {
+		return $this->lastTimelineRows;
 	}
 
 	/**

@@ -840,6 +840,34 @@ class StreamServiceTest extends TestCase {
 	}
 
 	/**
+	 * Whether a further page exists is a question about what the query read,
+	 * not about what survived deduplication. A page of twenty that dropped one
+	 * boost came back as nineteen, and the caller — which decides `rel="next"`
+	 * from the page it is handed — stopped offering the next page, so every
+	 * client that follows the Link header stopped scrolling there.
+	 */
+	public function testThePageReportsHowManyRowsTheQueryRead(): void {
+		$note = $this->note('https://social.example/@alice/1');
+		$boost = $this->boostOf('https://social.example/@bob/boost/1', $note->getId());
+		$this->streamRequest->method('getTimeline')->willReturn([$boost, $note]);
+
+		$page = $this->service->getTimeline(new ProbeOptions());
+
+		$this->assertCount(1, $page);
+		$this->assertSame(2, $this->service->lastTimelineRowCount());
+	}
+
+	public function testTheRowCountIsOfTheLastPageRead(): void {
+		$this->streamRequest->method('getTimeline')->willReturn([]);
+
+		$this->assertSame(0, $this->service->lastTimelineRowCount(), 'nothing has been read yet');
+
+		$this->service->getTimeline(new ProbeOptions());
+
+		$this->assertSame(0, $this->service->lastTimelineRowCount());
+	}
+
+	/**
 	 * A favourite and a boost of the same post are two different things that
 	 * happened to you, so a page of notifications is left alone.
 	 */
