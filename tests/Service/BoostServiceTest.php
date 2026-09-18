@@ -58,6 +58,8 @@ class BoostServiceTest extends TestCase {
 	private const BOB_ID = 'https://remote.example/users/bob';
 	private const POST_ID = 'https://remote.example/notes/1';
 	private const ANNOUNCE_ID = 'https://social.example/@alice/777';
+	private const CAROL_ID = 'https://social.example/@carol';
+	private const CAROL_ANNOUNCE_ID = 'https://social.example/@carol/778';
 
 	private StreamRequest|MockObject $streamRequest;
 	private SignatureService|MockObject $signatureService;
@@ -167,10 +169,21 @@ class BoostServiceTest extends TestCase {
 		return $note;
 	}
 
-	private function storedAnnounce(): Announce {
+	private function storedAnnounce(string $attributedTo = self::ALICE_ID): Announce {
 		$announce = new Announce();
 		$announce->setId(self::ANNOUNCE_ID);
 		$announce->setActorId(self::ALICE_ID);
+		$announce->setAttributedTo($attributedTo);
+		$announce->setObjectId(self::POST_ID);
+
+		return $announce;
+	}
+
+	private function boostBy(string $attributedTo, string $id): Announce {
+		$announce = new Announce();
+		$announce->setId($id);
+		$announce->setActorId($attributedTo);
+		$announce->setAttributedTo($attributedTo);
 		$announce->setObjectId(self::POST_ID);
 
 		return $announce;
@@ -303,6 +316,32 @@ class BoostServiceTest extends TestCase {
 		$this->service->create($this->alice(), 'https://remote.example/notes/missing');
 	}
 
+	/**
+	 * Boosting twice made a second Announce row of the same post by the same
+	 * account, which then made `getStreamByObjectId()` ambiguous for good.
+	 */
+	public function testCreateRefusesASecondBoostByTheSameAccount(): void {
+		$this->streamRequest->method('getStreamById')->willReturn($this->publicNote());
+		$this->streamRequest->method('getStreamByObjectId')->willReturn($this->storedAnnounce());
+		$this->announceInterface->expects($this->never())->method('save');
+		$this->streamActionService->expects($this->never())->method('setActionBool');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->expectException(ItemAlreadyExistsException::class);
+		$this->service->create($this->alice(), self::POST_ID);
+	}
+
+	public function testCreateIsNotStoppedByAnotherAccountsBoostOfTheSamePost(): void {
+		$this->streamRequest->method('getStreamById')->willReturn($this->publicNote());
+		$this->streamRequest->method('getStreamByObjectId')->willReturn($this->boostBy(self::CAROL_ID, self::CAROL_ANNOUNCE_ID));
+		$this->streamRequest->method('getAnnouncesAndRepliesTo')->willReturn([]);
+		$this->cacheActorService->method('getFromId')->willReturn($this->bob());
+		$this->announceInterface->expects($this->once())->method('save');
+		$this->activityService->method('request')->willReturn('token');
+
+		$this->assertInstanceOf(Announce::class, $this->service->create($this->alice(), self::POST_ID));
+	}
+
 	public function testCreateDoesNotFlagOrFederateWhenTheBoostAlreadyExists(): void {
 		$this->streamRequest->method('getStreamById')->willReturn($this->publicNote());
 		$this->cacheActorService->method('getFromId')->willReturn($this->bob());
@@ -393,6 +432,48 @@ class BoostServiceTest extends TestCase {
 		$this->assertSame('untouched', $token);
 		$this->assertInstanceOf(Undo::class, $undo);
 		$this->assertSame('', $undo->getObjectId());
+	}
+
+	/**
+	 * With two local accounts boosting one post, the lookup by object and type
+	 * answered with whichever row came first: un-boosting deleted the other
+	 * account's Announce and federated an Undo naming it, signed by somebody
+	 * who never made it.
+	 */
+	public function testAnUnBoostNeverTouchesAnotherAccountsBoost(): void {
+		$this->streamRequest->method('getStreamById')->willReturn($this->publicNote());
+		$this->streamRequest->method('getStreamByObjectId')
+			->willReturn($this->boostBy(self::CAROL_ID, self::CAROL_ANNOUNCE_ID));
+		$this->streamRequest->method('getAnnouncesAndRepliesTo')->willReturn([]);
+		$this->cacheActorService->method('getFromId')->willReturn($this->bob());
+		$this->announceInterface->expects($this->never())->method('delete');
+		$this->streamRequest->expects($this->never())->method('deleteById');
+		$this->activityService->expects($this->never())->method('request');
+		$this->streamActionService->expects($this->once())
+			->method('setActionBool')
+			->with(self::ALICE_ID, self::POST_ID, StreamAction::BOOSTED, false);
+
+		$undo = $this->service->delete($this->alice(), self::POST_ID);
+
+		$this->assertSame('', $undo->getObjectId());
+	}
+
+	public function testAnUnBoostUndoesThisAccountsOwnBoostAmongSeveral(): void {
+		$mine = $this->storedAnnounce();
+		$this->streamRequest->method('getStreamById')->willReturn($this->publicNote());
+		$this->streamRequest->method('getStreamByObjectId')
+			->willReturn($this->boostBy(self::CAROL_ID, self::CAROL_ANNOUNCE_ID));
+		$this->streamRequest->method('getAnnouncesAndRepliesTo')
+			->with(self::POST_ID)
+			->willReturn([$this->boostBy(self::CAROL_ID, self::CAROL_ANNOUNCE_ID), $mine]);
+		$this->cacheActorService->method('getFromId')->willReturn($this->bob());
+		$this->announceInterface->expects($this->once())->method('delete')->with($this->identicalTo($mine));
+		$this->streamRequest->expects($this->once())->method('deleteById')->with(self::ANNOUNCE_ID, Announce::TYPE);
+		$this->activityService->method('request')->willReturn('token-undo');
+
+		$undo = $this->service->delete($this->alice(), self::POST_ID);
+
+		$this->assertSame(self::ANNOUNCE_ID, $undo->getObjectId());
 	}
 
 	public function testDeleteRefusesSomethingThatIsNotANote(): void {
