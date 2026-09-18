@@ -255,6 +255,9 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->andWhere($qb->expr()->eq('type', $qb->createNamedParameter(Follow::TYPE)));
 		$qb->andWhere($qb->expr()->eq('accepted', $qb->createNamedParameter('1')));
 		$qb->orderBy('creation', 'desc');
+		// the cap cuts the list, so the rows sharing the second it falls in
+		// need an order of their own for the page to be the same twice
+		$qb->addOrderBy('id_prim', 'desc');
 		$qb->setMaxResults($limit);
 
 		$rows = [];
@@ -352,6 +355,11 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
+		// `creation` is a DATETIME, so the follows made within one second of
+		// each other have no order of their own: with an offset page, one of
+		// them can come back on two consecutive pages while another is never
+		// returned at all. The primary key breaks the tie.
+		$qb->addOrderBy('f.id_prim', 'desc');
 
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
@@ -453,6 +461,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
+		$qb->addOrderBy('f.id_prim', 'desc');
 
 		return $this->getFollowsFromRequest($qb);
 	}
@@ -520,6 +529,9 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'object_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
+		// a second-resolution date is not a page order on its own; see
+		// getFollowersByActorId()
+		$qb->addOrderBy('f.id_prim', 'desc');
 
 		return $this->getFollowsFromRequest($qb);
 	}

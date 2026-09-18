@@ -133,6 +133,10 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
 		$qb->limitToType($type);
 		$qb->orderBy('a.creation', 'desc');
+		// `creation` is a DATETIME: the actions taken within one second of each
+		// other have no order of their own, and the cut above would keep a
+		// different one of them each time. The primary key breaks the tie.
+		$qb->addOrderBy('a.id_prim', 'desc');
 
 		return $this->getActionsFromRequest($qb);
 	}
@@ -153,6 +157,10 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$qb->limitToType($type);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$qb->orderBy('a.creation', 'desc');
+		// without this the likes made within one second of each other are in
+		// no particular order, and an offset page of `favourited_by` can show
+		// the same account twice while leaving another out entirely
+		$qb->addOrderBy('a.id_prim', 'desc');
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 			$qb->setFirstResult($offset);
