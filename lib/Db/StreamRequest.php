@@ -90,6 +90,15 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	private const HOME_REFILL_ROUNDS = 4;
 
+	/**
+	 * How much wider than the page a content search reads, and the ceiling on
+	 * that. The rows the `LIKE` returns are candidates -- see
+	 * `whoseTextCarries()` -- so a page read exactly to its limit would come
+	 * back mostly empty.
+	 */
+	private const SEARCH_OVERREAD = 5;
+	private const SEARCH_OVERREAD_MAX = 200;
+
 	/** Whether the recipient rows carry their post's nid yet; asked once per request. */
 	private ?bool $recipientNidsFilled = null;
 
@@ -517,6 +526,8 @@ class StreamRequest extends StreamRequestBuilder {
 			return [];
 		}
 
+		$window = min(self::SEARCH_OVERREAD_MAX, max($limit, $limit * self::SEARCH_OVERREAD));
+
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$qb->limitToStatusTypes();
 		$expr = $qb->expr();
@@ -529,7 +540,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->leftJoinStreamAction();
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->orderBy('s.published_time', 'desc');
-		$qb->setMaxResults($limit);
+		$qb->setMaxResults($window);
 
 		// The window is what keeps this from being a full scan. `content
 		// ILIKE '%term%'` cannot use an index — a leading wildcard never
@@ -552,7 +563,31 @@ class StreamRequest extends StreamRequestBuilder {
 			));
 		}
 
-		return $this->getStreamsFromRequest($qb);
+		return array_slice($this->whoseTextCarries($this->getStreamsFromRequest($qb), $term), 0, $limit);
+	}
+
+	/**
+	 * The posts whose *text* carries the term.
+	 *
+	 * `content` is stored as markup, so the `LIKE` above matches the markup as
+	 * well as the words: `span`, `href`, `class` and `http` each answered with
+	 * very nearly every post the instance holds, and a search for any of them
+	 * was a page of unrelated posts. The database cannot be asked to ignore
+	 * the tags without a column to search, so the rows it offers are
+	 * candidates and the flattened text decides which of them are answers.
+	 *
+	 * @param Stream[] $posts
+	 *
+	 * @return Stream[]
+	 */
+	private function whoseTextCarries(array $posts, string $term): array {
+		return array_values(array_filter($posts, static function (Stream $post) use ($term): bool {
+			$text = html_entity_decode(
+				ACore::withoutMarkup($post->getContent()), ENT_QUOTES | ENT_HTML5, 'UTF-8'
+			);
+
+			return mb_stripos($text, $term) !== false;
+		}));
 	}
 
 	/**
