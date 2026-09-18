@@ -234,7 +234,9 @@ describe('FollowButton', () => {
 	it('celebrates a follow the server took, with the ring the like button throws', async () => {
 		setRelationship(bob)
 		spyOnFollows((spy) => spy.mockImplementation(async () => {
-			accountStore.markAccountFollowed(bob.acct)
+			// what the store does once the server has answered: the
+			// relationship is read back rather than assumed
+			setRelationship(bob, { following: true })
 			return { data: {} }
 		}))
 		const wrapper = mountButton()
@@ -303,7 +305,9 @@ describe('FollowButton', () => {
 		setRelationship(bob)
 		const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true })
 		spyOnFollows((spy) => spy.mockImplementation(async () => {
-			accountStore.markAccountFollowed(bob.acct)
+			// what the store does once the server has answered: the
+			// relationship is read back rather than assumed
+			setRelationship(bob, { following: true })
 			return { data: {} }
 		}))
 		const wrapper = mountButton()
@@ -318,16 +322,20 @@ describe('FollowButton', () => {
 		expect(wrapper.find('button').classes()).not.toContain('follow-button--confirmed')
 	})
 
-	it('flips to the following state once the store records the follow', async () => {
+	it('follows the relationship the store holds', async () => {
 		setRelationship(bob)
 		const wrapper = mountButton()
 		expect(buttonTexts(wrapper)).toEqual(['Follow'])
 
-		accountStore.markAccountFollowed(bob.acct)
+		setRelationship(bob, { following: true })
 		await nextTick()
 		expect(buttonTexts(wrapper)).toEqual(['Following'])
 
-		accountStore.markAccountUnfollowed(bob.acct)
+		setRelationship(bob, { requested: true })
+		await nextTick()
+		expect(buttonTexts(wrapper)).toEqual(['Requested'])
+
+		setRelationship(bob)
 		await nextTick()
 		expect(buttonTexts(wrapper)).toEqual(['Follow'])
 	})
