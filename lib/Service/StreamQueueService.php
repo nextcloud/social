@@ -31,6 +31,8 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\Cache;
 use OCA\Social\Tools\Model\CacheItem;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Class StreamQueueService
@@ -60,6 +62,9 @@ class StreamQueueService {
 	public const DETAIL_ANCESTOR_DEPTH = 'ancestor_depth';
 	public const MAX_ANCESTOR_DEPTH = 8;
 
+	/** An item left `running` for longer than this was stranded by a dead drain. */
+	public const STALE_RUNNING_SECONDS = 3600;
+
 	public function __construct(
 		private StreamRequest $streamRequest,
 		private StreamQueueRequest $streamQueueRequest,
@@ -68,6 +73,7 @@ class StreamQueueService {
 		private CurlService $curlService,
 		private MiscService $miscService,
 		private LinkPreviewService $linkPreviewService,
+		private LoggerInterface $logger,
 	) {
 	}
 
@@ -129,6 +135,17 @@ class StreamQueueService {
 	}
 
 	/**
+	 * Resolves one queued item, whatever it costs.
+	 *
+	 * The item is marked `running` before the work starts, and only the
+	 * handlers below take it out of that state again. Anything they do not
+	 * catch — an ItemAlreadyExistsException from a parent that arrived
+	 * meanwhile, a database error, a misconfigured app — left the row
+	 * `running` for ever: unlike `social_request_queue` this table has a stale
+	 * reaper only since `reapStaleRunning()`, and nothing else ever looks at
+	 * a running row. It also took the rest of the batch with it, because the
+	 * loops that call this have no per-item handling of their own.
+	 *
 	 * @param StreamQueue $queue
 	 */
 	public function manageStreamQueue(StreamQueue $queue) {
@@ -138,19 +155,37 @@ class StreamQueueService {
 			return;
 		}
 
-		switch ($queue->getType()) {
-			case StreamQueue::TYPE_CACHE:
-				$this->manageStreamQueueCache($queue);
-				break;
+		try {
+			switch ($queue->getType()) {
+				case StreamQueue::TYPE_CACHE:
+					$this->manageStreamQueueCache($queue);
+					break;
 
-			case StreamQueue::TYPE_LINK_PREVIEW:
-				$this->manageStreamQueueLinkPreview($queue);
-				break;
+				case StreamQueue::TYPE_LINK_PREVIEW:
+					$this->manageStreamQueueLinkPreview($queue);
+					break;
 
-			default:
-				$this->deleteCache($queue);
-				break;
+				default:
+					$this->deleteCache($queue);
+					break;
+			}
+		} catch (Throwable $e) {
+			$this->logger->warning('could not resolve a queued item', [
+				'streamId' => $queue->getStreamId(),
+				'type' => $queue->getType(),
+				'exception' => $e,
+			]);
+			$this->endCache($queue, false);
 		}
+	}
+
+	/**
+	 * Return the items stuck `running` past the cutoff to standby.
+	 *
+	 * @return int the number of items re-queued
+	 */
+	public function reapStaleRunning(): int {
+		return $this->streamQueueRequest->resetStaleRunning(time() - self::STALE_RUNNING_SECONDS);
 	}
 
 	/**
@@ -189,14 +224,7 @@ class StreamQueueService {
 			return;
 		}
 
-		try {
-			if ($this->manageStreamCache($stream)) {
-				$this->endCache($queue, true);
-			} else {
-				$this->endCache($queue, false);
-			}
-		} catch (SocialAppConfigException $e) {
-		}
+		$this->endCache($queue, $this->manageStreamCache($stream));
 	}
 
 	/**

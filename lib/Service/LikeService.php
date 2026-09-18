@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -92,7 +93,7 @@ class LikeService {
 
 		$like->setObjectId($note->getId());
 		$like->setTo($note->getAttributedTo());
-		$this->assignInstance($like, $actor, $note);
+		$this->assignInstance($like, $note);
 
 		$this->logger->info('LikeService::create - instance paths', [
 			'paths' => array_map(function ($p) {
@@ -135,7 +136,18 @@ class LikeService {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
-		$this->assignInstance($undo, $actor, $note);
+		try {
+			$this->assignInstance($undo, $note);
+		} catch (Exception $e) {
+			// the Undo has nowhere to go, but the like still has to come off
+			// this instance — the author simply keeps theirs
+			$this->logger->error('cannot federate the Undo of a Like', [
+				'attributedTo' => $note->getAttributedTo(),
+				'postId' => $postId,
+				'exception' => $e,
+			]);
+		}
+
 		try {
 			$tmp = AP::instance()->getItemFromType(Like::TYPE);
 			$tmp->setActor($actor);
@@ -163,39 +175,27 @@ class LikeService {
 	}
 
 	/**
-	 * @param ACore $item
-	 * @param Person $actor
-	 * @param Stream $note
+	 * Addresses a Like, or its Undo, at the inbox of the post's author.
+	 *
+	 * An author whose actor cannot be resolved used to be addressed by their
+	 * actor URL instead. That is not an inbox: the peer answers 4xx, the queue
+	 * row is deleted as permanently rejected, and the like is lost without a
+	 * word to anybody. There is nowhere to send it, so say so.
+	 *
+	 * @throws InvalidResourceException when the author publishes no inbox
+	 * @throws Exception when the author's actor cannot be resolved at all
 	 */
-	private function assignInstance(ACore $item, Person $actor, Stream $note) {
-		$this->logger->info('LikeService::assignInstance - start', [
-			'attributedTo' => $note->getAttributedTo(),
-			'actorId' => $actor->getId(),
-		]);
-
-		try {
-			$target = $this->cacheActorService->getFromId($note->getAttributedTo());
-			$this->logger->info('LikeService::assignInstance - target resolved', [
-				'targetId' => $target->getId(),
-				'targetInbox' => $target->getInbox(),
-				'targetIsLocal' => $target->isLocal(),
-			]);
-			$item->addInstancePath(
-				new InstancePath(
-					$target->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
-				)
-			);
-		} catch (Exception $e) {
-			$this->logger->warning('Could not resolve actor inbox for Like federation', [
-				'attributedTo' => $note->getAttributedTo(),
-				'exception' => get_class($e),
-				'message' => $e->getMessage(),
-			]);
-			$item->addInstancePath(
-				new InstancePath(
-					$note->getAttributedTo(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
-				)
+	private function assignInstance(ACore $item, Stream $note): void {
+		$target = $this->cacheActorService->getFromId($note->getAttributedTo());
+		$inbox = $target->getInbox();
+		if ($inbox === '') {
+			throw new InvalidResourceException(
+				'the author of ' . $note->getId() . ' publishes no inbox'
 			);
 		}
+
+		$item->addInstancePath(
+			new InstancePath($inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW)
+		);
 	}
 }

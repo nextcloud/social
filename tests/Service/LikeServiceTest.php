@@ -14,6 +14,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -196,17 +197,50 @@ class LikeServiceTest extends TestCase {
 		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[0]->getPriority());
 	}
 
-	public function testCreateFallsBackToAuthorIdWhenActorCannotBeResolved(): void {
+	/**
+	 * The author's actor URL was queued as if it were their inbox: the peer
+	 * answers 4xx, the row is deleted as permanently rejected, and the like is
+	 * lost without a word. There is nowhere to send it, so it fails here.
+	 */
+	public function testCreateFailsLoudlyWhenTheAuthorsActorCannotBeResolved(): void {
 		$this->streamService->method('getStreamById')->willReturn($this->note());
 		$this->cacheActorService->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
-		$this->activityService->method('request')->willReturn('token');
+		$this->likeInterface->expects($this->never())->method('save');
+		$this->streamActionService->expects($this->never())->method('setActionBool');
+		$this->activityService->expects($this->never())->method('request');
 
-		$like = $this->service->create($this->alice(), self::POST_ID);
+		$this->expectException(CacheActorDoesNotExistException::class);
+		$this->service->create($this->alice(), self::POST_ID);
+	}
 
-		$paths = $like->getInstancePaths();
-		$this->assertCount(1, $paths);
-		$this->assertSame(self::BOB_ID, $paths[0]->getUri());
-		$this->assertSame(InstancePath::TYPE_INBOX, $paths[0]->getType());
+	public function testCreateFailsLoudlyWhenTheAuthorPublishesNoInbox(): void {
+		$bob = new Person();
+		$bob->setId(self::BOB_ID);
+		$this->streamService->method('getStreamById')->willReturn($this->note());
+		$this->cacheActorService->method('getFromId')->willReturn($bob);
+		$this->likeInterface->expects($this->never())->method('save');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->expectException(InvalidResourceException::class);
+		$this->service->create($this->alice(), self::POST_ID);
+	}
+
+	/**
+	 * The un-like still has to happen here, whatever the author's server
+	 * publishes; only the Undo cannot go out.
+	 */
+	public function testDeleteStillRemovesTheLikeLocallyWhenTheAuthorCannotBeResolved(): void {
+		$this->streamService->method('getStreamById')->willReturn($this->note());
+		$this->cacheActorService->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$this->likeInterface->method('getItem')->willReturn($this->existingLike());
+		$this->likeInterface->expects($this->once())->method('delete');
+		$this->streamActionService->expects($this->once())
+			->method('setActionBool')
+			->with(self::ALICE_ID, self::POST_ID, StreamAction::LIKED, false);
+
+		$undo = $this->service->delete($this->alice(), self::POST_ID);
+
+		$this->assertSame([], $undo->getInstancePaths());
 	}
 
 	public function testCreateRefusesToLikeSomethingThatIsNotANote(): void {

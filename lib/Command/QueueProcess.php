@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -17,6 +16,7 @@ use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\StreamQueueService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 class QueueProcess extends SocialCommand {
 	private RequestQueueService $requestQueueService;
@@ -82,7 +82,16 @@ class QueueProcess extends SocialCommand {
 			$output->write('.');
 			try {
 				$this->activityService->manageRequest($request);
-			} catch (SocialAppConfigException $e) {
+			} catch (Throwable $e) {
+				// the row was marked `running` before the attempt: left that
+				// way it is never retried, never counted against MAX_TRIES and
+				// only freed by the stale reaper an hour later
+				$output->write('E');
+				$this->miscService->log(
+					'could not deliver ' . $request->getToken() . ': ' . get_class($e) . ' '
+					. $e->getMessage(), 2
+				);
+				$this->requestQueueService->endRequest($request, false);
 			}
 		}
 
@@ -90,6 +99,10 @@ class QueueProcess extends SocialCommand {
 	}
 
 	private function processStreamQueue(OutputInterface $output) {
+		// an item whose drain died mid-resolution stays `running`, and nothing
+		// but this ever looks at a running row again
+		$this->streamQueueService->reapStaleRunning();
+
 		$total = 0;
 		$items = $this->streamQueueService->getRequestStandby($total);
 
@@ -105,7 +118,15 @@ class QueueProcess extends SocialCommand {
 
 		foreach ($items as $item) {
 			$output->write('.');
-			$this->streamQueueService->manageStreamQueue($item);
+			try {
+				$this->streamQueueService->manageStreamQueue($item);
+			} catch (Throwable $e) {
+				$output->write('E');
+				$this->miscService->log(
+					'could not resolve ' . $item->getStreamId() . ': ' . get_class($e) . ' '
+					. $e->getMessage(), 2
+				);
+			}
 		}
 
 		$output->writeLn('done');

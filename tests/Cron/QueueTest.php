@@ -77,9 +77,11 @@ class QueueTest extends TestCase {
 		$this->activityService->expects($this->once())->method('manageInit');
 		$managed = [];
 		$this->activityService->expects($this->exactly(2))->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$managed): void {
+			->willReturnCallback(function (RequestQueue $request) use (&$managed): bool {
 				$this->assertSame(ActivityService::TIMEOUT_SERVICE, $request->getTimeout());
 				$managed[] = $request->getToken();
+
+				return true;
 			});
 
 		$this->job->start($this->jobList);
@@ -102,11 +104,13 @@ class QueueTest extends TestCase {
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
 		$this->activityService->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): void {
+			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
 				if ($request->getToken() === 'bad') {
 					throw new SignatureException('cannot sign: the private key is empty');
 				}
 				$sent[] = $request->getToken();
+
+				return true;
 			});
 
 		// and the row goes back to standby, so it is retried and eventually
@@ -138,11 +142,13 @@ class QueueTest extends TestCase {
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
 		$this->activityService->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): void {
+			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
 				if ($request->getToken() === 'bad') {
 					throw new \RuntimeException('boom');
 				}
 				$sent[] = $request->getToken();
+
+				return true;
 			});
 		$this->requestQueueService->method('endRequest')
 			->willThrowException(new \RuntimeException('the database is gone'));
@@ -161,11 +167,13 @@ class QueueTest extends TestCase {
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
 		$this->activityService->expects($this->exactly(2))->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): void {
+			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
 				if ($request->getToken() === 'bad') {
 					throw new SocialAppConfigException();
 				}
 				$sent[] = $request->getToken();
+
+				return true;
 			});
 
 		// the catch used to be empty: a misconfigured app dropped every
@@ -197,6 +205,39 @@ class QueueTest extends TestCase {
 		$this->job->start($this->jobList);
 
 		$this->assertSame($items, $processed);
+	}
+
+	/**
+	 * The loop had no per-item handling at all, so one item that threw ended
+	 * the whole pass — with its own row left `running`, where until now
+	 * nothing ever looked at it again.
+	 */
+	public function testAStreamItemThatThrowsCostsOnlyThatItem(): void {
+		$bad = new StreamQueue('tok', StreamQueue::TYPE_CACHE, 'bad');
+		$good = new StreamQueue('tok', StreamQueue::TYPE_CACHE, 'good');
+		$this->requestQueueService->method('getRequestStandby')->willReturn([]);
+		$this->streamQueueService->method('getRequestStandby')->willReturn([$bad, $good]);
+		$resolved = [];
+		$this->streamQueueService->method('manageStreamQueue')
+			->willReturnCallback(function (StreamQueue $item) use (&$resolved): void {
+				if ($item->getStreamId() === 'bad') {
+					throw new \RuntimeException('boom');
+				}
+				$resolved[] = $item->getStreamId();
+			});
+		$this->logger->expects($this->once())->method('warning');
+
+		$this->job->start($this->jobList);
+
+		$this->assertSame(['good'], $resolved);
+	}
+
+	public function testStrandedRunningStreamItemsAreReapedBeforeTheBatch(): void {
+		$this->requestQueueService->method('getRequestStandby')->willReturn([]);
+		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
+		$this->streamQueueService->expects($this->once())->method('reapStaleRunning');
+
+		$this->job->start($this->jobList);
 	}
 
 	public function testRunIsSkippedWhenTheLastRunIsTooRecent(): void {

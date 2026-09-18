@@ -26,17 +26,61 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	/** How many standby requests a single cron pass hydrates. */
 	public const STANDBY_BATCH = 200;
 
+	/** How many rows one fan-out transaction writes before committing. */
+	public const INSERT_CHUNK = 500;
+
 	/**
-	 * Create a new Queue in the database.
+	 * Writes the whole fan-out of one activity.
+	 *
+	 * One INSERT per inbox, each its own round trip and its own commit, was
+	 * done in the web request that made the post: a local account followed
+	 * from twenty thousand instances paid twenty thousand sequential
+	 * round trips before `createPost()` returned. The statement is prepared
+	 * once and the rows are committed in chunks instead.
 	 *
 	 * @param RequestQueue[] $queues
 	 *
 	 * @throws Exception
 	 */
 	public function multiple(array $queues): void {
-		foreach ($queues as $queue) {
-			$this->create($queue);
+		if ($queues === []) {
+			return;
 		}
+
+		$qb = $this->getRequestQueueInsertSql();
+		foreach ([
+			'token', 'author', 'author_prim', 'activity', 'object_id_prim', 'instance',
+			'priority', 'status', 'tries',
+		] as $field) {
+			$qb->setValue($field, $qb->createParameter($field));
+		}
+
+		foreach (array_chunk($queues, self::INSERT_CHUNK) as $chunk) {
+			$this->dbConnection->beginTransaction();
+			try {
+				foreach ($chunk as $queue) {
+					$this->bindQueue($qb, $queue);
+					$qb->executeStatement();
+				}
+				$this->dbConnection->commit();
+			} catch (\Throwable $e) {
+				$this->dbConnection->rollBack();
+
+				throw $e;
+			}
+		}
+	}
+
+	private function bindQueue(SocialQueryBuilder $qb, RequestQueue $queue): void {
+		$qb->setParameter('token', $queue->getToken());
+		$qb->setParameter('author', $queue->getAuthor());
+		$qb->setParameter('author_prim', $qb->prim($queue->getAuthor()));
+		$qb->setParameter('activity', $queue->getActivity());
+		$qb->setParameter('object_id_prim', $queue->getObjectIdPrim());
+		$qb->setParameter('instance', json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES));
+		$qb->setParameter('priority', $queue->getPriority(), IQueryBuilder::PARAM_INT);
+		$qb->setParameter('status', $queue->getStatus(), IQueryBuilder::PARAM_INT);
+		$qb->setParameter('tries', $queue->getTries(), IQueryBuilder::PARAM_INT);
 	}
 
 	/**
@@ -295,6 +339,32 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		}
 
 		$queue->setStatus(RequestQueue::STATUS_STANDBY);
+	}
+
+	/**
+	 * Moves a standby request out of the due window until `$until`.
+	 *
+	 * `last` is what the retry schedule is measured from, so a timestamp in
+	 * the future both holds the row back (`limitToQueueDue()`) and sorts it
+	 * behind everything that is due (`getStandby()`), without spending one of
+	 * its tries on an attempt that was never made.
+	 *
+	 * @throws QueueStatusException when the row was not on standby any more
+	 * @throws Exception
+	 */
+	public function postpone(RequestQueue &$queue, int $until): void {
+		$qb = $this->getRequestQueueUpdateSql();
+		$qb->set('last', $qb->createNamedParameter(
+			new DateTime('@' . $until), IQueryBuilder::PARAM_DATE
+		));
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(RequestQueue::STATUS_STANDBY);
+
+		if ($qb->executeStatement() === 0) {
+			throw new QueueStatusException();
+		}
+
+		$queue->setLast($until);
 	}
 
 	/**

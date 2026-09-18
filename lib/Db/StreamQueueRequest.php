@@ -164,6 +164,30 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	}
 
 	/**
+	 * Return every item stuck `running` since before $before to standby.
+	 *
+	 * A drain that died mid-item — or one whose item threw where nothing
+	 * caught it — left the row `running`, and `getStandby()` only ever looks
+	 * at standby rows: the item was never retried, never counted against
+	 * MAX_TRIES and never removed, so the parent it was fetching never
+	 * arrived. The outbound queue has had this since it had the same problem.
+	 *
+	 * @return int the number of items re-queued
+	 */
+	public function resetStaleRunning(int $before): int {
+		$qb = $this->getStreamQueueUpdateSql();
+		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_STANDBY));
+		$qb->limitToStatus(StreamQueue::STATUS_RUNNING);
+		$qb->andWhere(
+			$qb->expr()->lt('last', $qb->createNamedParameter(
+				new DateTime('@' . $before), IQueryBuilder::PARAM_DATE
+			))
+		);
+
+		return $qb->executeStatement();
+	}
+
+	/**
 	 * Drops the items that have exhausted their retries — kept out of
 	 * getStandby() by the same threshold, so nothing else would ever remove
 	 * them.

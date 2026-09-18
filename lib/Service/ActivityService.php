@@ -74,6 +74,9 @@ class ActivityService {
 	/** The hosts this pass has already found to be failing. */
 	private ?array $failInstances = null;
 
+	/** The hostnames this instance answers to; see `localHosts()`. */
+	private ?array $localHosts = null;
+
 	/** Shared across every process that delivers; see the constants above. */
 	private ICache $breaker;
 
@@ -113,12 +116,7 @@ class ActivityService {
 		$activity->setObject($item);
 		$activity->setId($item->getId() . '/activity');
 		$activity->setInstancePaths($item->getInstancePaths());
-
-		//		if ($item->getToArray() !== []) {
-		//			$activity->setToArray($item->getToArray());
-		//		} else {
-		//			$activity->setTo($item->getTo());
-		//		}
+		$this->copyAudience($item, $activity);
 
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);
@@ -144,6 +142,7 @@ class ActivityService {
 		$update->setObject($item);
 		$update->setId($item->getId() . '/activity#update');
 		$update->setInstancePaths($item->getInstancePaths());
+		$this->copyAudience($item, $update);
 
 		$update->setActor($actor);
 		$this->signatureService->signObject($actor, $update);
@@ -167,6 +166,9 @@ class ActivityService {
 
 		$delete->setObject($tombstone);
 		$delete->addInstancePaths($item->getInstancePaths());
+		// from the post, not from the Tombstone that replaces it: a Tombstone
+		// names nobody
+		$this->copyAudience($item, $delete);
 
 		// A recipient may only pass an activity on (AP §7.1.2) if it carries the
 		// author's own signature over the document. Unsigned, a Delete of a
@@ -185,6 +187,20 @@ class ActivityService {
 		}
 
 		return $this->request($delete);
+	}
+
+	/**
+	 * Addresses an activity the way the object it carries is addressed.
+	 *
+	 * An activity has an audience of its own (AP §6), and a Create, Update or
+	 * Delete that names nobody is one every reader has to open the object to
+	 * place — including this server, whose relay fan-out asks the activity
+	 * whether it is public.
+	 */
+	private function copyAudience(ACore $item, ACore $activity): void {
+		$activity->setTo($item->getTo());
+		$activity->setToArray($item->getToArray());
+		$activity->setCcArray($item->getCcArray());
 	}
 
 	/**
@@ -231,7 +247,7 @@ class ActivityService {
 		try {
 			$directRequest = $this->requestQueueService->getPriorityRequest($token);
 			$directRequest->setTimeout(self::TIMEOUT_LIVE);
-			$this->manageRequest($directRequest);
+			$this->manageRequest($directRequest, true);
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
 			return $token;
@@ -250,24 +266,32 @@ class ActivityService {
 	}
 
 	/**
-	 * Whether this host has failed recently enough to be worth skipping.
+	 * When this host is worth asking again, or 0 when it is worth asking now.
 	 *
 	 * Asked before a delivery is attempted rather than after it times out,
 	 * which is the whole saving: a row addressed to a dead instance costs a
-	 * cache read instead of thirty seconds.
+	 * cache read instead of thirty seconds. The answer is a timestamp rather
+	 * than a yes/no because the rows addressed to the host have to be held
+	 * back until then — see `manageRequest()`.
 	 */
-	private function isCircuitOpen(string $host): bool {
+	private function circuitOpenUntil(string $host): int {
 		if (in_array($host, $this->failInstances ?? [], true)) {
-			return true;
+			return time() + self::BREAKER_BASE;
 		}
 
 		try {
-			return $this->breaker->get('open:' . $host) !== null;
+			$until = $this->breaker->get('open:' . $host);
 		} catch (\Throwable $e) {
 			// no distributed cache configured, or it is unreachable: fall back
 			// to the per-pass list, which is what this was before
-			return false;
+			return 0;
 		}
+
+		if ($until === null) {
+			return 0;
+		}
+
+		return max((int)$until, time() + 1);
 	}
 
 	/**
@@ -283,7 +307,7 @@ class ActivityService {
 		try {
 			$strikes = (int)($this->breaker->get('strikes:' . $host) ?? 0) + 1;
 			$for = min(self::BREAKER_MAX, self::BREAKER_BASE * (int)(2 ** min(6, $strikes - 1)));
-			$this->breaker->set('open:' . $host, 1, $for);
+			$this->breaker->set('open:' . $host, time() + $for, $for);
 			$this->breaker->set('strikes:' . $host, $strikes, self::BREAKER_MAX);
 		} catch (\Throwable $e) {
 			// the per-pass list above is the fallback
@@ -314,15 +338,32 @@ class ActivityService {
 	}
 
 	/**
-	 * @param RequestQueue $queue
+	 * Delivers one queued request, unless its host is being left alone.
+	 *
+	 * @param bool $live whether this is the inline delivery inside the web
+	 *                   request, which runs on a three-second timeout
+	 *
+	 * @return bool whether the row was actually attempted. A caller that
+	 *              drains in a loop counts attempts, not rows: a batch of rows
+	 *              whose hosts all have an open breaker is skipped in
+	 *              milliseconds, and counting those as work is what made
+	 *              `social:worker` spin without ever sleeping.
 	 *
 	 * @throws SocialAppConfigException
 	 */
-	public function manageRequest(RequestQueue $queue) {
+	public function manageRequest(RequestQueue $queue, bool $live = false): bool {
 		$host = $queue->getInstance()
 			->getAddress();
-		if ($this->isCircuitOpen($host)) {
-			return;
+		$openUntil = $this->circuitOpenUntil($host);
+		if ($openUntil > 0) {
+			// held back until the breaker closes. A skipped row keeps `tries =
+			// 0` and its old `last`, which sorts it ahead of every row ever
+			// attempted and every newer row: a few hundred of them to dead
+			// instances filled the whole 200-row window on every pass and
+			// nothing else was ever fetched.
+			$this->requestQueueService->postponeRequest($queue, $openUntil);
+
+			return false;
 		}
 
 		try {
@@ -332,7 +373,7 @@ class ActivityService {
 				'exception' => $e,
 			]);
 
-			return;
+			return false;
 		}
 
 		$url = $queue->getInstance()->getUri();
@@ -347,7 +388,15 @@ class ActivityService {
 			);
 			$this->closeCircuit($host);
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (UnauthorizedFediverseException|RequestResultNotJsonException $e) {
+		} catch (UnauthorizedFediverseException $e) {
+			// nothing was sent: the domain is not one this instance federates
+			// with. Kept as delivered, it told the author their post had
+			// reached a server it was never offered to.
+			$this->logger->notice(
+				'Delivery refused by the instance policy, dropping the request: ' . $url
+			);
+			$this->requestQueueService->deleteRequest($queue);
+		} catch (RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
 		} catch (RequestContentException $e) {
 			// The peer answered, but not with a 2xx. Whether that is worth
@@ -360,9 +409,9 @@ class ActivityService {
 					. $url . ' - ' . $e->getMessage()
 				);
 				$this->requestQueueService->endRequest($queue, false);
-				$this->openCircuit($host);
+				$this->holdHost($host, $live);
 
-				return;
+				return true;
 			}
 
 			$this->logger->notice(
@@ -382,8 +431,27 @@ class ActivityService {
 				. ' - ' . get_class($e) . ': ' . $e->getMessage()
 			);
 			$this->requestQueueService->endRequest($queue, false);
-			$this->openCircuit($host);
+			$this->holdHost($host, $live);
 		}
+
+		return true;
+	}
+
+	/**
+	 * Leaves a host alone after a failed delivery — unless it was the live one.
+	 *
+	 * The inline delivery has three seconds; the cron, the async drain and
+	 * `social:worker` have ten to thirty. A large but healthy peer that needs
+	 * four seconds under load fails only the live attempt, and holding the host
+	 * on the strength of that put every other path off it too — for up to an
+	 * hour, of which only a success anywhere clears the strike.
+	 */
+	private function holdHost(string $host, bool $live): void {
+		if ($live) {
+			return;
+		}
+
+		$this->openCircuit($host);
 	}
 
 	/** // ====> instanceService
@@ -435,7 +503,7 @@ class ActivityService {
 	 * @return InstancePath[]
 	 */
 	private function relayPaths(ACore $activity): array {
-		if (!$activity->isPublic() || !$this->isLocalAuthor($this->getAuthorFromItem($activity))) {
+		if (!$this->isPublicActivity($activity) || !$this->isLocalAuthor($this->getAuthorFromItem($activity))) {
 			return [];
 		}
 
@@ -445,6 +513,21 @@ class ActivityService {
 		}
 
 		return $paths;
+	}
+
+	/**
+	 * Whether an activity is addressed to the public collection.
+	 *
+	 * The object decides where the activity itself names nobody: an activity
+	 * built elsewhere — a forwarded document, an `Announce` of somebody else's
+	 * post — is not guaranteed to carry the audience of what it wraps.
+	 */
+	private function isPublicActivity(ACore $activity): bool {
+		if ($activity->isPublic()) {
+			return true;
+		}
+
+		return $activity->hasObject() && $activity->getObject()->isPublic();
 	}
 
 	/** Whether an actor id is one this server hosts. */
@@ -474,14 +557,47 @@ class ActivityService {
 	 * times and is dropped, while remote instances queue up behind it.
 	 */
 	private function isOurs(InstancePath $instancePath): bool {
-		try {
-			$local = strtolower($this->configService->getCloudHost());
-		} catch (SocialAppConfigException $e) {
-			// nothing configured to compare against; send it and find out
-			return false;
+		$host = strtolower($instancePath->getAddress());
+
+		return $host !== '' && in_array($host, $this->localHosts(), true);
+	}
+
+	/**
+	 * The hostnames this instance answers to.
+	 *
+	 * Two settings name this server and they are not the same one. The cloud
+	 * address is what `getCloudHost()` reads and what an administrator sets;
+	 * the social URL is what every local id and inbox is generated from
+	 * (`ConfigService::generateId()`), and it is taken from the web root. They
+	 * agree when the app configures itself, but the cloud address can be set
+	 * by hand to a different host — and then every inbox this server would be
+	 * posting to itself is on the *other* one, which the check missed.
+	 *
+	 * @return string[] lowercased, empty when nothing is configured
+	 */
+	private function localHosts(): array {
+		if ($this->localHosts !== null) {
+			return $this->localHosts;
 		}
 
-		return $local !== '' && strtolower($instancePath->getAddress()) === $local;
+		$hosts = [];
+		try {
+			$hosts[] = $this->configService->getCloudHost();
+		} catch (SocialAppConfigException $e) {
+			// nothing configured to compare against; send it and find out
+		}
+
+		try {
+			$hosts[] = parse_url($this->configService->getSocialUrl(), PHP_URL_HOST);
+		} catch (SocialAppConfigException $e) {
+		}
+
+		$this->localHosts = array_values(array_unique(array_map(
+			static fn (string $host): string => strtolower($host),
+			array_filter($hosts, static fn ($host): bool => is_string($host) && $host !== '')
+		)));
+
+		return $this->localHosts;
 	}
 
 	/**

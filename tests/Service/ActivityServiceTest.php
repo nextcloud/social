@@ -448,6 +448,104 @@ class ActivityServiceTest extends TestCase {
 	}
 
 	/**
+	 * What a relay is subscribed for is the posts, and a post goes out wrapped
+	 * in a Create: the activity carries the audience of the note it wraps, so
+	 * the gate that reads it can tell a public post from a private one.
+	 */
+	public function testAPublicPostWrappedInACreateAlsoGoesToEveryAcceptedRelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+		$note->addCc(self::ALICE_ID . '/followers');
+
+		$activity = null;
+		$this->service->createActivity($this->alice(), $note, $activity);
+
+		$this->assertSame(ACore::CONTEXT_PUBLIC, $activity->getTo());
+		$this->assertSame([self::ALICE_ID . '/followers'], $activity->getCcArray());
+		$this->assertContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	public function testAFollowersOnlyPostWrappedInACreateNeverReachesARelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setTo(self::ALICE_ID . '/followers');
+
+		$this->service->createActivity($this->alice(), $note);
+
+		$this->assertNotContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	public function testAnUpdateOfAPublicPostAlsoGoesToEveryAcceptedRelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+
+		$this->service->updateActivity($this->alice(), $note);
+
+		$this->assertContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	/**
+	 * A relay that was told about the post has to be told it is gone; the
+	 * Tombstone that replaces the post names nobody, so the Delete is
+	 * addressed from the post itself.
+	 */
+	public function testADeleteOfAPublicPostAlsoGoesToEveryAcceptedRelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+		$this->actorsRequest->method('getFromId')->willReturn($this->alice());
+
+		$this->service->deleteActivity($note);
+
+		$this->assertContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	public function testADeleteOfADirectMessageNeverReachesARelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
+		$note->setToArray(['https://remote.example/users/bob']);
+		$this->actorsRequest->method('getFromId')->willReturn($this->alice());
+
+		$this->service->deleteActivity($note);
+
+		$this->assertNotContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	/**
 	 * The fan-out asks the database for the distinct inboxes instead of
 	 * hydrating every follower into a Follow with a Person and its details just
 	 * to read one string off each: the number of inboxes involved is the number
@@ -511,6 +609,34 @@ class ActivityServiceTest extends TestCase {
 
 		// carol already has it: recipients are written into stream_dest when the
 		// item is saved, and the round trip would hand us back our own writing
+		$this->assertSame(['https://remote.example/inbox'], array_map(
+			fn (InstancePath $path): string => $path->getUri(), $paths
+		));
+	}
+
+	/**
+	 * Local ids and inboxes are generated from the social URL, while the
+	 * self-delivery filter read the *cloud* address: an administrator who sets
+	 * a cloud address on another host left the server posting its own
+	 * activities back to itself, which behind a reverse proxy or an SSRF guard
+	 * it cannot do — fifteen failures and a drop, with the remote deliveries
+	 * queued behind them.
+	 */
+	public function testAnInboxOnTheSocialUrlHostIsOursEvenWhenTheCloudAddressDiffers(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/apps/social/');
+		$paths = [];
+		$this->capturePaths($paths);
+		$this->followsRequest->method('getFollowerInboxes')->willReturn([
+			'https://social.example/apps/social/@carol/inbox',
+			'https://remote.example/inbox',
+		]);
+
+		$note = new Note();
+		$note->setActorId(self::ALICE_ID);
+		$note->addInstancePath(new InstancePath(self::ALICE_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW));
+
+		$this->service->request($note);
+
 		$this->assertSame(['https://remote.example/inbox'], array_map(
 			fn (InstancePath $path): string => $path->getUri(), $paths
 		));
@@ -733,22 +859,27 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame($expectedMethod, $sent);
 	}
 
-	/**
-	 * @return array<string, array{\Exception}>
-	 */
-	public static function deliveredButNoJsonProvider(): array {
-		return [
-			'non-json answer' => [new RequestResultNotJsonException()],
-			'instance not authorized' => [new UnauthorizedFediverseException()],
-		];
-	}
-
-	#[DataProvider('deliveredButNoJsonProvider')]
-	public function testManageRequestTreatsNonJsonAnswersAsDelivered(\Exception $e): void {
+	/** An inbox that answers 202 with an empty body has taken the activity. */
+	public function testManageRequestTreatsNonJsonAnswersAsDelivered(): void {
 		$queue = $this->queue();
-		$this->curlService->method('retrieveJson')->willThrowException($e);
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestResultNotJsonException());
 		$this->requestQueueService->expects($this->once())->method('endRequest')->with($this->identicalTo($queue), true);
 		$this->requestQueueService->expects($this->never())->method('deleteRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($queue);
+	}
+
+	/**
+	 * Nothing left this server: the domain is not one it federates with. Kept
+	 * as a success, the row told the author their post had reached a server it
+	 * was never offered to.
+	 */
+	public function testADeliveryBlockedByTheInstancePolicyIsNotRecordedAsDelivered(): void {
+		$queue = $this->queue();
+		$this->curlService->method('retrieveJson')->willThrowException(new UnauthorizedFediverseException());
+		$this->requestQueueService->expects($this->never())->method('endRequest');
+		$this->requestQueueService->expects($this->once())->method('deleteRequest')->with($this->identicalTo($queue));
 
 		$this->service->manageInit();
 		$this->service->manageRequest($queue);
@@ -897,6 +1028,48 @@ class ActivityServiceTest extends TestCase {
 
 		$this->assertSame([self::BOB_INBOX, 'https://other.example/inbox'], $inits);
 		$this->assertSame([[self::BOB_INBOX, false], ['https://other.example/inbox', true]], $ended);
+	}
+
+	/**
+	 * A skipped row keeps `tries = 0` and its old `last`, so it sorts ahead of
+	 * every row ever attempted and every row queued since: a few hundred of
+	 * them to instances that are gone filled the whole 200-row window on every
+	 * pass, and nothing else was ever delivered. It is held back instead,
+	 * until the host is worth asking again.
+	 */
+	public function testARowSkippedForAFailingHostIsHeldBackAndReportsNoAttempt(): void {
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+
+		$this->service->manageInit();
+		$this->assertTrue($this->service->manageRequest($this->queue()));
+
+		$skipped = $this->queue();
+		$postponed = [];
+		$this->requestQueueService->expects($this->once())
+			->method('postponeRequest')
+			->willReturnCallback(function (RequestQueue $queue, int $until) use (&$postponed): void {
+				$postponed[] = [$queue->getInstance()->getUri(), $until];
+			});
+
+		$this->assertFalse($this->service->manageRequest($skipped));
+		$this->assertSame(self::BOB_INBOX, $postponed[0][0]);
+		$this->assertGreaterThan(time(), $postponed[0][1]);
+	}
+
+	/**
+	 * The inline delivery has three seconds where every other path has ten to
+	 * thirty, so a large but healthy peer fails it and would succeed
+	 * everywhere else. Holding the whole host on the strength of that put the
+	 * cron, the async drain and the worker off it too, for up to an hour.
+	 */
+	public function testALiveDeliveryThatTimesOutDoesNotHoldTheHostBack(): void {
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+		$this->requestQueueService->expects($this->never())->method('postponeRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($this->queue(), true);
+		// same host, from the cron: still attempted
+		$this->assertTrue($this->service->manageRequest($this->queue()));
 	}
 
 	public function testManageInitForgetsFailedInstances(): void {

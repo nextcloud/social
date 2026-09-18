@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -76,6 +77,10 @@ class BoostService {
 			throw new StreamNotFoundException('Stream is not Public');
 		}
 
+		if ($this->hasAnnounce($actor, $postId)) {
+			throw new ItemAlreadyExistsException('this account has already boosted this post');
+		}
+
 		$announce->setTo(ACore::CONTEXT_PUBLIC);
 		$announce->addCc($actor->getFollowers());
 		//	$announce->addcc($note->getAttributedTo());
@@ -98,12 +103,6 @@ class BoostService {
 		$announce->setRequestToken($this->uuid());
 
 		$interface = AP::instance()->getInterfaceFromType(Announce::TYPE);
-		// TODO: check that announce does not exist already ?
-		//		try {
-		//			return $interface->getItem($announce);
-		//		} catch (ItemNotFoundException $e) {
-		//		}
-
 		$interface->save($announce);
 
 		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::BOOSTED, true);
@@ -164,7 +163,7 @@ class BoostService {
 		}
 
 		try {
-			$announce = $this->streamRequest->getStreamByObjectId($postId, Announce::TYPE);
+			$announce = $this->findAnnounce($actor, $postId);
 			$announce->setActor($actor);
 
 			$undo->setObjectId($announce->getId());
@@ -183,5 +182,52 @@ class BoostService {
 		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::BOOSTED, false);
 
 		return $undo;
+	}
+
+	/** Whether this actor has already boosted the post. */
+	private function hasAnnounce(Person $actor, string $postId): bool {
+		try {
+			$this->findAnnounce($actor, $postId);
+
+			return true;
+		} catch (StreamNotFoundException $e) {
+			return false;
+		}
+	}
+
+	/**
+	 * This actor's own Announce of a post.
+	 *
+	 * `getStreamByObjectId()` filters on the boosted object and the type and
+	 * nothing else, so with two local accounts boosting the same post it
+	 * answers with whichever row it finds first. Undoing one boost then
+	 * deleted the other account's row and federated an `Undo` naming an
+	 * Announce its signer never made: peers refuse it for the actor mismatch,
+	 * and locally the wrong boost is gone.
+	 *
+	 * @throws StreamNotFoundException when this actor has not boosted the post
+	 */
+	private function findAnnounce(Person $actor, string $postId): Stream {
+		$announce = $this->streamRequest->getStreamByObjectId($postId, Announce::TYPE);
+		if (strcasecmp($announce->getAttributedTo(), $actor->getId()) === 0) {
+			return $announce;
+		}
+
+		// somebody else's boost came back: theirs is not ours to touch, and
+		// this actor may still have one of their own
+		foreach ($this->streamRequest->getAnnouncesAndRepliesTo($postId) as $stream) {
+			if ($stream->getType() === Announce::TYPE
+				&& strcasecmp($stream->getAttributedTo(), $actor->getId()) === 0) {
+				return $stream;
+			}
+		}
+
+		$this->logger->notice('the stored boost of this post belongs to another account', [
+			'postId' => $postId,
+			'actor' => $actor->getId(),
+			'attributedTo' => $announce->getAttributedTo(),
+		]);
+
+		throw new StreamNotFoundException('no boost of this post by this account');
 	}
 }

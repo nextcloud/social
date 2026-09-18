@@ -405,6 +405,38 @@ class RequestQueueServiceTest extends TestCase {
 		$this->assertEqualsWithDelta(time() - RequestQueueService::STALE_RUNNING_SECONDS, $cutoff, 2);
 	}
 
+	/**
+	 * A row skipped because its host has an open breaker was not attempted, so
+	 * it keeps `tries = 0` and would head the very next batch and be skipped
+	 * again, ahead of everything that could actually be delivered.
+	 */
+	public function testPostponeRequestHoldsAStandbyRowBackWithoutSpendingATry(): void {
+		$queue = $this->queued(InstancePath::PRIORITY_LOW);
+		$until = time() + 600;
+		$this->requestQueueRequest->expects($this->once())
+			->method('postpone')
+			->with($this->identicalTo($queue), $until);
+
+		$this->service->postponeRequest($queue, $until);
+
+		$this->assertSame(0, $queue->getTries());
+	}
+
+	public function testPostponeRequestDoesNothingForATimeThatHasPassed(): void {
+		$this->requestQueueRequest->expects($this->never())->method('postpone');
+
+		$this->service->postponeRequest($this->queued(InstancePath::PRIORITY_LOW), time() - 1);
+	}
+
+	/** Somebody else claimed the row; it is no longer ours to hold back. */
+	public function testPostponeRequestSwallowsALostRace(): void {
+		$this->requestQueueRequest->method('postpone')
+			->willThrowException(new QueueStatusException());
+
+		$this->service->postponeRequest($this->queued(InstancePath::PRIORITY_LOW), time() + 60);
+		$this->addToAssertionCount(1);
+	}
+
 	public function testHighPriorityFollowedByALowerPriorityRequestIsRunInline(): void {
 		$high = $this->queued(InstancePath::PRIORITY_HIGH);
 		$this->requestQueueRequest->method('getFromToken')
