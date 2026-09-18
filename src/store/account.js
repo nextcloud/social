@@ -14,6 +14,15 @@ import { useErrorsStore } from './errors.js'
 import { useTimelineStore } from './timeline.js'
 
 /**
+ * How many followers or followed accounts one page holds.
+ *
+ * Asked for rather than assumed: the end of the list is read off the size of
+ * the answer, which held only because the controller happened to default to
+ * the same number.
+ */
+const FOLLOW_PAGE_SIZE = 20
+
+/**
  * The actor URL an account handle resolves to, or undefined.
  *
  * This used to read a module-level `state` object rather than the store's own,
@@ -590,7 +599,10 @@ export const useAccountStore = defineStore('account', {
 			}
 		},
 
-		/** @param {{account?: string, maxId?: string}} options */
+		/**
+		 * @param {{account?: string, maxId?: string}} options the account whose
+		 * followers to load, and where the previous page ended
+		 */
 		async fetchAccountFollowers({ account, maxId } = {}) {
 			const key = keyFor(this, account)
 			if (this.accountsFollowersLoading[key]) {
@@ -598,7 +610,7 @@ export const useAccountStore = defineStore('account', {
 			}
 			this.setFollowersLoading({ actorId: key, loading: true })
 			try {
-				const params = {}
+				const params = { limit: FOLLOW_PAGE_SIZE }
 				if (maxId) {
 					params.max_id = maxId
 				}
@@ -608,7 +620,7 @@ export const useAccountStore = defineStore('account', {
 				} else {
 					this.addFollowersAppend({ account, data: response.data })
 				}
-				if (response.data.length < 20) {
+				if (response.data.length < FOLLOW_PAGE_SIZE) {
 					this.setFollowersAllLoaded({ actorId: key, loaded: true })
 				}
 				this.setFollowersFailed({ actorId: key, failed: false })
@@ -621,7 +633,10 @@ export const useAccountStore = defineStore('account', {
 				this.setFollowersLoading({ actorId: key, loading: false })
 			}
 		},
-		/** @param {{account?: string, maxId?: string}} options */
+		/**
+		 * @param {{account?: string, maxId?: string}} options the account whose
+		 * followed accounts to load, and where the previous page ended
+		 */
 		async fetchAccountFollowing({ account, maxId } = {}) {
 			const key = keyFor(this, account)
 			if (this.accountsFollowingsLoading[key]) {
@@ -629,7 +644,7 @@ export const useAccountStore = defineStore('account', {
 			}
 			this.setFollowingsLoading({ actorId: key, loading: true })
 			try {
-				const params = {}
+				const params = { limit: FOLLOW_PAGE_SIZE }
 				if (maxId) {
 					params.max_id = maxId
 				}
@@ -639,7 +654,7 @@ export const useAccountStore = defineStore('account', {
 				} else {
 					this.addFollowingAppend({ account, data: response.data })
 				}
-				if (response.data.length < 20) {
+				if (response.data.length < FOLLOW_PAGE_SIZE) {
 					this.setFollowingsAllLoaded({ actorId: key, loaded: true })
 				}
 				this.setFollowingsFailed({ actorId: key, failed: false })

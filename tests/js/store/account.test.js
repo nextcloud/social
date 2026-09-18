@@ -660,7 +660,7 @@ describe('account store actions', () => {
 
 			const result = await store.fetchAccountFollowers({ account: ALICE })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: {} })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: { limit: 20 } })
 			expect(result).toEqual([bob, carol])
 			expect(loadingDuringRequest).toBe(true)
 			expect(store.getAccountFollowers(ALICE)).toEqual([bob, carol])
@@ -679,7 +679,7 @@ describe('account store actions', () => {
 
 			await store.fetchAccountFollowers({ account: ALICE, maxId: '22' })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: { max_id: '22' } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: { limit: 20, max_id: '22' } })
 			expect(store.getAccountFollowers(ALICE)).toHaveLength(21)
 			expect(store.accountsFollowersMaxId[alice.url]).toBe('119')
 			expect(store.accountsFollowersAllLoaded[alice.url]).toBe(false)
@@ -714,7 +714,7 @@ describe('account store actions', () => {
 
 			const result = await store.fetchAccountFollowing({ account: ALICE })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/following`, { params: {} })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/following`, { params: { limit: 20 } })
 			expect(result).toEqual([bob])
 			expect(store.getAccountFollowing(ALICE)).toEqual([bob])
 			expect(store.accountsFollowingsAllLoaded[alice.url]).toBe(true)
@@ -727,7 +727,7 @@ describe('account store actions', () => {
 
 			await store.fetchAccountFollowing({ account: ALICE, maxId: '22' })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/following`, { params: { max_id: '22' } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/following`, { params: { limit: 20, max_id: '22' } })
 			expect(store.getAccountFollowing(ALICE)).toEqual([bob, carol])
 		})
 
