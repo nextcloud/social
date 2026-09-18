@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\Object\DocumentInterface;
@@ -26,6 +27,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\MediaPurgeService;
 use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCP\IURLGenerator;
@@ -39,6 +41,7 @@ class StoryServiceTest extends TestCase {
 
 	private StoriesRequest|MockObject $storiesRequest;
 	private StoryInteractionService|MockObject $storyInteractionService;
+	private MediaPurgeService|MockObject $mediaPurgeService;
 	private DocumentService|MockObject $documentService;
 	private FollowService|MockObject $followService;
 	private StoryService $service;
@@ -50,6 +53,7 @@ class StoryServiceTest extends TestCase {
 		parent::setUp();
 		$this->storiesRequest = $this->createMock(StoriesRequest::class);
 		$this->storyInteractionService = $this->createMock(StoryInteractionService::class);
+		$this->mediaPurgeService = $this->createMock(MediaPurgeService::class);
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->followService = $this->createMock(FollowService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
@@ -74,6 +78,7 @@ class StoryServiceTest extends TestCase {
 			$configService,
 			$this->createMock(DocumentInterface::class),
 			$this->storyInteractionService,
+			$this->mediaPurgeService,
 			new NullLogger(),
 		);
 	}
@@ -94,6 +99,7 @@ class StoryServiceTest extends TestCase {
 			$configService,
 			$this->createMock(DocumentInterface::class),
 			$this->storyInteractionService,
+			$this->mediaPurgeService,
 			new NullLogger(),
 		);
 	}
@@ -377,6 +383,89 @@ class StoryServiceTest extends TestCase {
 		$this->assertFalse($this->service->bearcapMatches($mine, $this->service->bearcapToken($other)));
 		$this->assertFalse($this->service->bearcapMatches($mine, ''));
 		$this->assertFalse($this->service->bearcapMatches($mine, 'not-a-token'));
+	}
+
+	/**
+	 * A story promises to stop existing after a day. Until the picture went
+	 * with the row that was true of the row and false of everything else:
+	 * `/media/{uuid}` went on serving the file for ever, to anybody who had
+	 * been shown the story, and the disk was never reclaimed.
+	 */
+	public function testTheExpiredStorysPictureGoesWithIt(): void {
+		$story = $this->story(self::ALICE, 3)->setDocumentId('https://cloud.example/documents/g/1');
+		$this->storiesRequest->method('getExpired')->willReturn([$story]);
+		$this->storiesRequest->expects($this->once())->method('deleteByIds')->with([3])->willReturn(1);
+		$document = new Document();
+		$document->setId('https://cloud.example/documents/g/1');
+		$this->documentService->method('getDocumentById')->willReturn($document);
+
+		$this->mediaPurgeService->expects($this->once())->method('purge')
+			->with($this->identicalTo($document));
+
+		$this->assertSame(1, $this->service->purgeExpired());
+	}
+
+	public function testDeletingAStoryTakesItsPictureAway(): void {
+		$story = $this->story(self::ALICE, 7)->setDocumentId('https://cloud.example/documents/g/1');
+		$this->storiesRequest->method('getLiveById')->willReturn($story);
+		$document = new Document();
+		$document->setId('https://cloud.example/documents/g/1');
+		$this->documentService->method('getDocumentById')->willReturn($document);
+
+		$this->mediaPurgeService->expects($this->once())->method('purge');
+
+		$this->service->delete($this->person(self::ALICE), 7);
+	}
+
+	/**
+	 * A remote story's picture hangs off the story; a local one hangs off
+	 * nothing. Anything else is a picture a post is showing, and a story going
+	 * is not a reason to take a post's picture away.
+	 */
+	public function testAPictureThatBelongsToAPostIsLeftAlone(): void {
+		$story = $this->story(self::ALICE, 3)->setDocumentId('https://cloud.example/documents/g/1');
+		$this->storiesRequest->method('getExpired')->willReturn([$story]);
+		$document = new Document();
+		$document->setId('https://cloud.example/documents/g/1');
+		$document->setParentId('https://cloud.example/apps/social/@alice/1');
+		$this->documentService->method('getDocumentById')->willReturn($document);
+
+		$this->mediaPurgeService->expects($this->never())->method('purge');
+
+		$this->service->purgeExpired();
+	}
+
+	public function testAStoryWhosePictureIsAlreadyGoneStillGoes(): void {
+		$story = $this->story(self::ALICE, 3)->setDocumentId('https://cloud.example/documents/g/1');
+		$this->storiesRequest->method('getExpired')->willReturn([$story]);
+		$this->documentService->method('getDocumentById')
+			->willThrowException(new CacheDocumentDoesNotExistException());
+		$this->storiesRequest->expects($this->once())->method('deleteByIds')->willReturn(1);
+
+		$this->assertSame(1, $this->service->purgeExpired());
+	}
+
+	public function testAWithdrawnStorysPictureGoesOnItsAuthorsWord(): void {
+		$story = $this->story(self::ALICE, 9)->setDocumentId('https://cloud.example/documents/g/1');
+		$this->storiesRequest->method('getBySourceId')->willReturn($story);
+		$document = new Document();
+		$document->setId('https://cloud.example/documents/g/1');
+		$this->documentService->method('getDocumentById')->willReturn($document);
+
+		$this->mediaPurgeService->expects($this->once())->method('purge');
+		$this->storiesRequest->expects($this->once())->method('deleteBySourceId');
+
+		$this->service->withdrawn('https://remote.example/stories/9', self::ALICE);
+	}
+
+	/** A `Delete` naming somebody else's story takes nothing away. */
+	public function testAWithdrawalBySomebodyElseTakesNoPicture(): void {
+		$story = $this->story(self::BOB, 9)->setDocumentId('https://cloud.example/documents/g/1');
+		$this->storiesRequest->method('getBySourceId')->willReturn($story);
+
+		$this->mediaPurgeService->expects($this->never())->method('purge');
+
+		$this->service->withdrawn('https://remote.example/stories/9', self::ALICE);
 	}
 
 	public function testDeletingAStoryWithdrawsItFromTheFollowers(): void {

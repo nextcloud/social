@@ -22,6 +22,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\ImageConversionService;
 use OCA\Social\Service\VideoThumbnailService;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
@@ -46,6 +47,9 @@ class CacheDocumentServiceTest extends TestCase {
 	private MediaBlocksRequest|MockObject $mediaBlocksRequest;
 	/** @var string[] */
 	private array $tempFiles = [];
+	/** What the conversion does to a picture, and how often it was asked. */
+	private \Closure $conversion;
+	private int $converted = 0;
 	private CacheDocumentService $service;
 
 	#[\Override]
@@ -58,13 +62,20 @@ class CacheDocumentServiceTest extends TestCase {
 	}
 
 	protected function setUp(): void {
+		$this->conversion = static fn (string $content, string $mime): array => [$content, $mime];
+		$this->converted = 0;
 		$this->appData = $this->createMock(IAppData::class);
 		// The conversion is exercised by its own test; here it stands in as the
 		// identity it is for a picture that needs neither turning nor
 		// converting, so these tests keep asserting what they were written for.
+		// A test that is about the conversion replaces $this->conversion.
 		$this->imageConversionService = $this->createMock(ImageConversionService::class);
 		$this->imageConversionService->method('prepareForStorage')
-			->willReturnCallback(static fn (string $content, string $mime): array => [$content, $mime]);
+			->willReturnCallback(function (string $content, string $mime): array {
+				$this->converted++;
+
+				return ($this->conversion)($content, $mime);
+			});
 		$this->curlService = $this->createMock(CurlService::class);
 		$this->blurService = $this->createMock(BlurService::class);
 		// no ffmpeg by default: a poster is what a server that has it adds, and
@@ -259,6 +270,18 @@ class CacheDocumentServiceTest extends TestCase {
 		$this->service->filterMimeTypes($mime);
 	}
 
+	/**
+	 * Bytes, through the one funnel every upload and every fetched attachment
+	 * takes.
+	 */
+	private function storeBytes(Document $document, string $content): void {
+		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
+		$this->tempFiles[] = $tmp;
+		file_put_contents($tmp, $content);
+
+		$this->service->saveFromTempToCache($document, $tmp);
+	}
+
 	public function testSaveContentToCacheStoresVideoAsIsWithoutResizeOrBlurhash(): void {
 		$written = [];
 		$this->captureWrites($written);
@@ -267,12 +290,9 @@ class CacheDocumentServiceTest extends TestCase {
 		// a minimal MP4: size + ftyp box is enough for content sniffing
 		$mp4 = "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" . str_repeat("\x00", 64);
 
-		$mime = '';
-		$this->quietly(function () use ($document, $mp4, &$mime) {
-			$this->service->saveContentToCache($document, $mp4, $mime);
-		});
+		$this->quietly(fn () => $this->storeBytes($document, $mp4));
 
-		$this->assertSame('video/mp4', $mime);
+		$this->assertSame('video/mp4', $document->getMediaType());
 		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getLocalCopy());
 		$this->assertSame('', $document->getResizedCopy(), 'video keeps no resized copy');
 		$this->assertSame('', $document->getBlurHash());
@@ -291,12 +311,9 @@ class CacheDocumentServiceTest extends TestCase {
 		$webp = ob_get_clean();
 		$document = new Document();
 
-		$mime = '';
-		$this->quietly(function () use ($document, $webp, &$mime) {
-			$this->service->saveContentToCache($document, $webp, $mime);
-		});
+		$this->quietly(fn () => $this->storeBytes($document, $webp));
 
-		$this->assertSame('image/webp', $mime);
+		$this->assertSame('image/webp', $document->getMediaType());
 		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getResizedCopy());
 	}
 
@@ -310,12 +327,9 @@ class CacheDocumentServiceTest extends TestCase {
 		$document = new Document();
 		$png = $this->pngBytes();
 
-		$mime = '';
-		$this->quietly(function () use ($document, $png, &$mime) {
-			$this->service->saveContentToCache($document, $png, $mime);
-		});
+		$this->quietly(fn () => $this->storeBytes($document, $png));
 
-		$this->assertSame('image/png', $mime);
+		$this->assertSame('image/png', $document->getMediaType());
 		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getLocalCopy());
 		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getResizedCopy());
 		$this->assertNotSame($document->getLocalCopy(), $document->getResizedCopy());
@@ -342,36 +356,19 @@ class CacheDocumentServiceTest extends TestCase {
 		$file->expects($this->exactly(2))->method('putContent');
 		$this->blurService->method('generateBlurHash')->willReturn('hash');
 
-		$this->quietly(fn () => $this->service->saveContentToCache(new Document(), $this->pngBytes()));
+		$this->quietly(fn () => $this->storeBytes(new Document(), $this->pngBytes()));
 	}
 
 	public function testSaveContentToCacheRefusesNonImagesBeforeTouchingStorage(): void {
 		$this->appData->expects($this->never())->method($this->anything());
 		$document = new Document();
 
-		$mime = '';
 		try {
-			$this->service->saveContentToCache($document, '<html><body>not an image</body></html>', $mime);
+			$this->storeBytes($document, '<html><body>not an image</body></html>');
 			$this->fail('expected CacheContentMimeTypeException');
-		} catch (CacheContentMimeTypeException $e) {
-			$this->assertSame('text/html', $mime);
+		} catch (CacheContentMimeTypeException) {
 			$this->assertSame('', $document->getLocalCopy());
 		}
-	}
-
-	public function testSaveLocalUploadToCacheIsAnAliasForSaveContent(): void {
-		$written = [];
-		$this->captureWrites($written);
-		$this->blurService->method('generateBlurHash')->willReturn('hash');
-		$document = new Document();
-
-		$mime = '';
-		$this->quietly(function () use ($document, &$mime) {
-			$this->service->saveLocalUploadToCache($document, $this->pngBytes(), $mime);
-		});
-
-		$this->assertSame('image/png', $mime);
-		$this->assertCount(2, $written);
 	}
 
 	public function testSaveFromTempToCacheReadsTheFileAndSetsTheMediaType(): void {
@@ -647,24 +644,50 @@ class CacheDocumentServiceTest extends TestCase {
 		$document = new Document();
 
 		$this->expectException(CacheContentDecodeException::class);
-		$mime = '';
-		$this->quietly(function () use ($document, &$mime) {
-			$this->service->saveContentToCache($document, $this->pngHeaderThenGarbage(), $mime);
-		});
+		$this->quietly(fn () => $this->storeBytes($document, $this->pngHeaderThenGarbage()));
 	}
 
-	public function testAnImageTooLargeToDecodeIsRefusedBeforeDecoding(): void {
+	/**
+	 * The ceiling is read off the header, and it is read before the conversion
+	 * -- which rotates a phone photo by decoding all of it, and which used to
+	 * run first, so a hundred megapixels under the size limit was a fatal
+	 * error rather than a refusal.
+	 */
+	public function testAnImageTooLargeToDecodeIsRefusedBeforeAnythingDecodesIt(): void {
 		// 30000x30000 is a few hundred kilobytes on the wire and ~3.6 GB in GD
 		$written = [];
 		$this->captureWrites($written);
 		$this->blurService->expects($this->never())->method('generateBlurHash');
 
-		$this->expectException(CacheContentDecodeException::class);
-		$this->expectExceptionMessage('too large to decode');
-		$mime = '';
-		$this->quietly(function () use (&$mime) {
-			$this->service->saveContentToCache(new Document(), $this->hugePngHeader(), $mime);
-		});
+		try {
+			$this->quietly(fn () => $this->storeBytes(new Document(), $this->hugePngHeader()));
+			$this->fail('expected CacheContentDecodeException');
+		} catch (CacheContentDecodeException $e) {
+			$this->assertStringContainsString('too large to decode', $e->getMessage());
+			$this->assertSame(0, $this->converted, 'nothing decoded it first');
+		}
+	}
+
+	/**
+	 * A format PHP cannot read a header for is not refused by the ceiling: an
+	 * HEIC is a picture the conversion knows how to turn into one a browser
+	 * can draw, and the guard must not be what stops it.
+	 */
+	public function testAFormatWithNoReadableHeaderStillReachesTheConversion(): void {
+		$written = [];
+		$this->captureWrites($written);
+		$this->blurService->method('generateBlurHash')->willReturn('hash');
+		$png = $this->pngBytes();
+		$this->conversion = static fn (): array => [$png, 'image/jpeg'];
+		$document = new Document();
+
+		// an ISO base-media file that sniffs as HEIC and that
+		// getimagesizefromstring() knows nothing about
+		$heic = "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00heicmif1" . str_repeat("\x00", 64);
+		$this->quietly(fn () => $this->storeBytes($document, $heic));
+
+		$this->assertSame(1, $this->converted);
+		$this->assertSame('image/jpeg', $document->getMediaType(), 'stored as what it was converted to');
 	}
 
 	public function testAnImageWithinTheBudgetStillDecodes(): void {
@@ -673,12 +696,9 @@ class CacheDocumentServiceTest extends TestCase {
 		$this->blurService->method('generateBlurHash')->willReturn('hash');
 		$document = new Document();
 
-		$mime = '';
-		$this->quietly(function () use ($document, &$mime) {
-			$this->service->saveContentToCache($document, $this->pngBytes(64, 48), $mime);
-		});
+		$this->quietly(fn () => $this->storeBytes($document, $this->pngBytes(64, 48)));
 
-		$this->assertSame('image/png', $mime);
+		$this->assertSame('image/png', $document->getMediaType());
 		$this->assertSame(64, $document->getLocalCopySize()[0]);
 	}
 
@@ -733,8 +753,53 @@ class CacheDocumentServiceTest extends TestCase {
 		yield 'ftp' => ['ftp://remote.example/pic.png'];
 	}
 
+	public function testSniffingAStoredFileReadsItsTypeBackOffTheBytes(): void {
+		$written = [];
+		$this->storedVideo($this->pngBytes(), $written);
+
+		$this->assertSame(
+			'image/png', $this->service->sniffStored('2b5a7a87-8db1-445f-a17b-405790f91c80')
+		);
+	}
+
+	/**
+	 * The three names that are not filenames: the two placeholders of a local
+	 * account, whose picture is Nextcloud's own avatar, and a streamed
+	 * document, which is a pointer at bytes on another server.
+	 */
+	#[DataProvider('sentinelProvider')]
+	public function testTheSentinelsNameNoFile(string $sentinel): void {
+		$this->appData->expects($this->never())->method($this->anything());
+
+		$this->service->removeFromCache($sentinel);
+
+		$this->assertSame('', $this->service->sniffStored($sentinel));
+	}
+
+	public static function sentinelProvider(): array {
+		return [
+			'nothing' => [''],
+			'a local avatar' => ['avatar'],
+			'a local header' => ['header'],
+			'somebody else\'s video' => [Document::COPY_STREAMED],
+		];
+	}
+
+	/** What the origin answers with, as a stream the service reads. */
+	private function origin(string $body): void {
+		$this->curlService->method('openStream')->willReturnCallback(
+			static function () use ($body): array {
+				$stream = fopen('php://temp', 'r+');
+				fwrite($stream, $body);
+				rewind($stream);
+
+				return ['stream' => $stream, 'status' => 200, 'headers' => []];
+			}
+		);
+	}
+
 	public function testSaveRemoteFileToCacheDownloadsThenStores(): void {
-		$this->curlService->method('doRequest')->willReturn($this->pngBytes());
+		$this->origin($this->pngBytes());
 		$written = [];
 		$this->captureWrites($written);
 		$this->blurService->method('generateBlurHash')->willReturn('hash');
@@ -747,7 +812,109 @@ class CacheDocumentServiceTest extends TestCase {
 		});
 
 		$this->assertSame('image/png', $mime);
+		$this->assertSame('image/png', $document->getMediaType());
 		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getLocalCopy());
+	}
+
+	/**
+	 * A peer's `mediaType` describes bytes this instance has now read for
+	 * itself. Stored as what it sniffed as, or `/media/{uuid}` serves a peer's
+	 * word for it from this instance's own origin.
+	 */
+	public function testAPeersDeclaredTypeDoesNotSurviveTheFetch(): void {
+		$this->origin($this->pngBytes());
+		$written = [];
+		$this->captureWrites($written);
+		$this->blurService->method('generateBlurHash')->willReturn('hash');
+		$document = new Document();
+		$document->setUrl('https://remote.example/files/pic.png');
+		$document->setMediaType('text/html');
+
+		$this->quietly(fn () => $this->service->saveRemoteFileToCache($document));
+
+		$this->assertSame('image/png', $document->getMediaType());
+		$this->assertSame('image/png', $document->getMimeType());
+	}
+
+	/**
+	 * The moderator's list of refused files says it covers "a fetched remote
+	 * attachment"; until the fetch went through the same funnel as an upload,
+	 * it did not.
+	 */
+	public function testARefusedPictureIsRefusedWhenItArrivesFromAPeer(): void {
+		$png = $this->pngBytes();
+		$this->origin($png);
+		$this->mediaBlocksRequest->expects($this->once())->method('isBlocked')
+			->with(hash('sha256', $png))
+			->willReturn(true);
+		$this->appData->expects($this->never())->method($this->anything());
+
+		$document = new Document();
+		$document->setUrl('https://remote.example/files/pic.png');
+
+		$this->expectExceptionMessage('this file is not accepted on this instance');
+		$this->service->saveRemoteFileToCache($document);
+	}
+
+	/** A remote HEIC is converted on the way in, exactly as an uploaded one is. */
+	public function testARemoteHeicIsConvertedRatherThanStoredUndecodable(): void {
+		$png = $this->pngBytes();
+		$this->origin("\x00\x00\x00\x18ftypheic\x00\x00\x00\x00heicmif1" . str_repeat("\x00", 64));
+		$written = [];
+		$this->captureWrites($written);
+		$this->blurService->method('generateBlurHash')->willReturn('hash');
+		$this->conversion = static fn (): array => [$png, 'image/jpeg'];
+
+		$document = new Document();
+		$document->setUrl('https://remote.example/files/pic.heic');
+
+		$this->quietly(fn () => $this->service->saveRemoteFileToCache($document));
+
+		$this->assertSame(1, $this->converted);
+		$this->assertSame('image/jpeg', $document->getMediaType());
+		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getResizedCopy());
+	}
+
+	/**
+	 * The download stops at the ceiling for what the document says it is,
+	 * rather than at the one meant for an ActivityPub document -- which every
+	 * federated video is larger than.
+	 */
+	public function testAnOversizedDownloadIsCutOffRatherThanRead(): void {
+		$this->origin(str_repeat('x', 12 * 1048576));
+		$this->appData->expects($this->never())->method($this->anything());
+
+		$document = new Document();
+		$document->setUrl('https://remote.example/files/pic.png');
+
+		$this->expectException(RequestResultSizeException::class);
+		$this->service->saveRemoteFileToCache($document);
+	}
+
+	public function testAVideoMayBeFetchedPastTheDocumentCeiling(): void {
+		$body = $this->mp4Bytes(12 * 1048576);
+		$this->origin($body);
+		$written = [];
+		$this->captureWrites($written);
+
+		$document = new Document();
+		$document->setUrl('https://remote.example/files/clip.mp4');
+		$document->setMediaType('video/mp4');
+
+		$this->service->saveRemoteFileToCache($document);
+
+		$this->assertSame('video/mp4', $document->getMediaType());
+		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getLocalCopy());
+		$this->assertSame(strlen($body), $document->getSizeBytes());
+	}
+
+	public function testSaveRemoteFileToCacheRefusesANonWebUrlBeforeFetching(): void {
+		$this->curlService->expects($this->never())->method('openStream');
+		$document = new Document();
+		$document->setUrl('file:///etc/passwd');
+
+		$this->expectException(RequestServerException::class);
+		$this->service->saveRemoteFileToCache($document);
 	}
 }
 

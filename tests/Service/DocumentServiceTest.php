@@ -15,6 +15,7 @@ use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -337,7 +338,10 @@ class DocumentServiceTest extends TestCase {
 	public static function cachingErrorProvider(): array {
 		return [
 			'wrong mime type' => [new CacheContentMimeTypeException(), DocumentService::ERROR_MIMETYPE],
-			'too big' => [new RequestResultSizeException(), DocumentService::ERROR_SIZE],
+			'download cut off' => [new RequestResultSizeException(), DocumentService::ERROR_SIZE],
+			'larger than this instance stores' => [
+				new CacheContentSizeException(), DocumentService::ERROR_SIZE,
+			],
 			'storage not found' => [new NotFoundException(), DocumentService::ERROR_PERMISSION],
 			'storage not permitted' => [new NotPermittedException(), DocumentService::ERROR_PERMISSION],
 		];
@@ -429,19 +433,76 @@ class DocumentServiceTest extends TestCase {
 		$this->assertSame('image/webp', $doc->getMediaType());
 	}
 
-	public function testAnAlreadyKnownMediaTypeIsNotOverwritten(): void {
+	/**
+	 * What a peer said its attachment was does not survive this instance
+	 * reading the bytes: `/media/{uuid}` serves them from this origin, so the
+	 * type it states has to be the sniffed one. A peer that declares
+	 * `text/html` over a file that sniffs as a GIF used to have that served
+	 * back, from here, as a page.
+	 */
+	public function testThePeersDeclaredMediaTypeIsReplacedByTheSniffedOne(): void {
 		$doc = $this->document();
-		$doc->setMediaType('image/png');
+		$doc->setMediaType('text/html');
 		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
 		$this->cacheService->method('saveRemoteFileToCache')
 			->willReturnCallback(function (Document $document, string &$mime): void {
 				$document->setLocalCopy('local-1');
-				$mime = 'image/jpeg';
+				$mime = 'image/gif';
 			});
 
 		$this->service->cacheRemoteDocument(self::DOC_ID);
 
-		$this->assertSame('image/png', $doc->getMediaType());
+		$this->assertSame('image/gif', $doc->getMediaType());
+		$this->assertSame('image/gif', $doc->getMimeType());
+	}
+
+	/**
+	 * A row written with no type never gained one: the caching run only looks
+	 * at rows with *no* local copy, so a document that was stored and whose
+	 * type was never recorded kept an empty one for good -- clients leave
+	 * `type` unset, which is how one decides to show nothing at all.
+	 */
+	public function testAStoredDocumentWithNoTypeIsGivenTheOneItsBytesSayItIs(): void {
+		$document = $this->document('local-1');
+		$document->setMediaType('');
+		$document->setMimeType('');
+		$this->cacheDocumentsRequest->method('getWithoutMediaType')->with(200)->willReturn([$document]);
+		$this->cacheService->method('sniffStored')->with('local-1')->willReturn('image/webp');
+		$this->cacheDocumentsRequest->expects($this->once())->method('updateMediaType')
+			->with($this->identicalTo($document));
+
+		$this->assertSame(1, $this->service->fillMissingMediaTypes(200));
+		$this->assertSame('image/webp', $document->getMediaType());
+		$this->assertSame('image/webp', $document->getMimeType());
+	}
+
+	public function testARowWhoseFileSaysNothingIsLeftForTheNextPass(): void {
+		$document = $this->document('local-1');
+		$document->setMediaType('');
+		$this->cacheDocumentsRequest->method('getWithoutMediaType')->willReturn([$document]);
+		$this->cacheService->method('sniffStored')->willReturn('');
+		$this->cacheDocumentsRequest->expects($this->never())->method('updateMediaType');
+
+		$this->assertSame(0, $this->service->fillMissingMediaTypes());
+	}
+
+	public function testOneUnreadableFileDoesNotStopTheBackfill(): void {
+		$bad = $this->document('local-1');
+		$bad->setId('https://remote.example/media/bad');
+		$good = $this->document('local-2');
+		$good->setId('https://remote.example/media/good');
+		$this->cacheDocumentsRequest->method('getWithoutMediaType')->willReturn([$bad, $good]);
+		$this->cacheService->method('sniffStored')->willReturnCallback(
+			static function (string $uuid): string {
+				if ($uuid === 'local-1') {
+					throw new \RuntimeException('appdata is gone');
+				}
+
+				return 'image/png';
+			}
+		);
+
+		$this->assertSame(1, $this->service->fillMissingMediaTypes());
 	}
 
 	public function testOneUnusableRowDoesNotEndTheCachingRun(): void {

@@ -169,6 +169,35 @@ class StreamTest extends TestCase {
 	}
 
 	/**
+	 * Storing an attachment means fetching a file from another server, which
+	 * fails in every way a request can. That used to come out of `import()`
+	 * and take the whole `Create` with it: a Mastodon post with four pictures
+	 * and one CDN object briefly answering 503 was never stored at all, text,
+	 * thread and notification included.
+	 */
+	public function testAnAttachmentThatCannotBeStoredDoesNotTakeThePostWithIt(): void {
+		$this->apInterface(DocumentInterface::class)->method('save')
+			->willThrowException(new \RuntimeException('the origin is down'));
+		$this->apInterface(ImageInterface::class)->expects($this->once())->method('save');
+
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'content' => 'four pictures',
+			'attachment' => [
+				['type' => 'Document', 'mediaType' => 'image/jpeg', 'url' => 'https://files.mastodon.social/media/cat.jpg'],
+				['type' => 'Image', 'mediaType' => 'image/png', 'url' => 'https://files.mastodon.social/media/dog.png'],
+			],
+		]);
+
+		$this->assertSame('four pictures', $stream->getContent());
+		$attachments = $stream->getAttachments();
+		$this->assertCount(1, $attachments, 'the one that could be stored');
+		$this->assertSame('https://files.mastodon.social/media/dog.png', $attachments[0]->getRemoteUrl());
+	}
+
+	/**
 	 * A post read back from the database has its attachments hydrated in the
 	 * local format. Served to a peer, they went out as Mastodon's client
 	 * entity under the ActivityPub key -- no `mediaType`, no Document -- so

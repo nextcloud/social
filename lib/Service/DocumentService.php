@@ -18,6 +18,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -97,13 +98,14 @@ class DocumentService {
 
 		try {
 			$this->cacheService->saveRemoteFileToCache($document, $mime);
-			// the mime type is sniffed from the bytes at this point and nowhere
-			// else; unpersisted, the copy is later served with no Content-Type
+			// The mime type is sniffed from the bytes at this point and nowhere
+			// else; unpersisted, the copy is later served with no Content-Type.
+			// It replaces the type the peer declared rather than filling in for
+			// it: `/media/{uuid}` serves these bytes from this instance's own
+			// origin, so what it says they are has to be what they are.
 			if ($mime !== '') {
 				$document->setMimeType($mime);
-				if ($document->getMediaType() === '') {
-					$document->setMediaType($mime);
-				}
+				$document->setMediaType($mime);
 			}
 			$this->cacheDocumentsRequest->endCaching($document);
 
@@ -138,7 +140,9 @@ class DocumentService {
 			);
 			$document->setError(self::ERROR_PERMISSION);
 			$this->cacheDocumentsRequest->endCaching($document);
-		} catch (RequestResultSizeException $e) {
+		} catch (RequestResultSizeException|CacheContentSizeException $e) {
+			// either the download was cut off at the ceiling, or what arrived
+			// turned out to be larger than this instance stores of that kind
 			$this->miscService->log(
 				'Downloaded file is too big ' . json_encode($document) . ' ' . json_encode($e), 1
 			);
@@ -712,6 +716,46 @@ class DocumentService {
 		}
 
 		return $count;
+	}
+
+	/**
+	 * Fills in the type of documents that were stored without one.
+	 *
+	 * A row written with an empty `media_type` never gained one: the caching
+	 * run only looks at rows with *no* local copy, so a document that was
+	 * fetched, stored, and whose type was never written stayed that way for
+	 * good -- `convertToMediaAttachment()` leaves `type` unset, which is how a
+	 * client decides to show nothing at all, and the copy went out with no
+	 * Content-Type. The answer is read back from the stored bytes, which is
+	 * the only place it still exists.
+	 *
+	 * Bounded per run like every other sweep here, and it converges: a row
+	 * that is filled in is not a candidate again.
+	 *
+	 * @return int how many rows were filled in
+	 */
+	public function fillMissingMediaTypes(int $limit = 500): int {
+		$filled = 0;
+		foreach ($this->cacheDocumentsRequest->getWithoutMediaType($limit) as $document) {
+			try {
+				$mime = $this->cacheService->sniffStored($document->getLocalCopy());
+				if ($mime === '') {
+					continue;
+				}
+
+				$document->setMediaType($mime);
+				$document->setMimeType($mime);
+				$this->cacheDocumentsRequest->updateMediaType($document);
+				$filled++;
+			} catch (Throwable $e) {
+				// one unreadable file is not a reason to stop reading the rest
+				$this->miscService->log(
+					'Could not read the type of ' . $document->getId() . ' - ' . $e->getMessage(), 1
+				);
+			}
+		}
+
+		return $filled;
 	}
 
 	/**

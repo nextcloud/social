@@ -2258,9 +2258,10 @@ class ApiController extends Controller {
 	 * `nosniff` on — which is every Nextcloud — refuses to draw it. So the
 	 * answer depends on which copy the uuid named.
 	 *
-	 * The stored media type was sniffed from the content at ingest; the
-	 * extension in the URL is whatever the requester chose to write there and
-	 * is not consulted.
+	 * The stored media type is what the bytes sniffed as when they were
+	 * written, whether they arrived as an upload or were fetched from a peer —
+	 * never what their sender called them. The extension in the URL is
+	 * whatever the requester chose to write there and is not consulted.
 	 */
 	private function servedMediaType(Document $document, string $uuid): string {
 		$mediaType = $document->getMediaType();

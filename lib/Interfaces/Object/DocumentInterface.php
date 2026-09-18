@@ -10,6 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Object;
 
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Exceptions\CacheContentDecodeException;
+use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
@@ -18,11 +21,19 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\CacheDocumentService;
+use OCA\Social\Service\DocumentService;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCP\Files\NotFoundException;
+use OCP\Files\NotPermittedException;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use Throwable;
 
 class DocumentInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	public function __construct(
 		protected CacheDocumentService $cacheDocumentService,
 		protected CacheDocumentsRequest $cacheDocumentsRequest,
+		protected LoggerInterface $logger = new NullLogger(),
 	) {
 	}
 
@@ -55,7 +66,7 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 			// stays one -- see Document::COPY_STREAMED. Fetching it is the one
 			// thing that must not happen here.
 			if (!$item->isLocal() && !$item->isStreamed()) {
-				$this->cacheDocumentService->saveRemoteFileToCache($item);    // create local copy
+				$this->fetch($item);
 			}
 
 			// parentId / url can only be empty on new document, meaning owner cannot be empty here
@@ -64,6 +75,69 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 				$this->cacheDocumentsRequest->save($item);
 			}
 		}
+	}
+
+	/**
+	 * Fetches the file a remote document names, and writes the row either way.
+	 *
+	 * The download used to happen with nothing around it, so any of the five
+	 * ways it can fail -- the origin answering 403, the host being down, the
+	 * file being larger than this instance stores, a type it does not store,
+	 * bytes that will not decode -- came out of `save()` and out of
+	 * `Stream::import()` with it. The whole post was then dropped: four
+	 * pictures and one CDN object briefly answering 503 meant the post was
+	 * never stored, and because no row was written there was nothing for the
+	 * caching cron to retry either. So a post survives its attachments now,
+	 * and the row is written with an empty `local_copy`, which is exactly what
+	 * `getNotCachedDocuments()` looks for.
+	 *
+	 * A failure that will fail again the same way is marked so the cron stops
+	 * offering it: `DocumentService::cacheRemoteDocument()` decides the same
+	 * thing for the rows it handles, and the two agree on purpose.
+	 */
+	private function fetch(Document $item): void {
+		$mime = '';
+
+		try {
+			$this->cacheDocumentService->saveRemoteFileToCache($item, $mime);
+		} catch (Throwable $e) {
+			$item->setLocalCopy('');
+			$item->setResizedCopy('');
+			$item->setError($this->errorOf($e));
+			$this->logger->warning('could not fetch an attachment', [
+				'document' => $item->getId(), 'url' => $item->getUrl(), 'exception' => $e,
+			]);
+
+			return;
+		}
+
+		// The type a peer declared describes bytes this instance has now read
+		// for itself, and `/media/{uuid}` serves them from this origin: what it
+		// states they are has to be what they are. A peer that declares
+		// `text/html` over a file whose bytes sniff as a GIF used to have that
+		// served back, as a page, from here.
+		if ($mime !== '') {
+			$item->setMimeType($mime);
+			$item->setMediaType($mime);
+		}
+	}
+
+	/**
+	 * Which of `DocumentService`'s markers a failed fetch deserves, or 0 for
+	 * one worth trying again.
+	 */
+	private function errorOf(Throwable $failure): int {
+		return match (true) {
+			$failure instanceof CacheContentMimeTypeException => DocumentService::ERROR_MIMETYPE,
+			$failure instanceof CacheContentDecodeException => DocumentService::ERROR_CONTENT,
+			$failure instanceof CacheContentSizeException,
+			$failure instanceof RequestResultSizeException => DocumentService::ERROR_SIZE,
+			$failure instanceof NotFoundException,
+			$failure instanceof NotPermittedException => DocumentService::ERROR_PERMISSION,
+			// the rest is the other end being slow, down or briefly unhappy,
+			// which is what the caching cron exists to come back to
+			default => 0,
+		};
 	}
 
 	/**

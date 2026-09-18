@@ -10,6 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Interfaces\Object;
 
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Exceptions\CacheContentDecodeException;
+use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Interfaces\Object\DocumentInterface;
@@ -18,8 +21,13 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Service\CacheDocumentService;
+use OCA\Social\Service\DocumentService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
+use Psr\Log\NullLogger;
 
 require_once __DIR__ . '/../ActivityPubTestCase.php';
 
@@ -38,7 +46,9 @@ class DocumentInterfaceTest extends ActivityPubTestCase {
 		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
 		$this->cacheDocumentsRequest = $this->createMock(CacheDocumentsRequest::class);
 
-		$this->handler = new DocumentInterface($this->cacheDocumentService, $this->cacheDocumentsRequest);
+		$this->handler = new DocumentInterface(
+			$this->cacheDocumentService, $this->cacheDocumentsRequest, new NullLogger()
+		);
 	}
 
 	private function document(string $url = self::REMOTE_URL . '/media/1.png'): Document {
@@ -133,6 +143,96 @@ class DocumentInterfaceTest extends ActivityPubTestCase {
 		$this->cacheDocumentsRequest->expects($this->never())->method('update');
 
 		$this->handler->save($document);
+	}
+
+	/**
+	 * A peer's `mediaType` is what it says about a file; the sniffed type is
+	 * what this instance read. `/media/{uuid}` serves the bytes from this
+	 * origin, so the row must hold the second.
+	 */
+	public function testTheSniffedTypeReplacesTheOneThePeerDeclared(): void {
+		$this->nothingCached();
+		$this->cacheDocumentsRequest->method('isDuplicate')->willReturn(false);
+		$document = $this->document();
+		$document->setMediaType('text/html');
+		$this->cacheDocumentService->method('saveRemoteFileToCache')->willReturnCallback(
+			static function (Document $item, string &$mime): void {
+				$item->setLocalCopy('a0a962e5-7e98-433b-80e2-09106a0b074f');
+				$mime = 'image/gif';
+			}
+		);
+
+		$this->handler->save($document);
+
+		$this->assertSame('image/gif', $document->getMediaType());
+		$this->assertSame('image/gif', $document->getMimeType());
+	}
+
+	/**
+	 * One attachment that cannot be fetched used to take the whole post with
+	 * it, and leave no row for the caching cron to come back to.
+	 */
+	public function testAnAttachmentThatCannotBeFetchedIsStillRecorded(): void {
+		$this->nothingCached();
+		$this->cacheDocumentsRequest->method('isDuplicate')->willReturn(false);
+		$document = $this->document();
+		$this->cacheDocumentService->method('saveRemoteFileToCache')
+			->willThrowException(new RequestContentException('service unavailable', 503));
+
+		$this->cacheDocumentsRequest->expects($this->once())->method('save')
+			->with($this->identicalTo($document));
+
+		$this->handler->save($document);
+
+		// what getNotCachedDocuments() looks for, and no marker to stop it
+		$this->assertSame('', $document->getLocalCopy());
+		$this->assertSame(0, $document->getError());
+	}
+
+	public function testAHalfFetchedAttachmentKeepsNoDanglingCopy(): void {
+		$this->nothingCached();
+		$this->cacheDocumentsRequest->method('isDuplicate')->willReturn(false);
+		$document = $this->document();
+		$this->cacheDocumentService->method('saveRemoteFileToCache')->willReturnCallback(
+			static function (Document $item): void {
+				$item->setLocalCopy('a0a962e5-7e98-433b-80e2-09106a0b074f');
+
+				throw new CacheContentDecodeException('not an image after all');
+			}
+		);
+
+		$this->handler->save($document);
+
+		$this->assertSame('', $document->getLocalCopy());
+		$this->assertSame('', $document->getResizedCopy());
+	}
+
+	/** @return array<string, array{\Throwable, int}> */
+	public static function fetchFailureProvider(): array {
+		return [
+			'unstorable type' => [new CacheContentMimeTypeException(), DocumentService::ERROR_MIMETYPE],
+			'not the image it claims' => [new CacheContentDecodeException(), DocumentService::ERROR_CONTENT],
+			'larger than this instance stores' => [new CacheContentSizeException(), DocumentService::ERROR_SIZE],
+			// the other end, which is worth asking again
+			'origin unreachable' => [new RequestNetworkException('timeout'), 0],
+			'origin says no' => [new RequestContentException('gone', 410), 0],
+		];
+	}
+
+	#[DataProvider('fetchFailureProvider')]
+	public function testAPermanentFailureIsMarkedAndATransientOneIsNot(
+		\Throwable $failure, int $error,
+	): void {
+		$this->nothingCached();
+		$this->cacheDocumentsRequest->method('isDuplicate')->willReturn(false);
+		$document = $this->document();
+		$this->cacheDocumentService->method('saveRemoteFileToCache')->willThrowException($failure);
+
+		$this->cacheDocumentsRequest->expects($this->once())->method('save');
+
+		$this->handler->save($document);
+
+		$this->assertSame($error, $document->getError());
 	}
 
 	public function testNewLocalDocumentIsNotFetchedFromAnywhere(): void {

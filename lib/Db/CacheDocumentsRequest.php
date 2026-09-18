@@ -133,6 +133,53 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Writes a type that was worked out after the row was written.
+	 *
+	 * Its own statement rather than `update()`, which rewrites `creation` --
+	 * recording what a two-year-old picture is would date it to today.
+	 */
+	public function updateMediaType(Document $document): void {
+		$qb = $this->getCacheDocumentsUpdateSql();
+		$qb->limitToIdString($document->getId());
+		$qb->set('media_type', $qb->createNamedParameter($document->getMediaType()));
+		$qb->set('mime_type', $qb->createNamedParameter($document->getMimeType()));
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Stored documents whose type was never recorded.
+	 *
+	 * Only rows that hold bytes: the type is read back from the file, and the
+	 * three sentinels (`avatar`, `header`, a streamed pointer) name no file.
+	 *
+	 * @return Document[]
+	 */
+	public function getWithoutMediaType(int $limit): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$expr = $qb->expr();
+
+		$qb->andWhere($expr->eq('cd.media_type', $qb->createNamedParameter('')))
+			->andWhere($expr->notIn(
+				'cd.local_copy',
+				$qb->createNamedParameter(
+					['', 'avatar', 'header', Document::COPY_STREAMED],
+					IQueryBuilder::PARAM_STR_ARRAY
+				)
+			));
+		$qb->setMaxResults($limit);
+
+		$documents = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
 	public function initCaching(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$qb->limitToIdString($document->getId());
@@ -755,6 +802,52 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$cursor->closeCursor();
 
 		return $rows;
+	}
+
+	/**
+	 * The documents whose parent is gone, oldest rows first.
+	 *
+	 * A `parent_id` names one of three things — a post, a cached actor or a
+	 * story — so "no row in any of the three" is the one safe reading of
+	 * "nothing can refer to this file any more". The joins are all on indexed
+	 * `_prim` columns.
+	 *
+	 * Rows with no parent are not candidates: for a local upload that says
+	 * nothing, because nothing in this schema points from a post back at the
+	 * attachment it shows.
+	 *
+	 * @return Document[]
+	 */
+	public function getOrphanedByParent(int $olderThanDays, int $limit): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$expr = $qb->expr();
+
+		$qb->leftJoin('cd', self::TABLE_STREAM, 'st', $expr->eq('st.id_prim', 'cd.parent_id_prim'))
+			->leftJoin('cd', self::TABLE_CACHE_ACTORS, 'ca', $expr->eq('ca.id_prim', 'cd.parent_id_prim'))
+			->leftJoin('cd', self::TABLE_STORIES, 'so', $expr->eq('so.source_id_prim', 'cd.parent_id_prim'));
+
+		$qb->andWhere($expr->neq('cd.parent_id_prim', $qb->createNamedParameter('')))
+			->andWhere($expr->lt(
+				'cd.creation',
+				$qb->createNamedParameter(
+					new DateTime('-' . max(1, $olderThanDays) . ' days'), IQueryBuilder::PARAM_DATE
+				)
+			))
+			->andWhere($expr->isNull('st.id_prim'))
+			->andWhere($expr->isNull('ca.id_prim'))
+			->andWhere($expr->isNull('so.source_id_prim'));
+
+		$qb->orderBy('cd.nid', 'asc');
+		$qb->setMaxResults($limit);
+
+		$documents = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
 	}
 
 	public function deleteByParent(string $parentId): void {
