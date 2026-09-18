@@ -47,10 +47,11 @@
 
 					<div v-if="group.cards.length" class="social-admin__group-cards">
 						<div
-							v-for="card in group.cards"
+							v-for="(card, index) in group.cards"
 							:id="card.id"
 							:key="card.id"
-							class="social-admin__card">
+							class="social-admin__card"
+							:style="{ '--entry-index': index }">
 							<ActivitySection v-if="card.id === 'activity'" :activity="state.activity" />
 							<ReportsSection
 								v-else-if="card.id === 'reports'"
@@ -312,6 +313,27 @@ export default {
 </script>
 
 <style lang="scss">
+/**
+ * The sections arrive one after another rather than all at once.
+ *
+ * The same idea the timeline already uses for its posts (`--stagger-delay` in
+ * TimelineEntry): a page that appears whole reads as pasted, and one that
+ * assembles over a fifth of a second reads as made. The delay is capped, so a
+ * page of seventeen cards does not take a second and a half to finish
+ * arriving, and the whole thing is off for a reader who asked for less
+ * movement.
+ */
+@keyframes section-arrive {
+	from { opacity: 0; transform: translateY(10px); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.social-admin__card {
+		animation: section-arrive .26s ease-out both;
+		animation-delay: calc(min(var(--entry-index, 0), 7) * 35ms);
+	}
+}
+
 // Deliberately not scoped: the table below is the same table in four of the
 // sections, and a moderator reading a page of reports should not have to learn
 // a second layout halfway down it.

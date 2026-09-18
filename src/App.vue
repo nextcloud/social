@@ -31,11 +31,32 @@
 			     entry to another -- and not when the same view is handed new
 			     params, where a fade would be the timeline blinking at
 			     somebody who only opened a post. -->
-			<router-view v-slot="{ Component }">
-				<transition name="page" mode="out-in">
-					<component :is="Component" />
+			<div class="social__pages">
+				<router-view v-slot="{ Component }">
+					<!-- No `out-in` any more: the two pages share one grid cell
+					     and overlap, so the incoming one does not wait for the
+					     outgoing one to finish. `out-in` added the whole leave
+					     to every change, which on a page already waiting for
+					     its chunk is the wrong place to spend a tenth of a
+					     second.
+
+					     The name carries the direction -- which way down the
+					     sidebar the reader went, see services/pageOrder.js.
+					     Where the browser has the View Transitions API this
+					     runs at all: `transitionName` is empty there and the
+					     browser animates two pictures instead. -->
+					<transition :name="transitionName">
+						<component :is="Component" />
+					</transition>
+				</router-view>
+				<!-- A lazily loaded page holds the navigation until its chunk
+				     arrives, so the reader presses an entry and, for a moment,
+				     nothing happens at all. This is what happens instead, and
+				     only once the wait is long enough to notice. -->
+				<transition name="pending">
+					<TimelineSkeleton v-if="pending" class="social__pending" />
 				</transition>
-			</router-view>
+			</div>
 		</NcAppContent>
 	</NcContent>
 	<NcContent v-else appName="social">
@@ -82,6 +103,9 @@ import Navigation from './components/Navigation.vue'
 import ShortcutHelp from './components/ShortcutHelp.vue'
 import SetupChecks from './components/SetupChecks.vue'
 import { listenForShortcuts } from './services/shortcuts.js'
+import TimelineSkeleton from './components/TimelineSkeleton.vue'
+import { pageDirection } from './services/pageOrder.js'
+import { canViewTransition, markDirection, startPageTransition } from './services/pageTransition.js'
 import eventBus from './services/eventBus.js'
 
 import axios from '@nextcloud/axios'
@@ -101,6 +125,12 @@ const AccountSetup = defineAsyncComponent(() => import(/* webpackChunkName: "acc
 // fetched the first time somebody presses "add a reaction"
 const ReactionPicker = defineAsyncComponent(() => import(/* webpackChunkName: "reaction-picker" */'./components/ReactionPicker.vue'))
 
+/**
+ * How long a page may take to arrive before the wait is drawn. Below this a
+ * skeleton is a flash rather than an answer.
+ */
+const PENDING_AFTER_MS = 180
+
 export default {
 	name: 'App',
 	components: {
@@ -112,6 +142,7 @@ export default {
 		ReactionPicker,
 		ShortcutHelp,
 		SetupChecks,
+		TimelineSkeleton,
 	},
 
 	setup() {
@@ -128,6 +159,17 @@ export default {
 			cloudAddress: '',
 			shortcutHelpOpen: false,
 			stopShortcuts: null,
+			/**
+			 * Which Vue transition the next page change uses: the direction it
+			 * is going in, or '' where the browser is animating it itself.
+			 */
+			transitionName: 'page',
+			/** whether a page is being waited for long enough to say so */
+			pending: false,
+			pendingTimer: null,
+			/** the router hooks, so they can be taken off again */
+			stopBefore: null,
+			stopAfter: null,
 		}
 	},
 
@@ -145,12 +187,16 @@ export default {
 
 	mounted() {
 		this.stopShortcuts = listenForShortcuts()
+		this.watchNavigation()
 		eventBus.on('shortcut:help', this.toggleShortcutHelp)
 		eventBus.on('shortcut:home', this.goHome)
 	},
 
 	unmounted() {
 		this.stopShortcuts?.()
+		this.stopBefore?.()
+		this.stopAfter?.()
+		this.disarmPending()
 		eventBus.off('shortcut:help', this.toggleShortcutHelp)
 		eventBus.off('shortcut:home', this.goHome)
 	},
@@ -179,6 +225,69 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Watches for a page change, and decides how it is animated.
+		 *
+		 * `beforeResolve` rather than `beforeEach`: by then the route's component
+		 * has been fetched, so the change is about to be drawn rather than about
+		 * to be waited for -- which is what a view transition needs, since it
+		 * holds a picture of the old page until the new one is there.
+		 */
+		watchNavigation() {
+			const router = this.$router
+			// a mounted app always has a real router; a test may have a stub
+			// standing in for one, and a stub that cannot be hooked is not a
+			// reason for the app to fail to start
+			if (typeof router?.beforeEach !== 'function' || typeof router?.beforeResolve !== 'function') {
+				return
+			}
+
+			// the wait for a chunk happens before this, so the skeleton is armed
+			// at the start of the navigation and disarmed when it lands
+			this.stopBefore = router.beforeEach((to, from, next) => {
+				this.armPending()
+				next()
+			})
+
+			this.stopAfter = router.beforeResolve((to, from) => {
+				this.disarmPending()
+				const direction = pageDirection(to, from)
+				markDirection(direction)
+
+				if (canViewTransition()) {
+					// the browser animates the two pictures; a Vue transition on
+					// top of that would be the same move played twice
+					this.transitionName = ''
+
+					return startPageTransition(() => this.$nextTick())
+				}
+
+				this.transitionName = direction === '' ? 'page' : `page-${direction}`
+
+				return true
+			})
+		},
+
+		/**
+		 * A page that is slow enough to notice says so.
+		 *
+		 * Not at once: most changes are a few milliseconds, and a skeleton that
+		 * flashed up for every one of them would be the busiest thing on screen.
+		 */
+		armPending() {
+			this.disarmPending()
+			this.pendingTimer = window.setTimeout(() => {
+				this.pending = true
+			}, PENDING_AFTER_MS)
+		},
+
+		/** The page arrived, or never will. */
+		disarmPending() {
+			window.clearTimeout(this.pendingTimer)
+			this.pendingTimer = null
+			this.pending = false
+		},
+
 		/**
 		 * The account was just made. The page reloads with `welcome`, so the
 		 * server hands it the new account and the first-run introduction shows:
@@ -334,21 +443,60 @@ a.external_link {
 <style lang="scss">
 /* Moving between the pages the sidebar lists.
 
-   Short, and downwards only on the way in: the eye is already at the top of
-   the content when a sidebar entry is clicked, and something arriving from
-   slightly below reads as the page being replaced rather than as the window
-   scrolling. `out-in` keeps the two pages from overlapping, which would
-   otherwise push the incoming one down the height of the outgoing one for a
-   frame. Not applied to the leave of a page being scrolled away from, because
-   that is the same view keeping its place. */
-.page-enter-active {
-	transition: opacity 0.18s ease-out, transform 0.18s cubic-bezier(0.2, 0, 0.1, 1);
+   Two ways of doing it, and only one of them ever runs. Where the browser has
+   the View Transitions API it takes a picture of the page before and after and
+   animates those, which costs nothing however tall the page is; everywhere
+   else the same move is a Vue transition over the live DOM. Both read the
+   direction off `data-page-direction` on the root, which the app sets from
+   where the two pages sit in the sidebar -- see services/pageOrder.js. */
+
+/* The pages share one cell, so the one arriving does not wait for the one
+   leaving. It also means neither of them is in flow while both exist, which is
+   what keeps the content from jumping as they cross. */
+.social__pages {
+	display: grid;
+	min-block-size: 100%;
+
+	> * {
+		grid-area: 1 / 1;
+		min-width: 0;
+	}
 }
 
-.page-leave-active {
-	transition: opacity 0.09s ease-in, transform 0.09s ease-in;
+/* The skeleton for a page that is taking its time. It sits in the same cell,
+   over the page being left, so nothing moves when it appears. */
+.social__pending {
+	z-index: 2;
+	background: var(--color-main-background);
 }
 
+.pending-enter-active,
+.pending-leave-active {
+	transition: opacity .12s linear;
+}
+
+.pending-enter-from,
+.pending-leave-to {
+	opacity: 0;
+}
+
+/* ---- the Vue transition, for browsers without view transitions ---- */
+
+.page-enter-active,
+.page-forward-enter-active,
+.page-back-enter-active {
+	transition: opacity .2s ease-out, transform .2s cubic-bezier(.2, 0, .1, 1);
+}
+
+.page-leave-active,
+.page-forward-leave-active,
+.page-back-leave-active {
+	transition: opacity .13s ease-in, transform .13s ease-in;
+}
+
+/* no direction to give -- the same page, or two pages the sidebar does not
+   list: a rise rather than a slide, which says "replaced" without claiming a
+   geography that is not there */
 .page-enter-from {
 	opacity: 0;
 	transform: translateY(8px);
@@ -357,6 +505,89 @@ a.external_link {
 .page-leave-to {
 	opacity: 0;
 	transform: translateY(-4px);
+}
+
+/* down the sidebar: the new page comes from the right, the old one goes left */
+.page-forward-enter-from {
+	opacity: 0;
+	transform: translateX(26px);
+}
+
+.page-forward-leave-to {
+	opacity: 0;
+	transform: translateX(-18px);
+}
+
+/* and back up it, the other way round */
+.page-back-enter-from {
+	opacity: 0;
+	transform: translateX(-26px);
+}
+
+.page-back-leave-to {
+	opacity: 0;
+	transform: translateX(18px);
+}
+
+/* ---- and the same move, done by the browser ---- */
+
+@keyframes page-vt-in {
+	from { opacity: 0; transform: translateX(var(--page-from, 0)) translateY(var(--page-rise, 8px)); }
+}
+
+@keyframes page-vt-out {
+	to { opacity: 0; transform: translateX(var(--page-to, 0)) translateY(var(--page-fall, -4px)); }
+}
+
+::view-transition-old(root) {
+	animation: page-vt-out .13s ease-in both;
+}
+
+::view-transition-new(root) {
+	animation: page-vt-in .2s cubic-bezier(.2, 0, .1, 1) both;
+}
+
+[data-page-direction='forward'] {
+	--page-from: 26px;
+	--page-to: -18px;
+	--page-rise: 0;
+	--page-fall: 0;
+}
+
+[data-page-direction='back'] {
+	--page-from: -26px;
+	--page-to: 18px;
+	--page-rise: 0;
+	--page-fall: 0;
+}
+
+/* A reader who asked their system for less movement gets the change without
+   the movement. `canViewTransition()` answers false for them as well, so this
+   covers the Vue path; the pseudo-elements are switched off too in case a
+   browser starts one regardless. */
+@media (prefers-reduced-motion: reduce) {
+	.page-enter-active,
+	.page-leave-active,
+	.page-forward-enter-active,
+	.page-forward-leave-active,
+	.page-back-enter-active,
+	.page-back-leave-active {
+		transition: opacity .12s linear;
+	}
+
+	.page-enter-from,
+	.page-leave-to,
+	.page-forward-enter-from,
+	.page-forward-leave-to,
+	.page-back-enter-from,
+	.page-back-leave-to {
+		transform: none;
+	}
+
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation: none;
+	}
 }
 
 /* a reader who has asked their system for less movement gets the change
