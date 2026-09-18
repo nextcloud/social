@@ -614,6 +614,34 @@ class ActivityServiceTest extends TestCase {
 		));
 	}
 
+	/**
+	 * Local ids and inboxes are generated from the social URL, while the
+	 * self-delivery filter read the *cloud* address: an administrator who sets
+	 * a cloud address on another host left the server posting its own
+	 * activities back to itself, which behind a reverse proxy or an SSRF guard
+	 * it cannot do — fifteen failures and a drop, with the remote deliveries
+	 * queued behind them.
+	 */
+	public function testAnInboxOnTheSocialUrlHostIsOursEvenWhenTheCloudAddressDiffers(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/apps/social/');
+		$paths = [];
+		$this->capturePaths($paths);
+		$this->followsRequest->method('getFollowerInboxes')->willReturn([
+			'https://social.example/apps/social/@carol/inbox',
+			'https://remote.example/inbox',
+		]);
+
+		$note = new Note();
+		$note->setActorId(self::ALICE_ID);
+		$note->addInstancePath(new InstancePath(self::ALICE_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW));
+
+		$this->service->request($note);
+
+		$this->assertSame(['https://remote.example/inbox'], array_map(
+			fn (InstancePath $path): string => $path->getUri(), $paths
+		));
+	}
+
 	public function testADirectTargetOnThisInstanceIsDroppedToo(): void {
 		$paths = [];
 		$this->capturePaths($paths);

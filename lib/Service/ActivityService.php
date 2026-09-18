@@ -74,6 +74,9 @@ class ActivityService {
 	/** The hosts this pass has already found to be failing. */
 	private ?array $failInstances = null;
 
+	/** The hostnames this instance answers to; see `localHosts()`. */
+	private ?array $localHosts = null;
+
 	/** Shared across every process that delivers; see the constants above. */
 	private ICache $breaker;
 
@@ -554,14 +557,47 @@ class ActivityService {
 	 * times and is dropped, while remote instances queue up behind it.
 	 */
 	private function isOurs(InstancePath $instancePath): bool {
-		try {
-			$local = strtolower($this->configService->getCloudHost());
-		} catch (SocialAppConfigException $e) {
-			// nothing configured to compare against; send it and find out
-			return false;
+		$host = strtolower($instancePath->getAddress());
+
+		return $host !== '' && in_array($host, $this->localHosts(), true);
+	}
+
+	/**
+	 * The hostnames this instance answers to.
+	 *
+	 * Two settings name this server and they are not the same one. The cloud
+	 * address is what `getCloudHost()` reads and what an administrator sets;
+	 * the social URL is what every local id and inbox is generated from
+	 * (`ConfigService::generateId()`), and it is taken from the web root. They
+	 * agree when the app configures itself, but the cloud address can be set
+	 * by hand to a different host — and then every inbox this server would be
+	 * posting to itself is on the *other* one, which the check missed.
+	 *
+	 * @return string[] lowercased, empty when nothing is configured
+	 */
+	private function localHosts(): array {
+		if ($this->localHosts !== null) {
+			return $this->localHosts;
 		}
 
-		return $local !== '' && strtolower($instancePath->getAddress()) === $local;
+		$hosts = [];
+		try {
+			$hosts[] = $this->configService->getCloudHost();
+		} catch (SocialAppConfigException $e) {
+			// nothing configured to compare against; send it and find out
+		}
+
+		try {
+			$hosts[] = parse_url($this->configService->getSocialUrl(), PHP_URL_HOST);
+		} catch (SocialAppConfigException $e) {
+		}
+
+		$this->localHosts = array_values(array_unique(array_map(
+			static fn (string $host): string => strtolower($host),
+			array_filter($hosts, static fn ($host): bool => is_string($host) && $host !== '')
+		)));
+
+		return $this->localHosts;
 	}
 
 	/**
