@@ -36,6 +36,45 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	];
 
 	/**
+	 * How long a hashtag this table holds — the same as `social_stream_tag`,
+	 * which is where these rows are counted from. A longer one has nowhere to
+	 * go: `hashtag` is the primary key, so it can be neither truncated (two
+	 * tags would become one row) nor stored.
+	 */
+	public const HASHTAG_MAX_LENGTH = 127;
+
+	/**
+	 * Writes one hashtag's trend, whether or not it already has a row.
+	 *
+	 * The caller cannot tell the two apart: the trends cron knows the rows that
+	 * currently claim a trend, which is not the set of rows that exist — a
+	 * hashtag that trended, fell to zero and trends again has a row and is not
+	 * in that list. An INSERT for it is refused by the primary key, and the
+	 * exception used to end the whole pass.
+	 *
+	 * The UPDATE goes first because almost every hashtag the cron writes has
+	 * been seen before; it is followed by an insert that the database is asked
+	 * to skip on a conflict, so a row this process did not know about costs a
+	 * statement rather than a failed transaction — which on PostgreSQL takes
+	 * every later statement with it.
+	 */
+	public function upsert(string $hashtag, array $trend): void {
+		if ($this->update($hashtag, $trend) > 0) {
+			return;
+		}
+
+		$values = [
+			'hashtag' => $hashtag,
+			'trend' => json_encode($trend),
+		];
+		foreach (self::TREND_COLUMNS as $period => $column) {
+			$values[$column] = (int)($trend[$period] ?? 0);
+		}
+
+		$this->dbConnection->insertIgnoreConflict(self::TABLE_HASHTAGS, $values);
+	}
+
+	/**
 	 * Insert a new Hashtag.
 	 *
 	 * @param string $hashtag
@@ -55,12 +94,13 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	}
 
 	/**
-	 * Insert a new Hashtag.
+	 * Rewrites one hashtag's trend, if it has a row.
 	 *
-	 * @param string $hashtag
-	 * @param array $trend
+	 * @return int how many rows were written — 0 when there is no such
+	 *             hashtag, and on MySQL also when the row already held these
+	 *             counts
 	 */
-	public function update(string $hashtag, array $trend) {
+	public function update(string $hashtag, array $trend): int {
 		$qb = $this->getHashtagsUpdateSql();
 		$qb->set('trend', $qb->createNamedParameter(json_encode($trend)));
 		foreach (self::TREND_COLUMNS as $period => $column) {
@@ -70,7 +110,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		}
 		$qb->limitToHashtag($hashtag);
 
-		$qb->executeStatement();
+		return $qb->executeStatement();
 	}
 
 	/**

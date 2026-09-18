@@ -49,6 +49,10 @@ class FollowsRequest extends FollowsRequestBuilder {
 				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 			);
 		} catch (Exception $e) {
+			// 'now' is a constant, so this does not happen; were it ever to,
+			// the row would go in with no date at all, and every list that
+			// orders on it would place it arbitrarily
+			$this->logger->warning('could not timestamp a row', ['exception' => $e]);
 		}
 
 		$qb->generatePrimaryKey($follow->getId());
@@ -85,6 +89,10 @@ class FollowsRequest extends FollowsRequestBuilder {
 				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 			);
 		} catch (Exception $e) {
+			// 'now' is a constant, so this does not happen; were it ever to,
+			// the row would go in with no date at all, and every list that
+			// orders on it would place it arbitrarily
+			$this->logger->warning('could not timestamp a row', ['exception' => $e]);
 		}
 
 		$qb->generatePrimaryKey($actor->getId());
@@ -255,6 +263,9 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->andWhere($qb->expr()->eq('type', $qb->createNamedParameter(Follow::TYPE)));
 		$qb->andWhere($qb->expr()->eq('accepted', $qb->createNamedParameter('1')));
 		$qb->orderBy('creation', 'desc');
+		// the cap cuts the list, so the rows sharing the second it falls in
+		// need an order of their own for the page to be the same twice
+		$qb->addOrderBy('id_prim', 'desc');
 		$qb->setMaxResults($limit);
 
 		$rows = [];
@@ -352,6 +363,11 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
+		// `creation` is a DATETIME, so the follows made within one second of
+		// each other have no order of their own: with an offset page, one of
+		// them can come back on two consecutive pages while another is never
+		// returned at all. The primary key breaks the tie.
+		$qb->addOrderBy('f.id_prim', 'desc');
 
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
@@ -453,6 +469,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
+		$qb->addOrderBy('f.id_prim', 'desc');
 
 		return $this->getFollowsFromRequest($qb);
 	}
@@ -479,6 +496,12 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * to `type = 'Follow'` dropped every one of them: the notification arrived,
 	 * the post was readable at its own URL, and the timeline paged straight
 	 * past it.
+	 *
+	 * A query that matches these as a list of bound parameters must not ask for
+	 * the list unbounded — see limitToHomeCollections(), which is what a query
+	 * should use.
+	 *
+	 * @param int $limit 0 for every collection
 	 *
 	 * @return string[] md5 hashes, deduplicated
 	 */
@@ -509,6 +532,73 @@ class FollowsRequest extends FollowsRequestBuilder {
 		return $prims;
 	}
 
+	/**
+	 * How many followed collections a query will name one by one.
+	 *
+	 * Each is one bound parameter, and every statement has a ceiling on those:
+	 * a SQLite built with the historical default refuses a statement with more
+	 * than 999, and MySQL and PostgreSQL accept a list of ten thousand but plan
+	 * it worse the longer it gets. Below this the list is the faster query by
+	 * far; above it the account is one of the few that follow more accounts
+	 * than a page can name, and the database is asked to find them itself.
+	 */
+	public const HOME_COLLECTIONS_IN_A_QUERY = 500;
+
+	/**
+	 * The predicate matching the collections one account's home timeline is
+	 * read from — for `social_stream_dest.actor_id`, or any other column
+	 * holding a collection prim.
+	 *
+	 * Two shapes behind one call. Up to the cap, the collections are read and
+	 * named in an `IN (…)`, which is what makes the home timeline a range scan
+	 * over an index. Past it, the same set is left to an `EXISTS` over
+	 * `social_follow`, correlated on the column: one bound parameter instead of
+	 * ten thousand, at the cost of a lookup per candidate row.
+	 *
+	 * @param string $field the column to match, qualified with its alias
+	 * @param string[] $also collections to match besides the followed ones —
+	 *                       the account's own, which it does not follow
+	 *
+	 * @return string an expression for andWhere(), or '' when there is nothing
+	 *                to match and the caller has no timeline to build
+	 */
+	public function limitToHomeCollections(
+		SocialQueryBuilder $qb, string $field, string $actorId, array $also = [],
+	): string {
+		$also = array_values(array_unique(array_filter($also)));
+		$prims = $this->getHomeCollectionPrims($actorId, self::HOME_COLLECTIONS_IN_A_QUERY + 1);
+
+		if (count($prims) <= self::HOME_COLLECTIONS_IN_A_QUERY) {
+			$all = array_values(array_unique(array_merge($prims, $also)));
+			if ($all === []) {
+				return '';
+			}
+
+			return $qb->expr()->in(
+				$field, $qb->createNamedParameter($all, IQueryBuilder::PARAM_STR_ARRAY)
+			);
+		}
+
+		// the parameters are created on the outer builder: this query is
+		// embedded in it and its placeholders are bound there
+		$follows = $this->getQueryBuilder();
+		$follows->select($follows->createFunction('1'))
+			->from(self::TABLE_FOLLOWS, 'hf')
+			->where('hf.follow_id_prim = ' . $field)
+			->andWhere('hf.actor_id_prim = ' . (string)$qb->createNamedParameter($qb->prim($actorId)))
+			->andWhere('hf.accepted = ' . (string)$qb->createNamedParameter('1'))
+			->andWhere('hf.follow_id_prim <> ' . (string)$qb->createNamedParameter(''));
+
+		$clause = 'EXISTS (' . $follows->getSQL() . ')';
+		if ($also === []) {
+			return $clause;
+		}
+
+		return '(' . $clause . ' OR ' . $qb->expr()->in(
+			$field, $qb->createNamedParameter($also, IQueryBuilder::PARAM_STR_ARRAY)
+		) . ')';
+	}
+
 	public function getFollowingByActorId(string $actorId, int $limit = 0, int $offset = 0): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
@@ -520,6 +610,9 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'object_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
+		// a second-resolution date is not a page order on its own; see
+		// getFollowersByActorId()
+		$qb->addOrderBy('f.id_prim', 'desc');
 
 		return $this->getFollowsFromRequest($qb);
 	}

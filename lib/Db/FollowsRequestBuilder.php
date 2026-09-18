@@ -144,12 +144,17 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 
 			return $follow;
 		} catch (InvalidResourceException $e) {
+			// no cached actor on this row — the local accounts table is the
+			// other place it can come from
 		}
 
 		try {
 			$actor = $this->parseAccountsLeftJoin($data);
 			$follow->setActor($actor);
 		} catch (InvalidResourceException $e) {
+			// neither join brought an actor: the follow is returned without
+			// one rather than dropped, since its own columns are what most
+			// callers read
 		}
 
 		return $follow;
