@@ -49,6 +49,10 @@ class FollowsRequest extends FollowsRequestBuilder {
 				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 			);
 		} catch (Exception $e) {
+			// 'now' is a constant, so this does not happen; were it ever to,
+			// the row would go in with no date at all, and every list that
+			// orders on it would place it arbitrarily
+			$this->logger->warning('could not timestamp a row', ['exception' => $e]);
 		}
 
 		$qb->generatePrimaryKey($follow->getId());
@@ -85,6 +89,10 @@ class FollowsRequest extends FollowsRequestBuilder {
 				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 			);
 		} catch (Exception $e) {
+			// 'now' is a constant, so this does not happen; were it ever to,
+			// the row would go in with no date at all, and every list that
+			// orders on it would place it arbitrarily
+			$this->logger->warning('could not timestamp a row', ['exception' => $e]);
 		}
 
 		$qb->generatePrimaryKey($actor->getId());

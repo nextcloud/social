@@ -130,6 +130,8 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 
 			$item->setActor($actor);
 		} catch (InvalidResourceException $e) {
+			// the actor is joined in with a LEFT JOIN and this instance may
+			// never have cached it; the action itself is still an answer
 		}
 
 		return $item;

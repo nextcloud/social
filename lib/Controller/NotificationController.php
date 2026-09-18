@@ -111,6 +111,8 @@ class NotificationController extends Controller {
 			try {
 				$this->notificationService->dismiss($this->viewer, $id);
 			} catch (ItemNotFoundException $e) {
+				// gone between the read and the dismiss; the state asked for
+				// is the state there is
 			}
 
 			return new DataResponse([], Http::STATUS_OK);

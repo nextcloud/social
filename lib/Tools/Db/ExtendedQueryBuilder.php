@@ -754,6 +754,10 @@ class ExtendedQueryBuilder implements IExtendedQueryBuilder {
 		$cursor = $this->executeQuery();
 		while ($data = $cursor->fetch()) {
 			try {
+				// a row the model cannot be built from is left out rather than
+				// taking the whole page with it; the parsers already absorb a
+				// missing joined actor themselves, so what reaches here is a
+				// row this instance has no reading of
 				$rows[] = $method($data, $this);
 			} catch (Exception $e) {
 			}
