@@ -385,7 +385,15 @@ class ActivityService {
 			);
 			$this->closeCircuit($host);
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (UnauthorizedFediverseException|RequestResultNotJsonException $e) {
+		} catch (UnauthorizedFediverseException $e) {
+			// nothing was sent: the domain is not one this instance federates
+			// with. Kept as delivered, it told the author their post had
+			// reached a server it was never offered to.
+			$this->logger->notice(
+				'Delivery refused by the instance policy, dropping the request: ' . $url
+			);
+			$this->requestQueueService->deleteRequest($queue);
+		} catch (RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
 		} catch (RequestContentException $e) {
 			// The peer answered, but not with a 2xx. Whether that is worth

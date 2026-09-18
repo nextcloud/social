@@ -831,22 +831,27 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame($expectedMethod, $sent);
 	}
 
-	/**
-	 * @return array<string, array{\Exception}>
-	 */
-	public static function deliveredButNoJsonProvider(): array {
-		return [
-			'non-json answer' => [new RequestResultNotJsonException()],
-			'instance not authorized' => [new UnauthorizedFediverseException()],
-		];
-	}
-
-	#[DataProvider('deliveredButNoJsonProvider')]
-	public function testManageRequestTreatsNonJsonAnswersAsDelivered(\Exception $e): void {
+	/** An inbox that answers 202 with an empty body has taken the activity. */
+	public function testManageRequestTreatsNonJsonAnswersAsDelivered(): void {
 		$queue = $this->queue();
-		$this->curlService->method('retrieveJson')->willThrowException($e);
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestResultNotJsonException());
 		$this->requestQueueService->expects($this->once())->method('endRequest')->with($this->identicalTo($queue), true);
 		$this->requestQueueService->expects($this->never())->method('deleteRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($queue);
+	}
+
+	/**
+	 * Nothing left this server: the domain is not one it federates with. Kept
+	 * as a success, the row told the author their post had reached a server it
+	 * was never offered to.
+	 */
+	public function testADeliveryBlockedByTheInstancePolicyIsNotRecordedAsDelivered(): void {
+		$queue = $this->queue();
+		$this->curlService->method('retrieveJson')->willThrowException(new UnauthorizedFediverseException());
+		$this->requestQueueService->expects($this->never())->method('endRequest');
+		$this->requestQueueService->expects($this->once())->method('deleteRequest')->with($this->identicalTo($queue));
 
 		$this->service->manageInit();
 		$this->service->manageRequest($queue);
