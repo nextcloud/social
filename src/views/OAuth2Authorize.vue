@@ -132,7 +132,7 @@ export default {
 				if (host !== '') {
 					return host
 				}
-			} catch (e) {
+			} catch {
 				// not a URL this browser parses; show it whole
 			}
 
