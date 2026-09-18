@@ -1053,7 +1053,7 @@ describe('TimelineList', () => {
 			// directly stayed subscribed for the life of the page: every
 			// thread opened left another dead component behind, and one
 			// pushed event then ran that many identical timeline requests
-			const { wrapper, dispatch } = mountList({ timeline: [status('30')] })
+			const { wrapper } = mountList({ timeline: [status('30')] })
 			await flushPromises()
 
 			const handler = onTimelinePush.mock.calls[0][0]
