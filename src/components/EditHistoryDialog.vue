@@ -25,8 +25,9 @@
 					{{ version.spoiler_text }}
 				</p>
 
+				<!-- Sanitized: a revision is remote HTML, see sanitizeHtml.js -->
 				<!-- eslint-disable-next-line vue/no-v-html -->
-				<div class="history__content" v-html="version.content" />
+				<div class="history__content" v-html="contentOf(version)" />
 
 				<ul v-if="(version.media_attachments || []).length" class="history__media">
 					<li v-for="media in version.media_attachments" :key="media.id">
@@ -46,6 +47,7 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import logger from '../services/logger.js'
 import { fullDateTime } from '../utils/relativeTime.js'
+import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 
 /**
  * Every version of an edited post, oldest first.
@@ -57,8 +59,10 @@ import { fullDateTime } from '../utils/relativeTime.js'
  * them.
  *
  * The content is rendered as HTML because that is what it is: each version is
- * the post as it stood, already sanitised by the server the same way the
- * post itself is. Rendering it as text would show markup to the reader.
+ * the post as it stood, and rendering it as text would show markup to the
+ * reader. It goes through the client sanitiser first, the way every other
+ * remote-HTML sink in this app does — a revision of a remote post is that
+ * server's markup.
  */
 export default {
 	name: 'EditHistoryDialog',
@@ -91,6 +95,14 @@ export default {
 
 	methods: {
 		t,
+
+		/**
+		 * @param {object} version one revision of the post
+		 * @return {string} its content, reduced to what may be rendered
+		 */
+		contentOf(version) {
+			return sanitizeHtml(version.content ?? '')
+		},
 
 		/**
 		 * @param {string} iso when a version was written
