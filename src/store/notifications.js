@@ -10,7 +10,7 @@ import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'
 
 import logger from '../services/logger.js'
-import { isNewerId, newerId } from '../services/notifications.js'
+import { isNewerId, newerId } from '../utils/snowflake.js'
 
 /**
  * How many notifications have arrived since the reader last looked, and where

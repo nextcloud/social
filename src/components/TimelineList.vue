@@ -93,7 +93,8 @@ import TimelineSkeleton from './TimelineSkeleton.vue'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
 import eventBus, { NOTIFICATIONS_READ } from '../services/eventBus.js'
-import { groupNotifications, isNewerId, newerId, newestIdOf } from '../services/notifications.js'
+import { groupNotifications, newestIdOf } from '../services/notifications.js'
+import { isNewerId, newerId, newestId, oldestId } from '../utils/snowflake.js'
 import { mapStores } from 'pinia'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -896,16 +897,17 @@ export default {
 
 			if (this.timeline.length !== 0) {
 				// The timeline getter sorts by created_at while min_id/max_id
-				// filter on the numeric id, and a federated post can have a
-				// high id with an old date — so page on the ids themselves,
-				// or the cursor never advances and the same page loops forever.
-				const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
-				if (ids.length !== 0) {
-					if (this.reverseOrder) {
-						params.min_id = Math.max(...ids)
-					} else {
-						params.max_id = Math.min(...ids)
-					}
+				// filter on the id, and a federated post can have a high id
+				// with an old date — so page on the ids themselves, or the
+				// cursor never advances and the same page loops forever.
+				//
+				// As strings, end to end: a cursor rounded through a Number
+				// either re-fetches the post it points at, so the end of the
+				// list is never reached, or skips the rows between the two.
+				const ids = this.timeline.map((entry) => entry.id)
+				const cursor = this.reverseOrder ? newestId(ids) : oldestId(ids)
+				if (cursor !== undefined) {
+					params[this.reverseOrder ? 'min_id' : 'max_id'] = cursor
 				}
 			}
 
@@ -1039,12 +1041,15 @@ export default {
 
 			// Newest by id, not this.timeline[0] (sorted by created_at): a
 			// federated post with a high id but an old date would otherwise
-			// keep min_id stuck and this method would refetch forever.
-			const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
+			// keep min_id stuck and this method would refetch forever. As a
+			// string: rounded down through a Number it names a post already on
+			// screen, which comes back on every tick and drives the catch-up
+			// below to its page cap.
+			const newest = newestId(this.timeline.map((entry) => entry.id))
 
 			try {
 				const response = await this.timelineStore.fetchTimeline({
-					min_id: ids.length === 0 ? undefined : Math.max(...ids),
+					min_id: newest,
 				})
 				this.pollFailureReported = false
 

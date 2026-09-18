@@ -736,7 +736,7 @@ describe('TimelineList', () => {
 		it('requests the statuses older than the last one shown', async () => {
 			const { dispatch } = mountList({ timeline: [status('30'), status('20')] })
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith({ max_id: 20 })
+			expect(dispatch).toHaveBeenCalledWith({ max_id: '20' })
 		})
 
 		it('requests the statuses newer than the newest one shown in reverse order', async () => {
@@ -744,7 +744,30 @@ describe('TimelineList', () => {
 			// paging on any other entry refetches a page the store already has.
 			const { dispatch } = mountList({ timeline: [status('30'), status('20')], props: { reverseOrder: true } })
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith({ min_id: 30 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '30' })
+		})
+
+		it('sends a twenty-digit cursor with every digit of it', async () => {
+			// Number.parseInt rounds these two to the same double, and
+			// Math.min then answers the *newer* of the two: a max_id above the
+			// oldest post on screen refetches it for ever, so the list never
+			// reaches its end.
+			const { dispatch } = mountList({
+				timeline: [status('1789553297940456473'), status('1789553297940456400')],
+			})
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledWith({ max_id: '1789553297940456400' })
+		})
+
+		it('sends a twenty-digit reverse cursor with every digit of it', async () => {
+			const { dispatch } = mountList({
+				timeline: [status('1789553297940456400'), status('1789553297940456473')],
+				props: { reverseOrder: true },
+			})
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '1789553297940456473' })
 		})
 
 		it('shows post-shaped placeholders while the first page loads, not a spinner', async () => {
@@ -919,7 +942,7 @@ describe('TimelineList', () => {
 			await intersect()
 
 			expect(dispatch).toHaveBeenCalledTimes(2)
-			expect(dispatch).toHaveBeenLastCalledWith({ max_id: 20 })
+			expect(dispatch).toHaveBeenLastCalledWith({ max_id: '20' })
 		})
 
 		it('does nothing when the sentinel leaves the view', async () => {
@@ -964,7 +987,7 @@ describe('TimelineList', () => {
 			// a pushed event refreshes immediately
 			listen.mock.calls[listen.mock.calls.length - 1][1]()
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith({ min_id: 30 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '30' })
 			dispatch.mockClear()
 
 			// the 30-second poll is off; the safety net runs every 5 minutes
@@ -974,7 +997,7 @@ describe('TimelineList', () => {
 
 			vi.advanceTimersByTime(270 * 1000)
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith({ min_id: 30 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '30' })
 		})
 
 		it('asks for statuses newer than the first one every 30 seconds', async () => {
@@ -986,7 +1009,21 @@ describe('TimelineList', () => {
 			await flushPromises()
 
 			expect(dispatch).toHaveBeenCalledTimes(1)
-			expect(dispatch).toHaveBeenCalledWith({ min_id: 30 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '30' })
+		})
+
+		it('polls on the exact newest id, twenty digits and all', async () => {
+			// rounded down through a Number, min_id names a post already on
+			// screen: it comes back on every tick, `arrived` counts it again
+			// and the catch-up recursion runs to its page cap every 30 seconds
+			const { dispatch } = mountList({ timeline: [status('1789553297940456473')] })
+			await flushPromises()
+			dispatch.mockClear()
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '1789553297940456473' })
 		})
 
 		it('polls with the highest id even when a newer-dated status has a lower one', async () => {
@@ -1001,7 +1038,7 @@ describe('TimelineList', () => {
 			vi.advanceTimersByTime(30 * 1000)
 			await flushPromises()
 
-			expect(dispatch).toHaveBeenCalledWith({ min_id: 50 })
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '50' })
 		})
 
 		it('does not poll for ancestors', async () => {

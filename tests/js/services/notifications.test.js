@@ -10,8 +10,6 @@ import {
 	NOTIFICATION_TYPES,
 	excludeTypesFor,
 	groupNotifications,
-	isNewerId,
-	newerId,
 	newestIdOf,
 	notificationSummary,
 	rememberFilter,
@@ -252,28 +250,5 @@ describe('newestIdOf', () => {
 
 	it('reads something that was never an id as no id at all', () => {
 		expect(newestIdOf({ id: 'not-a-number' })).toBe('0')
-	})
-})
-
-describe('isNewerId', () => {
-	it('tells two twenty-digit ids apart', () => {
-		expect(isNewerId('1789553297940456473', '1789553297940456400')).toBe(true)
-		expect(isNewerId('1789553297940456400', '1789553297940456473')).toBe(false)
-	})
-
-	it('is false for the same id, so a marker never moves for nothing', () => {
-		expect(isNewerId('42', '42')).toBe(false)
-	})
-
-	it('holds anything unreadable at nothing', () => {
-		expect(isNewerId(undefined, '0')).toBe(false)
-		expect(isNewerId('1', undefined)).toBe(true)
-	})
-})
-
-describe('newerId', () => {
-	it('answers the newer of the two, as a string', () => {
-		expect(newerId('1789553297940456473', '1789553297940456400')).toBe('1789553297940456473')
-		expect(newerId('1789553297940456400', '1789553297940456473')).toBe('1789553297940456473')
 	})
 })
