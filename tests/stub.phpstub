@@ -974,3 +974,18 @@ namespace OC\Files\Storage\Wrapper{
 		public function getQuota() {}
 	}
 }
+
+namespace OC\Settings {
+	class AuthorizedGroup {
+		public function getGroupId(): string {
+		}
+	}
+}
+
+namespace OCA\Settings\Service {
+	class AuthorizedGroupService {
+		/** @return list<\OC\Settings\AuthorizedGroup> */
+		public function findExistingGroupsForClass(string $class): array {
+		}
+	}
+}

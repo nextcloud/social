@@ -15,7 +15,9 @@ use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActorRelation;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\NotificationService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -31,6 +33,7 @@ class SocialAppNotificationInterfaceTest extends ActivityPubTestCase {
 	private $actorRelationRequest;
 	/** @var MiscService&MockObject */
 	private $miscService;
+	private AccountRelationService|MockObject $accountRelationService;
 	private SocialAppNotificationInterface $handler;
 
 	protected function setUp(): void {
@@ -40,7 +43,14 @@ class SocialAppNotificationInterfaceTest extends ActivityPubTestCase {
 		$this->miscService = $this->createMock(MiscService::class);
 
 		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
-		$this->handler = new SocialAppNotificationInterface($this->streamRequest, $this->actorRelationRequest, $this->miscService, $this->createMock(\OCA\Social\Service\NotificationService::class));
+		$this->accountRelationService = $this->createMock(AccountRelationService::class);
+		$this->handler = new SocialAppNotificationInterface(
+			$this->streamRequest,
+			$this->actorRelationRequest,
+			$this->miscService,
+			$this->createMock(NotificationService::class),
+			$this->accountRelationService,
+		);
 	}
 
 	private function notification(): SocialAppNotification {
@@ -108,6 +118,44 @@ class SocialAppNotificationInterfaceTest extends ActivityPubTestCase {
 			));
 		$this->streamRequest->expects($saved ? $this->once() : $this->never())
 			->method('save')->with($this->identicalTo($notification));
+
+		$this->handler->save($notification);
+	}
+
+	/**
+	 * A mute given a duration stops applying when it runs out, and nothing
+	 * deletes the row to make that happen. Suppressing on the row alone meant
+	 * the notification was never stored at all, so neither the read filter nor
+	 * the bell could tell that the mute had ended.
+	 */
+	public function testAMuteThatHasRunOutNoLongerSuppressesTheNotification(): void {
+		$notification = $this->notification();
+		$notification->setAttributedTo(self::REMOTE_URL . '/users/bob');
+
+		$this->actorRelationRequest->method('getBetween')->willReturn([
+			(new ActorRelation())->setType(ActorRelation::TYPE_MUTE)->setNotifications(true),
+		]);
+		$this->accountRelationService->expects($this->once())
+			->method('isMuteExpired')
+			->with(self::LOCAL_URL . '/users/alice', self::REMOTE_URL . '/users/bob')
+			->willReturn(true);
+
+		$this->streamRequest->expects($this->once())->method('save')
+			->with($this->identicalTo($notification));
+
+		$this->handler->save($notification);
+	}
+
+	/** A block is a block whatever a mute expiry says, and is not asked about. */
+	public function testABlockIsNotWeighedAgainstAMuteExpiry(): void {
+		$notification = $this->notification();
+		$notification->setAttributedTo(self::REMOTE_URL . '/users/bob');
+
+		$this->actorRelationRequest->method('getBetween')->willReturn([
+			(new ActorRelation())->setType(ActorRelation::TYPE_BLOCK)->setNotifications(true),
+		]);
+		$this->accountRelationService->expects($this->never())->method('isMuteExpired');
+		$this->streamRequest->expects($this->never())->method('save');
 
 		$this->handler->save($notification);
 	}

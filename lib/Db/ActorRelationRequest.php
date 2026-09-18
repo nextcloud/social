@@ -178,6 +178,24 @@ class ActorRelationRequest extends ActorRelationRequestBuilder {
 		return $actors;
 	}
 
+	/**
+	 * Removes only the relations the actor holds over other accounts.
+	 *
+	 * What other accounts hold over *it* is theirs and outlives it being taken
+	 * out of the timelines: a suspension can be lifted, and an account that
+	 * came back into the timelines, notifications and follow pipeline of
+	 * everybody who had blocked it would be a block silently undone by a
+	 * moderator's decision about somebody else.
+	 */
+	public function deleteByActor(string $actorId): void {
+		$qb = $this->getActorRelationDeleteSql();
+		$qb->where(
+			$qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
+		);
+
+		$qb->executeStatement();
+	}
+
 	/** Removes every relation owned by or targeting the actor (account deletion). */
 	public function deleteRelatedId(string $actorId): void {
 		$qb = $this->getActorRelationDeleteSql();

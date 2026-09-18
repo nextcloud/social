@@ -346,6 +346,40 @@ class AccountRelationServiceTest extends TestCase {
 		$this->assertFalse($service->isMuteExpired(self::ALICE, self::CAROL, self::NOW + 7200));
 	}
 
+	/**
+	 * An archive carries the moment a mute runs out, not how long it had left
+	 * when it was written: turning it back into a duration would move every
+	 * expiry forward by however long the archive sat in a download folder.
+	 */
+	public function testAnExpiryDecidedElsewhereIsStoredAsTheMomentItIs(): void {
+		$service = $this->service();
+
+		$service->setMuteExpiresAt($this->person(self::ALICE), $this->person(self::CAROL), self::NOW + 60);
+
+		$this->assertSame(self::NOW + 60, $this->expiries[self::ALICE . '|' . self::CAROL]);
+		$this->assertTrue($service->isMuteExpired(self::ALICE, self::CAROL, self::NOW + 120));
+	}
+
+	public function testAnExpiryOfNoneClearsTheOneThatWasThere(): void {
+		$service = $this->service();
+		$service->setMuteExpiry($this->person(self::ALICE), $this->person(self::CAROL), 3600, self::NOW);
+
+		$service->setMuteExpiresAt($this->person(self::ALICE), $this->person(self::CAROL), 0);
+
+		$this->assertSame([], $this->expiries);
+	}
+
+	public function testTheExpiriesOfAPageOfMutesAreReadInOneQuery(): void {
+		$service = $this->service();
+		$service->setMuteExpiry($this->person(self::ALICE), $this->person(self::CAROL), 3600, self::NOW);
+		$before = $this->expiryReads;
+
+		$expiries = $service->muteExpiries(self::ALICE, [self::CAROL, self::BOB]);
+
+		$this->assertSame([self::CAROL => self::NOW + 3600], $expiries);
+		$this->assertSame($before + 1, $this->expiryReads);
+	}
+
 	public function testUnmutingTakesTheExpiryWithIt(): void {
 		$service = $this->service();
 		$service->setMuteExpiry($this->person(self::ALICE), $this->person(self::CAROL), 3600, self::NOW);

@@ -15,6 +15,7 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\ChannelsRequest;
 use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
@@ -31,6 +32,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\Moderation;
 use OCA\Social\Service\AccessBlockService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
@@ -48,6 +50,7 @@ use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 class AccountServiceTest extends TestCase {
@@ -69,6 +72,7 @@ class AccountServiceTest extends TestCase {
 	private AccessBlockService|MockObject $accessBlockService;
 	private CacheActorService|MockObject $cacheActorService;
 	private \OCA\Social\Db\CacheActorsRequest|MockObject $cacheActorsRequest;
+	private ModerationRequest|MockObject $moderationRequest;
 
 	/** @var string[] the addresses this instance gives no fediverse account to */
 	private array $blockedEmails = [];
@@ -105,6 +109,7 @@ class AccountServiceTest extends TestCase {
 		$this->errorReporting = error_reporting(E_ALL & ~E_DEPRECATED);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->cacheActorsRequest = $this->createMock(\OCA\Social\Db\CacheActorsRequest::class);
+		$this->moderationRequest = $this->createMock(ModerationRequest::class);
 		$this->clientAuthRequest = $this->createMock(ClientAuthRequest::class);
 		$this->channelsRequest = $this->createMock(ChannelsRequest::class);
 		$this->accessBlockService = $this->createMock(AccessBlockService::class);
@@ -129,6 +134,7 @@ class AccountServiceTest extends TestCase {
 			$this->accessBlockService,
 			$this->cacheActorService,
 			$this->cacheActorsRequest,
+			$this->moderationRequest,
 			new NullLogger(),
 		);
 		error_reporting($this->errorReporting);
@@ -527,6 +533,40 @@ class AccountServiceTest extends TestCase {
 		$this->assertSame('2026-09-01', $alice->getDetailsAll()['last_post_creation']);
 	}
 
+	/**
+	 * Suspending a local account drops the cached copy of its actor, which is
+	 * what the actor document, the WebFinger answer and the timelines are
+	 * served from. This is reached from the cache cron, from every profile
+	 * change and from the first reader who finds the copy missing, and it used
+	 * to put it straight back: a local account a moderator had suspended was
+	 * served again a few minutes later, with an empty outbox.
+	 */
+	public function testASuspendedLocalAccountIsNotCachedBackIntoBeingServed(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->moderationRequest->method('levelOf')->with(self::ALICE)->willReturn(Moderation::SUSPEND);
+
+		$this->cacheActorsRequest->expects($this->once())->method('deleteCacheById')->with(self::ALICE);
+		$this->actorService->expects($this->never())->method('cacheLocalActor');
+
+		$this->service->cacheLocalActorByUsername('alice');
+	}
+
+	public function testASilencedAccountIsStillServed(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->withDisplayName('Alice Wonder', IAccountManager::SCOPE_PUBLISHED);
+		$this->documentService->method('cacheLocalAvatarByUsername')->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')->willThrowException(new StreamNotFoundException());
+		$this->moderationRequest->method('levelOf')->willReturn(Moderation::SILENCE);
+
+		$this->cacheActorsRequest->expects($this->never())->method('deleteCacheById');
+		$this->actorService->expects($this->once())->method('cacheLocalActor');
+
+		$this->service->cacheLocalActorByUsername('alice');
+	}
+
 	public function testCacheLocalActorByUsernameKeepsAPrivateDisplayNameOut(): void {
 		$alice = $this->alice();
 		$alice->setName('alice');
@@ -544,11 +584,43 @@ class AccountServiceTest extends TestCase {
 		$this->assertSame('', $alice->getDetailsAll()['last_post_creation']);
 	}
 
-	public function testCacheLocalActorByUsernameIgnoresUnknownActors(): void {
+	/**
+	 * Every caller has an account in hand and passes its handle, so a handle
+	 * nothing answers to is worth saying out loud: in silence it hid a caller
+	 * passing a user id instead, and with it the profile updates of every
+	 * account whose handle is not its user id.
+	 */
+	public function testCacheLocalActorByUsernameSaysWhenNoActorAnswersToTheHandle(): void {
+		$logger = $this->createMock(LoggerInterface::class);
+		$service = new AccountService(
+			$this->userManager,
+			$this->userSession,
+			$this->accountManager,
+			$this->actorsRequest,
+			$this->channelsRequest,
+			$this->clientAuthRequest,
+			$this->followsRequest,
+			$this->streamRequest,
+			$this->actorService,
+			$this->activityService,
+			$this->documentService,
+			$this->signatureService,
+			$this->configService,
+			$this->accessBlockService,
+			$this->cacheActorService,
+			$this->cacheActorsRequest,
+			$this->moderationRequest,
+			$logger,
+		);
+
 		$this->actorsRequest->method('getFromUsername')->willThrowException(new ActorDoesNotExistException());
 		$this->actorService->expects($this->never())->method('cacheLocalActor');
+		$logger->expects($this->once())->method('warning')->with(
+			'no Social account under the handle to cache',
+			$this->callback(static fn (array $context): bool => $context['handle'] === 'nobody')
+		);
 
-		$this->service->cacheLocalActorByUsername('nobody');
+		$service->cacheLocalActorByUsername('nobody');
 	}
 
 	public function testCacheLocalActorDetailCountOnlyAppliesToLocalActors(): void {

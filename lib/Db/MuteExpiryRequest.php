@@ -133,6 +133,20 @@ class MuteExpiryRequest extends MuteExpiryRequestBuilder {
 	}
 
 	/**
+	 * The expiries of the mutes this account holds, and only those: anybody
+	 * else's timed mute *of* it belongs to them, and must survive a decision —
+	 * a suspension — that can be lifted again.
+	 */
+	public function deleteByActor(string $actorId): void {
+		$qb = $this->getMuteExpiryDeleteSql();
+		$qb->where(
+			$qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
+		);
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * Everything an account leaves behind here when it is deleted, in both
 	 * directions: the expiries of its own mutes, and the expiry of anybody
 	 * else's mute of it.

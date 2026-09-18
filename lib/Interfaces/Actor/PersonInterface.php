@@ -10,21 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Actor;
 
 use OCA\Social\Cron\ActorCleanup;
-use OCA\Social\Db\ActionsRequest;
-use OCA\Social\Db\ActorRelationRequest;
-use OCA\Social\Db\AnnouncementsRequest;
 use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Db\CacheDocumentsRequest;
-use OCA\Social\Db\ConversationsRequest;
-use OCA\Social\Db\FeaturedTagsRequest;
-use OCA\Social\Db\FiltersRequest;
-use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Db\ListsRequest;
-use OCA\Social\Db\ReactionsRequest;
-use OCA\Social\Db\ReportsRequest;
-use OCA\Social\Db\RequestQueueRequest;
-use OCA\Social\Db\ScheduledStatusesRequest;
-use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -38,6 +24,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\StreamDest;
+use OCA\Social\Service\ActorCascadeService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tools\Traits\TArrayTools;
@@ -62,25 +49,12 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 	private const DETACH_PAGE = 100;
 
 	public function __construct(
-		private ActionsRequest $actionsRequest,
-		private ReactionsRequest $reactionsRequest,
 		private CacheActorsRequest $cacheActorsRequest,
-		private CacheDocumentsRequest $cacheDocumentsRequest,
-		private FollowsRequest $followsRequest,
-		private ActorRelationRequest $actorRelationRequest,
-		private RequestQueueRequest $requestQueueRequest,
 		private StreamRequest $streamRequest,
 		private StreamDestRequest $streamDestRequest,
 		private ActorService $actorService,
 		private ConfigService $configService,
-		private StreamActionsRequest $streamActionsRequest,
-		private ReportsRequest $reportsRequest,
-		private FiltersRequest $filtersRequest,
-		private ListsRequest $listsRequest,
-		private ConversationsRequest $conversationsRequest,
-		private FeaturedTagsRequest $featuredTagsRequest,
-		private AnnouncementsRequest $announcementsRequest,
-		private ScheduledStatusesRequest $scheduledStatusesRequest,
+		private ActorCascadeService $actorCascadeService,
 		private IJobList $jobList,
 	) {
 	}
@@ -144,43 +118,21 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 	}
 
+	/**
+	 * Everything the account leaves behind, from the one list a suspension
+	 * works from too — see `ActorCascadeService`, which exists because these
+	 * were two lists and had drifted apart.
+	 *
+	 * A moderation decision is deliberately not in it: it is what keeps a
+	 * suspended account suspended if it comes back.
+	 */
 	#[\Override]
 	public function delete(ACore $item): void {
 		if (!($item instanceof Person)) {
 			return;
 		}
 
-		$this->actionsRequest->deleteByActor($item->getId());
-		$this->reactionsRequest->deleteByActor($item->getId());
-		$this->cacheActorsRequest->deleteCacheById($item->getId());
-		$this->cacheDocumentsRequest->deleteByParent($item->getId());
-		$this->requestQueueRequest->deleteByAuthor($item->getId());
-		$this->followsRequest->deleteRelatedId($item->getId());
-		$this->actorRelationRequest->deleteRelatedId($item->getId());
-		// what this actor did to other people's posts — their own likes,
-		// boosts, bookmarks and poll votes — which nothing else removed
-		$this->streamActionsRequest->deleteByActor($item->getId());
-		// the reports about them, and the ones they filed
-		$this->reportsRequest->deleteRelatedId($item->getId());
-		// the keyword filters and lists they made, which are theirs alone and
-		// which nothing else removes
-		$this->filtersRequest->deleteRelatedId($item->getId());
-		$this->listsRequest->deleteRelatedId($item->getId());
-		// how far they had read and dismissed their own conversations
-		$this->conversationsRequest->deleteRelatedId($item->getId());
-		// the hashtags they pinned to a profile that no longer exists
-		$this->featuredTagsRequest->deleteRelatedId($item->getId());
-		// which announcements they had dismissed; the announcements themselves
-		// are the instance's and stay
-		$this->announcementsRequest->deleteRelatedId($item->getId());
-		// the posts they had asked to have published later, which are the one
-		// thing here that would otherwise go *out* under an account that no
-		// longer exists — the cron has no reason to look the poster up until
-		// the moment it publishes
-		$this->scheduledStatusesRequest->deleteRelatedId($item->getId());
-		// a moderation decision deliberately outlives the account: it is what
-		// keeps a suspended account suspended if it comes back
-
+		$this->actorCascadeService->purge($item->getId());
 		$this->deleteStreamFromActor($item);
 	}
 

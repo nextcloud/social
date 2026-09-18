@@ -12,6 +12,7 @@ namespace OCA\Social\Dashboard;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\FederationHealthService;
+use OCA\Social\Service\ModeratorService;
 use OCP\Dashboard\IAPIWidgetV2;
 use OCP\Dashboard\IButtonWidget;
 use OCP\Dashboard\IConditionalWidget;
@@ -21,7 +22,6 @@ use OCP\Dashboard\Model\WidgetButton;
 use OCP\Dashboard\Model\WidgetItem;
 use OCP\Dashboard\Model\WidgetItems;
 use OCP\IDateTimeFormatter;
-use OCP\IGroupManager;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -38,7 +38,7 @@ class SocialFederationHealthWidget implements IAPIWidgetV2, IIconWidget, IButton
 		private IL10N $l10n,
 		private IURLGenerator $urlGenerator,
 		private IUserSession $userSession,
-		private IGroupManager $groupManager,
+		private ModeratorService $moderatorService,
 		private IDateTimeFormatter $dateTimeFormatter,
 		private FederationHealthService $federationHealthService,
 		private LoggerInterface $logger,
@@ -85,7 +85,7 @@ class SocialFederationHealthWidget implements IAPIWidgetV2, IIconWidget, IButton
 	public function isEnabled(): bool {
 		$user = $this->userSession->getUser();
 
-		return $user !== null && $this->groupManager->isAdmin($user->getUID());
+		return $user !== null && $this->moderatorService->isModerator($user->getUID());
 	}
 
 	#[\Override]
@@ -104,8 +104,17 @@ class SocialFederationHealthWidget implements IAPIWidgetV2, IIconWidget, IButton
 		return 600;
 	}
 
+	/**
+	 * Asked of the user the API names, as `isEnabled()` is of the one looking:
+	 * a widget that checked only what the dashboard offers would tell any
+	 * client which instances this one cannot reach.
+	 */
 	#[\Override]
 	public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): WidgetItems {
+		if (!$this->moderatorService->isModerator($userId)) {
+			return new WidgetItems();
+		}
+
 		try {
 			$summary = $this->federationHealthService->summary();
 			$failing = (int)($summary['failing'] ?? 0);

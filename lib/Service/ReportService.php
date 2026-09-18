@@ -15,8 +15,6 @@ use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Flag;
 use OCA\Social\Model\Report;
-use OCP\IGroupManager;
-use OCP\IUserManager;
 use OCP\Notification\IManager as INotificationManager;
 use Psr\Log\LoggerInterface;
 
@@ -29,8 +27,7 @@ class ReportService {
 	public function __construct(
 		private ReportsRequest $reportsRequest,
 		private CacheActorService $cacheActorService,
-		private IUserManager $userManager,
-		private IGroupManager $groupManager,
+		private ModeratorService $moderatorService,
 		private INotificationManager $notificationManager,
 		private ReportForwardService $reportForwardService,
 		private LoggerInterface $logger,
@@ -215,17 +212,23 @@ class ReportService {
 		return $this->reportsRequest->getById($id);
 	}
 
+	/**
+	 * Tells everyone who can act on it, which is not only the `admin` group:
+	 * the moderation routes accept whoever the Social settings section has
+	 * been delegated to, and a moderator who is never told a report was filed
+	 * is a moderator who finds it a week later.
+	 *
+	 * Read from the groups that hold the right. This used to walk every
+	 * Nextcloud account and ask the group manager about each one, on a path a
+	 * remote `Flag` can trigger at will.
+	 */
 	private function notifyAdmins(Report $report): void {
 		try {
-			foreach ($this->userManager->search('') as $user) {
-				if (!$this->groupManager->isAdmin($user->getUID())) {
-					continue;
-				}
-
+			foreach ($this->moderatorService->moderators() as $userId) {
 				$notification = $this->notificationManager->createNotification();
 				$notification->setApp('social')
 					->setDateTime(new \DateTime('now'))
-					->setUser($user->getUID())
+					->setUser($userId)
 					->setObject('report', (string)$report->getId())
 					->setSubject('report_new', [
 						'reporter' => $report->getActorId(),

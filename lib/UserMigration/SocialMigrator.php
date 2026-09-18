@@ -21,6 +21,7 @@ use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
@@ -152,12 +153,22 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	/** The tail of a media link this instance serves: the stored copy's uuid. */
 	private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
 
-	/** The header Mastodon writes over `muted_accounts.csv`. */
-	private const MUTES_HEADER = 'Account address,Hide notifications';
+	/**
+	 * The header over `muted_accounts.csv`: Mastodon's two columns, and when
+	 * the mute runs out.
+	 *
+	 * The third column is this app's own. Every reader of the file finds its
+	 * columns by the header or by position and ignores what it does not know,
+	 * so the file is still the one Mastodon's "Import muted accounts" takes —
+	 * and a timed mute that travelled as a permanent one was a mute the user
+	 * never asked for and would have to find and undo by hand.
+	 */
+	private const MUTES_HEADER = 'Account address,Hide notifications,Expires at';
 
 	public function __construct(
 		private IL10N $l10n,
 		private AccountService $accountService,
+		private AccountRelationService $accountRelationService,
 		private MigrationService $migrationService,
 		private CacheActorService $cacheActorService,
 		private CacheDocumentService $cacheDocumentService,
@@ -429,8 +440,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * Blocks and mutes, in the two files Mastodon writes them to.
 	 *
 	 * `blocked_accounts.csv` is a bare list of handles; `muted_accounts.csv`
-	 * has a header and carries whether notifications are hidden, which is the
-	 * one thing a mute stores besides its target.
+	 * has a header and carries the two things a mute stores besides its
+	 * target: whether notifications are hidden, and when it runs out.
 	 */
 	private function exportRelations(
 		Person $actor,
@@ -455,11 +466,17 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			$mutes = $this->actorRelationRequest->getByActor(
 				$actor->getId(), ActorRelation::TYPE_MUTE, self::RELATIONS_LIMIT
 			);
+			$expiries = $this->accountRelationService->muteExpiries(
+				$actor->getId(),
+				array_map(static fn (ActorRelation $mute): string => $mute->getObjectId(), $mutes)
+			);
 			$lines = [];
 			foreach ($mutes as $mute) {
 				$handle = $this->handleOf($mute->getObjectId());
 				if ($handle !== '') {
-					$lines[] = $handle . ',' . ($mute->isNotifications() ? 'false' : 'true');
+					$expiresAt = $expiries[$mute->getObjectId()] ?? 0;
+					$lines[] = $handle . ',' . ($mute->isNotifications() ? 'false' : 'true')
+						. ',' . ($expiresAt > 0 ? gmdate('c', $expiresAt) : '');
 				}
 			}
 			$exportDestination->addFileContents(
@@ -985,10 +1002,14 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		$mutes = $this->optionalFile($importSource, self::PATH_MUTES, $output);
 		if ($mutes !== null) {
 			$hidden = $this->hiddenNotifications($mutes);
+			$expiries = $this->muteExpiries($mutes);
 			$count = 0;
 			foreach (MigrationService::parseFollowsCsv($mutes) as $handle) {
 				$notifications = !($hidden[strtolower($handle)] ?? false);
-				$count += $this->relate($actor, $handle, ActorRelation::TYPE_MUTE, $notifications, $output) ? 1 : 0;
+				$count += $this->relate(
+					$actor, $handle, ActorRelation::TYPE_MUTE, $notifications, $output,
+					$expiries[strtolower($handle)] ?? 0
+				) ? 1 : 0;
 			}
 			$output->writeln('Restored ' . $count . ' mute(s) from ' . self::PATH_MUTES . '…');
 		}
@@ -1000,6 +1021,9 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * tells the other end nothing it was not going to learn from a follower
 	 * anyway, and without an actor id there is no relation to store.
 	 *
+	 * @param int $expiresAt when a timed mute runs out, or 0 for one that does
+	 *                       not
+	 *
 	 * @return bool whether the relation was stored
 	 */
 	private function relate(
@@ -1008,6 +1032,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		string $type,
 		bool $notifications,
 		OutputInterface $output,
+		int $expiresAt = 0,
 	): bool {
 		if (strcasecmp($handle, $actor->getAccount()) === 0) {
 			return false;
@@ -1038,6 +1063,19 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			return false;
 		}
 
+		if ($expiresAt > 0) {
+			try {
+				$this->accountRelationService->setMuteExpiresAt($actor, $target, $expiresAt);
+			} catch (Throwable $e) {
+				// the mute is stored either way; without its expiry it is a
+				// permanent one, which is what this whole column is here to
+				// stop happening silently
+				$this->logger->warning('cannot restore when a mute runs out', [
+					'handle' => $handle, 'exception' => $e,
+				]);
+			}
+		}
+
 		return true;
 	}
 
@@ -1050,6 +1088,36 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 */
 	private function hiddenNotifications(string $csv): array {
 		return MigrationService::parseMuteNotifications($csv);
+	}
+
+	/**
+	 * `handle => when the mute runs out`, from the third column of a
+	 * `muted_accounts.csv`, by lower-cased handle. A file without the column —
+	 * Mastodon's own, or one written before it existed — has no expiries in
+	 * it, and every mute in it is permanent.
+	 *
+	 * Anything `strtotime()` cannot read is no expiry rather than a mute that
+	 * ended in 1970: a mute the file could not describe is left as the
+	 * permanent one it will be read as anyway.
+	 *
+	 * @return array<string, int>
+	 */
+	private function muteExpiries(string $csv): array {
+		$expiries = [];
+		foreach (preg_split('/\r\n|\r|\n/', $csv) ?: [] as $line) {
+			if (trim($line) === '') {
+				continue;
+			}
+
+			$cells = str_getcsv($line, ',', '"', '');
+			$handle = strtolower(ltrim(trim((string)($cells[0] ?? '')), '@'));
+			$expiresAt = strtotime(trim((string)($cells[2] ?? '')));
+			if ($handle !== '' && $expiresAt !== false && $expiresAt > 0) {
+				$expiries[$handle] = $expiresAt;
+			}
+		}
+
+		return $expiries;
 	}
 
 	/**
@@ -1177,8 +1245,9 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * That is the case an archive is read in after the pictures were lost and
 	 * the rows were not: a purge of the storage, a database restored from a
 	 * backup the files did not survive. Where the post is here and its picture
-	 * still is too, nothing happens; where the post is not here at all, the
-	 * file stays in the archive rather than becoming a row nothing can show.
+	 * still is too, nothing happens; where the post is not here at all, or
+	 * where it is somebody else's, the file stays in the archive rather than
+	 * becoming a row nothing can show or one somebody else has to look at.
 	 *
 	 * The outbox is read whole, which it can be: it is the text of the posts,
 	 * and the files it names were never in it.
@@ -1217,7 +1286,10 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			return;
 		}
 
-		$tally = ['restored' => 0, 'here' => 0, 'missingFile' => 0, 'missingPost' => 0, 'failed' => 0];
+		$tally = [
+			'restored' => 0, 'here' => 0, 'missingFile' => 0, 'missingPost' => 0,
+			'notYours' => 0, 'failed' => 0,
+		];
 		foreach ($items as $item) {
 			if (!is_array($item)) {
 				continue;
@@ -1235,6 +1307,11 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				continue;
 			}
 
+			if (!$this->wrotePost($actor, $post)) {
+				$tally['notYours'] += count($archived);
+				continue;
+			}
+
 			$this->restorePostMedia($actor, $post, $archived, $importSource, $tally);
 		}
 
@@ -1246,9 +1323,29 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			'Restored ' . $tally['restored'] . ' file(s) onto the posts this server has; '
 			. $tally['here'] . ' were already here, ' . $tally['missingFile']
 			. ' were not in the archive, ' . $tally['missingPost']
-			. ' belong to posts this server does not have and ' . $tally['failed']
+			. ' belong to posts this server does not have, ' . $tally['notYours']
+			. ' name posts this account did not write and ' . $tally['failed']
 			. ' could not be stored…'
 		);
+	}
+
+	/**
+	 * Whether a post named in the archive is one the importing account wrote
+	 * here.
+	 *
+	 * The ids in `outbox.json` are the user's: an archive is a file the user
+	 * hands the server, and every id in it is chosen by whoever wrote the file.
+	 * Without this, an id naming any other post on the instance — a cached
+	 * remote status, another local account's post — resolved, and its
+	 * attachments were rewritten to files out of the archive, for every viewer
+	 * of this instance.
+	 *
+	 * Local as well as the author, because the attachments of a remote post are
+	 * that server's to change: what is stored here is a copy, and rewriting it
+	 * would make this instance show something its origin never published.
+	 */
+	private function wrotePost(Person $actor, Stream $post): bool {
+		return $post->isLocal() && $post->getAttributedTo() === $actor->getId();
 	}
 
 	/**
