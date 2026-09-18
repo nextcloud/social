@@ -954,6 +954,17 @@ class StreamService {
 					// `Note::fillHashtags()` do for anything arriving over the inbox.
 					$note->setTags($note->validateArray(ACore::AS_TAGS, 'tag', $noteData, []));
 					$note->fillHashtags();
+					// the people the post names, resolved to the accounts a
+					// client reads out of `mentions`; without it every post
+					// reached this way mentioned nobody
+					$note->fillMentions();
+
+					// what a peer's `to`/`cc` say the audience is. Stored
+					// blank, the row exported as public to every client — so a
+					// followers-only post fetched this way offered a Boost
+					// button — while the timelines that compare the column
+					// left it out.
+					$note->setVisibility($this->visibilityOf($note) ?: Stream::TYPE_DIRECT);
 
 					// Attachments are not processed during sync to avoid
 					// memory-exhausting remote file downloads. They will be
