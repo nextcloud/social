@@ -89,18 +89,13 @@ class HashtagServiceTest extends TestCase {
 		], $requestedSince);
 		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([['hashtag' => 'nextcloud', 'trend' => []]]);
 
-		$updated = [];
-		$this->hashtagsRequest->expects($this->once())
-			->method('update')
-			->willReturnCallback(function (string $hashtag, array $trend) use (&$updated) {
-				$updated[$hashtag] = $trend;
+		$written = [];
+		$this->hashtagsRequest->expects($this->exactly(3))
+			->method('upsert')
+			->willReturnCallback(function (string $hashtag, array $trend) use (&$written): void {
+				$written[$hashtag] = $trend;
 			});
-		$saved = [];
-		$this->hashtagsRequest->expects($this->exactly(2))
-			->method('save')
-			->willReturnCallback(function (string $hashtag, array $trend) use (&$saved) {
-				$saved[$hashtag] = $trend;
-			});
+		$this->hashtagsRequest->expects($this->never())->method('save');
 
 		$count = $this->service->manageHashtags();
 
@@ -110,16 +105,15 @@ class HashtagServiceTest extends TestCase {
 		foreach ($windows as $i => $window) {
 			$this->assertEqualsWithDelta($now - $window, $requestedSince[$i], 2);
 		}
-		$this->assertSame(['1h' => 1, '12h' => 1, '1d' => 1, '3d' => 2, '10d' => 2], $updated['nextcloud']);
-		$this->assertSame(['1h' => 1, '12h' => 1, '1d' => 1, '3d' => 1, '10d' => 1], $saved['social']);
-		$this->assertSame(['1h' => 0, '12h' => 0, '1d' => 0, '3d' => 0, '10d' => 1], $saved['php']);
+		$this->assertSame(['1h' => 1, '12h' => 1, '1d' => 1, '3d' => 2, '10d' => 2], $written['nextcloud']);
+		$this->assertSame(['1h' => 1, '12h' => 1, '1d' => 1, '3d' => 1, '10d' => 1], $written['social']);
+		$this->assertSame(['1h' => 0, '12h' => 0, '1d' => 0, '3d' => 0, '10d' => 1], $written['php']);
 	}
 
 	public function testManageHashtagsWithoutRecentNotesTouchesNothing(): void {
 		$this->streamRequest->method('countHashtagsSince')->willReturn([]);
 		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([['hashtag' => 'old']]);
-		$this->hashtagsRequest->expects($this->never())->method('save');
-		$this->hashtagsRequest->expects($this->never())->method('update');
+		$this->hashtagsRequest->expects($this->never())->method('upsert');
 
 		$this->assertSame(0, $this->service->manageHashtags());
 	}
@@ -134,13 +128,12 @@ class HashtagServiceTest extends TestCase {
 		], $requestedSince);
 		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([]);
 
-		$saved = [];
+		$written = [];
 		$this->hashtagsRequest->expects($this->once())
-			->method('save')
-			->willReturnCallback(function (string $hashtag, array $trend) use (&$saved): void {
-				$saved[$hashtag] = $trend;
+			->method('upsert')
+			->willReturnCallback(function (string $hashtag, array $trend) use (&$written): void {
+				$written[$hashtag] = $trend;
 			});
-		$this->hashtagsRequest->expects($this->never())->method('update');
 
 		$count = $this->service->manageHashtags();
 
@@ -150,7 +143,7 @@ class HashtagServiceTest extends TestCase {
 		foreach ($windows as $i => $window) {
 			$this->assertEqualsWithDelta($now - $window, $requestedSince[$i], 2);
 		}
-		$this->assertSame(['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2], $saved['nextcloud']);
+		$this->assertSame(['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2], $written['nextcloud']);
 	}
 
 	public function testAHashtagThatFellOutOfEveryWindowIsResetToZero(): void {
@@ -163,11 +156,7 @@ class HashtagServiceTest extends TestCase {
 		]);
 
 		$written = [];
-		$this->hashtagsRequest->method('update')
-			->willReturnCallback(function (string $hashtag, array $trend) use (&$written): void {
-				$written[$hashtag] = $trend;
-			});
-		$this->hashtagsRequest->method('save')
+		$this->hashtagsRequest->method('upsert')
 			->willReturnCallback(function (string $hashtag, array $trend) use (&$written): void {
 				$written[$hashtag] = $trend;
 			});
@@ -190,8 +179,7 @@ class HashtagServiceTest extends TestCase {
 			['hashtag' => 'steady', 'trend' => $steady, 'counters' => $steady],
 		]);
 
-		$this->hashtagsRequest->expects($this->never())->method('update');
-		$this->hashtagsRequest->expects($this->never())->method('save');
+		$this->hashtagsRequest->expects($this->never())->method('upsert');
 
 		$this->assertSame(0, $this->service->manageHashtags());
 	}
@@ -215,14 +203,83 @@ class HashtagServiceTest extends TestCase {
 
 		$written = [];
 		$this->hashtagsRequest->expects($this->once())
-			->method('update')
+			->method('upsert')
 			->willReturnCallback(function (string $hashtag, array $trend) use (&$written): void {
 				$written[$hashtag] = $trend;
 			});
-		$this->hashtagsRequest->expects($this->never())->method('save');
 
 		$this->assertSame(1, $this->service->manageHashtags());
 		$this->assertSame($steady, $written['steady']);
+	}
+
+	public function testAHashtagThatTrendsAgainIsWrittenWithoutClaimingItIsNew(): void {
+		// it fell out of every window on an earlier pass, so it is not in the
+		// list of rows that claim a trend — and it still has a row, because
+		// `hashtag` is the primary key. Deciding to INSERT from that list
+		// alone meant a duplicate key, and the exception ended the pass: every
+		// hashtag after it went unwritten, on that run and on every run after.
+		$requestedSince = [];
+		$this->counting([['comeback', 60, 3]], $requestedSince);
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([]);
+
+		$this->hashtagsRequest->expects($this->never())->method('save');
+		$this->hashtagsRequest->expects($this->once())
+			->method('upsert')
+			->with('comeback', ['1h' => 3, '12h' => 3, '1d' => 3, '3d' => 3, '10d' => 3]);
+
+		$this->assertSame(1, $this->service->manageHashtags());
+	}
+
+	public function testOneHashtagThatCannotBeWrittenDoesNotTakeTheRestWithIt(): void {
+		$long = str_repeat('a', 200);
+		$requestedSince = [];
+		$this->counting([[$long, 60, 1], ['fine', 60, 1]], $requestedSince);
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([]);
+
+		$written = [];
+		$this->hashtagsRequest->method('upsert')
+			->willReturnCallback(function (string $hashtag) use (&$written): void {
+				$written[] = $hashtag;
+			});
+
+		$this->assertSame(1, $this->service->manageHashtags());
+		$this->assertSame(['fine'], $written);
+	}
+
+	public function testAHashtagAsLongAsThePostsTableHoldsIsStillWritten(): void {
+		$limit = str_repeat('b', 127);
+		$requestedSince = [];
+		$this->counting([[$limit, 60, 1]], $requestedSince);
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([]);
+
+		$this->hashtagsRequest->expects($this->once())->method('upsert')->with($limit);
+
+		$this->service->manageHashtags();
+	}
+
+	public function testEveryWindowOfEveryHashtagIsCounted(): void {
+		// the per-window counts arrive keyed by hashtag and are read by key;
+		// they used to be searched for by walking the list, which is one pass
+		// over every hashtag on the instance per hashtag per window
+		$uses = [];
+		for ($i = 0; $i < 50; $i++) {
+			$uses[] = ['tag' . $i, 60, $i + 1];
+		}
+		$requestedSince = [];
+		$this->counting($uses, $requestedSince);
+		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([]);
+
+		$written = [];
+		$this->hashtagsRequest->method('upsert')
+			->willReturnCallback(function (string $hashtag, array $trend) use (&$written): void {
+				$written[$hashtag] = $trend;
+			});
+
+		$this->service->manageHashtags();
+
+		$this->assertCount(50, $written);
+		$this->assertSame(array_fill_keys(HashtagService::PERIODS, 1), $written['tag0']);
+		$this->assertSame(array_fill_keys(HashtagService::PERIODS, 50), $written['tag49']);
 	}
 
 	public function testTheCountingIsOneGroupedQueryPerWindow(): void {

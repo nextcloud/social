@@ -76,35 +76,55 @@ class HashtagService {
 		$count = 0;
 		$formatted = $this->formatTrend($hashtags);
 
-		// a hashtag that has fallen out of the widest window keeps whatever it
-		// last scored otherwise, and stays "trending" for good
+		// the rows that claim a trend, by hashtag: the loops below ask about
+		// one hashtag at a time and there are as many of them as there are
+		// hashtags on the instance
+		$known = [];
 		foreach ($current as $item) {
 			$hashtag = $this->get('hashtag', $item, '');
-			if ($hashtag !== '' && !array_key_exists($hashtag, $formatted)
+			if ($hashtag !== '') {
+				$known[$hashtag] = $item;
+			}
+		}
+
+		// a hashtag that has fallen out of the widest window keeps whatever it
+		// last scored otherwise, and stays "trending" for good
+		foreach ($known as $hashtag => $item) {
+			if (!array_key_exists($hashtag, $formatted)
 				&& array_sum($this->getArray('trend', $item, [])) > 0) {
 				$formatted[$hashtag] = array_fill_keys(self::PERIODS, 0);
 			}
 		}
 
 		foreach ($formatted as $hashtag => $trend) {
-			try {
-				$known = $this->getFromList($current, $hashtag);
-				if ($this->getArray('trend', $known, []) === $trend
-					&& $this->getArray('counters', $known, []) === $trend) {
-					// nothing moved for this hashtag since the last pass, and
-					// the sortable columns agree with the JSON. The second half
-					// matters on an instance upgraded from a version that had
-					// no columns: its JSON is right and its columns are zero,
-					// and on a quiet instance the counts never move again — so
-					// without this the row would stay out of the trends for
-					// good, because getTrending() reads the columns.
-					continue;
-				}
-
-				$this->hashtagsRequest->update($hashtag, $trend);
-			} catch (HashtagDoesNotExistException $e) {
-				$this->hashtagsRequest->save($hashtag, $trend);
+			if (mb_strlen((string)$hashtag) > HashtagsRequest::HASHTAG_MAX_LENGTH) {
+				// longer than the column holds. Truncating it would merge it
+				// with whatever shares its first characters and make both
+				// counts wrong, and storing it as it is fails the whole pass
+				// on PostgreSQL and on MySQL in strict mode.
+				continue;
 			}
+
+			$stored = $known[$hashtag] ?? [];
+			if ($stored !== []
+				&& $this->getArray('trend', $stored, []) === $trend
+				&& $this->getArray('counters', $stored, []) === $trend) {
+				// nothing moved for this hashtag since the last pass, and
+				// the sortable columns agree with the JSON. The second half
+				// matters on an instance upgraded from a version that had
+				// no columns: its JSON is right and its columns are zero,
+				// and on a quiet instance the counts never move again — so
+				// without this the row would stay out of the trends for
+				// good, because getTrending() reads the columns.
+				continue;
+			}
+
+			// an upsert rather than a choice between INSERT and UPDATE: what
+			// this loop knows is the rows that currently claim a trend, which
+			// is not the same set as the rows that exist. A hashtag that
+			// trended, fell to zero and trends again is absent from that list
+			// and has a row all the same.
+			$this->hashtagsRequest->upsert((string)$hashtag, $trend);
 			$count++;
 		}
 
