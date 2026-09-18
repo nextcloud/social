@@ -17,6 +17,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
+use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\NotificationService;
 
@@ -26,6 +27,7 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 		private ActorRelationRequest $actorRelationRequest,
 		private MiscService $miscService,
 		private NotificationService $notificationService,
+		private AccountRelationService $accountRelationService,
 	) {
 	}
 
@@ -56,6 +58,14 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 	 * blocked the recipient, or whom the recipient muted with notifications hidden.
 	 * (The notification timeline filters on read as well; this keeps suppressed
 	 * entries out of the table entirely.)
+	 *
+	 * A mute that has run out is not a mute. Nothing deletes the row when its
+	 * expiry passes — that is what lets a timed mute end on an instance whose
+	 * background jobs never run — so every place that reads a mute has to ask
+	 * whether it still applies. This one did not, and it is the first of them:
+	 * the notification was never stored, so neither the read filter nor the
+	 * Nextcloud notification ever saw it, and a mute the user was told had
+	 * ended went on hiding what the account sent for ever.
 	 */
 	private function isSuppressed(SocialAppNotification $notification): bool {
 		$to = $notification->getTo();
@@ -66,8 +76,13 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 
 		foreach ($this->actorRelationRequest->getBetween($to, $from) as $relation) {
 			if ($relation->getType() === ActorRelation::TYPE_BLOCK
-				|| $relation->getType() === ActorRelation::TYPE_BLOCKED_BY
-				|| ($relation->getType() === ActorRelation::TYPE_MUTE && $relation->isNotifications())) {
+				|| $relation->getType() === ActorRelation::TYPE_BLOCKED_BY) {
+				return true;
+			}
+
+			if ($relation->getType() === ActorRelation::TYPE_MUTE
+				&& $relation->isNotifications()
+				&& !$this->accountRelationService->isMuteExpired($to, $from)) {
 				return true;
 			}
 		}
