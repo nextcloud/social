@@ -62,6 +62,15 @@ class OAuthController extends Controller {
 	private const SOFTWARE_NAME = 'nextcloud-social';
 	private const REPOSITORY = 'https://github.com/nextcloud/social';
 
+	/**
+	 * The NodeInfo schemas this instance serves, oldest first.
+	 *
+	 * Read by `WebfingerHandler` to build the discovery document, so that the
+	 * versions advertised and the versions actually served cannot drift apart
+	 * again -- which is the whole of what went wrong with 2.1.
+	 */
+	public const NODEINFO_SCHEMAS = ['2.0', '2.1'];
+
 	/** `/.well-known/nodeinfo/2.0` */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -72,11 +81,18 @@ class OAuthController extends Controller {
 
 	/**
 	 * `/.well-known/nodeinfo/2.1`: 2.0 plus `software.repository` and
-	 * `software.homepage`. Needs a route and a link from the discovery
-	 * document (`WebfingerHandler::handleNodeInfo()`) to be reachable.
+	 * `software.homepage`.
+	 *
+	 * The document was built and tested from the day it was written and could
+	 * not be fetched by anybody: the method had no route attribute, so
+	 * Nextcloud registered no URL for it, and the discovery document named
+	 * only 2.0. Both are needed -- a crawler reads the discovery document and
+	 * follows what it finds, so a route nothing points at is as unreachable as
+	 * no route at all.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/.well-known/nodeinfo/2.1')]
 	public function nodeinfo21(): Response {
 		return new DataResponse($this->nodeInfo('2.1'), Http::STATUS_OK);
 	}
