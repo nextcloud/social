@@ -26,17 +26,61 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	/** How many standby requests a single cron pass hydrates. */
 	public const STANDBY_BATCH = 200;
 
+	/** How many rows one fan-out transaction writes before committing. */
+	public const INSERT_CHUNK = 500;
+
 	/**
-	 * Create a new Queue in the database.
+	 * Writes the whole fan-out of one activity.
+	 *
+	 * One INSERT per inbox, each its own round trip and its own commit, was
+	 * done in the web request that made the post: a local account followed
+	 * from twenty thousand instances paid twenty thousand sequential
+	 * round trips before `createPost()` returned. The statement is prepared
+	 * once and the rows are committed in chunks instead.
 	 *
 	 * @param RequestQueue[] $queues
 	 *
 	 * @throws Exception
 	 */
 	public function multiple(array $queues): void {
-		foreach ($queues as $queue) {
-			$this->create($queue);
+		if ($queues === []) {
+			return;
 		}
+
+		$qb = $this->getRequestQueueInsertSql();
+		foreach ([
+			'token', 'author', 'author_prim', 'activity', 'object_id_prim', 'instance',
+			'priority', 'status', 'tries',
+		] as $field) {
+			$qb->setValue($field, $qb->createParameter($field));
+		}
+
+		foreach (array_chunk($queues, self::INSERT_CHUNK) as $chunk) {
+			$this->dbConnection->beginTransaction();
+			try {
+				foreach ($chunk as $queue) {
+					$this->bindQueue($qb, $queue);
+					$qb->executeStatement();
+				}
+				$this->dbConnection->commit();
+			} catch (\Throwable $e) {
+				$this->dbConnection->rollBack();
+
+				throw $e;
+			}
+		}
+	}
+
+	private function bindQueue(SocialQueryBuilder $qb, RequestQueue $queue): void {
+		$qb->setParameter('token', $queue->getToken());
+		$qb->setParameter('author', $queue->getAuthor());
+		$qb->setParameter('author_prim', $qb->prim($queue->getAuthor()));
+		$qb->setParameter('activity', $queue->getActivity());
+		$qb->setParameter('object_id_prim', $queue->getObjectIdPrim());
+		$qb->setParameter('instance', json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES));
+		$qb->setParameter('priority', $queue->getPriority(), IQueryBuilder::PARAM_INT);
+		$qb->setParameter('status', $queue->getStatus(), IQueryBuilder::PARAM_INT);
+		$qb->setParameter('tries', $queue->getTries(), IQueryBuilder::PARAM_INT);
 	}
 
 	/**
