@@ -199,6 +199,10 @@ class ActivityPubController extends Controller {
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}.rss')]
 	public function feed(string $username): Response {
+		// No secure-mode check, unlike every ActivityPub route: this is RSS,
+		// read by feed readers and podcast clients that sign nothing, and an
+		// instance in secure mode is refusing *ActivityPub* to strangers rather
+		// than withdrawing its public feeds.
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
@@ -326,6 +330,14 @@ class ActivityPubController extends Controller {
 				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, $requestTime);
 			}
 
+			// A Linked Data signature moves the origin off the host that
+			// delivered the request and onto the object's own actor, and that
+			// host has not been asked about. A relay is entitled to forward for
+			// anyone; whom this instance federates with is its own decision, so
+			// it is the origin the activity is finally stored under that has to
+			// pass.
+			$this->fediverseService->authorized($activity->getOrigin());
+
 			try {
 				$this->importService->parseIncomingRequest($activity);
 			} catch (ItemUnknownException $e) {
@@ -394,6 +406,14 @@ class ActivityPubController extends Controller {
 				$this->signatureService->assertSignerSpeaksFor($signer, $activity);
 				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, $requestTime);
 			}
+
+			// A Linked Data signature moves the origin off the host that
+			// delivered the request and onto the object's own actor, and that
+			// host has not been asked about. A relay is entitled to forward for
+			// anyone; whom this instance federates with is its own decision, so
+			// it is the origin the activity is finally stored under that has to
+			// pass.
+			$this->fediverseService->authorized($activity->getOrigin());
 
 			try {
 				$this->importService->parseIncomingRequest($activity);
@@ -531,6 +551,12 @@ class ActivityPubController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/inbox')]
 	public function getInbox(string $username): Response {
 		try {
+			$this->assertReadable();
+		} catch (SignatureException $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$collection = new OrderedCollection();
@@ -562,6 +588,12 @@ class ActivityPubController extends Controller {
 		//		if (!$this->checkSourceActivityStreams()) {
 		//			return $this->socialPubController->outbox($username);
 		//		}
+
+		try {
+			$this->assertReadable();
+		} catch (SignatureException $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+		}
 
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
@@ -630,6 +662,12 @@ class ActivityPubController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/collections/featured')]
 	public function featured(string $username): Response {
 		try {
+			$this->assertReadable();
+		} catch (SignatureException $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$posts = $this->pinService->getPinnedPosts($actor->getId());
 
@@ -672,6 +710,12 @@ class ActivityPubController extends Controller {
 		}
 
 		try {
+			$this->assertReadable();
+		} catch (SignatureException $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			// The collection has always advertised `first` as `?page=1` while
@@ -707,6 +751,12 @@ class ActivityPubController extends Controller {
 	public function following(string $username, string $page = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->following($username);
+		}
+
+		try {
+			$this->assertReadable();
+		} catch (SignatureException $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
 		}
 
 		try {
@@ -810,6 +860,12 @@ class ActivityPubController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}/replies')]
 	public function replies(string $username, string $token, string $page = ''): Response {
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+
+		try {
+			$this->assertReadable();
+		} catch (SignatureException $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+		}
 
 		try {
 			$post = $this->streamService->getStreamById($postId);

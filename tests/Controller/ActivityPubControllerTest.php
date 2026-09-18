@@ -398,8 +398,12 @@ class ActivityPubControllerTest extends TestCase {
 
 	public function testSharedInboxImportsTheActivityAndTagsItsOrigin(): void {
 		$this->signedRequestFrom('https://remote.example', 1234);
-		$this->fediverseService->expects($this->once())->method('authorized')->with('https://remote.example')->willReturn(true);
+		// the signer's origin on the way in, and the origin the activity ends
+		// up carrying once it has been read
+		$this->fediverseService->expects($this->exactly(2))->method('authorized')
+			->with('https://remote.example')->willReturn(true);
 		$activity = $this->incomingActivity('tok-1');
+		$activity->method('getOrigin')->willReturn('https://remote.example');
 		$this->signatureService->method('checkObject')->with($activity)->willReturn(false);
 		$activity->expects($this->once())->method('setOrigin')
 			->with('https://remote.example', SignatureService::ORIGIN_HEADER, 1234);
@@ -411,6 +415,33 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame(1, $response->getData()['status']);
 		$this->assertSame(1, $this->controller->asyncCalls, 'response is flushed before the queue is processed');
+	}
+
+	/**
+	 * A Linked Data signature moves the origin off the host that delivered the
+	 * request and onto the object's own actor. Only the deliverer was ever
+	 * checked against the block list, so a relay forwarding for a blocked
+	 * domain had its activities stored.
+	 */
+	public function testSharedInboxRefusesALinkedDataSignedActivityFromABlockedOrigin(): void {
+		$this->signedRequestFrom('https://relay.example');
+		$activity = $this->incomingActivity();
+		$this->signatureService->method('checkObject')->willReturn(true);
+		$activity->method('getOrigin')->willReturn('blocked.example');
+		$this->fediverseService->method('authorized')->willReturnCallback(
+			static function (string $origin): bool {
+				if ($origin === 'blocked.example') {
+					throw new UnauthorizedFediverseException($origin);
+				}
+
+				return true;
+			}
+		);
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+
+		$this->assertFailure(
+			$this->controller->sharedInbox(), UnauthorizedFediverseException::class, Http::STATUS_FORBIDDEN
+		);
 	}
 
 	public function testSharedInboxKeepsLinkedDataSignatureOriginWhenPresent(): void {
@@ -1304,6 +1335,43 @@ class ActivityPubControllerTest extends TestCase {
 		$this->streamService->expects($this->never())->method('getStreamById');
 
 		$response = $this->controller->displayPost('alice', 'abc123');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	/**
+	 * Secure mode was enforced on the actor route and the post route alone,
+	 * while an actor's outbox, pins, followers, following and a post's replies
+	 * — the routes a crawler actually walks — answered anybody.
+	 *
+	 * @return iterable<string, array{string}>
+	 */
+	public static function activityPubGetRoutes(): iterable {
+		yield 'actor' => ['actor'];
+		yield 'inbox' => ['getInbox'];
+		yield 'outbox' => ['outbox'];
+		yield 'featured' => ['featured'];
+		yield 'followers' => ['followers'];
+		yield 'following' => ['following'];
+		yield 'replies' => ['replies'];
+		yield 'post' => ['displayPost'];
+	}
+
+	#[DataProvider('activityPubGetRoutes')]
+	public function testInSecureModeEveryUnsignedActivityPubFetchIsRefused(string $route): void {
+		$this->acceptHeader('application/activity+json');
+		$this->secureMode = true;
+		$this->localActor('alice');
+		$this->streamService->expects($this->never())->method('getStreamById');
+		$this->followService->expects($this->never())->method('getFollowersCollection');
+		$this->followService->expects($this->never())->method('getFollowingCollection');
+		$this->pinService->expects($this->never())->method('getPinnedPosts');
+
+		$response = match ($route) {
+			'replies' => $this->controller->replies('alice', 'abc123'),
+			'displayPost' => $this->controller->displayPost('alice', 'abc123'),
+			default => $this->controller->{$route}('alice'),
+		};
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 	}

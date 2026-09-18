@@ -432,6 +432,76 @@ class QuoteRequestInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($this->answer(Accept::TYPE), $this->ourRequest());
 	}
 
+	/**
+	 * What the store holds, by id: the answer path reads the quoted post as
+	 * well as our own.
+	 *
+	 * @param Stream[] $posts
+	 */
+	private function holdingAll(array $posts): void {
+		$byId = [];
+		foreach ($posts as $post) {
+			$byId[$post->getId()] = $post;
+		}
+
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id) use ($byId): Stream {
+				if (!isset($byId[$id])) {
+					throw new StreamNotFoundException();
+				}
+
+				return $byId[$id];
+			});
+	}
+
+	/** bob's post, the one ours quotes. */
+	private function quotedPost(string $author = self::BOB): Note {
+		$quoted = new Note();
+		$quoted->setId(self::REMOTE_URL . '/notes/quoted');
+		$quoted->setAttributedTo($author);
+
+		return $quoted;
+	}
+
+	public function testTheQuotedAuthorsOwnAcceptIsApplied(): void {
+		$this->holdingAll([$this->ourQuotingPost(), $this->quotedPost()]);
+
+		$stored = null;
+		$this->streamRequest->expects($this->once())->method('update')
+			->willReturnCallback(function (Stream $stream) use (&$stored): void {
+				$stored = $stream;
+			});
+
+		$this->handler->activity(
+			$this->answer(Accept::TYPE, ['result' => self::REMOTE_URL . '/approvals/1']),
+			$this->ourRequest()
+		);
+
+		$this->assertSame(Stream::QUOTE_ACCEPTED, $stored->getQuoteState());
+	}
+
+	/**
+	 * The origin check stops at the host, so any account on the quoted post's
+	 * server could approve — or revoke — a quote its author never decided on.
+	 */
+	public function testAnAnswerFromANeighbourOfTheQuotedAuthorIsRefused(): void {
+		$this->holdingAll([$this->ourQuotingPost(), $this->quotedPost()]);
+		$this->streamRequest->expects($this->never())->method('update');
+		$this->streamRequest->expects($this->never())->method('updateDetails');
+
+		$answer = $this->incoming(
+			Accept::TYPE,
+			self::REMOTE_URL . '/answers/1',
+			self::REMOTE_URL . '/users/mallory',
+			null,
+			self::REMOTE_HOST
+		);
+		$answer->setSource(json_encode([]));
+
+		$this->expectException(InvalidOriginException::class);
+		$this->handler->activity($answer, $this->ourRequest());
+	}
+
 	/** The answer has to be about the quote the post actually carries. */
 	public function testAnAnswerNamingAnotherQuoteIsIgnored(): void {
 		$post = $this->ourQuotingPost();

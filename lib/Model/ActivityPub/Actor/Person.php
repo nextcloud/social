@@ -899,7 +899,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setPublicKey($this->get('publicKey.publicKeyPem', $data))
 			->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
 			->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
-			->setAccount($this->validate(ACore::AS_ACCOUNT, 'account', $data, ''))
 			->setInbox($this->validate(ACore::AS_URL, 'inbox', $data, ''))
 			->setOutbox($this->validate(ACore::AS_URL, 'outbox', $data, ''))
 			->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
@@ -907,6 +906,23 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
 			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []))
 			->setMovedTo($this->validate(ACore::AS_URL, 'movedTo', $data, ''));
+		// A key that says whose it is has to say this actor. A document handing
+		// over somebody else's `owner` is a key takeover written out in full:
+		// what is stored against an actor is the key requests from it are then
+		// verified with.
+		$keyOwner = $this->get('publicKey.owner', $data, '');
+		if ($keyOwner !== '' && $keyOwner !== $this->getId()) {
+			throw new InvalidOriginException(
+				'Person::import - id: ' . $this->getId() . ' - publicKey.owner: ' . $keyOwner
+			);
+		}
+
+		// `account` is not an ActivityPub field: the handle is whatever the
+		// actor's own `preferredUsername` and the host of its id say it is.
+		// Read off the document, it let any server claim a handle on any other
+		// — and it is what `getFromAccount()` answers with.
+		$this->setAccount($this->canonicalAccount());
+
 		$this->setLocked($this->getBool('manuallyApprovesFollowers', $data, false));
 		$this->setBot(in_array($this->getType(), self::BOT_TYPES, true));
 		// Mastodon serialises an unset preference as null; getBool() reads that as the default
@@ -927,6 +943,19 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		if ($image !== '') {
 			$this->setHeader($image);
 		}
+	}
+
+	/**
+	 * `preferredUsername@host`, the handle an actor document states about
+	 * itself, or `''` while either half is missing.
+	 */
+	private function canonicalAccount(): string {
+		$host = parse_url($this->getId(), PHP_URL_HOST);
+		if ($this->getPreferredUsername() === '' || !is_string($host) || $host === '') {
+			return '';
+		}
+
+		return $this->getPreferredUsername() . '@' . $host;
 	}
 
 	/**

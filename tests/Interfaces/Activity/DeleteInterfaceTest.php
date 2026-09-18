@@ -91,6 +91,49 @@ class DeleteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->processIncomingRequest($this->delete(self::BOB));
 	}
 
+	/**
+	 * The origin check stops at the host, so it said only that the Delete came
+	 * from bob's server — every account on which could then remove any other.
+	 * An actor is deleted by itself alone.
+	 */
+	public function testDeleteNamingANeighbouringActorIsRefused(): void {
+		$bob = $this->person(self::BOB);
+		$this->noteInterface->method('getItemById')->willThrowException(new ItemNotFoundException());
+		$this->personInterface->method('getItemById')->with(self::BOB)->willReturn($bob);
+
+		$this->personInterface->expects($this->never())->method('delete');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$mallory = self::REMOTE_URL . '/users/mallory';
+		$delete = $this->incoming(Delete::TYPE, $mallory . '#delete/1', $mallory);
+		$delete->setObjectId(self::BOB);
+
+		$this->handler->processIncomingRequest($delete);
+	}
+
+	/** The same, arriving as a Tombstone naming the account. */
+	public function testTombstoneOfANeighbouringActorIsRefused(): void {
+		$bob = $this->person(self::BOB);
+		$this->noteInterface->method('getItemById')->willThrowException(new ItemNotFoundException());
+		$this->personInterface->method('getItemById')->with(self::BOB)->willReturn($bob);
+
+		$this->personInterface->expects($this->never())->method('delete');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$mallory = self::REMOTE_URL . '/users/mallory';
+		$delete = $this->ap->getItemFromData([
+			'type' => Delete::TYPE,
+			'id' => $mallory . '#delete/1',
+			'actor' => $mallory,
+			'object' => ['type' => 'Tombstone', 'id' => self::BOB],
+		]);
+		$delete->setOrigin(self::REMOTE_HOST, SignatureService::ORIGIN_HEADER, time());
+
+		$this->handler->processIncomingRequest($delete);
+	}
+
 	public function testDeleteNamingSomethingUnknownDoesNothing(): void {
 		$this->noteInterface->method('getItemById')->willThrowException(new ItemNotFoundException());
 		$this->personInterface->method('getItemById')->willThrowException(new ItemNotFoundException());

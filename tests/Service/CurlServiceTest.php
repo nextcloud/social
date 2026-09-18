@@ -225,6 +225,23 @@ class CurlServiceTest extends TestCase {
 		$this->assertFalse($this->requests[1]['options']['json_headers']);
 	}
 
+	/**
+	 * The subject names the canonical spelling of the handle, and only ever a
+	 * handle on the host that was asked: without that, `bob@evil.example`
+	 * answers `acct:Gargron@mastodon.social` and the actor behind it is stored
+	 * as the account for that handle.
+	 */
+	public function testWebfingerAccountIgnoresASubjectOnAnotherHost(): void {
+		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta')
+			? $this->hostMetaJson()
+			: $this->jrd('acct:Gargron@mastodon.social'));
+		$account = 'bob@mastodon.example';
+
+		$service->webfingerAccount($account);
+
+		$this->assertSame('bob@mastodon.example', $account);
+	}
+
 	/** A JRD without an `acct:` subject leaves the account as it was asked for. */
 	public function testWebfingerAccountKeepsTheAccountWhenTheSubjectIsNotAnAcctUri(): void {
 		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta')
@@ -278,7 +295,10 @@ class CurlServiceTest extends TestCase {
 		$result = $this->service()->retrieveObject('https://' . self::PUBLIC_IP . '/users/bob?page=2&min_id=7');
 
 		$this->assertSame(
-			['id' => self::BOB, 'type' => 'Person', '_host' => self::PUBLIC_IP, '_resultCode' => 200],
+			[
+				'id' => self::BOB, 'type' => 'Person', '_host' => self::PUBLIC_IP,
+				'_resultCode' => 200, '_contentType' => 'application/json',
+			],
 			$result
 		);
 		$this->assertSame('get', $sent()['method']);
@@ -521,6 +541,115 @@ class CurlServiceTest extends TestCase {
 		};
 	}
 
+	/**
+	 * Answers each URL with what $answers holds for it, and records the order
+	 * they were asked for in.
+	 *
+	 * @param array<string, IResponse> $answers
+	 *
+	 * @return callable(): list<string>
+	 */
+	private function answerPerUrl(array $answers): callable {
+		$asked = [];
+		$this->client->method('request')->willReturnCallback(
+			function (string $method, string $url) use ($answers, &$asked): IResponse {
+				$asked[] = $url;
+
+				return $answers[$url] ?? $this->answer('{}', 404);
+			}
+		);
+
+		return static function () use (&$asked): array {
+			return $asked;
+		};
+	}
+
+	private function redirect(string $location, int $code = 302): IResponse {
+		$response = $this->createMock(IResponse::class);
+		$response->method('getStatusCode')->willReturn($code);
+		$response->method('getHeader')->willReturnCallback(
+			static fn (string $key): string => (strtolower($key) === 'location') ? $location : ''
+		);
+		$response->method('getBody')->willReturn('');
+
+		return $response;
+	}
+
+	public function testARedirectIsFollowedAndItsAnswerReturned(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/@bob';
+		$to = 'https://' . self::PUBLIC_IP . '/users/bob';
+		$asked = $this->answerPerUrl([
+			$from => $this->redirect('/users/bob'),
+			$to => $this->answer('{"id":"bob"}'),
+		]);
+
+		$this->assertSame('{"id":"bob"}', $this->service()->doRequest('get', $from));
+		$this->assertSame([$from, $to], $asked());
+	}
+
+	/**
+	 * Redirects used to be followed by the HTTP client, which knows nothing
+	 * about which instances this one federates with — so a host on the allow
+	 * list could hand every request on to a blocked one.
+	 */
+	public function testARedirectToABlockedInstanceIsRefused(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/@bob';
+		$this->fediverseService->method('authorized')->willReturnCallback(
+			static function (string $host): bool {
+				if ($host === 'blocked.example') {
+					throw new UnauthorizedFediverseException($host);
+				}
+
+				return true;
+			}
+		);
+		$asked = $this->answerPerUrl([$from => $this->redirect('https://blocked.example/users/bob')]);
+
+		$this->expectException(UnauthorizedFediverseException::class);
+
+		try {
+			$this->service()->doRequest('get', $from);
+		} finally {
+			$this->assertSame([$from], $asked(), 'the blocked hop is never requested');
+		}
+	}
+
+	public function testARedirectToALocalAddressIsRefused(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/@bob';
+		$this->answerPerUrl([$from => $this->redirect('https://127.0.0.1/users/bob')]);
+
+		$this->expectException(RequestServerException::class);
+
+		$this->service()->doRequest('get', $from);
+	}
+
+	public function testARedirectLoopIsGivenUpOn(): void {
+		$url = 'https://' . self::PUBLIC_IP . '/@bob';
+		$this->answerPerUrl([$url => $this->redirect($url)]);
+
+		$this->expectException(RequestServerException::class);
+
+		$this->service()->doRequest('get', $url);
+	}
+
+	/**
+	 * This instance's own address, which behind a reverse proxy or in a
+	 * container resolves to a private address like any other internal service.
+	 * Refusing it left every fan-out after the first inline delivery waiting
+	 * for the cron.
+	 */
+	public function testTheSelfCallMayReachALocalAddress(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
+		$this->configService->method('getCloudHost')->willReturn('127.0.0.1');
+		$sent = $this->captureRequest($this->answer('{}'));
+
+		$this->service()->asyncWithToken('tok-1');
+
+		$this->assertSame('post', $sent()['method']);
+		$this->assertSame('https://127.0.0.1/apps/social/async/request/tok-1', $sent()['url']);
+		$this->assertTrue($sent()['options']['nextcloud']['allow_local_address']);
+	}
+
 	private function service(): CurlService {
 		return new CurlService(
 			$this->configService, $this->fediverseService, $this->clientService,
@@ -561,8 +690,8 @@ class CurlServiceTest extends TestCase {
 		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob');
 
 		$this->assertFalse($sent()['options']['nextcloud']['allow_local_address']);
-		// left to the server, which re-checks every redirect it follows
-		$this->assertArrayNotHasKey('allow_redirects', $sent()['options']);
+		// followed here instead, so the block list is applied to every hop
+		$this->assertFalse($sent()['options']['allow_redirects']);
 		$this->assertTrue($sent()['options']['stream'], 'an endless body must not fill memory');
 		$this->assertFalse($sent()['options']['http_errors'], 'the status code belongs to the caller');
 	}

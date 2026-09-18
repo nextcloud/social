@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model\ActivityPub\Actor;
 
 use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -135,6 +136,56 @@ class PersonTest extends TestCase {
 		$this->assertSame('image/png', $person->getIcon()->getMediaType());
 		$this->assertSame('https://files.mastodon.social/accounts/avatars/001/original/avatar.png', $person->getAvatar());
 		$this->assertSame('https://files.mastodon.social/accounts/headers/001/original/header.jpg', $person->getHeader());
+	}
+
+	/**
+	 * `account` is not an ActivityPub field. Read off the document, it let any
+	 * server hand out a handle belonging to any other — and it is the handle
+	 * `getFromAccount()` then answers with.
+	 */
+	public function testImportDerivesTheAccountAndIgnoresTheOneInTheDocument(): void {
+		$person = new Person();
+		$actor = $this->mastodonActor();
+		$actor['account'] = 'Gargron@mastodon.social';
+
+		$person->import($actor);
+
+		$this->assertSame('alice@mastodon.social', $person->getAccount());
+	}
+
+	public function testImportWithoutAPreferredUsernameHasNoAccount(): void {
+		$person = new Person();
+		$actor = $this->mastodonActor();
+		unset($actor['preferredUsername']);
+
+		$person->import($actor);
+
+		$this->assertSame('', $person->getAccount());
+	}
+
+	/**
+	 * What is stored against an actor is the key its requests are verified
+	 * with, so a document naming somebody else as the key's owner is a
+	 * takeover written out in full.
+	 */
+	public function testImportRefusesAKeyOwnedBySomebodyElse(): void {
+		$person = new Person();
+		$actor = $this->mastodonActor();
+		$actor['publicKey']['owner'] = 'https://mastodon.social/users/Gargron';
+
+		$this->expectException(InvalidOriginException::class);
+
+		$person->import($actor);
+	}
+
+	public function testImportAcceptsADocumentThatNamesNoKeyOwner(): void {
+		$person = new Person();
+		$actor = $this->mastodonActor();
+		unset($actor['publicKey']['owner']);
+
+		$person->import($actor);
+
+		$this->assertSame(self::PEM, $person->getPublicKey());
 	}
 
 	public function testImportWithoutIconOrImageLeavesAvatarAndHeaderEmpty(): void {

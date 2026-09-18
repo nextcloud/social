@@ -183,6 +183,17 @@ class AP {
 		self::$instance = $instance;
 	}
 
+	/**
+	 * Builds an item from a document somebody else wrote.
+	 *
+	 * `actor_info` is deliberately not read here. It is this app's own
+	 * `FORMAT_LOCAL` field, holding a whole serialised actor, and `getActorId()`
+	 * answers from it whenever it is set — so a peer that put one in its
+	 * payload handed over the acting account itself, with the followers
+	 * collection a boost is then addressed to and the account a notification
+	 * names, none of it fetched and none of it checked. Who acted is the
+	 * `actor` id and what the actor cache says about it.
+	 */
 	public function getItemFromData(array $data, ?ACore $parent = null, int $level = 0): ACore {
 		if (++$level > self::REDUNDANCY_LIMIT) {
 			throw new RedundancyLimitException((string)$level);
@@ -194,7 +205,6 @@ class AP {
 		}
 
 		$this->getObjectFromData($data, $item, $level);
-		$this->getActorFromData($data, $item, $level);
 
 		return $item;
 	}
@@ -222,17 +232,6 @@ class AP {
 			if ($objectId !== '') {
 				$item->setObjectId($objectId);
 			}
-		}
-	}
-
-	public function getActorFromData(array $data, ACore &$item, int $level) {
-		try {
-			$actorData = $this->getArray('actor_info', $data, []);
-			if (!empty($actorData)) {
-				$actor = $this->getItemFromData($actorData, $item, $level);
-				$item->setActor($actor);
-			}
-		} catch (ItemUnknownException $e) {
 		}
 	}
 

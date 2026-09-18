@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Activity;
 
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Interfaces\Activity\AcceptInterface;
 use OCA\Social\Interfaces\Activity\ActivityObjectResolver;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -76,10 +77,36 @@ class AcceptInterfaceTest extends DispatchingActivityTestCase {
 		$this->createHandler()->processIncomingRequest($accept);
 	}
 
+	/**
+	 * A follow request is answered by the account it was addressed to. The
+	 * follow interface checks the host of that account, which on a shared
+	 * server is every account on it — so any of them could confirm a follow
+	 * meant for a neighbour and start receiving nothing about it.
+	 */
+	public function testAcceptOfAFollowAddressedToSomebodyElseIsRefused(): void {
+		$follow = new Follow();
+		$follow->setId(self::LOCAL_URL . '/follows/1');
+		$follow->setActorId(self::LOCAL_URL . '/users/alice');
+		$follow->setObjectId(self::REMOTE_URL . '/users/bob');
+		$this->objectResolver = $this->objectResolverOver([self::LOCAL_URL . '/follows/1' => $follow]);
+
+		$accept = $this->incoming(
+			Accept::TYPE, self::REMOTE_URL . '/accepts/1', self::REMOTE_URL . '/users/mallory'
+		);
+		$accept->setObjectId(self::LOCAL_URL . '/follows/1');
+
+		$this->followInterface->expects($this->never())->method('activity');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->createHandler()->processIncomingRequest($accept);
+	}
+
 	/** The resolved object hangs off the activity, so checkOrigin() can work. */
 	public function testResolvedObjectIsRootedAtTheActivity(): void {
 		$follow = new Follow();
 		$follow->setId(self::LOCAL_URL . '/follows/1');
+		$follow->setObjectId(self::REMOTE_URL . '/users/bob');
 		$this->objectResolver = $this->objectResolverOver([self::LOCAL_URL . '/follows/1' => $follow]);
 
 		$accept = $this->incoming(Accept::TYPE, self::REMOTE_URL . '/accepts/1', self::REMOTE_URL . '/users/bob');

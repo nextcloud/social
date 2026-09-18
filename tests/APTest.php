@@ -361,26 +361,30 @@ class APTest extends TestCase {
 		$this->assertSame('', $item->getObjectId());
 	}
 
-	public function testActorInfoIsParsedIntoTheActor(): void {
+	/**
+	 * `actor_info` is this app's own FORMAT_LOCAL field, holding a whole
+	 * serialised actor. Read off a document a peer wrote, it *was* the acting
+	 * account: `getActorId()` answers from it, so a crafted Announce was
+	 * addressed to a stranger's followers collection and a crafted Like named a
+	 * stranger in the notification it raised, none of it fetched or checked.
+	 */
+	public function testActorInfoFromTheWireIsIgnored(): void {
 		$item = $this->ap->getItemFromData([
 			'id' => 'https://mastodon.social/users/alice#likes/1',
 			'type' => 'Like',
 			'actor' => 'https://mastodon.social/users/alice',
 			'object' => 'https://cloud.example.org/@bob/status/2',
 			'actor_info' => [
-				'id' => 'https://mastodon.social/users/alice',
+				'id' => 'https://evil.example/users/mallory',
 				'type' => 'Person',
-				'preferredUsername' => 'alice',
-				'inbox' => 'https://mastodon.social/users/alice/inbox',
+				'preferredUsername' => 'mallory',
+				'followers' => 'https://mastodon.social/users/gargron/followers',
 			],
 		]);
 
-		$this->assertTrue($item->hasActor());
-		$actor = $item->getActor();
-		$this->assertInstanceOf(Person::class, $actor);
-		$this->assertSame('alice', $actor->getPreferredUsername());
+		$this->assertFalse($item->hasActor());
+		$this->assertNull($item->getActor());
 		$this->assertSame('https://mastodon.social/users/alice', $item->getActorId());
-		$this->assertSame($item, $actor->getParent());
 	}
 
 	public function testGivenParentIsAttached(): void {

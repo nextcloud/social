@@ -147,11 +147,7 @@ class CacheActorService {
 				throw new InvalidResourceException();
 			}
 
-			if (parse_url($id, PHP_URL_HOST) !== parse_url($actor->getId(), PHP_URL_HOST)) {
-				throw new InvalidOriginException(
-					'CacheActorService::getFromId - id: ' . $id . ' - actorId: ' . $actor->getId()
-				);
-			}
+			$this->assertIsTheActorOf($id, $actor, $this->get('_contentType', $object));
 
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
 			try {
@@ -164,6 +160,40 @@ class CacheActorService {
 		$this->memo[$id] = $actor;
 
 		return $actor;
+	}
+
+	/**
+	 * Holds a fetched document to being the actor of the URL it came from.
+	 *
+	 * The cached row is keyed by the actor's own `id`, so a document that
+	 * answers with somebody else's id rewrites somebody else's row — public
+	 * key included, which is the key `SignatureService` then verifies that
+	 * account's requests with. Matching only the host was enough for any URL
+	 * on a host that serves JSON somebody else wrote (on a Nextcloud, a public
+	 * share) to claim that host's admin account, and an inbox POST naming such
+	 * a URL as its `keyId` is enough to make this instance go and fetch it.
+	 *
+	 * Two things are therefore required, the same two `CurlService::retrieveAccount()`
+	 * and `StreamQueueService` require: the document has to be served as
+	 * ActivityPub, and it has to be the actor that was asked for. An actor
+	 * served at some other URL of its host is no longer taken as the actor of
+	 * this one — it is exactly what a document claiming a stranger's id looks
+	 * like from here.
+	 *
+	 * @throws InvalidOriginException
+	 */
+	private function assertIsTheActorOf(string $id, Person $actor, string $contentType): void {
+		if (!CurlService::isActivityPubMediaType($contentType)) {
+			throw new InvalidOriginException(
+				'CacheActorService::getFromId - id: ' . $id . ' - contentType: ' . $contentType
+			);
+		}
+
+		if (strtolower($actor->getId()) !== strtolower($id)) {
+			throw new InvalidOriginException(
+				'CacheActorService::getFromId - id: ' . $id . ' - actorId: ' . $actor->getId()
+			);
+		}
 	}
 
 	/**

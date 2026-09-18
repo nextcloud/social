@@ -151,6 +151,39 @@ class ACoreTest extends TestCase {
 		$item->checkOrigin($id);
 	}
 
+	public function testCheckActorAcceptsTheSameActor(): void {
+		$item = new ACore();
+
+		$item->checkActor(
+			'https://mastodon.social/users/alice', 'https://mastodon.social/users/alice'
+		);
+		$this->assertSame('', $item->getId(), 'nothing is changed by the check');
+	}
+
+	/** @return iterable<string, array{string, string}> */
+	public static function unequalActorProvider(): iterable {
+		// what checkOrigin() cannot tell apart, which is the whole reason for
+		// this check: same host, different account
+		yield 'neighbour' => [
+			'https://mastodon.social/users/alice', 'https://mastodon.social/users/mallory',
+		];
+		yield 'other host' => [
+			'https://mastodon.social/users/alice', 'https://evil.example/users/alice',
+		];
+		yield 'nothing expected' => ['', 'https://mastodon.social/users/alice'];
+		yield 'no actor' => ['https://mastodon.social/users/alice', ''];
+		yield 'neither' => ['', ''];
+	}
+
+	#[DataProvider('unequalActorProvider')]
+	public function testCheckActorRejectsAnybodyElse(string $expected, string $actual): void {
+		$item = new ACore();
+
+		$this->expectException(InvalidOriginException::class);
+
+		$item->checkActor($expected, $actual);
+	}
+
 	public function testVerifyAcceptsSameSchemeHostAndPort(): void {
 		$item = new ACore();
 		$item->setId('https://mastodon.social:8443/users/alice');

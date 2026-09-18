@@ -367,6 +367,31 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	}
 
 	/**
+	 * Holds an activity to the one actor it may act for.
+	 *
+	 * `checkOrigin()` stops at the host, which on a server with more than one
+	 * account is every account on it: it says the activity came from the right
+	 * instance, never from the right actor. Everything that acts on something
+	 * somebody owns — deleting an actor or a post, undoing a like or a follow,
+	 * accepting a follow request, rewriting a cached profile — needs the
+	 * stronger statement, and asks for it here.
+	 *
+	 * @param string $expectedActorId whose the thing being acted on is
+	 * @param string $actualActorId who the activity says is acting
+	 *
+	 * @throws InvalidOriginException
+	 */
+	public function checkActor(string $expectedActorId, string $actualActorId): void {
+		if ($expectedActorId !== '' && $expectedActorId === $actualActorId) {
+			return;
+		}
+
+		throw new InvalidOriginException(
+			'ACore::checkActor - expected: ' . $expectedActorId . ' - actor: ' . $actualActorId
+		);
+	}
+
+	/**
 	 * @param string $url
 	 *
 	 * @throws ActivityCantBeVerifiedException
