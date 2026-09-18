@@ -468,8 +468,11 @@ class OAuthController extends Controller {
 				// last held
 				$client = $this->clientService->exchangeCode($client, $code, $code_verifier);
 			} elseif ($grant_type === 'client_credentials') {
-				// Falling through would return the token column of the client row —
-				// whatever token the last user's authorization-code grant put there.
+				// There is no app-only identity here for such a token to act
+				// as; every route this API has reads or writes somebody's
+				// account. Named here rather than falling through to the
+				// unknown-grant answer because the discovery document used to
+				// advertise it and clients still ask.
 				return new DataResponse(
 					['error' => 'unsupported_grant_type'], Http::STATUS_BAD_REQUEST
 				);
