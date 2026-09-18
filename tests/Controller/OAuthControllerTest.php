@@ -9,17 +9,22 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
+use ArrayObject;
 use OCA\Social\Controller\OAuthController;
+use OCA\Social\Db\ClientAuthRequest;
+use OCA\Social\Db\ClientRequest;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Instance;
+use OCA\Social\Security\SecretHasher;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\DataResponse;
@@ -51,6 +56,8 @@ class OAuthControllerTest extends TestCase {
 	private $configService;
 	/** @var IInitialState&MockObject */
 	private $initialState;
+	/** @var IRequest&MockObject */
+	private $request;
 	private OAuthController $controller;
 
 	protected function setUp(): void {
@@ -61,14 +68,20 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService = $this->createMock(ClientService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->initialState = $this->createMock(IInitialState::class);
+		$this->request = $this->createMock(IRequest::class);
 
-		$this->controller = new OAuthController(
-			$this->createMock(IRequest::class),
+		$this->controller = $this->controllerWith($this->clientService);
+	}
+
+	/** The controller under test, on one ClientService — a mock or the real one. */
+	private function controllerWith(ClientService $clientService): OAuthController {
+		return new OAuthController(
+			$this->request,
 			$this->userSession,
 			$this->urlGenerator,
 			$this->instanceService,
 			$this->accountService,
-			$this->clientService,
+			$clientService,
 			$this->configService,
 			new NullLogger(),
 			$this->initialState
@@ -86,6 +99,17 @@ class OAuthControllerTest extends TestCase {
 		$actor = $this->createMock(Person::class);
 		$actor->method('getPreferredUsername')->willReturn($uid);
 		$this->accountService->method('getActorFromUserId')->with($uid)->willReturn($actor);
+	}
+
+	/** Collects everything handed to the consent page, readable after the call. */
+	private function recordInitialState(): ArrayObject {
+		$states = new ArrayObject();
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $value) use ($states): void {
+				$states[$key] = $value;
+			});
+
+		return $states;
 	}
 
 	private function knownClient(string $clientId = 'client-1', string $appName = 'Tusky'): SocialClient {
@@ -224,9 +248,11 @@ class OAuthControllerTest extends TestCase {
 	public function testAuthorizeRendersTheConsentPageForAKnownClient(): void {
 		$this->loggedIn();
 		$this->knownClient();
-		$this->initialState->expects($this->once())->method('provideInitialState')->with('appName', 'Tusky');
+		$states = $this->recordInitialState();
 
 		$response = $this->controller->authorize('client-1', self::OOB, 'code', 'read write');
+
+		$this->assertSame('Tusky', $states['appName']);
 
 		$this->assertInstanceOf(TemplateResponse::class, $response);
 		$this->assertSame('oauth2', $response->getTemplateName());
@@ -237,6 +263,8 @@ class OAuthControllerTest extends TestCase {
 				'responseType' => 'code',
 				'scope' => 'read write',
 				'state' => '',
+				'codeChallenge' => '',
+				'codeChallengeMethod' => '',
 			],
 		], $response->getParams());
 	}
@@ -433,7 +461,7 @@ class OAuthControllerTest extends TestCase {
 				}
 			);
 
-		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code', 'read', 'auth-code-1');
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'client-1', 'secret', 'auth-code-1');
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([
@@ -442,10 +470,11 @@ class OAuthControllerTest extends TestCase {
 			'scope' => 'read',
 			'created_at' => 1700000000,
 		], $response->getData());
-		// the code is no longer one of the things confirmData compares: it is
-		// what finds the authorization, so exchangeCode() is handed it
+		// neither the code nor a scope is among what confirmData compares: the
+		// code is what finds the authorization, and the scopes are the ones on
+		// the authorization it finds
 		$this->assertSame([
-			['client_secret' => 'secret', 'redirect_uri' => self::OOB, 'auth_scopes' => 'read'],
+			['client_secret' => 'secret', 'redirect_uri' => self::OOB],
 		], $confirmations);
 		$this->assertSame(['auth-code-1'], $exchanged);
 	}
@@ -464,7 +493,7 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->method('exchangeCode')
 			->willReturnCallback(fn (SocialClient $c): SocialClient => $c->setToken('bearer-token'));
 
-		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code', 'read', 'auth-code-1');
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'client-1', 'secret', 'auth-code-1');
 
 		$this->assertSame('read write follow', $response->getData()['scope']);
 	}
@@ -474,7 +503,7 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->method('confirmData')
 			->willThrowException(new ClientException('wrong client_secret'));
 
-		$response = $this->controller->token('client-1', 'guess', self::OOB, 'authorization_code', 'read', 'c');
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'client-1', 'guess', 'c');
 
 		// A credential guess is throttled so /oauth/token cannot be brute-forced.
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
@@ -485,7 +514,7 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->method('getFromClientId')
 			->willThrowException(new ClientNotFoundException('unknown'));
 
-		$response = $this->controller->token('nope', 'secret', self::OOB, 'authorization_code', 'read', 'c');
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'nope', 'secret', 'c');
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertTrue($response->isThrottled());
@@ -495,7 +524,7 @@ class OAuthControllerTest extends TestCase {
 		$this->knownClient();
 		$this->clientService->expects($this->never())->method('exchangeCode');
 
-		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code');
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'client-1', 'secret');
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 		$this->assertSame(['error' => 'missing code'], $response->getData());
@@ -504,7 +533,7 @@ class OAuthControllerTest extends TestCase {
 	public function testTokenRejectsUnknownGrantTypes(): void {
 		$this->knownClient();
 
-		$response = $this->controller->token('client-1', 'secret', self::OOB, 'password');
+		$response = $this->controller->token(self::OOB, 'password', 'client-1', 'secret');
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 		$this->assertSame(['error' => 'invalid value for grant_type'], $response->getData());
@@ -514,7 +543,7 @@ class OAuthControllerTest extends TestCase {
 		$this->knownClient();
 		$this->clientService->expects($this->never())->method('exchangeCode');
 
-		$response = $this->controller->token('client-1', 'secret', self::OOB, 'client_credentials');
+		$response = $this->controller->token(self::OOB, 'client_credentials', 'client-1', 'secret');
 
 		// Falling through would have returned whatever token the client row held from
 		// some user's authorization-code grant.
@@ -525,7 +554,7 @@ class OAuthControllerTest extends TestCase {
 	public function testTokenRejectsUnknownClientIds(): void {
 		$this->clientService->method('getFromClientId')->willThrowException(new ClientNotFoundException());
 
-		$response = $this->controller->token('nope', 'secret', self::OOB, 'authorization_code', 'read', 'c');
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'nope', 'secret', 'c');
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertSame(['error' => 'unknown client_id'], $response->getData());
@@ -536,10 +565,213 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->method('confirmData')->willThrowException(new ClientException('wrong client_secret'));
 		$this->clientService->expects($this->never())->method('exchangeCode');
 
-		$response = $this->controller->token('client-1', 'wrong', self::OOB, 'authorization_code', 'read', 'c');
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'client-1', 'wrong', 'c');
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertSame(['error' => 'wrong client_secret'], $response->getData());
+	}
+
+	/**
+	 * The regression this whole endpoint turned on.
+	 *
+	 * `token()` used to hand `confirmData()` the scope of the *token* call and
+	 * have it compared against `social_client.auth_scopes` — a column no writer
+	 * has touched since authorizations moved to `social_client_auth`. For every
+	 * client registered after that migration the column is empty, so even the
+	 * default `read` was refused as an invalid scope and the exchange answered
+	 * 401 with a brute-force strike. Nothing caught it because every test mocked
+	 * `confirmData` away; this one runs the real thing against a client in the
+	 * shape `ClientRequest::saveApp()` writes.
+	 */
+	public function testTokenIssuesATokenToAClientRegisteredAfterTheAuthorizationSplit(): void {
+		$hasher = new SecretHasher();
+		$clientRequest = $this->createMock(ClientRequest::class);
+		$clientAuthRequest = $this->createMock(ClientAuthRequest::class);
+		$clientService = new ClientService(
+			$clientRequest, $hasher, $this->createMock(MiscService::class), $clientAuthRequest
+		);
+
+		// exactly the columns saveApp() writes, read back the way
+		// getFromClientId() reads them: no auth_scopes, because an app row no
+		// longer carries an authorization
+		$appRow = (new SocialClient())->importFromDatabase([
+			'id' => 3,
+			'app_name' => 'Tusky',
+			'app_website' => '',
+			'app_redirect_uris' => json_encode([self::OOB]),
+			'app_client_id' => 'client-1',
+			'app_client_secret' => $hasher->hash('s3cret'),
+			'app_scopes' => json_encode(['read', 'write']),
+			'creation' => '2026-09-18 10:00:00',
+			'last_update' => '2026-09-18 10:00:00',
+		]);
+		$this->assertSame([], $appRow->getAuthScopes(), 'a registration carries no granted scopes');
+		$clientRequest->method('getFromClientId')->with('client-1')->willReturn($appRow);
+
+		$granted = (new SocialClient())->setId(3)->setAuthUserId('alice')
+			->setAuthScopes(['read', 'write'])->setLastUpdate(time());
+		$clientAuthRequest->method('getByCode')->willReturn($granted);
+		$clientAuthRequest->method('exchange')
+			->willReturnCallback(fn (): SocialClient => $granted->setToken('bearer-token'));
+
+		$response = $this->controllerWith($clientService)
+			->token(self::OOB, 'authorization_code', 'client-1', 's3cret', 'auth-code-1');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('bearer-token', $response->getData()['access_token']);
+		$this->assertSame('read write', $response->getData()['scope']);
+	}
+
+	/**
+	 * `client_secret_basic`, which the discovery document has always claimed
+	 * and the endpoint never read.
+	 */
+	public function testTokenAcceptsClientCredentialsInABasicAuthorizationHeader(): void {
+		$this->request->method('getHeader')->with('Authorization')
+			->willReturn('Basic ' . base64_encode('client-1:s3c%2Bret'));
+		$client = $this->knownClient();
+		$client->setAuthScopes(['read']);
+		$confirmations = [];
+		$this->clientService->method('confirmData')
+			->willReturnCallback(function (SocialClient $c, array $data) use (&$confirmations): void {
+				$confirmations[] = $data;
+			});
+		$this->clientService->method('exchangeCode')
+			->willReturnCallback(fn (SocialClient $c): SocialClient => $c->setToken('bearer-token'));
+
+		$response = $this->controller->token(self::OOB, 'authorization_code', '', '', 'auth-code-1');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		// the halves are form-urlencoded inside the header (RFC 6749 §2.3.1)
+		$this->assertSame('s3c+ret', $confirmations[0]['client_secret']);
+	}
+
+	public function testTokenHandsTheCodeVerifierToTheExchange(): void {
+		$client = $this->knownClient();
+		$client->setAuthScopes(['read']);
+		$this->clientService->method('confirmData');
+		$verifiers = [];
+		$this->clientService->method('exchangeCode')
+			->willReturnCallback(
+				function (SocialClient $c, string $code, string $verifier) use (&$verifiers): SocialClient {
+					$verifiers[] = $verifier;
+
+					return $c->setToken('bearer-token');
+				}
+			);
+
+		$this->controller->token(self::OOB, 'authorization_code', 'client-1', 'secret', 'auth-code-1', 'the-verifier');
+
+		$this->assertSame(['the-verifier'], $verifiers);
+	}
+
+	// PKCE (RFC 7636)
+
+	public function testAuthorizeCarriesAPkceChallengeToTheConsentForm(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$response = $this->controller->authorize(
+			'client-1', self::OOB, 'code', 'read', 'st', 'the-challenge', 'S256'
+		);
+
+		$this->assertSame('the-challenge', $response->getParams()['request']['codeChallenge']);
+		$this->assertSame('S256', $response->getParams()['request']['codeChallengeMethod']);
+	}
+
+	/**
+	 * An omitted method means `plain` in RFC 7636, which this server neither
+	 * implements nor advertises. Recording the challenge and never checking it
+	 * would be a code that is bound to nothing while the client believes it is.
+	 */
+	public function testAuthorizeRefusesAChallengeWithAMethodItDoesNotImplement(): void {
+		$this->loggedIn();
+
+		foreach (['', 'plain', 'S512'] as $method) {
+			$response = $this->controller->authorize(
+				'client-1', self::OOB, 'code', 'read', '', 'the-challenge', $method
+			);
+
+			$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+			$this->assertSame(['error' => 'unsupported code_challenge_method'], $response->getData());
+		}
+	}
+
+	public function testAuthorizingBindsTheAuthorizationToTheChallenge(): void {
+		$this->loggedIn('alice');
+		$this->knownClient();
+		$bound = null;
+		$this->clientService->method('authClient')
+			->willReturnCallback(function (SocialClient $c) use (&$bound): void {
+				$bound = [$c->getAuthCodeChallenge(), $c->getAuthCodeChallengeMethod()];
+				$c->setAuthCode('c1');
+			});
+
+		$this->controller->authorizing('client-1', self::OOB, 'code', 'read', '', 'the-challenge', 'S256');
+
+		$this->assertSame(['the-challenge', 'S256'], $bound);
+	}
+
+	// what the consent page is told
+
+	public function testAuthorizeShowsTheScopesAndWhereTheCodeIsGoing(): void {
+		$this->loggedIn();
+		$this->knownClient();
+		$states = $this->recordInitialState();
+
+		$this->controller->authorize('client-1', 'https://app.example/cb', 'code', 'read write:statuses', 'xyz');
+
+		$this->assertSame(['read', 'write:statuses'], $states['scopes']);
+		$this->assertSame('https://app.example/cb', $states['redirectUri']);
+	}
+
+	/**
+	 * RFC 6749 §4.1.2.1: refusing consent is an answer the client is owed.
+	 * The Deny button used to be a link to the app, so a client that had sent
+	 * somebody to the consent page waited for a redirect that never came.
+	 */
+	public function testDenyingConsentSendsAccessDeniedBackToTheClient(): void {
+		$this->loggedIn();
+		$this->knownClient();
+		$states = $this->recordInitialState();
+
+		$this->controller->authorize('client-1', 'https://app.example/cb?v=2', 'code', 'read', 'xyz789');
+
+		$this->assertSame(
+			'https://app.example/cb?v=2&error=access_denied&state=xyz789', $states['denyUrl']
+		);
+	}
+
+	public function testDenyingAnOutOfBandRequestFallsBackToTheApp(): void {
+		$this->loggedIn();
+		$this->knownClient();
+		$this->urlGenerator->method('linkToRoute')->with('social.Navigation.navigate')
+			->willReturn('/apps/social/');
+		$states = $this->recordInitialState();
+
+		$this->controller->authorize('client-1', self::OOB, 'code', 'read', 'xyz789');
+
+		$this->assertSame('/apps/social/', $states['denyUrl']);
+	}
+
+	// the discovery document
+
+	/**
+	 * A Mastodon 4.3 client acts on what this says. Everything named here has
+	 * to be implemented: `client_credentials` was advertised and answered
+	 * `unsupported_grant_type`.
+	 */
+	public function testTheMetadataDocumentOnlyAdvertisesWhatIsImplemented(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://nc.example/apps/social/');
+
+		$data = $this->controller->oauthMetadata()->getData();
+
+		$this->assertSame(['authorization_code'], $data['grant_types_supported']);
+		$this->assertSame(['S256'], $data['code_challenge_methods_supported']);
+		$this->assertSame(
+			['client_secret_post', 'client_secret_basic'], $data['token_endpoint_auth_methods_supported']
+		);
+		$this->assertSame('https://nc.example/apps/social/oauth/token', $data['token_endpoint']);
 	}
 
 	// revoke()
@@ -550,7 +782,7 @@ class OAuthControllerTest extends TestCase {
 			->method('revokeToken')
 			->with($this->identicalTo($client), 'tok');
 
-		$response = $this->controller->revoke('client-1', 's3cret', 'tok');
+		$response = $this->controller->revoke('tok', 'client-1', 's3cret');
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([], $response->getData());
@@ -560,7 +792,7 @@ class OAuthControllerTest extends TestCase {
 		$this->knownClient();
 		$this->clientService->method('revokeToken')->willThrowException(new ClientNotFoundException());
 
-		$this->assertSame(Http::STATUS_OK, $this->controller->revoke('client-1', 's3cret', 'gone')->getStatus());
+		$this->assertSame(Http::STATUS_OK, $this->controller->revoke('gone', 'client-1', 's3cret')->getStatus());
 	}
 
 	public function testRevokeThrottlesWrongClientCredentials(): void {
@@ -568,7 +800,7 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->method('confirmData')->willThrowException(new ClientException('wrong client_secret'));
 		$this->clientService->expects($this->never())->method('revokeToken');
 
-		$response = $this->controller->revoke('client-1', 'wrong', 'tok');
+		$response = $this->controller->revoke('tok', 'client-1', 'wrong');
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertTrue($response->isThrottled());

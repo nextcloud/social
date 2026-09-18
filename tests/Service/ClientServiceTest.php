@@ -43,7 +43,6 @@ class ClientServiceTest extends TestCase {
 		$client->setAppName('Tusky');
 		$client->setAppRedirectUris(['urn:ietf:wg:oauth:2.0:oob', 'https://app.example/callback']);
 		$client->setAppScopes(['read', 'write']);
-		$client->setAuthScopes(['read']);
 		$client->setAppClientSecret('s3cret');
 		$client->setAuthCode('c0de');
 
@@ -131,6 +130,93 @@ class ClientServiceTest extends TestCase {
 
 		$this->assertMatchesRegularExpression('/^[A-Za-z0-9]{80}$/', $minted);
 		$this->assertSame('alice', $result->getAuthUserId());
+	}
+
+	public function testAuthClientRecordsThePkceChallengeWithTheAuthorization(): void {
+		$client = $this->registeredClient();
+		$client->setId(7)->setAuthUserId('alice')->setAuthAccount('alice')
+			->setAuthCodeChallenge('the-challenge')->setAuthCodeChallengeMethod('S256');
+
+		$recorded = [];
+		$this->clientAuthRequest->expects($this->once())->method('authorize')
+			->willReturnCallback(
+				function (
+					int $clientId, string $userId, string $account, array $scopes, string $code,
+					string $challenge = '', string $method = '',
+				) use (&$recorded): void {
+					$recorded = [$challenge, $method];
+				}
+			);
+
+		$this->service->authClient($client);
+
+		$this->assertSame(['the-challenge', 'S256'], $recorded);
+	}
+
+	/**
+	 * RFC 7636: a code bound to a challenge is worth nothing on its own, which
+	 * is what protects a redirect to a custom scheme another application can
+	 * claim.
+	 */
+	public function testACodeBoundToAChallengeNeedsTheVerifierThatMatchesIt(): void {
+		$verifier = str_repeat('a', 43);
+		$client = $this->registeredClient();
+		$client->setId(7);
+		$authorized = (new SocialClient())->setId(7)->setAuthUserId('alice')
+			->setAuthCodeChallenge(ClientService::codeChallenge($verifier));
+		$authorized->setLastUpdate(time() - 10);
+		$this->clientAuthRequest->method('getByCode')->willReturn($authorized);
+		$this->clientAuthRequest->method('exchange')
+			->willReturnCallback(fn (): SocialClient => $authorized->setToken('tok'));
+
+		$this->assertSame('tok', $this->service->exchangeCode($client, 'the-code', $verifier)->getToken());
+	}
+
+	/** @return array<string, array{string}> */
+	public static function wrongVerifierProvider(): array {
+		return [
+			'none at all' => [''],
+			'another verifier' => [str_repeat('b', 43)],
+			// the challenge is the digest; presenting it is not knowing the
+			// verifier it was made from
+			'the challenge itself' => [ClientService::codeChallenge(str_repeat('a', 43))],
+			'too short to be one' => ['short'],
+		];
+	}
+
+	#[DataProvider('wrongVerifierProvider')]
+	public function testACodeBoundToAChallengeIsRefusedWithoutIt(string $presented): void {
+		$client = $this->registeredClient();
+		$client->setId(7);
+		$authorized = (new SocialClient())->setId(7)
+			->setAuthCodeChallenge(ClientService::codeChallenge(str_repeat('a', 43)));
+		$authorized->setLastUpdate(time() - 10);
+		$this->clientAuthRequest->method('getByCode')->willReturn($authorized);
+		$this->clientAuthRequest->expects($this->never())->method('exchange');
+
+		$this->expectException(ClientException::class);
+		$this->expectExceptionMessage('invalid code_verifier');
+		$this->service->exchangeCode($client, 'the-code', $presented);
+	}
+
+	/** A verifier sent against an authorization that carries no challenge is ignored. */
+	public function testAnAuthorizationWithoutAChallengeIgnoresAVerifier(): void {
+		$client = $this->registeredClient();
+		$client->setId(7);
+		$authorized = (new SocialClient())->setId(7);
+		$authorized->setLastUpdate(time() - 10);
+		$this->clientAuthRequest->method('getByCode')->willReturn($authorized);
+		$this->clientAuthRequest->expects($this->once())->method('exchange')
+			->willReturnCallback(fn (): SocialClient => $authorized->setToken('tok'));
+
+		$this->assertSame('tok', $this->service->exchangeCode($client, 'the-code', 'whatever')->getToken());
+	}
+
+	public function testTheS256ChallengeIsTheUnpaddedBase64UrlOfTheDigest(): void {
+		// RFC 7636 appendix B
+		$challenge = ClientService::codeChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk');
+
+		$this->assertSame('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM', $challenge);
 	}
 
 	/** A code is short-lived, and an expired one is not exchangeable. */
@@ -224,12 +310,14 @@ class ClientServiceTest extends TestCase {
 			'right secret' => [['client_secret' => 's3cret']],
 			'registered app scopes as array' => [['app_scopes' => ['read']]],
 			'registered app scopes as string' => [['app_scopes' => 'read write']],
-			'granted auth scopes' => [['auth_scopes' => 'read']],
+			// an app row carries no granted scopes, so a token call that names
+			// one is not compared against it — the scopes a token really has
+			// are the ones on the authorization its code names
+			'a scope on the app row is not consulted' => [['auth_scopes' => ['read', 'write', 'follow']]],
 			'everything at once' => [[
 				'redirect_uri' => 'urn:ietf:wg:oauth:2.0:oob',
 				'client_secret' => 's3cret',
 				'app_scopes' => 'write',
-				'auth_scopes' => ['read'],
 			]],
 		];
 	}
@@ -246,7 +334,6 @@ class ClientServiceTest extends TestCase {
 			'unknown redirect' => [['redirect_uri' => 'https://evil.example/'], 'unknown redirect_uri'],
 			'wrong secret' => [['client_secret' => 'nope'], 'wrong client_secret'],
 			'more app scopes than registered' => [['app_scopes' => 'read write follow'], 'invalid scope'],
-			'more auth scopes than granted' => [['auth_scopes' => ['read', 'write']], 'invalid scope'],
 		];
 	}
 
@@ -301,7 +388,6 @@ class ClientServiceTest extends TestCase {
 		$client->setId(7)->setAuthId(11);
 		$this->clientAuthRequest->method('getByToken')->with('tok')->willReturn($client);
 		$this->clientAuthRequest->expects($this->once())->method('revoke')->with(11);
-		$this->clientRequest->expects($this->never())->method('revokeToken');
 
 		$this->service->revokeToken($client, 'tok');
 	}
@@ -312,7 +398,6 @@ class ClientServiceTest extends TestCase {
 		$caller = $this->registeredClient();
 		$caller->setId(8);
 		$this->clientAuthRequest->method('getByToken')->willReturn($owner);
-		$this->clientRequest->expects($this->never())->method('revokeToken');
 
 		$this->expectException(ClientException::class);
 		$this->service->revokeToken($caller, 'tok');

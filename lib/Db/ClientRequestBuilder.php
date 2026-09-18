@@ -53,19 +53,13 @@ class ClientRequestBuilder extends CoreRequestBuilder {
 	}
 
 	/**
-	 * Base of the Sql Update request
+	 * An app registration, and nothing else.
 	 *
-	 * @return SocialQueryBuilder
-	 */
-	protected function getClientUpdateSql(): SocialQueryBuilder {
-		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_CLIENT);
-
-		return $qb;
-	}
-
-	/**
-	 * Base of the Sql Select request for Shares
+	 * The `auth_*` and `token` columns of `social_client` are what an
+	 * authorization used to be stored in; they are read and written through
+	 * `ClientAuthRequest` now. Selecting the legacy columns handed every app
+	 * registration a set of `auth_*` values that no writer has kept current
+	 * since the split, which is a trap for anything that reads them.
 	 *
 	 * @return SocialQueryBuilder
 	 */
@@ -75,8 +69,7 @@ class ClientRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'cl.id', 'cl.app_name', 'cl.app_website', 'cl.app_redirect_uris', 'cl.app_client_id',
-			'cl.app_client_secret', 'cl.app_scopes', 'cl.auth_scopes', 'cl.auth_account', 'cl.auth_user_id',
-			'cl.auth_code', 'cl.token', 'cl.last_update', 'cl.creation'
+			'cl.app_client_secret', 'cl.app_scopes', 'cl.last_update', 'cl.creation'
 		)
 			->from(self::TABLE_CLIENT, 'cl');
 
