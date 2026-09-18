@@ -32,6 +32,7 @@ use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -57,6 +58,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 	private NoteInterface $handler;
 
 	private Person $alice;
+	private StatusRevisionService|MockObject $revisionService;
 	private Person $bob;
 	private Person $carol;
 
@@ -71,6 +73,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->streamQueueService = $this->createMock(StreamQueueService::class);
 		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 		$this->forwardService = $this->createMock(ForwardService::class);
+		$this->revisionService = $this->createMock(StatusRevisionService::class);
 		$this->handler = new NoteInterface(
 			$this->streamRequest,
 			$this->cacheActorsRequest,
@@ -79,7 +82,8 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 			$this->streamQueueService,
 			$this->linkPreviewService,
 			$this->forwardService,
-			$this->createMock(\OCA\Social\Service\NotificationService::class)
+			$this->createMock(\OCA\Social\Service\NotificationService::class),
+			$this->revisionService
 		);
 
 		$this->alice = $this->person(self::LOCAL_URL . '/users/alice', true);
@@ -574,6 +578,33 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($update, $note);
 
 		$this->assertSame($update->getId(), $note->getActivityId());
+	}
+
+	/**
+	 * An edit from another server is an edit: without the revision,
+	 * `GET /statuses/{nid}/history` answered a post edited three times with a
+	 * single synthetic version, and the "edited" dialog had nothing to compare.
+	 */
+	public function testUpdateRecordsTheVersionItReplaces(): void {
+		$note = $this->incomingNote();
+		$note->setContent('<p>edited</p>');
+		$stored = $this->storedCopy();
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($stored);
+
+		$this->revisionService->expects($this->once())
+			->method('recordEdit')
+			->with($this->identicalTo($stored), $this->identicalTo($note));
+
+		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
+	}
+
+	public function testAnUpdateOfANoteNeverReceivedRecordsNoRevision(): void {
+		$note = $this->incomingNote();
+		$this->nothingStored();
+
+		$this->revisionService->expects($this->never())->method('recordEdit');
+
+		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
 	}
 
 	public function testUpdateOfANoteClaimingAnAuthorFromAnotherServerIsRefused(): void {
