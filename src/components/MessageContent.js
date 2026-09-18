@@ -130,7 +130,10 @@ export function emojifyPlain(hFn, text, emojis) {
 		{
 			regex: customEmojiRegex,
 			onMatch: (match) => {
-				const emoji = (emojis ?? []).find((entry) => entry.shortcode === match[1])
+				// a shortcode is matched whatever case it was written in, the
+				// way the server matches one
+				const shortcode = match[1].toLowerCase()
+				const emoji = (emojis ?? []).find((entry) => (entry.shortcode ?? '').toLowerCase() === shortcode)
 				if (!emoji) {
 					return match[0]
 				}
@@ -174,7 +177,9 @@ function transformText(hFn, routerLink, text, context = {}) {
 		{
 			regex: customEmojiRegex,
 			onMatch: (match) => {
-				const emoji = (context.emojis ?? []).find((entry) => entry.shortcode === match[1])
+				// see emojifyPlain(): the shortcode is matched case-insensitively
+				const shortcode = match[1].toLowerCase()
+				const emoji = (context.emojis ?? []).find((entry) => (entry.shortcode ?? '').toLowerCase() === shortcode)
 				if (!emoji) {
 					return match[0]
 				}

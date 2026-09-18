@@ -7,7 +7,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
-import MessageContent from '../../../src/components/MessageContent.js'
+import MessageContent, { emojifyPlain } from '../../../src/components/MessageContent.js'
 import { createPinia } from 'pinia'
 
 const Empty = { template: '<div />' }
@@ -269,12 +269,54 @@ describe('MessageContent', () => {
 			expect(wrapper.text()).toContain(':missing:')
 		})
 
+		// the server matches a shortcode case-insensitively, so `:BlobCat:`
+		// arrives with the `blobcat` entry in the list of the status
+		it('matches a shortcode whatever case it was written in', () => {
+			const wrapper = mountContent('<p>hi :BlobCat: !</p>', { emojis: [blobcat] })
+
+			const img = wrapper.find('img.custom-emoji')
+			expect(img.exists()).toBe(true)
+			expect(img.attributes('src')).toBe(blobcat.url)
+			expect(img.attributes('alt')).toBe(':BlobCat:')
+		})
+
+		it('matches an entry whose own shortcode carries capitals', () => {
+			const shouty = { ...blobcat, shortcode: 'BlobCat' }
+			const wrapper = mountContent('<p>hi :blobcat: !</p>', { emojis: [shouty] })
+
+			expect(wrapper.find('img.custom-emoji').attributes('src')).toBe(shouty.url)
+		})
+
 		it('never uses the emoji list as HTML', () => {
 			const evil = { shortcode: 'x', url: '"><script>alert(1)</script>' }
 			const wrapper = mountContent('<p>:x:</p>', { emojis: [evil] })
 
 			expect(wrapper.find('script').exists()).toBe(false)
 			expect(wrapper.find('img.custom-emoji').attributes('src')).toBe(evil.url)
+		})
+	})
+
+	describe('emojifyPlain', () => {
+		const blobcat = { shortcode: 'blobcat', url: 'https://remote.example/emoji/blobcat.png' }
+		const hFn = (tag, attrs) => ({ tag, attrs })
+
+		it('replaces a shortcode in a display name', () => {
+			const parts = emojifyPlain(hFn, 'Alice :blobcat:', [blobcat])
+
+			expect(parts.some((part) => part?.attrs?.src === blobcat.url)).toBe(true)
+		})
+
+		/** A display name is matched the same way the text of a post is. */
+		it('matches a shortcode whatever case it was written in', () => {
+			const parts = emojifyPlain(hFn, 'Alice :BlobCat:', [blobcat])
+
+			expect(parts.some((part) => part?.attrs?.src === blobcat.url)).toBe(true)
+		})
+
+		it('leaves an unknown shortcode as text', () => {
+			const parts = emojifyPlain(hFn, 'Alice :missing:', [blobcat])
+
+			expect(parts.join('')).toContain(':missing:')
 		})
 	})
 
