@@ -183,9 +183,24 @@ class ConversationService {
 			->setMinId($minId)
 			->setSince($sinceId);
 
-		$this->streamService->setViewer($viewer);
+		$this->readAs($viewer);
 
 		return $this->streamService->getTimeline($options);
+	}
+
+	/**
+	 * Says who is reading before anything is read.
+	 *
+	 * Every lookup this service makes goes through `StreamService`, and a
+	 * stream read with no viewer set is read as an anonymous caller: only
+	 * posts addressed to the public collection come back. A direct message
+	 * names no such collection, so a conversation could never be looked up at
+	 * all — `markRead()` and `remove()` answered 404 for every real
+	 * conversation while `getPage()`, which happened to say who was reading,
+	 * listed them.
+	 */
+	private function readAs(Person $viewer): void {
+		$this->streamService->setViewer($viewer);
 	}
 
 	/**
@@ -415,6 +430,8 @@ class ConversationService {
 		if ($id < 1) {
 			throw new ItemNotFoundException('Record not found');
 		}
+
+		$this->readAs($viewer);
 
 		try {
 			$named = $this->streamService->getStreamByNid($id);
