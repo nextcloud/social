@@ -844,7 +844,7 @@ class CacheDocumentServiceTest extends TestCase {
 	public function testARefusedPictureIsRefusedWhenItArrivesFromAPeer(): void {
 		$png = $this->pngBytes();
 		$this->origin($png);
-		$this->mediaBlocksRequest->method('isBlocked')
+		$this->mediaBlocksRequest->expects($this->once())->method('isBlocked')
 			->with(hash('sha256', $png))
 			->willReturn(true);
 		$this->appData->expects($this->never())->method($this->anything());
@@ -852,7 +852,7 @@ class CacheDocumentServiceTest extends TestCase {
 		$document = new Document();
 		$document->setUrl('https://remote.example/files/pic.png');
 
-		$this->expectException(CacheContentMimeTypeException::class);
+		$this->expectExceptionMessage('this file is not accepted on this instance');
 		$this->service->saveRemoteFileToCache($document);
 	}
 
