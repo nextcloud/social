@@ -1654,35 +1654,42 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * The page of one account's posts the viewer may read: its public ones,
-	 * or -- for the account reading its own profile -- everything it wrote.
+	 * The page of one account's posts the viewer may read.
 	 *
-	 * The recipient join is one row per post when it names the public
-	 * collection; for the account itself it names no recipient at all and a
-	 * post addressed to several accounts would come back once per row, so
-	 * that page is `DISTINCT` and the other is not.
+	 * For the account reading its own profile, everything it wrote. For anybody
+	 * else, exactly what `getStreamById()` would hand them post by post: the
+	 * public and unlisted ones, the followers-only ones once the follow is
+	 * accepted, and what was addressed to them. Forcing the public collection
+	 * here instead meant a follower read a followers-only post in their home
+	 * timeline while the author's profile denied it existed.
+	 *
+	 * A post names several recipients — the public collection, its author, the
+	 * author's followers collection — and each is a row, so any page with a
+	 * reader behind it can match one post more than once and has to be
+	 * `DISTINCT`. The anonymous page matches only the public row and does not.
 	 *
 	 * @return int[]
 	 */
 	protected function accountTimelineNids(ProbeOptions $options): array {
 		$actorId = $options->getAccountId();
-		$page = $this->getStreamNidsSelectSql(false);
-		$accountIsViewer = ($page->hasViewer() && $page->getViewer()->getId() === $actorId);
-		if ($accountIsViewer) {
-			$page = $this->getStreamNidsSelectSql(true);
-		}
+		$accountIsViewer = ($this->viewer !== null && $this->viewer->getId() === $actorId);
+		$page = $this->getStreamNidsSelectSql($this->viewer !== null);
 
 		$page->limitToStatusTypes();
 		$page->paginate($options);
 		$this->filterKind($page, $options);
 		$page->limitToAttributedTo($actorId, true);
 
-		$page->selectDestFollowing('sd', '');
-		$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
-		$page->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+		if ($accountIsViewer) {
+			$page->selectDestFollowing('sd', '');
+			$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+			$page->limitToDest('', 'recipient', '', 'sd');
+			$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		} else {
+			$page->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		}
 
 		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
-		$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
 
 		return $this->getNidsFromRequest($page);
 	}
@@ -2309,7 +2316,18 @@ class StreamRequest extends StreamRequestBuilder {
 			->where($expr->gte(
 				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
 			))
+			// public posts only, the rule `HashtagsRequest::related()` counts
+			// by: a tag used inside a followers-only thread or a direct message
+			// is not public knowledge, and counting it published the tag — and
+			// its usage count — through `/api/v1/trends/tags`, `tagHistory()`
+			// and search
+			->andWhere($expr->eq(
+				's.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)
+			))
 			->groupBy('st.hashtag');
+
+		$qb->setDefaultSelectAlias('s');
+		$qb->limitToStatusTypes();
 
 		$counts = [];
 		$cursor = $qb->executeQuery();
@@ -2910,7 +2928,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 
 		$qb->filterType(SocialAppNotification::TYPE);
-		$qb->limitToViewer('sd', 'f', true);
+		// direct messages included, as `getStreamById()` and the ancestor walk
+		// both include them: a DM's recipient row is keyed on the viewer's own
+		// id, so without this the descendants of a direct thread could never
+		// match and a client was handed the ancestors and nothing else
+		$qb->limitToViewer('sd', 'f', true, true);
 		$qb->limitToDBFieldArray(
 			'in_reply_to_prim',
 			array_map(static fn (string $id): string => $qb->prim($id), $ids)
