@@ -60,6 +60,18 @@ class RangedFileResponse extends Response implements ICallbackResponse {
 		$this->length = $this->size;
 
 		$this->addHeader('Content-Type', $contentType);
+		// A file somebody else wrote, served from this instance's own origin.
+		// A browser must not be allowed to sniff past the type this states,
+		// and anything that is not a picture, a video or a sound is handed
+		// over as a download rather than rendered: a peer that declares
+		// `text/html` over bytes beginning `GIF89a` is otherwise a page on
+		// this origin, framed and same-origin, whatever the content security
+		// policy says about the scripts in it.
+		$this->addHeader('X-Content-Type-Options', 'nosniff');
+		if (!self::isRenderable($contentType)) {
+			$this->addHeader('Content-Disposition', 'attachment');
+		}
+
 		// the offer has to be made before a browser will make use of it
 		$this->addHeader('Accept-Ranges', 'bytes');
 
@@ -105,6 +117,25 @@ class RangedFileResponse extends Response implements ICallbackResponse {
 			'Content-Range',
 			'bytes ' . $this->offset . '-' . ($this->offset + $this->length - 1) . '/' . $this->size
 		);
+	}
+
+	/**
+	 * Whether a media element may be pointed at this and nothing worse can
+	 * happen: a picture, a video or a sound.
+	 *
+	 * An SVG is none of the three. It is a document with scripts and remote
+	 * references in it that happens to be spelled `image/`, and drawing one
+	 * inline is script on this origin whatever `nosniff` says. The ingest
+	 * allow-list already refuses it; this is the second place, for a row
+	 * written before it did.
+	 */
+	private static function isRenderable(string $contentType): bool {
+		$type = strtolower(trim(explode(';', $contentType, 2)[0]));
+		if (str_contains($type, 'svg') || str_contains($type, 'xml')) {
+			return false;
+		}
+
+		return preg_match('#^(image|video|audio)/#', $type) === 1;
 	}
 
 	/**

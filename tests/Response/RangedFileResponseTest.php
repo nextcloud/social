@@ -76,6 +76,47 @@ class RangedFileResponseTest extends TestCase {
 		$this->assertSame(self::BODY, $this->body($response));
 	}
 
+	/**
+	 * These bytes are somebody else's file, served from this instance's own
+	 * origin. A peer that declared `text/html` over content beginning
+	 * `GIF89a` had the file stored -- libmagic says image/gif -- and then
+	 * served back as a page from here.
+	 */
+	#[DataProvider('renderableTypeProvider')]
+	public function testMediaIsServedInlineButNeverSniffed(string $type): void {
+		$response = new RangedFileResponse($this->file(), $type);
+
+		$this->assertSame('nosniff', $response->getHeaders()['X-Content-Type-Options']);
+		$this->assertArrayNotHasKey('Content-Disposition', $response->getHeaders());
+	}
+
+	public static function renderableTypeProvider(): array {
+		return [
+			'picture' => ['image/png'],
+			'video' => ['video/mp4'],
+			'sound' => ['audio/mpeg'],
+			'upper case' => ['Image/JPEG'],
+		];
+	}
+
+	#[DataProvider('downloadTypeProvider')]
+	public function testAnythingElseIsHandedOverAsADownload(string $type): void {
+		$response = new RangedFileResponse($this->file(), $type);
+
+		$this->assertSame('nosniff', $response->getHeaders()['X-Content-Type-Options']);
+		$this->assertSame('attachment', $response->getHeaders()['Content-Disposition']);
+	}
+
+	public static function downloadTypeProvider(): array {
+		return [
+			'a page' => ['text/html'],
+			'a document' => ['application/pdf'],
+			'a drawing a browser would run' => ['image/svg+xml; charset=utf-8'],
+			// a row written before the sniffed type was recorded
+			'nothing at all' => [''],
+		];
+	}
+
 	public static function rangeProvider(): array {
 		return [
 			'a closed range' => ['bytes=2-5', '2345', 'bytes 2-5/10'],
