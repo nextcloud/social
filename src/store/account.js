@@ -14,34 +14,13 @@ import { useErrorsStore } from './errors.js'
 import { useTimelineStore } from './timeline.js'
 
 /**
- * An empty relationship, as the API shapes one, for an account the server has
- * not been asked about yet.
+ * How many followers or followed accounts one page holds.
  *
- * @param {string} id the account's numeric id
- * @param {boolean} following whether the reader follows it
- * @return {import('../types/Mastodon.js').Relationship}
+ * Asked for rather than assumed: the end of the list is read off the size of
+ * the answer, which held only because the controller happened to default to
+ * the same number.
  */
-function emptyRelationship(id, following) {
-	return {
-		id,
-		following,
-		// `note` and `languages` were missing here while `Relationship::jsonSerialize()`
-		// has always sent both, so a component reading the placeholder saw a
-		// different shape from the one the server answers with
-		note: '',
-		languages: [],
-		showing_reblogs: false,
-		notifying: false,
-		followed_by: false,
-		blocking: false,
-		blocked_by: false,
-		muting: false,
-		muting_notifications: false,
-		requested: false,
-		domain_blocking: false,
-		endorsed: false,
-	}
-}
+const FOLLOW_PAGE_SIZE = 20
 
 /**
  * The actor URL an account handle resolves to, or undefined.
@@ -324,64 +303,6 @@ export const useAccountStore = defineStore('account', {
 			this.accountsFollowings = { ...this.accountsFollowings, [key]: [...existing, ...users] }
 			this.accountsFollowingsMaxId = { ...this.accountsFollowingsMaxId, [key]: lastId }
 		},
-		/**
-		 * Records locally that the reader now follows an account: the list the
-		 * profile shows, and the relationship the follow button reads.
-		 *
-		 * Separate from the `followAccount` action that asks the server, which
-		 * in Vuex could share the name because mutations and actions were two
-		 * namespaces. Here there is one.
-		 *
-		 * @param {string} accountToFollow the handle
-		 */
-		markAccountFollowed(accountToFollow) {
-			const actorId = actorIdFor(this, accountToFollow)
-			const followingList = this.accountsFollowings[actorId] || []
-			this.accountsFollowings = { ...this.accountsFollowings, [actorId]: [...followingList, accountToFollow] }
-			if (actorId && this.accounts[actorId]) {
-				const relationshipId = this.accounts[actorId].id
-				if (this.accountsRelationships[relationshipId]) {
-					this.accountsRelationships = {
-						...this.accountsRelationships,
-						[relationshipId]: { ...this.accountsRelationships[relationshipId], following: true },
-					}
-				} else if (relationshipId) {
-					this.accountsRelationships = {
-						...this.accountsRelationships,
-						[relationshipId]: emptyRelationship(relationshipId, true),
-					}
-				}
-			}
-		},
-		/**
-		 * The other half of markAccountFollowed.
-		 *
-		 * @param {string} accountToUnfollow the handle
-		 */
-		markAccountUnfollowed(accountToUnfollow) {
-			const actorId = actorIdFor(this, accountToUnfollow)
-			const followingList = this.accountsFollowings[actorId] || []
-			const index = followingList.indexOf(accountToUnfollow)
-			if (index !== -1) {
-				const newList = [...followingList]
-				newList.splice(index, 1)
-				this.accountsFollowings = { ...this.accountsFollowings, [actorId]: newList }
-			}
-			if (actorId && this.accounts[actorId]) {
-				const relationshipId = this.accounts[actorId].id
-				if (this.accountsRelationships[relationshipId]) {
-					this.accountsRelationships = {
-						...this.accountsRelationships,
-						[relationshipId]: { ...this.accountsRelationships[relationshipId], following: false },
-					}
-				} else if (relationshipId) {
-					this.accountsRelationships = {
-						...this.accountsRelationships,
-						[relationshipId]: emptyRelationship(relationshipId, false),
-					}
-				}
-			}
-		},
 		async fetchAccountInfo(account) {
 			try {
 				const response = await axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${account}`))
@@ -526,6 +447,29 @@ export const useAccountStore = defineStore('account', {
 				this.addAccount({ actorId: data.url, data })
 			}
 		},
+		/**
+		 * Re-reads what the server now says about an account, after a follow
+		 * or an unfollow changed it.
+		 *
+		 * `PUT /current/follow` answers `success([])` and says nothing about
+		 * the state it left behind, and a follow of a locked or remote account
+		 * is `requested` until the Accept arrives — never `following` — so
+		 * nothing here can be worked out from the call having succeeded. The
+		 * counts move too: the target's `followers_count` and the reader's own
+		 * `following_count`.
+		 *
+		 * @param {string} account the handle that was followed or unfollowed
+		 * @return {Promise<void>}
+		 */
+		async refreshFollowState(account) {
+			const known = this.getAccount(account)?.id
+
+			await Promise.all([
+				this.fetchAccountInfo(account)
+					.then((info) => this.fetchAccountRelationshipInfo(info?.id ?? known)),
+				this.fetchCredentials(),
+			])
+		},
 		async followAccount({ accountToFollow }) {
 			try {
 				const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToFollow))
@@ -537,7 +481,7 @@ export const useAccountStore = defineStore('account', {
 					// silent unhandled rejection, with no toast and no error state
 					throw new Error('The server refused the follow')
 				}
-				this.markAccountFollowed(accountToFollow)
+				await this.refreshFollowState(accountToFollow)
 				return response
 			} catch (error) {
 				showError(t('social', 'Could not follow {account}', { account: accountToFollow }))
@@ -553,7 +497,7 @@ export const useAccountStore = defineStore('account', {
 					// escapes this function's own catch
 					throw new Error('The server refused the unfollow')
 				}
-				this.markAccountUnfollowed(accountToUnfollow)
+				await this.refreshFollowState(accountToUnfollow)
 				return response
 			} catch (error) {
 				showError(t('social', 'Could not unfollow {account}', { account: accountToUnfollow }))
@@ -655,7 +599,10 @@ export const useAccountStore = defineStore('account', {
 			}
 		},
 
-		/** @param {{account?: string, maxId?: string}} options */
+		/**
+		 * @param {{account?: string, maxId?: string}} options the account whose
+		 * followers to load, and where the previous page ended
+		 */
 		async fetchAccountFollowers({ account, maxId } = {}) {
 			const key = keyFor(this, account)
 			if (this.accountsFollowersLoading[key]) {
@@ -663,7 +610,7 @@ export const useAccountStore = defineStore('account', {
 			}
 			this.setFollowersLoading({ actorId: key, loading: true })
 			try {
-				const params = {}
+				const params = { limit: FOLLOW_PAGE_SIZE }
 				if (maxId) {
 					params.max_id = maxId
 				}
@@ -673,7 +620,7 @@ export const useAccountStore = defineStore('account', {
 				} else {
 					this.addFollowersAppend({ account, data: response.data })
 				}
-				if (response.data.length < 20) {
+				if (response.data.length < FOLLOW_PAGE_SIZE) {
 					this.setFollowersAllLoaded({ actorId: key, loaded: true })
 				}
 				this.setFollowersFailed({ actorId: key, failed: false })
@@ -686,7 +633,10 @@ export const useAccountStore = defineStore('account', {
 				this.setFollowersLoading({ actorId: key, loading: false })
 			}
 		},
-		/** @param {{account?: string, maxId?: string}} options */
+		/**
+		 * @param {{account?: string, maxId?: string}} options the account whose
+		 * followed accounts to load, and where the previous page ended
+		 */
 		async fetchAccountFollowing({ account, maxId } = {}) {
 			const key = keyFor(this, account)
 			if (this.accountsFollowingsLoading[key]) {
@@ -694,7 +644,7 @@ export const useAccountStore = defineStore('account', {
 			}
 			this.setFollowingsLoading({ actorId: key, loading: true })
 			try {
-				const params = {}
+				const params = { limit: FOLLOW_PAGE_SIZE }
 				if (maxId) {
 					params.max_id = maxId
 				}
@@ -704,7 +654,7 @@ export const useAccountStore = defineStore('account', {
 				} else {
 					this.addFollowingAppend({ account, data: response.data })
 				}
-				if (response.data.length < 20) {
+				if (response.data.length < FOLLOW_PAGE_SIZE) {
 					this.setFollowingsAllLoaded({ actorId: key, loaded: true })
 				}
 				this.setFollowingsFailed({ actorId: key, failed: false })

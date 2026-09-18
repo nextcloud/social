@@ -52,11 +52,10 @@
 			  leaves the results both terms found exactly where they are and
 			  only moves what actually changed.
 
-			  `:css` is how the known ordering problem stays quiet: a response
-			  for an earlier term can still land after a newer one and replace
-			  what is on screen, and results that no longer answer what is in
-			  the search box are swapped in without motion rather than being
-			  announced as the answer.
+			  `:css` keeps the last term's results quiet: while the request
+			  for what is in the search box is still in flight, what is on
+			  screen is swapped in without motion rather than being announced
+			  as the answer.
 			-->
 			<section v-if="accounts.length > 0" class="social__search-section">
 				<h2>{{ t('social', 'People') }}</h2>
@@ -164,6 +163,13 @@ export default {
 			error: null,
 			debounceTimer: null,
 			/**
+			 * Which request the results on screen belong to. Responses are not
+			 * ordered — a webfinger lookup for "ali" can outlive the cached
+			 * answer for "alice" — so anything that is not the newest request
+			 * is dropped rather than rendered.
+			 */
+			requestSequence: 0,
+			/**
 			 * The term the results on screen actually answer, which is not
 			 * always the term in the search box: see `resultsAreCurrent`.
 			 *
@@ -205,11 +211,10 @@ export default {
 		/**
 		 * Whether what is on screen answers what is in the search box.
 		 *
-		 * Requests are not ordered: a slow response for an earlier term can
-		 * land after a newer one and replace the results with older ones.
-		 * That is a known problem of this component and not fixed here — but
-		 * results that no longer answer the term being typed are put on
-		 * screen without any motion, so nothing announces them as the answer.
+		 * The results always answer *some* term the reader typed, but the
+		 * request for the one they have finished typing may still be in
+		 * flight: those older results are put on screen without any motion,
+		 * so nothing announces them as the answer.
 		 *
 		 * @return {boolean}
 		 */
@@ -258,11 +263,16 @@ export default {
 		 */
 		async search() {
 			const term = this.query.trim()
+			// whatever is still in flight answers a term that is no longer
+			// the one being asked about
+			const sequence = ++this.requestSequence
+
 			if (term === '') {
 				this.accounts = []
 				this.statusIds = []
 				this.hashtags = []
 				this.error = null
+				this.loading = false
 				this.renderedTerm = term
 				return
 			}
@@ -273,6 +283,10 @@ export default {
 				const { data } = await axios.get(generateUrl('apps/social/api/v2/search'), {
 					params: { q: term, limit: 20 },
 				})
+				if (sequence !== this.requestSequence) {
+					return
+				}
+
 				this.accounts = Array.isArray(data?.accounts) ? data.accounts : []
 				this.hashtags = Array.isArray(data?.hashtags) ? data.hashtags : []
 
@@ -294,9 +308,14 @@ export default {
 				this.renderedTerm = term
 			} catch (error) {
 				logger.error('Failed to perform the search', { error })
-				this.error = translate('social', 'The search could not be run. Please try again.')
+				if (sequence === this.requestSequence) {
+					this.error = translate('social', 'The search could not be run. Please try again.')
+				}
 			} finally {
-				this.loading = false
+				// the newer request owns `loading` now
+				if (sequence === this.requestSequence) {
+					this.loading = false
+				}
 			}
 		},
 	},

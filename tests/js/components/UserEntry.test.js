@@ -31,7 +31,7 @@ const RouterLinkStub = {
 }
 
 const local = {
-	id: 'https://cloud.example.org/users/carol',
+	id: '1789553297940456400',
 	url: 'https://cloud.example.org/users/carol',
 	acct: 'carol',
 	username: 'carol',
@@ -40,7 +40,8 @@ const local = {
 	note: '<p>Local <strong>bio</strong></p>',
 }
 const remote = {
-	id: 'https://remote.example/users/bob',
+	// an Account's `id` is the numeric row id; its profile is `url`
+	id: '1789553297940456473',
 	url: 'https://remote.example/users/bob',
 	acct: 'bob@remote.example',
 	username: 'bob',
@@ -153,7 +154,7 @@ describe('UserEntry', () => {
 		mountEntry(remote)
 		// a page of twenty followers used to be twenty round-trips, because
 		// the guard tested a `relationship` this component never defined
-		expect(accountStore.fetchRelationship).toHaveBeenCalledWith('https://remote.example/users/bob')
+		expect(accountStore.fetchRelationship).toHaveBeenCalledWith(remote.id)
 	})
 
 	it('does not ask again for a relationship the store already knows', () => {
@@ -176,11 +177,14 @@ describe('UserEntry', () => {
 		})
 
 		it('links straight to the remote profile in a new tab instead of the app route', () => {
+			// the numeric id was linked to instead, which 404s under the
+			// followers route it is rendered on
 			const wrapper = mountEntry(remote, {}, false)
 			const link = nameLink(wrapper)
 			expect(wrapper.findComponent(RouterLinkStub).exists()).toBe(false)
 			expect(link.attributes('target')).toBe('_blank')
 			expect(link.attributes('href')).toBe('https://remote.example/users/bob')
+			expect(link.attributes('href')).not.toBe(remote.id)
 			expect(link.attributes('rel')).toBe('noreferrer')
 			expect(link.find('.post-author').text()).toBe('Bob')
 		})

@@ -224,42 +224,6 @@ describe('account store mutations and getters', () => {
 		expect(store.getAccountFollowers('dave@remote.tld')).toEqual([bob])
 		expect(store.getAccountFollowers('nobody@remote.tld')).toEqual([])
 	})
-
-	it('followAccount flips the relationship of a loaded account to following', () => {
-		store.addAccount({ actorId: bob.url, data: bob })
-		store.addRelationship({ actorId: bob.id, data: { id: bob.id, following: false, followed_by: true } })
-
-		store.markAccountFollowed(bob.acct)
-
-		expect(store.getRelationshipWith(bob.id)).toEqual({ id: bob.id, following: true, followed_by: true })
-	})
-
-	it('followAccount creates a default relationship when none was loaded yet', () => {
-		store.addAccount({ actorId: bob.url, data: bob })
-
-		store.markAccountFollowed(bob.acct)
-
-		expect(store.getRelationshipWith(bob.id)).toEqual(defaultRelationship(bob.id, true))
-	})
-
-	it('unfollowAccount flips the relationship back, creating a default one if needed', () => {
-		store.addAccount({ actorId: bob.url, data: bob })
-		store.addAccount({ actorId: carol.url, data: carol })
-		store.addRelationship({ actorId: bob.id, data: { id: bob.id, following: true } })
-
-		store.markAccountUnfollowed(bob.acct)
-		store.markAccountUnfollowed(carol.acct)
-
-		expect(store.getRelationshipWith(bob.id)).toEqual({ id: bob.id, following: false })
-		expect(store.getRelationshipWith(carol.id)).toEqual(defaultRelationship(carol.id, false))
-	})
-
-	it('followAccount and unfollowAccount leave relationships alone for accounts that are not loaded', () => {
-		store.markAccountFollowed('nobody@remote.tld')
-		store.markAccountUnfollowed('nobody@remote.tld')
-
-		expect(store.accountsRelationships).toEqual({})
-	})
 })
 
 describe('account store actions', () => {
@@ -418,19 +382,77 @@ describe('account store actions', () => {
 	})
 
 	describe('followAccount', () => {
+		const requested = { ...defaultRelationship(bob.id, false), requested: true }
+
+		/**
+		 * What the three requests a follow makes answer, in the order the
+		 * store sends them: the account, the relationship, the credentials.
+		 *
+		 * @param {object} relationship what the server says the relationship is now
+		 */
+		function serverAnswers(relationship = requested) {
+			axios.get.mockImplementation(async (url) => {
+				if (url.includes('/global/account/info')) {
+					return { data: { ...bob, followers_count: 8 } }
+				}
+				if (url.includes('/accounts/relationships')) {
+					return { data: [relationship] }
+				}
+
+				return { data: { ...alice, following_count: 4 } }
+			})
+		}
+
 		beforeEach(() => {
 			store.addAccount({ actorId: bob.url, data: bob })
+			serverAnswers()
 		})
 
-		it('PUTs to the follow endpoint with the encoded handle and marks the relationship as following', async () => {
+		it('PUTs to the follow endpoint with the encoded handle', async () => {
 			const response = { data: { status: 1, result: [] } }
 			axios.put.mockResolvedValue(response)
 
 			await expect(store.followAccount({ accountToFollow: bob.acct })).resolves.toBe(response)
 
 			expect(axios.put).toHaveBeenCalledWith(`${API}/current/follow?account=bob%40remote.tld`)
-			expect(store.getRelationshipWith(bob.id)).toMatchObject({ following: true })
 			expect(showError).not.toHaveBeenCalled()
+		})
+
+		it('reads the relationship back rather than assuming the follow landed', async () => {
+			// `PUT /current/follow` answers success([]) and a follow of a
+			// locked or remote account stays pending until the Accept comes
+			// back, so writing `following: true` here showed "Following" where
+			// the server says "Requested"
+			axios.put.mockResolvedValue({ data: { status: 1, result: [] } })
+
+			await store.followAccount({ accountToFollow: bob.acct })
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/relationships`, { params: { id: [bob.id] } })
+			expect(store.getRelationshipWith(bob.id)).toEqual(requested)
+			expect(store.getRelationshipWith(bob.id).following).toBe(false)
+		})
+
+		it('reads the counts back, on the target and on the reader', async () => {
+			axios.put.mockResolvedValue({ data: { status: 1, result: [] } })
+
+			await store.followAccount({ accountToFollow: bob.acct })
+
+			expect(store.getAccount(bob.acct).followers_count).toBe(8)
+			expect(store.credentials.following_count).toBe(4)
+		})
+
+		it('leaves the reader following lists of other accounts alone', async () => {
+			// the handle used to be pushed into the *followed* account's own
+			// following list, keyed by actor URL and holding actor URLs, so it
+			// was dropped again on the way out of the getter
+			axios.put.mockResolvedValue({ data: { status: 1, result: [] } })
+
+			await store.followAccount({ accountToFollow: bob.acct })
+
+			// the getter filters the handle out again, so the raw list is what
+			// shows the push
+			expect(store.accountsFollowings[bob.url]).toEqual([])
+			expect(store.getAccountFollowing(bob.acct)).toEqual([])
 		})
 
 		it('says so, rather than rejecting silently, when the server reports status -1', async () => {
@@ -456,22 +478,45 @@ describe('account store actions', () => {
 			expect(logger.error).toHaveBeenCalledWith('Failed to follow user bob@remote.tld', { error: expect.any(Error) })
 			expect(store.getRelationshipWith(bob.id)).toBeUndefined()
 		})
+
+		it('asks about an account it has never loaded once the info comes back', async () => {
+			store.$patch(freshState())
+			axios.put.mockResolvedValue({ data: { status: 1, result: [] } })
+
+			await store.followAccount({ accountToFollow: bob.acct })
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/relationships`, { params: { id: [bob.id] } })
+		})
 	})
 
 	describe('unfollowAccount', () => {
+		const gone = defaultRelationship(bob.id, false)
+
 		beforeEach(() => {
 			store.addAccount({ actorId: bob.url, data: bob })
-			store.addRelationship({ actorId: bob.id, data: { id: bob.id, following: true } })
+			store.addRelationship({ actorId: bob.id, data: { ...defaultRelationship(bob.id, true), requested: true } })
+			axios.get.mockImplementation(async (url) => {
+				if (url.includes('/global/account/info')) {
+					return { data: bob }
+				}
+				if (url.includes('/accounts/relationships')) {
+					return { data: [gone] }
+				}
+
+				return { data: alice }
+			})
 		})
 
-		it('DELETEs the follow and marks the relationship as not following', async () => {
+		it('DELETEs the follow and reads the relationship back', async () => {
 			const response = { data: { status: 1, result: [] } }
 			axios.delete.mockResolvedValue(response)
 
 			await expect(store.unfollowAccount({ accountToUnfollow: bob.acct })).resolves.toBe(response)
 
 			expect(axios.delete).toHaveBeenCalledWith(`${API}/current/follow?account=bob%40remote.tld`)
-			expect(store.getRelationshipWith(bob.id)).toEqual({ id: bob.id, following: false })
+			// `requested` was left standing when only `following` was flipped,
+			// so cancelling a pending request still said "Requested"
+			expect(store.getRelationshipWith(bob.id)).toEqual(gone)
 		})
 
 		it('says so, rather than rejecting silently, when the server reports status -1', async () => {
@@ -615,7 +660,7 @@ describe('account store actions', () => {
 
 			const result = await store.fetchAccountFollowers({ account: ALICE })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: {} })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: { limit: 20 } })
 			expect(result).toEqual([bob, carol])
 			expect(loadingDuringRequest).toBe(true)
 			expect(store.getAccountFollowers(ALICE)).toEqual([bob, carol])
@@ -634,7 +679,7 @@ describe('account store actions', () => {
 
 			await store.fetchAccountFollowers({ account: ALICE, maxId: '22' })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: { max_id: '22' } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: { limit: 20, max_id: '22' } })
 			expect(store.getAccountFollowers(ALICE)).toHaveLength(21)
 			expect(store.accountsFollowersMaxId[alice.url]).toBe('119')
 			expect(store.accountsFollowersAllLoaded[alice.url]).toBe(false)
@@ -669,7 +714,7 @@ describe('account store actions', () => {
 
 			const result = await store.fetchAccountFollowing({ account: ALICE })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/following`, { params: {} })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/following`, { params: { limit: 20 } })
 			expect(result).toEqual([bob])
 			expect(store.getAccountFollowing(ALICE)).toEqual([bob])
 			expect(store.accountsFollowingsAllLoaded[alice.url]).toBe(true)
@@ -682,7 +727,7 @@ describe('account store actions', () => {
 
 			await store.fetchAccountFollowing({ account: ALICE, maxId: '22' })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/following`, { params: { max_id: '22' } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/following`, { params: { limit: 20, max_id: '22' } })
 			expect(store.getAccountFollowing(ALICE)).toEqual([bob, carol])
 		})
 

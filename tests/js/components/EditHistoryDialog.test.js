@@ -65,9 +65,8 @@ describe('the edit history', () => {
 	})
 
 	/**
-	 * Each version is the post as it stood, sanitised by the server the same
-	 * way the post itself is; rendering it as text would show the reader
-	 * markup.
+	 * Each version is the post as it stood; rendering it as text would show
+	 * the reader markup.
 	 */
 	it('renders the content as the HTML it is', async () => {
 		get.mockResolvedValue({ data: [version('<p>a <strong>bold</strong> claim</p>')] })
@@ -76,6 +75,32 @@ describe('the edit history', () => {
 		await flushPromises()
 
 		expect(wrapper.find('.history__content strong').text()).toBe('bold')
+	})
+
+	it('puts a revision through the client sanitiser, as every other remote-HTML sink is', async () => {
+		// safe only for as long as no remote revision is ever stored, which is
+		// not a property of this dialog
+		get.mockResolvedValue({
+			data: [version('<p>hi<script>alert(1)</script><a href="javascript:alert(2)" onclick="x()">link</a></p>')],
+		})
+
+		const wrapper = mountDialog()
+		await flushPromises()
+
+		const content = wrapper.find('.history__content')
+		expect(content.html()).not.toContain('<script')
+		expect(content.html()).not.toContain('onclick')
+		expect(content.find('a').attributes('href')).toBeUndefined()
+		expect(content.text()).toContain('hi')
+	})
+
+	it('renders a version with no content at all as nothing', async () => {
+		get.mockResolvedValue({ data: [version(undefined)] })
+
+		const wrapper = mountDialog()
+		await flushPromises()
+
+		expect(wrapper.find('.history__content').text()).toBe('')
 	})
 
 	it('shows the content warning a version carried', async () => {

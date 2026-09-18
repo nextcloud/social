@@ -81,7 +81,7 @@
 
 <script>
 import { showError } from '../services/toast.js'
-import { listen } from '@nextcloud/notify_push'
+import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 
 import { translate, translatePlural } from '@nextcloud/l10n'
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue'
@@ -93,7 +93,9 @@ import TimelineSkeleton from './TimelineSkeleton.vue'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
 import eventBus, { NOTIFICATIONS_READ } from '../services/eventBus.js'
-import { groupNotifications, isNewerId, newerId, newestIdOf } from '../services/notifications.js'
+import { groupNotifications, newestIdOf } from '../services/notifications.js'
+import { isNewerId, newerId, newestId, oldestId } from '../utils/snowflake.js'
+import { scrollOffset, scroller } from '../utils/scroller.js'
 import { mapStores } from 'pinia'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -106,6 +108,13 @@ import { useServerData } from '../composables/useServerData.js'
  * that ignores it looped for as long as the tab was open.
  */
 const MAX_CATCHUP_PAGES = 10
+
+/**
+ * How far down the reader has to be for arriving posts to be announced with
+ * the pill rather than simply prepended. Above this the top of the list is on
+ * screen and a post appearing there is its own announcement.
+ */
+const ANNOUNCE_BELOW = 240
 
 /**
  * How long the notifications have to be on screen before they count as read.
@@ -652,7 +661,7 @@ export default {
 		this.loadFirstPage()
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
-		const hasPush = listen('social_timeline', () => this.fetchNewStatuses())
+		const hasPush = onTimelinePush(this.onPushed)
 		this.pollEvery = (hasPush ? 300 : 30) * 1000
 		this.intervalId = setInterval(() => this.pollIfVisible(), this.pollEvery)
 		// a tab nobody is looking at does not need to ask; it catches up when
@@ -662,6 +671,7 @@ export default {
 	},
 
 	unmounted() {
+		offTimelinePush(this.onPushed)
 		document.removeEventListener('visibilitychange', this.pollOnReturn)
 		document.removeEventListener('visibilitychange', this.armSeenTimer)
 		clearTimeout(this.seenTimer)
@@ -896,16 +906,17 @@ export default {
 
 			if (this.timeline.length !== 0) {
 				// The timeline getter sorts by created_at while min_id/max_id
-				// filter on the numeric id, and a federated post can have a
-				// high id with an old date — so page on the ids themselves,
-				// or the cursor never advances and the same page loops forever.
-				const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
-				if (ids.length !== 0) {
-					if (this.reverseOrder) {
-						params.min_id = Math.max(...ids)
-					} else {
-						params.max_id = Math.min(...ids)
-					}
+				// filter on the id, and a federated post can have a high id
+				// with an old date — so page on the ids themselves, or the
+				// cursor never advances and the same page loops forever.
+				//
+				// As strings, end to end: a cursor rounded through a Number
+				// either re-fetches the post it points at, so the end of the
+				// list is never reached, or skips the rows between the two.
+				const ids = this.timeline.map((entry) => entry.id)
+				const cursor = this.reverseOrder ? newestId(ids) : oldestId(ids)
+				if (cursor !== undefined) {
+					params[this.reverseOrder ? 'min_id' : 'max_id'] = cursor
 				}
 			}
 
@@ -950,6 +961,11 @@ export default {
 				return
 			}
 
+			this.fetchNewStatuses()
+		},
+
+		/** What the server's push event runs. */
+		onPushed() {
 			this.fetchNewStatuses()
 		},
 
@@ -1012,7 +1028,9 @@ export default {
 
 		showArrived() {
 			this.arrived = 0
-			window.scrollTo({
+			// the app's content column, not the window: see utils/scroller.js
+			const column = scroller() ?? window
+			column.scrollTo({
 				top: 0,
 				behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
 			})
@@ -1039,19 +1057,22 @@ export default {
 
 			// Newest by id, not this.timeline[0] (sorted by created_at): a
 			// federated post with a high id but an old date would otherwise
-			// keep min_id stuck and this method would refetch forever.
-			const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
+			// keep min_id stuck and this method would refetch forever. As a
+			// string: rounded down through a Number it names a post already on
+			// screen, which comes back on every tick and drives the catch-up
+			// below to its page cap.
+			const newest = newestId(this.timeline.map((entry) => entry.id))
 
 			try {
 				const response = await this.timelineStore.fetchTimeline({
-					min_id: ids.length === 0 ? undefined : Math.max(...ids),
+					min_id: newest,
 				})
 				this.pollFailureReported = false
 
 				if (response.length > 0) {
 					// only worth announcing when the top of the list is out of
 					// sight; up there the posts simply appear
-					if (window.scrollY > 240) {
+					if (scrollOffset() > ANNOUNCE_BELOW) {
 						this.arrived += response.length
 					}
 					if (depth + 1 < MAX_CATCHUP_PAGES) {

@@ -188,8 +188,17 @@
 					class="user-profile__private-note-input"
 					rows="2"
 					maxlength="2000"
-					:placeholder="t('social', 'Only you ever see this.')" />
+					:placeholder="t('social', 'Only you ever see this.')"
+					@keydown.esc.prevent="discardNote" />
 				<div class="user-profile__private-note-actions">
+					<NcButton
+						v-if="noteChanged"
+						variant="tertiary"
+						type="button"
+						:disabled="savingNote"
+						@click="discardNote">
+						{{ t('social', 'Discard') }}
+					</NcButton>
 					<NcButton
 						variant="secondary"
 						type="submit"
@@ -841,6 +850,19 @@ export default {
 			} finally {
 				this.relationshipLoading = false
 			}
+		},
+
+		/**
+		 * Puts the box back to the note the server holds, which is the way out
+		 * of an edit the reader does not want to keep. The box is always open,
+		 * so without this a typed word can only be removed by hand.
+		 */
+		discardNote() {
+			if (this.savingNote) {
+				return
+			}
+
+			this.noteDraft = this.noteStored
 		},
 
 		/**
@@ -1511,6 +1533,7 @@ export default {
 	&__private-note-actions {
 		display: flex;
 		justify-content: flex-end;
+		gap: 4px;
 	}
 
 	&__bio {
