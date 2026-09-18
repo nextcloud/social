@@ -55,6 +55,9 @@ class CacheDocumentService {
 	 */
 	public const MAX_PIXELS = 50000000; // 50 MP, ~200 MB decoded
 
+	/** How much of a stored file `sniffStored()` reads to recognise it. */
+	private const SNIFF_BYTES = 4096;
+
 	public function __construct(
 		private IAppData $appData,
 		private CurlService $curlService,
@@ -718,12 +721,17 @@ class CacheDocumentService {
 	}
 
 	/**
-	 * Removes a cached copy from appdata; a missing or empty filename (or the
-	 * 'avatar' placeholder) is a no-op — retention must never abort on a file
-	 * that is already gone.
+	 * Removes a cached copy from appdata; a missing or empty filename is a
+	 * no-op — retention must never abort on a file that is already gone.
+	 *
+	 * The three sentinels are not filenames and never were: `avatar` and
+	 * `header` are served from Nextcloud's own avatar, and a streamed document
+	 * is a pointer at bytes on another server (`Document::COPY_STREAMED`).
+	 * Same list `cachedFileSize()` keeps, for the same reason.
 	 */
 	public function removeFromCache(string $filename): void {
-		if ($filename === '' || $filename === 'avatar') {
+		if ($filename === '' || $filename === 'avatar' || $filename === 'header'
+			|| $filename === Document::COPY_STREAMED) {
 			return;
 		}
 
@@ -756,6 +764,42 @@ class CacheDocumentService {
 		} catch (Exception $e) {
 			return null;
 		}
+	}
+
+	/**
+	 * What a stored copy turns out to be, read back from its first bytes.
+	 *
+	 * For the rows that were written with no type at all: the file is the only
+	 * place the answer still exists. A header's worth is enough for libmagic
+	 * and is all that is read -- the file may be a video.
+	 *
+	 * @return string '' when there is no file, or nothing could be made of it
+	 */
+	public function sniffStored(string $uuid): string {
+		if ($uuid === '' || $uuid === 'avatar' || $uuid === 'header'
+			|| $uuid === Document::COPY_STREAMED) {
+			return '';
+		}
+
+		try {
+			$stream = $this->getFromUuid($uuid)->read();
+		} catch (Exception $e) {
+			return '';
+		}
+
+		if (!is_resource($stream)) {
+			return '';
+		}
+
+		try {
+			$head = (string)stream_get_contents($stream, self::SNIFF_BYTES);
+		} finally {
+			fclose($stream);
+		}
+
+		$mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($head);
+
+		return is_string($mime) ? $mime : '';
 	}
 
 	public function getContentFromCache(string $filename): ISimpleFile {

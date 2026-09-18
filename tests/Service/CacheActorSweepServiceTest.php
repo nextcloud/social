@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\CacheActorSweepService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MediaPurgeService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -52,8 +53,11 @@ class CacheActorSweepServiceTest extends TestCase {
 		$this->service = new CacheActorSweepService(
 			$this->configService,
 			$this->cacheActorsRequest,
-			$this->cacheDocumentsRequest,
-			$this->cacheDocumentService,
+			// the real one: the read-then-remove-then-delete sequence it holds
+			// is what this test is about, and every other caller uses the same
+			new MediaPurgeService(
+				$this->cacheDocumentsRequest, $this->cacheDocumentService, new NullLogger()
+			),
 			new NullLogger(),
 			$time
 		);

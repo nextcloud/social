@@ -753,6 +753,38 @@ class CacheDocumentServiceTest extends TestCase {
 		yield 'ftp' => ['ftp://remote.example/pic.png'];
 	}
 
+	public function testSniffingAStoredFileReadsItsTypeBackOffTheBytes(): void {
+		$written = [];
+		$this->storedVideo($this->pngBytes(), $written);
+
+		$this->assertSame(
+			'image/png', $this->service->sniffStored('2b5a7a87-8db1-445f-a17b-405790f91c80')
+		);
+	}
+
+	/**
+	 * The three names that are not filenames: the two placeholders of a local
+	 * account, whose picture is Nextcloud's own avatar, and a streamed
+	 * document, which is a pointer at bytes on another server.
+	 */
+	#[DataProvider('sentinelProvider')]
+	public function testTheSentinelsNameNoFile(string $sentinel): void {
+		$this->appData->expects($this->never())->method($this->anything());
+
+		$this->service->removeFromCache($sentinel);
+
+		$this->assertSame('', $this->service->sniffStored($sentinel));
+	}
+
+	public static function sentinelProvider(): array {
+		return [
+			'nothing' => [''],
+			'a local avatar' => ['avatar'],
+			'a local header' => ['header'],
+			'somebody else\'s video' => [Document::COPY_STREAMED],
+		];
+	}
+
 	/** What the origin answers with, as a stream the service reads. */
 	private function origin(string $body): void {
 		$this->curlService->method('openStream')->willReturnCallback(

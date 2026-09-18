@@ -10,10 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Db\CacheDocumentsRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
-use Throwable;
 
 /**
  * Evicts the cached remote actors nothing here refers to any more.
@@ -48,8 +46,7 @@ class CacheActorSweepService {
 	public function __construct(
 		private ConfigService $configService,
 		private CacheActorsRequest $cacheActorsRequest,
-		private CacheDocumentsRequest $cacheDocumentsRequest,
-		private CacheDocumentService $cacheDocumentService,
+		private MediaPurgeService $mediaPurgeService,
 		private LoggerInterface $logger,
 		private ?ITimeFactory $timeFactory = null,
 	) {
@@ -122,21 +119,9 @@ class CacheActorSweepService {
 	 * @return int the document rows removed with it
 	 */
 	private function evict(string $id): int {
-		$documents = $this->cacheDocumentsRequest->getByParent($id);
-		foreach ($documents as $document) {
-			try {
-				$this->cacheDocumentService->removeFromCache($document->getLocalCopy());
-				$this->cacheDocumentService->removeFromCache($document->getResizedCopy());
-			} catch (Throwable $e) {
-				// a file that cannot be removed is not a reason to keep the actor;
-				// the row goes and the file is reported by social:media:usage
-				$this->logger->warning('could not remove the cached copy of ' . $document->getId(), ['exception' => $e]);
-			}
-		}
-
-		$this->cacheDocumentsRequest->deleteByParent($id);
+		$documents = $this->mediaPurgeService->purgeByParent($id);
 		$this->cacheActorsRequest->deleteCacheById($id);
 
-		return count($documents);
+		return $documents;
 	}
 }
