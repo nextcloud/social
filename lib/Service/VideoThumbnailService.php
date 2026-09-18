@@ -208,6 +208,13 @@ class VideoThumbnailService {
 				break;
 			}
 
+			// the pipes are drained as it goes: ffmpeg writes what it has to
+			// say to stderr, and a full pipe is a process that stops rather
+			// than one that finishes
+			foreach ($pipes as $pipe) {
+				@stream_get_contents($pipe);
+			}
+
 			usleep(50000);
 		} while (time() < $deadline);
 
