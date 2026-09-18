@@ -48,6 +48,7 @@ use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 class AccountServiceTest extends TestCase {
@@ -544,11 +545,42 @@ class AccountServiceTest extends TestCase {
 		$this->assertSame('', $alice->getDetailsAll()['last_post_creation']);
 	}
 
-	public function testCacheLocalActorByUsernameIgnoresUnknownActors(): void {
+	/**
+	 * Every caller has an account in hand and passes its handle, so a handle
+	 * nothing answers to is worth saying out loud: in silence it hid a caller
+	 * passing a user id instead, and with it the profile updates of every
+	 * account whose handle is not its user id.
+	 */
+	public function testCacheLocalActorByUsernameSaysWhenNoActorAnswersToTheHandle(): void {
+		$logger = $this->createMock(LoggerInterface::class);
+		$service = new AccountService(
+			$this->userManager,
+			$this->userSession,
+			$this->accountManager,
+			$this->actorsRequest,
+			$this->channelsRequest,
+			$this->clientAuthRequest,
+			$this->followsRequest,
+			$this->streamRequest,
+			$this->actorService,
+			$this->activityService,
+			$this->documentService,
+			$this->signatureService,
+			$this->configService,
+			$this->accessBlockService,
+			$this->cacheActorService,
+			$this->cacheActorsRequest,
+			$logger,
+		);
+
 		$this->actorsRequest->method('getFromUsername')->willThrowException(new ActorDoesNotExistException());
 		$this->actorService->expects($this->never())->method('cacheLocalActor');
+		$logger->expects($this->once())->method('warning')->with(
+			'no Social account under the handle to cache',
+			$this->callback(static fn (array $context): bool => $context['handle'] === 'nobody')
+		);
 
-		$this->service->cacheLocalActorByUsername('nobody');
+		$service->cacheLocalActorByUsername('nobody');
 	}
 
 	public function testCacheLocalActorDetailCountOnlyAppliesToLocalActors(): void {

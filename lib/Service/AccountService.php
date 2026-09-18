@@ -718,6 +718,13 @@ class AccountService {
 			$this->addLocalActorDetailCount($actor);
 			$this->actorService->cacheLocalActor($actor);
 		} catch (ActorDoesNotExistException $e) {
+			// every caller has an account in hand and passes its handle, so
+			// there is no ordinary case for this: swallowing it in silence hid
+			// a caller passing a user id instead, and with it the profile
+			// updates of every account whose handle is not its user id
+			$this->logger->warning('no Social account under the handle to cache', [
+				'handle' => $username, 'exception' => $e,
+			]);
 		}
 	}
 
