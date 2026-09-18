@@ -55,8 +55,20 @@ class ClientAuthRequest extends ClientRequestBuilder {
 	 * the same way. The token is emptied with the row — leaving the old one
 	 * live would let a token granted under the old scopes act under the new
 	 * ones.
+	 *
+	 * The PKCE challenge is stored as the client sent it: it is a digest
+	 * already, and `exchangeCode()` compares the digest of the presented
+	 * verifier against it.
 	 */
-	public function authorize(int $clientId, string $userId, string $account, array $scopes, string $code): void {
+	public function authorize(
+		int $clientId,
+		string $userId,
+		string $account,
+		array $scopes,
+		string $code,
+		string $codeChallenge = '',
+		string $codeChallengeMethod = '',
+	): void {
 		$this->forget($clientId, $userId);
 
 		$qb = $this->getQueryBuilder();
@@ -66,6 +78,8 @@ class ClientAuthRequest extends ClientRequestBuilder {
 			->setValue('account', $qb->createNamedParameter($account))
 			->setValue('scopes', $qb->createNamedParameter((string)json_encode($scopes)))
 			->setValue('code', $qb->createNamedParameter($this->secretHasher->hash($code)))
+			->setValue('code_challenge', $qb->createNamedParameter($codeChallenge))
+			->setValue('code_challenge_method', $qb->createNamedParameter($codeChallengeMethod))
 			->setValue('token', $qb->createNamedParameter(''))
 			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
 			->setValue('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
@@ -90,6 +104,7 @@ class ClientAuthRequest extends ClientRequestBuilder {
 		$qb->update(self::TABLE_CLIENT_AUTH)
 			->set('token', $qb->createNamedParameter($this->secretHasher->hash($token)))
 			->set('code', $qb->createNamedParameter(''))
+			->set('code_challenge', $qb->createNamedParameter(''))
 			->set('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
 			// the authorization row, not the app row: a joined read carries both
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($auth->getAuthId(), IQueryBuilder::PARAM_INT)))
@@ -243,6 +258,8 @@ class ClientAuthRequest extends ClientRequestBuilder {
 			->selectAlias('a.account', 'auth_account')
 			->selectAlias('a.user_id', 'auth_user_id')
 			->selectAlias('a.code', 'auth_code')
+			->selectAlias('a.code_challenge', 'auth_code_challenge')
+			->selectAlias('a.code_challenge_method', 'auth_code_challenge_method')
 			->selectAlias('a.token', 'token')
 			->selectAlias('a.last_update', 'last_update')
 			// the authorization's own date, beside the app registration's: the

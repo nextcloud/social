@@ -13,12 +13,15 @@ use DateTime;
 use Exception;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
-use OCA\Social\Service\ClientService;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
- * Class ClientAppRequest
+ * The app registrations in `social_client`.
+ *
+ * Only the registration: who authorized an app, with which scopes, and the
+ * code and token that came of it belong to `social_client_auth` and are
+ * written and read through `ClientAuthRequest`.
  *
  * @package OCA\Social\Db
  */
@@ -53,73 +56,6 @@ class ClientRequest extends ClientRequestBuilder {
 	}
 
 	/**
-	 * @param SocialClient $client
-	 */
-	public function authClient(SocialClient $client): void {
-		$qb = $this->getClientUpdateSql();
-		$qb->set('auth_code', $qb->createNamedParameter($this->secretHasher->hash($client->getAuthCode())));
-		$qb->set('auth_scopes', $qb->createNamedParameter(json_encode($client->getAuthScopes())));
-		$qb->set('auth_account', $qb->createNamedParameter($client->getAuthAccount()));
-		$qb->set('auth_user_id', $qb->createNamedParameter($client->getAuthUserId()));
-		// The row holds one token and one auth_user_id. Leaving the token in place
-		// while the user changes would let a token issued to the previous user act as
-		// the new one, so a fresh authorization invalidates it.
-		$qb->set('token', $qb->createNamedParameter(''));
-
-		// the authorization moment: the code is only exchangeable for
-		// ClientService::TIME_CODE_TTL from here
-		try {
-			$qb->set('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
-		} catch (Exception $e) {
-		}
-
-		$qb->limitToId($client->getId());
-
-		$qb->executeStatement();
-	}
-
-	/**
-	 * @param SocialClient $client
-	 */
-	public function updateToken(SocialClient $client): void {
-		$qb = $this->getClientUpdateSql();
-		$qb->set('token', $qb->createNamedParameter($this->secretHasher->hash($client->getToken())));
-		$qb->set('auth_code', $qb->createNamedParameter(''));
-
-		$qb->limitToId($client->getId());
-
-		$qb->executeStatement();
-	}
-
-	/**
-	 * Clears the access token (and any pending code) of a client row.
-	 */
-	public function revokeToken(SocialClient $client): void {
-		$qb = $this->getClientUpdateSql();
-		$qb->set('token', $qb->createNamedParameter(''));
-		$qb->set('auth_code', $qb->createNamedParameter(''));
-
-		$qb->limitToId($client->getId());
-
-		$qb->executeStatement();
-	}
-
-	/**
-	 * @param SocialClient $client
-	 */
-	public function updateTime(SocialClient $client): void {
-		$now = new DateTime('now');
-		$client->setLastUpdate($now->getTimestamp());
-
-		$qb = $this->getClientUpdateSql();
-		$qb->set('last_update', $qb->createNamedParameter($now, IQueryBuilder::PARAM_DATE));
-
-		$qb->limitToId($client->getId());
-
-		$qb->executeStatement();
-	}
-
-	/**
 	 * @param string $clientId
 	 *
 	 * @return SocialClient
@@ -130,27 +66,6 @@ class ClientRequest extends ClientRequestBuilder {
 		$qb->limitToAppClientId($clientId);
 
 		return $this->getClientFromRequest($qb);
-	}
-
-	/**
-	 * @param string $token
-	 *
-	 * @return SocialClient
-	 * @throws ClientNotFoundException
-	 */
-	public function getFromToken(string $token): SocialClient {
-		// tokens are stored hashed; rows from before hashing hold the bare value
-		foreach ($this->secretHasher->forLookup($token) as $stored) {
-			try {
-				$qb = $this->getClientSelectSql();
-				$qb->limitToToken($stored);
-
-				return $this->getClientFromRequest($qb);
-			} catch (ClientNotFoundException $e) {
-			}
-		}
-
-		throw new ClientNotFoundException();
 	}
 
 	/**
@@ -175,19 +90,6 @@ class ClientRequest extends ClientRequestBuilder {
 
 		$qb = $this->getClientDeleteSql();
 		$qb->limitToId($client->getId());
-		$qb->executeStatement();
-	}
-
-	/**
-	 * @throws Exception
-	 */
-	public function deprecateToken() {
-		$qb = $this->getClientDeleteSql();
-
-		$date = new DateTime();
-		$date->setTimestamp(time() - ClientService::TIME_TOKEN_TTL);
-		$qb->limitToDBFieldDateTime('last_update', $date, true);
-
 		$qb->executeStatement();
 	}
 }

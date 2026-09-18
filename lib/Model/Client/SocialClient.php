@@ -36,6 +36,9 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	private string $authAccount = '';
 	private string $authUserId = '';
 	private string $authCode = '';
+	/** RFC 7636: the challenge this authorization was bound to, '' when none */
+	private string $authCodeChallenge = '';
+	private string $authCodeChallengeMethod = '';
 	private int $lastUpdate = -1;
 	private string $token = '';
 	private int $creation = -1;
@@ -264,6 +267,32 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * The PKCE challenge the authorization was made with, or '' when the
+	 * client did not use PKCE. A code carrying one is only exchangeable
+	 * against a matching `code_verifier`.
+	 */
+	public function getAuthCodeChallenge(): string {
+		return $this->authCodeChallenge;
+	}
+
+	public function setAuthCodeChallenge(string $challenge): self {
+		$this->authCodeChallenge = $challenge;
+
+		return $this;
+	}
+
+	/** The transformation the challenge was made with; only `S256` is issued. */
+	public function getAuthCodeChallengeMethod(): string {
+		return $this->authCodeChallengeMethod;
+	}
+
+	public function setAuthCodeChallengeMethod(string $method): self {
+		$this->authCodeChallengeMethod = $method;
+
+		return $this;
+	}
+
 	//
 	//	/**
 	//	 * @return string
@@ -390,6 +419,8 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		$this->setAuthAccount($this->get('auth_account', $data));
 		$this->setAuthUserId($this->get('auth_user_id', $data));
 		$this->setAuthCode($this->get('auth_code', $data));
+		$this->setAuthCodeChallenge($this->get('auth_code_challenge', $data));
+		$this->setAuthCodeChallengeMethod($this->get('auth_code_challenge_method', $data));
 		$this->setToken($this->get('token', $data));
 		// the row in social_client_auth this came from, when it came from one:
 		// what revoking and touching a single authorization address

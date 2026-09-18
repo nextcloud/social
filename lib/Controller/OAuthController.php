@@ -225,6 +225,8 @@ class OAuthController extends Controller {
 		string $response_type,
 		string $scope = 'read',
 		string $state = '',
+		string $code_challenge = '',
+		string $code_challenge_method = '',
 	): Response {
 		try {
 			$user = $this->userSession->getUser();
@@ -235,6 +237,8 @@ class OAuthController extends Controller {
 			if ($response_type !== 'code') {
 				throw new ClientNotFoundException('invalid response type');
 			}
+
+			$code_challenge_method = $this->challengeMethod($code_challenge, $code_challenge_method);
 
 			// check client exists in db
 			$client = $this->clientService->getFromClientId($client_id);
@@ -247,7 +251,13 @@ class OAuthController extends Controller {
 					'redirect_uri' => $redirect_uri
 				]
 			);
+
+			// what the person is being asked to agree to: the app, what it may
+			// do, and where the code is about to be sent
 			$this->initialState->provideInitialState('appName', $client->getAppName());
+			$this->initialState->provideInitialState('scopes', $client->getScopesFromString($scope));
+			$this->initialState->provideInitialState('redirectUri', $redirect_uri);
+			$this->initialState->provideInitialState('denyUrl', $this->denyUrl($redirect_uri, $state));
 
 			return new TemplateResponse(Application::APP_ID, 'oauth2', [
 				'request'
@@ -257,7 +267,11 @@ class OAuthController extends Controller {
 						'responseType' => $response_type,
 						'scope' => $scope,
 						// carried through the consent form so the POST can echo it
-						'state' => $state
+						'state' => $state,
+						// RFC 7636: the challenge is bound to the authorization
+						// the POST creates, so the form has to carry it too
+						'codeChallenge' => $code_challenge,
+						'codeChallengeMethod' => $code_challenge_method,
 					]
 			]);
 		} catch (Throwable $e) {
@@ -265,6 +279,49 @@ class OAuthController extends Controller {
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
+	}
+
+	/**
+	 * The PKCE transformation to record, for a request that carries a
+	 * challenge.
+	 *
+	 * An omitted method means `plain` in RFC 7636, which this server does not
+	 * implement and does not advertise; a client that sends a challenge with no
+	 * method is told so rather than silently granted a code that is not bound
+	 * to anything.
+	 *
+	 * @throws ClientException
+	 */
+	private function challengeMethod(string $challenge, string $method): string {
+		if ($challenge === '') {
+			return '';
+		}
+
+		if (!in_array($method, ClientService::CODE_CHALLENGE_METHODS, true)) {
+			throw new ClientException('unsupported code_challenge_method');
+		}
+
+		return $method;
+	}
+
+	/**
+	 * Where refusing consent sends the browser: back to the client with
+	 * `error=access_denied`, which is the answer RFC 6749 §4.1.2.1 owes it.
+	 *
+	 * A client left without one waits for a redirect that never comes. The
+	 * out-of-band flow has nowhere to send it, so that lands on the app.
+	 */
+	private function denyUrl(string $redirectUri, string $state): string {
+		if ($redirectUri === '' || $redirectUri === 'urn:ietf:wg:oauth:2.0:oob') {
+			return $this->urlGenerator->linkToRoute('social.Navigation.navigate');
+		}
+
+		$parameters = ['error' => 'access_denied'];
+		if ($state !== '') {
+			$parameters['state'] = $state;
+		}
+
+		return $this->appendToRedirectUri($redirectUri, $parameters);
 	}
 
 	#[NoAdminRequired]
@@ -275,6 +332,8 @@ class OAuthController extends Controller {
 		string $response_type,
 		string $scope = 'read',
 		string $state = '',
+		string $code_challenge = '',
+		string $code_challenge_method = '',
 	): Response {
 		try {
 			$user = $this->userSession->getUser();
@@ -283,6 +342,8 @@ class OAuthController extends Controller {
 			if ($response_type !== 'code') {
 				throw new ClientNotFoundException('invalid response type');
 			}
+
+			$code_challenge_method = $this->challengeMethod($code_challenge, $code_challenge_method);
 
 			$client = $this->clientService->getFromClientId($client_id);
 			$this->clientService->confirmData(
@@ -296,6 +357,8 @@ class OAuthController extends Controller {
 			$client->setAuthScopes($client->getScopesFromString($scope));
 			$client->setAuthAccount($account->getPreferredUsername());
 			$client->setAuthUserId($user->getUID());
+			$client->setAuthCodeChallenge($code_challenge);
+			$client->setAuthCodeChallengeMethod($code_challenge_method);
 
 			$this->clientService->authClient($client);
 			$code = $client->getAuthCode();
@@ -337,6 +400,14 @@ class OAuthController extends Controller {
 			$parameters['state'] = $state;
 		}
 
+		return $this->appendToRedirectUri($redirectUri, $parameters);
+	}
+
+	/**
+	 * Parameters added to a registered redirect URI's query string, keeping
+	 * whatever query string and fragment it already had.
+	 */
+	private function appendToRedirectUri(string $redirectUri, array $parameters): string {
 		$fragment = '';
 		$pos = strpos($redirectUri, '#');
 		if ($pos !== false) {
@@ -349,27 +420,41 @@ class OAuthController extends Controller {
 		return $redirectUri . $separator . http_build_query($parameters) . $fragment;
 	}
 
+	/**
+	 * The authorization-code grant.
+	 *
+	 * There is no `scope` parameter here, and there never was one in RFC 6749
+	 * §4.1.3. What the token carries is what the person granted, which lives on
+	 * the authorization the code names; comparing a `scope` the client sent
+	 * here against the *app row* refused every client registered since
+	 * authorizations moved to a table of their own, because that column has had
+	 * no writer since.
+	 *
+	 * The client may authenticate with its credentials in the body
+	 * (`client_secret_post`) or in an `Authorization: Basic` header
+	 * (`client_secret_basic`); both are what the discovery document advertises.
+	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[PublicPage]
 	#[BruteForceProtection(action: 'socialOauthToken')]
 	#[FrontpageRoute(verb: 'POST', url: '/oauth/token')]
 	public function token(
-		string $client_id,
-		string $client_secret,
 		string $redirect_uri,
 		string $grant_type,
-		string $scope = 'read',
+		string $client_id = '',
+		string $client_secret = '',
 		string $code = '',
+		string $code_verifier = '',
 	): DataResponse {
 		try {
+			[$client_id, $client_secret] = $this->clientCredentials($client_id, $client_secret);
 			$client = $this->clientService->getFromClientId($client_id);
 			$this->clientService->confirmData(
 				$client,
 				[
 					'client_secret' => $client_secret,
 					'redirect_uri' => $redirect_uri,
-					'auth_scopes' => $scope
 				]
 			);
 
@@ -381,10 +466,13 @@ class OAuthController extends Controller {
 				// the code names the authorization, so what comes back is the
 				// account that granted it rather than whatever the app row
 				// last held
-				$client = $this->clientService->exchangeCode($client, $code);
+				$client = $this->clientService->exchangeCode($client, $code, $code_verifier);
 			} elseif ($grant_type === 'client_credentials') {
-				// Falling through would return the token column of the client row —
-				// whatever token the last user's authorization-code grant put there.
+				// There is no app-only identity here for such a token to act
+				// as; every route this API has reads or writes somebody's
+				// account. Named here rather than falling through to the
+				// unknown-grant answer because the discovery document used to
+				// advertise it and clients still ask.
 				return new DataResponse(
 					['error' => 'unsupported_grant_type'], Http::STATUS_BAD_REQUEST
 				);
@@ -440,8 +528,9 @@ class OAuthController extends Controller {
 	#[PublicPage]
 	#[BruteForceProtection(action: 'socialOauthToken')]
 	#[FrontpageRoute(verb: 'POST', url: '/oauth/revoke')]
-	public function revoke(string $client_id, string $client_secret, string $token): DataResponse {
+	public function revoke(string $token, string $client_id = '', string $client_secret = ''): DataResponse {
 		try {
+			[$client_id, $client_secret] = $this->clientCredentials($client_id, $client_secret);
 			$client = $this->clientService->getFromClientId($client_id);
 			$this->clientService->confirmData($client, ['client_secret' => $client_secret]);
 		} catch (Exception $e) {
@@ -463,20 +552,24 @@ class OAuthController extends Controller {
 	/**
 	 * Every scope this server understands, in the order Mastodon lists them.
 	 *
-	 * The narrow ones are what the routes actually ask for; the three broad
-	 * ones are what `checkTokenScope()` accepts in their place, so a client
-	 * that asks for `read` gets every `read:*` route. Published so a client can
-	 * ask for what it needs rather than for everything, which is the whole
-	 * point of the discovery document.
+	 * The narrow ones are what the routes actually ask for; the broad ones are
+	 * what `checkTokenScope()` accepts in their place, so a client that asks
+	 * for `read` gets every `read:*` route — and a client that asks for
+	 * `read:lists` gets that one and no other. Published so a client can ask
+	 * for what it needs rather than for everything, which is the whole point of
+	 * the discovery document.
 	 */
 	public const SCOPES = [
 		'read', 'write', 'follow',
-		'read:accounts', 'read:blocks', 'read:collections', 'read:filters',
-		'read:notifications', 'read:statuses', 'read:stories',
-		'write:accounts', 'write:blocks', 'write:collections',
+		'read:accounts', 'read:blocks', 'read:bookmarks', 'read:collections',
+		'read:favourites', 'read:filters', 'read:follows', 'read:lists',
+		'read:mutes', 'read:notifications', 'read:search', 'read:statuses',
+		'read:stories',
+		'write:accounts', 'write:blocks', 'write:bookmarks', 'write:collections',
 		'write:conversations', 'write:favourites', 'write:filters',
-		'write:follows', 'write:lists', 'write:notifications',
-		'write:reports', 'write:statuses', 'write:stories',
+		'write:follows', 'write:lists', 'write:media', 'write:mutes',
+		'write:notifications', 'write:reports', 'write:statuses',
+		'write:stories',
 	];
 
 	/**
@@ -509,9 +602,13 @@ class OAuthController extends Controller {
 			'app_registration_endpoint' => $base . '/api/v1/apps',
 			'scopes_supported' => self::SCOPES,
 			'response_types_supported' => ['code'],
-			'grant_types_supported' => ['authorization_code', 'client_credentials'],
+			// `client_credentials` is not among them: there is no app-only
+			// identity here for such a token to act as, and the endpoint
+			// answers `unsupported_grant_type`. Advertising it had clients ask
+			// for one and fail
+			'grant_types_supported' => ['authorization_code'],
 			'token_endpoint_auth_methods_supported' => ['client_secret_post', 'client_secret_basic'],
-			'code_challenge_methods_supported' => ['S256'],
+			'code_challenge_methods_supported' => ClientService::CODE_CHALLENGE_METHODS,
 			'service_documentation' => self::REPOSITORY,
 		], Http::STATUS_OK);
 	}
@@ -616,6 +713,37 @@ class OAuthController extends Controller {
 		}
 
 		return new DataResponse([], Http::STATUS_OK);
+	}
+
+	/**
+	 * The client credentials on this request, from the body or from an
+	 * `Authorization: Basic` header (RFC 6749 §2.3.1).
+	 *
+	 * The body wins where both are present, which is what the client meant by
+	 * sending it. The header's two halves are form-urlencoded before they are
+	 * base64'd, so they are decoded that way — a secret containing `+` or `%`
+	 * is otherwise not the secret that was issued.
+	 *
+	 * @return array{0: string, 1: string}
+	 */
+	private function clientCredentials(string $clientId, string $clientSecret): array {
+		if ($clientId !== '') {
+			return [$clientId, $clientSecret];
+		}
+
+		$header = $this->request->getHeader('Authorization');
+		if (!str_starts_with($header, 'Basic ')) {
+			return [$clientId, $clientSecret];
+		}
+
+		$decoded = base64_decode(substr($header, 6), true);
+		if ($decoded === false || !str_contains($decoded, ':')) {
+			return [$clientId, $clientSecret];
+		}
+
+		[$id, $secret] = explode(':', $decoded, 2);
+
+		return [urldecode($id), urldecode($secret)];
 	}
 
 	/** The bearer token on this request, or '' when there is none. */

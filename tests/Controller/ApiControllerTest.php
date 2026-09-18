@@ -82,6 +82,10 @@ use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\ViewCountService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\ApiRoute;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\File;
@@ -103,6 +107,8 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use ReflectionClass;
+use ReflectionMethod;
 use stdClass;
 
 class ApiControllerTest extends TestCase {
@@ -199,8 +205,12 @@ class ApiControllerTest extends TestCase {
 	private array $tempFiles = [];
 	/** the value getParam('_route') hands the controller, per test */
 	private string $route = '';
+	/** the value getParam('act') hands the controller, per test */
+	private string $act = '';
 	/** what passesCSRFCheck() reports, per test */
 	private bool $csrf = true;
+	/** the HTTP verb the request reports, per test */
+	private string $verb = 'GET';
 	/** the value getParam('description') hands the controller, per test */
 	private string $description = '';
 	/** the value getParam('path') hands the controller, per test */
@@ -218,12 +228,16 @@ class ApiControllerTest extends TestCase {
 			->willReturnCallback(fn (string $name): string => $this->headers[$name] ?? '');
 		// the app's own frontend sends the requesttoken header on every call
 		$this->csrf = true;
+		$this->verb = 'GET';
 		$this->request->method('passesCSRFCheck')->willReturnCallback(fn (): bool => $this->csrf);
+		$this->request->method('getMethod')->willReturnCallback(fn (): string => $this->verb);
 		$this->route = '';
+		$this->act = '';
 		$this->pathParam = '';
 		$this->request->method('getParam')->willReturnCallback(
 			fn (string $key, $default = null) => match ($key) {
 				'_route' => $this->route,
+				'act' => ($this->act === '') ? $default : $this->act,
 				'description' => ($this->description === '') ? $default : $this->description,
 				'path' => ($this->pathParam === '') ? $default : $this->pathParam,
 				default => $default,
@@ -666,7 +680,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->markersSet(),
-			'token scope does not allow this request (needs write)'
+			'token scope does not allow this request (needs write:statuses)'
 		);
 	}
 
@@ -690,7 +704,7 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller('Bearer s3cret')->statusNew();
 
 		$this->assertInsufficientScope(
-			$response, 'token scope does not allow this request (needs write)'
+			$response, 'token scope does not allow this request (needs write:statuses)'
 		);
 	}
 
@@ -700,7 +714,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->accountMute('42'),
-			'token scope does not allow this request (needs follow or write)'
+			'token scope does not allow this request (needs write:mutes or follow)'
 		);
 	}
 
@@ -710,7 +724,162 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->verifyCredentials(),
-			'token scope does not allow this request (needs read)'
+			'token scope does not allow this request (needs read:accounts)'
+		);
+	}
+
+	/**
+	 * Every route of this controller, as its own attributes declare it.
+	 *
+	 * @return array<string, string> method name => HTTP verb
+	 */
+	private static function declaredRoutes(): array {
+		$routes = [];
+		foreach ((new ReflectionClass(ApiController::class))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+			foreach ($method->getAttributes() as $attribute) {
+				if (!in_array($attribute->getName(), [FrontpageRoute::class, ApiRoute::class], true)) {
+					continue;
+				}
+
+				$routes[$method->getName()] = strtoupper((string)$attribute->getArguments()['verb']);
+			}
+		}
+
+		return $routes;
+	}
+
+	/**
+	 * The scopes the controller resolves for one route, without going through a
+	 * request.
+	 *
+	 * @return string[]
+	 */
+	private function scopesFor(string $route, string $verb, string $act = ''): array {
+		$resolve = new ReflectionMethod(ApiController::class, 'scopesForRoute');
+
+		return $resolve->invoke($this->controller(), $route, $verb, $act);
+	}
+
+	/**
+	 * The table used to enumerate the *writes* and default everything else to
+	 * `read`, so every state-changing route added afterwards — deleting an
+	 * avatar, reacting to a post, rewriting preferences, generating an annual
+	 * report — was open to a read-only token until somebody remembered to list
+	 * it. This walks the routes the controller declares rather than a list kept
+	 * beside them, so a route added tomorrow is covered by it.
+	 */
+	public function testNoStateChangingRouteIsSatisfiedByAReadScope(): void {
+		// the one POST Mastodon documents behind a read scope: it answers with
+		// a post the caller may already read, in another language
+		$readByDesign = ['statusTranslate'];
+		$checked = 0;
+
+		foreach (self::declaredRoutes() as $route => $verb) {
+			if ($verb === 'GET') {
+				continue;
+			}
+
+			$scopes = $this->scopesFor($route, $verb);
+			$this->assertNotSame([], $scopes, $route . ' asks a token for nothing at all');
+			$this->assertNotSame(['read'], $scopes, $route . ' is satisfied by a read-only token');
+
+			if (!in_array($route, $readByDesign, true)) {
+				foreach ($scopes as $scope) {
+					$broad = strstr($scope, ':', true);
+					$this->assertContains(
+						($broad === false) ? $scope : $broad,
+						['write', 'follow'],
+						$route . ' is a ' . $verb . ' route resolving to ' . $scope
+					);
+				}
+			}
+
+			$checked++;
+		}
+
+		$this->assertGreaterThan(30, $checked, 'the route walk found the routes');
+	}
+
+	/**
+	 * A granular scope is satisfied by itself or by the broad scope that
+	 * contains it, and by nothing else. The controller used to accept any
+	 * granular variant of the scope a route asked for, so `write:favourites`
+	 * was permission to post, delete and rewrite the profile — none of which
+	 * the consent screen had named.
+	 */
+	public function testOneGranularScopeIsNotPermissionForAnother(): void {
+		$this->route = 'social.Api.statusNew';
+		$this->bearerFor(['write:favourites']);
+		$this->postService->expects($this->never())->method('createPost');
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->statusNew(),
+			'token scope does not allow this request (needs write:statuses)'
+		);
+	}
+
+	public function testOneGranularReadScopeIsNotPermissionToReadSomethingElse(): void {
+		$this->route = 'social.Api.notifications';
+		$this->bearerFor(['read:lists']);
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->notifications(),
+			'token scope does not allow this request (needs read:notifications)'
+		);
+	}
+
+	/**
+	 * The catch-all status route is several permissions behind one name:
+	 * favouriting is not pinning to a profile, and neither is muting a
+	 * conversation.
+	 */
+	public function testTheCatchAllStatusRouteAsksForWhatTheActionReallyIs(): void {
+		$this->assertSame(['write:favourites'], $this->scopesFor('statusAction', 'POST', 'favourite'));
+		$this->assertSame(['write:bookmarks'], $this->scopesFor('statusAction', 'POST', 'bookmark'));
+		$this->assertSame(['write:accounts'], $this->scopesFor('statusAction', 'POST', 'pin'));
+		$this->assertSame(['write:mutes'], $this->scopesFor('statusAction', 'POST', 'mute'));
+		$this->assertSame(['write:statuses'], $this->scopesFor('statusAction', 'POST', 'reblog'));
+		$this->assertSame(['write'], $this->scopesFor('statusAction', 'POST', 'nonsense'));
+	}
+
+	/** A route nobody listed resolves by its verb, and only a GET reads. */
+	public function testAnUnlistedRouteResolvesByItsVerb(): void {
+		$this->assertSame(['read'], $this->scopesFor('somethingNobodyListed', 'GET'));
+		$this->assertSame(['write'], $this->scopesFor('somethingNobodyListed', 'POST'));
+		$this->assertSame(['write'], $this->scopesFor('somethingNobodyListed', 'DELETE'));
+	}
+
+	/** A DELETE that a read-only token used to be able to make. */
+	public function testDeletingTheProfileAvatarRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.profileAvatarDelete';
+		$this->verb = 'DELETE';
+		$this->bearerFor(['read']);
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->profileAvatarDelete(),
+			'token scope does not allow this request (needs write:accounts)'
+		);
+	}
+
+	public function testReactingToAPostRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.statusReact';
+		$this->verb = 'POST';
+		$this->bearerFor(['read']);
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->statusReact(1, '👍'),
+			'token scope does not allow this request (needs write:favourites)'
+		);
+	}
+
+	public function testRewritingPreferencesRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.preferencesUpdate';
+		$this->verb = 'PUT';
+		$this->bearerFor(['read']);
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->preferencesUpdate(),
+			'token scope does not allow this request (needs write:accounts)'
 		);
 	}
 
@@ -763,7 +932,7 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller('Bearer s3cret')->statusNew();
 
 		$this->assertInsufficientScope(
-			$response, 'token scope does not allow this request (needs write)'
+			$response, 'token scope does not allow this request (needs write:statuses)'
 		);
 	}
 
@@ -1587,7 +1756,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->followRequestAuthorize('42'),
-			'token scope does not allow this request (needs follow or write)'
+			'token scope does not allow this request (needs write:follows or follow)'
 		);
 	}
 
@@ -1826,7 +1995,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->updateCredentials(),
-			'token scope does not allow this request (needs write)'
+			'token scope does not allow this request (needs write:accounts)'
 		);
 	}
 
@@ -1873,7 +2042,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->accountFollow('42'),
-			'token scope does not allow this request (needs follow or write)'
+			'token scope does not allow this request (needs write:follows or follow)'
 		);
 	}
 
@@ -2421,7 +2590,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->reportNew(),
-			'token scope does not allow this request (needs write)'
+			'token scope does not allow this request (needs write:reports)'
 		);
 	}
 
@@ -2920,7 +3089,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->statusDelete(7),
-			'token scope does not allow this request (needs write)'
+			'token scope does not allow this request (needs write:statuses)'
 		);
 	}
 
@@ -4168,4 +4337,21 @@ class ApiControllerTest extends TestCase {
 		$this->controller()->gifOpen('noto-1f994');
 	}
 
+	/**
+	 * Nextcloud applies `UserRateLimit` only to a caller with a session. An
+	 * OAuth client has a token and no session, so a route carrying only that
+	 * attribute has no limit at all for the callers it is written for — while
+	 * `RateLimitHeadersMiddleware` tells that same client what its budget is.
+	 */
+	public function testEveryRateLimitedRouteAlsoLimitsSessionlessCallers(): void {
+		$bare = [];
+		foreach ((new ReflectionClass(ApiController::class))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+			if ($method->getAttributes(UserRateLimit::class) !== []
+				&& $method->getAttributes(AnonRateLimit::class) === []) {
+				$bare[] = $method->getName();
+			}
+		}
+
+		$this->assertSame([], $bare, 'these routes are unthrottled for a bearer-token client');
+	}
 }

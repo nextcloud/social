@@ -34,6 +34,18 @@ class ClientService {
 	// an authorization code is single-use plumbing; it expires quickly
 	public const TIME_CODE_TTL = 600; // 10m
 
+	/**
+	 * The PKCE transformations this server accepts (RFC 7636 §4.2).
+	 *
+	 * `plain` is deliberately absent: it offers no protection against an
+	 * intercepted authorization request, and the discovery document names
+	 * exactly what is implemented here.
+	 */
+	public const CODE_CHALLENGE_METHODS = ['S256'];
+
+	// RFC 7636 §4.1: the verifier is 43 to 128 unreserved characters
+	private const CODE_VERIFIER_PATTERN = '/^[A-Za-z0-9\-._~]{43,128}$/';
+
 	use TStringTools;
 
 	private ClientRequest $clientRequest;
@@ -123,7 +135,9 @@ class ClientService {
 			$client->getAuthUserId(),
 			$client->getAuthAccount(),
 			$client->getAuthScopes(),
-			$client->getAuthCode()
+			$client->getAuthCode(),
+			$client->getAuthCodeChallenge(),
+			$client->getAuthCodeChallengeMethod()
 		);
 	}
 
@@ -133,10 +147,16 @@ class ClientService {
 	 * The code decides whose authorization this is, so what comes back is that
 	 * account's — not whatever the app row last held.
 	 *
+	 * An authorization made with PKCE (RFC 7636) is only exchangeable against
+	 * the verifier its challenge was derived from, so a code intercepted on
+	 * the redirect — a custom scheme another app can claim, a proxy reading
+	 * the query string — is of no use on its own.
+	 *
 	 * @throws ClientNotFoundException the code names no live authorization
-	 * @throws ClientException it names one that has expired
+	 * @throws ClientException it names one that has expired, or the verifier
+	 *                         does not match the challenge it was bound to
 	 */
-	public function exchangeCode(SocialClient $client, string $code): SocialClient {
+	public function exchangeCode(SocialClient $client, string $code, string $codeVerifier = ''): SocialClient {
 		$authorized = $this->clientAuthRequest->getByCode($client->getId(), $code);
 
 		// authorize() stamps last_update at the authorization moment
@@ -145,7 +165,29 @@ class ClientService {
 			throw new ClientException('code expired');
 		}
 
+		$this->confirmCodeVerifier($authorized, $codeVerifier);
+
 		return $this->clientAuthRequest->exchange($client->getId(), $code, $this->token(80));
+	}
+
+	/**
+	 * @throws ClientException
+	 */
+	private function confirmCodeVerifier(SocialClient $authorized, string $codeVerifier): void {
+		$challenge = $authorized->getAuthCodeChallenge();
+		if ($challenge === '') {
+			return;
+		}
+
+		if (preg_match(self::CODE_VERIFIER_PATTERN, $codeVerifier) !== 1
+			|| !hash_equals($challenge, self::codeChallenge($codeVerifier))) {
+			throw new ClientException('invalid code_verifier');
+		}
+	}
+
+	/** The `S256` challenge of a verifier: base64url of its SHA-256, unpadded. */
+	public static function codeChallenge(string $codeVerifier): string {
+		return rtrim(strtr(base64_encode(hash('sha256', $codeVerifier, true)), '+/', '-_'), '=');
 	}
 
 	/** What one account has authorized. @return SocialClient[] */
@@ -265,22 +307,11 @@ class ClientService {
 			}
 		}
 
-		if (array_key_exists('auth_scopes', $data)) {
-			$scopes = $data['auth_scopes'];
-			if (!is_array($scopes)) {
-				$scopes = $client->getScopesFromString($scopes);
-			}
-
-			foreach ($scopes as $scope) {
-				if (!in_array($scope, $client->getAuthScopes())) {
-					throw new ClientException('invalid scope');
-				}
-			}
-		}
-
-		// `code` is not among what this checks any more: an app row no longer
-		// carries one, because it no longer carries one authorization. The code
-		// is what *finds* the authorization, so it is checked by
-		// exchangeCode() against the row it names.
+		// Neither `code` nor `auth_scopes` is among what this checks. An app row
+		// no longer carries either, because it no longer carries one
+		// authorization: the code is what *finds* the authorization, and both
+		// it and the scopes granted with it live on the row it names — the
+		// code checked by exchangeCode(), the scopes enforced per request by
+		// each controller's checkTokenScope().
 	}
 }

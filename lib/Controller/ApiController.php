@@ -939,6 +939,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media/from-gif')]
 	public function mediaFromGif(): DataResponse {
@@ -1230,6 +1231,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses')]
 	public function statusNew(): DataResponse {
@@ -1542,6 +1544,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media')]
 	public function mediaNew(): DataResponse {
@@ -1603,6 +1606,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media/from-file')]
 	public function mediaFromFile(): DataResponse {
@@ -1729,6 +1733,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 60)]
 	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v2/media')]
 	public function mediaNewV2(): DataResponse {
@@ -1934,6 +1939,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	// a player reports as it goes, so this is asked for often and is cheap
+	#[AnonRateLimit(limit: 600, period: 60)]
 	#[UserRateLimit(limit: 600, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/watched')]
 	public function statusWatched(int $nid, int $position = 0, int $duration = 0): DataResponse {
@@ -1951,6 +1957,7 @@ class ApiController extends Controller {
 	/** Takes a video off the reader's own "continue watching" list. */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/statuses/{nid}/watched')]
 	public function statusUnwatched(int $nid): DataResponse {
@@ -2874,6 +2881,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/statuses/{nid}/interaction_policy')]
 	public function statusInteractionPolicy(int $nid): DataResponse {
@@ -2906,6 +2914,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/quotes/{quoting}/revoke')]
 	public function statusQuoteRevoke(int $nid, int $quoting): DataResponse {
@@ -3027,6 +3036,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/annual_reports/{year}/generate')]
 	public function annualReportGenerate(int $year): DataResponse {
@@ -4429,30 +4439,175 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * The scope a bearer token needs for the current route. Everything defaults
-	 * to 'read'; the state-changing routes are enumerated. A scope is satisfied
-	 * by itself or any of its granular variants ('write' by 'write:statuses').
+	 * The scope every route of this controller asks a bearer token for, as the
+	 * Mastodon API documents it.
 	 *
-	 * @throws ClientNotFoundException
+	 * Enumerating the *reads* and defaulting everything else to `write` is the
+	 * way round that fails safe: the table used to enumerate the writes and
+	 * default to `read`, so every state-changing route anybody added later —
+	 * deleting an avatar, reacting to a post, rewriting preferences, generating
+	 * an annual report — was open to a read-only token until somebody
+	 * remembered to list it. A route missing from this table now resolves by
+	 * its HTTP verb, and only `GET` resolves to a read scope.
+	 *
+	 * An empty list means the route needs no scope beyond a valid token.
+	 */
+	private const ROUTE_SCOPES = [
+		// -- reads ------------------------------------------------------------
+		'appsCredentials' => [],
+		'verifyCredentials' => ['read:accounts'],
+		'accountLookup' => ['read:accounts'],
+		'accountsSearch' => ['read:accounts'],
+		'preferences' => ['read:accounts'],
+		'annualReports' => ['read:accounts'],
+		'annualReport' => ['read:accounts'],
+		'annualReportState' => ['read:accounts'],
+		'followRequests' => ['read:follows'],
+		'relationships' => ['read:follows'],
+		'familiarFollowers' => ['read:follows'],
+		'accountFollowing' => ['read:follows'],
+		'accountFollowers' => ['read:follows'],
+		'blocks' => ['read:blocks'],
+		'mutes' => ['read:mutes'],
+		'favourites' => ['read:favourites'],
+		'bookmarks' => ['read:bookmarks'],
+		'notifications' => ['read:notifications'],
+		'notificationsUnreadCount' => ['read:notifications'],
+		'search' => ['read:search'],
+		'searchV2' => ['read:search'],
+		'savedSearches' => ['read:search'],
+		'timelines' => ['read:statuses'],
+		'tag' => ['read:statuses'],
+		'accountStatuses' => ['read:statuses'],
+		'statusGet' => ['read:statuses'],
+		'statusCard' => ['read:statuses'],
+		'statusContext' => ['read:statuses'],
+		'statusSource' => ['read:statuses'],
+		'statusDelivery' => ['read:statuses'],
+		'statusReactions' => ['read:statuses'],
+		'statusFavouritedBy' => ['read:statuses'],
+		'statusRebloggedBy' => ['read:statuses'],
+		'statusQuotes' => ['read:statuses'],
+		'pollGet' => ['read:statuses'],
+		'markersGet' => ['read:statuses'],
+		'scheduledStatuses' => ['read:statuses'],
+		'scheduledStatusGet' => ['read:statuses'],
+		'videosContinue' => ['read:statuses'],
+		'mediaOpen' => ['read:statuses'],
+		'mediaStream' => ['read:statuses'],
+		'mediaPlaylist' => ['read:statuses'],
+		'mediaPlaylistFile' => ['read:statuses'],
+		'mediaLadder' => ['read:statuses'],
+		'mediaLadderRung' => ['read:statuses'],
+		'mediaLadderFile' => ['read:statuses'],
+		// Mastodon puts the pending-upload read behind the media *write* scope:
+		// it answers about something only the uploader has
+		'mediaGet' => ['write:media'],
+		// the instance's own public documents, and the emoji and GIF pictures
+		// they refer to: any token may read them
+		'instance' => ['read'],
+		'instanceV2' => ['read'],
+		'instanceRules' => ['read'],
+		'instanceDomainBlocks' => ['read'],
+		'instanceExtendedDescription' => ['read'],
+		'instancePrivacyPolicy' => ['read'],
+		'instanceTermsOfService' => ['read'],
+		'instanceTranslationLanguages' => ['read'],
+		'instancePeers' => ['read'],
+		'instanceActivity' => ['read'],
+		'customEmojis' => ['read'],
+		'emojiOpen' => ['read'],
+		'gifs' => ['read'],
+		'gifOpen' => ['read'],
+		'trendTags' => ['read'],
+		'oembed' => ['read'],
+		// a POST, and a read scope on purpose: Mastodon documents
+		// `read:statuses` for it, and what it answers with is the post the
+		// caller may already read, in another language
+		'statusTranslate' => ['read:statuses'],
+
+		// -- writes -----------------------------------------------------------
+		'updateCredentials' => ['write:accounts'],
+		'profileAvatarDelete' => ['write:accounts'],
+		'profileHeaderDelete' => ['write:accounts'],
+		'accountNew' => ['write:accounts'],
+		'preferencesUpdate' => ['write:accounts'],
+		'annualReportRead' => ['write:accounts'],
+		'annualReportGenerate' => ['write:accounts'],
+		'statusNew' => ['write:statuses'],
+		'statusUpdate' => ['write:statuses'],
+		'statusDelete' => ['write:statuses'],
+		'statusInteractionPolicy' => ['write:statuses'],
+		'statusQuoteRevoke' => ['write:statuses'],
+		'statusWatched' => ['write:statuses'],
+		'statusUnwatched' => ['write:statuses'],
+		'pollVote' => ['write:statuses'],
+		'markersSet' => ['write:statuses'],
+		'scheduledStatusUpdate' => ['write:statuses'],
+		'scheduledStatusDelete' => ['write:statuses'],
+		'statusReact' => ['write:favourites'],
+		'statusUnreact' => ['write:favourites'],
+		'mediaNew' => ['write:media'],
+		'mediaNewV2' => ['write:media'],
+		'mediaUpdate' => ['write:media'],
+		'mediaFromFile' => ['write:media'],
+		'mediaFromGif' => ['write:media'],
+		'reportNew' => ['write:reports'],
+		// `follow` is Mastodon's broad scope over the relationship routes, and
+		// a client that asked for it is not also asking for `write`
+		'accountFollow' => ['write:follows', 'follow'],
+		'accountUnfollow' => ['write:follows', 'follow'],
+		'followRequestAuthorize' => ['write:follows', 'follow'],
+		'followRequestReject' => ['write:follows', 'follow'],
+		'accountBlock' => ['write:blocks', 'follow'],
+		'accountUnblock' => ['write:blocks', 'follow'],
+		'accountMute' => ['write:mutes', 'follow'],
+		'accountUnmute' => ['write:mutes', 'follow'],
+	];
+
+	/**
+	 * What each `act` of the one catch-all status route really does, because
+	 * they are not the same permission: favouriting is not pinning to a
+	 * profile, and neither is muting a conversation.
+	 */
+	private const STATUS_ACTION_SCOPES = [
+		'favourite' => ['write:favourites'],
+		'unfavourite' => ['write:favourites'],
+		'reblog' => ['write:statuses'],
+		'unreblog' => ['write:statuses'],
+		'bookmark' => ['write:bookmarks'],
+		'unbookmark' => ['write:bookmarks'],
+		'pin' => ['write:accounts'],
+		'unpin' => ['write:accounts'],
+		'mute' => ['write:mutes'],
+		'unmute' => ['write:mutes'],
+	];
+
+	/**
+	 * Whether the token this request carries may make it.
+	 *
+	 * @throws InsufficientScopeException
 	 */
 	private function checkTokenScope(): void {
-		$route = $this->request->getParam('_route', '');
-		$name = substr((string)$route, strrpos((string)$route, '.') + 1);
+		$route = (string)$this->request->getParam('_route', '');
+		$name = substr($route, strrpos($route, '.') + 1);
 
-		$accepted = match ($name) {
-			'statusNew', 'statusUpdate', 'statusDelete', 'mediaNew', 'mediaNewV2', 'mediaUpdate',
-			'statusAction', 'updateCredentials', 'reportNew', 'pollVote', 'markersSet',
-			'scheduledStatusUpdate', 'scheduledStatusDelete' => ['write'],
-			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
-			'accountFollow', 'accountUnfollow',
-			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],
-			'appsCredentials' => [],
-			default => ['read'],
-		};
+		$accepted = $this->scopesForRoute(
+			$name,
+			strtoupper($this->request->getMethod()),
+			(string)$this->request->getParam('act', '')
+		);
 
 		foreach ($accepted as $scope) {
+			// a granular scope is satisfied by itself or by the broad scope
+			// that contains it, and by nothing else: `write:favourites` is not
+			// permission to post, and `read:lists` is not permission to read
+			// somebody's notifications
+			$broad = strstr($scope, ':', true);
+			$broad = ($broad === false) ? $scope : $broad;
+
 			foreach ($this->client->getAuthScopes() as $granted) {
-				if ($granted === $scope || str_starts_with($granted, $scope . ':')) {
+				if ($granted === $scope || $granted === $broad) {
 					return;
 				}
 			}
@@ -4463,6 +4618,25 @@ class ApiController extends Controller {
 				'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
 			);
 		}
+	}
+
+	/**
+	 * The scopes that satisfy one route, any of which is enough.
+	 *
+	 * @return string[]
+	 */
+	private function scopesForRoute(string $name, string $verb, string $act = ''): array {
+		if ($name === 'statusAction') {
+			// an unknown act is refused by the route itself; until then it is
+			// treated as the write it would be
+			return self::STATUS_ACTION_SCOPES[$act] ?? ['write'];
+		}
+
+		if (array_key_exists($name, self::ROUTE_SCOPES)) {
+			return self::ROUTE_SCOPES[$name];
+		}
+
+		return $verb === 'GET' ? ['read'] : ['write'];
 	}
 
 	/**
