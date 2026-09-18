@@ -54,8 +54,13 @@ class EmojiService {
 	 * called `30`, and `https://example.test` and `:-)` are each one colon
 	 * away from the same thing. Mastodon's own pattern, with this app's
 	 * shortcode alphabet.
+	 *
+	 * Case-insensitive, and the match is lowercased: a shortcode is stored in
+	 * lower case, but Mastodon compares them without regard to case and people
+	 * type `:BlobCat:`, which rendered as literal text here and on every peer
+	 * this post reached.
 	 */
-	private const IN_TEXT = '/(?<![\w:]):([a-z0-9_]{2,64}):(?![\w:])/';
+	private const IN_TEXT = '/(?<![\w:]):([a-zA-Z0-9_]{2,64}):(?![\w:])/';
 
 	/** @var array<string, CustomEmoji>|null the whole set, for this request */
 	private ?array $cached = null;
@@ -133,7 +138,7 @@ class EmojiService {
 			return [];
 		}
 
-		return array_values(array_unique($matches[1]));
+		return array_values(array_unique(array_map('strtolower', $matches[1])));
 	}
 
 	/**

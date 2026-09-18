@@ -125,4 +125,65 @@ class StreamRequestTest extends TestCase {
 		$this->assertSame([], $this->streamRequest->getDescendants(self::ROOT));
 		$this->assertCount(1, $this->levels);
 	}
+
+	private function withContent(string $content): Note {
+		$note = new Note();
+		$note->setId(self::ROOT . '/' . md5($content));
+		$note->setContent($content);
+
+		return $note;
+	}
+
+	/**
+	 * @param Stream[] $posts
+	 *
+	 * @return Stream[]
+	 */
+	private function carrying(array $posts, string $term): array {
+		return (new \ReflectionMethod(StreamRequest::class, 'whoseTextCarries'))
+			->invoke($this->streamRequest, $posts, $term);
+	}
+
+	/**
+	 * `content` is stored as markup, so the SQL `LIKE` the content search
+	 * builds matches the markup as well as the words: `span`, `href` and
+	 * `class` each answered with very nearly every post the instance holds.
+	 * The rows are candidates; the flattened text decides.
+	 */
+	public function testASearchDoesNotMatchTheMarkupAPostIsStoredIn(): void {
+		$posts = [
+			$this->withContent(
+				'<p>a <a href="https://example.invalid/x" class="u-url">'
+				. '<span class="invisible">https://</span>link</a></p>'
+			),
+			$this->withContent('<p>a stretch of time</p>'),
+		];
+
+		foreach (['span', 'class', 'href'] as $markup) {
+			$this->assertSame(
+				[], $this->ids($this->carrying($posts, $markup)),
+				'"' . $markup . '" is markup, and matched nearly every post the instance holds'
+			);
+		}
+
+		$this->assertSame(
+			$this->ids([$posts[1]]),
+			$this->ids($this->carrying($posts, 'stretch of')),
+			'the words a post says are still found'
+		);
+	}
+
+	public function testASearchMatchesWhateverCaseThePostWroteIt(): void {
+		$posts = [$this->withContent('<p>Hello <b>Fediverse</b></p>')];
+
+		$this->assertSame($this->ids($posts), $this->ids($this->carrying($posts, 'fediverse')));
+	}
+
+	/** An entity is the character it stands for, not the letters it is written with. */
+	public function testASearchSeesThroughAnEntity(): void {
+		$posts = [$this->withContent('<p>Bob &amp; Carol</p>')];
+
+		$this->assertSame($this->ids($posts), $this->ids($this->carrying($posts, 'Bob & Carol')));
+		$this->assertSame([], $this->ids($this->carrying($posts, 'amp')));
+	}
 }

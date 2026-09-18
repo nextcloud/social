@@ -34,6 +34,7 @@ use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\NotificationService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
+use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -49,6 +50,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		private LinkPreviewService $linkPreviewService,
 		private ForwardService $forwardService,
 		private NotificationService $notificationService,
+		private StatusRevisionService $revisionService,
 	) {
 	}
 
@@ -105,12 +107,17 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getAttributedTo());
 			try {
-				$this->getStoredForAuthor($activity, $item->getId());
+				$stored = $this->getStoredForAuthor($activity, $item->getId());
 			} catch (StreamNotFoundException $e) {
 				return; // an edit of a post never received: nothing to rewrite
 			}
 			$item->setActivityId($activity->getId());
 			$this->streamRequest->update($item);
+			// the version being replaced, recorded the way a local edit records
+			// one: without it `GET /statuses/{nid}/history` answered a remote
+			// post edited three times with a single synthetic version, and the
+			// "edited" dialog had nothing to compare
+			$this->revisionService->recordEdit($stored, $item);
 			$this->notificationService->onStatusEdited($item);
 		}
 	}

@@ -741,7 +741,10 @@ class PostServiceTest extends TestCase {
 
 	// editPost()
 
-	private function storedNote(string $attributedTo = self::ACTOR_ID): Note {
+	private function storedNote(
+		string $attributedTo = self::ACTOR_ID,
+		string $visibility = Stream::TYPE_PUBLIC,
+	): Note {
 		$note = new Note();
 		$note->setNid(7);
 		$note->setId('https://social.example/@alice/7');
@@ -750,6 +753,8 @@ class PostServiceTest extends TestCase {
 		$note->setSpoilerText('old cw');
 		$note->setSensitive(false);
 		$note->setPublished('2020-01-01T00:00:00+00:00');
+		// every stored post has one, and it decides who an edit is federated to
+		$note->setVisibility($visibility);
 		$note->setLocal(true);
 
 		return $note;
@@ -799,6 +804,149 @@ class PostServiceTest extends TestCase {
 		$this->assertSame(self::ACTOR_ID, $paths[0]->getUri());
 		$this->assertSame(InstancePath::TYPE_FOLLOWERS, $paths[0]->getType());
 		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[0]->getPriority());
+	}
+
+	/**
+	 * An edit is a fresh parse of the text, so a hashtag written into a post
+	 * has to gain its tag: without one it renders as dead text, the post
+	 * reaches no tag timeline and nobody following the tag sees it.
+	 */
+	public function testEditPostTagsAHashtagTheEditAdded(): void {
+		$stored = $this->storedNote();
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'hello #nextcloud');
+
+		$this->assertSame(['nextcloud'], $stored->getHashtags());
+		$this->assertSame(
+			[['type' => 'Hashtag', 'href' => self::SOCIAL_URL . 'tags/nextcloud', 'name' => '#nextcloud']],
+			$stored->getTags('Hashtag')
+		);
+		$this->assertStringContainsString(
+			'<a href="' . self::SOCIAL_URL . 'tags/nextcloud"', $stored->getContent(),
+			'a tag the edit added has to be linked, not left as text'
+		);
+	}
+
+	/**
+	 * And a hashtag an edit removed has to lose it, or the post stays in that
+	 * tag's timeline for ever.
+	 */
+	public function testEditPostDropsAHashtagTheEditRemoved(): void {
+		$stored = $this->storedNote();
+		$stored->setHashtags(['nextcloud']);
+		$stored->addTag(['type' => 'Hashtag', 'href' => 'https://social.example/tags/nextcloud', 'name' => '#nextcloud']);
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'hello again');
+
+		$this->assertSame([], $stored->getHashtags());
+		$this->assertSame([], $stored->getTags('Hashtag'));
+	}
+
+	/** An account named by the edit is addressed, and is not named twice. */
+	public function testEditPostAddressesAnAccountTheEditNamed(): void {
+		$stored = $this->storedNote();
+		$this->cacheActorService->method('getFromAccount')->willReturn($this->bob());
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'hi @bob@remote.example');
+
+		$this->assertSame(
+			[['type' => 'Mention', 'href' => self::BOB_ID, 'name' => '@bob@remote.example']],
+			$stored->getTags('Mention')
+		);
+		$this->assertContains(self::BOB_ID, $stored->getCcArray());
+		$this->assertStringContainsString('<a href="' . self::BOB_ID . '"', $stored->getContent());
+	}
+
+	public function testEditPostDoesNotNameTheSameAccountTwice(): void {
+		$stored = $this->storedNote();
+		$stored->addTag(['type' => 'Mention', 'href' => self::BOB_ID, 'name' => '@bob@remote.example']);
+		$this->cacheActorService->expects($this->never())->method('getFromAccount');
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'hi again @bob@remote.example');
+
+		$this->assertCount(1, $stored->getTags('Mention'));
+	}
+
+	/**
+	 * A direct message was delivered to the people it named. The followers path
+	 * expands to the shared inbox of every instance with a follower on it, so
+	 * adding it to the Update posts the whole edited text of a private message
+	 * to servers that were never recipients.
+	 */
+	public function testEditingADirectMessageIsNotFederatedToTheFollowers(): void {
+		$stored = $this->storedNote(self::ACTOR_ID, Stream::TYPE_DIRECT);
+		$reloaded = $this->storedNote(self::ACTOR_ID, Stream::TYPE_DIRECT);
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $reloaded);
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'new text');
+
+		$this->assertSame([], $reloaded->getInstancePaths());
+	}
+
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public static function federatedVisibilityProvider(): array {
+		return [
+			'public' => [Stream::TYPE_PUBLIC],
+			'unlisted' => [Stream::TYPE_UNLISTED],
+			'followers-only' => [Stream::TYPE_FOLLOWERS],
+		];
+	}
+
+	#[DataProvider('federatedVisibilityProvider')]
+	public function testEditingAPostTheFollowersCouldSeeIsFederatedToThem(string $visibility): void {
+		$stored = $this->storedNote(self::ACTOR_ID, $visibility);
+		$reloaded = $this->storedNote(self::ACTOR_ID, $visibility);
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $reloaded);
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'new text');
+
+		$paths = $reloaded->getInstancePaths();
+		$this->assertCount(1, $paths);
+		$this->assertSame(InstancePath::TYPE_FOLLOWERS, $paths[0]->getType());
+	}
+
+	/**
+	 * A content warning is plain text. `strip_tags()` reads a bare `<` as the
+	 * start of a tag and eats the rest of the line, so `I <3 cats` was stored
+	 * as `I ` — here and, once it was written, on every instance it reached.
+	 */
+	public function testAContentWarningKeepsABareLessThan(): void {
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('body');
+		$post->setSpoilerText('I <3 cats and 1<2');
+		$this->service->createPost($post);
+
+		$this->assertSame('I <3 cats and 1<2', $note->getSpoilerText());
+	}
+
+	public function testAnEditedContentWarningKeepsABareLessThanToo(): void {
+		$stored = $this->storedNote();
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'body', 'I <3 cats');
+
+		$this->assertSame('I <3 cats', $stored->getSpoilerText());
 	}
 
 	public function testEditPostEscapesHtmlAndTurnsNewlinesIntoBreaks(): void {

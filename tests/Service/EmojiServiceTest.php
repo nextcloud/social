@@ -151,7 +151,10 @@ class EmojiServiceTest extends TestCase {
 		yield 'at the very start and end' => [':blobcat:', ['blobcat']];
 		yield 'a port number' => ['host:8080: x', []];
 		yield 'too short' => [':a:', []];
-		yield 'uppercase is not a shortcode' => [':BlobCat:', []];
+		// Mastodon compares shortcodes without regard to case, and people type
+		// them that way; the picture is stored under the lower-case name
+		yield 'uppercase names the lower-case shortcode' => [':BlobCat:', ['blobcat']];
+		yield 'the same one in two spellings is one tag' => [':BlobCat: :blobcat:', ['blobcat']];
 		yield 'a hyphen is not' => [':blob-cat:', []];
 	}
 

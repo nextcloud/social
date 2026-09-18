@@ -174,24 +174,48 @@ class LinkPreviewService {
 	 */
 	private function metaTags(string $html): array {
 		$tags = [];
-		if (preg_match_all('/<meta\s[^>]*>/i', $html, $matches) === false) {
+		// a quoted attribute value may hold a `>`, so the tag ends at the first
+		// `>` that is not inside one
+		if (preg_match_all('/<meta\s(?:"[^"]*"|\'[^\']*\'|[^>])*>/i', $html, $matches) === false) {
 			return $tags;
 		}
 
 		foreach ($matches[0] as $tag) {
-			if (preg_match('/(?:property|name)\s*=\s*["\']([^"\']+)["\']/i', $tag, $key) !== 1) {
+			$key = $this->attributeOf($tag, 'property|name');
+			$content = $this->attributeOf($tag, 'content');
+			if ($key === null || $content === null) {
 				continue;
 			}
-			if (preg_match('/content\s*=\s*["\']([^"\']*)["\']/i', $tag, $value) !== 1) {
-				continue;
-			}
-			$name = strtolower(trim($key[1]));
-			if (!array_key_exists($name, $tags)) {
-				$tags[$name] = html_entity_decode($value[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+			$name = strtolower(trim($key));
+			if ($name !== '' && !array_key_exists($name, $tags)) {
+				$tags[$name] = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 			}
 		}
 
 		return $tags;
+	}
+
+	/**
+	 * One attribute of one tag, as it was written.
+	 *
+	 * The closing quote has to be the opening one. Accepting either — which is
+	 * what a character class of both does — ends the value at the first
+	 * apostrophe inside a double-quoted attribute, so `content="Don't miss
+	 * this"` was read as `Don` and every headline with an apostrophe in it was
+	 * truncated at it.
+	 *
+	 * @param string $names the attribute names to accept, as a regex alternation
+	 *
+	 * @return ?string null when the tag does not carry it at all, which is not
+	 *                 the same as carrying it empty
+	 */
+	private function attributeOf(string $tag, string $names): ?string {
+		if (preg_match('/(?<![\w-])(?:' . $names . ')\s*=\s*(["\'])(.*?)\1/is', $tag, $match) !== 1) {
+			return null;
+		}
+
+		return $match[2];
 	}
 
 	/**

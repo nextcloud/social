@@ -2382,7 +2382,8 @@ class ApiController extends Controller {
 			return $this->tagged($this->paged(
 				$this->filterService->apply($posts, $this->filterContext($timeline), $this->viewer),
 				$options->getLimit(),
-				$posts
+				$posts,
+				$this->streamService->lastTimelineRowCount()
 			));
 		} catch (Throwable $e) {
 			$this->logger->error('[ApiController] Timeline request failed', [
@@ -3716,6 +3717,15 @@ class ApiController extends Controller {
 	 * `42` meant a WebFinger lookup for the string "42", an exception, and
 	 * (before the status codes were fixed) a 401 that logged the reader out.
 	 *
+	 * Only a caller with a session may make this instance *discover* an
+	 * account. The other two shapes are strings the caller writes, and
+	 * resolving an unknown one means fetching whatever URL or handle they
+	 * wrote, storing the actor and downloading its icon into appdata — an HTTP
+	 * reflector and a way to fill the disk, a request at a time. Accounts this
+	 * instance already knows stay readable by anybody, because a public
+	 * profile has to work without a login. `LocalController::knownActor()`
+	 * refuses the same thing for the same reason.
+	 *
 	 * @throws CacheActorDoesNotExistException
 	 * @throws Exception
 	 */
@@ -3736,6 +3746,15 @@ class ApiController extends Controller {
 		}
 
 		if (str_starts_with($id, 'http://') || str_starts_with($id, 'https://')) {
+			if ($this->viewer === null) {
+				$cached = $this->cacheActorService->getCachedFromIds([$id]);
+				if ($cached === []) {
+					throw new CacheActorDoesNotExistException('unknown account');
+				}
+
+				return array_values($cached)[0];
+			}
+
 			return $this->cacheActorService->getFromId($id);
 		}
 
@@ -3743,7 +3762,7 @@ class ApiController extends Controller {
 			throw new CacheActorDoesNotExistException('unknown account');
 		}
 
-		return $this->cacheActorService->getFromAccount(ltrim($id, '@'));
+		return $this->cacheActorService->getFromAccount(ltrim($id, '@'), $this->viewer !== null);
 	}
 
 	/**
@@ -3811,7 +3830,13 @@ class ApiController extends Controller {
 				);
 			}
 
-			$this->streamService->syncRemoteTimeline($local);
+			// only for a caller with a session: a sync fetches the account's
+			// outbox from its server and stores every post of it, so an
+			// anonymous caller could make this instance fetch and keep the
+			// posts of any account they can name
+			if ($this->viewer !== null) {
+				$this->streamService->syncRemoteTimeline($local);
+			}
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -3863,7 +3888,12 @@ class ApiController extends Controller {
 			$domain = end($parts);
 			$cloudHost = $this->configService->getCloudHost();
 			$socialAddress = $this->configService->getSocialAddress();
-			if ($domain !== '' && $domain !== $cloudHost && $domain !== $socialAddress) {
+			// the remote collection is read only for a caller with a session:
+			// it is a fetch of a URL from another server followed by a lookup
+			// of every actor on the page, each of which this instance would
+			// fetch and store. An anonymous caller gets what is known here.
+			if ($this->viewer !== null
+				&& $domain !== '' && $domain !== $cloudHost && $domain !== $socialAddress) {
 				$followingUrl = $actor->getFollowing();
 				if (!empty($followingUrl)) {
 					$result = $this->fetchRemoteCollection($followingUrl, $limit);
@@ -3913,7 +3943,10 @@ class ApiController extends Controller {
 			$domain = end($parts);
 			$cloudHost = $this->configService->getCloudHost();
 			$socialAddress = $this->configService->getSocialAddress();
-			if ($domain !== '' && $domain !== $cloudHost && $domain !== $socialAddress) {
+			// see accountFollowing(): resolving a remote collection is a fetch
+			// per entry, so it needs a session
+			if ($this->viewer !== null
+				&& $domain !== '' && $domain !== $cloudHost && $domain !== $socialAddress) {
 				$followersUrl = $actor->getFollowers();
 				if (!empty($followersUrl)) {
 					$result = $this->fetchRemoteCollection($followersUrl, $limit);
@@ -4875,12 +4908,15 @@ class ApiController extends Controller {
 		return $collections;
 	}
 
-	private function paged(array $items, int $limit, ?array $page = null): DataResponse {
+	private function paged(array $items, int $limit, ?array $page = null, ?int $rows = null): DataResponse {
 		$response = new DataResponse($items, Http::STATUS_OK);
 
 		// what the query returned, which is what says whether there is more —
 		// $items may have been filtered since
 		$page ??= $items;
+		// and $page itself may be shorter than the rows the query read, where
+		// the page dropped a boost of a post already in it
+		$rows ??= count($page);
 
 		$ids = $this->pageIds($page);
 		if ($ids === []) {
@@ -4888,7 +4924,7 @@ class ApiController extends Controller {
 		}
 
 		$links = [];
-		if (count($page) >= $limit) {
+		if ($rows >= $limit) {
 			// the next page is older than everything here
 			$links[] = '<' . $this->pageUrl(['max_id' => (string)min($ids)]) . '>; rel="next"';
 		}

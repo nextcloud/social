@@ -90,6 +90,15 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	private const HOME_REFILL_ROUNDS = 4;
 
+	/**
+	 * How much wider than the page a content search reads, and the ceiling on
+	 * that. The rows the `LIKE` returns are candidates -- see
+	 * `whoseTextCarries()` -- so a page read exactly to its limit would come
+	 * back mostly empty.
+	 */
+	private const SEARCH_OVERREAD = 5;
+	private const SEARCH_OVERREAD_MAX = 200;
+
 	/** Whether the recipient rows carry their post's nid yet; asked once per request. */
 	private ?bool $recipientNidsFilled = null;
 
@@ -137,9 +146,12 @@ class StreamRequest extends StreamRequestBuilder {
 
 		for ($attempt = 1; ; $attempt++) {
 			$qb = $this->saveStream($stream);
-			if ($stream->getType() === Note::TYPE) {
-				/** @var Note $stream */
-
+			// every status kind, not only the plain `Note`: a poll is a
+			// `Question`, which *is* a Note and carries hashtags, attachments
+			// and a media kind like any other post. Comparing the type name
+			// stored the poll with all four fields at their defaults, so a
+			// poll never reached a hashtag timeline
+			if ($stream instanceof Note) {
 				$attachments = [];
 				foreach ($stream->getAttachments() as $item) {
 					$attachments[] = $item->asLocal(); // get attachment ready for local
@@ -258,7 +270,7 @@ class StreamRequest extends StreamRequestBuilder {
 		// took an approval back has to change the column too, or the column and
 		// the object it was copied from disagree from the next read on.
 		$this->setPostFields($qb, $stream, false);
-		if ($stream->getType() === Note::TYPE && $stream instanceof Note) {
+		if ($stream instanceof Note) {
 			$encoded = (string)json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES);
 			$qb->set('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags(), JSON_UNESCAPED_SLASHES)));
 			$qb->set('attachments', $qb->createNamedParameter($encoded));
@@ -280,10 +292,26 @@ class StreamRequest extends StreamRequestBuilder {
 		} catch (Exception $e) {
 		}
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
-		$qb->executeStatement();
 
-		if ($generateDest) {
-			$this->streamDestRequest->generateStreamDest($stream);
+		// One transaction, for the reason save() gives: the row, its recipients
+		// and its tag rows are one fact. The tag rows are what put a post in a
+		// hashtag timeline, and an edit rewrites the `hashtags` column without
+		// them, so a tag added by an edit rendered as dead text and a tag taken
+		// out left the post in that timeline for good.
+		$this->dbConnection->beginTransaction();
+		try {
+			$qb->executeStatement();
+
+			if ($generateDest) {
+				$this->streamDestRequest->generateStreamDest($stream);
+			}
+			$this->streamTagsRequest->replaceStreamTags($stream);
+
+			$this->dbConnection->commit();
+		} catch (\Throwable $t) {
+			$this->dbConnection->rollBack();
+
+			throw $t;
 		}
 	}
 
@@ -498,6 +526,8 @@ class StreamRequest extends StreamRequestBuilder {
 			return [];
 		}
 
+		$window = min(self::SEARCH_OVERREAD_MAX, max($limit, $limit * self::SEARCH_OVERREAD));
+
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$qb->limitToStatusTypes();
 		$expr = $qb->expr();
@@ -510,7 +540,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->leftJoinStreamAction();
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->orderBy('s.published_time', 'desc');
-		$qb->setMaxResults($limit);
+		$qb->setMaxResults($window);
 
 		// The window is what keeps this from being a full scan. `content
 		// ILIKE '%term%'` cannot use an index — a leading wildcard never
@@ -533,7 +563,31 @@ class StreamRequest extends StreamRequestBuilder {
 			));
 		}
 
-		return $this->getStreamsFromRequest($qb);
+		return array_slice($this->whoseTextCarries($this->getStreamsFromRequest($qb), $term), 0, $limit);
+	}
+
+	/**
+	 * The posts whose *text* carries the term.
+	 *
+	 * `content` is stored as markup, so the `LIKE` above matches the markup as
+	 * well as the words: `span`, `href`, `class` and `http` each answered with
+	 * very nearly every post the instance holds, and a search for any of them
+	 * was a page of unrelated posts. The database cannot be asked to ignore
+	 * the tags without a column to search, so the rows it offers are
+	 * candidates and the flattened text decides which of them are answers.
+	 *
+	 * @param Stream[] $posts
+	 *
+	 * @return Stream[]
+	 */
+	private function whoseTextCarries(array $posts, string $term): array {
+		return array_values(array_filter($posts, static function (Stream $post) use ($term): bool {
+			$text = html_entity_decode(
+				ACore::withoutMarkup($post->getContent()), ENT_QUOTES | ENT_HTML5, 'UTF-8'
+			);
+
+			return mb_stripos($text, $term) !== false;
+		}));
 	}
 
 	/**
@@ -1635,35 +1689,42 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * The page of one account's posts the viewer may read: its public ones,
-	 * or -- for the account reading its own profile -- everything it wrote.
+	 * The page of one account's posts the viewer may read.
 	 *
-	 * The recipient join is one row per post when it names the public
-	 * collection; for the account itself it names no recipient at all and a
-	 * post addressed to several accounts would come back once per row, so
-	 * that page is `DISTINCT` and the other is not.
+	 * For the account reading its own profile, everything it wrote. For anybody
+	 * else, exactly what `getStreamById()` would hand them post by post: the
+	 * public and unlisted ones, the followers-only ones once the follow is
+	 * accepted, and what was addressed to them. Forcing the public collection
+	 * here instead meant a follower read a followers-only post in their home
+	 * timeline while the author's profile denied it existed.
+	 *
+	 * A post names several recipients — the public collection, its author, the
+	 * author's followers collection — and each is a row, so any page with a
+	 * reader behind it can match one post more than once and has to be
+	 * `DISTINCT`. The anonymous page matches only the public row and does not.
 	 *
 	 * @return int[]
 	 */
 	protected function accountTimelineNids(ProbeOptions $options): array {
 		$actorId = $options->getAccountId();
-		$page = $this->getStreamNidsSelectSql(false);
-		$accountIsViewer = ($page->hasViewer() && $page->getViewer()->getId() === $actorId);
-		if ($accountIsViewer) {
-			$page = $this->getStreamNidsSelectSql(true);
-		}
+		$accountIsViewer = ($this->viewer !== null && $this->viewer->getId() === $actorId);
+		$page = $this->getStreamNidsSelectSql($this->viewer !== null);
 
 		$page->limitToStatusTypes();
 		$page->paginate($options);
 		$this->filterKind($page, $options);
 		$page->limitToAttributedTo($actorId, true);
 
-		$page->selectDestFollowing('sd', '');
-		$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
-		$page->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+		if ($accountIsViewer) {
+			$page->selectDestFollowing('sd', '');
+			$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+			$page->limitToDest('', 'recipient', '', 'sd');
+			$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		} else {
+			$page->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		}
 
 		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
-		$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
 
 		return $this->getNidsFromRequest($page);
 	}
@@ -2290,7 +2351,18 @@ class StreamRequest extends StreamRequestBuilder {
 			->where($expr->gte(
 				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
 			))
+			// public posts only, the rule `HashtagsRequest::related()` counts
+			// by: a tag used inside a followers-only thread or a direct message
+			// is not public knowledge, and counting it published the tag — and
+			// its usage count — through `/api/v1/trends/tags`, `tagHistory()`
+			// and search
+			->andWhere($expr->eq(
+				's.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)
+			))
 			->groupBy('st.hashtag');
+
+		$qb->setDefaultSelectAlias('s');
+		$qb->limitToStatusTypes();
 
 		$counts = [];
 		$cursor = $qb->executeQuery();
@@ -2891,7 +2963,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 
 		$qb->filterType(SocialAppNotification::TYPE);
-		$qb->limitToViewer('sd', 'f', true);
+		// direct messages included, as `getStreamById()` and the ancestor walk
+		// both include them: a DM's recipient row is keyed on the viewer's own
+		// id, so without this the descendants of a direct thread could never
+		// match and a client was handed the ancestors and nothing else
+		$qb->limitToViewer('sd', 'f', true, true);
 		$qb->limitToDBFieldArray(
 			'in_reply_to_prim',
 			array_map(static fn (string $id): string => $qb->prim($id), $ids)

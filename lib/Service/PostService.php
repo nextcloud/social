@@ -126,11 +126,13 @@ class PostService {
 		// The warning rides as the object's `summary`, which is what every other
 		// server reads it from — and unlike the content it is plain text
 		// wherever it is read: `spoiler_text` to a client, interpolated rather
-		// than rendered by this app's own frontend. Encoding it entity by entity
-		// federated `Bob&#039;s finale` to every other instance and baked those
-		// entities into the next edit, so markup is dropped instead of encoded:
-		// nothing downstream has to undo it, and editPost() agrees.
-		$note->setSpoilerText(strip_tags($post->getSpoilerText()));
+		// than rendered by this app's own frontend, escaped by the JSON encoder
+		// on the wire. Stored exactly as it was typed, therefore. Encoding it
+		// entity by entity federated `Bob&#039;s finale` to every other
+		// instance; flattening it with `strip_tags()` was worse, since a bare
+		// `<` reads as the start of a tag and ate the rest of the line — a
+		// warning of `I <3 cats` was stored as `I `. editPost() agrees.
+		$note->setSpoilerText(ACore::withoutMarkup($post->getSpoilerText()));
 		$note->setSensitive($post->isSensitive());
 		$note->setAttachments($post->getMedias());
 		$note->setVisibility($post->getType());
@@ -218,11 +220,12 @@ class PostService {
 		// the revision recorded below is the version being replaced, so it has
 		// to be taken before any of the fields are overwritten
 		$original = clone $stream;
-		// the post's existing tags: an edit does not re-address anybody, so the
-		// people it may link to are the people it already named
+		// the tags first: they are what the markup below may link, and an edit
+		// is a fresh parse of the text
+		$this->reapplyEntities($stream, $content);
 		$stream->setContent($this->linkifyService->toHtml($content, $stream->getTags()));
 		if ($spoilerText !== null) {
-			$stream->setSpoilerText(strip_tags($spoilerText));
+			$stream->setSpoilerText(ACore::withoutMarkup($spoilerText));
 		}
 
 		// an edit may write a shortcode that was not there before, and the tag
@@ -245,11 +248,18 @@ class PostService {
 		$this->revisionService->recordEdit($original, $stream);
 
 		$updated = $this->streamService->getStreamByNid($nid);
-		$updated->addInstancePath(
-			new InstancePath(
-				$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
-			)
-		);
+		// The reloaded post carries the instance paths it was created with —
+		// for a direct message, the inboxes of the people it names. The
+		// followers path expands to the shared inbox of every instance with a
+		// follower on it, so adding it unconditionally posted the whole edited
+		// text of a `direct` post to servers that were never recipients.
+		if ($this->streamService->reachesFollowers($updated)) {
+			$updated->addInstancePath(
+				new InstancePath(
+					$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+				)
+			);
+		}
 
 		try {
 			$this->activityService->updateActivity($actor, $updated);
@@ -482,8 +492,55 @@ class PostService {
 	}
 
 	/**
-	 * @param Post $post
+	 * The hashtags and mentions the edited text names.
+	 *
+	 * An edit is a fresh parse of the text, so the `tag` array has to be one
+	 * too. Without it a hashtag written into a post gained no `Hashtag` tag:
+	 * it rendered as dead text, the post reached no tag timeline and no
+	 * follower of that tag, and a hashtag taken out of the text kept its tag
+	 * and its place in that timeline for ever.
+	 *
+	 * Mentions are only added. Addressing cannot be withdrawn — the post has
+	 * already been delivered to everyone it named — so a mention deleted from
+	 * the text keeps its tag, and only a name that is new to the post is
+	 * addressed.
 	 */
+	private function reapplyEntities(Stream $stream, string $content): void {
+		$hashtags = [];
+		$mentions = [];
+		foreach ($this->linkifyService->entitiesIn($content) as $entity) {
+			match ($entity['type']) {
+				LinkifyService::TYPE_MENTION => $mentions[] = $entity['name'],
+				LinkifyService::TYPE_HASHTAG => $hashtags[] = $entity['name'],
+				default => null,
+			};
+		}
+
+		if ($stream instanceof Note) {
+			// rebuilt rather than appended to, the way StreamService rebuilds
+			// the Emoji tags
+			$stream->setTags(array_values(array_filter(
+				$stream->getTags(),
+				static fn (array $tag): bool => ($tag['type'] ?? '') !== 'Hashtag'
+			)));
+			$this->streamService->addHashtags($stream, array_values(array_unique($hashtags)));
+		}
+
+		$named = [];
+		foreach ($stream->getTags('Mention') as $tag) {
+			$named[strtolower(ltrim((string)($tag['name'] ?? ''), '@'))] = true;
+		}
+
+		$this->streamService->addRecipients(
+			$stream,
+			$stream->getVisibility(),
+			array_values(array_filter(
+				array_unique($mentions),
+				static fn (string $mention): bool => !isset($named[strtolower($mention)])
+			))
+		);
+	}
+
 	/**
 	 * The accounts and hashtags written into the text itself.
 	 *

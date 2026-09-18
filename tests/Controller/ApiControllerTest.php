@@ -436,6 +436,9 @@ class ApiControllerTest extends TestCase {
 	/** @var array<string, mixed> what the viewer's `source` half answers */
 	private array $viewerSource = ['privacy' => 'public', 'follow_requests_count' => 2];
 
+	/** What the last timeline query read, when a test wants it to differ from the page. */
+	private ?int $timelineRows = null;
+
 	private function loggedInAs(string $uid = 'alice'): Person {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
@@ -509,6 +512,10 @@ class ApiControllerTest extends TestCase {
 
 				return $posts;
 			});
+		// how many rows the query read: the page itself, unless a test says the
+		// page lost a boost of a post already in it
+		$this->streamService->method('lastTimelineRowCount')
+			->willReturnCallback(fn (): int => $this->timelineRows ?? count($posts));
 
 		return function () use (&$captured): ProbeOptions {
 			$this->assertInstanceOf(ProbeOptions::class, $captured, 'getTimeline() was not called');
@@ -2595,6 +2602,7 @@ class ApiControllerTest extends TestCase {
 	}
 
 	public function testAccountStatusesSyncsThenProbesTheAccountTimeline(): void {
+		$this->loggedInAs();
 		$actor = $this->createMock(Person::class);
 		$actor->method('getId')->willReturn('https://remote.example/users/bob');
 		$this->cacheActorService->method('getFromAccount')->with('bob@remote.example')->willReturn($actor);
@@ -2719,6 +2727,7 @@ class ApiControllerTest extends TestCase {
 	}
 
 	public function testAccountFollowersOfRemoteAccountAreFetchedFromTheirCollection(): void {
+		$this->loggedInAs();
 		$this->localHosts();
 		$actor = $this->createMock(Person::class);
 		$actor->method('getFollowers')->willReturn('https://remote.example/users/bob/followers');
@@ -2748,6 +2757,7 @@ class ApiControllerTest extends TestCase {
 	}
 
 	public function testRemoteCollectionDropsActorsWithoutANumericId(): void {
+		$this->loggedInAs();
 		$this->localHosts();
 		$actor = $this->createMock(Person::class);
 		$actor->method('getFollowers')->willReturn('https://remote.example/users/bob/followers');
@@ -2921,6 +2931,24 @@ class ApiControllerTest extends TestCase {
 		$this->assertStringContainsString('min_id=30>; rel="prev"', $link);
 	}
 
+	/**
+	 * A page that lost a boost of a post already in it is still a full page.
+	 * Deciding `rel="next"` from what was left of it stopped every client that
+	 * pages on the Link header — Mastodon's own web client, Elk, Phanpy —
+	 * one page in.
+	 */
+	public function testAPageThatDroppedADuplicateBoostStillOffersTheNextPage(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home');
+		// the query read twenty rows; one was a boost of a post also in the page
+		$this->timelineRows = 20;
+		$this->captureTimelineOptions($this->pageOfStreams(30, 12));
+
+		$link = $this->controller()->timelines('home', false, 20)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString('max_id=12>; rel="next"', $link);
+	}
+
 	public function testAPageShorterThanTheLimitHasNoNextLink(): void {
 		$this->loggedInAs();
 		$this->requestUri('/api/v1/timelines/home');
@@ -3009,6 +3037,66 @@ class ApiControllerTest extends TestCase {
 		$this->cacheActorService->method('getFromNids')->willReturn([]);
 
 		$this->assertNotFound($this->controller()->accountGet('42'), 'unknown account');
+	}
+
+	/**
+	 * These routes are public, and the reference is a string the caller writes.
+	 * Resolving an unknown one means fetching whatever URL or handle they
+	 * wrote, storing the actor and downloading its icon into appdata — an HTTP
+	 * reflector, and a way to fill the disk a request at a time.
+	 * `LocalController::knownActor()` refuses the same thing for the same
+	 * reason. What this instance already knows stays readable by anybody.
+	 */
+	public function testAnAnonymousCallerCannotMakeTheInstanceFetchAnActorUri(): void {
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+		$known = $this->createMock(Person::class);
+		$this->cacheActorService->expects($this->once())
+			->method('getCachedFromIds')
+			->with(['https://remote.example/users/bob'])
+			->willReturn(['https://remote.example/users/bob' => $known]);
+
+		$this->assertSame(
+			$known, $this->controller()->accountGet('https://remote.example/users/bob')->getData()
+		);
+	}
+
+	public function testAnAnonymousCallerIsRefusedAnActorThisInstanceDoesNotKnow(): void {
+		$this->cacheActorService->method('getCachedFromIds')->willReturn([]);
+
+		$this->assertNotFound(
+			$this->controller()->accountGet('https://remote.example/users/nobody'), 'unknown account'
+		);
+	}
+
+	public function testAnAnonymousCallerCannotMakeTheInstanceWebfingerAHandle(): void {
+		$target = $this->createMock(Person::class);
+		// `false`: answered from the cache, never fetched
+		$this->cacheActorService->expects($this->once())
+			->method('getFromAccount')->with('bob@remote.example', false)->willReturn($target);
+
+		$this->assertSame($target, $this->controller()->accountGet('@bob@remote.example')->getData());
+	}
+
+	public function testAnAnonymousCallerDoesNotMakeTheInstanceSyncARemoteOutbox(): void {
+		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->streamService->expects($this->never())->method('syncRemoteTimeline');
+		$this->captureTimelineOptions([]);
+
+		$this->controller()->accountStatuses('bob@remote.example');
+	}
+
+	public function testAnAnonymousCallerDoesNotMakeTheInstanceReadARemoteCollection(): void {
+		$this->localHosts();
+		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$actor->method('getFollowers')->willReturn('https://remote.example/users/bob/followers');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->curlService->expects($this->never())->method('retrieveObject');
+		$this->cacheActorService->expects($this->once())->method('probeActors')->willReturn([]);
+
+		$this->assertSame([], $this->controller()->accountFollowers('bob@remote.example')->getData());
 	}
 
 	public function testAccountLookupResolvesAHandleWithoutReachingOut(): void {

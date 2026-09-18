@@ -46,6 +46,9 @@ class StreamService {
 	/** Who is reading, once somebody has said; null for an anonymous read. */
 	private ?Person $viewer = null;
 
+	/** How many rows the last `getTimeline()` read; see `lastTimelineRowCount()`. */
+	private int $lastTimelineRows = 0;
+
 	/** How far up a thread one context request walks; Mastodon's cap. */
 	private const ANCESTOR_LIMIT = 40;
 
@@ -186,31 +189,67 @@ class StreamService {
 	 * Classify a stream by who can see it, for `DetailsService`.
 	 */
 	public function detectType(Stream $stream): void {
-		if (in_array(ACore::CONTEXT_PUBLIC, $stream->getToAll())) {
-			$stream->setTimeline(Stream::TYPE_PUBLIC);
+		$visibility = $this->visibilityOf($stream);
+		if ($visibility !== '') {
+			$stream->setTimeline($visibility);
+		}
+	}
 
-			return;
+	/**
+	 * Who can see a post, read off what it addresses.
+	 *
+	 * Public and unlisted are decided by the collection the post names.
+	 * Telling followers-only from direct needs the author's followers
+	 * collection, so an author this instance has never cached cannot be
+	 * judged — that is the empty answer, and a caller that has to have one
+	 * treats it as direct, which is the narrower audience.
+	 *
+	 * @return string one of Stream::TYPE_PUBLIC, TYPE_UNLISTED,
+	 *                TYPE_FOLLOWERS or TYPE_DIRECT, or '' when the author is unknown
+	 */
+	public function visibilityOf(Stream $stream): string {
+		if (in_array(ACore::CONTEXT_PUBLIC, $stream->getToAll())) {
+			return Stream::TYPE_PUBLIC;
 		}
 
 		if (in_array(ACore::CONTEXT_PUBLIC, $stream->getCcArray())) {
-			$stream->setTimeline(Stream::TYPE_UNLISTED);
-
-			return;
+			return Stream::TYPE_UNLISTED;
 		}
 
 		try {
 			$actor = $this->cacheActorService->getFromId($stream->getAttributedTo());
 		} catch (Exception $e) {
-			return;
+			return '';
 		}
 
 		$followers = $actor->getFollowers();
 		$recipients = array_merge($stream->getToAll(), $stream->getCcArray());
 
-		$stream->setTimeline(
-			($followers !== '' && in_array($followers, $recipients, true))
-				? Stream::TYPE_FOLLOWERS
-				: Stream::TYPE_DIRECT
+		return ($followers !== '' && in_array($followers, $recipients, true))
+			? Stream::TYPE_FOLLOWERS
+			: Stream::TYPE_DIRECT;
+	}
+
+	/**
+	 * Whether an activity about this post may be delivered to the author's
+	 * followers.
+	 *
+	 * The followers instance path expands to the shared inbox of every
+	 * instance that has one, so adding it to an activity about a direct
+	 * message posts that activity to servers the post was never addressed to.
+	 * A row written before the `visibility` column existed has none, and is
+	 * judged by what it addresses — which is where the column came from.
+	 */
+	public function reachesFollowers(Stream $stream): bool {
+		$visibility = $stream->getVisibility();
+		if ($visibility === '') {
+			$visibility = $this->visibilityOf($stream);
+		}
+
+		return in_array(
+			$visibility,
+			[Stream::TYPE_PUBLIC, Stream::TYPE_UNLISTED, Stream::TYPE_FOLLOWERS],
+			true
 		);
 	}
 
@@ -411,11 +450,17 @@ class StreamService {
 		$item->setActorId($item->getAttributedTo());
 		try {
 			$actor = $this->cacheActorService->getFromId($item->getAttributedTo());
-			$item->addInstancePath(
-				new InstancePath(
-					$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
-				)
-			);
+			// only where the post itself reached them: a Delete addressed to
+			// the followers path is posted to the shared inbox of every
+			// instance with a follower, and for a direct message that tells
+			// servers that were never recipients the post existed
+			if ($this->reachesFollowers($item)) {
+				$item->addInstancePath(
+					new InstancePath(
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+					)
+				);
+			}
 		} catch (\Exception $e) {
 		}
 		$this->addressBoostersAndRepliers($item);
@@ -548,9 +593,9 @@ class StreamService {
 	 * @return Note[]
 	 */
 	public function getTimeline(ProbeOptions $options): array {
-		$posts = $this->withoutRepeatsOfPostsAlreadyInThePage(
-			$this->streamRequest->getTimeline($options), $options
-		);
+		$rows = $this->streamRequest->getTimeline($options);
+		$this->lastTimelineRows = count($rows);
+		$posts = $this->withoutRepeatsOfPostsAlreadyInThePage($rows, $options);
 		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
 			// one query each for the whole page, and only for pages a client
 			// reads -- none of them is part of the wire object
@@ -668,6 +713,20 @@ class StreamService {
 		}
 
 		return $page;
+	}
+
+	/**
+	 * How many rows the last `getTimeline()` read, before the page lost any
+	 * boost of a post already in it.
+	 *
+	 * Whether a further page exists is a question about what the query
+	 * answered, not about what survived deduplication: a page of twenty that
+	 * dropped one boost is still a full page, and a `rel="next"` decided from
+	 * the nineteen left is no `rel="next"` at all — every client that pages on
+	 * the Link header stops at that page.
+	 */
+	public function lastTimelineRowCount(): int {
+		return $this->lastTimelineRows;
 	}
 
 	/**
@@ -895,6 +954,17 @@ class StreamService {
 					// `Note::fillHashtags()` do for anything arriving over the inbox.
 					$note->setTags($note->validateArray(ACore::AS_TAGS, 'tag', $noteData, []));
 					$note->fillHashtags();
+					// the people the post names, resolved to the accounts a
+					// client reads out of `mentions`; without it every post
+					// reached this way mentioned nobody
+					$note->fillMentions();
+
+					// what a peer's `to`/`cc` say the audience is. Stored
+					// blank, the row exported as public to every client — so a
+					// followers-only post fetched this way offered a Boost
+					// button — while the timelines that compare the column
+					// left it out.
+					$note->setVisibility($this->visibilityOf($note) ?: Stream::TYPE_DIRECT);
 
 					// Attachments are not processed during sync to avoid
 					// memory-exhausting remote file downloads. They will be

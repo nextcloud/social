@@ -139,6 +139,42 @@ class LinkPreviewServiceTest extends TestCase {
 		$this->assertSame('Example News', $card->getProviderName());
 	}
 
+	/**
+	 * A value ends at the quote it opened with. Accepting either ended a
+	 * double-quoted value at the first apostrophe inside it, so every headline
+	 * with one in it was truncated there — `Don't miss this` became `Don`.
+	 */
+	public function testAnApostropheInsideAQuotedValueIsPartOfIt(): void {
+		$this->serves(
+			'<html><head>'
+			. '<meta property="og:title" content="Don\'t miss this">'
+			. '<meta property="og:description" content="Apple\'s new thing">'
+			. "<meta property='og:site_name' content='The \"Daily\" News'>"
+			. '</head></html>'
+		);
+		$stored = $this->stored();
+
+		$this->service->generate($this->post('<a href="https://example.org/a">a</a>'));
+
+		$card = $stored();
+		$this->assertSame("Don't miss this", $card->getTitle());
+		$this->assertSame("Apple's new thing", $card->getDescription());
+		$this->assertSame('The "Daily" News', $card->getProviderName());
+	}
+
+	/** A `>` inside a quoted value does not end the tag. */
+	public function testAGreaterThanInsideAValueDoesNotEndTheTag(): void {
+		$this->serves(
+			'<html><head><meta property="og:title" content="1 > 2 says the headline">'
+			. '<meta property="og:description" content="plain"></head></html>'
+		);
+		$stored = $this->stored();
+
+		$this->service->generate($this->post('<a href="https://example.org/a">a</a>'));
+
+		$this->assertSame('1 > 2 says the headline', $stored()->getTitle());
+	}
+
 	public function testTwitterTagsAndThePlainTitleFillIn(): void {
 		$this->serves(
 			'<html><head><title>  The   plain &amp; only title </title>'

@@ -10,11 +10,14 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use DateTime;
+use OCA\Social\AP;
 use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
@@ -103,6 +106,21 @@ class StreamServiceTest extends TestCase {
 			$this->createMock(MediaTagsRequest::class),
 			$this->accountService
 		);
+
+		// `Note::fillMentions()` asks the registry for the Person interface, so
+		// a sync of a post that names anybody needs one; a mention nobody here
+		// knows keeps the handle the post wrote, which is what this produces.
+		$personInterface = $this->createMock(IActivityPubInterface::class);
+		$personInterface->method('getItemById')
+			->willThrowException(new ItemNotFoundException());
+		AP::set($this->createMock(AP::class));
+		AP::instance()->method('getInterfaceFromType')->willReturn($personInterface);
+	}
+
+	protected function tearDown(): void {
+		AP::set(null);
+
+		parent::tearDown();
 	}
 
 	private function actor(): Person {
@@ -134,11 +152,19 @@ class StreamServiceTest extends TestCase {
 
 	private AccountService|MockObject $accountService;
 
-	private function note(string $id, string $attributedTo = self::ACTOR_ID, string $inReplyTo = ''): Note {
+	private function note(
+		string $id,
+		string $attributedTo = self::ACTOR_ID,
+		string $inReplyTo = '',
+		string $visibility = Stream::TYPE_PUBLIC,
+	): Note {
 		$note = new Note();
 		$note->setId($id);
 		$note->setAttributedTo($attributedTo);
 		$note->setInReplyTo($inReplyTo);
+		// every stored post carries one, and it decides whether an activity
+		// about the post may go to the author's followers
+		$note->setVisibility($visibility);
 
 		return $note;
 	}
@@ -673,6 +699,41 @@ class StreamServiceTest extends TestCase {
 		$this->assertCount(3, $paths);
 	}
 
+	/**
+	 * A direct message was delivered to the people it named. The followers path
+	 * expands to the shared inbox of every instance with a follower on it, so
+	 * adding it to the Delete tells servers that were never recipients that the
+	 * message existed.
+	 */
+	public function testDeletingADirectMessageIsNotAnnouncedToTheFollowers(): void {
+		$item = $this->note('https://social.example/@alice/1', self::ACTOR_ID, '', Stream::TYPE_DIRECT);
+		$item->setLocal(true);
+		$this->cacheActorService->method('getFromId')->willReturn($this->actor());
+		$this->activityService->expects($this->once())->method('deleteActivity')->willReturn('token');
+
+		$this->service->deleteLocalItem($item, Note::TYPE);
+
+		$this->assertSame([], $item->getInstancePaths());
+	}
+
+	/**
+	 * A row written before the visibility column existed carries none, and is
+	 * judged by what it addresses — which is where the column came from.
+	 */
+	public function testAPostWithoutAStoredVisibilityIsJudgedByItsAddressing(): void {
+		$item = $this->note('https://social.example/@alice/1', self::ACTOR_ID, '', '');
+		$item->setLocal(true);
+		$item->setTo(self::ACTOR_FOLLOWERS);
+		$this->cacheActorService->method('getFromId')->willReturn($this->actor());
+		$this->activityService->method('deleteActivity')->willReturn('token');
+
+		$this->service->deleteLocalItem($item, Note::TYPE);
+
+		$this->assertHasInstancePath(
+			$item->getInstancePaths(), self::ACTOR_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+		);
+	}
+
 	public function testDeleteLocalItemStillDeletesWhenAuthorCannotBeResolved(): void {
 		$item = $this->note('https://social.example/@alice/1');
 		$item->setLocal(true);
@@ -794,6 +855,34 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->method('getTimeline')->willReturn([$boost, $note]);
 
 		$this->assertSame([$boost, $note], $this->service->getTimeline(new ProbeOptions()));
+	}
+
+	/**
+	 * Whether a further page exists is a question about what the query read,
+	 * not about what survived deduplication. A page of twenty that dropped one
+	 * boost came back as nineteen, and the caller — which decides `rel="next"`
+	 * from the page it is handed — stopped offering the next page, so every
+	 * client that follows the Link header stopped scrolling there.
+	 */
+	public function testThePageReportsHowManyRowsTheQueryRead(): void {
+		$note = $this->note('https://social.example/@alice/1');
+		$boost = $this->boostOf('https://social.example/@bob/boost/1', $note->getId());
+		$this->streamRequest->method('getTimeline')->willReturn([$boost, $note]);
+
+		$page = $this->service->getTimeline(new ProbeOptions());
+
+		$this->assertCount(1, $page);
+		$this->assertSame(2, $this->service->lastTimelineRowCount());
+	}
+
+	public function testTheRowCountIsOfTheLastPageRead(): void {
+		$this->streamRequest->method('getTimeline')->willReturn([]);
+
+		$this->assertSame(0, $this->service->lastTimelineRowCount(), 'nothing has been read yet');
+
+		$this->service->getTimeline(new ProbeOptions());
+
+		$this->assertSame(0, $this->service->lastTimelineRowCount());
 	}
 
 	/**
@@ -1018,12 +1107,68 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame([$bob->getFollowers()], $saved->getCcArray());
 		$this->assertSame(['Fedi'], $saved->getHashtags());
 		$this->assertCount(2, $saved->getTags());
+		// what to/cc say the audience is: stored blank, the row exported as
+		// public to every client whatever the post actually said
+		$this->assertSame(Stream::TYPE_PUBLIC, $saved->getVisibility());
+		// and the people it names, which `mentions` is built from
+		$this->assertSame(
+			[['id' => 0, 'username' => 'alice@social.example', 'url' => self::ACTOR_ID, 'acct' => 'alice@social.example']],
+			$saved->getDetails('mentions')
+		);
 		$this->assertSame((new DateTime('2026-01-02T03:04:05Z'))->getTimestamp(), $saved->getPublishedTime());
 		$this->assertSame(3, $saved->getDetailInt('likes'));
 		$this->assertSame(3, $saved->getDetailInt('remote_likes'));
 		$this->assertSame(2, $saved->getDetailInt('boosts'));
 		$this->assertSame(1, $saved->getDetailInt('replies'));
 		$this->assertSame($noteData, json_decode($saved->getSource(), true));
+	}
+
+	/**
+	 * @return array<string, array{array<string, mixed>, string}>
+	 */
+	public static function syncedVisibilityProvider(): array {
+		$followers = 'https://remote.example/users/bob/followers';
+
+		return [
+			'public' => [['to' => [ACore::CONTEXT_PUBLIC], 'cc' => [$followers]], Stream::TYPE_PUBLIC],
+			'unlisted' => [['to' => [$followers], 'cc' => [ACore::CONTEXT_PUBLIC]], Stream::TYPE_UNLISTED],
+			'followers-only' => [['to' => [$followers], 'cc' => []], Stream::TYPE_FOLLOWERS],
+			'direct' => [['to' => [self::ACTOR_ID], 'cc' => []], Stream::TYPE_DIRECT],
+		];
+	}
+
+	/**
+	 * A synced post used to be stored with no visibility at all, which the
+	 * client format reads as public: a followers-only note fetched this way was
+	 * offered a Boost button, while the trends and the place timelines — which
+	 * compare the column — left it out.
+	 *
+	 * @param array<string, mixed> $addressing
+	 */
+	#[DataProvider('syncedVisibilityProvider')]
+	public function testSyncRemoteTimelineStoresWhatTheAddressingSaysTheAudienceIs(
+		array $addressing,
+		string $expected,
+	): void {
+		$bob = $this->remoteActor();
+		$this->cacheActorService->method('getFromId')->with($bob->getId())->willReturn($bob);
+		$this->curlService->method('retrieveObject')->willReturn([
+			'orderedItems' => [
+				['type' => 'Note', 'id' => 'https://remote.example/notes/v', 'content' => 'x'] + $addressing,
+			],
+		]);
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$saved = null;
+		$this->streamRequest->method('save')
+			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+				$saved = $stream;
+			});
+
+		$this->service->syncRemoteTimeline($bob);
+
+		$this->assertInstanceOf(Note::class, $saved);
+		$this->assertSame($expected, $saved->getVisibility());
 	}
 
 	public function testSyncRemoteTimelineUsesEmbeddedFirstPage(): void {
