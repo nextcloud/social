@@ -6,7 +6,13 @@
 	<component
 		:is="element"
 		class="timeline-entry"
-		:class="{ notification: isNotification, 'with-header': isNotification, 'timeline-entry--reply': depth > 0, 'timeline-entry--unread': unread }"
+		:class="{
+			notification: isNotification,
+			'with-header': isNotification,
+			'timeline-entry--reply': depth > 0,
+			'timeline-entry--continues': depth > 0 && continues,
+			'timeline-entry--unread': unread,
+		}"
 		:style="entryStyle"
 		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
@@ -167,6 +173,18 @@ export default {
 		 * being read, 1 for a reply to that, and so on. Indented accordingly,
 		 * up to MAX_INDENT levels — deeper than that the column would run out.
 		 */
+		/**
+		 * Whether something below this entry hangs off it.
+		 *
+		 * A reply at the end of a branch stops the line at its own elbow; one
+		 * with replies under it carries the line on down, so a reader can see
+		 * where a branch continues without counting indents.
+		 */
+		continues: {
+			type: Boolean,
+			default: false,
+		},
+
 		depth: {
 			type: Number,
 			default: 0,
@@ -370,13 +388,46 @@ export default {
 	animation: timeline-rise .28s ease-out both;
 	animation-delay: var(--stagger-delay, 0ms);
 
-	// a reply to a reply steps in under the one it answers, with a line down
-	// its side that says so; the depth is the custom property the list sets
+	/**
+	 * A reply steps in under the one it answers, joined to it by a line.
+	 *
+	 * The line was a plain border down the whole side, which is a margin
+	 * marking rather than a connection: it began above the reply, ended below
+	 * it, and pointed at nothing. Drawn as an elbow instead -- up from the
+	 * reply's own left edge and curving in towards it -- it reads as coming
+	 * *from* the post above, which is what a thread is. The depth is the
+	 * custom property the list sets.
+	 */
 	&--reply {
 		margin-inline-start: calc(var(--thread-depth, 1) * 24px);
-		padding-inline-start: 12px;
-		border-inline-start: 2px solid var(--color-border);
-		border-radius: 0 8px 8px 0;
+		padding-inline-start: 18px;
+		position: relative;
+
+		&::before {
+			content: '';
+			position: absolute;
+			inset-block-start: -10px;
+			inset-inline-start: 0;
+			// up past the gap into the post above, and down to the middle of
+			// this one, where the elbow turns in
+			block-size: 34px;
+			inline-size: 12px;
+			border-inline-start: 2px solid var(--color-border);
+			border-block-end: 2px solid var(--color-border);
+			border-end-start-radius: 10px;
+			pointer-events: none;
+		}
+
+		// a reply with replies of its own carries the line on down to them
+		&.timeline-entry--continues::after {
+			content: '';
+			position: absolute;
+			inset-block-start: 24px;
+			inset-block-end: -10px;
+			inset-inline-start: 0;
+			border-inline-start: 2px solid var(--color-border);
+			pointer-events: none;
+		}
 	}
 
 	&:last-child {

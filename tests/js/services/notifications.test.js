@@ -182,16 +182,50 @@ describe('grouping the notifications', () => {
 		expect(cards).toHaveLength(2)
 	})
 
-	it('does not fold across something that happened in between', () => {
-		// folding here would say the three favourites happened together, and
-		// put the mention somewhere it did not happen
+	/**
+	 * Folding used to stop at the first notification of another kind, which on
+	 * a real page is immediately: twelve likes of one post arrive interleaved
+	 * with everything else that happened, so the page showed twelve cards
+	 * anyway and the folding was for a case that does not occur.
+	 */
+	it('folds across something that happened in between', () => {
 		const cards = groupNotifications([
 			entry('30', 'favourite', 'Anna', '7'),
 			entry('29', 'mention', 'Bob', '9'),
 			entry('28', 'favourite', 'Cara', '7'),
 		])
 
-		expect(cards.map((card) => card.id)).toEqual(['30', '29', '28'])
+		expect(cards.map((card) => card.id)).toEqual(['30', '29'])
+		expect(cards[0].accounts.map((account) => account.display_name)).toEqual(['Anna', 'Cara'])
+		expect(cards[0].ids).toEqual(['30', '28'])
+	})
+
+	/**
+	 * The card takes the place of its newest member, so nothing is folded
+	 * upwards past something that happened after it.
+	 */
+	it('keeps a folded card where its newest member was', () => {
+		const cards = groupNotifications([
+			entry('30', 'mention', 'Anna', '9'),
+			entry('29', 'favourite', 'Bob', '7'),
+			entry('28', 'favourite', 'Cara', '7'),
+			entry('27', 'favourite', 'Dan', '7'),
+		])
+
+		expect(cards.map((card) => card.id)).toEqual(['30', '29'])
+		expect(cards[1].accounts).toHaveLength(3)
+	})
+
+	it('keeps the favourites of one post apart from the favourites of another', () => {
+		const cards = groupNotifications([
+			entry('30', 'favourite', 'Anna', '7'),
+			entry('29', 'favourite', 'Bob', '8'),
+			entry('28', 'favourite', 'Cara', '7'),
+		])
+
+		expect(cards).toHaveLength(2)
+		expect(cards[0].ids).toEqual(['30', '28'])
+		expect(cards[1].id).toBe('29')
 	})
 
 	it('leaves a mention alone however many there are in a row', () => {

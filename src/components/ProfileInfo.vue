@@ -176,37 +176,51 @@
 					</NcActionButton>
 				</NcActions>
 			</div>
-			<!-- a private note, for the reader alone: it never leaves this
-			     server and the account it is about is never told of it -->
-			<form v-if="canModerate" class="user-profile__private-note" @submit.prevent="saveNote">
-				<label class="user-profile__private-note-label" for="social-profile-private-note">
-					{{ t('social', 'Your private note about this account') }}
-				</label>
-				<textarea
-					id="social-profile-private-note"
-					v-model="noteDraft"
-					class="user-profile__private-note-input"
-					rows="2"
-					maxlength="2000"
-					:placeholder="t('social', 'Only you ever see this.')"
-					@keydown.esc.prevent="discardNote" />
-				<div class="user-profile__private-note-actions">
-					<NcButton
-						v-if="noteChanged"
-						variant="tertiary"
-						type="button"
-						:disabled="savingNote"
-						@click="discardNote">
-						{{ t('social', 'Discard') }}
-					</NcButton>
-					<NcButton
-						variant="secondary"
-						type="submit"
-						:disabled="!noteChanged || savingNote">
-						{{ savingNote ? t('social', 'Saving…') : t('social', 'Save note') }}
-					</NcButton>
-				</div>
-			</form>
+			<!-- A private note, for the reader alone: it never leaves this
+			     server and the account it is about is never told of it.
+
+			     Folded away, because it was the loudest thing on somebody
+			     else's profile: an open textarea saying "Only you ever see
+			     this" sat above their bio, their links and their posts, on
+			     every profile, whether or not anybody had ever written a note.
+			     Open from the start when there is a note to read. -->
+			<details
+				v-if="canModerate"
+				class="user-profile__private-note-fold"
+				:open="hasNote">
+				<summary class="user-profile__private-note-summary">
+					{{ hasNote ? t('social', 'Your private note') : t('social', 'Add a private note') }}
+				</summary>
+				<form class="user-profile__private-note" @submit.prevent="saveNote">
+					<label class="user-profile__private-note-label" for="social-profile-private-note">
+						{{ t('social', 'Your private note about this account') }}
+					</label>
+					<textarea
+						id="social-profile-private-note"
+						v-model="noteDraft"
+						class="user-profile__private-note-input"
+						rows="2"
+						maxlength="2000"
+						:placeholder="t('social', 'Only you ever see this.')"
+						@keydown.esc.prevent="discardNote" />
+					<div class="user-profile__private-note-actions">
+						<NcButton
+							v-if="noteChanged"
+							variant="tertiary"
+							type="button"
+							:disabled="savingNote"
+							@click="discardNote">
+							{{ t('social', 'Discard') }}
+						</NcButton>
+						<NcButton
+							variant="secondary"
+							type="submit"
+							:disabled="!noteChanged || savingNote">
+							{{ savingNote ? t('social', 'Saving…') : t('social', 'Save note') }}
+						</NcButton>
+					</div>
+				</form>
+			</details>
 			<!-- Sanitized: a bio is HTML, remote ones from anywhere, see sanitizeHtml.js -->
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div v-if="note" class="user-profile__note" v-html="note" />
@@ -216,6 +230,29 @@
 			<!-- `!!`: isOwnProfile is the uid comparison, which is undefined
 			     until the reader is known, and the prop is a boolean -->
 			<FeaturedTags :accountId="highlightsAccountId" :editable="!!isOwnProfile" />
+			<!-- The people the reader already follows who follow this account.
+			     The strongest reason there is to follow somebody, and the
+			     server has been able to answer it since `familiar_followers`
+			     landed without anything asking. -->
+			<p v-if="familiarLine" class="user-profile__familiar">
+				<span class="user-profile__familiar-faces">
+					<!-- Plain images rather than `ActorAvatar`: these are
+					     decoration beside a sentence, and the avatar component
+					     brings a hover card and a popover wrapper that takes
+					     itself out of the flow -- the three of them ended up
+					     stacked on top of each other in the banner. Nothing
+					     here is a link, and the names are in the sentence. -->
+					<img
+						v-for="account in familiar"
+						:key="account.id || account.acct"
+						class="user-profile__familiar-face"
+						:src="account.avatar_static || account.avatar"
+						alt=""
+						width="20"
+						height="20">
+				</span>
+				{{ familiarLine }}
+			</p>
 			<!-- what this account is like, over and above how much of it there
 			     is; renders nothing for a remote account, whose history this
 			     instance only ever holds a part of -->
@@ -557,6 +594,8 @@ export default {
 			showListDialog: false,
 			/** the private note as it is being edited */
 			noteDraft: '',
+			/** who the reader follows that also follows this account */
+			familiar: [],
 			/** the note as the relationship last reported it */
 			noteStored: '',
 			savingNote: false,
@@ -728,6 +767,39 @@ export default {
 		},
 
 		/** @return {boolean} whether the note is worth saving */
+		/** @return {boolean} whether there is a note to read, which is what opens the fold */
+		hasNote() {
+			return this.noteStored !== ''
+		},
+
+		/**
+		 * The people the reader follows who also follow this account.
+		 *
+		 * The most useful thing one profile can say about another, and the
+		 * server has answered it since `familiar_followers` landed -- nothing
+		 * was asking. Capped at three faces and a count, because the sentence
+		 * is the point and ten avatars is a list.
+		 *
+		 * @return {string} the sentence, or '' when there is nobody or nobody has been fetched
+		 */
+		familiarLine() {
+			const names = this.familiar.map((account) => account.display_name || account.username)
+			if (names.length === 0) {
+				return ''
+			}
+			if (names.length === 1) {
+				return translate('social', 'Followed by {name}, who you follow', { name: names[0] })
+			}
+			if (names.length === 2) {
+				return translate('social', 'Followed by {first} and {second}, who you follow', {
+					first: names[0],
+					second: names[1],
+				})
+			}
+
+			return translatePlural('social', 'Followed by {first}, {second} and %n other you follow', 'Followed by {first}, {second} and %n others you follow', names.length - 2, { first: names[0], second: names[1] })
+		},
+
 		noteChanged() {
 			return this.noteDraft.trim() !== this.noteStored
 		},
@@ -744,6 +816,11 @@ export default {
 	},
 
 	watch: {
+		/** another account, another answer */
+		highlightsAccountId() {
+			this.readFamiliar()
+		},
+
 		// the note is part of the relationship, which arrives after the page
 		// does and again after every block, mute or follow
 		'relationship.note': {
@@ -777,9 +854,37 @@ export default {
 
 	mounted() {
 		this.applyBanner(this.bannerStyle)
+		this.readFamiliar()
 	},
 
 	methods: {
+		/**
+		 * Asks who the reader follows that also follows this account.
+		 *
+		 * A failure is silence: the line is a nicety, and a profile that could
+		 * not answer it should say nothing rather than say something went wrong.
+		 * The viewer's own profile answers an empty list, as Mastodon's does.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async readFamiliar() {
+			const id = this.highlightsAccountId
+			if (id === '' || this.isOwnProfile) {
+				this.familiar = []
+
+				return
+			}
+
+			try {
+				const url = generateUrl('apps/social/api/v1/accounts/familiar_followers')
+				const { data } = await axios.get(url, { params: { id } })
+				const entry = Array.isArray(data) ? data.find((row) => String(row.id) === id) : null
+				this.familiar = Array.isArray(entry?.accounts) ? entry.accounts.slice(0, 3) : []
+			} catch {
+				this.familiar = []
+			}
+		},
+
 		/**
 		 * Tints this profile with its own banner. A banner that cannot be read
 		 * — cross-origin, missing, transparent — leaves the theme's colour in
@@ -1207,6 +1312,72 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/**
+ * "Followed by Hugo, Aiko and one other you follow."
+ *
+ * The faces overlap into a small stack, the way a shared thing is drawn
+ * everywhere: three 20px circles in a row would read as three separate people
+ * to click on, and they are not links -- the sentence is what is being read.
+ */
+.user-profile__familiar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin: 8px 0 0;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+	text-align: center;
+}
+
+.user-profile__familiar-faces {
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
+	// the avatars inside are the hover-card wrapper and a link, neither of
+	// which lays itself out, so the stack is built on what they contain
+}
+
+.user-profile__familiar-face {
+	inline-size: 20px;
+	block-size: 20px;
+	border-radius: 50%;
+	object-fit: cover;
+	margin-inline-start: -6px;
+	box-shadow: 0 0 0 2px var(--color-main-background);
+	background: var(--color-background-dark);
+
+	&:first-child {
+		margin-inline-start: 0;
+	}
+}
+
+/**
+ * The private note folds away.
+ *
+ * It was the loudest thing on somebody else's profile: an open textarea above
+ * their bio, their links and their posts, whether or not a note had ever been
+ * written. The summary is a quiet line under the follow button; it opens by
+ * itself when there is a note to read.
+ */
+.user-profile__private-note-fold {
+	margin: 6px 0 0;
+	text-align: center;
+}
+
+.user-profile__private-note-summary {
+	display: inline-block;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+	cursor: pointer;
+
+	&:hover,
+	&:focus-visible {
+		color: var(--color-main-text);
+	}
+}
+
 .user-profile {
 	display: flex;
 	flex-direction: column;

@@ -106,14 +106,19 @@ function groupKey(notification) {
 }
 
 /**
- * Folds runs of the same reaction into one card.
+ * Folds the same reaction into one card.
  *
  * Twelve favourites of one post were twelve cards quoting the same post twelve
- * times, which is a page of the same thing. Consecutive favourites or boosts
- * of one status, and consecutive follows, become a single card that names the
- * first few people and counts the rest. Only *consecutive* ones: a favourite
- * of another post in between is a different event, and folding across it
- * would reorder what happened.
+ * times, which is a page of the same thing. Every favourite or boost of one
+ * status, and every follow, becomes a single card that names the first few
+ * people and counts the rest.
+ *
+ * Across the page rather than only consecutive runs: the folding used to stop
+ * at the first notification of another kind, which on any real page is
+ * immediately -- twelve likes of one post arrive interleaved with everything
+ * else that happened, so the page showed twelve cards anyway. The card keeps
+ * the place of its *newest* member, so nothing moves above something that
+ * happened after it; what is folded into it is only ever older.
  *
  * A grouped card keeps the shape of a Notification -- `id`, `type`,
  * `created_at`, `account`, `status` are those of the newest member -- and adds
@@ -126,17 +131,21 @@ function groupKey(notification) {
  */
 export function groupNotifications(entries) {
 	const cards = []
-	let open = null
+	const openByKey = new Map()
 
 	for (const entry of entries) {
 		const key = groupKey(entry)
-		if (key !== '' && open !== null && open.key === key) {
+		const open = key === '' ? undefined : openByKey.get(key)
+		if (open !== undefined) {
 			open.members.push(entry)
 			continue
 		}
 
-		open = { key, members: [entry] }
-		cards.push(open)
+		const card = { key, members: [entry] }
+		if (key !== '') {
+			openByKey.set(key, card)
+		}
+		cards.push(card)
 	}
 
 	return cards.map(({ members }) => {

@@ -32,6 +32,7 @@
 import { linkTo } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NoMessages from './illustrations/NoMessages.vue'
 import NobodyYet from './illustrations/NobodyYet.vue'
 import NoReplies from './illustrations/NoReplies.vue'
 import QuietTimeline from './illustrations/QuietTimeline.vue'
@@ -41,6 +42,7 @@ import QuietTimeline from './illustrations/QuietTimeline.vue'
  * empty state asks for them under.
  */
 const ILLUSTRATIONS = {
+	'no-messages': NoMessages,
 	'no-replies': NoReplies,
 	'quiet-timeline': QuietTimeline,
 	'nobody-yet': NobodyYet,
@@ -51,6 +53,7 @@ export default {
 	components: {
 		NcButton,
 		NcEmptyContent,
+		NoMessages,
 		NobodyYet,
 		NoReplies,
 		QuietTimeline,

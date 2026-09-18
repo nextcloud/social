@@ -80,6 +80,7 @@
 		</ul>
 		<NcModal
 			v-if="modal"
+			ref="modal"
 			:name="currentLabel"
 			:hasPrevious="current > 0"
 			:hasNext="current < (media.length - 1)"
@@ -263,7 +264,53 @@ export default {
 		},
 	},
 
+	watch: {
+		/** the listener is only live while there is a lightbox to page */
+		modal(open) {
+			if (open) {
+				window.addEventListener('keydown', this.onViewerKey)
+			} else {
+				window.removeEventListener('keydown', this.onViewerKey)
+			}
+		},
+	},
+
+	beforeUnmount() {
+		window.removeEventListener('keydown', this.onViewerKey)
+	},
+
 	methods: {
+		/**
+		 * The arrow keys page the lightbox.
+		 *
+		 * The modal draws arrows either side and answers swipes, and offered
+		 * nothing to a keyboard: a reader looking at the third of five pictures
+		 * had to find a small button with the pointer to see the fourth. Left and
+		 * right rather than the modal's own handling, because what it does with
+		 * them is close on Escape and nothing else.
+		 *
+		 * @param {KeyboardEvent} event the key
+		 */
+		onViewerKey(event) {
+			if (!this.modal || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+				return
+			}
+			// a key pressed while typing a description, or scrubbing a video, is
+			// not a request to page
+			const target = event.target
+			if (target?.closest?.('input, textarea, select, [contenteditable], video, audio')) {
+				return
+			}
+
+			if (event.key === 'ArrowLeft' && this.current > 0) {
+				event.preventDefault()
+				this.toPrevious()
+			} else if (event.key === 'ArrowRight' && this.current < this.media.length - 1) {
+				event.preventDefault()
+				this.toNext()
+			}
+		},
+
 		t: translate,
 		n: translatePlural,
 		/**

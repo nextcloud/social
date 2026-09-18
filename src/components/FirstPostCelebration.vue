@@ -14,7 +14,7 @@
 				:style="piece.style" />
 		</div>
 		<p class="first-post__banner" aria-hidden="true">
-			<span class="first-post__emoji">🎉</span>
+			<span class="first-post__emoji">{{ emoji }}</span>
 			{{ message }}
 		</p>
 		<!-- a live region is only reliably announced when it is already on the
@@ -81,6 +81,19 @@ function makePiece(id) {
 
 export default {
 	name: 'FirstPostCelebration',
+
+	props: {
+		/**
+		 * Which moment this is: `first-post`, `first-follower`, `hundred-posts`
+		 * or `anniversary`. Anything else is treated as the first post, because a
+		 * flourish that fails should still be a flourish.
+		 */
+		occasion: {
+			type: String,
+			default: 'first-post',
+		},
+	},
+
 	emits: ['done'],
 	data() {
 		// asked once, at mount: a reader who wants no motion gets the sentence,
@@ -98,8 +111,38 @@ export default {
 
 	computed: {
 		/** @return {string} the one sentence this whole component says */
+		/**
+		 * What is being celebrated.
+		 *
+		 * The first post was the only moment this app marked, and it is the one
+		 * moment that by definition happens before anybody has any reason to
+		 * care. These are the others: the first person who chose to read you,
+		 * the hundredth thing you wrote, and the day you have been here a year.
+		 * Each is once, and each is over in two seconds.
+		 *
+		 * @return {string} the sentence
+		 */
 		message() {
-			return t('social', 'Your first post is out there. Welcome to the fediverse!')
+			const messages = {
+				'first-post': t('social', 'Your first post is out there. Welcome to the fediverse!'),
+				'first-follower': t('social', 'Somebody is reading you. You have your first follower!'),
+				'hundred-posts': t('social', 'A hundred posts. That is a body of work.'),
+				anniversary: t('social', 'One year here today. Thank you for sticking around.'),
+			}
+
+			return messages[this.occasion] ?? messages['first-post']
+		},
+
+		/** @return {string} the one character in front of it */
+		emoji() {
+			const emoji = {
+				'first-post': '🎉',
+				'first-follower': '👋',
+				'hundred-posts': '💯',
+				anniversary: '🎂',
+			}
+
+			return emoji[this.occasion] ?? '🎉'
 		},
 	},
 

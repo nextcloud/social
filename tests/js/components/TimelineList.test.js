@@ -1219,8 +1219,24 @@ describe('TimelineList', () => {
 			expect(wrapper.findComponent(EmptyContent).props('item').action.to).toEqual({ name: 'discover' })
 		})
 
+		/**
+		 * An empty page that only states a fact leaves the reader to work out
+		 * what to do about it. The direct timeline is the one with an obvious
+		 * answer -- somebody to write to -- and it was the one with no button.
+		 */
+		it('offers somewhere to go from an empty direct timeline', async () => {
+			const { wrapper } = mountList({ route: { name: 'timeline', params: { type: 'direct' } } })
+			await flushPromises()
+
+			const item = wrapper.findComponent(EmptyContent).props('item')
+			expect(item.action.to).toEqual({ name: 'discover' })
+			// its own drawing rather than the stock illustration that was here
+			expect(item.illustration).toBe('no-messages')
+			expect(item.image).toBeUndefined()
+		})
+
 		it.each([
-			['direct', 'No direct messages found'],
+			['direct', 'Nothing private yet'],
 			['timeline', 'No local posts found'],
 			['federated', 'No global posts found'],
 			['notifications', 'No notifications found'],

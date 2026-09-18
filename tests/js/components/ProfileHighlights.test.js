@@ -56,45 +56,73 @@ describe('ProfileHighlights', () => {
 		expect(wrapper.find('.profile-highlights__since').text()).toContain('Here since')
 	})
 
-	it('draws one bar per week', async () => {
+	/**
+	 * A line rather than the twelve bars it was: what somebody reads off a
+	 * profile is a shape -- busy then quiet, steady, just arrived -- which a
+	 * line gives and twelve separate rectangles do not.
+	 */
+	it('draws the twelve weeks as one line', async () => {
 		const wrapper = await mountHighlights(available())
+		const line = wrapper.find('.profile-highlights__spark-line').attributes('d')
 
-		expect(wrapper.findAll('.profile-highlights__bar')).toHaveLength(12)
+		// one move and eleven lines, one per week
+		expect(line.startsWith('M')).toBe(true)
+		expect(line.match(/L/g)).toHaveLength(11)
 	})
 
-	// the chart is decoration over a sentence: a row of bars says nothing to
-	// anybody not looking at it
+	it('closes the wash under the line along the floor', async () => {
+		const wrapper = await mountHighlights(available())
+		const area = wrapper.find('.profile-highlights__spark-area').attributes('d')
+
+		expect(area.endsWith('Z')).toBe(true)
+		expect(area).toContain(' 32 ')
+	})
+
+	// the chart is decoration over a sentence: a line says nothing to anybody
+	// not looking at it
 	it('writes the chart out in words as well', async () => {
 		const wrapper = await mountHighlights(available())
 
-		expect(wrapper.find('.profile-highlights__summary').text()).toBe('21 posts in the last twelve weeks')
-		expect(wrapper.find('.profile-highlights__bars').attributes('aria-hidden')).toBe('true')
+		expect(wrapper.find('.profile-highlights__summary').text())
+			.toContain('21 posts in the last twelve weeks')
+		expect(wrapper.find('.profile-highlights__spark').attributes('aria-hidden')).toBe('true')
 	})
 
-	it('draws the busiest week at full height', async () => {
-		const wrapper = await mountHighlights(available({ weeks: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] }))
-		const bars = wrapper.findAll('.profile-highlights__bar')
+	it('draws the busiest week at the top and an empty one on the floor', async () => {
+		const wrapper = await mountHighlights(available({ weeks: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] }))
+		const points = wrapper.find('.profile-highlights__spark-line').attributes('d')
+			.split(/[ML]/).filter(Boolean).map((pair) => Number(pair.trim().split(' ')[1]))
 
-		expect(bars[11].attributes('style')).toContain('100%')
+		// y counts down the box, so the busiest week is the smallest number
+		expect(points[11]).toBeLessThan(points[0])
+		expect(points[0]).toBe(29)
 	})
 
-	// a quiet week next to a very busy one would otherwise round to nothing
-	// and read as silence
-	it('keeps a week with one post taller than an empty one', async () => {
-		const wrapper = await mountHighlights(available({ weeks: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 40] }))
-		const bars = wrapper.findAll('.profile-highlights__bar')
+	/**
+	 * The shape says how much; this says what kind. An account that has
+	 * stopped posting says so, rather than trailing off and leaving the reader
+	 * to notice.
+	 */
+	it('says what kind of week it has been', async () => {
+		const quiet = await mountHighlights(available({ weeks: [4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0] }))
+		expect(quiet.find('.profile-highlights__summary').text()).toContain('Quiet lately')
 
-		expect(bars[0].attributes('style')).toContain('12%')
-		expect(bars[0].classes()).not.toContain('profile-highlights__bar--empty')
-		expect(bars[1].classes()).toContain('profile-highlights__bar--empty')
+		const busy = await mountHighlights(available({ weeks: [0, 0, 0, 0, 1, 0, 0, 1, 6, 7, 8, 9] }))
+		expect(busy.find('.profile-highlights__summary').text()).toContain('Busier than usual')
+
+		const steady = await mountHighlights(available({ weeks: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3] }))
+		expect(steady.find('.profile-highlights__summary').text()).toContain('Posting steadily')
 	})
 
-	it('links each hashtag to its timeline, in the tag colour', async () => {
+	/**
+	 * The hashtags are drawn above the bio, with their counts, by
+	 * `FeaturedTags`. Drawing them again here without the counts was the page
+	 * saying the same thing twice and saying less the second time.
+	 */
+	it('leaves the hashtags to the list that has their counts', async () => {
 		const wrapper = await mountHighlights(available())
-		const tag = wrapper.find('.profile-highlights__tag')
 
-		expect(tag.text()).toBe('#nextcloud')
-		expect(tag.attributes('style')).toContain('--tag-colour')
+		expect(wrapper.find('.profile-highlights__tag').exists()).toBe(false)
 	})
 
 	/**
