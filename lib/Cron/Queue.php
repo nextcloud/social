@@ -126,6 +126,10 @@ class Queue extends TimedJob {
 	}
 
 	private function manageStreamQueue(int $deadline) {
+		// an item whose drain died mid-resolution stays `running`, and nothing
+		// but this ever looks at a running row again
+		$this->streamQueueService->reapStaleRunning();
+
 		$total = 0;
 		$items = $this->streamQueueService->getRequestStandby($total);
 
@@ -134,7 +138,17 @@ class Queue extends TimedJob {
 				break;
 			}
 
-			$this->streamQueueService->manageStreamQueue($item);
+			try {
+				$this->streamQueueService->manageStreamQueue($item);
+			} catch (Throwable $e) {
+				// as for the deliveries above: one item costs that item and no
+				// more. The row itself is ended by manageStreamQueue().
+				$this->logger->warning(
+					'[Cron\\Queue] could not resolve queued item ' . $item->getStreamId() . ': '
+					. get_class($e) . ' ' . $e->getMessage(),
+					['exception' => $e, 'streamId' => $item->getStreamId()]
+				);
+			}
 		}
 	}
 }

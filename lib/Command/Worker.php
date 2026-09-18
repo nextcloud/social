@@ -125,8 +125,9 @@ class Worker extends SocialCommand {
 
 			if (time() - $reapedAt >= self::REAP_EVERY) {
 				// a worker that died mid-delivery left its row `running`, where
-				// nothing retries it
+				// nothing retries it — for either queue
 				$this->requestQueueService->reapStaleRunning();
+				$this->streamQueueService->reapStaleRunning();
 				$this->requestQueueService->purgeFinished();
 				$reapedAt = time();
 			}

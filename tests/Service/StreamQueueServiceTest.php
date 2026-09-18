@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamQueueRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Object\NoteInterface;
@@ -32,6 +33,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Model\Cache;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 class StreamQueueServiceTest extends TestCase {
 	private const STREAM_ID = 'https://cloud.example.com/apps/social/@alice/1';
@@ -66,6 +68,7 @@ class StreamQueueServiceTest extends TestCase {
 			$this->curlService,
 			$this->miscService,
 			$this->linkPreviewService,
+			new NullLogger(),
 		);
 	}
 
@@ -134,6 +137,47 @@ class StreamQueueServiceTest extends TestCase {
 		$this->streamQueueRequest->expects($this->never())->method('delete');
 
 		$this->service->manageStreamQueue($this->queue());
+	}
+
+	/**
+	 * The row is marked `running` before the work starts and only the handlers
+	 * take it out of that state: an exception they do not name — an
+	 * ItemAlreadyExistsException from a parent that arrived meanwhile, a
+	 * database error, an unconfigured app — stranded it there for ever, since
+	 * nothing but the reaper ever looks at a running row again.
+	 */
+	public function testAnItemThatFailsUnexpectedlyGoesBackToStandbyInsteadOfStayingRunning(): void {
+		$queue = $this->queue();
+		$this->streamRequest->method('getStreamById')
+			->willThrowException(new ItemAlreadyExistsException('the parent arrived meanwhile'));
+		$this->streamQueueRequest->expects($this->once())
+			->method('setAsFailure')->with($this->identicalTo($queue));
+		$this->streamQueueRequest->expects($this->never())->method('setAsSuccess');
+
+		$this->service->manageStreamQueue($queue);
+	}
+
+	/** One bad item costs that item: it is ended, and nothing is rethrown. */
+	public function testAnItemThatFailsUnexpectedlyDoesNotStopTheCaller(): void {
+		$this->streamRequest->method('getStreamById')
+			->willThrowException(new \RuntimeException('the database is gone'));
+
+		$this->service->manageStreamQueue($this->queue());
+		$this->addToAssertionCount(1);
+	}
+
+	public function testReapStaleRunningReturnsStrandedRunningItemsToStandby(): void {
+		$cutoff = null;
+		$this->streamQueueRequest->expects($this->once())
+			->method('resetStaleRunning')
+			->willReturnCallback(function (int $before) use (&$cutoff): int {
+				$cutoff = $before;
+
+				return 3;
+			});
+
+		$this->assertSame(3, $this->service->reapStaleRunning());
+		$this->assertEqualsWithDelta(time() - StreamQueueService::STALE_RUNNING_SECONDS, $cutoff, 2);
 	}
 
 	public function testUnknownQueueTypesAreDropped(): void {

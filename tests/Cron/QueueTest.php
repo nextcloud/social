@@ -207,6 +207,39 @@ class QueueTest extends TestCase {
 		$this->assertSame($items, $processed);
 	}
 
+	/**
+	 * The loop had no per-item handling at all, so one item that threw ended
+	 * the whole pass — with its own row left `running`, where until now
+	 * nothing ever looked at it again.
+	 */
+	public function testAStreamItemThatThrowsCostsOnlyThatItem(): void {
+		$bad = new StreamQueue('tok', StreamQueue::TYPE_CACHE, 'bad');
+		$good = new StreamQueue('tok', StreamQueue::TYPE_CACHE, 'good');
+		$this->requestQueueService->method('getRequestStandby')->willReturn([]);
+		$this->streamQueueService->method('getRequestStandby')->willReturn([$bad, $good]);
+		$resolved = [];
+		$this->streamQueueService->method('manageStreamQueue')
+			->willReturnCallback(function (StreamQueue $item) use (&$resolved): void {
+				if ($item->getStreamId() === 'bad') {
+					throw new \RuntimeException('boom');
+				}
+				$resolved[] = $item->getStreamId();
+			});
+		$this->logger->expects($this->once())->method('warning');
+
+		$this->job->start($this->jobList);
+
+		$this->assertSame(['good'], $resolved);
+	}
+
+	public function testStrandedRunningStreamItemsAreReapedBeforeTheBatch(): void {
+		$this->requestQueueService->method('getRequestStandby')->willReturn([]);
+		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
+		$this->streamQueueService->expects($this->once())->method('reapStaleRunning');
+
+		$this->job->start($this->jobList);
+	}
+
 	public function testRunIsSkippedWhenTheLastRunIsTooRecent(): void {
 		$this->job->setLastRun(self::NOW - 60);
 		$this->requestQueueService->expects($this->never())->method('getRequestStandby');
