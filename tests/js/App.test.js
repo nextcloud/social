@@ -316,12 +316,45 @@ describe('App', () => {
 	 * not pushed down the height of the outgoing one for a frame, and no key,
 	 * so the same view handed new params is left alone rather than faded.
 	 */
-	it('animates the change from one page to another, out then in', () => {
+	/**
+	 * The two pages share one grid cell and overlap, so the incoming one does
+	 * not wait for the outgoing one: `out-in` added the whole leave to every
+	 * change, which on a page already waiting for its chunk is the wrong place
+	 * to spend a tenth of a second. Still no key on the router view, which is
+	 * what keeps the same view being handed new params from being a fade.
+	 */
+	it('animates the change from one page to another, the two overlapping', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
 
-		expect(source).toMatch(/<transition name="page" mode="out-in">/)
-		expect(source).toMatch(/\.page-enter-active/)
-		// and leaves it alone for a reader who asked their system for less
+		expect(source).toMatch(/<transition :name="transitionName">/)
+		expect(source).not.toMatch(/mode="out-in"/)
+		expect(source).toMatch(/\.social__pages \{[^}]*display: grid/)
+		expect(source).toMatch(/grid-area: 1 \/ 1/)
+	})
+
+	/** Down the sidebar one way, back up it the other. */
+	it('gives the change a direction', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+
+		expect(source).toMatch(/\.page-forward-enter-from/)
+		expect(source).toMatch(/\.page-back-enter-from/)
+	})
+
+	/**
+	 * Where the browser can animate the change itself it does, and the Vue
+	 * transition stands down rather than playing the same move twice.
+	 */
+	it('lets the browser animate the change where it can', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+
+		expect(source).toMatch(/::view-transition-old\(root\)/)
+		expect(source).toMatch(/::view-transition-new\(root\)/)
+		expect(source).toMatch(/canViewTransition\(\)/)
+	})
+
+	it('leaves all of it alone for a reader who asked their system for less', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+
 		expect(source).toMatch(/prefers-reduced-motion: reduce/)
 	})
 

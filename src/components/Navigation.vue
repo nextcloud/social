@@ -11,6 +11,21 @@
 				@update:modelValue="onSearchInput" />
 		</template>
 		<template #list>
+			<!-- The mark that says where you are, as one thing that moves
+			     rather than a highlight that blinks out of one row and into
+			     another. It animates the *click*, at the place the click
+			     happened, which is the one piece of feedback that is instant
+			     however long the page it opens takes to arrive.
+
+			     Measured rather than laid out: the rows are
+			     `@nextcloud/vue`'s and this is drawn over them, so it is
+			     positioned from the active row's own box and follows it. -->
+			<span
+				v-show="indicator.height > 0"
+				class="navigation__indicator"
+				:class="{ 'navigation__indicator--settled': indicator.settled }"
+				:style="{ transform: `translateY(${indicator.top}px)`, height: `${indicator.height}px` }"
+				aria-hidden="true" />
 			<!-- The one thing in the sidebar that is not a place to go: it is
 			     what the app is for, so it is a call to action rather than a
 			     row among rows. It was an NcAppNavigationItem with no `to`,
@@ -55,6 +70,7 @@
 			<NcAppNavigationItem
 				v-for="item in menu.timelines"
 				:key="item.key"
+				:class="{ navigation__chosen: chosen === item.key }"
 				:name="item.title"
 				:href="hrefFor(item.to)"
 				:active="isActive(item)"
@@ -279,6 +295,7 @@ import { useErrorsStore } from '../store/errors.js'
 import { useInstanceStore } from '../store/instance.js'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useSettingsStore } from '../store/settings.js'
+import { pageIdentity } from '../services/pageOrder.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { afterFirstTimeline } from '../services/boot.js'
@@ -361,6 +378,12 @@ export default {
 			 */
 			measuredCap: null,
 			localSearch: '',
+			/** where the travelling mark is, in the list's own coordinates */
+			indicator: { top: 0, height: 0, settled: false },
+			indicatorFrame: null,
+			/** the entry whose icon is popping, '' when none */
+			chosen: '',
+			chosenTimer: null,
 			showComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
 			composerPaths: [],
@@ -596,6 +619,17 @@ export default {
 
 	watch: {
 		/**
+		 * another page: the mark goes to the row that is lit now
+		 *
+		 * @param to
+		 * @param from
+		 */
+		$route(to, from) {
+			this.$nextTick(() => this.placeIndicator())
+			this.markChosen(to, from)
+		},
+
+		/**
 		 * The entry is not in the rail until there is something to put in it,
 		 * so there is nothing to observe or measure at mount: both wait for
 		 * the hashtags and lists to arrive.
@@ -633,6 +667,7 @@ export default {
 	},
 
 	mounted() {
+		this.$nextTick(() => this.placeIndicator())
 		// none of these is what the reader opened the page for, and fired
 		// together with the timeline they slowed it down by their number:
 		// they wait for it (services/boot.js says how)
@@ -690,6 +725,63 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Puts the travelling mark on the row that is lit.
+		 *
+		 * Read off the row rather than computed from an index: the rows are not
+		 * all the same height -- a counter makes one taller -- and Explore folds,
+		 * which moves everything below it.
+		 *
+		 * The first placement does not animate. A mark that slid in from the top
+		 * of the sidebar every time the app opened would be the first thing a
+		 * reader saw and would say nothing.
+		 */
+		/**
+		 * The icon of the row just chosen acknowledges the press.
+		 *
+		 * At the sidebar rather than at the page, and that is the point: the page
+		 * may be a chunk away, and something has to answer the click now. Only
+		 * when the page actually changed -- a press on the row you are already on
+		 * is not a choice.
+		 *
+		 * @param {object} to where the reader is going
+		 * @param {object} from where they were
+		 */
+		markChosen(to, from) {
+			if (pageIdentity(to) === pageIdentity(from)) {
+				return
+			}
+
+			// matched on where the entry goes rather than on what is lit: the
+			// route has not been applied yet when this runs, so asking which
+			// row is active answers with the one being left
+			const entry = this.menu.timelines.find((item) => pageIdentity(item.to) === pageIdentity(to))
+			window.clearTimeout(this.chosenTimer)
+			this.chosen = entry?.key ?? ''
+			this.chosenTimer = window.setTimeout(() => {
+				this.chosen = ''
+			}, 420)
+		},
+
+		placeIndicator() {
+			const list = this.$el?.querySelector?.('.app-navigation__list')
+			const active = list?.querySelector?.('.app-navigation-entry--active')
+			if (!list || !active) {
+				this.indicator = { ...this.indicator, height: 0 }
+
+				return
+			}
+
+			const box = active.getBoundingClientRect()
+			const frame = list.getBoundingClientRect()
+			const settled = this.indicator.height > 0
+
+			this.indicator = {
+				top: Math.round(box.top - frame.top + list.scrollTop),
+				height: Math.round(box.height),
+				settled,
+			}
+		},
 
 		/**
 		 * Whether this instance offers a section.
@@ -1068,6 +1160,68 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/**
+ * The mark that travels between the rows.
+ *
+ * Drawn over `@nextcloud/vue`'s rows rather than inside one, because they are
+ * not ours to change, and positioned from the active row's measured box --
+ * see `placeIndicator`. It is decoration: the rows carry their own active
+ * state for anybody not looking at the screen.
+ *
+ * `--settled` is what allows it to move. The first placement has it off, so
+ * the mark appears where it belongs instead of sliding down from the top of
+ * the sidebar the moment the app opens.
+ */
+.navigation__indicator {
+	position: absolute;
+	inset-inline: 4px;
+	inset-block-start: 0;
+	border-radius: var(--border-radius-large);
+	background: var(--color-primary-element-light);
+	pointer-events: none;
+	z-index: 0;
+}
+
+.navigation__indicator--settled {
+	transition: transform .26s cubic-bezier(.2, .8, .2, 1), height .26s cubic-bezier(.2, .8, .2, 1);
+}
+
+/* the rows have to sit over it, or it covers their words */
+:deep(.app-navigation-entry) {
+	position: relative;
+	z-index: 1;
+}
+
+/* the list is what the mark is positioned against */
+:deep(.app-navigation__list) {
+	position: relative;
+}
+
+/* one small pop on the icon of the row just chosen: the press is answered at
+   the sidebar, which is where it happened, rather than only by the page that
+   may still be loading */
+@keyframes navigation-chosen {
+	0% { transform: scale(1); }
+	45% { transform: scale(1.22); }
+	100% { transform: scale(1); }
+}
+
+.navigation__chosen :deep(.app-navigation-entry-icon),
+.navigation__chosen :deep(.material-design-icon) {
+	animation: navigation-chosen .42s cubic-bezier(.2, .8, .2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.navigation__indicator--settled {
+		transition: none;
+	}
+
+	.navigation__chosen :deep(.app-navigation-entry-icon),
+	.navigation__chosen :deep(.material-design-icon) {
+		animation: none;
+	}
+}
+
 /* The button the More menu hangs off is the reader's own account: their
    portrait where the cog was, and the name they publish under beside it.
    `NcAppNavigationSettings` renders that cog from a hard-coded path with no

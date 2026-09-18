@@ -653,6 +653,72 @@ describe('Navigation', () => {
 		})
 	})
 
+	/**
+	 * The mark that says where you are is one thing that moves, rather than a
+	 * highlight that blinks out of one row and into another. It animates the
+	 * press, at the place the press happened, which is the only feedback that
+	 * can be instant when the page it opens is a chunk away.
+	 */
+	describe('the travelling mark', () => {
+		it('sits on nothing until it has a row to sit on', () => {
+			const wrapper = mountNavigation()
+
+			// jsdom lays nothing out, so every box is zero and the mark stays off
+			expect(wrapper.vm.indicator.height).toBe(0)
+			expect(wrapper.find('.navigation__indicator').isVisible()).toBe(false)
+		})
+
+		it('takes its place from the row that is lit', () => {
+			const wrapper = mountNavigation()
+			const list = { getBoundingClientRect: () => ({ top: 100 }), scrollTop: 0 }
+			const active = { getBoundingClientRect: () => ({ top: 260, height: 44 }) }
+			list.querySelector = () => active
+			wrapper.vm.$el.querySelector = () => list
+
+			wrapper.vm.placeIndicator()
+
+			expect(wrapper.vm.indicator).toMatchObject({ top: 160, height: 44 })
+		})
+
+		/**
+		 * The first placement does not animate: a mark sliding down from the
+		 * top of the sidebar every time the app opened would be the first
+		 * thing a reader saw and would say nothing.
+		 */
+		it('does not travel the first time it is placed', () => {
+			const wrapper = mountNavigation()
+			const list = { getBoundingClientRect: () => ({ top: 0 }), scrollTop: 0 }
+			list.querySelector = () => ({ getBoundingClientRect: () => ({ top: 40, height: 44 }) })
+			wrapper.vm.$el.querySelector = () => list
+
+			wrapper.vm.placeIndicator()
+			expect(wrapper.vm.indicator.settled).toBe(false)
+
+			wrapper.vm.placeIndicator()
+			expect(wrapper.vm.indicator.settled).toBe(true)
+		})
+	})
+
+	describe('the icon of the row just chosen', () => {
+		it('pops when the page actually changed', () => {
+			const wrapper = mountNavigation()
+
+			wrapper.vm.markChosen({ name: 'timeline', params: { type: 'photos' } }, { name: 'timeline', params: {} })
+
+			expect(wrapper.vm.chosen).toBe('social-photos')
+		})
+
+		/** Pressing the row you are already on is not a choice. */
+		it('does not pop for a press on the row already open', () => {
+			const wrapper = mountNavigation()
+			wrapper.vm.chosen = ''
+
+			wrapper.vm.markChosen({ name: 'timeline', params: {} }, { name: 'timeline', params: {} })
+
+			expect(wrapper.vm.chosen).toBe('')
+		})
+	})
+
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {
 		expect(itemNames(mountNavigation())).toEqual([
 			'My Feed',

@@ -44,10 +44,11 @@
 			     the switch its empty state talks about. -->
 			<div class="settings__sections">
 				<section
-					v-for="section in sections"
+					v-for="(section, index) in sections"
 					:id="section.id"
 					:key="section.id"
 					class="settings__section"
+					:style="{ '--entry-index': index }"
 					:class="{ 'settings__section--danger': section.danger }">
 					<header class="settings__section-head">
 						<span class="settings__section-icon">
@@ -350,6 +351,27 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/**
+ * The sections arrive one after another rather than all at once.
+ *
+ * The same idea the timeline already uses for its posts (`--stagger-delay` in
+ * TimelineEntry): a page that appears whole reads as pasted, and one that
+ * assembles over a fifth of a second reads as made. The delay is capped, so a
+ * page of seventeen cards does not take a second and a half to finish
+ * arriving, and the whole thing is off for a reader who asked for less
+ * movement.
+ */
+@keyframes section-arrive {
+	from { opacity: 0; transform: translateY(10px); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.settings__section {
+		animation: section-arrive .26s ease-out both;
+		animation-delay: calc(min(var(--entry-index, 0), 7) * 35ms);
+	}
+}
+
 $gutter: calc(var(--default-grid-baseline) * 4);
 
 .settings {
