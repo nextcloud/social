@@ -217,6 +217,12 @@ class ACoreTest extends TestCase {
 			'url is kept' => [ACore::AS_URL, 'https://a.example/@x', 'https://a.example/@x'],
 			'date is kept' => [ACore::AS_DATE, '2024-05-01T12:00:00Z', '2024-05-01T12:00:00Z'],
 			'string decodes entities before stripping tags' => [ACore::AS_STRING, '&lt;b&gt;bold&lt;/b&gt; text', 'bold text'],
+			// a plain-text field is prose, and `strip_tags()` reads a bare `<`
+			// as the start of a tag and drops the rest of the line with it: a
+			// content warning of `I <3 cats` arrived as `I `
+			'a bare less-than is not markup' => [ACore::AS_STRING, 'I <3 cats', 'I <3 cats'],
+			'a comparison survives' => [ACore::AS_STRING, 'CW: 1<2 and 3', 'CW: 1<2 and 3'],
+			'real markup still goes' => [ACore::AS_STRING, '<b>cw</b> 1<2', 'cw 1<2'],
 			'content is sanitized not stripped' => [ACore::AS_CONTENT, '<p onclick="x">hi <b>there</b></p>', '<p>hi <b>there</b></p>'],
 			'username drops tags' => [ACore::AS_USERNAME, '<b>alice</b>', 'alice'],
 			'account drops tags' => [ACore::AS_ACCOUNT, 'alice@<i>a.example</i>', 'alice@a.example'],

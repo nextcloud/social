@@ -134,11 +134,19 @@ class StreamServiceTest extends TestCase {
 
 	private AccountService|MockObject $accountService;
 
-	private function note(string $id, string $attributedTo = self::ACTOR_ID, string $inReplyTo = ''): Note {
+	private function note(
+		string $id,
+		string $attributedTo = self::ACTOR_ID,
+		string $inReplyTo = '',
+		string $visibility = Stream::TYPE_PUBLIC,
+	): Note {
 		$note = new Note();
 		$note->setId($id);
 		$note->setAttributedTo($attributedTo);
 		$note->setInReplyTo($inReplyTo);
+		// every stored post carries one, and it decides whether an activity
+		// about the post may go to the author's followers
+		$note->setVisibility($visibility);
 
 		return $note;
 	}
@@ -671,6 +679,41 @@ class StreamServiceTest extends TestCase {
 		$this->assertHasInstancePath($paths, $carol->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM);
 		$this->assertHasInstancePath($paths, self::ACTOR_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW);
 		$this->assertCount(3, $paths);
+	}
+
+	/**
+	 * A direct message was delivered to the people it named. The followers path
+	 * expands to the shared inbox of every instance with a follower on it, so
+	 * adding it to the Delete tells servers that were never recipients that the
+	 * message existed.
+	 */
+	public function testDeletingADirectMessageIsNotAnnouncedToTheFollowers(): void {
+		$item = $this->note('https://social.example/@alice/1', self::ACTOR_ID, '', Stream::TYPE_DIRECT);
+		$item->setLocal(true);
+		$this->cacheActorService->method('getFromId')->willReturn($this->actor());
+		$this->activityService->expects($this->once())->method('deleteActivity')->willReturn('token');
+
+		$this->service->deleteLocalItem($item, Note::TYPE);
+
+		$this->assertSame([], $item->getInstancePaths());
+	}
+
+	/**
+	 * A row written before the visibility column existed carries none, and is
+	 * judged by what it addresses — which is where the column came from.
+	 */
+	public function testAPostWithoutAStoredVisibilityIsJudgedByItsAddressing(): void {
+		$item = $this->note('https://social.example/@alice/1', self::ACTOR_ID, '', '');
+		$item->setLocal(true);
+		$item->setTo(self::ACTOR_FOLLOWERS);
+		$this->cacheActorService->method('getFromId')->willReturn($this->actor());
+		$this->activityService->method('deleteActivity')->willReturn('token');
+
+		$this->service->deleteLocalItem($item, Note::TYPE);
+
+		$this->assertHasInstancePath(
+			$item->getInstancePaths(), self::ACTOR_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+		);
 	}
 
 	public function testDeleteLocalItemStillDeletesWhenAuthorCannotBeResolved(): void {

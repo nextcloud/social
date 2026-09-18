@@ -613,12 +613,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			case self::AS_DATE:
 				return $value;
 			case self::AS_STRING:
-				// Decode first: stripping tags and *then* decoding entities lets
-				// `&lt;script&gt;` come back to life as a real element
-				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
-				$value = strip_tags($value);
-
-				return $value;
+				return self::asPlainText($value);
 			case self::AS_CONTENT:
 				// Remote HTML is rendered into every local reader's timeline.
 				// strip_tags() cannot do this job: it keeps attributes on the
@@ -639,6 +634,32 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		} else {
 			return '';
 		}
+	}
+
+	/**
+	 * A plain-text field arriving from elsewhere.
+	 *
+	 * Entities are decoded first, because removing markup and *then* decoding
+	 * would let `&lt;script&gt;` come back to life as a real element.
+	 */
+	private static function asPlainText(string $value): string {
+		return self::withoutMarkup(html_entity_decode($value, ENT_QUOTES | ENT_HTML5));
+	}
+
+	/**
+	 * The same text with its tags taken out and nothing else lost.
+	 *
+	 * Only what really opens a tag goes. `strip_tags()` reads a bare `<` as
+	 * the start of one and drops the rest of the line with it, and these are
+	 * fields people write prose in: a content warning of `I <3 cats` was
+	 * stored as `I `, and `CW: 1<2 and 3` as `CW: 1`.
+	 *
+	 * This is a flattener and not a sanitiser: a plain-text field is escaped
+	 * by whatever renders it, and markup that is meant to stay markup goes
+	 * through AS_CONTENT, which sanitises it properly.
+	 */
+	public static function withoutMarkup(string $value): string {
+		return (string)preg_replace('/<\/?[a-zA-Z][^>]*>/', '', $value);
 	}
 
 	/**
