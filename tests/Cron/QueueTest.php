@@ -77,9 +77,11 @@ class QueueTest extends TestCase {
 		$this->activityService->expects($this->once())->method('manageInit');
 		$managed = [];
 		$this->activityService->expects($this->exactly(2))->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$managed): void {
+			->willReturnCallback(function (RequestQueue $request) use (&$managed): bool {
 				$this->assertSame(ActivityService::TIMEOUT_SERVICE, $request->getTimeout());
 				$managed[] = $request->getToken();
+
+				return true;
 			});
 
 		$this->job->start($this->jobList);
@@ -102,11 +104,13 @@ class QueueTest extends TestCase {
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
 		$this->activityService->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): void {
+			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
 				if ($request->getToken() === 'bad') {
 					throw new SignatureException('cannot sign: the private key is empty');
 				}
 				$sent[] = $request->getToken();
+
+				return true;
 			});
 
 		// and the row goes back to standby, so it is retried and eventually
@@ -138,11 +142,13 @@ class QueueTest extends TestCase {
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
 		$this->activityService->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): void {
+			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
 				if ($request->getToken() === 'bad') {
 					throw new \RuntimeException('boom');
 				}
 				$sent[] = $request->getToken();
+
+				return true;
 			});
 		$this->requestQueueService->method('endRequest')
 			->willThrowException(new \RuntimeException('the database is gone'));
@@ -161,11 +167,13 @@ class QueueTest extends TestCase {
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
 		$this->activityService->expects($this->exactly(2))->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): void {
+			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
 				if ($request->getToken() === 'bad') {
 					throw new SocialAppConfigException();
 				}
 				$sent[] = $request->getToken();
+
+				return true;
 			});
 
 		// the catch used to be empty: a misconfigured app dropped every

@@ -244,7 +244,7 @@ class ActivityService {
 		try {
 			$directRequest = $this->requestQueueService->getPriorityRequest($token);
 			$directRequest->setTimeout(self::TIMEOUT_LIVE);
-			$this->manageRequest($directRequest);
+			$this->manageRequest($directRequest, true);
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
 			return $token;
@@ -263,24 +263,32 @@ class ActivityService {
 	}
 
 	/**
-	 * Whether this host has failed recently enough to be worth skipping.
+	 * When this host is worth asking again, or 0 when it is worth asking now.
 	 *
 	 * Asked before a delivery is attempted rather than after it times out,
 	 * which is the whole saving: a row addressed to a dead instance costs a
-	 * cache read instead of thirty seconds.
+	 * cache read instead of thirty seconds. The answer is a timestamp rather
+	 * than a yes/no because the rows addressed to the host have to be held
+	 * back until then — see `manageRequest()`.
 	 */
-	private function isCircuitOpen(string $host): bool {
+	private function circuitOpenUntil(string $host): int {
 		if (in_array($host, $this->failInstances ?? [], true)) {
-			return true;
+			return time() + self::BREAKER_BASE;
 		}
 
 		try {
-			return $this->breaker->get('open:' . $host) !== null;
+			$until = $this->breaker->get('open:' . $host);
 		} catch (\Throwable $e) {
 			// no distributed cache configured, or it is unreachable: fall back
 			// to the per-pass list, which is what this was before
-			return false;
+			return 0;
 		}
+
+		if ($until === null) {
+			return 0;
+		}
+
+		return max((int)$until, time() + 1);
 	}
 
 	/**
@@ -296,7 +304,7 @@ class ActivityService {
 		try {
 			$strikes = (int)($this->breaker->get('strikes:' . $host) ?? 0) + 1;
 			$for = min(self::BREAKER_MAX, self::BREAKER_BASE * (int)(2 ** min(6, $strikes - 1)));
-			$this->breaker->set('open:' . $host, 1, $for);
+			$this->breaker->set('open:' . $host, time() + $for, $for);
 			$this->breaker->set('strikes:' . $host, $strikes, self::BREAKER_MAX);
 		} catch (\Throwable $e) {
 			// the per-pass list above is the fallback
@@ -327,15 +335,32 @@ class ActivityService {
 	}
 
 	/**
-	 * @param RequestQueue $queue
+	 * Delivers one queued request, unless its host is being left alone.
+	 *
+	 * @param bool $live whether this is the inline delivery inside the web
+	 *                   request, which runs on a three-second timeout
+	 *
+	 * @return bool whether the row was actually attempted. A caller that
+	 *              drains in a loop counts attempts, not rows: a batch of rows
+	 *              whose hosts all have an open breaker is skipped in
+	 *              milliseconds, and counting those as work is what made
+	 *              `social:worker` spin without ever sleeping.
 	 *
 	 * @throws SocialAppConfigException
 	 */
-	public function manageRequest(RequestQueue $queue) {
+	public function manageRequest(RequestQueue $queue, bool $live = false): bool {
 		$host = $queue->getInstance()
 			->getAddress();
-		if ($this->isCircuitOpen($host)) {
-			return;
+		$openUntil = $this->circuitOpenUntil($host);
+		if ($openUntil > 0) {
+			// held back until the breaker closes. A skipped row keeps `tries =
+			// 0` and its old `last`, which sorts it ahead of every row ever
+			// attempted and every newer row: a few hundred of them to dead
+			// instances filled the whole 200-row window on every pass and
+			// nothing else was ever fetched.
+			$this->requestQueueService->postponeRequest($queue, $openUntil);
+
+			return false;
 		}
 
 		try {
@@ -345,7 +370,7 @@ class ActivityService {
 				'exception' => $e,
 			]);
 
-			return;
+			return false;
 		}
 
 		$url = $queue->getInstance()->getUri();
@@ -373,9 +398,9 @@ class ActivityService {
 					. $url . ' - ' . $e->getMessage()
 				);
 				$this->requestQueueService->endRequest($queue, false);
-				$this->openCircuit($host);
+				$this->holdHost($host, $live);
 
-				return;
+				return true;
 			}
 
 			$this->logger->notice(
@@ -395,8 +420,27 @@ class ActivityService {
 				. ' - ' . get_class($e) . ': ' . $e->getMessage()
 			);
 			$this->requestQueueService->endRequest($queue, false);
-			$this->openCircuit($host);
+			$this->holdHost($host, $live);
 		}
+
+		return true;
+	}
+
+	/**
+	 * Leaves a host alone after a failed delivery — unless it was the live one.
+	 *
+	 * The inline delivery has three seconds; the cron, the async drain and
+	 * `social:worker` have ten to thirty. A large but healthy peer that needs
+	 * four seconds under load fails only the live attempt, and holding the host
+	 * on the strength of that put every other path off it too — for up to an
+	 * hour, of which only a success anywhere clears the strike.
+	 */
+	private function holdHost(string $host, bool $live): void {
+		if ($live) {
+			return;
+		}
+
+		$this->openCircuit($host);
 	}
 
 	/** // ====> instanceService

@@ -294,6 +294,28 @@ class RequestQueueService {
 	}
 
 	/**
+	 * Holds a standby request back until `$until`.
+	 *
+	 * For a row whose host has an open circuit breaker: it was not attempted,
+	 * so it keeps `tries = 0` and would come back at the head of the very next
+	 * batch — ahead of every row that has been attempted and every row queued
+	 * since — and be skipped again. A few hundred of them to instances that
+	 * are gone filled the whole window and nothing else was ever delivered.
+	 */
+	public function postponeRequest(RequestQueue $queue, int $until): void {
+		if ($until <= time()) {
+			return;
+		}
+
+		try {
+			$this->requestQueueRequest->postpone($queue, $until);
+		} catch (QueueStatusException $e) {
+			// somebody else claimed the row meanwhile; it is no longer ours to
+			// hold back
+		}
+	}
+
+	/**
 	 * Return requests stuck `running` past the reaper cutoff to standby, so a worker
 	 * that died mid-delivery does not strand them forever.
 	 */

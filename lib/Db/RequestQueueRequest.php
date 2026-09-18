@@ -298,6 +298,32 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	}
 
 	/**
+	 * Moves a standby request out of the due window until `$until`.
+	 *
+	 * `last` is what the retry schedule is measured from, so a timestamp in
+	 * the future both holds the row back (`limitToQueueDue()`) and sorts it
+	 * behind everything that is due (`getStandby()`), without spending one of
+	 * its tries on an attempt that was never made.
+	 *
+	 * @throws QueueStatusException when the row was not on standby any more
+	 * @throws Exception
+	 */
+	public function postpone(RequestQueue &$queue, int $until): void {
+		$qb = $this->getRequestQueueUpdateSql();
+		$qb->set('last', $qb->createNamedParameter(
+			new DateTime('@' . $until), IQueryBuilder::PARAM_DATE
+		));
+		$qb->limitToId($queue->getId());
+		$qb->limitToStatus(RequestQueue::STATUS_STANDBY);
+
+		if ($qb->executeStatement() === 0) {
+			throw new QueueStatusException();
+		}
+
+		$queue->setLast($until);
+	}
+
+	/**
 	 * Return every request stuck `running` since before $before to standby.
 	 *
 	 * @return int the number of requests re-queued

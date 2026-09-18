@@ -164,6 +164,12 @@ class Worker extends SocialCommand {
 	/**
 	 * One batch of deliveries.
 	 *
+	 * A row whose host has an open circuit breaker is not attempted, and must
+	 * not count: a batch of nothing but those is skipped in milliseconds, and
+	 * counting it as work made the loop `continue` without ever sleeping —
+	 * re-running the standby query thousands of times a second for as long as
+	 * the breaker was open, which is up to an hour.
+	 *
 	 * @return int how many rows were attempted
 	 */
 	private function deliverBatch(): int {
@@ -182,7 +188,9 @@ class Worker extends SocialCommand {
 
 			$request->setTimeout(ActivityService::TIMEOUT_SERVICE);
 			try {
-				$this->activityService->manageRequest($request);
+				if ($this->activityService->manageRequest($request)) {
+					$done++;
+				}
 			} catch (Throwable $e) {
 				// one row costs that row and no more; without this the rest of
 				// the batch went with it and the row stayed `running`
@@ -190,8 +198,8 @@ class Worker extends SocialCommand {
 					'exception' => $e, 'token' => $request->getToken(),
 				]);
 				$this->release($request);
+				$done++;
 			}
-			$done++;
 		}
 
 		return $done;

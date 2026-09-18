@@ -997,6 +997,48 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame([[self::BOB_INBOX, false], ['https://other.example/inbox', true]], $ended);
 	}
 
+	/**
+	 * A skipped row keeps `tries = 0` and its old `last`, so it sorts ahead of
+	 * every row ever attempted and every row queued since: a few hundred of
+	 * them to instances that are gone filled the whole 200-row window on every
+	 * pass, and nothing else was ever delivered. It is held back instead,
+	 * until the host is worth asking again.
+	 */
+	public function testARowSkippedForAFailingHostIsHeldBackAndReportsNoAttempt(): void {
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+
+		$this->service->manageInit();
+		$this->assertTrue($this->service->manageRequest($this->queue()));
+
+		$skipped = $this->queue();
+		$postponed = [];
+		$this->requestQueueService->expects($this->once())
+			->method('postponeRequest')
+			->willReturnCallback(function (RequestQueue $queue, int $until) use (&$postponed): void {
+				$postponed[] = [$queue->getInstance()->getUri(), $until];
+			});
+
+		$this->assertFalse($this->service->manageRequest($skipped));
+		$this->assertSame(self::BOB_INBOX, $postponed[0][0]);
+		$this->assertGreaterThan(time(), $postponed[0][1]);
+	}
+
+	/**
+	 * The inline delivery has three seconds where every other path has ten to
+	 * thirty, so a large but healthy peer fails it and would succeed
+	 * everywhere else. Holding the whole host on the strength of that put the
+	 * cron, the async drain and the worker off it too, for up to an hour.
+	 */
+	public function testALiveDeliveryThatTimesOutDoesNotHoldTheHostBack(): void {
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+		$this->requestQueueService->expects($this->never())->method('postponeRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($this->queue(), true);
+		// same host, from the cron: still attempted
+		$this->assertTrue($this->service->manageRequest($this->queue()));
+	}
+
 	public function testManageInitForgetsFailedInstances(): void {
 		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
 		$this->requestQueueService->expects($this->exactly(2))->method('initRequest');
