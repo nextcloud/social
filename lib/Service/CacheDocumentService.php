@@ -147,24 +147,23 @@ class CacheDocumentService {
 	}
 
 	/**
-	 * @brief Save the local upload to the cache
+	 * A file on somebody else's server, fetched and then stored exactly as an
+	 * upload is.
 	 *
-	 * @throws CacheContentMimeTypeException
-	 * @throws NotFoundException
-	 * @throws NotPermittedException
-	 */
-	public function saveLocalUploadToCache(Document $document, string $uploaded, string &$mime = '') {
-		$content = $uploaded;
-
-		$this->saveContentToCache($document, $content, $mime);
-	}
-
-	/**
-	 * @param Document $document
-	 * @param string $mime
+	 * The bytes go to a temporary file rather than into a string so that this
+	 * ends in `saveFromTempToCache()` like every other way a file enters this
+	 * app. That is the whole point of the detour: the fetch path used to run
+	 * the mime allow-list and nothing else, so the moderator's list of refused
+	 * files did not cover federated pictures although it says it does, a
+	 * remote HEIC was stored unconverted and then failed to decode for ever,
+	 * and the only ceiling on the download was the one meant for ActivityPub
+	 * documents.
+	 *
+	 * @param string $mime filled with what the content turned out to be
 	 *
 	 * @throws CacheContentDecodeException
 	 * @throws CacheContentMimeTypeException
+	 * @throws CacheContentSizeException
 	 * @throws MalformedArrayException
 	 * @throws NotFoundException
 	 * @throws NotPermittedException
@@ -175,49 +174,75 @@ class CacheDocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function saveRemoteFileToCache(Document $document, string &$mime = '') {
-		$content = $this->retrieveContent($document->getUrl());
+	public function saveRemoteFileToCache(Document $document, string &$mime = ''): void {
+		$tmpPath = $this->tempManager->getTemporaryFile('.media');
+		if ($tmpPath === false) {
+			throw new NotFoundException('could not open a temporary file');
+		}
 
-		$this->saveContentToCache($document, $content, $mime);
+		try {
+			$this->downloadToTemp($document, $tmpPath);
+			$this->saveFromTempToCache($document, $tmpPath);
+		} finally {
+			@unlink($tmpPath);
+		}
+
+		$mime = $document->getMimeType();
 	}
 
 	/**
-	 * @param Document $document
-	 * @param string $content
-	 * @param string $mime
+	 * The remote file, on disk, a chunk at a time.
 	 *
-	 * @throws CacheContentDecodeException
-	 * @throws CacheContentMimeTypeException
-	 * @throws NotFoundException
-	 * @throws NotPermittedException
+	 * Read as a stream with a ceiling rather than into a string: a video is
+	 * the one thing here that must never be held whole, and the ceiling has to
+	 * be the one that applies to what the document says it is -- an attachment
+	 * cut off at the size meant for an ActivityPub document is how every
+	 * federated video ended up marked `ERROR_SIZE`. What the bytes actually
+	 * turn out to be is checked again by `filterSize()`, against the sniffed
+	 * type, which is the only one that decides what happens to them.
+	 *
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
+	 * @throws MalformedArrayException
 	 */
-	public function saveContentToCache(Document $document, string $content, string &$mime = '') {
-		// To get the mime type, we create a temp file
-		$tmpFile = tmpfile();
-		$tmpPath = stream_get_meta_data($tmpFile)['uri'];
-		fwrite($tmpFile, $content);
-		$mime = mime_content_type($tmpPath);
-		fclose($tmpFile);
+	private function downloadToTemp(Document $document, string $tmpPath): void {
+		$this->assertFetchable($document->getUrl());
 
-		$this->filterMimeTypes($mime);
+		$max = $this->sizeLimit($document->getMediaType());
+		$opened = $this->openRemoteFile($document);
+		$stream = $opened['stream'];
 
-		$filename = $this->generateFileFromContent($content);
-		$document->setLocalCopy($filename);
-		// what the stored file weighs, recorded once here rather than measured
-		// on every serialisation: PeerTube drops a video link that carries no
-		// `size`, and the per-account quota asks the same question
-		$document->setSizeBytes(strlen($content));
+		$target = fopen($tmpPath, 'w');
+		if ($target === false) {
+			fclose($stream);
 
-		if (str_starts_with((string)$mime, 'image/')) {
-			$this->resizeImage($document, $content);
-			$resized = $this->generateFileFromContent($content);
-			$document->setResizedCopy($resized);
+			throw new RequestServerException('could not write the downloaded file');
+		}
+
+		try {
+			$copied = stream_copy_to_stream($stream, $target, $max + 1);
+		} finally {
+			fclose($stream);
+			fclose($target);
+		}
+
+		if ($copied === false) {
+			throw new RequestServerException('could not read ' . $document->getUrl());
+		}
+
+		if ($copied > $max) {
+			throw new RequestResultSizeException();
 		}
 	}
 
 	/**
 	 * @throws CacheContentDecodeException
 	 * @throws CacheContentMimeTypeException
+	 * @throws CacheContentSizeException
 	 * @throws NotFoundException
 	 * @throws NotPermittedException
 	 */
@@ -239,9 +264,15 @@ class CacheDocumentService {
 		$content = fread($file, filesize($tmpPath));
 		fclose($file);
 
-		// Before anything is written: the camera's metadata comes off, and a
-		// format no browser can draw becomes one it can. Both can change the
-		// mime, so the document is told afterwards rather than before.
+		// First, because everything below it decodes: a phone photo carrying an
+		// Exif orientation is turned by decoding all of it, and a hundred
+		// megapixels under the size ceiling is a fatal error rather than a
+		// refusal.
+		$this->assertWithinPixelLimit($content);
+
+		// Then the camera's metadata comes off, and a format no browser can
+		// draw becomes one it can. Both can change the mime, so the document is
+		// told afterwards rather than before.
 		[$content, $mime] = $this->imageConversionService->prepareForStorage($content, $mime);
 
 		$document->setMediaType($mime);
@@ -249,6 +280,10 @@ class CacheDocumentService {
 
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
+		// what the stored file weighs, recorded once here rather than measured
+		// on every serialisation: PeerTube drops a video link that carries no
+		// `size`, and the per-account quota asks the same question
+		$document->setSizeBytes(strlen($content));
 
 		$this->resizeImage($document, $content);
 		$resized = $this->generateFileFromContent($content);
@@ -334,19 +369,26 @@ class CacheDocumentService {
 	 * @throws CacheContentSizeException
 	 */
 	public function filterSize(string $mime, int $size): void {
-		$megabytes = str_starts_with($mime, 'video/')
+		$max = $this->sizeLimit($mime);
+		if ($size > $max) {
+			throw new CacheContentSizeException(
+				'content is larger than the ' . (int)($max / 1048576) . 'MB limit for ' . $mime
+			);
+		}
+	}
+
+	/** How many bytes of one kind of file this instance stores, at most. */
+	private function sizeLimit(string $mime): int {
+		$video = str_starts_with(strtolower($mime), 'video/');
+		$megabytes = $video
 			? $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_VIDEO_SIZE)
 			: $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE);
 
 		if ($megabytes <= 0) {
-			$megabytes = str_starts_with($mime, 'video/') ? 2048 : 10;
+			$megabytes = $video ? 2048 : 10;
 		}
 
-		if ($size > $megabytes * 1048576) {
-			throw new CacheContentSizeException(
-				'content is larger than the ' . $megabytes . 'MB limit for ' . $mime
-			);
-		}
+		return $megabytes * 1048576;
 	}
 
 	/**
@@ -629,8 +671,9 @@ class CacheDocumentService {
 	}
 
 	/**
-	 * Reads the dimensions out of the image header and refuses anything whose
-	 * decode would not fit in memory, before a single pixel is decoded.
+	 * Refuses content that is not the image it claims to be, and anything
+	 * whose decode would not fit in memory -- from the header, before a single
+	 * pixel is decoded.
 	 *
 	 * @throws CacheContentDecodeException
 	 */
@@ -640,12 +683,33 @@ class CacheDocumentService {
 			throw new CacheContentDecodeException('content is not a readable image');
 		}
 
-		$width = $size[0] ?? 0;
-		$height = $size[1] ?? 0;
-		if ($width < 1 || $height < 1) {
+		if (($size[0] ?? 0) < 1 || ($size[1] ?? 0) < 1) {
 			throw new CacheContentDecodeException('image has no usable dimensions');
 		}
 
+		$this->assertWithinPixelLimit($content);
+	}
+
+	/**
+	 * The pixel ceiling alone, for the point in the upload path that comes
+	 * before the conversion.
+	 *
+	 * Says nothing about a format whose header PHP cannot read: an HEIC
+	 * arrives here as what an iPhone wrote, which `getimagesizefromstring()`
+	 * does not know and which is a picture all the same. Whether such a file
+	 * is one at all is decided by `assertDecodable()`, after it has been
+	 * converted into something that can be drawn.
+	 *
+	 * @throws CacheContentDecodeException
+	 */
+	private function assertWithinPixelLimit(string $content): void {
+		$size = @getimagesizefromstring($content);
+		if ($size === false) {
+			return;
+		}
+
+		$width = $size[0] ?? 0;
+		$height = $size[1] ?? 0;
 		if ($width * $height > self::MAX_PIXELS) {
 			throw new CacheContentDecodeException(
 				'image is too large to decode: ' . $width . 'x' . $height
@@ -802,6 +866,21 @@ class CacheDocumentService {
 	}
 
 	public function retrieveContent(string $url): string {
+		$this->assertFetchable($url);
+
+		// the url is fetched as it is written: a signed CDN link carries its
+		// credentials in the query string, and re-encoding one turned every
+		// such attachment into a 403
+		return $this->curlService->doRequest('get', $url, ['json_headers' => false]);
+	}
+
+	/**
+	 * Whether an address is one this app may go and read.
+	 *
+	 * @throws MalformedArrayException
+	 * @throws RequestServerException
+	 */
+	private function assertFetchable(string $url): void {
 		$parsed = parse_url($url);
 		if (!is_array($parsed)) {
 			throw new RequestServerException('unreadable url');
@@ -815,10 +894,5 @@ class CacheDocumentService {
 		}
 
 		$this->mustContains(['path', 'host', 'scheme'], $parsed);
-
-		// the url is fetched as it is written: a signed CDN link carries its
-		// credentials in the query string, and re-encoding one turned every
-		// such attachment into a 403
-		return $this->curlService->doRequest('get', $url, ['json_headers' => false]);
 	}
 }

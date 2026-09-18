@@ -18,6 +18,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -97,13 +98,14 @@ class DocumentService {
 
 		try {
 			$this->cacheService->saveRemoteFileToCache($document, $mime);
-			// the mime type is sniffed from the bytes at this point and nowhere
-			// else; unpersisted, the copy is later served with no Content-Type
+			// The mime type is sniffed from the bytes at this point and nowhere
+			// else; unpersisted, the copy is later served with no Content-Type.
+			// It replaces the type the peer declared rather than filling in for
+			// it: `/media/{uuid}` serves these bytes from this instance's own
+			// origin, so what it says they are has to be what they are.
 			if ($mime !== '') {
 				$document->setMimeType($mime);
-				if ($document->getMediaType() === '') {
-					$document->setMediaType($mime);
-				}
+				$document->setMediaType($mime);
 			}
 			$this->cacheDocumentsRequest->endCaching($document);
 
@@ -138,7 +140,9 @@ class DocumentService {
 			);
 			$document->setError(self::ERROR_PERMISSION);
 			$this->cacheDocumentsRequest->endCaching($document);
-		} catch (RequestResultSizeException $e) {
+		} catch (RequestResultSizeException|CacheContentSizeException $e) {
+			// either the download was cut off at the ceiling, or what arrived
+			// turned out to be larger than this instance stores of that kind
 			$this->miscService->log(
 				'Downloaded file is too big ' . json_encode($document) . ' ' . json_encode($e), 1
 			);

@@ -15,6 +15,7 @@ use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -337,7 +338,10 @@ class DocumentServiceTest extends TestCase {
 	public static function cachingErrorProvider(): array {
 		return [
 			'wrong mime type' => [new CacheContentMimeTypeException(), DocumentService::ERROR_MIMETYPE],
-			'too big' => [new RequestResultSizeException(), DocumentService::ERROR_SIZE],
+			'download cut off' => [new RequestResultSizeException(), DocumentService::ERROR_SIZE],
+			'larger than this instance stores' => [
+				new CacheContentSizeException(), DocumentService::ERROR_SIZE,
+			],
 			'storage not found' => [new NotFoundException(), DocumentService::ERROR_PERMISSION],
 			'storage not permitted' => [new NotPermittedException(), DocumentService::ERROR_PERMISSION],
 		];
@@ -429,19 +433,27 @@ class DocumentServiceTest extends TestCase {
 		$this->assertSame('image/webp', $doc->getMediaType());
 	}
 
-	public function testAnAlreadyKnownMediaTypeIsNotOverwritten(): void {
+	/**
+	 * What a peer said its attachment was does not survive this instance
+	 * reading the bytes: `/media/{uuid}` serves them from this origin, so the
+	 * type it states has to be the sniffed one. A peer that declares
+	 * `text/html` over a file that sniffs as a GIF used to have that served
+	 * back, from here, as a page.
+	 */
+	public function testThePeersDeclaredMediaTypeIsReplacedByTheSniffedOne(): void {
 		$doc = $this->document();
-		$doc->setMediaType('image/png');
+		$doc->setMediaType('text/html');
 		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
 		$this->cacheService->method('saveRemoteFileToCache')
 			->willReturnCallback(function (Document $document, string &$mime): void {
 				$document->setLocalCopy('local-1');
-				$mime = 'image/jpeg';
+				$mime = 'image/gif';
 			});
 
 		$this->service->cacheRemoteDocument(self::DOC_ID);
 
-		$this->assertSame('image/png', $doc->getMediaType());
+		$this->assertSame('image/gif', $doc->getMediaType());
+		$this->assertSame('image/gif', $doc->getMimeType());
 	}
 
 	public function testOneUnusableRowDoesNotEndTheCachingRun(): void {
