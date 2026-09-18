@@ -105,6 +105,9 @@ class AdminSettingsTest extends TestCase {
 
 		$groupManager = $this->createMock(IGroupManager::class);
 		$groupManager->method('isAdmin')->willReturn($administrator);
+		// the picker is sent every group there is; a mock that was never told
+		// what to answer gives null, and the page then walks over it
+		$groupManager->method('search')->willReturn([]);
 
 		$this->postReviewService = $this->createMock(PostReviewService::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);

@@ -234,8 +234,13 @@ test.describe('Social, in a browser', () => {
 		test.skip(!group, 'set E2E_GROUP to the display name of a group this account is in')
 
 		await openApp(page)
-		// the lists live inside Explore now, beside the hashtags the account
-		// follows, so the entry has to be there and open before the list is
+		// The group is a list because an administrator chose it -- the
+		// workflow sets `group_lists` for exactly this test. Nothing becomes a
+		// list on its own any more, so a run against an instance where that
+		// setting is empty will find no list and should.
+		//
+		// The lists live inside Explore, beside the hashtags the account
+		// follows, so the entry has to be there and open before the list is.
 		const explore = page.locator('.navigation__explore').first()
 		await expect(explore).toBeVisible()
 
