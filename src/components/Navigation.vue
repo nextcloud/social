@@ -278,6 +278,7 @@ import { useAccountStore } from '../store/account.js'
 import { useErrorsStore } from '../store/errors.js'
 import { useInstanceStore } from '../store/instance.js'
 import { useNotificationsStore } from '../store/notifications.js'
+import { useSettingsStore } from '../store/settings.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { afterFirstTimeline } from '../services/boot.js'
@@ -371,7 +372,7 @@ export default {
 	},
 
 	computed: {
-		...mapStores(useAccountStore, useErrorsStore, useInstanceStore, useNotificationsStore, useTimelineStore),
+		...mapStores(useAccountStore, useErrorsStore, useInstanceStore, useNotificationsStore, useSettingsStore, useTimelineStore),
 
 		/**
 		 * Everything inside Explore, however much of it the rail can show.
@@ -470,7 +471,7 @@ export default {
 
 		menu() {
 			return {
-				timelines: [
+				timelines: this.offered([
 					{
 						key: 'social-home',
 						icon: IconHome,
@@ -489,6 +490,7 @@ export default {
 					},
 					{
 						key: 'social-photos',
+						offered: this.offers('photos'),
 						icon: IconImageMultiple,
 						title: t('social', 'Photos'),
 						to: { name: 'timeline', params: { type: 'photos' } },
@@ -500,6 +502,7 @@ export default {
 					// pictures
 					{
 						key: 'social-videos',
+						offered: this.offers('videos'),
 						icon: IconPlayBoxMultiple,
 						title: t('social', 'Videos'),
 						to: { name: 'timeline', params: { type: 'videos' } },
@@ -510,6 +513,7 @@ export default {
 					// everything below this line is something that happened
 					{
 						key: 'social-news',
+						offered: this.offers('news'),
 						icon: IconNewspaperVariantOutline,
 						title: t('social', 'News'),
 						to: { name: 'timeline', params: { type: 'news' } },
@@ -541,7 +545,7 @@ export default {
 						title: t('social', 'Discover'),
 						to: { name: 'discover' },
 					},
-				],
+				]),
 
 				// The sidebar's top level is for the timelines a reader moves
 				// between all day; these three are things they go looking for,
@@ -686,6 +690,43 @@ export default {
 	},
 
 	methods: {
+
+		/**
+		 * Whether this instance offers a section.
+		 *
+		 * Default on, and on for anything the server did not mention: an older
+		 * server, or a page rendered before this setting existed, sends nothing,
+		 * and a sidebar that lost three entries because of that would look like
+		 * the app had broken.
+		 *
+		 * @param {string} section photos, videos or news
+		 * @return {boolean} whether to draw its entry
+		 */
+		offers(section) {
+			return this.settingsStore.getServerData?.sections?.['section_' + section] !== false
+		},
+
+		/**
+		 * Drops the entries this instance does not offer.
+		 *
+		 * `offered` is taken off the entries that pass, because every entry is
+		 * spread into the template as it stands and a stray property would end up
+		 * on the component.
+		 *
+		 * @param {object[]} entries the menu as written
+		 * @return {object[]} the menu as drawn
+		 */
+		offered(entries) {
+			return entries
+				.filter((entry) => entry.offered !== false)
+				.map((entry) => {
+					const drawn = { ...entry }
+					delete drawn.offered
+
+					return drawn
+				})
+		},
+
 		/**
 		 * "Share to Social" in the Files app lands here with `?attach=<path>`
 		 * once per file. Open the New post dialog with them, and take the

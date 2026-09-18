@@ -67,6 +67,9 @@ jobs:
           ./occ group:add design
           ./occ group:adduser design admin
           ./occ group:adduser design bob
+          # a Nextcloud group becomes a Social list only where an administrator
+          # has chosen it; the smoke test walks that list, so it is chosen here
+          ./occ config:app:set social group_lists --value '["design"]'
           ./occ config:system:set trusted_domains 1 --value localhost:8080
           ./occ config:system:set overwrite.cli.url --value http://localhost:8080
           # the app's own idea of where it lives; the setup page writes these on

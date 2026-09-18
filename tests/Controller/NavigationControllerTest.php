@@ -56,6 +56,7 @@ class NavigationControllerTest extends TestCase {
 	/** @var CheckService&MockObject */
 	private $checkService;
 	private $sensitiveMediaService;
+	private $sectionsService;
 	private $streamService;
 	private $filterService;
 	/** @var IGroupManager&MockObject */
@@ -82,6 +83,14 @@ class NavigationControllerTest extends TestCase {
 		$this->sensitiveMediaService = $this->createMock(\OCA\Social\Service\SensitiveMediaService::class);
 		$this->sensitiveMediaService->method('policyFor')->willReturn('default');
 		$this->sensitiveMediaService->method('choiceOf')->willReturn('');
+		$this->sectionsService = $this->createMock(\OCA\Social\Service\SectionsService::class);
+		$this->sectionsService->method('current')->willReturn([
+			'stories' => true,
+			'section_photos' => true,
+			'section_videos' => true,
+			'section_news' => true,
+			'group_lists' => [],
+		]);
 		$this->groupManager = $this->createMock(IGroupManager::class);
 
 		$this->initialState->method('provideInitialState')
@@ -116,6 +125,7 @@ class NavigationControllerTest extends TestCase {
 			$this->configService,
 			$this->checkService,
 			$this->sensitiveMediaService,
+			$this->sectionsService,
 			$this->streamService,
 			$this->filterService,
 			$this->createMock(MiscService::class),
@@ -166,6 +176,15 @@ class NavigationControllerTest extends TestCase {
 			// in the page because the timeline needs both before it draws
 			'nsfwPolicy' => 'default',
 			'nsfwChoice' => '',
+			// which sections this instance offers, so the sidebar is drawn
+			// right the first time rather than losing entries a moment later
+			'sections' => [
+				'stories' => true,
+				'section_photos' => true,
+				'section_videos' => true,
+				'section_news' => true,
+				'group_lists' => [],
+			],
 			'cloudAddress' => 'https://cloud.example/index.php',
 		], $this->serverData());
 	}

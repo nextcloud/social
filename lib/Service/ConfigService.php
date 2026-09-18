@@ -136,6 +136,41 @@ class ConfigService {
 	public const SOCIAL_GIF_PACK = 'gif_pack';
 
 	/**
+	 * Whether this instance offers stories.
+	 *
+	 * On by default. A story is a picture or a video that is gone in a day,
+	 * and an instance that would rather not carry something it cannot show a
+	 * moderator afterwards turns the whole thing off here: the bar goes from
+	 * the timeline, and nothing new is taken.
+	 */
+	public const SOCIAL_STORIES = 'stories';
+
+	/**
+	 * Whether the Photos, Videos and News timelines are offered.
+	 *
+	 * All on by default. Each is the same stream of posts read through one
+	 * filter -- pictures, videos, what was posted as news -- and an instance
+	 * that does not want a section in the sidebar turns that one off. The
+	 * posts are not touched: a video posted while Videos was off is still a
+	 * video, and shows up again the moment it is turned back on.
+	 */
+	public const SOCIAL_SECTION_PHOTOS = 'section_photos';
+	public const SOCIAL_SECTION_VIDEOS = 'section_videos';
+	public const SOCIAL_SECTION_NEWS = 'section_news';
+
+	/**
+	 * Which Nextcloud groups become Social lists, as a JSON array of group ids.
+	 *
+	 * Empty by default, which is no groups at all. Every group a person is in
+	 * used to become a list of theirs, which on an instance whose groups are
+	 * departments is useful and on one whose groups are licence pools is a
+	 * sidebar full of noise -- and it tells everybody in a group who else is
+	 * in it, which is not the administrator's to give away by default. So:
+	 * nothing until somebody chooses.
+	 */
+	public const SOCIAL_GROUP_LISTS = 'group_lists';
+
+	/**
 	 * How many posts an account must have published here before its posts stop
 	 * being held.
 	 *
@@ -326,6 +361,11 @@ class ConfigService {
 		self::SOCIAL_REVIEW_FIRST_POST => '0',
 		self::SOCIAL_AUTOSPAM => '1',
 		self::SOCIAL_GIF_PACK => '1',
+		self::SOCIAL_STORIES => '1',
+		self::SOCIAL_SECTION_PHOTOS => '1',
+		self::SOCIAL_SECTION_VIDEOS => '1',
+		self::SOCIAL_SECTION_NEWS => '1',
+		self::SOCIAL_GROUP_LISTS => '[]',
 		self::SOCIAL_REVIEW_POSTS => '1',
 		self::SOCIAL_IMAGE_MAX_EDGE => '0',
 		self::SOCIAL_IMAGE_QUALITY => '85',

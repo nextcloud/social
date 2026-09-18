@@ -310,6 +310,21 @@ describe('App', () => {
 		expect(source).not.toMatch(/<router-view[^>]*:key=/)
 	})
 
+	/**
+	 * Moving between the pages the sidebar lists is animated, and the two
+	 * halves of that have to stay together: `out-in`, so the incoming page is
+	 * not pushed down the height of the outgoing one for a frame, and no key,
+	 * so the same view handed new params is left alone rather than faded.
+	 */
+	it('animates the change from one page to another, out then in', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+
+		expect(source).toMatch(/<transition name="page" mode="out-in">/)
+		expect(source).toMatch(/\.page-enter-active/)
+		// and leaves it alone for a reader who asked their system for less
+		expect(source).toMatch(/prefers-reduced-motion: reduce/)
+	})
+
 	describe('push notifications', () => {
 		const status = { id: 's1', content: '<p>live</p>', created_at: '2026-03-01T10:00:00Z' }
 		let addCallback

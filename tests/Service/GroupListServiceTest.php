@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Service\GroupListService;
+use OCA\Social\Service\SectionsService;
 use OCP\IGroup;
 use OCP\IGroupManager;
 use OCP\IUser;
@@ -27,6 +28,9 @@ class GroupListServiceTest extends TestCase {
 	private const CLOUD = 'https://cloud.example/apps/social/@';
 
 	private IGroupManager|MockObject $groupManager;
+	private SectionsService|MockObject $sectionsService;
+	/** Group ids the administrator has *not* chosen to become lists. */
+	private array $notChosen = [];
 	private IUserManager|MockObject $userManager;
 	private ListsRequest|MockObject $listsRequest;
 	private GroupListService $service;
@@ -116,8 +120,15 @@ class GroupListServiceTest extends TestCase {
 			$this->members[$list->getId()] = array_values(array_diff($this->members[$list->getId()] ?? [], [$actorId]));
 		});
 
+		// every group this test has is one an administrator chose, unless a
+		// test says otherwise: what the allow-list does is its own test below
+		$this->sectionsService = $this->createMock(SectionsService::class);
+		$this->sectionsService->method('groupHasList')
+			->willReturnCallback(fn (string $gid): bool => !in_array($gid, $this->notChosen, true));
+
 		$this->service = new GroupListService(
-			$this->groupManager, $this->userManager, $actorsRequest, $this->listsRequest, new NullLogger()
+			$this->groupManager, $this->userManager, $actorsRequest, $this->listsRequest,
+			$this->sectionsService, new NullLogger()
 		);
 	}
 
@@ -186,6 +197,41 @@ class GroupListServiceTest extends TestCase {
 
 		$this->assertSame(0, $this->service->ensureForViewer($this->viewer('alice')));
 		$this->assertSame([], $this->writes);
+	}
+
+	/**
+	 * Nothing until an administrator has chosen, which is what the empty
+	 * default means: a group becoming a list tells everybody in it who else is
+	 * in it.
+	 */
+	public function testAGroupTheAdministratorDidNotChooseGetsNoList(): void {
+		$this->groups = ['design' => ['alice', 'bob'], 'sales' => ['alice']];
+		$this->notChosen = ['sales'];
+
+		$this->assertSame(1, $this->service->ensureForViewer($this->viewer('alice')));
+
+		$made = [];
+		foreach ($this->writes as $write) {
+			if ($write[0] === 'create') {
+				$made[] = $write[3];
+			}
+		}
+		$this->assertSame(['design'], $made);
+	}
+
+	/**
+	 * Deselecting a group is the one case `ensureForViewer` cannot see -- it
+	 * only ever looks at the groups the viewer is in -- so the lists go on the
+	 * next reconcile.
+	 */
+	public function testDeselectingAGroupTakesItsListsAwayOnTheNextReconcile(): void {
+		$this->groups = ['design' => ['alice']];
+		$this->groupList(1, 'alice', 'design', 'Design');
+		$this->notChosen = ['design'];
+
+		$this->service->reconcile();
+
+		$this->assertSame([['delete', 1]], $this->writes);
 	}
 
 	public function testAViewerWithoutANextcloudUserGetsNothing(): void {

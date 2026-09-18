@@ -24,6 +24,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\SectionsService;
 use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TArrayTools;
@@ -72,6 +73,7 @@ class NavigationController extends Controller {
 		private ConfigService $configService,
 		private CheckService $checkService,
 		private SensitiveMediaService $sensitiveMediaService,
+		private SectionsService $sectionsService,
 		private StreamService $streamService,
 		private FilterService $filterService,
 		private MiscService $miscService,
@@ -135,6 +137,12 @@ class NavigationController extends Controller {
 			// the state it is rather than as whichever policy that currently
 			// resolves to
 			'nsfwChoice' => $this->sensitiveMediaService->choiceOf((string)$this->userId),
+			// which sections this instance offers. In the page rather than
+			// behind a request for the same reason the policy above is: the
+			// sidebar is drawn before anything is fetched, and entries that
+			// appeared and then vanished would read as a bug rather than as a
+			// setting.
+			'sections' => $this->sectionsService->current(),
 		];
 
 		$this->logger->debug('[NavigationController] Initial serverData', ['serverData' => $serverData]);

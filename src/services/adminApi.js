@@ -43,6 +43,15 @@ export function serverUrl() {
 }
 
 /**
+ * The Sections card's one endpoint.
+ *
+ * @return {string} the whole URL
+ */
+export function sectionsUrl() {
+	return generateUrl('/apps/social/admin/sections')
+}
+
+/**
  * The relays this instance subscribes to.
  *
  * @param {string} [path] appended below /apps/social/admin/relays

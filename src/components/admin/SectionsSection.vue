@@ -1,0 +1,181 @@
+<!--
+  - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<template>
+	<NcSettingsSection
+		:name="t('social', 'Sections')"
+		:description="t('social', 'What this instance offers the people using it. Turning a section off hides it and stops it being offered; it does not touch what is already there, and turning it back on shows it again.')">
+		<div class="sections">
+			<NcCheckboxRadioSwitch v-model="form.stories" type="switch">
+				{{ t('social', 'Stories') }}
+			</NcCheckboxRadioSwitch>
+			<p class="sections__hint">
+				{{ t('social', 'A picture or a video that is gone in a day. Off means the bar goes from the timeline and nothing new is taken.') }}
+			</p>
+
+			<NcCheckboxRadioSwitch v-model="form.photos" type="switch">
+				{{ t('social', 'Photos') }}
+			</NcCheckboxRadioSwitch>
+			<NcCheckboxRadioSwitch v-model="form.videos" type="switch">
+				{{ t('social', 'Videos') }}
+			</NcCheckboxRadioSwitch>
+			<NcCheckboxRadioSwitch v-model="form.news" type="switch">
+				{{ t('social', 'News') }}
+			</NcCheckboxRadioSwitch>
+			<p class="sections__hint">
+				{{ t('social', 'Three timelines in the sidebar, each the same posts read through one filter. A post is not changed by its section being off.') }}
+			</p>
+
+			<div class="sections__groups">
+				<label for="social-group-lists" class="sections__label">
+					{{ t('social', 'Nextcloud groups that become lists') }}
+				</label>
+				<NcSelect
+					v-model="form.groupLists"
+					inputId="social-group-lists"
+					:options="groupOptions"
+					:multiple="true"
+					:keepOpen="true"
+					label="name"
+					:placeholder="t('social', 'No groups')"
+					:noOptionsText="t('social', 'This server has no groups')" />
+				<p class="sections__hint">
+					{{ t('social', 'Everybody in one of these groups gets a list for it, holding the members who have a Social account. Nobody is followed by it and nothing leaves this server: a list is a view, not a relationship. Empty — the default — means no group becomes a list, because a group list tells everybody in the group who else is in it.') }}
+				</p>
+			</div>
+
+			<NcButton variant="primary" :disabled="saving" @click="save">
+				<template v-if="saving" #icon>
+					<NcLoadingIcon :size="20" />
+				</template>
+				{{ t('social', 'Save') }}
+			</NcButton>
+		</div>
+	</NcSettingsSection>
+</template>
+
+<script>
+import axios from '@nextcloud/axios'
+import { translate as t } from '@nextcloud/l10n'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
+import NcSettingsSection from '@nextcloud/vue/components/NcSettingsSection'
+import { errorMessage, sectionsUrl } from '../../services/adminApi.js'
+import { showError, showSuccess } from '../../services/toast.js'
+
+/**
+ * Which parts of the app this instance offers, and which Nextcloud groups
+ * become Social lists.
+ *
+ * One save for the card rather than one per switch: the endpoint writes all of
+ * it or none of it, and four switches that each saved on their own would let
+ * an administrator leave the page half applied without being told.
+ */
+export default {
+	name: 'SectionsSection',
+
+	components: {
+		NcButton,
+		NcCheckboxRadioSwitch,
+		NcLoadingIcon,
+		NcSelect,
+		NcSettingsSection,
+	},
+
+	props: {
+		/** what stands now, as `SectionsService::current()` answers it */
+		settings: {
+			type: Object,
+			default: () => ({}),
+		},
+
+		/** every group on this server, `{ id, name }` */
+		groups: {
+			type: Array,
+			default: () => [],
+		},
+	},
+
+	data() {
+		return {
+			form: {
+				stories: this.settings?.stories !== false,
+				photos: this.settings?.section_photos !== false,
+				videos: this.settings?.section_videos !== false,
+				news: this.settings?.section_news !== false,
+				// the picker works in whole options, so the stored ids are
+				// matched back to the groups they name; an id whose group has
+				// since been deleted stands for itself rather than vanishing
+				groupLists: (this.settings?.group_lists ?? []).map((id) => (
+					this.groups.find((group) => group.id === id) ?? { id, name: id }
+				)),
+			},
+
+			saving: false,
+		}
+	},
+
+	computed: {
+		/** @return {object[]} the groups, minus the ones already chosen */
+		groupOptions() {
+			const chosen = new Set(this.form.groupLists.map((group) => group.id))
+
+			return this.groups.filter((group) => !chosen.has(group.id))
+		},
+	},
+
+	methods: {
+		t,
+
+		/**
+		 * @return {Promise<void>}
+		 */
+		async save() {
+			this.saving = true
+			try {
+				await axios.post(sectionsUrl(), {
+					stories: this.form.stories,
+					photos: this.form.photos,
+					videos: this.form.videos,
+					news: this.form.news,
+					groupLists: this.form.groupLists.map((group) => group.id),
+				})
+				showSuccess(t('social', 'Saved'))
+			} catch (error) {
+				showError(errorMessage(error, t('social', 'Could not save what this instance offers')))
+			} finally {
+				this.saving = false
+			}
+		},
+	},
+}
+</script>
+
+<style lang="scss" scoped>
+.sections {
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--default-grid-baseline) * 2);
+	align-items: flex-start;
+
+	&__hint {
+		color: var(--color-text-maxcontrast);
+		max-width: 62ch;
+		margin-block: 0 calc(var(--default-grid-baseline) * 2);
+	}
+
+	&__groups {
+		inline-size: 100%;
+		max-inline-size: 480px;
+		margin-block-start: calc(var(--default-grid-baseline) * 2);
+	}
+
+	&__label {
+		display: block;
+		margin-block-end: calc(var(--default-grid-baseline) * 1);
+	}
+}
+</style>

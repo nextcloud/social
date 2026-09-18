@@ -18,6 +18,7 @@ use OCA\Social\Service\MediaUsageService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\SectionsService;
 use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\ServerSettingsService;
 use OCA\Social\Service\VideoQuotaService;
@@ -71,6 +72,7 @@ class AdminSettings implements IDelegatedSettings {
 		private FederationHealthService $federationHealthService,
 		private IL10N $l10n,
 		private ServerSettingsService $serverSettingsService,
+		private SectionsService $sectionsService,
 		private IUserSession $userSession,
 		private IGroupManager $groupManager,
 		private IInitialState $initialState,
@@ -106,6 +108,13 @@ class AdminSettings implements IDelegatedSettings {
 			'resolvedReports' => $this->reportService->countResolved(),
 			'reportsPerPage' => $open['perPage'],
 			'server' => $this->isAdministrator() ? $this->serverSettingsService->current() : null,
+			// what the app offers everybody, and the groups there are to
+			// choose from. Both only for an administrator proper, for the same
+			// reason the Server card is: it is a decision about the instance
+			// rather than about a report. The group names travel with the ids
+			// because a picker showing raw ids is a picker nobody can use.
+			'sections' => $this->isAdministrator() ? $this->sectionsService->current() : null,
+			'groups' => $this->isAdministrator() ? $this->availableGroups() : null,
 			'accessType' => $this->fediverseService->getAccessType(),
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
@@ -184,6 +193,25 @@ class AdminSettings implements IDelegatedSettings {
 		$user = $this->userSession->getUser();
 
 		return $user !== null && $this->groupManager->isAdmin($user->getUID());
+	}
+
+	/**
+	 * The groups an administrator may turn into Social lists.
+	 *
+	 * Every group on the instance, by id and display name. Not paged and not
+	 * searched: the picker is a multiselect that filters what it was given,
+	 * and an instance with more groups than that has an administrator who
+	 * will reach for `occ config:app:set social group_lists` instead.
+	 *
+	 * @return array<array{id: string, name: string}>
+	 */
+	private function availableGroups(): array {
+		$groups = [];
+		foreach ($this->groupManager->search('') as $group) {
+			$groups[] = ['id' => $group->getGID(), 'name' => $group->getDisplayName()];
+		}
+
+		return $groups;
 	}
 
 	#[\Override]
