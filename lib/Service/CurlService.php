@@ -57,6 +57,17 @@ class CurlService {
 	public const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
 	public const USER_AGENT = 'Nextcloud Social';
 
+	/** As many hops as the server's own HTTP client would have followed. */
+	private const MAX_REDIRECTS = 5;
+
+	private const REDIRECT_STATUSES = [
+		Http::STATUS_MOVED_PERMANENTLY,
+		Http::STATUS_FOUND,
+		Http::STATUS_SEE_OTHER,
+		Http::STATUS_TEMPORARY_REDIRECT,
+		308,
+	];
+
 	private int $maxDownloadSize;
 
 	public function __construct(
@@ -427,10 +438,10 @@ class CurlService {
 	 * a two-hour video cost a two-hour video's worth of nothing.
 	 *
 	 * Everything that guards an outbound request still guards this one -- the
-	 * domain has to be one this instance federates with, local addresses are
-	 * refused here and again on every redirect. What is deliberately *not*
-	 * applied is the download ceiling, which is a limit on what may be stored
-	 * and this stores nothing.
+	 * domain has to be one this instance federates with and local addresses are
+	 * refused, on the URL asked for and again on every redirect it names. What
+	 * is deliberately *not* applied is the download ceiling, which is a limit
+	 * on what may be stored and this stores nothing.
 	 *
 	 * @param array<string, string> $headers
 	 *
@@ -443,18 +454,31 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function openStream(string $url, array $headers = []): array {
-		$host = (string)parse_url($url, PHP_URL_HOST);
-		$this->fediverseService->authorized($host);
-
 		$clientOptions = $this->clientOptions('get', ['json_headers' => false, 'headers' => $headers]);
-		if (!($clientOptions['nextcloud']['allow_local_address'] ?? false) && RemoteAddress::isLocalHost($host)) {
-			throw new RequestServerException('host resolves to a local address: ' . $host);
+		$clientOptions['allow_redirects'] = false;
+		$client = $this->clientService->newClient();
+
+		$response = null;
+		for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
+			$this->assertReachable($url, $clientOptions);
+
+			try {
+				$response = $client->get($url, $clientOptions);
+			} catch (Exception $e) {
+				throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
+			}
+
+			$location = $this->redirectTarget($response, $url);
+			if ($location === '') {
+				break;
+			}
+
+			$url = $location;
+			$response = null;
 		}
 
-		try {
-			$response = $this->clientService->newClient()->get($url, $clientOptions);
-		} catch (Exception $e) {
-			throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
+		if ($response === null) {
+			throw new RequestServerException('too many redirects: ' . $url);
 		}
 
 		$status = $response->getStatusCode();
@@ -491,8 +515,7 @@ class CurlService {
 	 * The list is tried in order: a connection or TLS failure falls through to
 	 * the next one (an instance reachable over http only), while an answer with
 	 * an error status ends the attempt right there. The URLs are expected to
-	 * differ only in their scheme — the instance is asked for authorization
-	 * once, by host.
+	 * differ only in their scheme.
 	 *
 	 * @param string[] $urls
 	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
@@ -515,8 +538,6 @@ class CurlService {
 			return '';
 		}
 
-		$this->fediverseService->authorized((string)parse_url($urls[0], PHP_URL_HOST));
-
 		$clientOptions = $this->clientOptions($method, $options);
 		$client = $this->clientService->newClient();
 
@@ -538,13 +559,14 @@ class CurlService {
 	 *
 	 * The guarantees that matter for a url somebody else wrote:
 	 *
-	 * - local addresses are refused, and the server re-checks that on every
-	 *   redirect it follows (which is why `allow_redirects` is left to the
-	 *   server: overriding it would drop that check). Guzzle only ever follows
-	 *   a redirect to http(s), so a `file://` or `gopher://` location cannot
-	 *   be reached either way.
 	 * - the answer is read as a stream, so an endless body is cut off at
 	 *   `max_size` rather than filling memory.
+	 * - `allow_local_address` says whether a host resolving to this network may
+	 *   be reached at all. It is the instance's setting, except for the one
+	 *   request this app makes to itself (see `asyncWithToken()`).
+	 *
+	 * Redirects are followed by `send()` rather than by the client, so that the
+	 * federation checks run on every hop -- see `redirectTarget()`.
 	 *
 	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool} $options
 	 *
@@ -602,6 +624,8 @@ class CurlService {
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
 	private function send(
 		IClient $client,
@@ -611,28 +635,121 @@ class CurlService {
 		?string &$contentType,
 		?int &$statusCode,
 	): string {
+		$clientOptions['allow_redirects'] = false;
+		$requested = $url;
+
+		for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
+			$this->assertReachable($url, $clientOptions);
+
+			try {
+				$response = $client->request(strtolower($method), $url, $clientOptions);
+			} catch (Exception $e) {
+				throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
+			}
+
+			$statusCode = $response->getStatusCode();
+			$contentType = $response->getHeader('Content-Type');
+
+			$this->logger->debug('[>>] ' . $url . ' result [' . $statusCode . ']');
+
+			$body = $this->body($response);
+
+			$location = $this->redirectTarget($response, $url);
+			if ($location === '') {
+				if ($statusCode >= 300) {
+					throw new RequestContentException($url, $statusCode);
+				}
+
+				return $body;
+			}
+
+			// a 301/302/303 answers a POST by naming something to GET, which is
+			// also what the server's own client does when it follows one
+			if ($statusCode !== Http::STATUS_TEMPORARY_REDIRECT && $statusCode !== 308) {
+				$method = 'get';
+				unset($clientOptions['body']);
+			}
+
+			$url = $location;
+		}
+
+		throw new RequestServerException('too many redirects: ' . $requested);
+	}
+
+	/**
+	 * Where a response says to go next, or `''` when it does not.
+	 *
+	 * Redirects are followed here rather than left to the HTTP client because
+	 * the client knows nothing about which instances this one federates with:
+	 * a host on the allow list that answers `302` to a blocked one would
+	 * otherwise be a way around the block list, and the hop is checked exactly
+	 * as the first request was.
+	 *
+	 * @throws RequestServerException
+	 * @throws UnauthorizedFediverseException
+	 * @throws SocialAppConfigException
+	 */
+	private function redirectTarget(IResponse $response, string $from): string {
+		if (!in_array($response->getStatusCode(), self::REDIRECT_STATUSES, true)) {
+			return '';
+		}
+
+		$location = trim($response->getHeader('Location'));
+		if ($location === '') {
+			return '';
+		}
+
+		$target = $this->absoluteUrl($from, $location);
+		$scheme = strtolower((string)parse_url($target, PHP_URL_SCHEME));
+		if ($scheme !== 'http' && $scheme !== 'https') {
+			throw new RequestServerException('redirect to a non-http location: ' . $target);
+		}
+
+		return $target;
+	}
+
+	/**
+	 * Refuses a URL before it is requested: an instance this one does not
+	 * federate with, or a host that resolves to this network.
+	 *
+	 * @param array<string, mixed> $clientOptions
+	 *
+	 * @throws RequestServerException
+	 * @throws UnauthorizedFediverseException
+	 * @throws SocialAppConfigException
+	 */
+	private function assertReachable(string $url, array $clientOptions): void {
 		$host = (string)parse_url($url, PHP_URL_HOST);
+		$this->fediverseService->authorized($host);
+
 		if (!($clientOptions['nextcloud']['allow_local_address'] ?? false) && RemoteAddress::isLocalHost($host)) {
 			throw new RequestServerException('host resolves to a local address: ' . $host);
 		}
+	}
 
-		try {
-			$response = $client->request(strtolower($method), $url, $clientOptions);
-		} catch (Exception $e) {
-			throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
+	/**
+	 * A `Location` resolved against the URL it came from, which is allowed to
+	 * be absolute, protocol-relative, root-relative or relative.
+	 */
+	private function absoluteUrl(string $base, string $location): string {
+		if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $location) === 1) {
+			return $location;
 		}
 
-		$statusCode = $response->getStatusCode();
-		$contentType = $response->getHeader('Content-Type');
-
-		$this->logger->debug('[>>] ' . $url . ' result [' . $statusCode . ']');
-
-		$body = $this->body($response);
-		if ($statusCode >= 300) {
-			throw new RequestContentException($url, $statusCode);
+		$parsed = parse_url($base);
+		$scheme = $parsed['scheme'] ?? 'https';
+		if (str_starts_with($location, '//')) {
+			return $scheme . ':' . $location;
 		}
 
-		return $body;
+		$authority = ($parsed['host'] ?? '') . (isset($parsed['port']) ? ':' . $parsed['port'] : '');
+		if (str_starts_with($location, '/')) {
+			return $scheme . '://' . $authority . $location;
+		}
+
+		$path = $parsed['path'] ?? '/';
+
+		return $scheme . '://' . $authority . substr($path, 0, (int)strrpos($path, '/') + 1) . $location;
 	}
 
 	/**

@@ -575,9 +575,9 @@ class OutboundFederationWireTest extends TestCase {
 		$options = $this->onlyRequest()['options'];
 		$this->assertFalse($options['http_errors'], 'the status code belongs to the caller');
 		$this->assertTrue($options['stream'], 'an endless body must not fill memory');
-		$this->assertArrayNotHasKey(
-			'allow_redirects', $options,
-			'left to the server, which re-checks the local-address rule on every redirect it follows'
+		$this->assertFalse(
+			$options['allow_redirects'],
+			'followed by CurlService itself, so the block list applies to every hop'
 		);
 		$this->assertArrayNotHasKey('verify', $options, 'peer verification is on unless self-signed is allowed');
 		$this->assertFalse($options['nextcloud']['allow_local_address']);

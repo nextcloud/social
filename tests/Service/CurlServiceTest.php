@@ -541,6 +541,97 @@ class CurlServiceTest extends TestCase {
 		};
 	}
 
+	/**
+	 * Answers each URL with what $answers holds for it, and records the order
+	 * they were asked for in.
+	 *
+	 * @param array<string, IResponse> $answers
+	 *
+	 * @return callable(): list<string>
+	 */
+	private function answerPerUrl(array $answers): callable {
+		$asked = [];
+		$this->client->method('request')->willReturnCallback(
+			function (string $method, string $url) use ($answers, &$asked): IResponse {
+				$asked[] = $url;
+
+				return $answers[$url] ?? $this->answer('{}', 404);
+			}
+		);
+
+		return static function () use (&$asked): array {
+			return $asked;
+		};
+	}
+
+	private function redirect(string $location, int $code = 302): IResponse {
+		$response = $this->createMock(IResponse::class);
+		$response->method('getStatusCode')->willReturn($code);
+		$response->method('getHeader')->willReturnCallback(
+			static fn (string $key): string => (strtolower($key) === 'location') ? $location : ''
+		);
+		$response->method('getBody')->willReturn('');
+
+		return $response;
+	}
+
+	public function testARedirectIsFollowedAndItsAnswerReturned(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/@bob';
+		$to = 'https://' . self::PUBLIC_IP . '/users/bob';
+		$asked = $this->answerPerUrl([
+			$from => $this->redirect('/users/bob'),
+			$to => $this->answer('{"id":"bob"}'),
+		]);
+
+		$this->assertSame('{"id":"bob"}', $this->service()->doRequest('get', $from));
+		$this->assertSame([$from, $to], $asked());
+	}
+
+	/**
+	 * Redirects used to be followed by the HTTP client, which knows nothing
+	 * about which instances this one federates with — so a host on the allow
+	 * list could hand every request on to a blocked one.
+	 */
+	public function testARedirectToABlockedInstanceIsRefused(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/@bob';
+		$this->fediverseService->method('authorized')->willReturnCallback(
+			static function (string $host): bool {
+				if ($host === 'blocked.example') {
+					throw new UnauthorizedFediverseException($host);
+				}
+
+				return true;
+			}
+		);
+		$asked = $this->answerPerUrl([$from => $this->redirect('https://blocked.example/users/bob')]);
+
+		$this->expectException(UnauthorizedFediverseException::class);
+
+		try {
+			$this->service()->doRequest('get', $from);
+		} finally {
+			$this->assertSame([$from], $asked(), 'the blocked hop is never requested');
+		}
+	}
+
+	public function testARedirectToALocalAddressIsRefused(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/@bob';
+		$this->answerPerUrl([$from => $this->redirect('https://127.0.0.1/users/bob')]);
+
+		$this->expectException(RequestServerException::class);
+
+		$this->service()->doRequest('get', $from);
+	}
+
+	public function testARedirectLoopIsGivenUpOn(): void {
+		$url = 'https://' . self::PUBLIC_IP . '/@bob';
+		$this->answerPerUrl([$url => $this->redirect($url)]);
+
+		$this->expectException(RequestServerException::class);
+
+		$this->service()->doRequest('get', $url);
+	}
+
 	private function service(): CurlService {
 		return new CurlService(
 			$this->configService, $this->fediverseService, $this->clientService,
@@ -581,8 +672,8 @@ class CurlServiceTest extends TestCase {
 		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob');
 
 		$this->assertFalse($sent()['options']['nextcloud']['allow_local_address']);
-		// left to the server, which re-checks every redirect it follows
-		$this->assertArrayNotHasKey('allow_redirects', $sent()['options']);
+		// followed here instead, so the block list is applied to every hop
+		$this->assertFalse($sent()['options']['allow_redirects']);
 		$this->assertTrue($sent()['options']['stream'], 'an endless body must not fill memory');
 		$this->assertFalse($sent()['options']['http_errors'], 'the status code belongs to the caller');
 	}
