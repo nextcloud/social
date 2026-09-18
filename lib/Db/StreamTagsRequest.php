@@ -31,11 +31,13 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 	 * the post, with it. The database is asked to skip the row instead.
 	 */
 	public function generateStreamTags(Stream $stream): void {
-		if ($stream->getType() !== Note::TYPE) {
+		// a poll is a `Question`, which extends `Note` and carries hashtags
+		// like any other post; the type name alone left every poll out of
+		// every hashtag timeline
+		if (!$stream instanceof Note) {
 			return;
 		}
 
-		/** @var Note $stream */
 		$streamId = $this->getQueryBuilder()->prim($stream->getId());
 		foreach ($stream->getHashTags() as $hashtag) {
 			try {
@@ -56,6 +58,37 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 				throw $e;
 			}
 		}
+	}
+
+	/**
+	 * The tag rows of an edited post, rewritten to what it now says.
+	 *
+	 * An edit is not an insert: a hashtag taken out of the text has a row
+	 * that nothing else will ever remove, so the post stays in that tag's
+	 * timeline for good, and a hashtag written into the text has no row at
+	 * all. Both are one statement group with the update itself — see
+	 * `StreamRequest::update()` — so the rows and the `hashtags` column can
+	 * never disagree.
+	 */
+	public function replaceStreamTags(Stream $stream): void {
+		if (!$stream instanceof Note) {
+			return;
+		}
+
+		$this->deleteStreamTags($stream->getId());
+		$this->generateStreamTags($stream);
+	}
+
+	/** Removes every tag row of one post. */
+	public function deleteStreamTags(string $streamId): void {
+		$prim = $this->getQueryBuilder()->prim($streamId);
+		if ($prim === '') {
+			return;
+		}
+
+		$qb = $this->getStreamTagsDeleteSql();
+		$qb->where($qb->expr()->eq('stream_id', $qb->createNamedParameter($prim)));
+		$qb->executeStatement();
 	}
 
 	public function emptyStreamTags(): void {

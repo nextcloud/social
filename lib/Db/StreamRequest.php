@@ -137,9 +137,12 @@ class StreamRequest extends StreamRequestBuilder {
 
 		for ($attempt = 1; ; $attempt++) {
 			$qb = $this->saveStream($stream);
-			if ($stream->getType() === Note::TYPE) {
-				/** @var Note $stream */
-
+			// every status kind, not only the plain `Note`: a poll is a
+			// `Question`, which *is* a Note and carries hashtags, attachments
+			// and a media kind like any other post. Comparing the type name
+			// stored the poll with all four fields at their defaults, so a
+			// poll never reached a hashtag timeline
+			if ($stream instanceof Note) {
 				$attachments = [];
 				foreach ($stream->getAttachments() as $item) {
 					$attachments[] = $item->asLocal(); // get attachment ready for local
@@ -258,7 +261,7 @@ class StreamRequest extends StreamRequestBuilder {
 		// took an approval back has to change the column too, or the column and
 		// the object it was copied from disagree from the next read on.
 		$this->setPostFields($qb, $stream, false);
-		if ($stream->getType() === Note::TYPE && $stream instanceof Note) {
+		if ($stream instanceof Note) {
 			$encoded = (string)json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES);
 			$qb->set('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags(), JSON_UNESCAPED_SLASHES)));
 			$qb->set('attachments', $qb->createNamedParameter($encoded));
@@ -280,10 +283,26 @@ class StreamRequest extends StreamRequestBuilder {
 		} catch (Exception $e) {
 		}
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
-		$qb->executeStatement();
 
-		if ($generateDest) {
-			$this->streamDestRequest->generateStreamDest($stream);
+		// One transaction, for the reason save() gives: the row, its recipients
+		// and its tag rows are one fact. The tag rows are what put a post in a
+		// hashtag timeline, and an edit rewrites the `hashtags` column without
+		// them, so a tag added by an edit rendered as dead text and a tag taken
+		// out left the post in that timeline for good.
+		$this->dbConnection->beginTransaction();
+		try {
+			$qb->executeStatement();
+
+			if ($generateDest) {
+				$this->streamDestRequest->generateStreamDest($stream);
+			}
+			$this->streamTagsRequest->replaceStreamTags($stream);
+
+			$this->dbConnection->commit();
+		} catch (\Throwable $t) {
+			$this->dbConnection->rollBack();
+
+			throw $t;
 		}
 	}
 
