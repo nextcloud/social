@@ -273,10 +273,12 @@ describe('Search', () => {
 		/** @return {object} a promise with its resolve, to land responses out of order */
 		const deferred = () => {
 			let settle
-			const promise = new Promise((resolve) => {
+			let reject
+			const promise = new Promise((resolve, fail) => {
 				settle = resolve
+				reject = fail
 			})
-			return { promise, settle }
+			return { promise, settle, reject }
 		}
 
 		it('brings each section in through a transition group', async () => {
@@ -350,22 +352,18 @@ describe('Search', () => {
 		})
 
 		it('puts results that no longer answer the typed term on screen without motion', async () => {
-			// the responses are not ordered, and an earlier one can still land
-			// last: that is a known problem of this component, not fixed here,
-			// but the stale results must not be animated in as the answer
+			// the results answer the term before the one being typed, which is
+			// still in flight: they must not be animated in as the answer
 			vi.useFakeTimers()
 			try {
-				const first = deferred()
 				const second = deferred()
-				get.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+				get.mockResolvedValueOnce(response({ accounts: [bob] })).mockReturnValueOnce(second.promise)
 				const wrapper = mountSearch('bob')
+				await flushPromises()
+				expect(wrapper.find('transition-group-stub').attributes('css')).toBe('true')
 
 				await wrapper.setProps({ term: 'bobby' })
 				vi.advanceTimersByTime(300)
-				await flushPromises()
-
-				// the answer to 'bob' lands while 'bobby' is what is being asked
-				first.settle(response({ accounts: [bob] }))
 				await flushPromises()
 				expect(wrapper.findAllComponents(UserEntryStub)).toHaveLength(1)
 				expect(wrapper.find('transition-group-stub').attributes('css')).toBe('false')
@@ -373,6 +371,54 @@ describe('Search', () => {
 				second.settle(response({ accounts: [bob, carol] }))
 				await flushPromises()
 				expect(wrapper.find('transition-group-stub').attributes('css')).toBe('true')
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('drops a response for a term the reader has moved on from', async () => {
+			// typing "ali" starts a webfinger lookup on a remote server;
+			// "alice" is answered from the cache while it is still running, and
+			// the slow answer then replaced alice's results with ali's and left
+			// `renderedTerm` on a term the box no longer showed
+			vi.useFakeTimers()
+			try {
+				const slow = deferred()
+				get.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(response({ accounts: [carol] }))
+				const wrapper = mountSearch('ali')
+
+				await wrapper.setProps({ term: 'alice' })
+				vi.advanceTimersByTime(300)
+				await flushPromises()
+				expect(wrapper.findAllComponents(UserEntryStub).map((entry) => entry.props('item'))).toEqual([carol])
+
+				slow.settle(response({ accounts: [bob] }))
+				await flushPromises()
+
+				expect(wrapper.findAllComponents(UserEntryStub).map((entry) => entry.props('item'))).toEqual([carol])
+				expect(wrapper.find('transition-group-stub').attributes('css')).toBe('true')
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('does not report a failure the reader has already typed past', async () => {
+			vi.useFakeTimers()
+			try {
+				const slow = deferred()
+				get.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(response({ accounts: [carol] }))
+				const wrapper = mountSearch('ali')
+
+				await wrapper.setProps({ term: 'alice' })
+				vi.advanceTimersByTime(300)
+				await flushPromises()
+
+				slow.reject(new Error('the remote server never answered'))
+				await flushPromises()
+
+				expect(wrapper.find('.social__search-error').exists()).toBe(false)
+				// `loading` belongs to the newer request, which has settled
+				expect(wrapper.find('.social__search').attributes('aria-busy')).toBe('false')
 			} finally {
 				vi.useRealTimers()
 			}
