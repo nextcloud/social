@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { showError } from '../../../src/services/toast.js'
 import TimelineList from '../../../src/components/TimelineList.vue'
 import eventBus, { NOTIFICATIONS_READ } from '../../../src/services/eventBus.js'
-import { listen } from '@nextcloud/notify_push'
+import { offTimelinePush, onTimelinePush } from '../../../src/services/timelinePush.js'
 import EmptyContent from '../../../src/components/EmptyContent.vue'
 import TimelineSkeleton from '../../../src/components/TimelineSkeleton.vue'
 import { createPinia, setActivePinia } from 'pinia'
@@ -17,7 +17,10 @@ import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
-vi.mock('@nextcloud/notify_push', () => ({ listen: vi.fn(() => false) }))
+vi.mock('../../../src/services/timelinePush.js', () => ({
+	onTimelinePush: vi.fn(() => false),
+	offTimelinePush: vi.fn(),
+}))
 
 // @nextcloud/auth reads the user from <head>, which the harness does not set
 vi.mock('@nextcloud/auth', async (importOriginal) => ({
@@ -129,6 +132,9 @@ const emptyTitle = (wrapper) => wrapper.findComponent(EmptyContent).props('item'
 describe('TimelineList', () => {
 	beforeEach(() => {
 		FakeIntersectionObserver.instances = []
+		onTimelinePush.mockClear()
+		onTimelinePush.mockReturnValue(false)
+		offTimelinePush.mockClear()
 		vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver)
 		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
 		showError.mockClear()
@@ -977,15 +983,15 @@ describe('TimelineList', () => {
 
 	describe('polling for new statuses', () => {
 		it('registers a push listener and slows polling down when push is available', async () => {
-			listen.mockReturnValueOnce(true)
+			onTimelinePush.mockReturnValueOnce(true)
 			const { dispatch } = mountList({ timeline: [status('30')] })
 			await flushPromises()
 			dispatch.mockClear()
 
-			expect(listen).toHaveBeenCalledWith('social_timeline', expect.any(Function))
+			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function))
 
 			// a pushed event refreshes immediately
-			listen.mock.calls[listen.mock.calls.length - 1][1]()
+			onTimelinePush.mock.calls[onTimelinePush.mock.calls.length - 1][0]()
 			await flushPromises()
 			expect(dispatch).toHaveBeenCalledWith({ min_id: '30' })
 			dispatch.mockClear()
@@ -998,6 +1004,20 @@ describe('TimelineList', () => {
 			vi.advanceTimersByTime(270 * 1000)
 			await flushPromises()
 			expect(dispatch).toHaveBeenCalledWith({ min_id: '30' })
+		})
+
+		it('stops listening for pushed events once it is gone', async () => {
+			// `listen()` cannot be undone, so a list that subscribed to it
+			// directly stayed subscribed for the life of the page: every
+			// thread opened left another dead component behind, and one
+			// pushed event then ran that many identical timeline requests
+			const { wrapper, dispatch } = mountList({ timeline: [status('30')] })
+			await flushPromises()
+
+			const handler = onTimelinePush.mock.calls[0][0]
+			wrapper.unmount()
+
+			expect(offTimelinePush).toHaveBeenCalledWith(handler)
 		})
 
 		it('asks for statuses newer than the first one every 30 seconds', async () => {

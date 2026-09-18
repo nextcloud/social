@@ -41,3 +41,12 @@ export const REACTION_PICK = 'social:reaction-pick'
  * would stay up over activities the badge has stopped counting.
  */
 export const NOTIFICATIONS_READ = 'social:notifications-read'
+
+/**
+ * The server said a timeline has something new.
+ *
+ * notify_push is subscribed to once for the page — see `timelinePush.js`,
+ * and `listen()` cannot be undone — and every timeline list on screen hears
+ * about it here, so a list that is gone stops listening with its component.
+ */
+export const TIMELINE_PUSHED = 'social:timeline-pushed'

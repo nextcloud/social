@@ -81,7 +81,7 @@
 
 <script>
 import { showError } from '../services/toast.js'
-import { listen } from '@nextcloud/notify_push'
+import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 
 import { translate, translatePlural } from '@nextcloud/l10n'
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue'
@@ -653,7 +653,7 @@ export default {
 		this.loadFirstPage()
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
-		const hasPush = listen('social_timeline', () => this.fetchNewStatuses())
+		const hasPush = onTimelinePush(this.onPushed)
 		this.pollEvery = (hasPush ? 300 : 30) * 1000
 		this.intervalId = setInterval(() => this.pollIfVisible(), this.pollEvery)
 		// a tab nobody is looking at does not need to ask; it catches up when
@@ -663,6 +663,7 @@ export default {
 	},
 
 	unmounted() {
+		offTimelinePush(this.onPushed)
 		document.removeEventListener('visibilitychange', this.pollOnReturn)
 		document.removeEventListener('visibilitychange', this.armSeenTimer)
 		clearTimeout(this.seenTimer)
@@ -952,6 +953,11 @@ export default {
 				return
 			}
 
+			this.fetchNewStatuses()
+		},
+
+		/** What the server's push event runs. */
+		onPushed() {
 			this.fetchNewStatuses()
 		},
 
