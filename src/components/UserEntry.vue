@@ -17,9 +17,11 @@
 						{{ item.acct }}
 					</span>
 				</router-link>
+				<!-- `url`, not `id`: for an account `id` is the numeric row id,
+				     and a link to it 404s -->
 				<a
 					v-else
-					:href="item.id"
+					:href="item.url"
 					target="_blank"
 					rel="noreferrer">
 					<span class="post-author">
