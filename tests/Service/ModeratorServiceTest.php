@@ -74,7 +74,9 @@ class ModeratorServiceTest extends TestCase {
 		$authorized = [];
 		foreach ($groupIds as $groupId) {
 			$authorized[] = new class($groupId) {
-				public function __construct(private string $groupId) {
+				public function __construct(
+					private string $groupId,
+				) {
 				}
 
 				public function getGroupId(): string {
@@ -85,7 +87,9 @@ class ModeratorServiceTest extends TestCase {
 
 		$this->container->method('get')->willReturn(new class($authorized) {
 			/** @param object[] $authorized */
-			public function __construct(private array $authorized) {
+			public function __construct(
+				private array $authorized,
+			) {
 			}
 
 			/** @return object[] */
