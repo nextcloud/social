@@ -7,6 +7,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { generateUrl } from '@nextcloud/router'
 
 import eventBus from './services/eventBus.js'
+import { scroller } from './utils/scroller.js'
 
 const Timeline = () => import('./views/Timeline.vue')
 const TimelineSinglePost = () => import('./views/TimelineSinglePost.vue')
@@ -62,16 +63,6 @@ const offsets = new Map()
 
 /** How many views are remembered before the oldest is forgotten. */
 const REMEMBERED_VIEWS = 10
-
-/**
- * The element that scrolls. The window does not: Nextcloud gives an app a
- * fixed viewport and the content column scrolls inside it.
- *
- * @return {Element|null} the column, or null before the app has rendered
- */
-function scroller() {
-	return document.querySelector('#app-content-vue')
-}
 
 /**
  * Remembers where the reader is in the view they are leaving.

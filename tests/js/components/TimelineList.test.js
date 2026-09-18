@@ -204,13 +204,26 @@ describe('TimelineList', () => {
 	})
 
 	describe('posts arriving while reading', () => {
+		// what the app renders into: NcAppContent's column scrolls, the window
+		// does not, so `window.scrollY` is 0 wherever the reader is
+		let column = null
+
+		beforeEach(() => {
+			column = document.createElement('div')
+			column.id = 'app-content-vue'
+			column.scrollTo = vi.fn()
+			document.body.appendChild(column)
+		})
+
 		afterEach(() => {
+			column.remove()
+			column = null
 			window.scrollY = 0
 		})
 
-		/** @param {number} y how far down the page the reader is */
+		/** @param {number} y how far down the column the reader is */
 		const scrolledTo = (y) => {
-			Object.defineProperty(window, 'scrollY', { value: y, configurable: true, writable: true })
+			column.scrollTop = y
 		}
 
 		it('offers to jump to posts that arrived out of sight', async () => {
@@ -275,8 +288,38 @@ describe('TimelineList', () => {
 			wrapper.unmount()
 		})
 
-		it('scrolls back to the top and forgets the count when asked', async () => {
+		it('scrolls the column back to the top and forgets the count when asked', async () => {
 			scrolledTo(800)
+			const { wrapper } = mountList({ responses: [[], [status('9')]] })
+			await flushPromises()
+			await wrapper.vm.fetchNewStatuses()
+			await flushPromises()
+
+			await wrapper.find('.new-posts-pill').trigger('click')
+
+			expect(column.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+			expect(wrapper.find('.new-posts-pill').exists()).toBe(false)
+		})
+
+		it('does not read the window, which never scrolls in this app', async () => {
+			// the pill was dead code: `window.scrollY` is 0 however far down
+			// the column the reader is, so posts arriving from a poll or a
+			// push were prepended under somebody reading
+			Object.defineProperty(window, 'scrollY', { value: 0, configurable: true, writable: true })
+			scrolledTo(800)
+			const { wrapper } = mountList({ responses: [[], [status('9')]] })
+			await flushPromises()
+
+			await wrapper.vm.fetchNewStatuses()
+			await flushPromises()
+
+			expect(wrapper.find('.new-posts-pill').exists()).toBe(true)
+		})
+
+		it('falls back to the window where there is no content column', async () => {
+			// the dashboard widget and the public pages render outside it
+			column.remove()
+			Object.defineProperty(window, 'scrollY', { value: 800, configurable: true, writable: true })
 			const scrollTo = vi.fn()
 			window.scrollTo = scrollTo
 			const { wrapper } = mountList({ responses: [[], [status('9')]] })
@@ -287,7 +330,6 @@ describe('TimelineList', () => {
 			await wrapper.find('.new-posts-pill').trigger('click')
 
 			expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
-			expect(wrapper.find('.new-posts-pill').exists()).toBe(false)
 		})
 	})
 

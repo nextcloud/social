@@ -95,6 +95,7 @@ import logger from '../services/logger.js'
 import eventBus, { NOTIFICATIONS_READ } from '../services/eventBus.js'
 import { groupNotifications, newestIdOf } from '../services/notifications.js'
 import { isNewerId, newerId, newestId, oldestId } from '../utils/snowflake.js'
+import { scrollOffset, scroller } from '../utils/scroller.js'
 import { mapStores } from 'pinia'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -107,6 +108,13 @@ import { useServerData } from '../composables/useServerData.js'
  * that ignores it looped for as long as the tab was open.
  */
 const MAX_CATCHUP_PAGES = 10
+
+/**
+ * How far down the reader has to be for arriving posts to be announced with
+ * the pill rather than simply prepended. Above this the top of the list is on
+ * screen and a post appearing there is its own announcement.
+ */
+const ANNOUNCE_BELOW = 240
 
 /**
  * How long the notifications have to be on screen before they count as read.
@@ -1020,7 +1028,9 @@ export default {
 
 		showArrived() {
 			this.arrived = 0
-			window.scrollTo({
+			// the app's content column, not the window: see utils/scroller.js
+			const column = scroller() ?? window
+			column.scrollTo({
 				top: 0,
 				behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
 			})
@@ -1062,7 +1072,7 @@ export default {
 				if (response.length > 0) {
 					// only worth announcing when the top of the list is out of
 					// sight; up there the posts simply appear
-					if (window.scrollY > 240) {
+					if (scrollOffset() > ANNOUNCE_BELOW) {
 						this.arrived += response.length
 					}
 					if (depth + 1 < MAX_CATCHUP_PAGES) {
