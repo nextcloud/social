@@ -347,6 +347,49 @@ describe('ProfileInfo', () => {
 			expect(showSuccess).toHaveBeenCalledWith('Your note has been cleared')
 		})
 
+		it('offers no way out until the note is touched', () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ note: 'met at the conference' }) })
+			const wrapper = mountProfile('bob@remote.example')
+
+			expect(buttonByText(wrapper, 'Discard')).toBeUndefined()
+		})
+
+		it('puts the box back to the stored note when the edit is discarded', async () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ note: 'met at the conference' }) })
+			const wrapper = mountProfile('bob@remote.example')
+			vi.spyOn(axios, 'post')
+
+			await noteBox(wrapper).setValue('met at the pub')
+			await buttonByText(wrapper, 'Discard').trigger('click')
+			await nextTick()
+
+			expect(noteBox(wrapper).element.value).toBe('met at the conference')
+			expect(axios.post).not.toHaveBeenCalled()
+		})
+
+		it('empties a note the reader never had, when the edit is discarded', async () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship() })
+			const wrapper = mountProfile('bob@remote.example')
+
+			await noteBox(wrapper).setValue('a word typed by mistake')
+			await buttonByText(wrapper, 'Discard').trigger('click')
+			await nextTick()
+
+			expect(noteBox(wrapper).element.value).toBe('')
+			expect(buttonByText(wrapper, 'Save note').attributes('disabled')).toBeDefined()
+		})
+
+		it('discards the edit on escape, the way a dialog is dismissed', async () => {
+			accountStore.addRelationship({ actorId: bob.id, data: relationship({ note: 'met at the conference' }) })
+			const wrapper = mountProfile('bob@remote.example')
+
+			await noteBox(wrapper).setValue('met at the pub')
+			await noteBox(wrapper).trigger('keydown.esc')
+			await nextTick()
+
+			expect(noteBox(wrapper).element.value).toBe('met at the conference')
+		})
+
 		it('has nothing to save until the note changes', () => {
 			accountStore.addRelationship({ actorId: bob.id, data: relationship({ note: 'met at the conference' }) })
 			const wrapper = mountProfile('bob@remote.example')
