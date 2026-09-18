@@ -9,19 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
-use OCA\Social\Db\AccountNotesRequest;
-use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
-use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Db\CollectionsRequest;
-use OCA\Social\Db\DomainBlocksRequest;
-use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\ModerationRequest;
-use OCA\Social\Db\MuteExpiryRequest;
-use OCA\Social\Db\PostHoldsRequest;
-use OCA\Social\Db\RequestQueueRequest;
-use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -32,6 +21,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Model\Strike;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ActorCascadeService;
 use OCA\Social\Service\AuditService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\StreamService;
@@ -56,19 +46,9 @@ class ModerationServiceTest extends TestCase {
 	private StreamRequest|MockObject $streamRequest;
 	private ActorsRequest|MockObject $actorsRequest;
 	private AccountService|MockObject $accountService;
-	private CacheActorsRequest|MockObject $cacheActorsRequest;
-	private FollowsRequest|MockObject $followsRequest;
-	private ActorRelationRequest|MockObject $actorRelationRequest;
 	private StreamDestRequest|MockObject $streamDestRequest;
-	private RequestQueueRequest|MockObject $requestQueueRequest;
 	private StreamService|MockObject $streamService;
-	private DomainBlocksRequest|MockObject $domainBlocksRequest;
-	private AccountNotesRequest|MockObject $accountNotesRequest;
-	private MuteExpiryRequest|MockObject $muteExpiryRequest;
-	private CollectionsRequest|MockObject $collectionsRequest;
-	private StoriesRequest|MockObject $storiesRequest;
-	private ImportedPostsRequest|MockObject $importedPostsRequest;
-	private PostHoldsRequest|MockObject $postHoldsRequest;
+	private ActorCascadeService|MockObject $actorCascadeService;
 	private StrikeService|MockObject $strikeService;
 	private AuditService|MockObject $auditService;
 
@@ -77,26 +57,16 @@ class ModerationServiceTest extends TestCase {
 	private ModerationService $service;
 
 	protected function setUp(): void {
-		$this->domainBlocksRequest = $this->createMock(DomainBlocksRequest::class);
-		$this->accountNotesRequest = $this->createMock(AccountNotesRequest::class);
-		$this->muteExpiryRequest = $this->createMock(MuteExpiryRequest::class);
-		$this->collectionsRequest = $this->createMock(CollectionsRequest::class);
-		$this->storiesRequest = $this->createMock(StoriesRequest::class);
-		$this->importedPostsRequest = $this->createMock(ImportedPostsRequest::class);
 		$this->moderationRequest = $this->createMock(ModerationRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
-		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
-		$this->followsRequest = $this->createMock(FollowsRequest::class);
-		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->streamDestRequest = $this->createMock(StreamDestRequest::class);
-		$this->requestQueueRequest = $this->createMock(RequestQueueRequest::class);
 		$this->streamService = $this->createMock(StreamService::class);
+		$this->actorCascadeService = $this->createMock(ActorCascadeService::class);
 
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->strikeService = $this->createMock(StrikeService::class);
 		$this->auditService = $this->createMock(AuditService::class);
-		$this->postHoldsRequest = $this->createMock(PostHoldsRequest::class);
 		$this->strikeService->method('record')->willReturnCallback(
 			function (string $actorId, string $action, string $text = '', int $reportId = 0): Strike {
 				$this->strikes[] = compact('actorId', 'action', 'text', 'reportId');
@@ -108,23 +78,13 @@ class ModerationServiceTest extends TestCase {
 		$this->service = new ModerationService(
 			$this->moderationRequest,
 			$this->streamRequest,
-			$this->cacheActorsRequest,
-			$this->followsRequest,
-			$this->actorRelationRequest,
 			$this->streamDestRequest,
-			$this->requestQueueRequest,
 			$this->streamService,
 			$this->actorsRequest,
 			$this->accountService,
 			new NullLogger(),
-			$this->domainBlocksRequest,
-			$this->accountNotesRequest,
-			$this->muteExpiryRequest,
 			$this->strikeService,
-			$this->collectionsRequest,
-			$this->storiesRequest,
-			$this->importedPostsRequest,
-			$this->postHoldsRequest,
+			$this->actorCascadeService,
 			$this->auditService
 		);
 	}
@@ -138,8 +98,7 @@ class ModerationServiceTest extends TestCase {
 
 		// the account keeps its followers; only the public square is closed
 		$this->streamRequest->expects($this->never())->method('deleteByAuthor');
-		$this->cacheActorsRequest->expects($this->never())->method('deleteCacheById');
-		$this->followsRequest->expects($this->never())->method('deleteRelatedId');
+		$this->actorCascadeService->expects($this->never())->method('purge');
 		$this->streamDestRequest->expects($this->never())->method('deleteRelatedToActor');
 
 		$this->service->decide(self::SPAMMER, Moderation::SILENCE, 'endless crypto');
@@ -152,7 +111,7 @@ class ModerationServiceTest extends TestCase {
 	public function testSuspendingRemovesWhatTheAccountPostedHere(): void {
 		$this->moderationRequest->expects($this->once())->method('save');
 		$this->streamRequest->expects($this->once())->method('deleteByAuthor')->with(self::SPAMMER);
-		$this->cacheActorsRequest->expects($this->once())->method('deleteCacheById')->with(self::SPAMMER);
+		$this->actorCascadeService->expects($this->once())->method('purge')->with(self::SPAMMER, true);
 
 		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
 	}
@@ -212,23 +171,13 @@ class ModerationServiceTest extends TestCase {
 		$service = new ModerationService(
 			$this->moderationRequest,
 			$this->streamRequest,
-			$this->cacheActorsRequest,
-			$this->followsRequest,
-			$this->actorRelationRequest,
 			$this->streamDestRequest,
-			$this->requestQueueRequest,
 			$this->streamService,
 			$this->actorsRequest,
 			$this->accountService,
 			$logger,
-			$this->domainBlocksRequest,
-			$this->accountNotesRequest,
-			$this->muteExpiryRequest,
 			$this->strikeService,
-			$this->collectionsRequest,
-			$this->storiesRequest,
-			$this->importedPostsRequest,
-			$this->postHoldsRequest,
+			$this->actorCascadeService,
 			$this->auditService
 		);
 
@@ -243,22 +192,33 @@ class ModerationServiceTest extends TestCase {
 	public function testSuspendingCutsTheAccountOutOfDeliveryAndOfTimelines(): void {
 		// a suspension that left these behind kept delivering every local post
 		// to the account, and kept its posts addressed into local timelines
-		$this->followsRequest->expects($this->once())->method('deleteRelatedId')->with(self::SPAMMER);
-		$this->actorRelationRequest->expects($this->once())->method('deleteRelatedId')->with(self::SPAMMER);
+		$this->actorCascadeService->expects($this->once())->method('purge')->with(self::SPAMMER, true);
 		$this->streamDestRequest->expects($this->once())->method('deleteRelatedToActor')->with(self::SPAMMER);
-		$this->requestQueueRequest->expects($this->once())->method('deleteByAuthor')->with(self::SPAMMER);
 
 		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
 	}
 
-	public function testOneFailureWhileDetachingDoesNotStopTheRest(): void {
-		$this->followsRequest->method('deleteRelatedId')
+	/**
+	 * A suspension can be lifted, so it takes only what the account owns: the
+	 * blocks and mutes other people hold over it are theirs. The cascade is
+	 * asked for the reversible version — `ActorCascadeServiceTest` pins what
+	 * that spares.
+	 */
+	public function testSuspendingLeavesWhatOtherAccountsHoldAgainstIt(): void {
+		$this->actorCascadeService->expects($this->once())
+			->method('purge')
+			->with(self::SPAMMER, $this->isTrue());
+
+		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
+	}
+
+	public function testTheAccountIsDetachedEvenIfItsPostsCannotBeRemoved(): void {
+		$this->streamRequest->method('deleteByAuthor')
 			->willThrowException(new \RuntimeException('database busy'));
 
 		// the rest of the purge still runs, and the decision still stands
+		$this->actorCascadeService->expects($this->once())->method('purge')->with(self::SPAMMER, true);
 		$this->streamDestRequest->expects($this->once())->method('deleteRelatedToActor')->with(self::SPAMMER);
-		$this->requestQueueRequest->expects($this->once())->method('deleteByAuthor')->with(self::SPAMMER);
-		$this->cacheActorsRequest->expects($this->once())->method('deleteCacheById')->with(self::SPAMMER);
 
 		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
 	}
@@ -271,14 +231,6 @@ class ModerationServiceTest extends TestCase {
 		// the decision is recorded either way, so the account stays refused
 		// even if this instance could not finish tidying up after it
 		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
-	}
-
-	public function testALocalAccountWithNoCachedCopyIsNotAFailure(): void {
-		$this->cacheActorsRequest->method('deleteCacheById')
-			->willThrowException(new \RuntimeException('nothing there'));
-
-		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
-		$this->addToAssertionCount(1);
 	}
 
 	public function testAnUnknownDecisionIsRefused(): void {
@@ -341,13 +293,9 @@ class ModerationServiceTest extends TestCase {
 		});
 
 		$service = new ModerationService(
-			$this->moderationRequest, $this->streamRequest, $this->cacheActorsRequest,
-			$this->followsRequest, $this->actorRelationRequest, $this->streamDestRequest,
-			$this->requestQueueRequest, $this->createMock(StreamService::class),
-			$this->actorsRequest, $this->accountService, $logger,
-			$this->domainBlocksRequest, $this->accountNotesRequest, $this->muteExpiryRequest,
-			$this->strikeService, $this->collectionsRequest, $this->storiesRequest, $this->importedPostsRequest,
-			$this->postHoldsRequest, $this->auditService
+			$this->moderationRequest, $this->streamRequest, $this->streamDestRequest,
+			$this->createMock(StreamService::class), $this->actorsRequest, $this->accountService,
+			$logger, $this->strikeService, $this->actorCascadeService, $this->auditService
 		);
 
 		$service->decide(self::SPAMMER, Moderation::SILENCE);

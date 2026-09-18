@@ -9,19 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Db\AccountNotesRequest;
-use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
-use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Db\CollectionsRequest;
-use OCA\Social\Db\DomainBlocksRequest;
-use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\ModerationRequest;
-use OCA\Social\Db\MuteExpiryRequest;
-use OCA\Social\Db\PostHoldsRequest;
-use OCA\Social\Db\RequestQueueRequest;
-use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -51,23 +40,13 @@ class ModerationService {
 	public function __construct(
 		private ModerationRequest $moderationRequest,
 		private StreamRequest $streamRequest,
-		private CacheActorsRequest $cacheActorsRequest,
-		private FollowsRequest $followsRequest,
-		private ActorRelationRequest $actorRelationRequest,
 		private StreamDestRequest $streamDestRequest,
-		private RequestQueueRequest $requestQueueRequest,
 		private StreamService $streamService,
 		private ActorsRequest $actorsRequest,
 		private AccountService $accountService,
 		private LoggerInterface $logger,
-		private DomainBlocksRequest $domainBlocksRequest,
-		private AccountNotesRequest $accountNotesRequest,
-		private MuteExpiryRequest $muteExpiryRequest,
 		private StrikeService $strikeService,
-		private CollectionsRequest $collectionsRequest,
-		private StoriesRequest $storiesRequest,
-		private ImportedPostsRequest $importedPostsRequest,
-		private PostHoldsRequest $postHoldsRequest,
+		private ActorCascadeService $actorCascadeService,
 		private AuditService $auditService,
 	) {
 	}
@@ -323,13 +302,14 @@ class ModerationService {
 	 * went to it — and kept it in the timelines of the people who followed it,
 	 * addressed through the dest rows.
 	 *
+	 * What it does *not* take is what other accounts own: their block or mute
+	 * of it, their note about it, the report they filed. A suspension can be
+	 * lifted, and an account let back in must come back to the people who had
+	 * blocked it still blocked — see `ActorCascadeService`, which is the one
+	 * list of tables a deletion and a suspension both work from.
+	 *
 	 * Public because a domain purge detaches accounts one at a time and has to
-	 * detach exactly what a suspension detaches: two lists of tables that were
-	 * meant to be the same one would drift, and whichever was forgotten would
-	 * be a row of a blocked instance still reaching a timeline. Every step is
-	 * caught on its own and none is a delete that depends on an earlier one,
-	 * so calling it twice on the same account is a no-op rather than a
-	 * failure.
+	 * detach exactly what a suspension detaches.
 	 */
 	public function purgeActor(string $actorId): void {
 		try {
@@ -340,53 +320,15 @@ class ModerationService {
 			]);
 		}
 
-		foreach ([
-			// both directions of the follow relationship
-			'follows' => fn () => $this->followsRequest->deleteRelatedId($actorId),
-			// the per-user blocks and mutes against it, which have nothing
-			// left to hide
-			'relations' => fn () => $this->actorRelationRequest->deleteRelatedId($actorId),
-			// the instances it blocked, the notes it wrote and the notes others
-			// wrote about it, and the expiry of any mute in either direction
-			'domainBlocks' => fn () => $this->domainBlocksRequest->deleteRelatedId($actorId),
-			'notes' => fn () => $this->accountNotesRequest->deleteRelatedId($actorId),
-			'muteExpiry' => fn () => $this->muteExpiryRequest->deleteRelatedId($actorId),
-			// what put its posts in a local timeline, and what addressed local
-			// posts to it
-			'dest' => fn () => $this->streamDestRequest->deleteRelatedToActor($actorId),
-			// deliveries still queued towards it
-			'queue' => fn () => $this->requestQueueRequest->deleteByAuthor($actorId),
-			// the albums it curated, which are pages of its own posts and have
-			// nothing left to show once those are gone
-			'collections' => fn () => $this->collectionsRequest->deleteRelatedId($actorId),
-			// and its live stories, which were going to expire anyway but must
-			// not outlive the account that posted them
-			'stories' => fn () => $this->storiesRequest->deleteRelatedId($actorId),
-			// and the memory of what it brought over from another server,
-			// which names posts that have just gone with it
-			'imported' => fn () => $this->importedPostsRequest->deleteByActor($actorId),
-			// and anything of its own still waiting for a moderator: nobody is
-			// going to approve the unpublished posts of a suspended account,
-			// and leaving them would leave a queue of decisions that cannot be
-			// taken
-			'held' => fn () => $this->postHoldsRequest->deleteByActor($actorId),
-		] as $what => $delete) {
-			try {
-				$delete();
-			} catch (\Exception $e) {
-				$this->logger->error('could not detach a suspended account', [
-					'actor' => $actorId, 'what' => $what, 'exception' => $e,
-				]);
-			}
-		}
+		$this->actorCascadeService->purge($actorId, reversible: true);
 
 		try {
-			// a local account has no cached copy; deleting one that is not
-			// there is not a failure
-			$this->cacheActorsRequest->deleteCacheById($actorId);
+			// what put its posts in a local timeline, and what addressed local
+			// posts to it
+			$this->streamDestRequest->deleteRelatedToActor($actorId);
 		} catch (\Exception $e) {
-			$this->logger->notice('could not drop the cached actor of a suspended account', [
-				'actor' => $actorId, 'exception' => $e,
+			$this->logger->error('could not detach a suspended account', [
+				'actor' => $actorId, 'what' => 'dest', 'exception' => $e,
 			]);
 		}
 	}

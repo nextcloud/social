@@ -30,25 +30,12 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 
 	protected function createHandler(): PersonInterface {
 		return new PersonInterface(
-			$this->actionsRequest,
-			$this->reactionsRequest,
 			$this->cacheActorsRequest,
-			$this->cacheDocumentsRequest,
-			$this->followsRequest,
-			$this->actorRelationRequest,
-			$this->requestQueueRequest,
 			$this->streamRequest,
 			$this->streamDestRequest,
 			$this->actorService,
 			$this->configService,
-			$this->streamActionsRequest,
-			$this->reportsRequest,
-			$this->filtersRequest,
-			$this->listsRequest,
-			$this->conversationsRequest,
-			$this->featuredTagsRequest,
-			$this->announcementsRequest,
-			$this->scheduledStatusesRequest,
+			$this->actorCascadeService,
 			$this->jobList,
 		);
 	}
@@ -288,36 +275,21 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 	}
 
 	/**
-	 * Filters and lists belong to one account and to nobody else, so they have
-	 * nothing to outlive it. Nothing else removes them: without this they
-	 * survive the account and keep muting and grouping for a user who is gone.
+	 * The filters, the lists, the scheduled posts and everything else that
+	 * belongs to one account and to nobody else are removed from the one list
+	 * `ActorCascadeService` holds; what is on that list is pinned by
+	 * `ActorCascadeServiceTest`.
 	 */
-	public function testDeleteTakesTheAccountsFiltersAndListsWithIt(): void {
+	public function testDeleteTakesEverythingTheAccountOwnedWithIt(): void {
 		$bob = $this->bob();
 
-		$this->filtersRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
-		$this->listsRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
-
-		$this->handler->delete($bob);
-	}
-
-	/**
-	 * A scheduled post is the one thing an account leaves behind that would
-	 * otherwise go *out* after it is gone: the cron has no reason to look the
-	 * poster up until the moment it publishes.
-	 */
-	public function testDeleteTakesTheAccountsScheduledPostsWithIt(): void {
-		$bob = $this->bob();
-
-		$this->scheduledStatusesRequest->expects($this->once())
-			->method('deleteRelatedId')->with(self::BOB);
+		$this->actorCascadeService->expects($this->once())->method('purge')->with(self::BOB);
 
 		$this->handler->delete($bob);
 	}
 
 	public function testDeleteIgnoresItemsThatAreNotActors(): void {
-		$this->actionsRequest->expects($this->never())->method('deleteByActor');
-		$this->cacheActorsRequest->expects($this->never())->method('deleteCacheById');
+		$this->actorCascadeService->expects($this->never())->method('purge');
 		$this->streamRequest->expects($this->never())->method('deleteByAuthor');
 
 		$this->handler->delete($this->note(self::REMOTE_URL . '/notes/1', self::BOB));
