@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -258,6 +259,23 @@ class FollowServiceTest extends TestCase {
 		$this->service->followAccount($this->alice(), 'bob@remote.example');
 	}
 
+	/**
+	 * `addInstancePath()` drops a path with an empty URI, so `request()` had
+	 * nothing to send, answered "<request token not needed>" and logged that
+	 * the activity had been queued — while the follow row sat pending for ever
+	 * and nobody was ever told.
+	 */
+	public function testFollowAccountFailsWhenTheTargetPublishesNoInbox(): void {
+		$bob = $this->person(self::BOB_ID, 'bob');
+		$bob->setInbox('');
+		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
+		$this->followsRequest->expects($this->never())->method('save');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->expectException(InvalidResourceException::class);
+		$this->service->followAccount($this->alice(), 'bob@remote.example');
+	}
+
 	public function testFollowAccountFailsForUnknownAccount(): void {
 		$this->cacheActorService->method('getFromAccount')->willThrowException(new CacheActorDoesNotExistException());
 		$this->followsRequest->expects($this->never())->method('save');
@@ -312,6 +330,19 @@ class FollowServiceTest extends TestCase {
 		$this->assertSame(self::BOB_ID . '/inbox', $paths[0]->getUri());
 		$this->assertSame(InstancePath::TYPE_INBOX, $paths[0]->getType());
 		$this->assertSame(InstancePath::PRIORITY_TOP, $paths[0]->getPriority());
+	}
+
+	/** The row goes here either way; only the Undo has nowhere to go. */
+	public function testUnfollowAccountStillDeletesTheFollowWhenThereIsNoInbox(): void {
+		$bob = $this->person(self::BOB_ID, 'bob');
+		$bob->setInbox('');
+		$follow = $this->follow(self::ALICE_ID, self::BOB_ID, true);
+		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
+		$this->followsRequest->method('getByPersons')->willReturn($follow);
+		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($follow));
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
 	}
 
 	public function testUnfollowAccountIsANoopWhenNotFollowing(): void {

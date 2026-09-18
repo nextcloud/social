@@ -184,6 +184,16 @@ class FollowService {
 			throw new FollowSameAccountException("Don't follow yourself, be your own lead");
 		}
 
+		// Nothing can be delivered to an actor that publishes no inbox:
+		// `addInstancePath()` drops the empty URI, `request()` answers
+		// "<request token not needed>", and the follow row sat pending for
+		// ever with a log line claiming the activity had been queued.
+		if (!$remoteActor->isLocal() && $remoteActor->getInbox() === '') {
+			throw new InvalidResourceException(
+				$remoteActor->getId() . ' publishes no inbox, so a Follow cannot be delivered'
+			);
+		}
+
 		/** @var Follow $follow */
 		$follow = AP::instance()->getItemFromType(Follow::TYPE);
 		$follow->generateUniqueId();
@@ -296,6 +306,17 @@ class FollowService {
 			$undo->generateUniqueIdFromActor($actor->getId(), 'undo/follows');
 			$undo->setObject($follow);
 			$undo->setActorId($actor->getId());
+
+			if (!$remoteActor->isLocal() && $remoteActor->getInbox() === '') {
+				// the row is gone here either way; the other server keeps a
+				// follower it will hear nothing more from
+				$this->logger->error('cannot federate an Undo of a Follow: the actor publishes no inbox', [
+					'actor' => $actor->getId(),
+					'target' => $remoteActor->getId(),
+				]);
+
+				return;
+			}
 
 			$undo->addInstancePath(
 				new InstancePath(
