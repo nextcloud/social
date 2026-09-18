@@ -113,12 +113,7 @@ class ActivityService {
 		$activity->setObject($item);
 		$activity->setId($item->getId() . '/activity');
 		$activity->setInstancePaths($item->getInstancePaths());
-
-		//		if ($item->getToArray() !== []) {
-		//			$activity->setToArray($item->getToArray());
-		//		} else {
-		//			$activity->setTo($item->getTo());
-		//		}
+		$this->copyAudience($item, $activity);
 
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);
@@ -144,6 +139,7 @@ class ActivityService {
 		$update->setObject($item);
 		$update->setId($item->getId() . '/activity#update');
 		$update->setInstancePaths($item->getInstancePaths());
+		$this->copyAudience($item, $update);
 
 		$update->setActor($actor);
 		$this->signatureService->signObject($actor, $update);
@@ -167,6 +163,9 @@ class ActivityService {
 
 		$delete->setObject($tombstone);
 		$delete->addInstancePaths($item->getInstancePaths());
+		// from the post, not from the Tombstone that replaces it: a Tombstone
+		// names nobody
+		$this->copyAudience($item, $delete);
 
 		// A recipient may only pass an activity on (AP §7.1.2) if it carries the
 		// author's own signature over the document. Unsigned, a Delete of a
@@ -185,6 +184,20 @@ class ActivityService {
 		}
 
 		return $this->request($delete);
+	}
+
+	/**
+	 * Addresses an activity the way the object it carries is addressed.
+	 *
+	 * An activity has an audience of its own (AP §6), and a Create, Update or
+	 * Delete that names nobody is one every reader has to open the object to
+	 * place — including this server, whose relay fan-out asks the activity
+	 * whether it is public.
+	 */
+	private function copyAudience(ACore $item, ACore $activity): void {
+		$activity->setTo($item->getTo());
+		$activity->setToArray($item->getToArray());
+		$activity->setCcArray($item->getCcArray());
 	}
 
 	/**
@@ -435,7 +448,7 @@ class ActivityService {
 	 * @return InstancePath[]
 	 */
 	private function relayPaths(ACore $activity): array {
-		if (!$activity->isPublic() || !$this->isLocalAuthor($this->getAuthorFromItem($activity))) {
+		if (!$this->isPublicActivity($activity) || !$this->isLocalAuthor($this->getAuthorFromItem($activity))) {
 			return [];
 		}
 
@@ -445,6 +458,21 @@ class ActivityService {
 		}
 
 		return $paths;
+	}
+
+	/**
+	 * Whether an activity is addressed to the public collection.
+	 *
+	 * The object decides where the activity itself names nobody: an activity
+	 * built elsewhere — a forwarded document, an `Announce` of somebody else's
+	 * post — is not guaranteed to carry the audience of what it wraps.
+	 */
+	private function isPublicActivity(ACore $activity): bool {
+		if ($activity->isPublic()) {
+			return true;
+		}
+
+		return $activity->hasObject() && $activity->getObject()->isPublic();
 	}
 
 	/** Whether an actor id is one this server hosts. */

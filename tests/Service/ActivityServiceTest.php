@@ -448,6 +448,104 @@ class ActivityServiceTest extends TestCase {
 	}
 
 	/**
+	 * What a relay is subscribed for is the posts, and a post goes out wrapped
+	 * in a Create: the activity carries the audience of the note it wraps, so
+	 * the gate that reads it can tell a public post from a private one.
+	 */
+	public function testAPublicPostWrappedInACreateAlsoGoesToEveryAcceptedRelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+		$note->addCc(self::ALICE_ID . '/followers');
+
+		$activity = null;
+		$this->service->createActivity($this->alice(), $note, $activity);
+
+		$this->assertSame(ACore::CONTEXT_PUBLIC, $activity->getTo());
+		$this->assertSame([self::ALICE_ID . '/followers'], $activity->getCcArray());
+		$this->assertContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	public function testAFollowersOnlyPostWrappedInACreateNeverReachesARelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setTo(self::ALICE_ID . '/followers');
+
+		$this->service->createActivity($this->alice(), $note);
+
+		$this->assertNotContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	public function testAnUpdateOfAPublicPostAlsoGoesToEveryAcceptedRelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+
+		$this->service->updateActivity($this->alice(), $note);
+
+		$this->assertContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	/**
+	 * A relay that was told about the post has to be told it is gone; the
+	 * Tombstone that replaces the post names nobody, so the Delete is
+	 * addressed from the post itself.
+	 */
+	public function testADeleteOfAPublicPostAlsoGoesToEveryAcceptedRelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+		$this->actorsRequest->method('getFromId')->willReturn($this->alice());
+
+		$this->service->deleteActivity($note);
+
+		$this->assertContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	public function testADeleteOfADirectMessageNeverReachesARelay(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->relayRequest->method('acceptedInboxes')->willReturn(['https://relay.example/inbox']);
+		$paths = [];
+		$this->capturePaths($paths);
+		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
+		$note->setToArray(['https://remote.example/users/bob']);
+		$this->actorsRequest->method('getFromId')->willReturn($this->alice());
+
+		$this->service->deleteActivity($note);
+
+		$this->assertNotContains(
+			'https://relay.example/inbox',
+			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
+		);
+	}
+
+	/**
 	 * The fan-out asks the database for the distinct inboxes instead of
 	 * hydrating every follower into a Follow with a Person and its details just
 	 * to read one string off each: the number of inboxes involved is the number
