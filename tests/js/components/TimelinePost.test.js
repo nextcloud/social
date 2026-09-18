@@ -835,6 +835,17 @@ describe('TimelinePost', () => {
 			expect(actionButton(wrapper, 'Reply').exists()).toBe(true)
 		})
 
+		it('puts the overflow menu ahead of the counts, so they end at the card edge', () => {
+			const { wrapper } = mountPost()
+			const row = wrapper.find('.post-actions')
+
+			const children = Array.from(row.element.children)
+			const menu = row.find('.post-menu').element
+			const counts = row.find('.post-actions__groups').element
+
+			expect(children.indexOf(menu)).toBeLessThan(children.indexOf(counts))
+		})
+
 		it('is hidden on the notifications timeline', () => {
 			const { wrapper } = mountPost({ route: { name: 'timeline', params: { type: 'notifications' } } })
 			expect(wrapper.find('.post-actions').exists()).toBe(false)

@@ -266,70 +266,11 @@
 				class="post-actions-reveal"
 				:class="{ 'post-actions-reveal--held': menuOpen }">
 				<div class="post-actions">
-					<div class="post-actions__groups">
-						<div class="post-action-group">
-							<NcButton
-								:title="t('social', 'Reply')"
-								:aria-label="t('social', 'Reply')"
-								variant="tertiary"
-								@click="reply">
-								<template #icon>
-									<Reply :size="20" />
-								</template>
-							</NcButton>
-							<RollingCount :count="item.replies_count || 0" />
-						</div>
-						<div
-							class="post-action-group"
-							:class="{ 'post-action-group--refused': refused === 'boost' }">
-							<NcButton
-								v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
-								:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-								:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
-								:aria-pressed="isBoosted ? 'true' : 'false'"
-								variant="tertiary"
-								:class="{ 'post-action--spun': celebrate === 'boost' }"
-								@click="boost">
-								<template #icon>
-									<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
-								</template>
-							</NcButton>
-							<RollingCount :count="item.reblogs_count || 0" />
-						</div>
-						<div
-							class="post-action-group post-action-group--like"
-							:class="{ 'post-action-group--refused': refused === 'like' }">
-							<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
-							<!-- one button whose label changes, not two swapped by v-if:
-							     unmounting the button someone just pressed drops their focus
-							     to the body and loses their place in the timeline -->
-							<NcButton
-								:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-								:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
-								:aria-pressed="isLiked ? 'true' : 'false'"
-								variant="tertiary"
-								:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
-								@click="like">
-								<template #icon>
-									<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
-									<HeartOutline v-else :size="20" />
-								</template>
-							</NcButton>
-							<RollingCount :count="item.favourites_count || 0" />
-						</div>
-						<!-- only ever on the author's own copy: the server sends
-						     `view_count` as null on everybody else's, because how
-						     many people read a post is the author's business -->
-						<div
-							v-if="item.view_count !== null && item.view_count !== undefined"
-							class="post-action post-action--views"
-							:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
-							<IconEyeOutline :size="20" />
-							<RollingCount :count="item.view_count" />
-						</div>
-					</div>
-					<!-- the menu opens in a portal, so the pointer leaving the card
-				     while it is open would take the row it belongs to away -->
+					<!-- first in the row, not last: it reserves its width either way,
+					     and spending that width on the left leaves the counts flush
+					     with the card's right edge. The menu opens in a portal, so the
+					     pointer leaving the card while it is open would take the row it
+					     belongs to away -->
 					<NcActions @update:open="menuOpen = $event">
 						<NcActionButton v-if="canQuote" @click="quote">
 							<template #icon>
@@ -481,6 +422,68 @@
 							{{ t('social', 'Report') }}
 						</NcActionButton>
 					</NcActions>
+					<div class="post-actions__groups">
+						<div class="post-action-group">
+							<NcButton
+								:title="t('social', 'Reply')"
+								:aria-label="t('social', 'Reply')"
+								variant="tertiary"
+								@click="reply">
+								<template #icon>
+									<Reply :size="20" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.replies_count || 0" />
+						</div>
+						<div
+							class="post-action-group"
+							:class="{ 'post-action-group--refused': refused === 'boost' }">
+							<NcButton
+								v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+								:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+								:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+								:aria-pressed="isBoosted ? 'true' : 'false'"
+								variant="tertiary"
+								:class="{ 'post-action--spun': celebrate === 'boost' }"
+								@click="boost">
+								<template #icon>
+									<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.reblogs_count || 0" />
+						</div>
+						<div
+							class="post-action-group post-action-group--like"
+							:class="{ 'post-action-group--refused': refused === 'like' }">
+							<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
+							<!-- one button whose label changes, not two swapped by v-if:
+							     unmounting the button someone just pressed drops their focus
+							     to the body and loses their place in the timeline -->
+							<NcButton
+								:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+								:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+								:aria-pressed="isLiked ? 'true' : 'false'"
+								variant="tertiary"
+								:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
+								@click="like">
+								<template #icon>
+									<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
+									<HeartOutline v-else :size="20" />
+								</template>
+							</NcButton>
+							<RollingCount :count="item.favourites_count || 0" />
+						</div>
+						<!-- only ever on the author's own copy: the server sends
+						     `view_count` as null on everybody else's, because how
+						     many people read a post is the author's business -->
+						<div
+							v-if="item.view_count !== null && item.view_count !== undefined"
+							class="post-action post-action--views"
+							:title="n('social', '%n account here opened this post', '%n accounts here opened this post', item.view_count)">
+							<IconEyeOutline :size="20" />
+							<RollingCount :count="item.view_count" />
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -2009,25 +2012,20 @@ export default {
 	/*
 	 * The action row is the loudest thing in a card and the least often used:
 	 * somebody scrolling a timeline is reading, not boosting. So a card at rest
-	 * carries nothing at all, and what arrives when the pointer does is one
-	 * pill in the bottom-right corner: it fades in at the width of the overflow
-	 * menu and widens to the left to let the rest of the row out.
+	 * carries the counts and nothing else, and what arrives when the pointer
+	 * does is one pill in the bottom-right corner, drawn behind the row at the
+	 * size the row already has.
 	 *
-	 * Only the pill changes size. The card does not grow, nothing below it
-	 * moves, and — unlike the full-width panel this replaces — the pill is
-	 * short enough to live in the card's own bottom padding and the fourteen
-	 * pixels of gap below it, so it covers no part of the next card.
+	 * Nothing changes size. The card does not grow, nothing below it moves, and
+	 * the pill is short enough to live in the card's own bottom padding and the
+	 * fourteen pixels of gap below it, so it covers no part of the next card.
 	 *
-	 * A grid whose single column goes from `0fr` to `1fr` is what animates the
-	 * width, for the same reason the height of a thing like this cannot be
-	 * animated any other way: the row's width is not knowable in advance. A
-	 * reply count going from 9 to 10 is another pixel, the icons are a
-	 * translation away from being wider, and `width: auto` does not interpolate
-	 * anywhere this app can rely on yet.
-	 *
-	 * The menu is deliberately outside the rail: it is the part the pill is as
-	 * wide as when it arrives, and keeping it out of the animating column is
-	 * what stops it drifting sideways while the pill opens.
+	 * The overflow menu is the first thing in the row rather than the last. It
+	 * holds its width whether or not it is drawn, so whichever end it sits at
+	 * is an end the counts cannot reach; putting it first spends that width on
+	 * the left, which leaves the counts flush with the right edge the header's
+	 * timestamp already keeps. The pill then opens to the left of them, into
+	 * space that was always reserved.
 	 *
 	 * Nothing here is discoverable without a pointer, which is a real cost and
 	 * a deliberate one — a mark on every card in a timeline is a hundred marks
@@ -2442,8 +2440,10 @@ export default {
 		border-top: 1px solid var(--color-border);
 	}
 
-	/* the menu goes back to the far end of a full-width row */
+	/* a full-width row is not a pill: there is no reserved space to spend on
+	   the left, so the menu goes back to the far end of it */
 	.post-content .post-actions :deep(.actions) {
+		order: 1;
 		margin-inline-start: auto;
 	}
 }
