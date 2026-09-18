@@ -456,6 +456,55 @@ class DocumentServiceTest extends TestCase {
 		$this->assertSame('image/gif', $doc->getMimeType());
 	}
 
+	/**
+	 * A row written with no type never gained one: the caching run only looks
+	 * at rows with *no* local copy, so a document that was stored and whose
+	 * type was never recorded kept an empty one for good -- clients leave
+	 * `type` unset, which is how one decides to show nothing at all.
+	 */
+	public function testAStoredDocumentWithNoTypeIsGivenTheOneItsBytesSayItIs(): void {
+		$document = $this->document('local-1');
+		$document->setMediaType('');
+		$document->setMimeType('');
+		$this->cacheDocumentsRequest->method('getWithoutMediaType')->with(200)->willReturn([$document]);
+		$this->cacheService->method('sniffStored')->with('local-1')->willReturn('image/webp');
+		$this->cacheDocumentsRequest->expects($this->once())->method('updateMediaType')
+			->with($this->identicalTo($document));
+
+		$this->assertSame(1, $this->service->fillMissingMediaTypes(200));
+		$this->assertSame('image/webp', $document->getMediaType());
+		$this->assertSame('image/webp', $document->getMimeType());
+	}
+
+	public function testARowWhoseFileSaysNothingIsLeftForTheNextPass(): void {
+		$document = $this->document('local-1');
+		$document->setMediaType('');
+		$this->cacheDocumentsRequest->method('getWithoutMediaType')->willReturn([$document]);
+		$this->cacheService->method('sniffStored')->willReturn('');
+		$this->cacheDocumentsRequest->expects($this->never())->method('updateMediaType');
+
+		$this->assertSame(0, $this->service->fillMissingMediaTypes());
+	}
+
+	public function testOneUnreadableFileDoesNotStopTheBackfill(): void {
+		$bad = $this->document('local-1');
+		$bad->setId('https://remote.example/media/bad');
+		$good = $this->document('local-2');
+		$good->setId('https://remote.example/media/good');
+		$this->cacheDocumentsRequest->method('getWithoutMediaType')->willReturn([$bad, $good]);
+		$this->cacheService->method('sniffStored')->willReturnCallback(
+			static function (string $uuid): string {
+				if ($uuid === 'local-1') {
+					throw new \RuntimeException('appdata is gone');
+				}
+
+				return 'image/png';
+			}
+		);
+
+		$this->assertSame(1, $this->service->fillMissingMediaTypes());
+	}
+
 	public function testOneUnusableRowDoesNotEndTheCachingRun(): void {
 		// the poison pill: an Error escaping one row used to abandon caching for
 		// every row queued behind it, silently, on every run

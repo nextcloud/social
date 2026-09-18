@@ -719,6 +719,46 @@ class DocumentService {
 	}
 
 	/**
+	 * Fills in the type of documents that were stored without one.
+	 *
+	 * A row written with an empty `media_type` never gained one: the caching
+	 * run only looks at rows with *no* local copy, so a document that was
+	 * fetched, stored, and whose type was never written stayed that way for
+	 * good -- `convertToMediaAttachment()` leaves `type` unset, which is how a
+	 * client decides to show nothing at all, and the copy went out with no
+	 * Content-Type. The answer is read back from the stored bytes, which is
+	 * the only place it still exists.
+	 *
+	 * Bounded per run like every other sweep here, and it converges: a row
+	 * that is filled in is not a candidate again.
+	 *
+	 * @return int how many rows were filled in
+	 */
+	public function fillMissingMediaTypes(int $limit = 500): int {
+		$filled = 0;
+		foreach ($this->cacheDocumentsRequest->getWithoutMediaType($limit) as $document) {
+			try {
+				$mime = $this->cacheService->sniffStored($document->getLocalCopy());
+				if ($mime === '') {
+					continue;
+				}
+
+				$document->setMediaType($mime);
+				$document->setMimeType($mime);
+				$this->cacheDocumentsRequest->updateMediaType($document);
+				$filled++;
+			} catch (Throwable $e) {
+				// one unreadable file is not a reason to stop reading the rest
+				$this->miscService->log(
+					'Could not read the type of ' . $document->getId() . ' - ' . $e->getMessage(), 1
+				);
+			}
+		}
+
+		return $filled;
+	}
+
+	/**
 	 * @param Person $actor
 	 *
 	 * @return string
