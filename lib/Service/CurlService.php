@@ -96,6 +96,9 @@ class CurlService {
 			throw new InvalidResourceException();
 		}
 		[$username, $host] = $exploded;
+		// hostMeta() rewrites $host to whatever the host-meta names, so the
+		// host that was asked is kept here
+		$queried = $host;
 
 		$protocols = ['https', 'http'];
 		try {
@@ -109,13 +112,35 @@ class CurlService {
 
 		$this->logger->notice('webfingerAccount, request result', ['urls' => $urls]);
 
-		// a JRD is entitled to have no subject, or one that is not an acct: URI
+		// A JRD is entitled to have no subject, or one that is not an acct: URI.
+		// The subject names the canonical spelling of the handle — the casing
+		// the account uses, an alias resolved to the account it belongs to —
+		// and it may only ever name a handle on the host that was asked.
+		// Without that, `bob@evil.example` answers `acct:Gargron@mastodon.social`
+		// and is stored as the account behind that handle.
 		$subject = $this->get('subject', $result, '');
 		if (str_starts_with($subject, 'acct:')) {
-			$account = substr($subject, strlen('acct:'));
+			$claimed = substr($subject, strlen('acct:'));
+			if ($this->handleHost($claimed) === strtolower($queried)) {
+				$account = $claimed;
+			} else {
+				$this->logger->notice('a webfinger answer claims a handle on another host', [
+					'queried' => $account, 'subject' => $subject,
+				]);
+			}
 		}
 
 		return $result;
+	}
+
+	/** The host half of a `name@host` handle, lowercased, or `''`. */
+	private function handleHost(string $account): string {
+		$at = strrpos($account, '@');
+		if ($at === false || $at === 0 || $at === strlen($account) - 1) {
+			return '';
+		}
+
+		return strtolower(substr($account, $at + 1));
 	}
 
 	/**

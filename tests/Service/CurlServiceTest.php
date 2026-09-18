@@ -225,6 +225,23 @@ class CurlServiceTest extends TestCase {
 		$this->assertFalse($this->requests[1]['options']['json_headers']);
 	}
 
+	/**
+	 * The subject names the canonical spelling of the handle, and only ever a
+	 * handle on the host that was asked: without that, `bob@evil.example`
+	 * answers `acct:Gargron@mastodon.social` and the actor behind it is stored
+	 * as the account for that handle.
+	 */
+	public function testWebfingerAccountIgnoresASubjectOnAnotherHost(): void {
+		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta')
+			? $this->hostMetaJson()
+			: $this->jrd('acct:Gargron@mastodon.social'));
+		$account = 'bob@mastodon.example';
+
+		$service->webfingerAccount($account);
+
+		$this->assertSame('bob@mastodon.example', $account);
+	}
+
 	/** A JRD without an `acct:` subject leaves the account as it was asked for. */
 	public function testWebfingerAccountKeepsTheAccountWhenTheSubjectIsNotAnAcctUri(): void {
 		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta')
