@@ -16,11 +16,9 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Flag;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ModeratorService;
 use OCA\Social\Service\ReportForwardService;
 use OCA\Social\Service\ReportService;
-use OCP\IGroupManager;
-use OCP\IUser;
-use OCP\IUserManager;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\Notification\INotification;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -34,8 +32,7 @@ class ReportServiceTest extends TestCase {
 
 	private ReportsRequest|MockObject $reportsRequest;
 	private CacheActorService|MockObject $cacheActorService;
-	private IUserManager|MockObject $userManager;
-	private IGroupManager|MockObject $groupManager;
+	private ModeratorService|MockObject $moderatorService;
 	private INotificationManager|MockObject $notificationManager;
 	private ReportForwardService|MockObject $reportForwardService;
 	private ReportService $service;
@@ -43,16 +40,14 @@ class ReportServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->reportsRequest = $this->createMock(ReportsRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
-		$this->userManager = $this->createMock(IUserManager::class);
-		$this->groupManager = $this->createMock(IGroupManager::class);
+		$this->moderatorService = $this->createMock(ModeratorService::class);
 		$this->notificationManager = $this->createMock(INotificationManager::class);
 		$this->reportForwardService = $this->createMock(ReportForwardService::class);
 
 		$this->service = new ReportService(
 			$this->reportsRequest,
 			$this->cacheActorService,
-			$this->userManager,
-			$this->groupManager,
+			$this->moderatorService,
 			$this->notificationManager,
 			$this->reportForwardService,
 			new NullLogger()
@@ -67,19 +62,9 @@ class ReportServiceTest extends TestCase {
 		return $person;
 	}
 
-	private function user(string $uid): IUser|MockObject {
-		$user = $this->createMock(IUser::class);
-		$user->method('getUID')->willReturn($uid);
-
-		return $user;
-	}
-
-	/** admin + regular user; captures the subjects of the notifications sent */
+	/** one moderator; captures the subjects of the notifications sent */
 	private function withAdmin(): \Closure {
-		$this->userManager->method('search')->with('')
-			->willReturn([$this->user('admin'), $this->user('john')]);
-		$this->groupManager->method('isAdmin')
-			->willReturnCallback(fn (string $uid): bool => $uid === 'admin');
+		$this->moderatorService->method('moderators')->willReturn(['admin']);
 
 		$subjects = [];
 		$this->notificationManager->method('createNotification')
@@ -338,8 +323,42 @@ class ReportServiceTest extends TestCase {
 		$this->service->setResolved(9, true);
 	}
 
+	/**
+	 * The moderation routes accept whoever the Social settings section has
+	 * been delegated to, and the notification used to go to the `admin` group
+	 * alone: a delegated moderator was given the job and never told there was
+	 * anything to do.
+	 */
+	public function testEverybodyWhoMayActOnAReportIsToldAboutIt(): void {
+		$this->moderatorService->method('moderators')->willReturn(['admin', 'moderator']);
+
+		$told = [];
+		$this->notificationManager->method('createNotification')
+			->willReturnCallback(function () use (&$told): INotification {
+				$notification = $this->createMock(INotification::class);
+				foreach (['setApp', 'setDateTime', 'setObject', 'setSubject'] as $method) {
+					$notification->method($method)->willReturnSelf();
+				}
+				$notification->method('setUser')
+					->willReturnCallback(function (string $uid) use (&$told, $notification): INotification {
+						$told[] = $uid;
+
+						return $notification;
+					});
+
+				return $notification;
+			});
+
+		$this->service->reportFromLocal(
+			$this->person(self::ALICE), $this->person(self::BOB), [], 'spam bot', 'spam'
+		);
+
+		$this->assertSame(['admin', 'moderator'], $told);
+	}
+
 	public function testABrokenNotificationDoesNotLoseTheReport(): void {
-		$this->userManager->method('search')->willThrowException(new \RuntimeException('directory down'));
+		$this->moderatorService->method('moderators')
+			->willThrowException(new \RuntimeException('directory down'));
 		$this->reportsRequest->expects($this->once())->method('save')->willReturn(5);
 
 		$report = $this->service->reportFromLocal(

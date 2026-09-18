@@ -13,9 +13,9 @@ use Exception;
 use OCA\Social\Dashboard\SocialReportsWidget;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Report;
+use OCA\Social\Service\ModeratorService;
 use OCA\Social\Service\ReportService;
 use OCP\Dashboard\IConditionalWidget;
-use OCP\IGroupManager;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUser;
@@ -29,8 +29,8 @@ class SocialReportsWidgetTest extends TestCase {
 	private $urlGenerator;
 	/** @var IUserSession&MockObject */
 	private $userSession;
-	/** @var IGroupManager&MockObject */
-	private $groupManager;
+	/** @var ModeratorService&MockObject */
+	private $moderatorService;
 	/** @var ReportService&MockObject */
 	private $reportService;
 	private SocialReportsWidget $widget;
@@ -40,24 +40,24 @@ class SocialReportsWidgetTest extends TestCase {
 		$l10n->method('t')->willReturnArgument(0);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->userSession = $this->createMock(IUserSession::class);
-		$this->groupManager = $this->createMock(IGroupManager::class);
+		$this->moderatorService = $this->createMock(ModeratorService::class);
 		$this->reportService = $this->createMock(ReportService::class);
 
 		$this->widget = new SocialReportsWidget(
 			$l10n,
 			$this->urlGenerator,
 			$this->userSession,
-			$this->groupManager,
+			$this->moderatorService,
 			$this->reportService,
 			new NullLogger()
 		);
 	}
 
-	private function signedInAs(string $uid, bool $admin): void {
+	private function signedInAs(string $uid, bool $moderator): void {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
 		$this->userSession->method('getUser')->willReturn($user);
-		$this->groupManager->method('isAdmin')->with($uid)->willReturn($admin);
+		$this->moderatorService->method('isModerator')->with($uid)->willReturn($moderator);
 	}
 
 	/** @return Report&MockObject */
@@ -79,13 +79,19 @@ class SocialReportsWidgetTest extends TestCase {
 		$this->assertSame(20, $this->widget->getOrder());
 	}
 
-	public function testOnlyAnAdminIsOfferedTheWidget(): void {
+	/**
+	 * A moderator is an administrator or whoever the Social settings have been
+	 * delegated to — the same rule the moderation routes enforce. Offered to
+	 * the `admin` group alone, the widget was missing for exactly the people
+	 * who had been given the job.
+	 */
+	public function testAnyoneWhoMayModerateIsOfferedTheWidget(): void {
 		$this->signedInAs('alice', true);
 
 		$this->assertTrue($this->widget->isEnabled());
 	}
 
-	public function testANonAdminIsNotOfferedTheWidget(): void {
+	public function testSomebodyWhoMayNotModerateIsNotOfferedTheWidget(): void {
 		$this->signedInAs('bob', false);
 
 		$this->assertFalse($this->widget->isEnabled());
@@ -98,6 +104,7 @@ class SocialReportsWidgetTest extends TestCase {
 	}
 
 	public function testRowsNameWhoWasReportedAndWhy(): void {
+		$this->moderatorService->method('isModerator')->willReturn(true);
 		$target = $this->createMock(Person::class);
 		$target->method('getAccount')->willReturn('spammer@remote.example');
 		$target->method('getAvatar')->willReturn('https://remote.example/spammer.png');
@@ -127,7 +134,20 @@ class SocialReportsWidgetTest extends TestCase {
 		$this->assertSame('No reports to review', $items->getEmptyContentMessage());
 	}
 
+	/**
+	 * The rows are asked for by user id, and the check is made on that id
+	 * rather than only on what the dashboard offers: the reports name accounts
+	 * somebody has complained about, which is not public.
+	 */
+	public function testTheRowsAreNotHandedToSomebodyWhoMayNotModerate(): void {
+		$this->moderatorService->method('isModerator')->with('bob')->willReturn(false);
+		$this->reportService->expects($this->never())->method('getReports');
+
+		$this->assertSame([], $this->widget->getItemsV2('bob')->getItems());
+	}
+
 	public function testFailureLeavesTheTileEmptyWithAMessage(): void {
+		$this->moderatorService->method('isModerator')->willReturn(true);
 		$this->reportService->method('getReports')->willThrowException(new Exception('nope'));
 
 		$items = $this->widget->getItemsV2('alice');

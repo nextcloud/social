@@ -11,6 +11,7 @@ namespace OCA\Social\Dashboard;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Service\ModeratorService;
 use OCA\Social\Service\ReportService;
 use OCP\Dashboard\IAPIWidgetV2;
 use OCP\Dashboard\IButtonWidget;
@@ -20,7 +21,6 @@ use OCP\Dashboard\IReloadableWidget;
 use OCP\Dashboard\Model\WidgetButton;
 use OCP\Dashboard\Model\WidgetItem;
 use OCP\Dashboard\Model\WidgetItems;
-use OCP\IGroupManager;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -39,7 +39,7 @@ class SocialReportsWidget implements IAPIWidgetV2, IIconWidget, IButtonWidget, I
 		private IL10N $l10n,
 		private IURLGenerator $urlGenerator,
 		private IUserSession $userSession,
-		private IGroupManager $groupManager,
+		private ModeratorService $moderatorService,
 		private ReportService $reportService,
 		private LoggerInterface $logger,
 	) {
@@ -85,7 +85,7 @@ class SocialReportsWidget implements IAPIWidgetV2, IIconWidget, IButtonWidget, I
 	public function isEnabled(): bool {
 		$user = $this->userSession->getUser();
 
-		return $user !== null && $this->groupManager->isAdmin($user->getUID());
+		return $user !== null && $this->moderatorService->isModerator($user->getUID());
 	}
 
 	#[\Override]
@@ -104,8 +104,19 @@ class SocialReportsWidget implements IAPIWidgetV2, IIconWidget, IButtonWidget, I
 		return 600;
 	}
 
+	/**
+	 * The rows are read for the user the API names, so the check is made here
+	 * too: `isEnabled()` decides what the dashboard *offers*, and a widget
+	 * that only answered that question would hand its rows to any client that
+	 * asked for them by id. The reports name accounts somebody has complained
+	 * about, which is not public.
+	 */
 	#[\Override]
 	public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): WidgetItems {
+		if (!$this->moderatorService->isModerator($userId)) {
+			return new WidgetItems();
+		}
+
 		try {
 			$open = array_slice(
 				$this->reportService->getReports(),

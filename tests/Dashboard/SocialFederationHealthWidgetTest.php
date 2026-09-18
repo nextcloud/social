@@ -12,9 +12,9 @@ namespace OCA\Social\Tests\Dashboard;
 use Exception;
 use OCA\Social\Dashboard\SocialFederationHealthWidget;
 use OCA\Social\Service\FederationHealthService;
+use OCA\Social\Service\ModeratorService;
 use OCP\Dashboard\IConditionalWidget;
 use OCP\IDateTimeFormatter;
-use OCP\IGroupManager;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUser;
@@ -28,8 +28,8 @@ class SocialFederationHealthWidgetTest extends TestCase {
 	private $urlGenerator;
 	/** @var IUserSession&MockObject */
 	private $userSession;
-	/** @var IGroupManager&MockObject */
-	private $groupManager;
+	/** @var ModeratorService&MockObject */
+	private $moderatorService;
 	/** @var FederationHealthService&MockObject */
 	private $federationHealthService;
 	private SocialFederationHealthWidget $widget;
@@ -45,7 +45,7 @@ class SocialFederationHealthWidgetTest extends TestCase {
 		);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->userSession = $this->createMock(IUserSession::class);
-		$this->groupManager = $this->createMock(IGroupManager::class);
+		$this->moderatorService = $this->createMock(ModeratorService::class);
 		$this->federationHealthService = $this->createMock(FederationHealthService::class);
 		$formatter = $this->createMock(IDateTimeFormatter::class);
 		$formatter->method('formatTimeSpan')->willReturn('3 days ago');
@@ -54,18 +54,18 @@ class SocialFederationHealthWidgetTest extends TestCase {
 			$l10n,
 			$this->urlGenerator,
 			$this->userSession,
-			$this->groupManager,
+			$this->moderatorService,
 			$formatter,
 			$this->federationHealthService,
 			new NullLogger()
 		);
 	}
 
-	private function signedInAs(string $uid, bool $admin): void {
+	private function signedInAs(string $uid, bool $moderator): void {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
 		$this->userSession->method('getUser')->willReturn($user);
-		$this->groupManager->method('isAdmin')->with($uid)->willReturn($admin);
+		$this->moderatorService->method('isModerator')->with($uid)->willReturn($moderator);
 	}
 
 	public function testIdentity(): void {
@@ -75,17 +75,27 @@ class SocialFederationHealthWidgetTest extends TestCase {
 		$this->assertSame(21, $this->widget->getOrder());
 	}
 
-	public function testOnlyAnAdminIsOfferedTheWidget(): void {
+	/** An administrator, or whoever the Social settings have been delegated to. */
+	public function testAnyoneWhoMayModerateIsOfferedTheWidget(): void {
 		$this->signedInAs('alice', true);
 		$this->assertTrue($this->widget->isEnabled());
 	}
 
-	public function testANonAdminIsNotOfferedTheWidget(): void {
+	public function testSomebodyWhoMayNotModerateIsNotOfferedTheWidget(): void {
 		$this->signedInAs('bob', false);
 		$this->assertFalse($this->widget->isEnabled());
 	}
 
+	/** Which instances this one cannot reach is not for every client to read. */
+	public function testTheRowsAreNotHandedToSomebodyWhoMayNotModerate(): void {
+		$this->moderatorService->method('isModerator')->with('bob')->willReturn(false);
+		$this->federationHealthService->expects($this->never())->method('summary');
+
+		$this->assertSame([], $this->widget->getItemsV2('bob')->getItems());
+	}
+
 	public function testAHealthyQueueSaysSoRatherThanShowingRows(): void {
+		$this->moderatorService->method('isModerator')->willReturn(true);
 		$this->federationHealthService->method('summary')->willReturn([
 			'waiting' => 4, 'running' => 0, 'failing' => 0, 'atRisk' => 0,
 			'maxTries' => 15, 'truncated' => false, 'instances' => [],
@@ -98,6 +108,7 @@ class SocialFederationHealthWidgetTest extends TestCase {
 	}
 
 	public function testTheTotalsLeadSoTroubleIsVisibleEvenWithoutANamedHost(): void {
+		$this->moderatorService->method('isModerator')->willReturn(true);
 		$this->federationHealthService->method('summary')->willReturn([
 			'waiting' => 30, 'running' => 1, 'failing' => 12, 'atRisk' => 3,
 			'maxTries' => 15, 'truncated' => false, 'instances' => [],
@@ -113,6 +124,7 @@ class SocialFederationHealthWidgetTest extends TestCase {
 	}
 
 	public function testEachFailingInstanceGetsARow(): void {
+		$this->moderatorService->method('isModerator')->willReturn(true);
 		$this->federationHealthService->method('summary')->willReturn([
 			'waiting' => 30, 'running' => 0, 'failing' => 5, 'atRisk' => 1,
 			'maxTries' => 15, 'truncated' => false,
@@ -137,6 +149,7 @@ class SocialFederationHealthWidgetTest extends TestCase {
 	}
 
 	public function testFailureLeavesTheTileEmptyWithAMessage(): void {
+		$this->moderatorService->method('isModerator')->willReturn(true);
 		$this->federationHealthService->method('summary')->willThrowException(new Exception('nope'));
 
 		$items = $this->widget->getItemsV2('alice');
