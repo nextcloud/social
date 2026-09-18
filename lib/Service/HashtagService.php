@@ -260,58 +260,32 @@ class HashtagService {
 	}
 
 	/**
-	 * @param array $hashtags
+	 * The per-window counts, turned inside out: one entry per hashtag, holding
+	 * its count in every window.
 	 *
-	 * @return array
+	 * The widest window carries every hashtag any narrower one can, so its keys
+	 * are the whole set. Each count is read out of its window by key — the
+	 * windows arrive keyed by hashtag, and looking one up by walking the list
+	 * cost a pass over every hashtag on the instance, five times per hashtag.
+	 *
+	 * @param array<string, array<string, int>> $hashtags window => hashtag => count
+	 *
+	 * @return array<string, array<string, int>> hashtag => window => count
 	 */
 	private function formatTrend(array $hashtags): array {
-		$trends = [];
-		foreach (end($hashtags) as $hashtag => $count) {
-			$trends[$hashtag] = [];
+		$widest = end($hashtags);
+		if (!is_array($widest)) {
+			return [];
 		}
 
-		$all = array_keys($trends);
-		$periods = array_keys($hashtags);
-		foreach ($all as $hashtag) {
-			foreach ($periods as $period) {
-				$count = $this->countFromList($hashtags[$period], $hashtag);
-				$trends[$hashtag][$period] = $count;
+		$names = array_keys($widest);
+		$trends = array_fill_keys($names, []);
+		foreach ($hashtags as $period => $counts) {
+			foreach ($names as $hashtag) {
+				$trends[$hashtag][$period] = (int)($counts[$hashtag] ?? 0);
 			}
 		}
 
 		return $trends;
-	}
-
-	/**
-	 * @param array $list
-	 * @param string $hashtag
-	 *
-	 * @return int
-	 */
-	private function countFromList(array $list, string $hashtag): int {
-		foreach ($list as $key => $count) {
-			if ($key === $hashtag) {
-				return $count;
-			}
-		}
-
-		return 0;
-	}
-
-	/**
-	 * @param array $list
-	 * @param string $hashtag
-	 *
-	 * @return array
-	 * @throws HashtagDoesNotExistException
-	 */
-	private function getFromList(array $list, string $hashtag): array {
-		foreach ($list as $item) {
-			if ($this->get('hashtag', $item, '') === $hashtag) {
-				return $item;
-			}
-		}
-
-		throw new HashtagDoesNotExistException();
 	}
 }
