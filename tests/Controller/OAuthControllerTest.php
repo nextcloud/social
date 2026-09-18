@@ -21,6 +21,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -654,5 +655,49 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->expects($this->never())->method('revokeAuthorizationOf');
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->revokeAuthorizedApp(4)->getStatus());
+	}
+
+	/**
+	 * Every schema this controller says it serves has a method that serves it,
+	 * and a route that reaches it.
+	 *
+	 * 2.1 was written, tested and unreachable for its whole life: the document
+	 * was correct, the test called the method directly, and nothing registered
+	 * a URL for it or pointed at one. What is checked here is therefore not
+	 * the document -- that is covered above -- but that each version can be
+	 * fetched at all, which is the part that was missing.
+	 */
+	public function testEverySchemaItAdvertisesHasARoute(): void {
+		$reflection = new \ReflectionClass(OAuthController::class);
+
+		$routed = [];
+		foreach ($reflection->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+			foreach ($method->getAttributes(FrontpageRoute::class) as $attribute) {
+				$routed[] = $attribute->newInstance()->getUrl();
+			}
+		}
+
+		foreach (OAuthController::NODEINFO_SCHEMAS as $schema) {
+			$this->assertContains(
+				'/.well-known/nodeinfo/' . $schema,
+				$routed,
+				'NODEINFO_SCHEMAS names ' . $schema . ', so a route has to serve it'
+			);
+		}
+	}
+
+	/** 2.1 is 2.0 plus two fields, and that is the whole of the difference. */
+	public function testTheTwoSchemasDifferOnlyInWhereTheSoftwareLives(): void {
+		$two = $this->controller->nodeinfo2()->getData();
+		$twoOne = $this->controller->nodeinfo21()->getData();
+
+		$this->assertSame('2.0', $two['version']);
+		$this->assertSame('2.1', $twoOne['version']);
+		$this->assertSame('https://github.com/nextcloud/social', $twoOne['software']['repository']);
+		$this->assertSame('https://github.com/nextcloud/social', $twoOne['software']['homepage']);
+		$this->assertArrayNotHasKey('repository', $two['software']);
+
+		unset($two['version'], $twoOne['version'], $two['software'], $twoOne['software']);
+		$this->assertSame($two, $twoOne);
 	}
 }

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\WellKnown;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Controller\OAuthController;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -219,11 +220,19 @@ class WebfingerHandler implements IHandler {
 	 */
 	private function handleNodeInfo(IRequestContext $context): ?IResponse {
 		$response = new JrdResponse();
-		$response->addLink(
-			'http://nodeinfo.diaspora.software/ns/schema/2.0',
-			null,
-			$this->configService->getSocialUrl() . '.well-known/nodeinfo/2.0'
-		);
+
+		// Every schema the controller serves, oldest first. Oldest first on
+		// purpose: a consumer that reads this properly takes the highest
+		// version it understands, and one that naively takes the first link
+		// gets 2.0, which is what it got before 2.1 was reachable. Nothing
+		// that reads this today is given something new to cope with.
+		foreach (OAuthController::NODEINFO_SCHEMAS as $schema) {
+			$response->addLink(
+				'http://nodeinfo.diaspora.software/ns/schema/' . $schema,
+				null,
+				$this->configService->getSocialUrl() . '.well-known/nodeinfo/' . $schema
+			);
+		}
 
 		return $response;
 	}

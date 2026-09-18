@@ -120,6 +120,7 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 | GET | `/api/v1/trends/tags` | public, no-csrf | `limit` (10, capped at 20), `period` (`1h`, `12h`, `1d` — the default —, `3d`, `10d`; anything else falls back to the default) | The hashtags used most on this instance in that window, as Mastodon `Tag` entities. The counts are the ones the cron job already keeps for every hashtag (`HashtagService::manageHashtags()`), so this is a read of stored data rather than a query over the stream — specifically the sortable `trend_*` columns, which `Version1000Date20260910000003` backfills on upgrade because the cron alone would never have filled them for hashtags whose counts had stopped moving. `history` carries a single bucket for the window that was asked for, and `accounts` in it is always `0`: this instance counts uses, not distinct accounts. Hashtags unused in the window are left out. |
 | GET | `/api/saved_searches/list.json` | public, no-csrf | — | **Not implemented.** Initialises the viewer, then always returns `[]`. |
 | GET | `/.well-known/nodeinfo/2.0` | public, no-csrf | — | NodeInfo 2.0 document: `version`, `software.name` (instance title), `software.version`, `protocols: ["activitypub"]`, `rootUrl`, `usage`, `openRegistrations`. Falls back to name `Nextcloud Social` and the installed app version if no local instance row exists. |
+| GET | `/.well-known/nodeinfo/2.1` | public, no-csrf | — | The same document under the 2.1 schema, which adds `software.repository` and `software.homepage` (both the app's repository). Everything else is identical to 2.0, because that is the whole of what 2.1 adds. Reachable since 0.26.5: the method existed and was tested from the day it was written, but carried no route attribute, so no URL was registered for it and the discovery document named only 2.0. |
 
 ### Accounts
 
@@ -1012,7 +1013,7 @@ The handler first checks `FediverseService::jailed()` and passes the previous re
 - A missing or empty `resource` parameter is an empty JRD with HTTP 400 (RFC 7033 makes the parameter mandatory).
 - Unknown or non-local subjects produce an empty JRD with HTTP 404 (or hand back to the previous handler when the actor lookup fails outright).
 
-The `nodeinfo` service returns a single link with rel `http://nodeinfo.diaspora.software/ns/schema/2.0` pointing at the app's `/.well-known/nodeinfo/2.0` route; `host-meta` returns XRD (`application/xrd+xml`) with an `lrdd` template pointing at the instance's WebFinger URL.
+The `nodeinfo` service returns one link per schema the app serves — rel `http://nodeinfo.diaspora.software/ns/schema/2.0` and `…/2.1`, pointing at `/.well-known/nodeinfo/2.0` and `/.well-known/nodeinfo/2.1`. Oldest first, so that a consumer which naively takes the first link keeps getting what it got before 2.1 was reachable, while one that reads the document properly takes the highest version it understands. The list is `OAuthController::NODEINFO_SCHEMAS`, which is also what the controller serves, so the two cannot drift apart. `host-meta` returns XRD (`application/xrd+xml`) with an `lrdd` template pointing at the instance's WebFinger URL.
 
 ---
 

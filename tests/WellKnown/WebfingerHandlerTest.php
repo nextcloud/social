@@ -126,11 +126,30 @@ class WebfingerHandlerTest extends TestCase {
 
 		$this->assertInstanceOf(JrdResponse::class, $response);
 		$this->assertSame([
-			'links' => [[
-				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-				'href' => 'https://cloud.example/index.php/apps/social/.well-known/nodeinfo/2.0',
-			]],
+			'links' => [
+				[
+					'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+					'href' => 'https://cloud.example/index.php/apps/social/.well-known/nodeinfo/2.0',
+				],
+				[
+					'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.1',
+					'href' => 'https://cloud.example/index.php/apps/social/.well-known/nodeinfo/2.1',
+				],
+			],
 		], $this->jsonOf($response));
+	}
+
+	/**
+	 * Oldest first, and not by accident: a consumer that reads the document
+	 * properly takes the highest version it understands, and one that naively
+	 * takes the first link keeps getting the 2.0 it was getting before 2.1
+	 * was reachable at all.
+	 */
+	public function testNodeinfoOffersTheOldestSchemaFirst(): void {
+		$links = $this->jsonOf($this->handler->handle('NodeInfo', $this->context, null))['links'];
+
+		$this->assertStringEndsWith('/2.0', $links[0]['rel']);
+		$this->assertStringEndsWith('/2.1', $links[array_key_last($links)]['rel']);
 	}
 
 	public function testHostMetaAdvertisesTheWebfingerTemplateWithoutIndexPhp(): void {
