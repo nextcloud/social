@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Db\StoriesRequest;
+use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\Object\DocumentInterface;
@@ -46,6 +47,7 @@ class StoryService {
 		private ConfigService $configService,
 		private DocumentInterface $documentInterface,
 		private StoryInteractionService $storyInteractionService,
+		private MediaPurgeService $mediaPurgeService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -323,6 +325,16 @@ class StoryService {
 	 * Takes a remote story down on its author's word.
 	 */
 	public function withdrawn(string $sourceId, string $actorId): void {
+		try {
+			$story = $this->storiesRequest->getBySourceId($sourceId);
+			if ($story->getOwnerId() === $actorId) {
+				$this->forgetMedia($story);
+			}
+		} catch (ItemNotFoundException $e) {
+			// nothing here under that address, which is what a `Delete` for a
+			// story this instance never kept looks like
+		}
+
 		$this->storiesRequest->deleteBySourceId($sourceId, $actorId);
 	}
 
@@ -336,6 +348,7 @@ class StoryService {
 		}
 
 		$this->storiesRequest->delete($owner->getId(), $id);
+		$this->forgetMedia($story);
 
 		if ($story->getSourceId() === '') {
 			return;
@@ -448,12 +461,62 @@ class StoryService {
 	}
 
 	public function purgeExpired(int $limit = 500): int {
-		return $this->storiesRequest->deleteExpired($limit);
+		$expired = $this->storiesRequest->getExpired($limit);
+		foreach ($expired as $story) {
+			$this->forgetMedia($story);
+		}
+
+		return $this->storiesRequest->deleteByIds(
+			array_map(static fn (Story $story): int => $story->getId(), $expired)
+		);
 	}
 
 	/** Everything an account owns, for a deletion or a suspension. */
 	public function forgetActor(string $actorId): void {
+		foreach ($this->storiesRequest->getLiveByActor($actorId) as $story) {
+			$this->forgetMedia($story);
+		}
+
 		$this->storiesRequest->deleteRelatedId($actorId);
+	}
+
+	/**
+	 * The picture a story was posted as, taken away with the story.
+	 *
+	 * The promise of a story is that it stops existing after a day, and until
+	 * this ran that was true of the row and false of everything else: the
+	 * document row and both copies in appdata stayed, `/media/{uuid}` went on
+	 * serving them with a cache lifetime of for ever, and anyone who had ever
+	 * been shown the story — every viewer's client, every follower's instance
+	 * — could still load it. The disk was never reclaimed either.
+	 *
+	 * Only a document that belongs to this story: one posted as a story has no
+	 * parent, and one that arrived with a story names the story as its parent.
+	 * Anything else is a picture some post is also showing, and a story is not
+	 * a reason to take a post's picture away.
+	 */
+	private function forgetMedia(Story $story): void {
+		try {
+			$document = $this->documentService->getDocumentById($story->getDocumentId());
+		} catch (CacheDocumentDoesNotExistException $e) {
+			// already gone, which is where this was heading anyway
+			return;
+		}
+
+		try {
+			$parent = $document->getParentId();
+			if ($parent !== '' && $parent !== $story->getSourceId()) {
+				return;
+			}
+
+			$this->mediaPurgeService->purge($document);
+		} catch (Throwable $e) {
+			// a story whose picture is already gone is a story that still has
+			// to go, and one unreadable row must not end a sweep
+			$this->logger->warning('could not remove the picture of a story', [
+				'story' => $story->getId(), 'exception' => $e,
+			]);
+		}
 	}
 
 	/**

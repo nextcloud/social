@@ -277,17 +277,36 @@ class StoriesRequest extends CoreRequestBuilder {
 	 * than one cron slot should take, and what is left is the next run's.
 	 */
 	public function deleteExpired(int $limit = 500): int {
+		return $this->deleteByIds(
+			array_map(static fn (Story $story): int => $story->getId(), $this->getExpired($limit))
+		);
+	}
+
+	/**
+	 * What is due to go, before it goes.
+	 *
+	 * Read rather than deleted in one statement because a story is more than
+	 * its row: the picture it was posted as is a document with files behind
+	 * it, and the row is the only thing that names them.
+	 *
+	 * @return Story[]
+	 */
+	public function getExpired(int $limit = 500): array {
 		$qb = $this->getStoriesSelectSql();
 		$qb->andWhere(
 			$qb->expr()->lte('st.expires_at', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
 		);
 		$qb->setMaxResults($limit);
 
-		$ids = [];
-		foreach ($this->getStoriesFromRequest($qb) as $story) {
-			$ids[] = $story->getId();
-		}
+		return $this->getStoriesFromRequest($qb);
+	}
 
+	/**
+	 * Removes a set of stories, and the record of who saw and answered them.
+	 *
+	 * @param int[] $ids
+	 */
+	public function deleteByIds(array $ids): int {
 		if ($ids === []) {
 			return 0;
 		}
