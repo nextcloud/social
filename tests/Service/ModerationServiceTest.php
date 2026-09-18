@@ -274,6 +274,72 @@ class ModerationServiceTest extends TestCase {
 		$this->addToAssertionCount(1);
 	}
 
+	/**
+	 * The entry points that *serve* an account have a handle and no actor id —
+	 * the actor document and the WebFinger answer — and had no way to ask this
+	 * at all: a suspended account went on being served with an empty outbox
+	 * where Mastodon answers 410.
+	 */
+	public function testSuspensionCanBeAskedAboutByHandle(): void {
+		$alice = new Person();
+		$alice->setId(self::LOCAL_ACTOR);
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->moderationRequest->method('levelOf')->with(self::LOCAL_ACTOR)
+			->willReturn(Moderation::SUSPEND);
+
+		$this->assertTrue($this->service->isSuspendedAccount('alice'));
+	}
+
+	public function testAHandleNobodyAnswersToIsNotSuspended(): void {
+		$this->actorsRequest->method('getFromUsername')
+			->willThrowException(new ActorDoesNotExistException());
+
+		$this->assertFalse($this->service->isSuspendedAccount('nobody'));
+	}
+
+	/** The same question for the session and credentials paths. */
+	public function testSuspensionCanBeAskedAboutByUserId(): void {
+		$alice = new Person();
+		$alice->setId(self::LOCAL_ACTOR);
+		$this->actorsRequest->method('getFromUserId')->with('alice')->willReturn($alice);
+		$this->moderationRequest->method('levelOf')->willReturn(Moderation::SUSPEND);
+
+		$this->assertTrue($this->service->isSuspendedUser('alice'));
+	}
+
+	public function testAUserWithoutAnAccountIsNotSuspended(): void {
+		$this->actorsRequest->method('getFromUserId')
+			->willThrowException(new ActorDoesNotExistException());
+
+		$this->assertFalse($this->service->isSuspendedUser('bob'));
+		$this->assertFalse($this->service->isSuspendedUser(''));
+	}
+
+	/**
+	 * A suspension drops the cached actor and nothing rebuilds it while the
+	 * suspension stands, so a lift that did not rebuild it left the account
+	 * unserved until the next pass of the cache cron.
+	 */
+	public function testLiftingPutsALocalAccountBackWhereItIsServedFrom(): void {
+		$alice = new Person();
+		$alice->setId(self::LOCAL_ACTOR);
+		$alice->setPreferredUsername('alice');
+		$this->actorsRequest->method('getFromId')->with(self::LOCAL_ACTOR)->willReturn($alice);
+
+		$this->accountService->expects($this->once())
+			->method('cacheLocalActorByUsername')->with('alice');
+
+		$this->service->lift(self::LOCAL_ACTOR);
+	}
+
+	public function testLiftingARemoteAccountRebuildsNothingLocal(): void {
+		$this->actorsRequest->method('getFromId')
+			->willThrowException(new ActorDoesNotExistException());
+		$this->accountService->expects($this->never())->method('cacheLocalActorByUsername');
+
+		$this->service->lift(self::SPAMMER);
+	}
+
 	public function testASilencedAccountIsNotSuspended(): void {
 		$this->moderationRequest->method('levelOf')->willReturn(Moderation::SILENCE);
 

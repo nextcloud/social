@@ -116,6 +116,40 @@ class ModerationService {
 	}
 
 	/**
+	 * Whether the account behind a local handle is suspended.
+	 *
+	 * For the entry points that serve an account rather than act for it — the
+	 * actor document and the WebFinger answer, which have a handle and no
+	 * actor id. Mastodon answers 410 for one of these; this instance answered
+	 * with a live account and an empty outbox, because suspension was only
+	 * ever asked about by the services that write.
+	 */
+	public function isSuspendedAccount(string $handle): bool {
+		try {
+			return $this->isSuspended($this->actorsRequest->getFromUsername($handle)->getId());
+		} catch (ActorDoesNotExistException $e) {
+			return false;
+		}
+	}
+
+	/**
+	 * The same question asked of a Nextcloud user, for the session and
+	 * credentials paths: a suspended account kept the whole interface and the
+	 * client API except the five services that refuse a write.
+	 */
+	public function isSuspendedUser(string $userId): bool {
+		if ($userId === '') {
+			return false;
+		}
+
+		try {
+			return $this->isSuspended($this->actorsRequest->getFromUserId($userId)->getId());
+		} catch (ActorDoesNotExistException $e) {
+			return false;
+		}
+	}
+
+	/**
 	 * Records a decision and applies it.
 	 *
 	 * Two records, and they are not the same record. `social_moderation` holds
@@ -205,9 +239,36 @@ class ModerationService {
 	 */
 	public function lift(string $actorId, string $comment = ''): void {
 		$this->moderationRequest->delete($actorId);
+		$this->restoreLocalActor($actorId);
 		$this->strikeService->record($actorId, Strike::LIFT, $comment);
 		$this->logger->info('moderation decision lifted', ['actor' => $actorId]);
 		$this->auditService->accountLifted($actorId);
+	}
+
+	/**
+	 * Puts a lifted local account back where this instance serves it from.
+	 *
+	 * A suspension drops the cached copy of the actor, which is what the actor
+	 * document, the WebFinger answer and the timelines read; nothing rebuilds
+	 * it while the suspension stands. Without this the account comes back at
+	 * the next pass of the cache cron and not before, so a lift a moderator
+	 * took in front of somebody did nothing they could see.
+	 */
+	private function restoreLocalActor(string $actorId): void {
+		try {
+			$actor = $this->actorsRequest->getFromId($actorId);
+		} catch (ActorDoesNotExistException $e) {
+			// not one of ours: there is no local copy to rebuild
+			return;
+		}
+
+		try {
+			$this->accountService->cacheLocalActorByUsername($actor->getPreferredUsername());
+		} catch (\Exception $e) {
+			$this->logger->error('could not restore the actor of a lifted account', [
+				'actor' => $actorId, 'exception' => $e,
+			]);
+		}
 	}
 
 	/**

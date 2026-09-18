@@ -16,6 +16,7 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\ChannelsRequest;
 use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
@@ -36,6 +37,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\Moderation;
 use OCP\Accounts\IAccountManager;
 use OCP\IUser;
 use OCP\IUserManager;
@@ -103,6 +105,7 @@ class AccountService {
 		private AccessBlockService $accessBlockService,
 		private CacheActorService $cacheActorService,
 		private CacheActorsRequest $cacheActorsRequest,
+		private ModerationRequest $moderationRequest,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -676,6 +679,20 @@ class AccountService {
 	public function cacheLocalActorByUsername(string $username) {
 		try {
 			$actor = $this->getActor($username);
+
+			if ($this->moderationRequest->levelOf($actor->getId()) === Moderation::SUSPEND) {
+				// A suspended account is not served from this instance, and
+				// the cached copy is what serves it: the actor document, the
+				// WebFinger answer and the timelines are all read from it. The
+				// suspension drops that copy, and this — reached from the
+				// cron, from every profile change and from the first reader
+				// who finds it missing — used to put it straight back, so a
+				// local account a moderator had suspended went on being served
+				// a few minutes later with an empty outbox.
+				$this->cacheActorsRequest->deleteCacheById($actor->getId());
+
+				return;
+			}
 
 			try {
 				$this->updateCacheLocalActorName($actor);
