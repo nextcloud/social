@@ -17,7 +17,6 @@ use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
-use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -37,6 +36,7 @@ use OCA\Social\Tools\Model\CacheItem;
 use OCA\Social\Traits\TDetails;
 use OCP\IURLGenerator;
 use OCP\Server;
+use Throwable;
 
 /**
  * Class Stream
@@ -1282,10 +1282,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setContent($this->get('content', $data, ''));
 		$this->setLanguage(self::languageOf($data));
 		$this->setUpdated($this->validate(self::AS_DATE, 'updated', $data, ''));
-		try {
-			$this->importAttachments($this->getArray('attachment', $data, []));
-		} catch (ItemAlreadyExistsException $e) {
-		}
+		$this->importAttachments($this->getArray('attachment', $data, []));
 		$this->convertPublished();
 
 		if (isset($data['likes']['totalItems'])) {
@@ -1342,7 +1339,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * @throws ItemAlreadyExistsException
+	 * The attachments a post arrived with, each one stored and none of them
+	 * able to take the post down with it.
 	 */
 	public function importAttachments(array $list): void {
 		$urlGenerator = Server::get(IURLGenerator::class);
@@ -1388,7 +1386,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				continue;
 			}
 
-			$interface->save($attachment);
+			try {
+				$interface->save($attachment);
+			} catch (Throwable $e) {
+				// A post is not its attachments. Storing one means fetching a
+				// file from another server, which fails in every way a request
+				// can, and letting that out of here dropped the whole Create:
+				// the text, the thread it belongs to and the notification with
+				// it, over one picture. The attachment that could not be
+				// stored is left out and the post is kept.
+				continue;
+			}
+
 			$new[] = $attachment->convertToMediaAttachment($urlGenerator);
 		}
 
