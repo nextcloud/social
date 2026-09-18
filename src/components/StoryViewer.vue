@@ -268,11 +268,49 @@ export default {
 		},
 	},
 
+	mounted() {
+		window.addEventListener('keydown', this.onKey)
+	},
+
 	beforeUnmount() {
 		this.stop()
+		window.removeEventListener('keydown', this.onKey)
 	},
 
 	methods: {
+		/**
+		 * The keyboard works the stage.
+		 *
+		 * Left and right are the two halves of the stage, and space pauses --
+		 * which the pointer could do by holding and the keyboard could not do at
+		 * all. Down and up step between people, because a story belongs to
+		 * somebody and the next person is a different axis from the next story.
+		 *
+		 * @param {KeyboardEvent} event the key
+		 */
+		onKey(event) {
+			if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+				return
+			}
+			// somebody writing a reply is not paging
+			if (event.target?.closest?.('input, textarea, [contenteditable]')) {
+				return
+			}
+
+			const actions = {
+				ArrowRight: () => this.next(),
+				ArrowLeft: () => this.previous(),
+				ArrowDown: () => this.nextGroup(),
+				ArrowUp: () => this.previousGroup(),
+				' ': () => (this.paused ? this.resume() : this.pause()),
+			}
+			const action = actions[event.key]
+			if (action) {
+				event.preventDefault()
+				action()
+			}
+		},
+
 		t,
 		n,
 

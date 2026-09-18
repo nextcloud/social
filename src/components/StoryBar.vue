@@ -39,6 +39,7 @@
 					type="button"
 					class="story-bar__tile"
 					:class="{ 'story-bar__tile--unseen': !group.seen }"
+					:style="accountStyle(group.account)"
 					:aria-label="tileLabel(group)"
 					@click="open(ownGroup ? index + 1 : index)">
 					<span class="story-bar__ring">
@@ -48,7 +49,7 @@
 							:link="false"
 							:hoverCard="false" />
 					</span>
-					<span class="story-bar__name">{{ group.account.display_name || group.account.username }}</span>
+					<span class="story-bar__name">{{ firstName(group.account) }}</span>
 				</button>
 			</li>
 		</ul>
@@ -82,6 +83,7 @@ import logger from '../services/logger.js'
 import { ownAvatarUrl } from '../services/avatar.js'
 import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
+import { accountStyle } from '../services/accountColour.js'
 
 // the viewer and the composer are the heavy halves and most visits open
 // neither; they are fetched when one is
@@ -187,6 +189,24 @@ export default {
 	},
 
 	methods: {
+		accountStyle,
+
+		/**
+		 * What to call somebody under their face.
+		 *
+		 * The first word of their display name. "Maya Lin…" and "Petra No…" are
+		 * what a full name comes to in the space a story tile has, and a first
+		 * name is both shorter and warmer than a truncated surname.
+		 *
+		 * @param {object} account whose story it is
+		 * @return {string} one word, or the handle when there is no name
+		 */
+		firstName(account) {
+			const name = String(account?.display_name ?? '').trim()
+
+			return name === '' ? (account?.username ?? '') : name.split(/\s+/)[0]
+		},
+
 		t,
 		n,
 
@@ -309,6 +329,21 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/* a ring that swells and fades: drawn as a pseudo-element rather than a
+   box-shadow, because a shadow on a card is this app's elevation and means
+   something else */
+@keyframes story-breathe {
+	0% { transform: scale(1); opacity: .45; }
+	70%, 100% { transform: scale(1.22); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.story-bar__tile--unseen .story-bar__ring::after {
+		animation: none;
+		opacity: 0;
+	}
+}
+
 .story-bar {
 	max-width: var(--social-column);
 	margin: 8px auto 12px;
@@ -356,8 +391,28 @@ export default {
 	// looks for in a row of faces
 	border: 2px solid var(--color-border-dark);
 
+	/**
+	 * Unseen: the account's own colour, breathing.
+	 *
+	 * The accent made every unseen ring the same colour as every other, so a
+	 * row of faces was a row of identical circles; `--account-hue` is the
+	 * colour that account is everywhere else in the app. The breath is two
+	 * seconds and barely there -- enough to say "something here", not enough
+	 * to be a thing moving on the page while somebody is reading.
+	 */
 	.story-bar__tile--unseen & {
-		border-color: var(--color-primary-element);
+		border-color: hsl(var(--account-hue, 210) 65% 50%);
+		position: relative;
+
+		&::after {
+			content: '';
+			position: absolute;
+			inset: -3px;
+			border-radius: 50%;
+			border: 2px solid hsl(var(--account-hue, 210) 65% 50%);
+			animation: story-breathe 2.4s ease-out infinite;
+			pointer-events: none;
+		}
 	}
 
 	.story-bar__tile--empty & {

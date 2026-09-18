@@ -150,4 +150,24 @@ describe('FirstPostCelebration', () => {
 		wrapper.unmount()
 		expect(vi.getTimerCount()).toBe(0)
 	})
+
+	/**
+	 * The first post is the one moment that happens before anybody has a
+	 * reason to care. These are the others, and each is once.
+	 */
+	it.each([
+		['first-follower', 'first follower'],
+		['hundred-posts', 'A hundred posts'],
+		['anniversary', 'One year here today'],
+	])('marks %s', (occasion, said) => {
+		const wrapper = mount(FirstPostCelebration, { props: { occasion } })
+
+		expect(wrapper.find('.first-post__banner').text()).toContain(said)
+	})
+
+	it('falls back to the first post for an occasion it does not know', () => {
+		const wrapper = mount(FirstPostCelebration, { props: { occasion: 'birthday-of-the-server' } })
+
+		expect(wrapper.find('.first-post__banner').text()).toContain('first post')
+	})
 })

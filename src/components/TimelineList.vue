@@ -40,12 +40,25 @@
 				<li v-else-if="dividerAt > 0 && index === dividerAt" class="timeline-divider">
 					{{ t('social', 'Earlier') }}
 				</li>
+				<!-- Where the reader had got to last time. Everything below it
+				     they have seen, and is drawn a shade quieter, which is what
+				     makes a timeline finite: a scroll with no bottom and no
+				     marks in it is the same screen for ever. -->
+				<li v-if="caughtUpAt > 0 && index === caughtUpAt" class="timeline-caughtup">
+					<span class="timeline-caughtup__line" />
+					<span class="timeline-caughtup__label">{{ caughtUpLabel }}</span>
+					<span class="timeline-caughtup__line" />
+				</li>
 				<TimelineEntry
-					:class="{ 'timeline-entry--focused': index === focused }"
+					:class="{
+						'timeline-entry--focused': index === focused,
+						'timeline-entry--seen': caughtUpAt > 0 && index >= caughtUpAt,
+					}"
 					:item="entry"
 					:type="type"
 					:index="index"
 					:depth="depths[entry.id] ?? 0"
+					:continues="hasReplies[entry.id] === true"
 					:unread="isUnread(entry)" />
 			</template>
 		</transition-group>
@@ -240,6 +253,10 @@ export default {
 			 * rub out the very boundary it is there to show.
 			 */
 			seenUpTo: '0',
+			/** the newest post id this reader had seen on this timeline last time */
+			lastSeen: '',
+			/** when that was, as a timestamp; 0 when it is not known */
+			lastSeenAt: 0,
 			/** the dwell in progress, -1 when none */
 			seenTimer: -1,
 			/** the newest id already reported read, so it is reported once */
@@ -264,9 +281,13 @@ export default {
 				},
 
 				direct: {
-					image: 'img/undraw/direct.svg',
-					title: t('social', 'No direct messages found'),
-					description: t('social', 'Posts directed to you will show up here'),
+					illustration: 'no-messages',
+					title: t('social', 'Nothing private yet'),
+					description: t('social', 'A post addressed to you and nobody else arrives here. Start one by writing a post and choosing Direct.'),
+					action: {
+						label: t('social', 'Find people to write to'),
+						to: { name: 'discover' },
+					},
 				},
 
 				timeline: {
@@ -545,6 +566,69 @@ export default {
 		},
 
 		/**
+		 * Which entries have a reply under them, so the thread line can carry
+		 * on down past them rather than stopping at every elbow.
+		 *
+		 * @return {Record<string, boolean>}
+		 */
+		hasReplies() {
+			if (!this.isThread) {
+				return {}
+			}
+
+			const parents = {}
+			for (const status of this.timelineStore.getTimeline) {
+				const parent = String(status.in_reply_to_id ?? '')
+				if (parent !== '') {
+					parents[parent] = true
+				}
+			}
+
+			return parents
+		},
+
+		/**
+		 * Where what the reader has already seen begins.
+		 *
+		 * The mark is the newest post that was on screen the last time they
+		 * were here, remembered per timeline. 0 when there is nothing new --
+		 * a line over the whole page separates nothing -- and 0 when there is
+		 * nothing old either, because a line under everything is a line at the
+		 * bottom of the screen that nobody ever reaches.
+		 *
+		 * @return {number}
+		 */
+		caughtUpAt() {
+			if (this.isThread || this.type === 'notifications' || this.lastSeen === '') {
+				return 0
+			}
+
+			const older = this.entries.findIndex((entry) => !isNewerId(String(entry.id ?? ''), this.lastSeen))
+
+			return older <= 0 || older >= this.entries.length ? 0 : older
+		},
+
+		/** @return {string} where this timeline's mark is kept */
+		placeKey() {
+			return `social:seen:${this.timelineIdentity}`
+		},
+
+		/** @return {string} what the line says */
+		caughtUpLabel() {
+			if (this.lastSeenAt === 0) {
+				return t('social', 'You are up to date')
+			}
+
+			const when = new Date(this.lastSeenAt)
+			const time = when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+			const today = new Date().toDateString() === when.toDateString()
+
+			return today
+				? t('social', 'Up to date since {time}', { time })
+				: t('social', 'Up to date since {date}', { date: when.toLocaleDateString() })
+		},
+
+		/**
 		 * Where the "N new posts" pill sits.
 		 *
 		 * It is sticky, and so is the box the reader writes in, which is taller
@@ -612,6 +696,8 @@ export default {
 		 */
 		timelineIdentity() {
 			if (!this.showParents) {
+				this.rememberPlace()
+				this.readPlace()
 				this.resetAndLoad()
 			}
 		},
@@ -643,6 +729,8 @@ export default {
 			return
 		}
 
+		this.readPlace()
+
 		eventBus.on('shortcut:next', this.focusNext)
 		eventBus.on('shortcut:previous', this.focusPrevious)
 
@@ -671,6 +759,7 @@ export default {
 	},
 
 	unmounted() {
+		this.rememberPlace()
 		offTimelinePush(this.onPushed)
 		document.removeEventListener('visibilitychange', this.pollOnReturn)
 		document.removeEventListener('visibilitychange', this.armSeenTimer)
@@ -686,6 +775,46 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Where this reader had got to on this timeline, from last time.
+		 *
+		 * Per timeline and per browser, in local storage: it is a convenience
+		 * about where somebody was looking, not something the server should be
+		 * told or another device should inherit. A browser that refuses storage
+		 * simply has no line, which is the state every timeline was in before.
+		 */
+		readPlace() {
+			this.lastSeen = ''
+			this.lastSeenAt = 0
+			try {
+				const stored = window.localStorage.getItem(this.placeKey)
+				if (stored) {
+					const { id, at } = JSON.parse(stored)
+					this.lastSeen = String(id ?? '')
+					this.lastSeenAt = Number(at ?? 0)
+				}
+			} catch {
+				// no stored place to read, which is not a failure
+			}
+		},
+
+		/** Remembers the newest post on this timeline as where the reader got to. */
+		rememberPlace() {
+			const newest = this.entries[0]
+			if (this.isThread || this.type === 'notifications' || !newest?.id) {
+				return
+			}
+
+			try {
+				window.localStorage.setItem(
+					this.placeKey,
+					JSON.stringify({ id: String(newest.id), at: Date.now() }),
+				)
+			} catch {
+				// a browser that will not store it shows no line next time
+			}
+		},
+
 		/**
 		 * Asks for the first page, unless this list is already loaded.
 		 *
@@ -1187,6 +1316,50 @@ export default {
 /* The line between what arrived since the reader last looked and what was
    already there. A heading rather than a rule: "New" and "Earlier" say what
    the two runs are, where a bare line only says that there are two of them. */
+/**
+ * The line that says where the reader had got to.
+ *
+ * A hairline either side of a few quiet words, and everything below it drawn
+ * a shade back. What it does is make the timeline finite: a scroll with no
+ * bottom and no marks in it is the same screen for ever.
+ */
+.timeline-caughtup {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 18px 0 14px;
+	list-style: none;
+
+	&__line {
+		flex: 1 1 auto;
+		block-size: 1px;
+		background: var(--color-border);
+	}
+
+	&__label {
+		flex: 0 0 auto;
+		font-size: 12px;
+		color: var(--color-text-maxcontrast);
+		white-space: nowrap;
+	}
+}
+
+.timeline-entry--seen {
+	opacity: .72;
+	transition: opacity .2s ease;
+
+	&:hover,
+	&:focus-within {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.timeline-entry--seen {
+		transition: none;
+	}
+}
+
 .timeline-divider {
 	margin: 4px 0 10px;
 	padding: 0 2px;

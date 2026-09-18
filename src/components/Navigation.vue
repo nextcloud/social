@@ -70,7 +70,10 @@
 			<NcAppNavigationItem
 				v-for="item in menu.timelines"
 				:key="item.key"
-				:class="{ navigation__chosen: chosen === item.key }"
+				:class="{
+					navigation__chosen: chosen === item.key,
+					navigation__rang: ringing && item.key === 'social-notifications',
+				}"
 				:name="item.title"
 				:href="hrefFor(item.to)"
 				:active="isActive(item)"
@@ -78,8 +81,13 @@
 				<template #icon>
 					<component :is="item.icon" :size="20" />
 				</template>
+				<!-- A count, not an alarm. `highlighted` is the loud accent
+				     bubble Nextcloud uses for something that needs answering;
+				     what this is counting is things that happened. The bell
+				     wobbles once when the number goes up, which is noticed and
+				     is over. -->
 				<template v-if="item.counter > 0" #counter>
-					<NcCounterBubble :count="item.counter" type="highlighted" />
+					<NcCounterBubble :count="item.counter" />
 				</template>
 			</NcAppNavigationItem>
 
@@ -105,30 +113,39 @@
 				:allowCollapse="true"
 				:open="exploreOpen"
 				@update:open="onExploreToggle">
-				<NcAppNavigationItem
-					v-for="entry in exploreEntries"
-					:key="keyFor(entry)"
-					:class="entry.kind === 'list' ? 'navigation__list' : 'navigation__trend'"
-					:name="entry.kind === 'list' ? entry.list.title : `#${entry.tag.name}`"
-					:title="titleFor(entry)"
-					:href="hrefFor(routeFor(entry))"
-					:active="isExploreActive(entry)"
-					@click="navigate(routeFor(entry), $event)">
-					<template #icon>
-						<IconAccountGroup v-if="entry.kind === 'list' && entry.list.nextcloud_group" :size="20" />
-						<IconFormatListBulleted v-else-if="entry.kind === 'list'" :size="20" />
-						<IconTrendingUp v-else-if="entry.kind === 'trend'" :size="20" />
-						<IconPound v-else :size="20" />
-					</template>
-					<!-- how busy it is, which is the whole reason a trending
-					     tag is worth a row: a followed one is there because it
-					     was chosen, not because of a number -->
-					<template v-if="entry.kind === 'trend'" #extra>
-						<span class="navigation__subname">
-							{{ n('social', '%n post', '%n posts', usesOf(entry.tag)) }}
-						</span>
-					</template>
-				</NcAppNavigationItem>
+				<!-- Followed tags, trending tags and lists were one
+				     undifferentiated column, so which kind a row was had to be read
+				     off its icon. A caption before each run costs one line and says
+				     it. A run of one still gets its caption: the point is that the
+				     reader knows what they are looking at, not that the list is
+				     long enough to need dividing. -->
+				<template v-for="group in exploreGroups" :key="group.kind">
+					<NcAppNavigationCaption :name="group.caption" />
+					<NcAppNavigationItem
+						v-for="entry in group.entries"
+						:key="keyFor(entry)"
+						:class="entry.kind === 'list' ? 'navigation__list' : 'navigation__trend'"
+						:name="entry.kind === 'list' ? entry.list.title : `#${entry.tag.name}`"
+						:title="titleFor(entry)"
+						:href="hrefFor(routeFor(entry))"
+						:active="isExploreActive(entry)"
+						@click="navigate(routeFor(entry), $event)">
+						<template #icon>
+							<IconAccountGroup v-if="entry.kind === 'list' && entry.list.nextcloud_group" :size="20" />
+							<IconFormatListBulleted v-else-if="entry.kind === 'list'" :size="20" />
+							<IconTrendingUp v-else-if="entry.kind === 'trend'" :size="20" />
+							<IconPound v-else :size="20" />
+						</template>
+						<!-- how busy it is, which is the whole reason a trending
+						     tag is worth a row: a followed one is there because it
+						     was chosen, not because of a number -->
+						<template v-if="entry.kind === 'trend'" #extra>
+							<span class="navigation__subname">
+								{{ n('social', '%n post', '%n posts', usesOf(entry.tag)) }}
+							</span>
+						</template>
+					</NcAppNavigationItem>
+				</template>
 
 				<!-- the lists are made and filled in Settings; this is where a
 				     reader looks for the way there -->
@@ -384,6 +401,9 @@ export default {
 			/** the entry whose icon is popping, '' when none */
 			chosen: '',
 			chosenTimer: null,
+			/** true for as long as the bell is wobbling */
+			ringing: false,
+			ringTimer: null,
 			showComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
 			composerPaths: [],
@@ -423,6 +443,33 @@ export default {
 		 */
 		exploreEntries() {
 			return chooseEntries(this.followedTags, this.lists, this.trendingToShow, this.exploreCap)
+		},
+
+		/**
+		 * The same rows, in runs of a kind, each run with a caption.
+		 *
+		 * The order is whatever `chooseEntries` decided -- which rows are worth
+		 * the room is its question, and this does not reopen it. All this does
+		 * is put a word over each run so a reader knows whether they are
+		 * looking at a tag they chose, a tag the instance is talking about, or
+		 * a list of theirs.
+		 *
+		 * @return {Array<{kind: string, caption: string, entries: object[]}>}
+		 */
+		exploreGroups() {
+			const groups = []
+
+			for (const entry of this.exploreEntries) {
+				const last = groups[groups.length - 1]
+				if (last !== undefined && last.kind === entry.kind) {
+					last.entries.push(entry)
+					continue
+				}
+
+				groups.push({ kind: entry.kind, caption: this.exploreCaption(entry.kind), entries: [entry] })
+			}
+
+			return groups
 		},
 
 		/**
@@ -619,6 +666,27 @@ export default {
 
 	watch: {
 		/**
+		 * Something arrived. The bell says so once.
+		 *
+		 * Only upwards: reading the page takes the number down, and a bell that
+		 * wobbled then would be ringing about the reader's own click.
+		 *
+		 * @param {number} now the count now
+		 * @param {number} before what it was
+		 */
+		unreadNotifications(now, before) {
+			if (now <= before) {
+				return
+			}
+
+			window.clearTimeout(this.ringTimer)
+			this.ringing = true
+			this.ringTimer = window.setTimeout(() => {
+				this.ringing = false
+			}, 700)
+		},
+
+		/**
 		 * another page: the mark goes to the row that is lit now
 		 *
 		 * @param to
@@ -725,6 +793,22 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * What a run of Explore rows is called.
+		 *
+		 * @param {string} kind followed, trend or list
+		 * @return {string} the caption over that run
+		 */
+		exploreCaption(kind) {
+			const captions = {
+				tag: t('social', 'Tags you follow'),
+				trend: t('social', 'Trending now'),
+				list: t('social', 'Your lists'),
+			}
+
+			return captions[kind] ?? t('social', 'Explore')
+		},
+
 		/**
 		 * Puts the travelling mark on the row that is lit.
 		 *
@@ -1211,13 +1295,37 @@ export default {
 	animation: navigation-chosen .42s cubic-bezier(.2, .8, .2, 1);
 }
 
+/* the bell, once: a quarter turn each way and done */
+@keyframes navigation-ring {
+	0%, 100% { transform: rotate(0); }
+	15% { transform: rotate(-14deg); }
+	35% { transform: rotate(11deg); }
+	55% { transform: rotate(-7deg); }
+	75% { transform: rotate(4deg); }
+}
+
+.navigation__rang :deep(.material-design-icon) {
+	animation: navigation-ring .7s ease-in-out;
+	transform-origin: 50% 20%;
+}
+
+/* smaller than Nextcloud's default, which is sized for a number that has to be
+   answered rather than one that is only being reported */
+:deep(.counter-bubble__counter) {
+	font-size: 11px;
+	min-inline-size: 18px;
+	block-size: 18px;
+	line-height: 18px;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.navigation__indicator--settled {
 		transition: none;
 	}
 
 	.navigation__chosen :deep(.app-navigation-entry-icon),
-	.navigation__chosen :deep(.material-design-icon) {
+	.navigation__chosen :deep(.material-design-icon),
+	.navigation__rang :deep(.material-design-icon) {
 		animation: none;
 	}
 }

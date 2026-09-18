@@ -6,6 +6,7 @@
 	<article
 		class="post-content"
 		:class="{ 'post-content--openable': postRoute !== null }"
+		:style="authorStyle"
 		:data-social-status="item.id"
 		:aria-label="postLabel"
 		@click="onPostClick">
@@ -254,6 +255,7 @@
 			v-if="$route && $route.params.type !== 'notifications'"
 			class="post-footer">
 			<ReactionBar
+				ref="reactionBar"
 				:statusId="String(item.id || '')"
 				:modelValue="item.reactions || []"
 				:canReact="!serverData.public"
@@ -455,7 +457,20 @@
 						<div
 							class="post-action-group post-action-group--like"
 							:class="{ 'post-action-group--refused': refused === 'like' }">
-							<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
+							<template v-if="celebrate === 'like'">
+								<span class="post-action__burst" aria-hidden="true" />
+								<!-- six sparks rather than one ring: a ring says
+								     "pressed", sparks say "yes". They are the
+								     author's colour, which is the same colour
+								     their avatar, their story ring and their
+								     messages are. -->
+								<span
+									v-for="spark in SPARKS"
+									:key="spark"
+									class="post-action__spark"
+									:style="{ '--spark': spark }"
+									aria-hidden="true" />
+							</template>
 							<!-- one button whose label changes, not two swapped by v-if:
 							     unmounting the button someone just pressed drops their focus
 							     to the body and loses their place in the timeline -->
@@ -465,7 +480,12 @@
 								:aria-pressed="isLiked ? 'true' : 'false'"
 								variant="tertiary"
 								:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
-								@click="like">
+								@click="like"
+								@pointerdown="startHold"
+								@pointerup="endHold"
+								@pointerleave="endHold"
+								@pointercancel="endHold"
+								@contextmenu.prevent="askForReaction">
 								<template #icon>
 									<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
 									<HeartOutline v-else :size="20" />
@@ -614,6 +634,7 @@ import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
 import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import eventBus from '../services/eventBus.js'
+import { accountStyle } from '../services/accountColour.js'
 import logger from '../services/logger.js'
 import { onTick } from '../services/clock.js'
 import { filterCoverLabel, matchedFilters } from '../utils/filters.js'
@@ -646,6 +667,9 @@ const TagPeopleDialog = defineAsyncComponent(() => import(/* webpackChunkName: "
 // same chunk, and for the same reason: a dialog nobody opens until they ask for
 // it, which brings framework form controls with it
 const QuoteControlDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./QuoteControlDialog.vue'))
+
+/** How long the heart is held before it offers the reactions. */
+const HOLD_MS = 450
 
 export default {
 	name: 'TimelinePost',
@@ -715,6 +739,12 @@ export default {
 	data() {
 		return {
 			isEditing: false,
+			/** the spark directions, so the template does not build a list per render */
+			SPARKS: [0, 1, 2, 3, 4, 5],
+			/** the press-and-hold timer on the heart, null when nothing is held */
+			holdTimer: null,
+			/** set by a hold, so the click it ends with does not also like the post */
+			held: false,
 			/** which action is playing its confirmation, '' when none */
 			celebrate: '',
 			/** which action the server refused, so the button can say so */
@@ -1199,9 +1229,21 @@ export default {
 		isBoosted() {
 			return this.item.reblogged === true
 		},
+
 		/**
 		 * @return {boolean}
 		 */
+		/**
+		 * The card's own colour, which everything inside it can use.
+		 *
+		 * The author's, not the reader's: a post is the author speaking, and the
+		 * sparks a like throws are theirs. See services/accountColour.js.
+		 *
+		 * @return {object} a style binding carrying `--account-hue`
+		 */
+		authorStyle() {
+			return accountStyle(this.item.account)
+		},
 
 		isLiked() {
 			return this.item.favourited === true
@@ -1663,8 +1705,56 @@ export default {
 		},
 
 		async like() {
+			// a press that turned into a hold has already done something; liking
+			// as well would be two answers to one gesture
+			if (this.held) {
+				this.held = false
+
+				return
+			}
 			const undo = this.isLiked
 			await this.act('like', undo ? 'postUnlike' : 'postLike', !undo)
+		},
+
+		/**
+		 * Holding the heart asks which kind of yes.
+		 *
+		 * A like says "yes" and a reaction says which kind, and the reactions
+		 * were behind a button of their own at the other end of the card. Under
+		 * the thumb that is already on the heart is where every messaging app
+		 * puts them, and the right mouse button does the same thing with a
+		 * pointer.
+		 */
+		startHold() {
+			this.endHold()
+			this.holdTimer = window.setTimeout(() => {
+				this.holdTimer = null
+				this.held = true
+				this.askForReaction()
+			}, HOLD_MS)
+		},
+
+		/** The hold ended, one way or another. */
+		endHold() {
+			if (this.holdTimer !== null) {
+				window.clearTimeout(this.holdTimer)
+				this.holdTimer = null
+			}
+		},
+
+		/**
+		 * Opens the one emoji picker the page has; see ReactionPicker for why it
+		 * is asked for over the bus rather than imported here.
+		 */
+		askForReaction() {
+			if (this.serverData.public) {
+				return
+			}
+
+			// the bar below owns what a reaction does -- the request, the
+			// counts it answers with, the failure -- so this asks it to open
+			// its own picker rather than sending anything itself
+			this.$refs.reactionBar?.askForPicker?.()
 		},
 
 		/**
@@ -1718,6 +1808,12 @@ export default {
 @keyframes post-burst {
 	0% { transform: scale(.2); opacity: .55; }
 	100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* the sparks: out and a little up, shrinking as they go */
+@keyframes post-spark {
+	0% { transform: rotate(var(--angle)) translateY(0) scale(1); opacity: 1; }
+	100% { transform: rotate(var(--angle)) translateY(-18px) scale(.2); opacity: 0; }
 }
 
 @keyframes post-spin {
@@ -2012,20 +2108,25 @@ export default {
 	/*
 	 * The action row is the loudest thing in a card and the least often used:
 	 * somebody scrolling a timeline is reading, not boosting. So a card at rest
-	 * carries the counts and nothing else, and what arrives when the pointer
-	 * does is one pill in the bottom-right corner, drawn behind the row at the
-	 * size the row already has.
+	 * carries nothing at all, and what arrives when the pointer does is one
+	 * pill in the bottom-right corner: it fades in at the width of the overflow
+	 * menu and widens to the left to let the rest of the row out.
 	 *
-	 * Nothing changes size. The card does not grow, nothing below it moves, and
-	 * the pill is short enough to live in the card's own bottom padding and the
-	 * fourteen pixels of gap below it, so it covers no part of the next card.
+	 * Only the pill changes size. The card does not grow, nothing below it
+	 * moves, and — unlike the full-width panel this replaces — the pill is
+	 * short enough to live in the card's own bottom padding and the fourteen
+	 * pixels of gap below it, so it covers no part of the next card.
 	 *
-	 * The overflow menu is the first thing in the row rather than the last. It
-	 * holds its width whether or not it is drawn, so whichever end it sits at
-	 * is an end the counts cannot reach; putting it first spends that width on
-	 * the left, which leaves the counts flush with the right edge the header's
-	 * timestamp already keeps. The pill then opens to the left of them, into
-	 * space that was always reserved.
+	 * A grid whose single column goes from `0fr` to `1fr` is what animates the
+	 * width, for the same reason the height of a thing like this cannot be
+	 * animated any other way: the row's width is not knowable in advance. A
+	 * reply count going from 9 to 10 is another pixel, the icons are a
+	 * translation away from being wider, and `width: auto` does not interpolate
+	 * anywhere this app can rely on yet.
+	 *
+	 * The menu is deliberately outside the rail: it is the part the pill is as
+	 * wide as when it arrives, and keeping it out of the animating column is
+	 * what stops it drifting sideways while the pill opens.
 	 *
 	 * Nothing here is discoverable without a pointer, which is a real cost and
 	 * a deliberate one — a mark on every card in a timeline is a hundred marks
@@ -2225,6 +2326,33 @@ export default {
 	animation: post-burst .5s ease-out forwards;
 }
 
+/**
+ * Six sparks around the heart, in the author's colour.
+ *
+ * The ring above says "pressed"; these say "yes". The colour comes from
+ * `--account-hue`, which the card carries for its author, so a like on Maya's
+ * post throws Maya's colour -- the same one her avatar, her story ring and her
+ * messages are. A card that somehow has no hue falls back to the heart's own
+ * red rather than to black.
+ */
+.post-action__spark {
+	position: absolute;
+	top: 50%;
+	inset-inline-start: 22px;
+	width: 5px;
+	height: 5px;
+	margin: -2px 0 0 -2px;
+	border-radius: 50%;
+	background: hsl(var(--account-hue, 355) 75% 55%);
+	pointer-events: none;
+	/* each spark is turned a sixth of the way round, and the odd ones start
+	   fractionally later so the six do not read as a single expanding ring */
+	--angle: calc(var(--spark) * 60deg);
+	transform-origin: center;
+	animation: post-spark .52s cubic-bezier(.2, .7, .3, 1) forwards;
+	animation-delay: calc(var(--spark) * 12ms);
+}
+
 .post-pinned {
 	animation: none;
 }
@@ -2242,7 +2370,8 @@ export default {
 		animation: none;
 	}
 
-	.post-action__burst {
+	.post-action__burst,
+	.post-action__spark {
 		display: none;
 	}
 }
@@ -2440,10 +2569,8 @@ export default {
 		border-top: 1px solid var(--color-border);
 	}
 
-	/* a full-width row is not a pill: there is no reserved space to spend on
-	   the left, so the menu goes back to the far end of it */
+	/* the menu goes back to the far end of a full-width row */
 	.post-content .post-actions :deep(.actions) {
-		order: 1;
 		margin-inline-start: auto;
 	}
 }

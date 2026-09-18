@@ -719,6 +719,49 @@ describe('Navigation', () => {
 		})
 	})
 
+	/**
+	 * Followed tags, trending tags and lists were one undifferentiated column,
+	 * so which kind a row was had to be read off its icon.
+	 */
+	describe('the Explore group', () => {
+		it('names each run of rows', () => {
+			const wrapper = mountNavigation()
+			const captions = wrapper.vm.exploreGroups.map((group) => group.caption)
+
+			for (const caption of captions) {
+				expect(['Tags you follow', 'Trending now', 'Your lists']).toContain(caption)
+			}
+		})
+
+		it('starts a new run wherever the kind changes', () => {
+			const wrapper = mountNavigation()
+			const kinds = wrapper.vm.exploreGroups.map((group) => group.kind)
+
+			// no two neighbouring runs are the same kind, or one of them should
+			// have been folded into the other
+			for (let i = 1; i < kinds.length; i++) {
+				expect(kinds[i]).not.toBe(kinds[i - 1])
+			}
+		})
+
+		it('gives a run of one its caption too', () => {
+			const wrapper = mountNavigation()
+			const groups = wrapper.vm.exploreGroups
+
+			for (const group of groups) {
+				expect(group.caption).not.toBe('')
+				expect(group.entries.length).toBeGreaterThan(0)
+			}
+		})
+
+		it('keeps the rows in the order Explore chose', () => {
+			const wrapper = mountNavigation()
+			const flattened = wrapper.vm.exploreGroups.flatMap((group) => group.entries)
+
+			expect(flattened).toEqual(wrapper.vm.exploreEntries)
+		})
+	})
+
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {
 		expect(itemNames(mountNavigation())).toEqual([
 			'My Feed',
