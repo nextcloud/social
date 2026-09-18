@@ -365,6 +365,78 @@ class CheckService {
 			|| $this->sameAddress($base, $this->derivedCloudAddress());
 	}
 
+	/**
+	 * Whether the Mastodon client API answers at the root of this instance.
+	 *
+	 * A client is given a domain and builds `https://<domain>/api/v1/...`
+	 * itself; none of them can be told the `/index.php/apps/social` prefix the
+	 * routes actually live under. So unless the web server maps the root paths
+	 * onto the app, every client fails at its first request and the account
+	 * cannot be added at all.
+	 *
+	 * `/api/v1/instance` is the probe because it is the first thing a client
+	 * asks for and the only one that needs no token.
+	 */
+	public function checkClientApiRoot(): bool {
+		$state = (bool)($this->cache->get(self::CACHE_PREFIX . 'clientapi') === 'true');
+		if ($state === true) {
+			return true;
+		}
+
+		$address = $this->configuredSocialBase();
+		if ($address !== '' && $this->requestClientApi($address)) {
+			return true;
+		}
+
+		if ($this->requestClientApi(
+			$this->request->getServerProtocol() . '://' . $this->request->getServerHost()
+		)) {
+			return true;
+		}
+
+		return $this->requestClientApi($this->urlGenerator->getBaseUrl());
+	}
+
+	/**
+	 * One probe of `<base>/api/v1/instance`.
+	 *
+	 * The body is checked, not only the status: a server that answers the root
+	 * with the Nextcloud login page, or with a catch-all index, would otherwise
+	 * read as a working client API.
+	 */
+	private function requestClientApi(string $base): bool {
+		try {
+			$scheme = strtolower((string)parse_url($base, PHP_URL_SCHEME));
+			if (!in_array($scheme, ['http', 'https'], true)) {
+				return false;
+			}
+
+			$options = [];
+			$options['nextcloud']['allow_local_address'] = $this->isConfiguredBase($base);
+			$options['verify'] = $this->config->getSystemValue('social.checkssl', true);
+
+			$response = $this->clientService->newClient()
+				->get(rtrim($base, '/') . '/api/v1/instance', $options);
+			if ($response->getStatusCode() !== Http::STATUS_OK) {
+				return false;
+			}
+
+			$body = json_decode((string)$response->getBody(), true);
+			if (!is_array($body) || !array_key_exists('uri', $body)) {
+				return false;
+			}
+
+			$this->cache->set(self::CACHE_PREFIX . 'clientapi', 'true', 3600);
+
+			return true;
+		} catch (Exception $e) {
+			// anything that is not a readable instance document means a client
+			// would fail here too
+		}
+
+		return false;
+	}
+
 	private function requestWellKnown(string $base, string $username): bool {
 		try {
 			$scheme = strtolower((string)parse_url($base, PHP_URL_SCHEME));

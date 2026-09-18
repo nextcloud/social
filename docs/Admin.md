@@ -57,11 +57,11 @@ and not one to carry into production.
 
 ## The setup checks
 
-Social registers four checks in **Administration → Overview**, beside
-Nextcloud's own. They are the four things that break federation without
-anything else saying so, and each links back to this page.
+Social registers seven checks in **Administration → Overview**, beside
+Nextcloud's own. They are the things that break federation, or stop clients
+connecting, without anything else saying so, and each links back to this page.
 
-`occ social:check:install` runs the same four classes (`lib/SetupChecks/`),
+`occ social:check:install` runs the same classes (`lib/SetupChecks/`),
 prints each with its severity and exits `1` if any of them reports an error, so
 a deployment script can run it. `--offline` leaves out the WebFinger probe, the
 only one that goes out on the network.
@@ -83,6 +83,46 @@ to reach — it refuses any peer that is not HTTPS on a publicly resolvable name
 before it checks a signature, from its inbox, its delivery and its actor fetch,
 with nothing to configure. This is expected on a development or intranet
 instance and is a warning rather than an error.
+
+**Social: client API.** Whether a Mastodon app can reach this instance at all.
+See below — this is the one check that is about apps rather than about
+federation, and it is a warning rather than an error, because everything else
+works without it.
+
+### Mastodon apps cannot connect
+
+A Mastodon app is given a domain and builds `https://<domain>/api/v1/...` from
+it. Not one of them accepts a path, and Social's routes live under
+`/index.php/apps/social`, so out of the box adding this instance to an app
+fails at its first request with nothing in the log to show for it. The web
+interface and federation with other servers are unaffected.
+
+Nextcloud only lets a short list of apps claim URLs at the root of the domain,
+and Social is not on it, so this has to be done in the web server. Ready-made
+rules are in [`contrib/webserver/`](../contrib/webserver): include
+`apache-social-root.conf` from the `<VirtualHost>` that serves Nextcloud, or
+`nginx-social-root.conf` from its `server` block, and reload.
+
+They map three things onto the app:
+
+| Path | Why |
+| --- | --- |
+| `/api/…` | every client call, from `/api/v1/instance` onwards |
+| `/oauth/…` | registering the app, the consent screen, the token |
+| `/.well-known/host-meta` | some clients ask for it before anything else |
+
+**Use an internal rewrite, not a redirect.** Nextcloud routes on the address
+the request arrived at, so a plain internal rewrite to `/index.php/apps/social`
+reaches PHP but not the route, and answers 404. Sending a redirect instead does
+reach the route, but many HTTP clients drop the `Authorization` header when
+they follow one, so every signed-in request then answers 401. The Apache rules
+therefore proxy internally (`mod_proxy`, `mod_proxy_http` and `ProxyPreserveHost
+On`), which keeps both the address and the header.
+
+Apache also has to hand the `Authorization` header to PHP. Nextcloud's own
+`.htaccess` does that, but only where `AllowOverride` lets it be read; with
+`AllowOverride None` the rule never runs and every request from a signed-in app
+answers `the access_token was revoked`.
 
 ### WebFinger does not answer
 

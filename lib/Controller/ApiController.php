@@ -4363,6 +4363,14 @@ class ApiController extends Controller {
 			}
 
 			$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);
+			// The cached copy of a local actor carries no user id — that column
+			// belongs to the account, not to the cache — and a bearer request
+			// has no session to fall back on. Anything reading a per-user
+			// setting from the viewer (the notification policy, for one) needs
+			// it named here or it reads nobody's.
+			if ($this->viewer->getUserId() === '') {
+				$this->viewer->setUserId($userId);
+			}
 
 			$this->streamService->setViewer($this->viewer);
 			$this->followService->setViewer($this->viewer);

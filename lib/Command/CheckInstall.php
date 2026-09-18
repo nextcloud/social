@@ -18,6 +18,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
@@ -72,6 +73,7 @@ class CheckInstall extends SocialCommand {
 		private CloudAddressMatches $cloudAddressMatches,
 		private CronRanRecently $cronRanRecently,
 		private OutboundQueueNotStuck $outboundQueueNotStuck,
+		private ClientApiAtRoot $clientApiAtRoot,
 	) {
 		parent::__construct();
 		$this->streamDestRequest = $streamDestRequest;
@@ -172,7 +174,8 @@ class CheckInstall extends SocialCommand {
 	private function checks(bool $offline): array {
 		$checks = [$this->cloudAddressMatches, $this->cronRanRecently, $this->outboundQueueNotStuck];
 		if (!$offline) {
-			array_unshift($checks, $this->webFingerReachable);
+			// both probe over the network, so both are left out by --offline
+			array_unshift($checks, $this->webFingerReachable, $this->clientApiAtRoot);
 		}
 
 		return $checks;
