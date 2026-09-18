@@ -456,6 +456,12 @@ a.external_link {
 .social__pages {
 	display: grid;
 	min-block-size: 100%;
+	/* What the browser animates. Without a name of its own the only thing
+	   there is to animate is `root`, which is a picture of the whole window --
+	   so the sidebar, the header and the search box all slid across with the
+	   page. Naming this element lifts it out of that picture and leaves the
+	   rest of the app still. */
+	view-transition-name: social-page;
 
 	> * {
 		grid-area: 1 / 1;
@@ -539,12 +545,20 @@ a.external_link {
 	to { opacity: 0; transform: translateX(var(--page-to, 0)) translateY(var(--page-fall, -4px)); }
 }
 
-::view-transition-old(root) {
+::view-transition-old(social-page) {
 	animation: page-vt-out .13s ease-in both;
 }
 
-::view-transition-new(root) {
+::view-transition-new(social-page) {
 	animation: page-vt-in .2s cubic-bezier(.2, 0, .1, 1) both;
+}
+
+/* Everything that is not the page -- the sidebar, the header -- is the same
+   before and after, so there is nothing to show it doing. Left to itself the
+   browser cross-fades it, which on an identical picture is invisible work. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
 }
 
 [data-page-direction='forward'] {
@@ -584,8 +598,8 @@ a.external_link {
 		transform: none;
 	}
 
-	::view-transition-old(root),
-	::view-transition-new(root) {
+	::view-transition-old(social-page),
+	::view-transition-new(social-page) {
 		animation: none;
 	}
 }

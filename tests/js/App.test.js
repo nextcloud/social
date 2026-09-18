@@ -344,12 +344,25 @@ describe('App', () => {
 	 * Where the browser can animate the change itself it does, and the Vue
 	 * transition stands down rather than playing the same move twice.
 	 */
-	it('lets the browser animate the change where it can', () => {
+	/**
+	 * Scoped to the page, not to the window. `root` is a picture of the whole
+	 * thing, so animating it slid the sidebar, the header and the search box
+	 * across with the content -- which is what a reader saw and reported.
+	 */
+	it('lets the browser animate the change where it can, and only the page', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
 
-		expect(source).toMatch(/::view-transition-old\(root\)/)
-		expect(source).toMatch(/::view-transition-new\(root\)/)
+		expect(source).toMatch(/view-transition-name: social-page/)
+		expect(source).toMatch(/::view-transition-old\(social-page\)/)
+		expect(source).toMatch(/::view-transition-new\(social-page\)/)
 		expect(source).toMatch(/canViewTransition\(\)/)
+	})
+
+	it('holds the rest of the window still while the page changes', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+		const root = source.slice(source.indexOf('::view-transition-old(root)'))
+
+		expect(root).toMatch(/::view-transition-old\(root\),\s*\n::view-transition-new\(root\) \{\s*\n\tanimation: none;/)
 	})
 
 	it('leaves all of it alone for a reader who asked their system for less', () => {
