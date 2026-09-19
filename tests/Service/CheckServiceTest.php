@@ -315,7 +315,7 @@ class CheckServiceTest extends TestCase {
 		$this->assertSame(
 			[
 				'success' => true,
-				'checks' => ['wellknown' => true, 'cloudAddress' => true],
+				'checks' => ['wellknown' => true, 'cloudAddress' => true, 'clientApi' => true],
 				'addresses' => [
 					'configured' => 'https://cloud.example/index.php',
 					'expected' => 'https://cloud.example/index.php',
@@ -335,6 +335,79 @@ class CheckServiceTest extends TestCase {
 
 		$this->assertFalse($result['success']);
 		$this->assertFalse($result['checks']['wellknown']);
+	}
+
+	// whether a Mastodon app can reach this instance at all
+
+	public function testTheClientApiCheckTrustsARememberedSuccess(): void {
+		$this->cache->method('get')->willReturnCallback(
+			static fn (string $key): ?string
+				=> $key === CheckService::CACHE_PREFIX . 'clientapi' ? 'true' : null
+		);
+		$this->client->expects($this->never())->method('get');
+
+		$this->assertTrue($this->service->checkClientApiRoot());
+	}
+
+	/**
+	 * This check runs on every page of the app an administrator opens, and a
+	 * failing one has three addresses to try. Without a remembered answer,
+	 * every one of those page loads waits for three HTTP requests that are all
+	 * going to fail.
+	 */
+	public function testTheClientApiCheckTrustsARememberedFailureToo(): void {
+		$this->cache->method('get')->willReturnCallback(
+			static fn (string $key): ?string
+				=> $key === CheckService::CACHE_PREFIX . 'clientapi' ? 'false' : null
+		);
+		$this->client->expects($this->never())->method('get');
+
+		$this->assertFalse($this->service->checkClientApiRoot());
+	}
+
+	public function testAFailingClientApiIsRememberedForFiveMinutes(): void {
+		// much shorter than the hour a success is kept: an administrator who
+		// has just edited the web server should see the warning go
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('');
+		$this->client->method('get')->willReturn($this->response(404));
+
+		$this->cache->expects($this->once())
+			->method('set')
+			->with(CheckService::CACHE_PREFIX . 'clientapi', 'false', 300);
+
+		$this->assertFalse($this->service->checkClientApiRoot());
+	}
+
+	/**
+	 * A 200 is not enough. A server that answers the root with the Nextcloud
+	 * login page, or with a catch-all index, would otherwise read as a working
+	 * client API and the check would say apps can connect when they cannot.
+	 */
+	public function testAnAnswerThatIsNotAnInstanceDocumentDoesNotCount(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$response = $this->response(200);
+		$response->method('getBody')->willReturn('<!DOCTYPE html><title>Log in</title>');
+		$this->client->method('get')->willReturn($response);
+
+		$this->assertFalse($this->service->checkClientApiRoot());
+	}
+
+	public function testAnInstanceDocumentAtTheRootMeansAppsCanConnect(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$response = $this->response(200);
+		$response->method('getBody')->willReturn('{"uri":"social.example.com","title":"Nextcloud Social"}');
+		$this->client->expects($this->once())
+			->method('get')
+			->with('https://social.example.com/api/v1/instance', $this->anything())
+			->willReturn($response);
+		$this->cache->expects($this->once())
+			->method('set')
+			->with(CheckService::CACHE_PREFIX . 'clientapi', 'true', 3600);
+
+		$this->assertTrue($this->service->checkClientApiRoot());
 	}
 
 	// the address the app builds ids from vs. the one the server says it has

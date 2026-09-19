@@ -45,6 +45,43 @@ describe('SetupChecks', () => {
 		expect(wrapper.text()).toContain('occ social:reset')
 	})
 
+	it('tells an administrator that Mastodon apps cannot connect, and what to paste', () => {
+		const wrapper = mountChecks({ wellknown: true, cloudAddress: true, clientApi: false })
+
+		const text = wrapper.text()
+		expect(text).toContain('Mastodon apps cannot connect to this server')
+		// the rule is useless without the [P]: a plain rewrite answers 404
+		expect(text).toContain('[P,QSA,L]')
+		expect(text).toContain('ProxyPreserveHost On')
+		expect(wrapper.find('pre').exists()).toBe(true)
+	})
+
+	it('shows the address an app would actually build, not a placeholder', () => {
+		const wrapper = mountChecks({ wellknown: true, cloudAddress: true, clientApi: false })
+
+		expect(wrapper.text()).toContain('https://' + window.location.host + '/api/v1/instance')
+	})
+
+	it('links the documentation for nginx and the rest', () => {
+		const wrapper = mountChecks({ wellknown: true, cloudAddress: true, clientApi: false })
+
+		const href = wrapper.findAll('a').at(-1).attributes('href')
+		expect(href).toContain('Admin.md#mastodon-apps-cannot-connect')
+	})
+
+	it('says nothing when the client API answers', () => {
+		const wrapper = mountChecks({ wellknown: true, cloudAddress: true, clientApi: true })
+
+		expect(wrapper.findAll('h3')).toHaveLength(0)
+	})
+
+	it('stays quiet about a client API check an older server never sent', () => {
+		// absent, not false: same rule as the address check above
+		const wrapper = mountChecks({ wellknown: true, cloudAddress: true })
+
+		expect(wrapper.findAll('h3')).toHaveLength(0)
+	})
+
 	it('reports both problems at once when both are wrong', () => {
 		const wrapper = mountChecks({ wellknown: false, cloudAddress: false })
 

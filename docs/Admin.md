@@ -97,11 +97,31 @@ it. Not one of them accepts a path, and Social's routes live under
 fails at its first request with nothing in the log to show for it. The web
 interface and federation with other servers are unaffected.
 
+An administrator opening Social sees this at the top of the app, with the
+Apache rules to paste, until the web server answers; it is the same check as
+in **Administration → Overview**, and it goes quiet within five minutes of the
+rules being in place.
+
 Nextcloud only lets a short list of apps claim URLs at the root of the domain,
 and Social is not on it, so this has to be done in the web server. Ready-made
 rules are in [`contrib/webserver/`](../contrib/webserver): include
 `apache-social-root.conf` from the `<VirtualHost>` that serves Nextcloud, or
-`nginx-social-root.conf` from its `server` block, and reload.
+`nginx-social-root.conf` from its `server` block, and reload. For Apache that
+is:
+
+```apache
+ProxyPreserveHost On
+
+RewriteEngine On
+RewriteRule ^/?api/(.*)$   http://127.0.0.1/index.php/apps/social/api/$1   [P,QSA,L]
+RewriteRule ^/?oauth/(.*)$ http://127.0.0.1/index.php/apps/social/oauth/$1 [P,QSA,L]
+RewriteRule ^/?\.well-known/host-meta$ http://127.0.0.1/index.php/.well-known/host-meta [P,QSA,L]
+```
+
+`mod_proxy`, `mod_proxy_http` and `mod_rewrite` have to be enabled. This cannot
+go in an `.htaccess` file, because `ProxyPreserveHost` is not allowed there and
+without it the app is handed `Host: 127.0.0.1` and refuses the request as an
+untrusted domain.
 
 They map three things onto the app:
 
@@ -122,7 +142,20 @@ On`), which keeps both the address and the header.
 Apache also has to hand the `Authorization` header to PHP. Nextcloud's own
 `.htaccess` does that, but only where `AllowOverride` lets it be read; with
 `AllowOverride None` the rule never runs and every request from a signed-in app
-answers `the access_token was revoked`.
+answers `the access_token was revoked`. The shipped rules set it themselves for
+the same reason.
+
+**Add `127.0.0.1` to `trusted_proxies`.** Client requests reach PHP from the
+proxy afterwards, so without it every app in the world shares one address for
+rate limiting, brute-force protection and the log — one client tripping a limit
+locks out all of them. The real address arrives in `X-Forwarded-For`, which
+Apache's `mod_proxy` sends by itself and the nginx rules set explicitly.
+
+The check probes `/api/v1/instance` at the address Social is configured for,
+then at the host the request came in on, then at the server's base URL, and
+reads the answer rather than only its status, so a login page or a catch-all
+`index` at the root does not pass for a client API. A success is remembered for
+an hour and a failure for five minutes.
 
 ### WebFinger does not answer
 

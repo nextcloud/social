@@ -79,6 +79,7 @@ class CheckService {
 		$checks = [];
 		$checks['wellknown'] = $this->checkWellKnown();
 		$checks['cloudAddress'] = $this->checkCloudAddress();
+		$checks['clientApi'] = $this->checkClientApiRoot();
 
 		$success = true;
 		foreach ($checks as $check) {
@@ -378,9 +379,9 @@ class CheckService {
 	 * asks for and the only one that needs no token.
 	 */
 	public function checkClientApiRoot(): bool {
-		$state = (bool)($this->cache->get(self::CACHE_PREFIX . 'clientapi') === 'true');
-		if ($state === true) {
-			return true;
+		$known = (string)$this->cache->get(self::CACHE_PREFIX . 'clientapi');
+		if ($known !== '') {
+			return $known === 'true';
 		}
 
 		$address = $this->configuredSocialBase();
@@ -394,7 +395,19 @@ class CheckService {
 			return true;
 		}
 
-		return $this->requestClientApi($this->urlGenerator->getBaseUrl());
+		if ($this->requestClientApi($this->urlGenerator->getBaseUrl())) {
+			return true;
+		}
+
+		// A failure is remembered as well, and for a much shorter time than a
+		// success: this runs on every page load of the app for an
+		// administrator, and without it every one of those would pay for three
+		// HTTP requests that are all going to fail. Short, because the next
+		// thing an administrator does after reading the warning is edit the
+		// web server, and they should not have to wait an hour to see it go.
+		$this->cache->set(self::CACHE_PREFIX . 'clientapi', 'false', 300);
+
+		return false;
 	}
 
 	/**
