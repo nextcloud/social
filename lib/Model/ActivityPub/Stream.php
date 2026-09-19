@@ -1275,6 +1275,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setInReplyTo($this->validate(self::AS_ID, 'inReplyTo', $data, ''));
 		$this->setQuote($this->quoteIdOf($data));
 		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $data, ''));
+		$this->setQuotePolicy(self::quotePolicyOf($data));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setObjectId($this->get('object', $data, ''));
@@ -1764,7 +1765,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// rule here is that a client never has to test for a missing one
 			'poll' => null,
 			'uri' => $this->getId(),
-			'url' => $this->getId(),
+			// the page a person can open, which is not always the id. Loops
+			// posts are `.../ap/users/1/video/3268…` with a `url` of
+			// `loops.video/v/i9co_4TqPk`, and Pixelfed and PeerTube do the
+			// same; sending the id here pointed "open original" at a JSON
+			// document. Mastodon's two fields mean two different things and
+			// this app had them meaning one.
+			'url' => ($this->getUrl() === '') ? $this->getId() : $this->getUrl(),
 			'reblog' => null,
 			'media_attachments' => $this->getAttachments(),
 			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
@@ -2054,8 +2061,49 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * narrower would be handed to readers the author never addressed.
 	 */
 	public function isQuotable(): bool {
+		// what the author said, where they said anything. A remote post that
+		// carries `canQuote` has answered this question itself, and quoting it
+		// anyway means sending a request their server is going to refuse --
+		// after this instance has already shown the quote to the person who
+		// wrote it.
+		if (!$this->isLocal() && $this->getQuotePolicy() === self::QUOTE_POLICY_NOBODY) {
+			return false;
+		}
+
 		return $this->isPublic()
 			|| in_array($this->getVisibility(), [self::TYPE_PUBLIC, self::TYPE_UNLISTED], true);
+	}
+
+	/**
+	 * Who the author says may quote their post, from `interactionPolicy`.
+	 *
+	 * GoToSocial defined the field, Mastodon 4.5 reads it, and Loops publishes
+	 * it on every video; FEP-044f is the same shape. Only `canQuote` is read
+	 * here, because it is the only one this app can act on without pretending
+	 * to know a remote server's follower list: `automaticApproval` naming the
+	 * public collection is "anyone", anything narrower is treated as "ask the
+	 * author", and an absent policy leaves the visibility rule to decide as
+	 * before.
+	 *
+	 * `manualApproval` is deliberately not "yes": it means the author's server
+	 * decides case by case, and this app has no way to wait for that answer
+	 * before showing a reader the quote they just wrote.
+	 */
+	private static function quotePolicyOf(array $data): string {
+		$canQuote = $data['interactionPolicy']['canQuote'] ?? null;
+		if (!is_array($canQuote)) {
+			return '';
+		}
+
+		$automatic = $canQuote['automaticApproval'] ?? [];
+		$automatic = is_array($automatic) ? $automatic : [$automatic];
+		foreach ($automatic as $allowed) {
+			if (is_string($allowed) && $allowed === self::CONTEXT_PUBLIC) {
+				return self::QUOTE_POLICY_PUBLIC;
+			}
+		}
+
+		return self::QUOTE_POLICY_NOBODY;
 	}
 
 	/**

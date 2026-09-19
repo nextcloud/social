@@ -121,6 +121,68 @@ class StreamQuoteTest extends TestCase {
 		$this->assertSame(self::QUOTED, $this->incoming($wire)->getQuote());
 	}
 
+	// --- what the author said about being quoted
+
+	/**
+	 * Loops publishes this on every video, GoToSocial defined it and Mastodon
+	 * 4.5 reads it. It used to be ignored here, so a post whose author said
+	 * "nobody" was quoted anyway — and their server then refused the request,
+	 * after this instance had already shown the quote to the person who wrote
+	 * it.
+	 */
+	public function testAPostOpenToTheWorldIsQuotable(): void {
+		$stream = $this->incoming([
+			'interactionPolicy' => ['canQuote' => ['automaticApproval' => [ACore::CONTEXT_PUBLIC]]],
+		]);
+
+		$this->assertSame(Stream::QUOTE_POLICY_PUBLIC, $stream->getQuotePolicy());
+		$this->assertTrue($stream->isQuotable());
+	}
+
+	public function testAPostWhoseAuthorAllowsNobodyIsNotQuotable(): void {
+		$stream = $this->incoming([
+			'interactionPolicy' => ['canQuote' => ['automaticApproval' => []]],
+		]);
+
+		$this->assertSame(Stream::QUOTE_POLICY_NOBODY, $stream->getQuotePolicy());
+		$this->assertFalse($stream->isQuotable());
+	}
+
+	/**
+	 * Narrower than public — the author's followers, say — is not something
+	 * this app can check without pretending to know a remote server's follower
+	 * list, so it is treated as "ask the author", which means not here.
+	 */
+	public function testAPolicyNarrowerThanPublicIsNotTakenAsPermission(): void {
+		$stream = $this->incoming([
+			'interactionPolicy' => ['canQuote' => [
+				'automaticApproval' => ['https://mastodon.social/users/alice/followers'],
+			]],
+		]);
+
+		$this->assertFalse($stream->isQuotable());
+	}
+
+	/**
+	 * `manualApproval` means their server decides case by case, and this app
+	 * cannot wait for that answer before showing somebody the quote they just
+	 * wrote.
+	 */
+	public function testManualApprovalIsNotAutomaticPermission(): void {
+		$stream = $this->incoming([
+			'interactionPolicy' => ['canQuote' => ['manualApproval' => [ACore::CONTEXT_PUBLIC]]],
+		]);
+
+		$this->assertFalse($stream->isQuotable());
+	}
+
+	public function testAPostThatSaysNothingIsDecidedByItsVisibilityAsBefore(): void {
+		$stream = $this->incoming([]);
+
+		$this->assertSame('', $stream->getQuotePolicy());
+		$this->assertTrue($stream->isQuotable(), 'a public post with no policy stays quotable');
+	}
+
 	public function testANoteThatQuotesNothingHasNoQuote(): void {
 		$this->assertSame('', $this->incoming([])->getQuote());
 	}
