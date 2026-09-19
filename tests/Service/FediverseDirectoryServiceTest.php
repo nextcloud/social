@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\InstanceStatsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\DirectoryAccount;
 use OCA\Social\Model\Client\DirectorySource;
@@ -43,6 +44,11 @@ class FediverseDirectoryServiceTest extends TestCase {
 	private DirectoryService|MockObject $directoryService;
 	private CacheActorService|MockObject $cacheActorService;
 	private FediverseService|MockObject $fediverseService;
+	private InstanceStatsRequest|MockObject $instanceStatsRequest;
+	/** how many federated peers to ask, as the app value would say it */
+	private string $peersWanted = '0';
+	/** whether the server directory is asked, as the app value would say it */
+	private string $discovery = '0';
 	private FediverseDirectoryService $service;
 
 	/** The configured `directories` value, as an administrator would write it. */
@@ -63,8 +69,16 @@ class FediverseDirectoryServiceTest extends TestCase {
 
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->configService->method('getAppValue')
-			->willReturnCallback(fn (string $key): string
-				=> ($key === FediverseDirectoryService::CONFIG_KEY) ? $this->configured : '');
+			->willReturnCallback(function (string $key): string {
+				return match ($key) {
+					FediverseDirectoryService::CONFIG_KEY => $this->configured,
+					FediverseDirectoryService::CONFIG_PEERS => $this->peersWanted,
+					// off here, so a test that counts requests counts the ones
+					// it made; the tests below about discovery turn it on
+					FediverseDirectoryService::CONFIG_DISCOVERY => $this->discovery,
+					default => '',
+				};
+			});
 		$this->configService->method('getCloudHost')->willReturn(self::LOCAL_HOST);
 
 		$this->curlService = $this->createMock(CurlService::class);
@@ -113,6 +127,12 @@ class FediverseDirectoryServiceTest extends TestCase {
 			});
 		$this->fediverseService->method('isSilenced')->willReturn(false);
 
+		// an instance that federates with nobody, so the sources a test sees
+		// are the ones it configured; the tests about federated peers say
+		// which servers this instance knows
+		$this->instanceStatsRequest = $this->createMock(InstanceStatsRequest::class);
+		$this->instanceStatsRequest->method('remoteHostCounts')->willReturn([]);
+
 		// a cache that keeps nothing, so each test asks what it means to ask;
 		// the one test about caching supplies its own
 		$this->service = $this->build($this->createMock(ICache::class));
@@ -128,6 +148,7 @@ class FediverseDirectoryServiceTest extends TestCase {
 			$this->directoryService,
 			$this->cacheActorService,
 			$this->fediverseService,
+			$this->instanceStatsRequest,
 			new NullLogger(),
 			$factory
 		);
@@ -165,7 +186,10 @@ class FediverseDirectoryServiceTest extends TestCase {
 			static fn (DirectorySource $source): string => $source->getHost(), $this->service->sources()
 		);
 
-		$this->assertSame([self::LOCAL_HOST, 'mastodon.social', 'misskey.io'], $hosts);
+		$this->assertSame(
+			[self::LOCAL_HOST, 'fedi.directory', 'mastodon.social', 'misskey.io', 'lemmy.world', 'pixelfed.social'],
+			$hosts
+		);
 	}
 
 	public function testAnAdministratorReplacesThemEntirely(): void {
@@ -176,6 +200,183 @@ class FediverseDirectoryServiceTest extends TestCase {
 		);
 
 		$this->assertSame([self::LOCAL_HOST, 'chaos.social'], $hosts);
+	}
+
+	// the directory somebody keeps by hand
+
+	/** One entry as fedi.directory publishes it: prose, with a handle in it. */
+	private function entry(string $title, string $text, string $link = ''): array {
+		return [
+			'title' => ['rendered' => $title],
+			'excerpt' => ['rendered' => '<p>' . $text . '</p>'],
+			'content' => ['rendered' => '<p>' . $text . '</p>'],
+			'link' => $link,
+		];
+	}
+
+	public function testACuratedEntryContributesThePersonItIsAbout(): void {
+		$this->configured = json_encode([['host' => 'fedi.directory', 'kind' => 'wordpress']]);
+		$this->answers['fedi.directory/wp-json'] = [
+			$this->entry('Phosh', 'Interface for Linux phones. Fediverse address:@phosh@social.phosh.mobi', 'https://fedi.directory/phosh/'),
+		];
+
+		$result = $this->service->search('linux');
+		$account = $result['accounts'][0];
+
+		$this->assertSame(['phosh@social.phosh.mobi'], $this->handles($result));
+		// the entry is about somebody else's account, so the host comes out of
+		// the handle and not off the directory that wrote it down
+		$this->assertSame('social.phosh.mobi', $account->getHost());
+		$this->assertSame('Phosh', $account->getDisplayName());
+	}
+
+	public function testTheQueryIsWhatTheCuratedDirectoryIsAskedFor(): void {
+		$this->configured = json_encode([['host' => 'fedi.directory', 'kind' => 'wordpress']]);
+		$this->answers['fedi.directory/wp-json'] = [];
+
+		$this->service->search('mycology');
+
+		// this is the one source that can answer a subject rather than a name
+		$this->assertStringContainsString('search=mycology', $this->asked[0]);
+	}
+
+	public function testAnEntryThatNamesNobodyIsNotAPerson(): void {
+		$this->configured = json_encode([['host' => 'fedi.directory', 'kind' => 'wordpress']]);
+		$this->answers['fedi.directory/wp-json'] = [
+			$this->entry('A blog', 'Read it at https://example.org/blog, no handle anywhere'),
+			$this->entry('Someone', 'Find them at @someone@example.org'),
+		];
+
+		$this->assertSame(['someone@example.org'], $this->handles($this->service->search('x')));
+	}
+
+	public function testACuratedEntryOnABlockedHostIsNotOffered(): void {
+		$this->configured = json_encode([['host' => 'fedi.directory', 'kind' => 'wordpress']]);
+		$this->blocked = ['spam.example'];
+		$this->answers['fedi.directory/wp-json'] = [
+			$this->entry('Spam', 'Find them at @spammer@spam.example'),
+		];
+
+		$this->assertSame([], $this->handles($this->service->search('x')));
+	}
+
+	public function testACuratedDirectoryWithNothingToSearchForIsNotAsked(): void {
+		$this->configured = json_encode([['host' => 'fedi.directory', 'kind' => 'wordpress']]);
+
+		$this->service->search('');
+
+		// its endpoint would answer with whatever is newest, which is not a
+		// directory and not what was asked
+		$this->assertSame([], $this->asked);
+	}
+
+	// the servers this instance actually federates with
+
+	/** A host that answers NodeInfo, saying it runs `$software`. */
+	private function nodeinfoFor(string $host, string $software): void {
+		$this->answers[$host . '/.well-known/nodeinfo'] = [
+			'links' => [['rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0', 'href' => 'https://' . $host . '/nodeinfo/2.0']],
+		];
+		$this->answers[$host . '/nodeinfo/2.0'] = ['software' => ['name' => $software]];
+	}
+
+	public function testTheServersThisInstanceKnowsAreAskedToo(): void {
+		$this->peersWanted = '2';
+		$this->instanceStatsRequest = $this->createMock(InstanceStatsRequest::class);
+		// most-federated first, which is the order they are worth asking in
+		$this->instanceStatsRequest->method('remoteHostCounts')
+			->willReturn(['chaos.social' => 120, 'shonk.example' => 40, 'third.example' => 2]);
+		$this->service = $this->build($this->createMock(ICache::class));
+		$this->nodeinfoFor('chaos.social', 'mastodon');
+		$this->nodeinfoFor('shonk.example', 'sharkey');
+		$this->nodeinfoFor('third.example', 'mastodon');
+
+		$sources = $this->service->sources();
+		$peers = array_values(array_filter(
+			$sources,
+			static fn (DirectorySource $source): bool => $source->getOrigin() === DirectorySource::ORIGIN_FEDERATION
+		));
+
+		$this->assertSame(['chaos.social', 'shonk.example'], array_map(
+			static fn (DirectorySource $source): string => $source->getHost(), $peers
+		));
+		// the kind is what the server said it runs, because the kind decides
+		// which API it is asked in
+		$this->assertSame(DirectorySource::KIND_MASTODON, $peers[0]->getKind());
+		$this->assertSame(DirectorySource::KIND_MISSKEY, $peers[1]->getKind());
+	}
+
+	public function testAPeerRunningSomethingUnknownIsLeftOutRatherThanGuessedAt(): void {
+		$this->peersWanted = '3';
+		$this->instanceStatsRequest = $this->createMock(InstanceStatsRequest::class);
+		$this->instanceStatsRequest->method('remoteHostCounts')
+			->willReturn(['writefreely.example' => 90, 'chaos.social' => 10]);
+		$this->service = $this->build($this->createMock(ICache::class));
+		$this->nodeinfoFor('writefreely.example', 'writefreely');
+		$this->nodeinfoFor('chaos.social', 'mastodon');
+
+		$hosts = array_map(
+			static fn (DirectorySource $source): string => $source->getHost(), $this->service->sources()
+		);
+
+		$this->assertNotContains('writefreely.example', $hosts);
+		$this->assertContains('chaos.social', $hosts);
+	}
+
+	public function testAskingNoPeersIsARealAnswer(): void {
+		$this->peersWanted = '0';
+		$this->instanceStatsRequest = $this->createMock(InstanceStatsRequest::class);
+		$this->instanceStatsRequest->expects($this->never())->method('remoteHostCounts');
+		$this->service = $this->build($this->createMock(ICache::class));
+
+		$this->service->sources();
+	}
+
+	public function testAPeerThisInstanceRefusesToFederateWithIsNotAsked(): void {
+		$this->peersWanted = '2';
+		$this->blocked = ['spam.example'];
+		$this->instanceStatsRequest = $this->createMock(InstanceStatsRequest::class);
+		$this->instanceStatsRequest->method('remoteHostCounts')
+			->willReturn(['spam.example' => 300, 'chaos.social' => 1]);
+		$this->service = $this->build($this->createMock(ICache::class));
+		$this->nodeinfoFor('chaos.social', 'mastodon');
+
+		$hosts = array_map(
+			static fn (DirectorySource $source): string => $source->getHost(), $this->service->sources()
+		);
+
+		$this->assertNotContains('spam.example', $hosts);
+	}
+
+	// servers a directory of servers names
+
+	public function testServersCanBeDiscoveredFromADirectoryOfServers(): void {
+		$this->discovery = '1';
+		$this->answers['fediverse.info'] = ['data' => [
+			['domain' => 'pixelfed.social', 'software_name' => 'pixelfed'],
+			['domain' => 'sharkey.example', 'software_name' => 'sharkey'],
+		]];
+
+		$discovered = array_values(array_filter(
+			$this->service->sources(),
+			static fn (DirectorySource $source): bool => $source->getOrigin() === DirectorySource::ORIGIN_DISCOVERED
+		));
+
+		$this->assertSame('sharkey.example', $discovered[0]->getHost());
+		$this->assertSame(DirectorySource::KIND_MISSKEY, $discovered[0]->getKind());
+		// pixelfed.social already ships in the list above, and a host is one
+		// source however many ways it arrives
+		$this->assertCount(1, $discovered);
+	}
+
+	public function testADirectoryOfServersThatDoesNotAnswerCostsNothingTwice(): void {
+		$this->discovery = '1';
+		$cache = $this->createMock(ICache::class);
+		$cache->expects($this->once())->method('set')
+			->with('discovery', '[]', $this->anything());
+		$this->service = $this->build($cache);
+
+		$this->service->sources();
 	}
 
 	/** An empty list is "ask nobody but ourselves", which is a real answer. */
@@ -189,7 +390,8 @@ class FediverseDirectoryServiceTest extends TestCase {
 	public function testMalformedConfigurationFallsBackToWhatShips(): void {
 		$this->configured = 'not json at all';
 
-		$this->assertCount(3, $this->service->sources());
+		// this instance, and the list that ships
+		$this->assertCount(6, $this->service->sources());
 	}
 
 	public function testAHostWrittenAsAUrlIsReadAsAHost(): void {

@@ -39,6 +39,7 @@
 				v-for="source in sources"
 				:key="source.host"
 				:variant="chosen === source.host ? 'secondary' : 'tertiary'"
+				:title="whySource(source)"
 				@click="choose(source.host)">
 				{{ source.label }}
 			</NcButton>
@@ -215,6 +216,28 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Why a server is in this list, for the reader who wonders how their
+		 * Nextcloud came to be asking a stranger's server about people. The
+		 * three answers are different enough to be worth telling apart: one
+		 * an administrator chose, one this instance already talks to every
+		 * day, and one somebody else's list of servers suggested.
+		 *
+		 * @param {object} source the source as the server described it
+		 * @return {string} what to show when the name is pointed at
+		 */
+		whySource(source) {
+			if (source.origin === 'federation') {
+				return t('social', 'Asked because this server already federates with it')
+			}
+
+			if (source.origin === 'discovered') {
+				return t('social', 'Suggested by a directory of servers')
+			}
+
+			return t('social', 'Chosen by the administrator of this server')
+		},
+
 		t,
 		n,
 
