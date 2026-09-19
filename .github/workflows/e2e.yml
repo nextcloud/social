@@ -23,7 +23,17 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    name: Playwright against Nextcloud stable35
+
+    # Both versions info.xml claims. The pages this drives are built from the
+    # server's own layout and CSS variables, which is exactly what a major
+    # server version changes, so a single run cannot stand in for the other:
+    # `master` is Nextcloud 36 until it branches off as stable36.
+    strategy:
+      fail-fast: false
+      matrix:
+        server-versions: ['stable35', 'master']
+
+    name: Playwright against Nextcloud ${{ matrix.server-versions }}
 
     steps:
       - name: Set app env
@@ -34,7 +44,7 @@ jobs:
         with:
           submodules: true
           repository: nextcloud/server
-          ref: stable35
+          ref: ${{ matrix.server-versions }}
 
       - name: Checkout app
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -127,7 +137,8 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
-          name: playwright-report
+          # per server version: two jobs uploading one name is an error
+          name: playwright-report-${{ matrix.server-versions }}
           # relative to the config file, tests/e2e/playwright.config.mjs
           path: |
             apps/${{ env.APP_NAME }}/tests/e2e/playwright-report

@@ -163,11 +163,13 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 			$qb->addSelect('h.' . $column);
 		}
 
-		$anyWindow = $qb->expr()->orX();
+		// built first and passed in one go: an empty orX() is deprecated and
+		// will throw
+		$windows = [];
 		foreach (self::TREND_COLUMNS as $column) {
-			$anyWindow->add($qb->expr()->gt('h.' . $column, $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+			$windows[] = $qb->expr()->gt('h.' . $column, $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT));
 		}
-		$qb->andWhere($anyWindow);
+		$qb->andWhere($qb->expr()->orX(...$windows));
 
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);

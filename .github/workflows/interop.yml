@@ -78,7 +78,8 @@ jobs:
         with:
           submodules: true
           repository: nextcloud/server
-          ref: stable35
+          # see e2e.yml: the newest version info.xml claims
+          ref: master
 
       - name: Checkout app
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7

@@ -2,7 +2,7 @@
 	"name": "nextcloud/social",
 	"description": "Social app",
 	"license": "AGPL-3.0-or-later",
-	"version": "0.26.17",
+	"version": "0.26.18",
 	"minimum-stability": "stable",
 	"authors": [
 		{
@@ -41,7 +41,7 @@
 	"require-dev": {
 		"phpunit/phpunit": "^10.5",
 		"nextcloud/coding-standard": "^1.0.0",
-		"nextcloud/ocp": "dev-stable35",
+		"nextcloud/ocp": "dev-master",
 		"vimeo/psalm": "^6.17",
 		"symfony/console": "^6.4"
 	},

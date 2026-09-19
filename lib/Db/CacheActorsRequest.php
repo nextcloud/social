@@ -488,18 +488,18 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	private function limitToSyncDue(SocialQueryBuilder $qb, int $now, bool $waitWhenHealthy): void {
 		$expr = $qb->expr();
-		$due = $expr->orX();
+		// built first and passed in one go: an empty orX() is deprecated and
+		// will throw
+		$due = [];
 		for ($failures = 0; $failures < self::SYNC_MAX_FAILURES; $failures++) {
 			$wait = ($failures === 0 && !$waitWhenHealthy) ? 0 : self::syncWait($failures);
-			$due->add(
-				$expr->andX(
-					$expr->eq('ca.sync_failures', $qb->createNamedParameter($failures, IQueryBuilder::PARAM_INT)),
-					$expr->lte('ca.sync_attempt', $qb->createNamedParameter($now - $wait, IQueryBuilder::PARAM_INT))
-				)
+			$due[] = $expr->andX(
+				$expr->eq('ca.sync_failures', $qb->createNamedParameter($failures, IQueryBuilder::PARAM_INT)),
+				$expr->lte('ca.sync_attempt', $qb->createNamedParameter($now - $wait, IQueryBuilder::PARAM_INT))
 			);
 		}
 
-		$qb->andWhere($due);
+		$qb->andWhere($expr->orX(...$due));
 	}
 
 	/**

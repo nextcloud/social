@@ -927,23 +927,23 @@ class CoreRequestBuilder {
 		$pf = ($qb->getType() === IExtendedQueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$now = time();
 
-		$due = $expr->orX();
+		// built first and passed in one go: an empty orX() is deprecated and
+		// will throw
+		$due = [];
 		for ($tries = 0; $tries < $maxTries; $tries++) {
 			$delay = (int)floor($tries ** 4 / 3);
 			$cutoff = new DateTime('@' . ($now - $delay));
 
-			$due->add(
-				$expr->andX(
-					$expr->eq($pf . 'tries', $qb->createNamedParameter($tries, IQueryBuilder::PARAM_INT)),
-					$expr->orX(
-						$expr->isNull($pf . 'last'),
-						$expr->lte($pf . 'last', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_DATE))
-					)
+			$due[] = $expr->andX(
+				$expr->eq($pf . 'tries', $qb->createNamedParameter($tries, IQueryBuilder::PARAM_INT)),
+				$expr->orX(
+					$expr->isNull($pf . 'last'),
+					$expr->lte($pf . 'last', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_DATE))
 				)
 			);
 		}
 
-		$qb->andWhere($due);
+		$qb->andWhere($expr->orX(...$due));
 	}
 
 	//
