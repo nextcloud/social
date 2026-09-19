@@ -298,7 +298,7 @@ class RelationController extends Controller {
 	private function initViewer(array $scopes): void {
 		try {
 			$userId = $this->currentSession($scopes);
-			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
+			$this->viewer = $this->accountService->getActorFromUserId($userId);
 		} catch (InsufficientScopeException $e) {
 			throw $e;
 		} catch (Exception $e) {

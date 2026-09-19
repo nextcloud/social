@@ -127,7 +127,7 @@ class UnifiedSearchProvider implements IProvider {
 	 */
 	private function initViewer(IUser $user, bool $exception = false) {
 		try {
-			$this->viewer = $this->accountService->getActorFromUserId($user->getUID(), true);
+			$this->viewer = $this->accountService->getActorFromUserId($user->getUID());
 
 			$this->streamService->setViewer($this->viewer);
 			$this->followService->setViewer($this->viewer);

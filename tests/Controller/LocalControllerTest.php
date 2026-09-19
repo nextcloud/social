@@ -497,10 +497,17 @@ class LocalControllerTest extends TestCase {
 		$this->assertFailure($this->controller(null)->accountInfo('ghost'), CacheActorDoesNotExistException::class);
 	}
 
-	public function testGlobalAccountInfoEnsuresTheViewersOwnActorExists(): void {
+	/**
+	 * Reading a profile never mints an account, not even the reader's own.
+	 *
+	 * This route used to create it, which meant a Fediverse identity — handle,
+	 * key pair and all — appeared because a page had been opened rather than
+	 * because anybody asked for one. The setup screen then offered that same
+	 * handle and was told it was taken, by the reader, a second earlier.
+	 */
+	public function testGlobalAccountInfoNeverCreatesTheViewersOwnActor(): void {
 		$actor = $this->createMock(Person::class);
 		$actor->method('isLocal')->willReturn(true);
-		// once from initViewer(), once — with create=true — from the ensure path
 		$created = false;
 		$this->accountService->method('getActorFromUserId')
 			->willReturnCallback(function (string $userId, bool $create = false) use (&$created): Person {
@@ -519,7 +526,7 @@ class LocalControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($actor, $response->getData());
-		$this->assertTrue($created, 'the viewer asking about their own account creates the actor');
+		$this->assertFalse($created, 'reading a profile asked for the account to be created');
 	}
 
 	public function testGlobalAccountInfoNeverCreatesAnActorForOtherVisitors(): void {

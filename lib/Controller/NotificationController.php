@@ -574,7 +574,8 @@ class NotificationController extends Controller {
 	private function initViewer(array $scopes): void {
 		try {
 			$userId = $this->currentSession($scopes);
-			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
+			// read-only, for the reason in ApiController::initViewer()
+			$this->viewer = $this->accountService->getActorFromUserId($userId);
 		} catch (InsufficientScopeException $e) {
 			throw $e;
 		} catch (Exception $e) {

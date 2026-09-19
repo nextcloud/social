@@ -28,16 +28,36 @@ export async function login(page, user = USER, password = PASSWORD) {
 }
 
 /**
- * Opens the app and waits for its sidebar, closing the first-run
- * introduction if this account has never been here before.
+ * Opens the app and waits for its sidebar, answering the setup screen and
+ * closing the first-run introduction if this account has never been here
+ * before.
+ *
+ * The setup screen comes first and there is no app behind it: an account is
+ * made when somebody asks for one, so a Nextcloud user who has never opened
+ * Social has no actor and no sidebar. Taking the handle it offers is what a
+ * person does, and doing it here means the run exercises that path rather
+ * than working around it.
  *
  * @param {import('@playwright/test').Page} page
  * @param {string} path inside the app, e.g. '/discover'
  */
 export async function openApp(page, path = '/') {
 	await page.goto(APP + path)
-	// the first paint of the app on a cold built-in server takes a while
-	await expect(page.locator('.app-navigation').first()).toBeVisible({ timeout: 45_000 })
+
+	const create = page.getByRole('button', { name: /^Create @/ })
+	// the first paint of the app on a cold built-in server takes a while, and
+	// this is the first of them: either screen appearing ends the wait
+	await expect(create.or(page.locator('.app-navigation').first())).toBeVisible({ timeout: 45_000 })
+	if (await create.isVisible().catch(() => false)) {
+		await create.click()
+		// the page reloads into the app once the account exists
+		await expect(page.locator('.app-navigation').first()).toBeVisible({ timeout: 45_000 })
+		if (path !== '/') {
+			await page.goto(APP + path)
+			await expect(page.locator('.app-navigation').first()).toBeVisible({ timeout: 45_000 })
+		}
+	}
+
 	const skip = page.locator('.first-run__skip')
 	if (await skip.isVisible().catch(() => false)) {
 		await skip.click()

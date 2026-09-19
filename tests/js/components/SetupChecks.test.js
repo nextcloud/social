@@ -82,6 +82,14 @@ describe('SetupChecks', () => {
 		expect(wrapper.findAll('h3')).toHaveLength(0)
 	})
 
+	it('says nothing about WebFinger when there was no account to probe with', () => {
+		// null, not false: an instance nobody has an account on yet cannot be
+		// asked about one, and an untested check must not read as a broken one
+		const wrapper = mountChecks({ wellknown: null, cloudAddress: true, clientApi: true })
+
+		expect(wrapper.findAll('h3')).toHaveLength(0)
+	})
+
 	it('reports both problems at once when both are wrong', () => {
 		const wrapper = mountChecks({ wellknown: false, cloudAddress: false })
 

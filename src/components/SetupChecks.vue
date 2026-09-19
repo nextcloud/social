@@ -4,7 +4,7 @@
 -->
 <template>
 	<div class="setup-checks">
-		<template v-if="!checks.wellknown">
+		<template v-if="checks.wellknown === false">
 			<h3>{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</h3>
 			<p>
 				{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud cannot configure this automatically. To use Social, the administrator of this Nextcloud instance needs to manually configure the .well-known redirects:') }}

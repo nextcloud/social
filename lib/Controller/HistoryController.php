@@ -125,7 +125,7 @@ class HistoryController extends Controller {
 	private function initViewer(array $scopes = ['read:statuses']): void {
 		try {
 			$userId = $this->currentSession($scopes);
-			$actor = $this->accountService->getActorFromUserId($userId, true);
+			$actor = $this->accountService->getActorFromUserId($userId);
 			$this->viewer = $this->cacheActorService->getFromLocalAccount(
 				$actor->getPreferredUsername()
 			);

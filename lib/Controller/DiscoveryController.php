@@ -656,7 +656,7 @@ class DiscoveryController extends Controller {
 	private function initViewer(array $scopes, bool $required = true): void {
 		try {
 			$userId = $this->currentSession($scopes);
-			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
+			$this->viewer = $this->accountService->getActorFromUserId($userId);
 			$this->cacheActorService->setViewer($this->viewer);
 		} catch (InsufficientScopeException $e) {
 			throw $e;

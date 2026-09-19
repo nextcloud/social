@@ -611,11 +611,17 @@ class LocalController extends Controller {
 			if ($isLocal && $this->userId === $username) {
 				$this->logger->debug('[LocalController] Local account detected', ['username' => $username]);
 				try {
-					// Only the user themself triggers actor creation. This route is
-					// public: creating on any request would let anonymous visitors
-					// force a Fediverse identity (RSA key pair and all) onto every
-					// Nextcloud user, and confirm which usernames exist.
-					$this->accountService->getActorFromUserId($username, true);
+					// Reading a profile does not make one. This used to create
+					// the actor when the reader asked about their own account,
+					// which is a Fediverse identity -- handle, RSA key pair and
+					// all -- minted because a page was opened rather than
+					// because anybody asked for it, and it is what made the
+					// setup screen answer "that handle is taken" to the handle
+					// it had just offered. The route is public as well, so the
+					// creation was one `$this->userId === $username` check away
+					// from anonymous visitors forcing an identity onto every
+					// Nextcloud user and learning which usernames exist.
+					$this->accountService->getActorFromUserId($username);
 					$this->accountService->cacheLocalActorByUsername($username);
 					$this->logger->debug('[LocalController] Local actor ensured', ['username' => $username]);
 				} catch (Exception $e) {
@@ -808,7 +814,7 @@ class LocalController extends Controller {
 		}
 
 		try {
-			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
+			$this->viewer = $this->accountService->getActorFromUserId($this->userId);
 
 			$this->streamService->setViewer($this->viewer);
 			$this->followService->setViewer($this->viewer);

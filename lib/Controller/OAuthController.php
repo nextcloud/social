@@ -632,7 +632,9 @@ class OAuthController extends Controller {
 	public function userinfo(): DataResponse {
 		try {
 			$client = $this->clientService->getFromToken($this->bearerToken());
-			$actor = $this->accountService->getActorFromUserId($client->getAuthUserId(), true);
+			// read-only: a token cannot exist without the account it was
+			// granted for, since /oauth/authorize looks one up without creating
+			$actor = $this->accountService->getActorFromUserId($client->getAuthUserId());
 		} catch (Exception $e) {
 			return new DataResponse(
 				['error' => 'The access token is invalid'], Http::STATUS_UNAUTHORIZED
