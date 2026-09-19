@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\NetworkStatsService;
 use OCA\Social\Service\StatisticsService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -39,6 +40,7 @@ class StatisticsController extends Controller {
 		private ?string $userId,
 		private AccountService $accountService,
 		private StatisticsService $statisticsService,
+		private NetworkStatsService $networkStatsService,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct('social', $request);
@@ -55,7 +57,14 @@ class StatisticsController extends Controller {
 		try {
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 
-			return new DataResponse($this->statisticsService->forAccount($actor), Http::STATUS_OK);
+			$statistics = $this->statisticsService->forAccount($actor);
+			// the size of the place all this went out to, which nothing
+			// counted here can say. Null when it is switched off or the
+			// survey did not answer, and the page leaves the section out
+			// rather than drawing zeros
+			$statistics['network'] = $this->networkStatsService->network();
+
+			return new DataResponse($statistics, Http::STATUS_OK);
 		} catch (Throwable $e) {
 			$this->logger->warning('could not build the statistics', [
 				'userId' => $this->userId, 'exception' => $e,

@@ -409,6 +409,43 @@
 				</template>
 			</section>
 
+			<!--
+				How big the place is that all of the above went out to. Every
+				other number here is counted from this server's own rows, which
+				is what makes them trustworthy and also what makes them small: a
+				reader with four followers cannot tell from them whether they
+				are posting into a village or a city.
+			-->
+			<section v-if="stats.network" class="stats__card stats__network">
+				<h3>{{ t('social', 'The network you are posting into') }}</h3>
+				<ul class="stats__figures">
+					<li>
+						<strong>{{ number(stats.network.peers) }}</strong>
+						<span>{{ t('social', 'servers this one talks to') }}</span>
+					</li>
+					<li>
+						<strong>{{ number(stats.network.servers) }}</strong>
+						<span>{{ t('social', 'servers in the fediverse') }}</span>
+					</li>
+					<li>
+						<strong>{{ number(stats.network.accounts) }}</strong>
+						<span>{{ t('social', 'accounts') }}</span>
+					</li>
+					<li>
+						<strong>{{ number(stats.network.active) }}</strong>
+						<span>{{ t('social', 'posted in the last month') }}</span>
+					</li>
+				</ul>
+				<!-- quoted, not claimed: a figure about the whole fediverse is
+				     somebody's survey, and the page says whose and when -->
+				<p class="stats__note">
+					{{ networkNote }}
+					<a :href="stats.network.source_url" target="_blank" rel="noreferrer noopener">
+						{{ stats.network.source }} ↗
+					</a>
+				</p>
+			</section>
+
 			<p class="stats__window">
 				{{ window }}
 			</p>
@@ -434,7 +471,7 @@ import IconRepeat from 'vue-material-design-icons/Repeat.vue'
 import IconShape from 'vue-material-design-icons/ShapeOutline.vue'
 import IconTarget from 'vue-material-design-icons/Target.vue'
 import IconTrophy from 'vue-material-design-icons/Trophy.vue'
-import { n, t } from '@nextcloud/l10n'
+import { getCanonicalLocale, n, t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
 /**
@@ -481,6 +518,27 @@ export default {
 	},
 
 	computed: {
+		/**
+		 * Who counted the network and when. The date matters: these are the
+		 * one set of figures on this page that this server did not count
+		 * itself, and a survey nobody has run for a month is worth reading as
+		 * one.
+		 *
+		 * @return {string} the sentence before the link to the source
+		 */
+		networkNote() {
+			const measured = this.stats?.network?.measured
+			const on = measured ? new Date(measured) : null
+
+			if (!on || Number.isNaN(on.getTime())) {
+				return t('social', 'Counted across the fediverse by')
+			}
+
+			return t('social', 'Counted across the fediverse on {date} by', {
+				date: on.toLocaleDateString(getCanonicalLocale(), { year: 'numeric', month: 'long', day: 'numeric' }),
+			})
+		},
+
 		/** @return {string} the login name, which is what the avatar endpoint answers for */
 		uid() {
 			return getCurrentUser()?.uid ?? ''
@@ -994,6 +1052,17 @@ export default {
 </script>
 
 <style scoped lang="scss">
+.stats__network {
+	h3 {
+		margin-block-end: calc(var(--default-grid-baseline) * 2);
+		font-weight: bold;
+	}
+
+	a {
+		text-decoration: underline;
+	}
+}
+
 .stats {
 	max-width: var(--social-column);
 	margin: 15px auto;
