@@ -128,6 +128,25 @@ class ConfigServiceTest extends TestCase {
 		$this->assertSame('5', $this->service->getUserValue(ConfigService::SOCIAL_MAX_SIZE));
 	}
 
+	public function testGetUserValueWithoutAUserAnswersTheDefault(): void {
+		// a bearer-token request has no session, so there is nobody to read a
+		// per-user value for; the backend takes a string and fatals on null
+		$service = new ConfigService(
+			null,
+			$this->appConfig,
+			$this->userConfig,
+			$this->config,
+			$this->createMock(IRequest::class),
+			$this->urlGenerator,
+			$this->createMock(MiscService::class),
+		);
+
+		$this->userConfig->expects($this->never())->method('getValueString');
+
+		$this->assertSame('10', $service->getUserValue(ConfigService::SOCIAL_MAX_SIZE));
+		$this->assertSame('', $service->getUserValue('version', '', 'avatar'));
+	}
+
 	public function testGetUserValueForAnotherAppHasEmptyDefault(): void {
 		$this->userConfig->expects($this->once())
 			->method('getValueString')

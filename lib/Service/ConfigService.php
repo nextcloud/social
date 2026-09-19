@@ -509,7 +509,7 @@ class ConfigService {
 	 */
 	public function getUserValue(string $key, string $userId = '', string $app = '') {
 		if ($userId === '') {
-			$userId = $this->userId;
+			$userId = (string)$this->userId;
 		}
 
 		$defaultValue = '';
@@ -518,6 +518,14 @@ class ConfigService {
 			if (array_key_exists($key, $this->defaults)) {
 				$defaultValue = $this->defaults[$key];
 			}
+		}
+
+		// A request authenticated by a bearer token has no Nextcloud session,
+		// so there is no user to read a per-user value for unless the caller
+		// names one. The backend takes a string and fatals on null, which
+		// turned every such read into a 500 for OAuth clients.
+		if ($userId === '') {
+			return (string)$defaultValue;
 		}
 
 		return $this->userConfig->getValueString($userId, $app, $key, (string)$defaultValue);

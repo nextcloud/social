@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
+use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\Docs;
@@ -31,7 +32,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The six checks Administration → Overview shows.
+ * The seven checks Administration → Overview shows.
  *
  * Each of them is the only thing that says a particular kind of breakage has
  * happened: an administrator who never opens Social used to find out that
@@ -81,6 +82,28 @@ class SetupChecksTest extends TestCase {
 		$result = (new WebFingerReachable($this->l10n, $checkService, $actorsRequest))->run();
 
 		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	public function testAnInstanceMastodonAppsCanReachIsQuiet(): void {
+		$checkService = $this->checkService();
+		$checkService->expects($this->once())->method('checkClientApiRoot')->willReturn(true);
+
+		$result = (new ClientApiAtRoot($this->l10n, $checkService))->run();
+
+		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	public function testAnInstanceNoMastodonAppCanAddIsAWarning(): void {
+		// a warning, not an error: the web interface and federation both work
+		// without the root rules, so this is not a broken instance
+		$checkService = $this->checkService();
+		$checkService->method('checkClientApiRoot')->willReturn(false);
+
+		$result = (new ClientApiAtRoot($this->l10n, $checkService))->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('/api/v1/instance', (string)$result->getDescription());
+		$this->assertSame(ClientApiAtRoot::DOC, $result->getLinkToDoc());
 	}
 
 	public function testAnInstanceNobodyCanBeFoundOnIsAnError(): void {

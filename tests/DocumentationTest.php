@@ -1031,6 +1031,68 @@ class DocumentationTest extends TestCase {
 	}
 
 	/**
+	 * The web-server rules exist in three places: the file an administrator
+	 * includes, the section of the admin guide that quotes it, and the warning
+	 * the app itself shows with the rules to paste. Two of those are copies,
+	 * and a copy of a rule that answers 404 instead of serving the API is
+	 * worse than no rule at all, so they are pinned to the file.
+	 */
+	public static function quotedRuleSources(): iterable {
+		yield 'admin guide' => ['docs/Admin.md'];
+		yield 'in-app warning' => ['src/components/SetupChecks.vue'];
+	}
+
+	#[DataProvider('quotedRuleSources')]
+	public function testQuotedApacheRulesMatchTheShippedFile(string $path): void {
+		$shipped = $this->apacheDirectives($this->read('contrib/webserver/apache-social-root.conf'));
+		$quoted = $this->apacheDirectives($this->read($path));
+
+		$this->assertNotEmpty(
+			$quoted,
+			$path . ' quotes none of the web-server rules any more. Either it stopped'
+			. ' telling an administrator what to paste, or the rules changed shape and'
+			. ' this test can no longer find them.'
+		);
+
+		foreach ($quoted as $directive) {
+			$this->assertContains(
+				$directive,
+				$shipped,
+				$path . ' quotes a rule that contrib/webserver/apache-social-root.conf does'
+				. ' not contain: ' . $directive
+			);
+		}
+	}
+
+	/**
+	 * The `RewriteRule` and `ProxyPreserveHost` lines of a document, with runs
+	 * of whitespace collapsed so that the alignment of the shipped file does
+	 * not have to be reproduced, and with JavaScript's doubled backslashes
+	 * undone so that the Vue string reads as what it renders.
+	 *
+	 * @return string[]
+	 */
+	private function apacheDirectives(string $content): array {
+		preg_match_all(
+			'/^[\t \x27"]*((?:RewriteRule|ProxyPreserveHost)[^\n\x27"]+)/m',
+			str_replace('\\\\', '\\', $content),
+			$matches
+		);
+
+		$directives = [];
+		foreach ($matches[1] as $directive) {
+			// the environment rule is an implementation detail of the file and
+			// deliberately not quoted anywhere; nothing else is filtered
+			$directives[] = trim((string)preg_replace('/\s+/', ' ', $directive));
+		}
+
+		return array_values(array_filter(
+			$directives,
+			static fn (string $directive): bool => !str_contains($directive, 'HTTP_AUTHORIZATION')
+		));
+	}
+
+	/**
 	 * @param string[] $values
 	 * @return string[]
 	 */

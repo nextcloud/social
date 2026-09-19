@@ -29,6 +29,7 @@ use OCA\Social\Middleware\RateLimitHeadersMiddleware;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Reference\PostReferenceProvider;
 use OCA\Social\Search\UnifiedSearchProvider;
+use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
@@ -101,6 +102,7 @@ class Application extends App implements IBootstrap {
 		$context->registerSetupCheck(UploadLimitsAgree::class);
 		$context->registerSetupCheck(CronRanRecently::class);
 		$context->registerSetupCheck(OutboundQueueNotStuck::class);
+		$context->registerSetupCheck(ClientApiAtRoot::class);
 	}
 
 	#[\Override]
