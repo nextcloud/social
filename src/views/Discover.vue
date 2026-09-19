@@ -161,7 +161,7 @@
 			     who is out there, this asks who the people you already follow
 			     follow. It needs a starting handful of follows and says so,
 			     which is why it sits under the search rather than above it -->
-			<FollowGraphSuggestions v-if="!serverData.public" />
+			<FollowGraphSuggestions />
 
 			<ul v-if="accounts.length" class="discover__accounts">
 				<li v-for="account in accounts" :key="account.id" class="discover__account">

@@ -3,7 +3,10 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<section class="graph">
+	<!-- nothing at all where there is nobody to ask for: this page is also
+	     served to a reader with no session, and a "follow more people" hint
+	     shown to somebody who cannot follow anybody is noise -->
+	<section v-if="available" class="graph">
 		<h3 class="graph__title">
 			{{ t('social', 'Followed by people you follow') }}
 		</h3>
@@ -55,7 +58,20 @@
 							<span class="graph__why">{{ why(suggestion) }}</span>
 						</span>
 					</router-link>
-					<FollowButton :uid="suggestion.account.acct" />
+					<!-- the same follow-by-handle the search beside it uses:
+					     `FollowButton` waits for a relationship the account
+					     store has never fetched for a stranger, so it renders
+					     nothing at all in a list like this one -->
+					<NcButton
+						class="graph__follow"
+						:variant="followed.includes(suggestion.account.acct) ? 'success' : 'primary'"
+						:disabled="following === suggestion.account.acct || followed.includes(suggestion.account.acct)"
+						@click="follow(suggestion.account)">
+						<template v-if="following === suggestion.account.acct" #icon>
+							<NcLoadingIcon :size="20" />
+						</template>
+						{{ followed.includes(suggestion.account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
+					</NcButton>
 				</li>
 			</ul>
 
@@ -74,8 +90,9 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
 import ActorAvatar from './ActorAvatar.vue'
-import FollowButton from './FollowButton.vue'
 import logger from '../services/logger.js'
+import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 
 /**
  * "Whom to follow", asked of the fediverse rather than of this server.
@@ -90,20 +107,28 @@ export default {
 	components: {
 		AccountMultiplePlus,
 		ActorAvatar,
-		FollowButton,
 		NcButton,
 		NcLoadingIcon,
 	},
 
 	data() {
 		return {
+			/** false once the server says there is no viewer to ask about */
+			available: true,
 			/** how many more follows it would take to be worth asking */
 			needs: 0,
 			/** whether the walk has been made */
 			asked: false,
 			loading: false,
 			suggestions: [],
+			/** the handle a follow is in flight for, and the ones taken */
+			following: '',
+			followed: [],
 		}
+	},
+
+	computed: {
+		...mapStores(useAccountStore),
 	},
 
 	async mounted() {
@@ -137,13 +162,39 @@ export default {
 					this.asked = true
 				}
 			} catch (error) {
-				logger.error('could not read the follow graph', { error })
+				const status = error?.response?.status
+				if (status === 401 || status === 403) {
+					// a public page, or a session that ended; either way there
+					// is no "people you follow" to work from
+					this.available = false
+				} else {
+					logger.error('could not read the follow graph', { error })
+				}
+
 				if (walk) {
 					this.asked = true
 					this.suggestions = []
 				}
 			} finally {
 				this.loading = false
+			}
+		},
+
+		/**
+		 * Follows by handle, the only durable reference to somebody on another
+		 * server and the one thing every row here carries.
+		 *
+		 * @param {object} account the row's account
+		 */
+		async follow(account) {
+			this.following = account.acct
+			try {
+				const response = await this.accountStore.followAccount({ accountToFollow: account.acct })
+				if (response) {
+					this.followed = [...this.followed, account.acct]
+				}
+			} finally {
+				this.following = ''
 			}
 		},
 
