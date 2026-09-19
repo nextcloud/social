@@ -538,9 +538,26 @@ class FediverseDirectoryService {
 			}
 		}
 
-		$page = $this->get($source, '/api/v1/directory', [
-			'limit' => self::DIRECTORY_PAGE, 'offset' => 0, 'order' => 'active', 'local' => 'true',
-		]);
+		try {
+			$page = $this->get($source, '/api/v1/directory', [
+				'limit' => self::DIRECTORY_PAGE, 'offset' => 0, 'order' => 'active', 'local' => 'true',
+			]);
+		} catch (Throwable $e) {
+			// Pixelfed serves the lookup and answers 404 here, and it is not
+			// alone: the directory is the part of the Mastodon API a server
+			// may turn off, and an administrator may have. Whoever the exact
+			// lookup already found is still found -- reporting the source as
+			// failed would throw them away and tell the reader the server said
+			// nothing, when it answered the only question it takes.
+			$this->logger->debug('[FediverseDirectoryService] no public directory', [
+				'host' => $source->getHost(), 'exception' => $e,
+			]);
+			if ($found === []) {
+				throw $e;
+			}
+
+			return array_values($found);
+		}
 
 		foreach ($page as $row) {
 			if (count($found) >= $limit) {

@@ -270,6 +270,34 @@ class FediverseDirectoryServiceTest extends TestCase {
 		$this->assertSame([], $this->asked);
 	}
 
+	/**
+	 * Pixelfed answers the exact lookup and 404s the directory page, and it is
+	 * not alone — the directory is the part of that API a server may turn off.
+	 * Whoever the lookup found is still found.
+	 */
+	public function testAServerWithNoDirectoryStillAnswersTheExactHandle(): void {
+		$this->configured = json_encode([['host' => 'pixelfed.example', 'kind' => 'mastodon']]);
+		$this->answers['accounts/lookup'] = ['acct' => 'dansup', 'display_name' => 'Daniel'];
+		$this->answers['api/v1/directory'] = new RuntimeException('404 from a server that has none');
+
+		$result = $this->service->search('dansup');
+
+		$this->assertSame(['dansup@pixelfed.example'], $this->handles($result));
+		$this->assertSame('ok', $result['sources'][1]['status']);
+	}
+
+	public function testAServerThatAnswersNeitherIsReportedAsFailing(): void {
+		$this->configured = json_encode([['host' => 'gone.example', 'kind' => 'mastodon']]);
+		$this->answers['accounts/lookup'] = new RuntimeException('no such handle');
+		$this->answers['api/v1/directory'] = new RuntimeException('nothing there either');
+
+		$result = $this->service->search('somebody');
+
+		// "nobody by that name" and "that server did not answer" are different
+		// answers and this is the second one
+		$this->assertSame('failed', $result['sources'][1]['status']);
+	}
+
 	// the servers this instance actually federates with
 
 	/** A host that answers NodeInfo, saying it runs `$software`. */
