@@ -86,7 +86,7 @@
 		"style-loader": "^4.0.0",
 		"stylelint": "^17.15.0",
 		"stylelint-config-recommended-scss": "^17.0.1",
-		"stylelint-config-recommended-vue": "^1.6.1",
+		"stylelint-config-recommended-vue": "^2.0.0",
 		"terser-webpack-plugin": "^5.6.1",
 		"ts-loader": "^9.5.7",
 		"twemoji": "12.0.1",
@@ -104,6 +104,9 @@
 		"fast-xml-parser": ">=5.7.0",
 		"joi": ">=18.2.8",
 		"uuid": "^14.0.0",
+		"@nextcloud/stylelint-config": {
+			"stylelint-config-recommended-vue": "$stylelint-config-recommended-vue"
+		},
 		"@nextcloud/vue": {
 			"@nextcloud/files": "$@nextcloud/files"
 		}
