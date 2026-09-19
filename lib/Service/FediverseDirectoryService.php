@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\InstanceStatsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\DirectoryAccount;
 use OCA\Social\Model\Client\DirectorySource;
@@ -89,6 +90,9 @@ class FediverseDirectoryService {
 	 */
 	private const DIRECTORY_PAGE = 80;
 
+	/** How many curated entries one search reads. Their API caps at 100. */
+	private const WORDPRESS_PAGE = 20;
+
 	/**
 	 * The sources an instance starts with.
 	 *
@@ -101,8 +105,54 @@ class FediverseDirectoryService {
 	 * publishes its own directory to them on exactly the same terms.
 	 */
 	private const BUILTIN = [
+		// a directory somebody keeps by hand, and the only one of these that
+		// can answer "who writes about X" — asked first for that reason
+		['host' => 'fedi.directory', 'kind' => DirectorySource::KIND_WORDPRESS, 'label' => 'Fedi.Directory'],
 		['host' => 'mastodon.social', 'kind' => DirectorySource::KIND_MASTODON],
 		['host' => 'misskey.io', 'kind' => DirectorySource::KIND_MISSKEY],
+		['host' => 'lemmy.world', 'kind' => DirectorySource::KIND_LEMMY],
+		['host' => 'pixelfed.social', 'kind' => DirectorySource::KIND_MASTODON],
+	];
+
+	/** How many of the servers this instance federates with are asked. */
+	public const CONFIG_PEERS = 'directory_peers';
+	public const PEERS_DEFAULT = 4;
+	/** Whether the server directory below is asked which servers exist. */
+	public const CONFIG_DISCOVERY = 'directory_discovery';
+
+	/**
+	 * A directory *of servers*, asked which ones are worth asking about
+	 * people. It publishes a curated list with each server's software, which
+	 * is exactly what is needed to know which API to speak to it.
+	 */
+	private const DISCOVERY_HOST = 'fediverse.info';
+	private const DISCOVERY_PATH = '/api/_meta-api/instances/list';
+	/** How many servers a discovery pass contributes. */
+	private const DISCOVERY_LIMIT = 3;
+
+	/** How long a server list, or one server's software, is remembered. */
+	private const DISCOVERY_TTL = 86400;
+	private const SOFTWARE_TTL = 604800;
+
+	/**
+	 * What a server calls its software, and which of the APIs above that is.
+	 * Everything Mastodon-compatible is asked as Mastodon, which is what
+	 * those projects intend.
+	 */
+	private const SOFTWARE_KINDS = [
+		'mastodon' => DirectorySource::KIND_MASTODON,
+		'hometown' => DirectorySource::KIND_MASTODON,
+		'glitchcafe' => DirectorySource::KIND_MASTODON,
+		'pixelfed' => DirectorySource::KIND_MASTODON,
+		'pleroma' => DirectorySource::KIND_MASTODON,
+		'akkoma' => DirectorySource::KIND_MASTODON,
+		'iceshrimp' => DirectorySource::KIND_MISSKEY,
+		'misskey' => DirectorySource::KIND_MISSKEY,
+		'sharkey' => DirectorySource::KIND_MISSKEY,
+		'firefish' => DirectorySource::KIND_MISSKEY,
+		'calckey' => DirectorySource::KIND_MISSKEY,
+		'foundkey' => DirectorySource::KIND_MISSKEY,
+		'lemmy' => DirectorySource::KIND_LEMMY,
 	];
 
 	private ICache $cache;
@@ -113,6 +163,7 @@ class FediverseDirectoryService {
 		private DirectoryService $directoryService,
 		private CacheActorService $cacheActorService,
 		private FediverseService $fediverseService,
+		private InstanceStatsRequest $instanceStatsRequest,
 		private LoggerInterface $logger,
 		ICacheFactory $cacheFactory,
 	) {
@@ -138,7 +189,196 @@ class FediverseDirectoryService {
 			}
 		}
 
+		foreach ([...$this->peerSources(), ...$this->discoveredSources()] as $source) {
+			$sources[] = $source;
+		}
+
+		return $this->deduplicated($sources);
+	}
+
+	/**
+	 * The servers this instance actually federates with, most-known first.
+	 *
+	 * An editorial list is somebody else's idea of where people are; this is
+	 * this instance's own. The servers its accounts already follow people on
+	 * are, by definition, the ones its people are interested in, and asking
+	 * them costs nothing that following them did not already cost. Ranked by
+	 * how many of their accounts are cached here, because that is the
+	 * strongest signal available for "we deal with them a lot".
+	 *
+	 * The software has to be known before a server can be asked, since the
+	 * kind decides the API — so each one is asked its NodeInfo once and the
+	 * answer is kept for a week. A server whose software this cannot speak to
+	 * is left out rather than asked in a language it does not answer.
+	 *
+	 * @return DirectorySource[]
+	 */
+	private function peerSources(): array {
+		$raw = trim((string)$this->configService->getAppValue(self::CONFIG_PEERS));
+		$wanted = ($raw === '') ? self::PEERS_DEFAULT : (int)$raw;
+		if ($wanted < 1) {
+			return [];
+		}
+
+		$sources = [];
+		foreach ($this->instanceStatsRequest->remoteHostCounts() as $host => $seen) {
+			if (count($sources) >= $wanted) {
+				break;
+			}
+
+			$host = (string)$host;
+			if ($host === '' || !$this->allowed($host)) {
+				continue;
+			}
+
+			$kind = $this->softwareKind($host);
+			if ($kind === null) {
+				continue;
+			}
+
+			$sources[] = new DirectorySource($host, $kind, $host, DirectorySource::ORIGIN_FEDERATION);
+		}
+
 		return $sources;
+	}
+
+	/**
+	 * Servers a directory of servers says exist.
+	 *
+	 * The list carries each server's software, so nothing has to be sniffed,
+	 * and it is kept for a day: which servers exist is not news that changes
+	 * between two searches. It is the weakest of the three ways a source gets
+	 * here — somebody else's editorial choice about servers this instance has
+	 * never spoken to — so it comes last and contributes few.
+	 *
+	 * @return DirectorySource[]
+	 */
+	private function discoveredSources(): array {
+		if (trim((string)$this->configService->getAppValue(self::CONFIG_DISCOVERY)) === '0') {
+			return [];
+		}
+
+		$cached = $this->cache->get('discovery');
+		if (!is_string($cached)) {
+			try {
+				$listed = $this->curlService->retrieveJson(
+					'get',
+					'https://' . self::DISCOVERY_HOST . self::DISCOVERY_PATH,
+					['timeout' => self::TIMEOUT, 'json_headers' => false, 'headers' => ['Accept' => 'application/json']]
+				);
+				$cached = json_encode($listed['data'] ?? $listed);
+			} catch (Throwable $e) {
+				$this->logger->debug('[FediverseDirectoryService] no server list', ['exception' => $e]);
+				// remembered as empty as well, so a directory that is down is
+				// not asked again on the next keystroke
+				$cached = '[]';
+			}
+
+			$this->cache->set('discovery', $cached, self::DISCOVERY_TTL);
+		}
+
+		$rows = json_decode($cached, true);
+		$sources = [];
+		foreach (is_array($rows) ? $rows : [] as $row) {
+			if (count($sources) >= self::DISCOVERY_LIMIT) {
+				break;
+			}
+
+			$host = strtolower(trim((string)(is_array($row) ? ($row['domain'] ?? '') : '')));
+			$software = strtolower(trim((string)(is_array($row) ? ($row['software_name'] ?? '') : '')));
+			$kind = self::SOFTWARE_KINDS[$software] ?? null;
+			if ($host === '' || $kind === null || !$this->allowed($host)) {
+				continue;
+			}
+
+			$sources[] = new DirectorySource($host, $kind, $host, DirectorySource::ORIGIN_DISCOVERED);
+		}
+
+		return $sources;
+	}
+
+	/**
+	 * What software a server runs, from its NodeInfo, or null when it does not
+	 * say or runs something none of these APIs fit.
+	 */
+	private function softwareKind(string $host): ?string {
+		$key = 'software/' . $host;
+		$known = $this->cache->get($key);
+		if (is_string($known)) {
+			return ($known === '') ? null : $known;
+		}
+
+		$kind = null;
+		try {
+			$index = $this->curlService->retrieveJson(
+				'get',
+				'https://' . $host . '/.well-known/nodeinfo',
+				['timeout' => self::TIMEOUT, 'json_headers' => false, 'headers' => ['Accept' => 'application/json']]
+			);
+
+			$document = '';
+			foreach ($index['links'] ?? [] as $link) {
+				$href = (string)(is_array($link) ? ($link['href'] ?? '') : '');
+				// any schema version: they differ in what else they carry, not
+				// in the name of the software
+				if ($href !== '' && str_starts_with($href, 'https://' . $host . '/')) {
+					$document = $href;
+				}
+			}
+
+			if ($document !== '') {
+				$nodeinfo = $this->curlService->retrieveJson(
+					'get',
+					$document,
+					['timeout' => self::TIMEOUT, 'json_headers' => false, 'headers' => ['Accept' => 'application/json']]
+				);
+				$name = strtolower(trim((string)($nodeinfo['software']['name'] ?? '')));
+				$kind = self::SOFTWARE_KINDS[$name] ?? null;
+			}
+		} catch (Throwable $e) {
+			$this->logger->debug('[FediverseDirectoryService] no nodeinfo', [
+				'host' => $host, 'exception' => $e,
+			]);
+		}
+
+		// the miss is remembered too: a server that does not publish NodeInfo
+		// will not start doing so before the next search
+		$this->cache->set($key, $kind ?? '', self::SOFTWARE_TTL);
+
+		return $kind;
+	}
+
+	/** Whether this instance is willing to talk to that host at all. */
+	private function allowed(string $host): bool {
+		if ($host === $this->configService->getCloudHost()) {
+			return false;
+		}
+
+		try {
+			$this->fediverseService->authorized($host);
+		} catch (Throwable $e) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * One entry per host, the first to claim it winning: a server named in the
+	 * configured list and again by federation is one source, asked once, and
+	 * keeps the label and the origin the administrator gave it.
+	 *
+	 * @param DirectorySource[] $sources
+	 *
+	 * @return DirectorySource[]
+	 */
+	private function deduplicated(array $sources): array {
+		$seen = [];
+		foreach ($sources as $source) {
+			$seen[$source->getHost()] ??= $source;
+		}
+
+		return array_values($seen);
 	}
 
 	/**
@@ -214,6 +454,7 @@ class FediverseDirectoryService {
 		$found = match ($source->getKind()) {
 			DirectorySource::KIND_MISSKEY => $this->askMisskey($source, $query, $limit),
 			DirectorySource::KIND_LEMMY => $this->askLemmy($source, $query, $limit),
+			DirectorySource::KIND_WORDPRESS => $this->askWordpress($source, $query, $limit),
 			default => $this->askMastodon($source, $query, $limit),
 		};
 
@@ -297,9 +538,26 @@ class FediverseDirectoryService {
 			}
 		}
 
-		$page = $this->get($source, '/api/v1/directory', [
-			'limit' => self::DIRECTORY_PAGE, 'offset' => 0, 'order' => 'active', 'local' => 'true',
-		]);
+		try {
+			$page = $this->get($source, '/api/v1/directory', [
+				'limit' => self::DIRECTORY_PAGE, 'offset' => 0, 'order' => 'active', 'local' => 'true',
+			]);
+		} catch (Throwable $e) {
+			// Pixelfed serves the lookup and answers 404 here, and it is not
+			// alone: the directory is the part of the Mastodon API a server
+			// may turn off, and an administrator may have. Whoever the exact
+			// lookup already found is still found -- reporting the source as
+			// failed would throw them away and tell the reader the server said
+			// nothing, when it answered the only question it takes.
+			$this->logger->debug('[FediverseDirectoryService] no public directory', [
+				'host' => $source->getHost(), 'exception' => $e,
+			]);
+			if ($found === []) {
+				throw $e;
+			}
+
+			return array_values($found);
+		}
 
 		foreach ($page as $row) {
 			if (count($found) >= $limit) {
@@ -365,6 +623,81 @@ class FediverseDirectoryService {
 		}
 
 		return $found;
+	}
+
+	/**
+	 * A directory somebody keeps by hand, published as a WordPress site.
+	 *
+	 * Its REST API searches the entries, and an entry is a person written
+	 * about rather than a row in a user table — so this is the one source
+	 * that can answer a *subject*. What comes back is prose, and the handle
+	 * is in it: `@someone@example.org`, which is how those entries name
+	 * people because it is how the fediverse names people.
+	 *
+	 * A handle is only ever read out of an entry's own text. Nothing follows
+	 * the links in it, so an entry cannot make this instance fetch an address
+	 * somebody else chose.
+	 *
+	 * @return DirectoryAccount[]
+	 */
+	private function askWordpress(DirectorySource $source, string $query, int $limit): array {
+		if ($query === '') {
+			// the endpoint is a search; with nothing to search for it answers
+			// with whatever is newest, which is not a directory
+			return [];
+		}
+
+		$rows = $this->get($source, '/wp-json/wp/v2/posts', [
+			'search' => $query,
+			'per_page' => min($limit, self::WORDPRESS_PAGE),
+			'_fields' => 'title,excerpt,content,link',
+		]);
+
+		$found = [];
+		foreach ($rows as $row) {
+			if (count($found) >= $limit) {
+				break;
+			}
+
+			$row = is_array($row) ? $row : [];
+			$handle = $this->handleIn(
+				(string)($row['content']['rendered'] ?? '') . ' ' . (string)($row['excerpt']['rendered'] ?? '')
+			);
+			if ($handle === '') {
+				continue;
+			}
+
+			$host = substr($handle, (int)strrpos($handle, '@') + 1);
+			if (!$this->allowed($host)) {
+				continue;
+			}
+
+			$account = new DirectoryAccount($handle, $host, $source->getKind());
+			$account->setDisplayName(trim(html_entity_decode(strip_tags((string)($row['title']['rendered'] ?? '')))))
+				->setNote(trim(html_entity_decode(strip_tags((string)($row['excerpt']['rendered'] ?? '')))))
+				->setUrl((string)($row['link'] ?? ''));
+
+			$found[$handle] ??= $account;
+		}
+
+		return array_values($found);
+	}
+
+	/**
+	 * The first fediverse handle written in a piece of prose.
+	 *
+	 * Deliberately strict about what a handle is — letters, digits, dot, dash
+	 * and underscore around a single `@`, and a host with a dot in it. An
+	 * entry that names an account some other way contributes nobody, which is
+	 * better than contributing something that is not an account.
+	 */
+	private function handleIn(string $text): string {
+		$text = html_entity_decode(strip_tags($text));
+		if (preg_match('/@([A-Za-z0-9_.-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/', $text, $match) !== 1) {
+			return '';
+		}
+
+		return strtolower($match[1] . '@' . $match[2]);
 	}
 
 	/**

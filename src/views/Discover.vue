@@ -157,6 +157,12 @@
 			     "who is there" is a question for a directory -->
 			<FediverseSearch />
 
+			<!-- and below it the other half of the question: the search asks
+			     who is out there, this asks who the people you already follow
+			     follow. It needs a starting handful of follows and says so,
+			     which is why it sits under the search rather than above it -->
+			<FollowGraphSuggestions />
+
 			<ul v-if="accounts.length" class="discover__accounts">
 				<li v-for="account in accounts" :key="account.id" class="discover__account">
 					<router-link
@@ -214,6 +220,7 @@ import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import DiscoverCategories from '../components/DiscoverCategories.vue'
 import FediverseSearch from '../components/FediverseSearch.vue'
+import FollowGraphSuggestions from '../components/FollowGraphSuggestions.vue'
 import TrendingHashtags from '../components/TrendingHashtags.vue'
 import TrendingLinks from '../components/TrendingLinks.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
@@ -256,6 +263,7 @@ export default {
 		TimelineSwitcher,
 		DiscoverCategories,
 		FediverseSearch,
+		FollowGraphSuggestions,
 		TrendingHashtags,
 		TrendingLinks,
 		Refresh,

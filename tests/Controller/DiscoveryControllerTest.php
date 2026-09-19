@@ -28,6 +28,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\FediverseDirectoryService;
+use OCA\Social\Service\FollowGraphService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\ProfileHighlightsService;
@@ -70,6 +71,7 @@ class DiscoveryControllerTest extends TestCase {
 	private ClientService|MockObject $clientService;
 	private DirectoryService|MockObject $directoryService;
 	private SuggestionService|MockObject $suggestionService;
+	private FollowGraphService|MockObject $followGraphService;
 	private TrendService|MockObject $trendService;
 	private FeaturedTagService|MockObject $featuredTagService;
 	private LinkPreviewService|MockObject $linkPreviewService;
@@ -143,6 +145,7 @@ class DiscoveryControllerTest extends TestCase {
 			});
 
 		$this->suggestionService = $this->createMock(SuggestionService::class);
+		$this->followGraphService = $this->createMock(FollowGraphService::class);
 		$this->suggestionService->method('suggestions')
 			->willReturnCallback(fn (): array => [
 				new Suggestion($this->person(self::OTHER, 2), Suggestion::SOURCE_FRIENDS),
@@ -240,6 +243,7 @@ class DiscoveryControllerTest extends TestCase {
 			$this->clientService,
 			$this->directoryService,
 			$this->suggestionService,
+			$this->followGraphService,
 			$this->trendService,
 			$this->featuredTagService,
 			$this->linkPreviewService,

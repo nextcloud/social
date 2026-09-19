@@ -118,6 +118,19 @@ class SuggestionService {
 	}
 
 	/**
+	 * The same set, for another finder asking the same question.
+	 *
+	 * `FollowGraphService` walks other servers rather than this database, but
+	 * "who may be suggested" has one answer — a second copy of this list is
+	 * where a blocked account eventually gets recommended.
+	 *
+	 * @return array<string, bool> keyed by prim, as `excluded()` builds it
+	 */
+	public function excludedPrims(string $viewerId): array {
+		return $this->excluded($viewerId);
+	}
+
+	/**
 	 * Every account that may not be suggested, as a set of prims.
 	 *
 	 * The viewer is in it: an account cannot follow itself, and Mastodon's own

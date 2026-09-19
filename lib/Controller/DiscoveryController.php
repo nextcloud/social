@@ -27,6 +27,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\FediverseDirectoryService;
+use OCA\Social\Service\FollowGraphService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
@@ -85,6 +86,7 @@ class DiscoveryController extends Controller {
 		private ClientService $clientService,
 		private DirectoryService $directoryService,
 		private SuggestionService $suggestionService,
+		private FollowGraphService $followGraphService,
 		private TrendService $trendService,
 		private FeaturedTagService $featuredTagService,
 		private LinkPreviewService $linkPreviewService,
@@ -218,6 +220,62 @@ class DiscoveryController extends Controller {
 				$this->suggestionService->suggestions($this->viewer->getId(), $limit),
 				Http::STATUS_OK
 			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Accounts followed by the accounts the viewer follows — the Followgraph
+	 * question, asked of the servers those accounts live on rather than of
+	 * this database.
+	 *
+	 * Not part of Mastodon's API and deliberately its own route: what it
+	 * answers with carries the count and the handles behind each suggestion,
+	 * and `/api/v2/suggestions` has nowhere to put them. The suggestions there
+	 * are cheap and local; these cost one request per account followed, so
+	 * they are asked for rather than included by default.
+	 *
+	 * Rate-limited per user, because that is what a button that makes twenty
+	 * outgoing requests needs.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[UserRateLimit(limit: 10, period: 300)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/follow_graph')]
+	public function followGraph(int $limit = 20): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			$answer = $this->followGraphService->suggestions($this->viewer, $limit);
+
+			return new DataResponse([
+				'suggestions' => $answer['suggestions'],
+				// what it asked and what it still needs, so the page can say
+				// "follow one more account" rather than "nothing found"
+				'asked' => $answer['asked'],
+				'needs' => $answer['needs'],
+			], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Whether the graph is worth walking, which the page asks when it opens.
+	 *
+	 * Its own route rather than a parameter on the one above, because the two
+	 * cost such different things: this reads one row count and goes nowhere
+	 * near the network, so it is not rate-limited and the walk is.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/follow_graph/status')]
+	public function followGraphStatus(): DataResponse {
+		try {
+			$this->initViewer(['read']);
+
+			return new DataResponse($this->followGraphService->probe($this->viewer), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

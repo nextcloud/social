@@ -37,17 +37,42 @@ class DirectorySource implements JsonSerializable {
 	/** Lemmy: `search` with `type_=Users`. */
 	public const KIND_LEMMY = 'lemmy';
 
+	/**
+	 * A directory somebody keeps by hand, published as a WordPress site and
+	 * asked through its REST API — `fedi.directory` is the one this ships
+	 * with.
+	 *
+	 * It is the only kind here that searches by *subject*. Every other source
+	 * can answer "is there an `alice` on that server"; this one answers "who
+	 * writes about mycology", because a person wrote that down. The entries
+	 * name accounts all over the fediverse rather than that host's own, so
+	 * the handle comes out of the entry rather than off the host.
+	 */
+	public const KIND_WORDPRESS = 'wordpress';
+
 	public const KINDS = [
 		self::KIND_LOCAL,
 		self::KIND_MASTODON,
 		self::KIND_MISSKEY,
 		self::KIND_LEMMY,
+		self::KIND_WORDPRESS,
 	];
+
+	/**
+	 * How this source came to be asked, for a reader who wants to know why a
+	 * stranger's server is in the list.
+	 */
+	public const ORIGIN_CONFIGURED = 'configured';
+	/** Derived from the servers this instance actually federates with. */
+	public const ORIGIN_FEDERATION = 'federation';
+	/** Named by a directory of servers this instance asked. */
+	public const ORIGIN_DISCOVERED = 'discovered';
 
 	public function __construct(
 		private string $host,
 		private string $kind,
 		private string $label = '',
+		private string $origin = self::ORIGIN_CONFIGURED,
 	) {
 	}
 
@@ -64,6 +89,10 @@ class DirectorySource implements JsonSerializable {
 		return ($this->label === '') ? $this->host : $this->label;
 	}
 
+	public function getOrigin(): string {
+		return $this->origin;
+	}
+
 	public function isLocal(): bool {
 		return $this->kind === self::KIND_LOCAL;
 	}
@@ -74,6 +103,7 @@ class DirectorySource implements JsonSerializable {
 			'host' => $this->host,
 			'kind' => $this->kind,
 			'label' => $this->getLabel(),
+			'origin' => $this->origin,
 		];
 	}
 }
