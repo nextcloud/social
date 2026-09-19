@@ -106,6 +106,9 @@
 		"uuid": "^14.0.0",
 		"@nextcloud/vue": {
 			"@nextcloud/files": "$@nextcloud/files"
+		},
+		"@nextcloud/webpack-vue-config": {
+			"webpack-cli": "$webpack-cli"
 		}
 	}
 }
