@@ -104,6 +104,9 @@
 		"fast-xml-parser": ">=5.7.0",
 		"joi": ">=18.2.8",
 		"uuid": "^14.0.0",
+		"@nextcloud/stylelint-config": {
+			"stylelint-config-recommended-vue": "$stylelint-config-recommended-vue"
+		},
 		"@nextcloud/vue": {
 			"@nextcloud/files": "$@nextcloud/files"
 		}
