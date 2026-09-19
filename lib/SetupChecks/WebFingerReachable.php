@@ -58,7 +58,7 @@ class WebFingerReachable implements ISetupCheck {
 
 		if ($actor === null) {
 			return SetupResult::info(
-				$this->l10n->t('Social has no account yet, so its WebFinger answer cannot be probed. It will be once somebody opens the app.'),
+				$this->l10n->t('Social has no account yet, so its WebFinger answer cannot be probed. It will be once somebody sets one up.'),
 				self::DOC
 			);
 		}

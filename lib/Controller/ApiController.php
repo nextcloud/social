@@ -1255,7 +1255,7 @@ class ApiController extends Controller {
 			if ($this->scheduledStatusService->requestedTime($data) > 0) {
 				return new DataResponse(
 					$this->scheduledStatusService->schedule(
-						$this->accountService->getActorFromUserId($this->currentSession(), true),
+						$this->accountService->getActorFromUserId($this->currentSession()),
 						$status,
 						$data
 					),
@@ -1273,7 +1273,7 @@ class ApiController extends Controller {
 			}
 
 			// Use the viewer that was already initialized
-			$author = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$author = $this->accountService->getActorFromUserId($this->currentSession());
 
 			// A post written as a team is attributed to the team's account and
 			// signed with its key: the team speaks, not the person at the
@@ -1520,7 +1520,7 @@ class ApiController extends Controller {
 			$status = new Status();
 			$status->import($this->convertInput($input));
 
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			$item = $this->postService->editPost(
 				$nid,
@@ -2492,7 +2492,7 @@ class ApiController extends Controller {
 	public function statusDelete(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			$item = $this->streamService->getStreamByNid($nid);
 			if ($item->getAttributedTo() !== $actor->getId()) {
@@ -2529,7 +2529,7 @@ class ApiController extends Controller {
 	public function statusSource(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			$item = $this->streamService->getStreamByNid($nid);
 			if ($item->getAttributedTo() !== $actor->getId()) {
@@ -2569,7 +2569,7 @@ class ApiController extends Controller {
 	public function statusDelivery(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			$item = $this->streamService->getStreamByNid($nid);
 			if ($item->getAttributedTo() !== $actor->getId()) {
@@ -2765,7 +2765,7 @@ class ApiController extends Controller {
 	): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			return new DataResponse(
 				$this->scheduledStatusService->getAll($actor, $limit, $max_id, $min_id, $since_id),
@@ -2783,7 +2783,7 @@ class ApiController extends Controller {
 	public function scheduledStatusGet(int $id): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			return new DataResponse($this->scheduledStatusService->getOne($actor, $id), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -2798,7 +2798,7 @@ class ApiController extends Controller {
 	public function scheduledStatusUpdate(int $id): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 			$data = $this->convertInput(file_get_contents('php://input'));
 
 			return new DataResponse(
@@ -2816,7 +2816,7 @@ class ApiController extends Controller {
 	public function scheduledStatusDelete(int $id): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 			$this->scheduledStatusService->delete($actor, $id);
 
 			return new DataResponse([], Http::STATUS_OK);
@@ -2893,7 +2893,7 @@ class ApiController extends Controller {
 			$status = new Status();
 			$status->import($this->convertInput((string)file_get_contents('php://input')));
 
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 			$item = $this->quoteService->setPolicy($nid, $actor, $status->getQuotePolicy());
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
@@ -2922,7 +2922,7 @@ class ApiController extends Controller {
 	public function statusQuoteRevoke(int $nid, int $quoting): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			if (!$this->quoteService->revoke($nid, $actor, $quoting)) {
 				return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
@@ -2955,7 +2955,7 @@ class ApiController extends Controller {
 	public function annualReports(): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			$reports = [];
 			foreach ($this->annualReportService->years($actor) as $year) {
@@ -2975,7 +2975,7 @@ class ApiController extends Controller {
 	public function annualReport(int $year): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			if ($this->annualReportService->state($actor, $year) !== 'available') {
 				// a year the account wrote nothing in has no report, and
@@ -3004,7 +3004,7 @@ class ApiController extends Controller {
 	public function annualReportState(int $year): DataResponse {
 		try {
 			$this->initViewer(true);
-			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
 			return new DataResponse(
 				['state' => $this->annualReportService->state($actor, $year)], Http::STATUS_OK
@@ -4342,8 +4342,14 @@ class ApiController extends Controller {
 
 			$this->logger->debug('[ApiController] initViewer: ' . $userId);
 
-			// Get or create the actor
-			$account = $this->accountService->getActorFromUserId($userId, true);
+			// Read, never create. Creating the actor here made the identity --
+			// the handle every other server will know this person by -- a side
+			// effect of the page being opened, before the setup screen had
+			// asked them anything; the answer they then gave came back as
+			// "that handle is taken", by themselves. An account is made where
+			// somebody asks for one: LocalController::accountCreate() and
+			// `occ social:account:create`.
+			$account = $this->accountService->getActorFromUserId($userId);
 			$this->logger->debug('[ApiController] Actor retrieved/created', [
 				'userId' => $userId,
 				'username' => $account->getPreferredUsername()

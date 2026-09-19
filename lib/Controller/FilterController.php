@@ -815,7 +815,7 @@ class FilterController extends Controller {
 	private function initViewer(array $scopes = ['read']): void {
 		try {
 			$userId = $this->currentSession($scopes);
-			$this->viewer = $this->accountService->getActorFromUserId($userId, true);
+			$this->viewer = $this->accountService->getActorFromUserId($userId);
 			// Every route here that is not a read changes which posts this
 			// account is shown, and its timelines' ETag is built from ids that
 			// none of it moves — see TimelineRevisionService. It is recorded

@@ -9,6 +9,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -56,6 +57,7 @@ class CheckService {
 		private IRequest $request,
 		private IURLGenerator $urlGenerator,
 		private FollowsRequest $followRequest,
+		private ActorsRequest $actorsRequest,
 		private CacheActorsRequest $cacheActorsRequest,
 		private StreamDestRequest $streamDestRequest,
 		private StreamRequest $streamRequest,
@@ -76,14 +78,18 @@ class CheckService {
 	 * @return array
 	 */
 	public function checkDefault(): array {
+		$handle = $this->probeAccount();
+
 		$checks = [];
-		$checks['wellknown'] = $this->checkWellKnown();
+		// null, not false: with no account on this instance there is nothing to
+		// ask WebFinger about, and "not checked" is not "broken"
+		$checks['wellknown'] = ($handle === null) ? null : $this->checkWellKnown($handle);
 		$checks['cloudAddress'] = $this->checkCloudAddress();
 		$checks['clientApi'] = $this->checkClientApiRoot();
 
 		$success = true;
 		foreach ($checks as $check) {
-			if (!$check) {
+			if ($check === false) {
 				$success = false;
 			}
 		}
@@ -163,6 +169,28 @@ class CheckService {
 
 	private function sameAddress(string $one, string $other): bool {
 		return strtolower(rtrim($one, '/')) === strtolower(rtrim($other, '/'));
+	}
+
+	/**
+	 * The account the WebFinger probe asks about: any one that exists.
+	 *
+	 * It used to ask about the reader's Nextcloud user id, which is wrong
+	 * twice over. A handle is chosen when the account is set up and need not
+	 * match the user id, and somebody who has not answered the setup screen
+	 * has no account at all — so the probe asked about an account nobody has,
+	 * got the 404 it deserved, and the app told an administrator that
+	 * .well-known was misconfigured when it was fine. This is the same account
+	 * the WebFinger setup check asks about, so the app and
+	 * Administration → Overview now agree.
+	 */
+	private function probeAccount(): ?string {
+		try {
+			$actor = $this->actorsRequest->getAny();
+		} catch (Exception $e) {
+			return null;
+		}
+
+		return $actor?->getPreferredUsername();
 	}
 
 	/**

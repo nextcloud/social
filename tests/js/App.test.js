@@ -222,6 +222,17 @@ describe('App', () => {
 		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
 	})
 
+	it('asks for nothing while the setup screen is still asking them', () => {
+		// the lookup is what created the account: the API makes one for
+		// whoever asks about themselves, so the handle the screen was offering
+		// had already been taken -- by them, a moment earlier -- and pressing
+		// the button answered "that handle is taken"
+		setServerData({ needsAccount: true, suggestedHandle: 'alice' })
+		mountApp()
+
+		expect(accountStore.fetchCurrentAccountInfo).not.toHaveBeenCalled()
+	})
+
 	it('renders the navigation and the routed view inside the app content', () => {
 		const wrapper = mountApp()
 		expect(wrapper.find('.content-stub').attributes('data-app-name')).toBe('social')

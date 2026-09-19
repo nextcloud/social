@@ -184,7 +184,7 @@ class PixelfedService {
 	public function removeAvatar(Person $viewer): Person {
 		$this->avatarService->remove($viewer->getUserId());
 
-		$account = $this->accountService->getActorFromUserId($viewer->getUserId(), true);
+		$account = $this->accountService->getActorFromUserId($viewer->getUserId());
 		$account->setExportFormat(ACore::FORMAT_LOCAL);
 
 		return $account;

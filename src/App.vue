@@ -214,7 +214,12 @@ export default {
 			if (seeded?.url) {
 				this.accountStore.setCurrentAccount(this.cloudId)
 				this.accountStore.addAccount({ actorId: seeded.url, data: seeded })
-			} else {
+			} else if (!this.serverData.needsAccount) {
+				// ...but not while the setup screen is up. Asking the API for
+				// this reader's account is what creates it, handle and all, so
+				// the question the screen is asking would already have been
+				// answered for them -- and pressing the button then failed with
+				// "that handle is taken", by them, a second earlier.
 				this.accountStore.fetchCurrentAccountInfo(this.cloudId)
 			}
 		}

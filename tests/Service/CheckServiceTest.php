@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use Exception;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -45,12 +46,15 @@ class CheckServiceTest extends TestCase {
 	private IRequest|MockObject $request;
 	private IURLGenerator|MockObject $urlGenerator;
 	private FollowsRequest|MockObject $followRequest;
+	private ActorsRequest|MockObject $actorsRequest;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private StreamRequest|MockObject $streamRequest;
 	private AccountService|MockObject $accountService;
 	private MiscService|MockObject $miscService;
 	private ConfigService|MockObject $configService;
 	private CheckService $service;
+	private ICacheFactory|MockObject $cacheFactory;
+	private IClientService|MockObject $clientService;
 
 	protected function setUp(): void {
 		$this->userManager = $this->createMock(IUserManager::class);
@@ -64,21 +68,46 @@ class CheckServiceTest extends TestCase {
 		$this->request = $this->createMock(IRequest::class);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->followRequest = $this->createMock(FollowsRequest::class);
+		// The instance has one account, whose handle is deliberately not the
+		// user id the service below is built for: a handle is chosen at setup
+		// and the two need not match. Tests that want an instance with no
+		// account at all rebuild this.
+		$this->actorsRequest = $this->actorsHolding('wanderer');
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->miscService = $this->createMock(MiscService::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->cacheFactory = $cacheFactory;
+		$this->clientService = $clientService;
 
+		$this->buildService();
+	}
+
+	/** An actors table holding one account with that handle, or none. */
+	private function actorsHolding(?string $handle): ActorsRequest|MockObject {
+		$actors = $this->createMock(ActorsRequest::class);
+		$actor = null;
+		if ($handle !== null) {
+			$actor = new Person();
+			$actor->setPreferredUsername($handle);
+		}
+		$actors->method('getAny')->willReturn($actor);
+
+		return $actors;
+	}
+
+	private function buildService(): void {
 		$this->service = new CheckService(
 			$this->userManager,
 			'alice',
-			$cacheFactory,
+			$this->cacheFactory,
 			$this->config,
-			$clientService,
+			$this->clientService,
 			$this->request,
 			$this->urlGenerator,
 			$this->followRequest,
+			$this->actorsRequest,
 			$this->cacheActorsRequest,
 			$this->createMock(StreamDestRequest::class),
 			$this->streamRequest,
@@ -117,6 +146,7 @@ class CheckServiceTest extends TestCase {
 			$this->request,
 			$this->urlGenerator,
 			$this->followRequest,
+			$this->actorsRequest,
 			$this->cacheActorsRequest,
 			$this->createMock(StreamDestRequest::class),
 			$this->streamRequest,
@@ -335,6 +365,59 @@ class CheckServiceTest extends TestCase {
 
 		$this->assertFalse($result['success']);
 		$this->assertFalse($result['checks']['wellknown']);
+	}
+
+	// which account the WebFinger probe asks about
+
+	/**
+	 * An account that exists, not the reader's Nextcloud user id.
+	 *
+	 * A handle is chosen when the account is set up and need not match the
+	 * user id, and an administrator who has never answered the setup screen
+	 * has no account at all — so the probe asked about somebody who does not
+	 * exist, and the app told them .well-known was misconfigured when it was
+	 * fine. It is the account the WebFinger setup check asks about, so the two
+	 * now agree.
+	 */
+	public function testTheProbeAsksAboutAnAccountThatExists(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$asked = [];
+		$this->client->method('get')->willReturnCallback(
+			function (string $url) use (&$asked): IResponse {
+				$asked[] = $url;
+
+				return $this->response(404);
+			}
+		);
+
+		$this->service->checkDefault();
+
+		$webfinger = array_values(array_filter(
+			$asked,
+			static fn (string $url): bool => str_contains($url, 'webfinger')
+		));
+		$this->assertNotEmpty($webfinger);
+		// the handle of the account the instance holds, not 'alice', which is
+		// the user id the service was built for — see setUp()
+		foreach ($webfinger as $url) {
+			$this->assertStringContainsString('acct:wanderer@', $url);
+			$this->assertStringNotContainsString('acct:alice@', $url);
+		}
+	}
+
+	public function testAnInstanceWithNoAccountClaimsNothingAboutWebFinger(): void {
+		$this->actorsRequest = $this->actorsHolding(null);
+		$this->buildService();
+		$this->cache->method('get')->willReturn('true');
+		$this->addressesAgree();
+
+		$checks = $this->service->checkDefault();
+
+		// null, not false: nobody has an account yet, so nothing was checked,
+		// and an untested check must not report the instance as broken
+		$this->assertNull($checks['checks']['wellknown']);
+		$this->assertTrue($checks['success']);
 	}
 
 	// whether a Mastodon app can reach this instance at all

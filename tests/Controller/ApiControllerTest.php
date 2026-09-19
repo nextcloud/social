@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Controller\ApiController;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -448,7 +449,7 @@ class ApiControllerTest extends TestCase {
 		$account = $this->createMock(Person::class);
 		$account->method('getPreferredUsername')->willReturn($uid);
 		$account->method('getId')->willReturn('https://cloud.example/apps/social/@' . $uid);
-		$this->accountService->method('getActorFromUserId')->with($uid, true)->willReturn($account);
+		$this->accountService->method('getActorFromUserId')->with($uid)->willReturn($account);
 
 		$viewer = $this->createMock(Person::class);
 		$viewer->method('getPreferredUsername')->willReturn($uid);
@@ -594,7 +595,7 @@ class ApiControllerTest extends TestCase {
 
 		$account = $this->createMock(Person::class);
 		$account->method('getPreferredUsername')->willReturn('alice');
-		$this->accountService->method('getActorFromUserId')->with('alice', true)->willReturn($account);
+		$this->accountService->method('getActorFromUserId')->with('alice')->willReturn($account);
 		$this->cacheActorService->method('getFromLocalAccount')->with('alice')->willReturn($this->createMock(Person::class));
 
 		$response = $this->controller('Bearer s3cret')->appsCredentials();
@@ -614,7 +615,7 @@ class ApiControllerTest extends TestCase {
 		$account = $this->createMock(Person::class);
 		$account->method('getPreferredUsername')->willReturn($uid);
 		$account->method('getId')->willReturn('https://cloud.example/apps/social/@' . $uid);
-		$this->accountService->method('getActorFromUserId')->with($uid, true)->willReturn($account);
+		$this->accountService->method('getActorFromUserId')->with($uid)->willReturn($account);
 
 		$viewer = $this->createMock(Person::class);
 		$viewer->method('getPreferredUsername')->willReturn($uid);
@@ -1030,6 +1031,36 @@ class ApiControllerTest extends TestCase {
 		$this->userSession->method('getUser')->willReturn(null);
 
 		$this->assertUnauthorized($this->controller()->verifyCredentials());
+	}
+
+	/**
+	 * Reading the API never mints the account it reads for.
+	 *
+	 * It used to: the viewer was initialised with the create flag set, so the
+	 * first request of the page — before the setup screen had asked anybody
+	 * anything — gave the reader a Fediverse identity with a handle derived
+	 * from their Nextcloud user id. Answering the screen then failed with
+	 * "that handle is taken". A token cannot exist without an account either,
+	 * since `/oauth/authorize` looks one up without creating, so nothing is
+	 * left that depends on this.
+	 */
+	public function testTheApiNeverCreatesTheAccountItReadsFor(): void {
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('newcomer');
+		$this->userSession->method('getUser')->willReturn($user);
+
+		$asked = [];
+		$this->accountService->method('getActorFromUserId')
+			->willReturnCallback(function (string $userId, bool $create = false) use (&$asked): Person {
+				$asked[] = $create;
+
+				throw new ActorDoesNotExistException('no account for ' . $userId);
+			});
+
+		$response = $this->controller()->verifyCredentials();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertNotContains(true, $asked, 'reading asked for the account to be created');
 	}
 
 	public function testViewerIsCachedOnDemandWhenMissingFromCache(): void {
