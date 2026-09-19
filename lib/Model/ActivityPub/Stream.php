@@ -174,6 +174,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * because a watch page wants all of it or none of it.
 	 */
 	public const DETAIL_VIDEO = 'video';
+	/** The page a person can open, where the author named one that is not the id. */
+	public const DETAIL_PAGE = 'page_url';
 
 	public const DETAIL_REPLY_POLICY = 'reply_policy';
 	public const DETAIL_REPLY_STATE = 'reply_state';
@@ -1275,6 +1277,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setInReplyTo($this->validate(self::AS_ID, 'inReplyTo', $data, ''));
 		$this->setQuote($this->quoteIdOf($data));
 		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $data, ''));
+		$this->setQuotePolicy(self::quotePolicyOf($data));
+		// `social_stream` has no column for it, and `details` is the one thing
+		// on the row that survives the round trip and is already read back
+		// with it. Only stored when it says something the id does not.
+		if ($this->getUrl() !== '' && $this->getUrl() !== $this->getId()) {
+			$this->setDetail(self::DETAIL_PAGE, $this->getUrl());
+		}
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setObjectId($this->get('object', $data, ''));
@@ -1764,7 +1773,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// rule here is that a client never has to test for a missing one
 			'poll' => null,
 			'uri' => $this->getId(),
-			'url' => $this->getId(),
+			// the page a person can open, which is not always the id. Loops
+			// posts are `.../ap/users/1/video/3268…` with a `url` of
+			// `loops.video/v/i9co_4TqPk`, and Pixelfed and PeerTube do the
+			// same; sending the id here pointed "open original" at a JSON
+			// document. Mastodon's two fields mean two different things and
+			// this app had them meaning one.
+			'url' => $this->pageUrl(),
 			'reblog' => null,
 			'media_attachments' => $this->getAttachments(),
 			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
@@ -2053,9 +2068,68 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * reason — a quote carries the audience of the quoter, so anything
 	 * narrower would be handed to readers the author never addressed.
 	 */
+	/**
+	 * The page a person can open for this post.
+	 *
+	 * Freshly imported it is on the object; read back out of the database it
+	 * is in `details`, because the table has no column for it. Falling back to
+	 * the id keeps every local post — whose id *is* its page — exactly as it
+	 * was.
+	 */
+	public function pageUrl(): string {
+		if ($this->getUrl() !== '') {
+			return $this->getUrl();
+		}
+
+		$stored = $this->getDetailsAll()[self::DETAIL_PAGE] ?? '';
+
+		return is_string($stored) && $stored !== '' ? $stored : $this->getId();
+	}
+
 	public function isQuotable(): bool {
+		// what the author said, where they said anything. A remote post that
+		// carries `canQuote` has answered this question itself, and quoting it
+		// anyway means sending a request their server is going to refuse --
+		// after this instance has already shown the quote to the person who
+		// wrote it.
+		if (!$this->isLocal() && $this->getQuotePolicy() === self::QUOTE_POLICY_NOBODY) {
+			return false;
+		}
+
 		return $this->isPublic()
 			|| in_array($this->getVisibility(), [self::TYPE_PUBLIC, self::TYPE_UNLISTED], true);
+	}
+
+	/**
+	 * Who the author says may quote their post, from `interactionPolicy`.
+	 *
+	 * GoToSocial defined the field, Mastodon 4.5 reads it, and Loops publishes
+	 * it on every video; FEP-044f is the same shape. Only `canQuote` is read
+	 * here, because it is the only one this app can act on without pretending
+	 * to know a remote server's follower list: `automaticApproval` naming the
+	 * public collection is "anyone", anything narrower is treated as "ask the
+	 * author", and an absent policy leaves the visibility rule to decide as
+	 * before.
+	 *
+	 * `manualApproval` is deliberately not "yes": it means the author's server
+	 * decides case by case, and this app has no way to wait for that answer
+	 * before showing a reader the quote they just wrote.
+	 */
+	private static function quotePolicyOf(array $data): string {
+		$canQuote = $data['interactionPolicy']['canQuote'] ?? null;
+		if (!is_array($canQuote)) {
+			return '';
+		}
+
+		$automatic = $canQuote['automaticApproval'] ?? [];
+		$automatic = is_array($automatic) ? $automatic : [$automatic];
+		foreach ($automatic as $allowed) {
+			if (is_string($allowed) && $allowed === self::CONTEXT_PUBLIC) {
+				return self::QUOTE_POLICY_PUBLIC;
+			}
+		}
+
+		return self::QUOTE_POLICY_NOBODY;
 	}
 
 	/**

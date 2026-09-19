@@ -203,6 +203,54 @@ class NoteTest extends TestCase {
 		$this->assertArrayNotHasKey('object', $export);
 	}
 
+	public function testANoteThatNamesNoPageIsOpenedAtItsOwnId(): void {
+		$this->nobodyIsKnown();
+		$source = $this->mastodonNote();
+		unset($source['url']);
+		$note = new Note();
+		$note->import($source);
+
+		$status = $note->exportAsLocal();
+
+		$this->assertSame($status['uri'], $status['url']);
+	}
+
+	/**
+	 * `parse_url()` parses `javascript:alert(1)` quite happily, and this field
+	 * is rendered as a link by every client that reads it.
+	 */
+	public function testAPageAddressThatIsNotTheWebIsRefused(): void {
+		$this->nobodyIsKnown();
+		$source = $this->mastodonNote();
+		$source['url'] = 'javascript:alert(1)';
+		$note = new Note();
+		$note->import($source);
+
+		$status = $note->exportAsLocal();
+
+		$this->assertSame($status['uri'], $status['url']);
+	}
+
+	/**
+	 * `social_stream` has no column for the page address, so a status read
+	 * back out of the database would lose it — and everything a client is
+	 * served comes from there, not from the object that was imported.
+	 */
+	public function testThePageAddressSurvivesTheDatabase(): void {
+		$this->nobodyIsKnown();
+		$note = new Note();
+		$note->import($this->mastodonNote());
+
+		$stored = new Note();
+		$stored->importFromDatabase([
+			'id' => $note->getId(),
+			'type' => 'Note',
+			'details' => json_encode($note->getDetailsAll()),
+		]);
+
+		$this->assertSame('https://mastodon.social/@alice/112000000000000001', $stored->pageUrl());
+	}
+
 	public function testExportAsLocalOfAnImportedNote(): void {
 		$this->nobodyIsKnown();
 		$note = new Note();
@@ -211,7 +259,11 @@ class NoteTest extends TestCase {
 		$status = $note->exportAsLocal();
 
 		$this->assertSame('https://mastodon.social/users/alice/statuses/112000000000000001', $status['uri']);
-		$this->assertSame('https://mastodon.social/users/alice/statuses/112000000000000001', $status['url']);
+		// the two are different things: `uri` is the object, `url` is the page
+		// a person can open, which every Mastodon-family server sends
+		// separately — and Loops, whose ids are under /ap/, only reaches a
+		// video through it
+		$this->assertSame('https://mastodon.social/@alice/112000000000000001', $status['url']);
 		$this->assertStringContainsString('look at this', $status['content']);
 		$this->assertTrue($status['sensitive']);
 		$this->assertSame(5, $status['favourites_count']);

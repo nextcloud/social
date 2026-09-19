@@ -605,7 +605,13 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			case self::AS_TYPE:
 				return $value;
 			case self::AS_URL:
-				if (parse_url($value) !== false) {
+				// `parse_url()` is not a check: it happily parses
+				// `javascript:alert(1)` into a scheme and a path. Every URL
+				// that reaches this app is either fetched by it or rendered as
+				// a link by a client, and neither is a thing to do with a
+				// scheme somebody else chose.
+				$scheme = strtolower((string)parse_url($value, PHP_URL_SCHEME));
+				if (in_array($scheme, ['http', 'https'], true)) {
 					return $value;
 				}
 				break;
