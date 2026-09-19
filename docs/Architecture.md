@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.17  
+**App version:** 0.26.18  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -2261,6 +2261,34 @@ a freshly imported account has none. No `Delete`, no `Move`, no `Like`, no
 - **The older dual blacklist/whitelist implementation in `FediverseService` is commented out**. What remains is the single-list `access_type`/`access_list` mechanism described above
 - **`FediverseService::getKnownAddresses()` returns an empty array** unconditionally
 - **The base URL is set once.** `ConfigService::setCloudUrl()` will overwrite it, but stored actor and stream ids embed the old URL, so changing it in practice requires `occ social:reset`
+
+---
+
+## Supporting two Nextcloud versions
+
+`appinfo/info.xml` claims 35 and 36, and both are meant, so a change has to
+hold on either.
+
+- **Analysis runs against the newer one.** `nextcloud/ocp` is a dev dependency
+  pinned to `dev-master`, which tracks the unreleased server — 36 until it
+  branches off as `stable36`. Psalm therefore sees the API the app will meet
+  next, not the one it met last.
+- **The unit suite runs against whichever OCP is installed.** It is standalone:
+  `tests/bootstrap.php` loads the interfaces from that package rather than
+  booting a server. Where the two versions differ in a way a test can see, the
+  test asks rather than assumes — `ApiControllerTest::userFolderMock()` is the
+  example, because 36 narrowed `IRootFolder::getUserFolder()` from `Folder` to
+  `IUserFolder` and PHPUnit checks a stubbed return value against the declared
+  type.
+- **CI runs both servers.** The version matrix is derived from `info.xml`, so
+  the PHPUnit workflows install the app on each supported server and run the
+  integration suite there, and the browser tests run twice, once per version.
+- **Deprecations are treated as breakage.** 36 logs
+  `Calling IQueryBuilder::orX without parameters is deprecated and will throw
+  soon`; the conditions that are assembled in a loop (`limitToQueueDue()`,
+  `limitToSyncDue()`, the trend windows) build their parts into an array and
+  pass them in one call. `tests/Db/FakeExpressions.php` refuses an empty
+  composite outright, so the old shape fails the suite.
 
 ---
 

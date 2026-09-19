@@ -91,6 +91,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
+use OCP\Files\IUserFolder;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\ICache;
@@ -3574,7 +3575,7 @@ class ApiControllerTest extends TestCase {
 		$file->method('getPath')->willReturn('/alice/files/' . ltrim($path, '/'));
 		$file->method('fopen')->willReturn($stream);
 
-		$folder = $this->createMock(Folder::class);
+		$folder = $this->userFolderMock();
 		$folder->method('get')->with($path)->willReturn($file);
 		$folder->method('getRelativePath')->willReturn($relative);
 		$this->rootFolder->method('getUserFolder')->with('alice')->willReturn($folder);
@@ -3608,6 +3609,20 @@ class ApiControllerTest extends TestCase {
 	 * bytes are copied into the app's own store rather than referenced, so a
 	 * post keeps what it was published with.
 	 */
+	/**
+	 * A mock of whatever `IRootFolder::getUserFolder()` is declared to return.
+	 *
+	 * Nextcloud 36 narrowed that from `Folder` to `IUserFolder`, and the app
+	 * supports 35 as well, so this follows whichever OCP the lockfile
+	 * installed: PHPUnit checks a stubbed return value against the declared
+	 * type, and refuses a plain `Folder` mock on 36.
+	 */
+	private function userFolderMock(): MockObject {
+		return $this->createMock(
+			interface_exists(IUserFolder::class) ? IUserFolder::class : Folder::class
+		);
+	}
+
 	public function testMediaFromFileAttachesTheViewersOwnFile(): void {
 		$this->loggedInAs();
 		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
@@ -3657,7 +3672,7 @@ class ApiControllerTest extends TestCase {
 	public function testMediaFromFileRefusesAPathOutsideTheViewersFiles(): void {
 		$this->loggedInAs();
 		$this->pathParam = '../../../../etc/passwd';
-		$folder = $this->createMock(Folder::class);
+		$folder = $this->userFolderMock();
 		$folder->method('get')->willThrowException(new NotFoundException());
 		$this->rootFolder->method('getUserFolder')->with('alice')->willReturn($folder);
 		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
@@ -3681,7 +3696,7 @@ class ApiControllerTest extends TestCase {
 	public function testMediaFromFileRefusesAFolder(): void {
 		$this->loggedInAs();
 		$this->pathParam = '/Photos';
-		$folder = $this->createMock(Folder::class);
+		$folder = $this->userFolderMock();
 		$folder->method('get')->with('/Photos')->willReturn($this->createMock(Folder::class));
 		$this->rootFolder->method('getUserFolder')->with('alice')->willReturn($folder);
 		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
@@ -3700,7 +3715,7 @@ class ApiControllerTest extends TestCase {
 		$file->method('getSize')->willReturn(11 * 1048576);
 		$file->method('getPath')->willReturn('/alice/files/Photos/huge.png');
 		$file->expects($this->never())->method('fopen');
-		$folder = $this->createMock(Folder::class);
+		$folder = $this->userFolderMock();
 		$folder->method('get')->with('/Photos/huge.png')->willReturn($file);
 		$folder->method('getRelativePath')->willReturn('Photos/huge.png');
 		$this->rootFolder->method('getUserFolder')->with('alice')->willReturn($folder);

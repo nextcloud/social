@@ -31,11 +31,40 @@ class FakeExpressions {
 		return $x . ' IN (' . $y . ')';
 	}
 
+	public function gt($x, $y, $type = null): string {
+		return $x . ' > ' . $y;
+	}
+
+	public function lte($x, $y, $type = null): string {
+		return $x . ' <= ' . $y;
+	}
+
+	public function isNull($x): string {
+		return $x . ' IS NULL';
+	}
+
 	public function andX(...$parts): string {
-		return '(' . implode(' AND ', $parts) . ')';
+		return '(' . implode(' AND ', $this->parts($parts, 'andX')) . ')';
 	}
 
 	public function orX(...$parts): string {
-		return '(' . implode(' OR ', $parts) . ')';
+		return '(' . implode(' OR ', $this->parts($parts, 'orX')) . ')';
+	}
+
+	/**
+	 * The server logs `Calling IQueryBuilder::orX without parameters is
+	 * deprecated and will throw soon` and hands back a composite that renders
+	 * as nothing, so the condition silently stops restricting anything. This
+	 * refuses it here instead, where a test can say which query built it.
+	 *
+	 * @param array<int, mixed> $parts
+	 * @return array<int, mixed>
+	 */
+	private function parts(array $parts, string $method): array {
+		if ($parts === []) {
+			throw new \InvalidArgumentException($method . '() was called with no parts');
+		}
+
+		return $parts;
 	}
 }
