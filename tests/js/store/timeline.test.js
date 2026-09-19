@@ -470,20 +470,46 @@ describe('timeline store actions', () => {
 		expect(tl().restored).toBe(false)
 	})
 
-	it('changeTimelineType remembers one timeline, not every timeline ever opened', async () => {
+	/**
+	 * The switcher above the posts is three places, and a reader moves between
+	 * them all day. With one slot, two of every three switches threw the list
+	 * away and asked the server again — which on screen is the content
+	 * replaced by a skeleton for as long as the round trip takes.
+	 */
+	it('changeTimelineType brings back a list from further than one switch ago', async () => {
 		await store.changeTimelineType({ type: 'home', params: {} })
 		store.addToTimeline([makeStatus('1')])
 		await store.changeTimelineType({ type: 'federated', params: {} })
 		store.addToTimeline([makeStatus('2')])
 		await store.changeTimelineType({ type: 'timeline', params: {} })
+		store.addToTimeline([makeStatus('3')])
 
-		// Home is two timelines back and is gone; Global, the one just left,
-		// is the one that comes back
+		// My Feed is two switches back and is still there
+		await store.changeTimelineType({ type: 'home', params: {} })
+		expect(tl().timeline).toEqual(['1'])
+		expect(tl().restored).toBe(true)
+
+		await store.changeTimelineType({ type: 'federated', params: {} })
+		expect(tl().timeline).toEqual(['2'])
+	})
+
+	it('changeTimelineType forgets the oldest rather than every timeline ever opened', async () => {
+		// each held list carries its own status index, so the number of them
+		// is a memory ceiling and not only a convenience
+		// six visits means five departures, so the first list has fallen off a
+		// shelf that holds four
+		const visited = ['home', 'federated', 'timeline', 'direct', 'notifications', 'liked']
+		for (const [index, type] of visited.entries()) {
+			await store.changeTimelineType({ type, params: {} })
+			store.addToTimeline([makeStatus(String(index))])
+		}
+
+		// the oldest departure is gone; the rest are still there
 		await store.changeTimelineType({ type: 'home', params: {} })
 		expect(tl().timeline).toEqual([])
 
-		await store.changeTimelineType({ type: 'federated', params: {} })
-		expect(tl().timeline).toEqual([])
+		await store.changeTimelineType({ type: 'direct', params: {} })
+		expect(tl().timeline).toEqual(['3'])
 	})
 
 	it('changeTimelineTypeAccount tells a profile from a tab of the same profile', async () => {
