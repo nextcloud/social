@@ -231,6 +231,26 @@ class NoteTest extends TestCase {
 		$this->assertSame($status['uri'], $status['url']);
 	}
 
+	/**
+	 * `social_stream` has no column for the page address, so a status read
+	 * back out of the database would lose it — and everything a client is
+	 * served comes from there, not from the object that was imported.
+	 */
+	public function testThePageAddressSurvivesTheDatabase(): void {
+		$this->nobodyIsKnown();
+		$note = new Note();
+		$note->import($this->mastodonNote());
+
+		$stored = new Note();
+		$stored->importFromDatabase([
+			'id' => $note->getId(),
+			'type' => 'Note',
+			'details' => json_encode($note->getDetailsAll()),
+		]);
+
+		$this->assertSame('https://mastodon.social/@alice/112000000000000001', $stored->pageUrl());
+	}
+
 	public function testExportAsLocalOfAnImportedNote(): void {
 		$this->nobodyIsKnown();
 		$note = new Note();

@@ -174,6 +174,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * because a watch page wants all of it or none of it.
 	 */
 	public const DETAIL_VIDEO = 'video';
+	/** The page a person can open, where the author named one that is not the id. */
+	public const DETAIL_PAGE = 'page_url';
 
 	public const DETAIL_REPLY_POLICY = 'reply_policy';
 	public const DETAIL_REPLY_STATE = 'reply_state';
@@ -1276,6 +1278,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setQuote($this->quoteIdOf($data));
 		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $data, ''));
 		$this->setQuotePolicy(self::quotePolicyOf($data));
+		// `social_stream` has no column for it, and `details` is the one thing
+		// on the row that survives the round trip and is already read back
+		// with it. Only stored when it says something the id does not.
+		if ($this->getUrl() !== '' && $this->getUrl() !== $this->getId()) {
+			$this->setDetail(self::DETAIL_PAGE, $this->getUrl());
+		}
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setObjectId($this->get('object', $data, ''));
@@ -1771,7 +1779,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// same; sending the id here pointed "open original" at a JSON
 			// document. Mastodon's two fields mean two different things and
 			// this app had them meaning one.
-			'url' => ($this->getUrl() === '') ? $this->getId() : $this->getUrl(),
+			'url' => $this->pageUrl(),
 			'reblog' => null,
 			'media_attachments' => $this->getAttachments(),
 			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
@@ -2060,6 +2068,24 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * reason — a quote carries the audience of the quoter, so anything
 	 * narrower would be handed to readers the author never addressed.
 	 */
+	/**
+	 * The page a person can open for this post.
+	 *
+	 * Freshly imported it is on the object; read back out of the database it
+	 * is in `details`, because the table has no column for it. Falling back to
+	 * the id keeps every local post — whose id *is* its page — exactly as it
+	 * was.
+	 */
+	public function pageUrl(): string {
+		if ($this->getUrl() !== '') {
+			return $this->getUrl();
+		}
+
+		$stored = $this->getDetailsAll()[self::DETAIL_PAGE] ?? '';
+
+		return is_string($stored) && $stored !== '' ? $stored : $this->getId();
+	}
+
 	public function isQuotable(): bool {
 		// what the author said, where they said anything. A remote post that
 		// carries `canQuote` has answered this question itself, and quoting it
