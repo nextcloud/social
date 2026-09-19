@@ -28,7 +28,7 @@
 	},
 	"dependencies": {
 		"@nextcloud/auth": "^2.0.0",
-		"@nextcloud/axios": "2.5.2",
+		"@nextcloud/axios": "2.6.0",
 		"@nextcloud/dialogs": "^7.5.0",
 		"@nextcloud/files": "^4.0.0",
 		"@nextcloud/initial-state": "^3.0.0",
@@ -99,7 +99,7 @@
 		"webpack-dev-server": "^5.2.2"
 	},
 	"overrides": {
-		"@nextcloud/axios": "2.5.2",
+		"@nextcloud/axios": "2.6.0",
 		"elliptic": "^6.6.1",
 		"fast-xml-parser": ">=5.7.0",
 		"joi": ">=18.2.8",
