@@ -95,7 +95,7 @@
 		"vitest": "^5.0.0",
 		"vue-loader": "^17.4.2",
 		"webpack": "^5.110.3",
-		"webpack-cli": "^6.0.1",
+		"webpack-cli": "^7.2.3",
 		"webpack-dev-server": "^5.2.2"
 	},
 	"overrides": {
