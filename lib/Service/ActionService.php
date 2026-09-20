@@ -31,6 +31,9 @@ class ActionService {
 	private const UNMUTE = 'unmute';
 	private const PIN = 'pin';
 	private const UNPIN = 'unpin';
+	/** PeerTube's other counter; only a video can carry one. */
+	private const DISLIKE = 'dislike';
+	private const UNDISLIKE = 'undislike';
 
 	private static array $availableStatusAction = [
 		self::FAVOURITE,
@@ -43,6 +46,8 @@ class ActionService {
 		self::UNMUTE,
 		self::PIN,
 		self::UNPIN,
+		self::DISLIKE,
+		self::UNDISLIKE,
 	];
 
 	public function __construct(
@@ -53,6 +58,7 @@ class ActionService {
 		private PinService $pinService,
 		private ActionsRequest $actionsRequest,
 		private ConversationsRequest $conversationsRequest,
+		private DislikeService $dislikeService,
 	) {
 	}
 
@@ -179,6 +185,14 @@ class ActionService {
 
 			case self::UNBOOKMARK:
 				$this->bookmark($actor, $post->getId(), false);
+				break;
+
+			case self::DISLIKE:
+				$this->dislikeService->create($actor, $post->getId());
+				break;
+
+			case self::UNDISLIKE:
+				$this->dislikeService->delete($actor, $post->getId());
 				break;
 
 			case self::PIN:

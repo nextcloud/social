@@ -89,6 +89,10 @@ class ApiContractTest extends TestCase {
 		// 4.5 reads. Null unless they published one, which most do not, and
 		// always null on our own posts: those are this instance's to decide
 		// about when the interaction arrives.
+		// 'dislikes_count' is PeerTube's other counter, and null for everything
+		// that is not a video — which is almost every post. Mastodon has never
+		// had a dislike, and a key full of zeroes would invite a client to
+		// draw a button for one.
 		// 'tagged_people' is Pixelfed's key for the people named in a
 		// photograph. Empty unless a page read filled it in; on the wire the
 		// same fact is carried as `Mention` tags, which is where a peer looks.
@@ -97,6 +101,7 @@ class ApiContractTest extends TestCase {
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote',
 			'quote_approval', 'reply_approval', 'interaction_policy', 'video',
+			'dislikes_count', 'disliked',
 			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
 			'tagged_people', 'tags', 'uri', 'url', 'view_count', 'visibility',
 		];

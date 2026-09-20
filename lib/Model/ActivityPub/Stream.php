@@ -887,6 +887,27 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * Whether this post is a video, in the sense the watch page means.
+	 *
+	 * Either it arrived as one — a `Video`, which leaves the metadata block
+	 * behind — or it carries a video as its only kind of attachment, which is
+	 * what an upload here produces.
+	 */
+	public function isVideo(): bool {
+		if ($this->getVideoMeta() !== []) {
+			return true;
+		}
+
+		foreach ($this->getAttachments() as $attachment) {
+			if (str_starts_with($attachment->getMediaType(), 'video/')) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * @param array<string, mixed> $meta
 	 */
 	public function setVideoMeta(array $meta): self {
@@ -1737,6 +1758,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$favorited = false;
 		$reblogged = false;
 		$bookmarked = false;
+		$disliked = false;
 		foreach ($actions as $action => $value) {
 			if ($value) {
 				switch ($action) {
@@ -1745,6 +1767,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 						break;
 					case StreamAction::LIKED:
 						$favorited = true;
+						break;
+					case StreamAction::DISLIKED:
+						$disliked = true;
 						break;
 					case StreamAction::BOOKMARKED:
 						$bookmarked = true;
@@ -1792,6 +1817,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// will be refused. Absent on a local post, where the policy is
 			// this instance's to apply when the interaction arrives
 			'interaction_policy' => $this->exportAllowedInteractions(),
+			// PeerTube's other counter. Null for everything that is not a
+			// video, which is almost every post: Mastodon has never had a
+			// dislike, and a key full of zeroes would invite a client to draw
+			// a button for one
+			'dislikes_count' => $this->isVideo() ? $this->getDetailInt(Details::DISLIKES) : null,
+			// and whether this reader is one of them; null on anything that is
+			// not a video, for the same reason
+			'disliked' => $this->isVideo() ? $disliked : null,
 			// what a video is, beyond being a post with a file on it: null for
 			// every post that is not one, which is almost all of them
 			'video' => ($video = $this->getVideoMeta()) === [] ? null : $video,

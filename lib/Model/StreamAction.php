@@ -26,6 +26,8 @@ class StreamAction implements JsonSerializable {
 	public const BOOSTED = 'boosted';
 	public const REPLIED = 'replied';
 	public const BOOKMARKED = 'bookmarked';
+	/** PeerTube's other counter; only a video can carry one. */
+	public const DISLIKED = 'disliked';
 	public const POLL_VOTES = 'poll_votes';
 
 	private int $id = 0;
@@ -38,6 +40,7 @@ class StreamAction implements JsonSerializable {
 		self::BOOSTED,
 		self::REPLIED,
 		self::BOOKMARKED,
+		self::DISLIKED,
 		self::POLL_VOTES
 	];
 
@@ -144,6 +147,7 @@ class StreamAction implements JsonSerializable {
 				self::BOOSTED => $this->getBool('boosted', $data),
 				self::REPLIED => $this->getBool('replied', $data),
 				self::BOOKMARKED => $this->getBool('bookmarked', $data),
+				self::DISLIKED => $this->getBool('disliked', $data),
 			]
 		);
 	}
