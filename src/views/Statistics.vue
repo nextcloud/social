@@ -483,6 +483,13 @@
 					</p>
 				</figure>
 
+				<!-- a step in this series is usually the crawler reaching more
+				     servers, and a reader who is not told that reads it as the
+				     network doubling -->
+				<p v-if="growth.coverage_changed" class="stats__note">
+					{{ t('social', 'A step in this line is usually the survey reaching servers it had not reached before, rather than the network changing size — so no year-on-year figure is shown for a year that has one in it.') }}
+				</p>
+
 				<!-- a second source, named as such: the figures above publish
 				     no history, and the two do not agree about the totals -->
 				<p class="stats__note">

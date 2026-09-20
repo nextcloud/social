@@ -473,6 +473,7 @@ describe('Statistics', () => {
 				month: { servers: 0.4, accounts: 3.0, active: 3.8, posts: 3.3 },
 				year: { servers: 5.8, accounts: 12.1, active: 28.2, posts: 4.1 },
 			},
+			coverage_changed: false,
 			source: 'Fediverse Observer',
 			source_url: 'https://fediverse.observer',
 		}
@@ -514,6 +515,21 @@ describe('Statistics', () => {
 			expect(wrapper.find('.stats__spark--growth').attributes('points')).toBeUndefined()
 			expect(wrapper.find('.stats__growth-chart polyline').attributes('points')).toBeTruthy()
 			expect(wrapper.find('.stats__growth-span').text()).toContain('2025')
+		})
+
+		/**
+		 * A reader who is not told reads a step in the line as the network
+		 * doubling, which is the one thing it is not.
+		 */
+		it('explains a missing year rather than leaving a gap', async () => {
+			const wrapper = await mountGrowth({
+				...GROWTH,
+				change: { month: GROWTH.change.month, year: {} },
+				coverage_changed: true,
+			})
+
+			expect(wrapper.text()).toContain('reaching servers it had not reached before')
+			expect(wrapper.text()).not.toContain('over a year')
 		})
 
 		/** One point is not a trend. */

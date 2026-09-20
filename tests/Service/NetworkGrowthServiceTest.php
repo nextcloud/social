@@ -230,4 +230,47 @@ class NetworkGrowthServiceTest extends TestCase {
 
 		$this->assertCount(NetworkGrowthService::MONTHS, $months);
 	}
+
+	/**
+	 * Observer's own series shows it plainly: 25,000 servers in January 2026
+	 * and 41,000 in March, 20 million accounts in December and 36 million in
+	 * February. Fifteen million people did not join the fediverse that
+	 * quarter — the crawler reached servers it had not reached before, and a
+	 * comparison across that step measures the survey rather than the network.
+	 */
+	public function testAYearAcrossACoverageChangeIsWithheldRatherThanPrinted(): void {
+		$series = $this->series(13, 1.0);
+		// one month where the crawler doubled what it reached
+		$series['data']['monthlystats'][6]['total_servers'] *= 2;
+		$series['data']['monthlystats'][6]['total_users'] *= 2;
+		$this->answer = $series;
+
+		$growth = $this->service->growth();
+
+		$this->assertSame([], $growth['change']['year']);
+		$this->assertTrue($growth['coverage_changed'], 'the page has nothing to explain the gap with');
+	}
+
+	public function testASteadySeriesStillGetsItsYear(): void {
+		$this->answer = $this->series(13, 1.02);
+
+		$growth = $this->service->growth();
+
+		$this->assertNotSame([], $growth['change']['year']);
+		$this->assertFalse($growth['coverage_changed']);
+	}
+
+	/**
+	 * Only the two figures that move with coverage are held to it: the active
+	 * and post counts swing for ordinary reasons, and holding them to this
+	 * would withhold a comparison over a busy month.
+	 */
+	public function testABusyMonthIsNotACoverageChange(): void {
+		$series = $this->series(13, 1.0);
+		$series['data']['monthlystats'][6]['total_active_users_monthly'] *= 3;
+		$series['data']['monthlystats'][6]['total_posts'] *= 3;
+		$this->answer = $series;
+
+		$this->assertFalse($this->service->growth()['coverage_changed']);
+	}
 }

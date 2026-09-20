@@ -52,6 +52,19 @@ class NetworkGrowthService {
 	 */
 	public const MONTHS = 24;
 
+	/**
+	 * A month-over-month step this large is not something a federated network
+	 * does; it is the survey changing what it crawls.
+	 *
+	 * Observer's own series shows it plainly: 25,000 servers in January 2026
+	 * and 41,000 in March, 20 million accounts in December 2025 and 36 million
+	 * in February. Fifteen million people did not join the fediverse that
+	 * quarter — the crawler reached servers it had not reached before. A
+	 * comparison across such a step measures the survey and not the network,
+	 * so the app will not print one.
+	 */
+	private const COVERAGE_STEP = 25.0;
+
 	/** A monthly series changes monthly. */
 	private const CACHE_TTL = 86400;
 	/** And this long after a failure, so a source that is down is left alone. */
@@ -80,7 +93,7 @@ class NetworkGrowthService {
 	 * @return array{
 	 *     months: list<array{month: string, servers: int, accounts: int, active: int, posts: int}>,
 	 *     change: array{month: array<string, float>, year: array<string, float>},
-	 *     source: string, source_url: string
+	 *     coverage_changed: bool, source: string, source_url: string
 	 * }|null null when it is switched off, or nobody answered
 	 */
 	public function growth(): ?array {
@@ -95,12 +108,21 @@ class NetworkGrowthService {
 			return null;
 		}
 
+		$year = $this->changeOver($months, 12);
+		$steady = $this->steadyOver($months, 12);
+
 		return [
 			'months' => $months,
 			'change' => [
 				'month' => $this->changeOver($months, 1),
-				'year' => $this->changeOver($months, 12),
+				// withheld rather than shown with a caveat nobody reads: a
+				// year-over-year figure across a coverage change describes the
+				// survey, not the fediverse
+				'year' => $steady ? $year : [],
 			],
+			// so the page can say why the year is missing, rather than leaving
+			// a reader to wonder whether it is a bug
+			'coverage_changed' => !$steady,
 			'source' => self::SOURCE_NAME,
 			'source_url' => self::SOURCE_URL,
 		];
@@ -199,6 +221,37 @@ class NetworkGrowthService {
 		ksort($months);
 
 		return array_slice(array_values($months), -self::MONTHS);
+	}
+
+	/**
+	 * Whether the series over this window is the same survey throughout.
+	 *
+	 * A step of more than a quarter from one month to the next is the crawler
+	 * changing what it reaches; see `COVERAGE_STEP`. Only the two figures that
+	 * move with coverage are looked at — the active and post counts swing for
+	 * ordinary reasons, and holding them to this would withhold a comparison
+	 * over a busy month.
+	 *
+	 * @param list<array{month: string, servers: int, accounts: int, active: int, posts: int}> $months
+	 */
+	private function steadyOver(array $months, int $back): bool {
+		$last = count($months) - 1;
+		$first = $last - $back;
+		if ($first < 0) {
+			return false;
+		}
+
+		for ($i = $first; $i < $last; $i++) {
+			foreach (['servers', 'accounts'] as $key) {
+				$was = (int)$months[$i][$key];
+				$now = (int)$months[$i + 1][$key];
+				if ($was > 0 && abs((float)($now - $was)) / (float)$was * 100.0 > self::COVERAGE_STEP) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	/**
