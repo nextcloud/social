@@ -393,11 +393,12 @@ remote server. A **follow request carries Accept and Decline on the bell entry i
 
 ![Settings](img/readme/settings.png)
 
-Everything about your account in one page: the name you publish under, whether people
-must ask before they follow you, whether other servers may suggest you and index your
-public posts, whether this is an automated account, and the audience every new post
-starts with. Only what you changed is sent, so a display name your Nextcloud gets from
-elsewhere is never written back.
+Everything about your account in one page: whether people must ask before they follow
+you, whether other servers may suggest you and index your public posts, whether this is
+an automated account, and the audience every new post starts with. Only what you changed
+is sent. The name you publish under is not here — it belongs to your Nextcloud account
+and the page links to where it is changed, rather than offering a second place to edit
+it that would do nothing on an instance whose accounts come from LDAP.
 
 ![Scheduled posts](img/readme/scheduled.png)
 

@@ -76,7 +76,6 @@ describe('AccountSettings', () => {
 		const wrapper = mountSettings()
 		await flushPromises()
 
-		expect(wrapper.find('.account-settings__name input').element.value).toBe('Alice Appleby')
 		expect(switchFor(wrapper, 'Approve who follows you').find('input').element.checked).toBe(true)
 		expect(switchFor(wrapper, 'Suggest this account to others').find('input').element.checked).toBe(true)
 		expect(switchFor(wrapper, 'Let search find your public posts').find('input').element.checked).toBe(false)
@@ -120,19 +119,51 @@ describe('AccountSettings', () => {
 		expect(axios.patch).toHaveBeenCalledWith(`${API}/accounts/update_credentials`, { locked: true })
 	})
 
-	it('sends the display name as its own field', async () => {
-		const wrapper = mountSettings()
-		await flushPromises()
-		axios.patch.mockResolvedValue({ data: credentials({ display_name: 'Alice A.' }) })
+	/**
+	 * The display name belongs to the Nextcloud account and the actor copies
+	 * it, so a field here was a remote control for a setting that lives
+	 * elsewhere -- and one that did nothing at all on an account whose backend
+	 * owns the name, which is every LDAP or SAML instance.
+	 */
+	describe('the display name', () => {
+		it('is shown rather than offered for editing', async () => {
+			axios.get.mockResolvedValue({ data: credentials({ display_name: 'Alice Appleby' }) })
+			const wrapper = mountSettings()
+			await flushPromises()
 
-		await wrapper.find('.account-settings__name input').setValue('Alice A.')
-		await wrapper.find('form').trigger('submit')
-		await flushPromises()
+			expect(wrapper.find('.account-settings__name input').exists()).toBe(false)
+			expect(wrapper.text()).toContain('You post as Alice Appleby.')
+		})
 
-		expect(axios.patch).toHaveBeenCalledWith(
-			`${API}/accounts/update_credentials`,
-			{ display_name: 'Alice A.' },
-		)
+		it('points at the settings that actually own it', async () => {
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			const link = wrapper.find('.account-settings__link')
+			expect(link.text()).toContain('Change your name in your Nextcloud settings')
+			expect(link.attributes('href')).toContain('/settings/user')
+		})
+
+		it('falls back to the handle where Nextcloud holds no name', async () => {
+			axios.get.mockResolvedValue({ data: credentials({ display_name: '', username: 'alice' }) })
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			expect(wrapper.text()).toContain('You post as alice.')
+		})
+
+		it('is never sent, even when everything else is', async () => {
+			const wrapper = mountSettings()
+			await flushPromises()
+			axios.patch.mockResolvedValue({ data: credentials({ locked: true }) })
+
+			await switchFor(wrapper, 'Approve who follows you').find('input').setValue(true)
+			await wrapper.find('form').trigger('submit')
+			await flushPromises()
+
+			const [, body] = axios.patch.mock.calls[0]
+			expect(body).not.toHaveProperty('display_name')
+		})
 	})
 
 	it('sends the default audience under source, in the name the wire uses', async () => {

@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.38  
+**App version:** 0.26.39  
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -1522,13 +1522,21 @@ loads them until they open the page, and a section that arrives after the page
 did is why the scroll to the hash is retried in `updated()`.
 
 `AccountSettings.vue` is `PATCH /api/v1/accounts/update_credentials` as a form:
-the display name, `locked`, `discoverable`, `indexable`, `bot` and
-`source[privacy]`. It sends **only the fields that changed**, which is not an
-optimisation: the route writes only what it is given, and a form that posted the
-whole of itself back would re-save a display name into a backend that owns it
-(LDAP, SAML) and be refused for a switch it never meant to touch. The bio, the
-banner and the metadata fields stay in the profile's own editor, because they are
-what a visitor reads and are edited where they are seen.
+`locked`, `discoverable`, `indexable`, `bot` and `source[privacy]`. It sends
+**only the fields that changed**, which is not an optimisation: the route writes
+only what it is given, and a form that posted the whole of itself back would be
+refused for a switch it never meant to touch. The bio, the banner and the
+metadata fields stay in the profile's own editor, because they are what a visitor
+reads and are edited where they are seen.
+
+**The display name is not among them.** It belongs to the Nextcloud account and
+the actor copies it — `updateCacheLocalActorName()` is what carries it over — so a
+field here was a remote control for a setting that lives somewhere else, and one
+that could not work at all on an account whose backend owns the name, which is
+every LDAP or SAML instance. The page says what the account posts under and links
+to the Nextcloud settings that own it. The route still accepts `display_name`,
+because a Mastodon client expects to be able to send it and is answered honestly:
+written through to the Nextcloud account, or **422** where the backend owns it.
 
 **The default audience.** `source.privacy` lives on `verify_credentials` and
 nowhere else — the account the initial state seeds the store with is the plain
