@@ -854,11 +854,24 @@ export default {
 			const peers = this.stats?.network?.peers ?? 0
 			const servers = this.stats?.network?.servers ?? 0
 			if (peers > 0 && servers > 0) {
-				facts.push({
-					key: 'reach',
-					value: this.decimal((peers / servers) * 100) + '%',
-					label: t('social', 'of all servers are ones this one talks to'),
-				})
+				// a young instance talks to two servers out of forty thousand,
+				// which is 0.0% — a true number that tells its reader nothing.
+				// Below a tenth of a per cent the count is the honest figure
+				const share = (peers / servers) * 100
+
+				facts.push(share < 0.1
+					? {
+							key: 'reach',
+							value: this.number(peers),
+							label: t('social', 'of {total} servers are ones this one talks to', {
+								total: this.number(servers),
+							}),
+						}
+					: {
+							key: 'reach',
+							value: this.decimal(share) + '%',
+							label: t('social', 'of all servers are ones this one talks to'),
+						})
 			}
 
 			return facts

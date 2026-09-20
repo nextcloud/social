@@ -531,6 +531,22 @@ describe('Statistics', () => {
 			expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(20)
 		})
 
+		/**
+		 * A young instance talks to two servers out of forty thousand, which
+		 * is 0.0%: a true number that tells its reader nothing.
+		 */
+		it('counts the servers it reaches when the share rounds to nothing', async () => {
+			axios.get.mockResolvedValue({
+				data: answer({ growth: GROWTH, network: { peers: 2, servers: 42809, accounts: 1, active: 1, measured: '', source: 'FediDB', source_url: 'https://fedidb.org' } }),
+			})
+			const wrapper = mountPage()
+			await flushPromises()
+
+			expect(wrapper.find('.stats__derived').text()).toContain('2')
+			expect(wrapper.find('.stats__derived').text()).toContain('of 42,809 servers')
+			expect(wrapper.find('.stats__derived').text()).not.toContain('0%')
+		})
+
 		it('says what the numbers mean rather than leaving it as arithmetic', async () => {
 			const wrapper = await mountGrowth(GROWTH)
 
