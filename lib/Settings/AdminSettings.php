@@ -11,6 +11,7 @@ namespace OCA\Social\Settings;
 
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\Report;
+use OCA\Social\Service\BackgroundHealthService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
@@ -70,6 +71,7 @@ class AdminSettings implements IDelegatedSettings {
 		private VideoQuotaService $videoQuotaService,
 		private SensitiveMediaService $sensitiveMediaService,
 		private FederationHealthService $federationHealthService,
+		private BackgroundHealthService $backgroundHealthService,
 		private IL10N $l10n,
 		private ServerSettingsService $serverSettingsService,
 		private SectionsService $sectionsService,
@@ -119,6 +121,11 @@ class AdminSettings implements IDelegatedSettings {
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
 			'federation' => $this->federationHealthService->summary(),
+			// whether the work that happens away from a request is happening
+			// at all. When cron stops, the symptom is a post that never
+			// arrives and a disk that never shrinks, and nothing in the app
+			// said so
+			'background' => $this->backgroundHealthService->summary(),
 			// what this instance's own people have been doing: the two numbers
 			// an administrator asks for first, and the page had neither
 			'activity' => $this->activity(),

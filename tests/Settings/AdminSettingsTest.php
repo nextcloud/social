@@ -129,6 +129,7 @@ class AdminSettingsTest extends TestCase {
 			$this->createMock(\OCA\Social\Service\VideoQuotaService::class),
 			$this->createMock(\OCA\Social\Service\SensitiveMediaService::class),
 			$this->federationHealthService,
+			$this->createMock(\OCA\Social\Service\BackgroundHealthService::class),
 			$this->l10n(),
 			$this->serverSettingsService,
 			$this->sectionsService,

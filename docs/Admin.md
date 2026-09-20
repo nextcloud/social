@@ -298,7 +298,23 @@ a list of them beside the page on a wide screen:
   Retention removes). Added up by the background job once a day, because
   counting it is one file lookup per stored file; the page says when it was
   measured. `occ social:media:usage` measures it on demand.
-- **Federation health** — what the outbound queue is doing.
+- **Federation health** — what the outbound queue is doing, including how long
+  the longest-failing delivery has been failing: the counts say how much and
+  where, and that says whether it started an hour ago or a week ago, which is
+  the difference between a peer rebooting and a delivery that is never going to
+  happen.
+- **Background work** — when each of this app's cron jobs last ran, and whether
+  that is later than it should be. Almost everything the app does away from a
+  page happens on a schedule: posts go out, stories expire, media is swept,
+  videos are transcoded, the storage figures are taken. When cron stops, the
+  symptom is a post that never arrives and a disk that never shrinks, and
+  nothing in the app said so. A job is called late after **three** of its own
+  intervals, because Nextcloud's cron is itself periodic and a five-minute job
+  on a fifteen-minute timer is always two intervals behind with nothing wrong
+  with it. A job missing from the list altogether is what an upgrade whose
+  migrations have not run looks like; the page says so rather than showing a
+  zero. Read from Nextcloud's own job list, so it cannot drift from what
+  actually happened.
 - **Fediverse access** — the block list or the allow list, the same one `occ
   social:fediverse` manages.
 - **Announcements** — a notice every account here is shown once.
