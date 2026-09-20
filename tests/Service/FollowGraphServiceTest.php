@@ -88,6 +88,22 @@ class FollowGraphServiceTest extends TestCase {
 			});
 
 		$this->curlService = $this->createMock(CurlService::class);
+		// the walk asks every server at once now; a peer that refuses is a
+		// null in its place rather than an exception, which is what the
+		// batch's callers cope with
+		$this->curlService->method('retrieveObjectsMany')
+			->willReturnCallback(function (array $urls): array {
+				$answers = [];
+				foreach ($urls as $url) {
+					try {
+						$answers[$url] = $this->curlService->retrieveObject($url);
+					} catch (\Throwable $e) {
+						$answers[$url] = null;
+					}
+				}
+
+				return $answers;
+			});
 		$this->curlService->method('retrieveObject')
 			->willReturnCallback(function (string $url): array {
 				$this->fetched[] = $url;

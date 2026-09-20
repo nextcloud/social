@@ -59,9 +59,15 @@ class FollowGraphService {
 	/** How many names one collection contributes. A Mastodon page holds 80. */
 	public const PAGE = 80;
 
-	/** How long one account has to answer, and how long the whole walk has. */
+	/**
+	 * How long one account has to answer.
+	 *
+	 * There is no separate budget for the whole walk any more: the twenty
+	 * requests go together, so the walk takes as long as the slowest single
+	 * answer rather than as long as all of them added up, and a ceiling on one
+	 * request is a ceiling on the set.
+	 */
 	public const TIMEOUT = 4;
-	public const BUDGET = 12.0;
 
 	/**
 	 * How long an answer is kept. Long, because it is expensive to make and
@@ -193,30 +199,40 @@ class FollowGraphService {
 		$counts = [];
 		$via = [];
 		$asked = 0;
-		$deadline = microtime(true) + self::BUDGET;
 
+		// the collections first, then all of them at once: these are twenty
+		// servers that have nothing to do with each other, and asking them one
+		// after another let the slowest of them set the pace for the whole
+		// page. The budget is what it was; it now covers the batch rather than
+		// being spent a request at a time.
+		$collections = [];
 		foreach ($follows as $followedId) {
-			if (microtime(true) >= $deadline) {
-				break;
-			}
-
 			try {
-				$actor = $this->cacheActorService->getFromId($followedId);
-				$collection = $actor->getFollowing();
-				if ($collection === '') {
-					continue;
-				}
-
-				$named = $this->itemsOf($collection);
-				$asked++;
+				$collection = $this->cacheActorService->getFromId($followedId)->getFollowing();
 			} catch (Throwable $e) {
-				$this->logger->debug('[FollowGraphService] could not read who they follow', [
+				$this->logger->debug('[FollowGraphService] no actor to ask', [
 					'actor' => $followedId, 'exception' => $e,
 				]);
 				continue;
 			}
 
-			foreach ($named as $candidate) {
+			if ($collection !== '') {
+				$collections[$followedId] = $collection;
+			}
+		}
+
+		$documents = $this->curlService->retrieveObjectsMany(
+			array_values($collections), ['timeout' => self::TIMEOUT]
+		);
+
+		foreach ($collections as $followedId => $collection) {
+			$document = $documents[$collection] ?? null;
+			if (!is_array($document)) {
+				continue;
+			}
+
+			$asked++;
+			foreach ($this->itemsIn($document) as $candidate) {
 				$counts[$candidate] = ($counts[$candidate] ?? 0) + 1;
 				if (count($via[$candidate] ?? []) < self::VIA) {
 					$via[$candidate][] = $followedId;
@@ -241,12 +257,28 @@ class FollowGraphService {
 	 * @return string[]
 	 */
 	private function itemsOf(string $collection): array {
-		$document = $this->curlService->retrieveObject($collection);
+		return $this->itemsIn($this->curlService->retrieveObject($collection));
+	}
+
+	/**
+	 * The same, from a collection already fetched.
+	 *
+	 * @param array<string, mixed> $document
+	 *
+	 * @return string[]
+	 */
+	private function itemsIn(array $document): array {
 		$items = $document['orderedItems'] ?? $document['items'] ?? [];
 
 		if ($items === [] && is_string($document['first'] ?? null)) {
-			$page = $this->curlService->retrieveObject($document['first']);
-			$items = $page['orderedItems'] ?? $page['items'] ?? [];
+			// one more request, and only for the collections that need it: a
+			// server that answers with a `first` page rather than with items
+			try {
+				$page = $this->curlService->retrieveObject($document['first']);
+				$items = $page['orderedItems'] ?? $page['items'] ?? [];
+			} catch (Throwable $e) {
+				$items = [];
+			}
 		}
 
 		$ids = [];
