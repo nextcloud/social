@@ -106,6 +106,7 @@ export default {
 		apacheRules() {
 			return [
 				'ProxyPreserveHost On',
+				'RequestHeader set X-Forwarded-Proto "https"',
 				'RewriteEngine On',
 				'RewriteRule ^/?api/(.*)$   http://127.0.0.1/index.php/apps/social/api/$1   [P,QSA,L]',
 				'RewriteRule ^/?oauth/(.*)$ http://127.0.0.1/index.php/apps/social/oauth/$1 [P,QSA,L]',

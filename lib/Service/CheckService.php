@@ -496,7 +496,8 @@ class CheckService {
 				return false;
 			}
 
-			$body = json_decode((string)$response->getBody(), true);
+			$raw = (string)$response->getBody();
+			$body = json_decode($raw, true);
 			if (!is_array($body) || !array_key_exists('uri', $body)) {
 				// something answered, and it was not this app: a login page, a
 				// catch-all index, another server's error page
@@ -507,6 +508,9 @@ class CheckService {
 
 			$this->cache->set(self::CACHE_PREFIX . 'clientapi', 'true', 3600);
 			$this->configService->setAppValue(ConfigService::CLIENT_API_ROOT, '1');
+			$this->configService->setAppValue(
+				ConfigService::CLIENT_API_SCHEME, $this->answeredInScheme($scheme, $raw) ? '1' : '0'
+			);
 
 			return true;
 		} catch (Exception $e) {
@@ -519,9 +523,42 @@ class CheckService {
 		return false;
 	}
 
+	/**
+	 * Whether the answer's own addresses use the scheme it was asked over.
+	 *
+	 * A proxy that does not pass the scheme on leaves Nextcloud believing the
+	 * request arrived over plain HTTP, and every absolute URL it builds says
+	 * so -- on a site that is HTTPS. `mod_proxy` sends `X-Forwarded-For` and
+	 * `X-Forwarded-Host` by itself and not the scheme, so an Apache set up
+	 * from a recipe that omits `RequestHeader set X-Forwarded-Proto` is in
+	 * exactly this state.
+	 *
+	 * Nothing about it is visible from inside: the app answers, the routes
+	 * work, and the addresses in the answers are wrong. An iOS client refuses
+	 * them outright and its sign-in stops with nothing to see, which is how
+	 * this was found -- in a web server's access log, not in the app.
+	 */
+	private function answeredInScheme(string $scheme, string $body): bool {
+		if ($scheme !== 'https') {
+			// asked over plain HTTP, so http:// in the answer is the truth
+			return true;
+		}
+
+		return !str_contains($body, '"http://') && !str_contains($body, '"http:\\/\\/');
+	}
+
 	/** Records one probe, without its body: a page may show this to anybody. */
 	private function noted(string $base, int $status, string $reason): void {
 		$this->attempts[] = ['base' => $base, 'status' => $status, 'reason' => $reason];
+	}
+
+	/**
+	 * Whether the last successful probe came back with addresses in the scheme
+	 * it was asked over. False only once a probe has found otherwise, so an
+	 * instance nobody has checked does not accuse its own web server.
+	 */
+	public function clientApiSchemeIsWrong(): bool {
+		return $this->configService->getAppValue(ConfigService::CLIENT_API_SCHEME) === '0';
 	}
 
 	/**

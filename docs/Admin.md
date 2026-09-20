@@ -111,6 +111,7 @@ is:
 
 ```apache
 ProxyPreserveHost On
+RequestHeader set X-Forwarded-Proto "https"
 
 RewriteEngine On
 RewriteRule ^/?api/(.*)$   http://127.0.0.1/index.php/apps/social/api/$1   [P,QSA,L]
@@ -119,7 +120,7 @@ RewriteRule ^/?\.well-known/host-meta$ http://127.0.0.1/index.php/.well-known/ho
 RewriteRule ^/?\.well-known/oauth-authorization-server$ http://127.0.0.1/index.php/apps/social/.well-known/oauth-authorization-server [P,QSA,L]
 ```
 
-`mod_proxy`, `mod_proxy_http` and `mod_rewrite` have to be enabled. This cannot
+`mod_proxy`, `mod_proxy_http`, `mod_rewrite` and `mod_headers` have to be enabled. This cannot
 go in an `.htaccess` file, because `ProxyPreserveHost` is not allowed there and
 without it the app is handed `Host: 127.0.0.1` and refuses the request as an
 untrusted domain.
@@ -199,6 +200,20 @@ advertises the root addresses the client used; where it is not, it advertises
 the app's own, which is the only reachable answer. Which of the two it is comes
 from the check below, read from its cache — an internal proxy hands PHP the app
 path either way, so the request itself cannot say.
+
+**`X-Forwarded-Proto` is not optional.** `mod_proxy` sends `X-Forwarded-For` and
+`X-Forwarded-Host` by itself and stops there, and the rules above proxy to plain
+HTTP — so without that header Nextcloud believes every proxied request arrived
+over `http` and builds every absolute URL it answers with accordingly. A client
+is then handed `http://` addresses for avatars, posts and the instance
+thumbnail, on a site that is `https`. An **iOS client refuses them outright**
+(App Transport Security), and its sign-in stops dead after registering the app,
+with nothing in any log to show for it. The nginx rules set the equivalent
+(`proxy_set_header X-Forwarded-Proto $scheme`) and always did.
+
+The symptom is visible without a client: `/api/v2/instance` fetched through the
+root answers a `thumbnail.url` beginning `http://`, where the same document
+fetched at `/index.php/apps/social/api/v2/instance` begins `https://`.
 
 **Add `127.0.0.1` to `trusted_proxies`.** Client requests reach PHP from the
 proxy afterwards, so without it every app in the world shares one address for
