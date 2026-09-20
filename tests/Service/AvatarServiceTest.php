@@ -1,0 +1,232 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\Service;
+
+use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\AccountService;
+use OCA\Social\Service\AvatarService;
+use OCP\IAvatar;
+use OCP\IAvatarManager;
+use OCP\IUser;
+use OCP\IUserManager;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
+use RuntimeException;
+
+/**
+ * The profile picture, which is the Nextcloud account's and not this app's.
+ *
+ * The upload path itself cannot be exercised from a test — `setFromTempFile()`
+ * insists on `is_uploaded_file()`, which is only ever true inside a real
+ * request — so what is asserted there is every refusal, and the bytes-to-avatar
+ * path is reached through the archive restore, which shares `store()` with it.
+ */
+class AvatarServiceTest extends TestCase {
+	private const USER = 'alice';
+
+	private IAvatarManager|MockObject $avatarManager;
+	private IUserManager|MockObject $userManager;
+	private AccountService|MockObject $accountService;
+	private AvatarService $service;
+
+	/** the avatar core holds for the account */
+	private IAvatar|MockObject $avatar;
+	private bool $custom = false;
+	private ?string $stored = null;
+	private bool $removed = false;
+	/** @var string[] the usernames whose actor cache was refreshed */
+	private array $refreshed = [];
+	/** @var string[] files to clean up */
+	private array $files = [];
+
+	protected function setUp(): void {
+		parent::setUp();
+
+		$this->avatar = $this->createMock(IAvatar::class);
+		$this->avatar->method('isCustomAvatar')->willReturnCallback(fn (): bool => $this->custom);
+		$this->avatar->method('set')->willReturnCallback(function ($data): void {
+			$this->stored = (string)$data;
+		});
+		$this->avatar->method('remove')->willReturnCallback(function (): void {
+			$this->removed = true;
+		});
+
+		$this->avatarManager = $this->createMock(IAvatarManager::class);
+		$this->avatarManager->method('getAvatar')->willReturn($this->avatar);
+
+		$this->userManager = $this->createMock(IUserManager::class);
+		$this->userManager->method('get')->willReturnCallback(
+			fn (string $userId): ?IUser => ($userId === self::USER) ? $this->user(true) : null
+		);
+
+		$actor = new Person();
+		$actor->setPreferredUsername(self::USER);
+		$this->accountService = $this->createMock(AccountService::class);
+		$this->accountService->method('getActorFromUserId')->willReturn($actor);
+		$this->accountService->method('cacheLocalActorByUsername')
+			->willReturnCallback(function (string $username): void {
+				$this->refreshed[] = $username;
+			});
+
+		$this->service = $this->build();
+	}
+
+	protected function tearDown(): void {
+		foreach ($this->files as $file) {
+			@unlink($file);
+		}
+		parent::tearDown();
+	}
+
+	private function build(): AvatarService {
+		return new AvatarService(
+			$this->avatarManager, $this->userManager, $this->accountService, new NullLogger()
+		);
+	}
+
+	private function user(bool $canChange): IUser|MockObject {
+		$user = $this->createMock(IUser::class);
+		$user->method('canChangeAvatar')->willReturn($canChange);
+
+		return $user;
+	}
+
+	/** A one-pixel PNG, because the bytes decide what a picture is. */
+	private function png(): string {
+		$path = (string)tempnam(sys_get_temp_dir(), 'avatar');
+		file_put_contents($path, base64_decode(
+			'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+		));
+		$this->files[] = $path;
+
+		return $path;
+	}
+
+	private function file(string $contents): string {
+		$path = (string)tempnam(sys_get_temp_dir(), 'avatar');
+		file_put_contents($path, $contents);
+		$this->files[] = $path;
+
+		return $path;
+	}
+
+	public function testThePictureIsStoredAndTheActorsIconToldToCatchUp(): void {
+		$this->assertTrue($this->service->restoreFromArchive(self::USER, $this->png()));
+
+		$this->assertNotNull($this->stored);
+		// the actor's icon is a copy of the account's, and nothing refreshes it
+		// on its own
+		$this->assertSame([self::USER], $this->refreshed);
+	}
+
+	/**
+	 * The profile looks unchanged whether or not the write happened, so only a
+	 * refusal tells somebody on LDAP or SAML why their picture did not change.
+	 */
+	public function testAnAccountWhoseAvatarLivesElsewhereIsToldSo(): void {
+		$this->userManager = $this->createMock(IUserManager::class);
+		$this->userManager->method('get')->willReturn($this->user(false));
+		$service = $this->build();
+
+		$this->expectException(InvalidActionException::class);
+		$this->expectExceptionMessage('managed outside Nextcloud');
+		$service->setFromTempFile(self::USER, ['tmp_name' => $this->png()]);
+	}
+
+	public function testAnAccountThatIsNotThereIsRefused(): void {
+		$this->expectException(InvalidActionException::class);
+		$this->service->setFromTempFile('nobody', ['tmp_name' => $this->png()]);
+	}
+
+	public function testARequestWithNoFileOnItIsRefused(): void {
+		$this->expectException(InvalidActionException::class);
+		$this->expectExceptionMessage('no avatar found');
+		$this->service->setFromTempFile(self::USER, []);
+	}
+
+	/**
+	 * A client may call anything an image, and core is handed this to render.
+	 */
+	public function testBytesThatAreNotAPictureAreRefusedWhateverTheyAreCalled(): void {
+		$this->expectException(InvalidActionException::class);
+		$this->expectExceptionMessage('JPEG, PNG, GIF or WebP');
+		$this->service->restoreFromArchive(self::USER, $this->file('<?php phpinfo();'));
+	}
+
+	public function testAnEmptyFileIsRefused(): void {
+		$this->expectException(InvalidActionException::class);
+		$this->expectExceptionMessage('empty');
+		$this->service->restoreFromArchive(self::USER, $this->file(''));
+	}
+
+	public function testAPictureCoreWouldNotTakeIsReportedRatherThanSwallowed(): void {
+		$this->avatar = $this->createMock(IAvatar::class);
+		$this->avatar->method('set')->willThrowException(new RuntimeException('no'));
+		$this->avatarManager = $this->createMock(IAvatarManager::class);
+		$this->avatarManager->method('getAvatar')->willReturn($this->avatar);
+		$service = $this->build();
+
+		$this->expectException(InvalidActionException::class);
+		$this->expectExceptionMessage('could not be stored');
+		$service->restoreFromArchive(self::USER, $this->png());
+	}
+
+	public function testRemovingAPictureLeavesTheGeneratedInitials(): void {
+		$this->service->remove(self::USER);
+
+		$this->assertTrue($this->removed);
+		$this->assertSame([self::USER], $this->refreshed);
+	}
+
+	/**
+	 * A client that retries a failed delete must not be told the second
+	 * attempt was wrong: the account ends up in the state that was asked for
+	 * either way.
+	 */
+	public function testRemovingAPictureThatWasNeverThereIsNotAnError(): void {
+		$this->custom = false;
+
+		$this->service->remove(self::USER);
+
+		$this->assertTrue($this->removed);
+	}
+
+	public function testRemovingIsRefusedWhereTheBackendOwnsThePicture(): void {
+		$this->userManager = $this->createMock(IUserManager::class);
+		$this->userManager->method('get')->willReturn($this->user(false));
+		$service = $this->build();
+
+		$this->expectException(InvalidActionException::class);
+		$service->remove(self::USER);
+	}
+
+	/**
+	 * An archive is read alongside whatever is already here, and core's own
+	 * migrator carries the account's avatar too — in an order this app does
+	 * not decide. So a picture that is already there wins.
+	 */
+	public function testAnArchivedPictureNeverReplacesOneTheAccountAlreadyHas(): void {
+		$this->custom = true;
+
+		$this->assertFalse($this->service->restoreFromArchive(self::USER, $this->png()));
+		$this->assertNull($this->stored);
+	}
+
+	public function testAnArchiveRestoreForAnAccountThatCannotHaveOneIsSkippedQuietly(): void {
+		$this->userManager = $this->createMock(IUserManager::class);
+		$this->userManager->method('get')->willReturn($this->user(false));
+		$service = $this->build();
+
+		$this->assertFalse($service->restoreFromArchive(self::USER, $this->png()));
+		$this->assertNull($this->stored);
+	}
+}
