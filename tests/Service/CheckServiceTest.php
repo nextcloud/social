@@ -579,6 +579,70 @@ class CheckServiceTest extends TestCase {
 		$this->assertSame([], $this->service->checkDefault()['clientApi']);
 	}
 
+	/**
+	 * The discovery document asks this, and it must never be the thing that
+	 * makes an unauthenticated route go and fetch three URLs.
+	 */
+	public function testAskingWhetherTheRootWorksNeverProbes(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->client->expects($this->never())->method('get');
+
+		$this->assertFalse($this->service->clientApiRootIsKnownGood());
+	}
+
+	/**
+	 * Written down, not only cached: the cache is `createDistributed()`, which
+	 * on an instance with none configured is APCu, which the web server and
+	 * `occ` do not share -- so the answer used to depend on which process had
+	 * last run the check.
+	 */
+	public function testTheRootIsKnownGoodOnlyWhenTheProbeWroteItDown(): void {
+		$stored = '';
+		$this->configService->method('getAppValue')
+			->willReturnCallback(function (string $key) use (&$stored) {
+				return $key === ConfigService::CLIENT_API_ROOT ? $stored : '';
+			});
+
+		foreach (['1' => true, '0' => false, '' => false] as $value => $expected) {
+			$stored = (string)$value;
+			$this->assertSame(
+				$expected, $this->service->clientApiRootIsKnownGood(), 'stored: ' . $value
+			);
+		}
+	}
+
+	public function testTheProbeWritesDownWhatItConcluded(): void {
+		$written = [];
+		$this->configService->method('setAppValue')
+			->willReturnCallback(function (string $key, $value) use (&$written): void {
+				$written[$key] = (string)$value;
+			});
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$response = $this->response(200);
+		$response->method('getBody')->willReturn('{"uri":"social.example.com"}');
+		$this->client->method('get')->willReturn($response);
+
+		$this->service->checkClientApiRoot();
+
+		$this->assertSame('1', $written[ConfigService::CLIENT_API_ROOT]);
+	}
+
+	public function testAFailedProbeWritesThatDownToo(): void {
+		$written = [];
+		$this->configService->method('setAppValue')
+			->willReturnCallback(function (string $key, $value) use (&$written): void {
+				$written[$key] = (string)$value;
+			});
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$this->client->method('get')->willReturn($this->response(404));
+
+		$this->service->checkClientApiRoot();
+
+		$this->assertSame('0', $written[ConfigService::CLIENT_API_ROOT]);
+	}
+
 	// the address the app builds ids from vs. the one the server says it has
 
 	public function testTheAddressCheckPassesWhenTheServerAndTheAppAgree(): void {

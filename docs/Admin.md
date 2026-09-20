@@ -116,6 +116,7 @@ RewriteEngine On
 RewriteRule ^/?api/(.*)$   http://127.0.0.1/index.php/apps/social/api/$1   [P,QSA,L]
 RewriteRule ^/?oauth/(.*)$ http://127.0.0.1/index.php/apps/social/oauth/$1 [P,QSA,L]
 RewriteRule ^/?\.well-known/host-meta$ http://127.0.0.1/index.php/.well-known/host-meta [P,QSA,L]
+RewriteRule ^/?\.well-known/oauth-authorization-server$ http://127.0.0.1/index.php/apps/social/.well-known/oauth-authorization-server [P,QSA,L]
 ```
 
 `mod_proxy`, `mod_proxy_http` and `mod_rewrite` have to be enabled. This cannot
@@ -172,6 +173,7 @@ They map three things onto the app:
 | `/api/…` | every client call, from `/api/v1/instance` onwards |
 | `/oauth/…` | registering the app, the consent screen, the token |
 | `/.well-known/host-meta` | some clients ask for it before anything else |
+| `/.well-known/oauth-authorization-server` | RFC 8414 discovery; a Mastodon 4.3 client asks for it before it registers anything, and reads a 404 as "not a server I can sign in to" |
 
 **Use an internal rewrite, not a redirect.** Nextcloud routes on the address
 the request arrived at, so a plain internal rewrite to `/index.php/apps/social`
@@ -186,6 +188,17 @@ Apache also has to hand the `Authorization` header to PHP. Nextcloud's own
 `AllowOverride None` the rule never runs and every request from a signed-in app
 answers `the access_token was revoked`. The shipped rules set it themselves for
 the same reason.
+
+**The discovery document describes the addresses it was reached at.** RFC 8414
+requires the `issuer` in `/.well-known/oauth-authorization-server` to be the URL
+the document was fetched from, minus the well-known suffix. A client that asks
+the domain root and is told the issuer is `https://cloud.example/index.php/apps/social/`
+has been handed a mismatch and rejects it — before it opens a browser, so
+nothing here sees it fail. So while the rewrite is working, the document
+advertises the root addresses the client used; where it is not, it advertises
+the app's own, which is the only reachable answer. Which of the two it is comes
+from the check below, read from its cache — an internal proxy hands PHP the app
+path either way, so the request itself cannot say.
 
 **Add `127.0.0.1` to `trusted_proxies`.** Client requests reach PHP from the
 proxy afterwards, so without it every app in the world shares one address for

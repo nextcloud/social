@@ -21,6 +21,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Instance;
 use OCA\Social\Security\SecretHasher;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
@@ -54,6 +55,7 @@ class OAuthControllerTest extends TestCase {
 	private $clientService;
 	/** @var ConfigService&MockObject */
 	private $configService;
+	private CheckService|MockObject $checkService;
 	/** @var IInitialState&MockObject */
 	private $initialState;
 	/** @var IRequest&MockObject */
@@ -67,6 +69,7 @@ class OAuthControllerTest extends TestCase {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->clientService = $this->createMock(ClientService::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->checkService = $this->createMock(CheckService::class);
 		$this->initialState = $this->createMock(IInitialState::class);
 		$this->request = $this->createMock(IRequest::class);
 
@@ -83,6 +86,7 @@ class OAuthControllerTest extends TestCase {
 			$this->accountService,
 			$clientService,
 			$this->configService,
+			$this->checkService,
 			new NullLogger(),
 			$this->initialState
 		);
@@ -845,6 +849,40 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame(
 			['client_secret_post', 'client_secret_basic'], $data['token_endpoint_auth_methods_supported']
 		);
+		$this->assertSame('https://nc.example/apps/social/oauth/token', $data['token_endpoint']);
+	}
+
+	/**
+	 * RFC 8414 §3.3: the issuer has to be the URL the document was fetched
+	 * from, minus the well-known suffix. A client asking the domain root and
+	 * told the issuer is the app path rejects the document -- before it opens
+	 * a browser, so nothing on this server sees it fail, and the report is
+	 * "Mastodon clients cannot sign in" with every endpoint answering.
+	 */
+	public function testTheDocumentAdvertisesTheRootWhereTheRewriteIsInPlace(): void {
+		$this->checkService->method('clientApiRootIsKnownGood')->willReturn(true);
+		$this->configService->method('getSocialUrl')->willReturn('https://nc.example/apps/social/');
+		$this->configService->method('getCloudUrl')->willReturn('https://nc.example');
+
+		$data = $this->controller->oauthMetadata()->getData();
+
+		$this->assertSame('https://nc.example/', $data['issuer']);
+		$this->assertSame('https://nc.example/oauth/authorize', $data['authorization_endpoint']);
+		$this->assertSame('https://nc.example/oauth/token', $data['token_endpoint']);
+		$this->assertSame('https://nc.example/api/v1/apps', $data['app_registration_endpoint']);
+	}
+
+	/**
+	 * Without the rewrite the root answers nothing at all, so the app's own
+	 * addresses are both the honest answer and the only reachable one.
+	 */
+	public function testTheDocumentAdvertisesTheAppPathWithoutTheRewrite(): void {
+		$this->checkService->method('clientApiRootIsKnownGood')->willReturn(false);
+		$this->configService->method('getSocialUrl')->willReturn('https://nc.example/apps/social/');
+
+		$data = $this->controller->oauthMetadata()->getData();
+
+		$this->assertSame('https://nc.example/apps/social/', $data['issuer']);
 		$this->assertSame('https://nc.example/apps/social/oauth/token', $data['token_endpoint']);
 	}
 

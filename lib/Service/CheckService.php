@@ -451,6 +451,7 @@ class CheckService {
 		$this->cache->set(
 			self::CACHE_PREFIX . 'clientapi_why', (string)json_encode($this->attempts), 300
 		);
+		$this->configService->setAppValue(ConfigService::CLIENT_API_ROOT, '0');
 
 		// A failure is remembered as well, and for a much shorter time than a
 		// success: this runs on every page load of the app for an
@@ -505,6 +506,7 @@ class CheckService {
 			}
 
 			$this->cache->set(self::CACHE_PREFIX . 'clientapi', 'true', 3600);
+			$this->configService->setAppValue(ConfigService::CLIENT_API_ROOT, '1');
 
 			return true;
 		} catch (Exception $e) {
@@ -520,6 +522,26 @@ class CheckService {
 	/** Records one probe, without its body: a page may show this to anybody. */
 	private function noted(string $base, int $status, string $reason): void {
 		$this->attempts[] = ['base' => $base, 'status' => $status, 'reason' => $reason];
+	}
+
+	/**
+	 * Whether the root rewrite is known to work, without going and finding out.
+	 *
+	 * `checkClientApiRoot()` will make up to three outbound requests on a cold
+	 * cache, which is fine behind an administrator opening a settings page and
+	 * not fine on a route any client may call: it would make an unauthenticated
+	 * endpoint into a way to have this server fetch things.
+	 *
+	 * So the probe's conclusion is *written down* rather than only cached. The
+	 * cache it otherwise uses is `createDistributed()`, which on an instance
+	 * with no distributed cache configured falls back to the local one -- APCu,
+	 * which the web server and `occ` do not share. The answer then depended on
+	 * which process happened to have run the check, and a client asking for the
+	 * discovery document got whichever it was. An app value is read the same by
+	 * every process and survives a restart.
+	 */
+	public function clientApiRootIsKnownGood(): bool {
+		return $this->configService->getAppValue(ConfigService::CLIENT_API_ROOT) === '1';
 	}
 
 	/**
