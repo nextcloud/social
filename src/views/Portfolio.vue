@@ -29,13 +29,15 @@
 					{{ portfolio.intro }}
 				</p>
 				<p class="portfolio__by">
-					<a class="portfolio__by-link" :href="account.url">{{ '@' + account.acct }}</a>
+					<a class="portfolio__by-link" :href="webLink(account.url)">{{ '@' + account.acct }}</a>
 				</p>
 			</header>
 
 			<ul v-if="posts.length" class="portfolio__works" :class="`portfolio__works--${portfolio.layout}`">
 				<li v-for="post in posts" :key="post.id" class="portfolio__work">
-					<a class="portfolio__frame" :href="post.url || post.uri">
+					<!-- the address a remote server chose, so it is checked
+					     before it becomes something a reader can click -->
+					<a class="portfolio__frame" :href="linkOf(post)">
 						<img
 							class="portfolio__image"
 							:src="pictureOf(post)"
@@ -125,6 +127,32 @@ export default {
 
 	methods: {
 		t,
+
+		/**
+		 * An address only if it is one a browser may safely follow.
+		 *
+		 * Every value here was chosen by whichever server the post came from.
+		 * The server refuses the schemes that do something when clicked, and
+		 * this refuses them again: a page that is served to anonymous readers
+		 * is the wrong place to rely on one check.
+		 *
+		 * @param {string} address as the entity carried it
+		 * @return {string|undefined} the address, or nothing to link to
+		 */
+		webLink(address) {
+			return /^https?:\/\//i.test(String(address ?? '')) ? address : undefined
+		},
+
+		/**
+		 * Where a picture in the portfolio leads: the page the author's server
+		 * names, or its id when that is all there is.
+		 *
+		 * @param {object} post the portfolio entry
+		 * @return {string|undefined} the address, or nothing to link to
+		 */
+		linkOf(post) {
+			return this.webLink(post.url) ?? this.webLink(post.uri)
+		},
 
 		/** @return {Promise<void>} */
 		async load() {
