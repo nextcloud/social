@@ -846,4 +846,136 @@ class CurlServiceTest extends TestCase {
 
 		$this->assertSame(1024, strlen($this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob')));
 	}
+
+	/**
+	 * A promise double: the batch waits on each in turn, and what `wait()`
+	 * answers with is what the client would have handed over.
+	 */
+	private function promiseOf(IResponse|\Throwable $answer): \OCP\Http\Client\IPromise {
+		$promise = $this->createMock(\OCP\Http\Client\IPromise::class);
+		$promise->method('wait')->willReturnCallback(static function () use ($answer) {
+			if ($answer instanceof \Throwable) {
+				throw $answer;
+			}
+
+			return $answer;
+		});
+
+		return $promise;
+	}
+
+	/**
+	 * The follow-graph walk asks twenty servers a question each, and asked
+	 * them one after another: twenty round trips end to end, with the slowest
+	 * peer setting the pace for a page somebody is waiting in front of.
+	 */
+	public function testSeveralDocumentsAreAskedForAtOnce(): void {
+		$asked = [];
+		$this->client->method('getAsync')->willReturnCallback(
+			function (string $url, array $options) use (&$asked) {
+				$asked[] = $url;
+
+				return $this->promiseOf($this->answer('{"orderedItems":["' . $url . '"]}'));
+			}
+		);
+
+		$answers = $this->service()->retrieveJsonMany([
+			'https://' . self::PUBLIC_IP . '/a/following',
+			'https://' . self::PUBLIC_IP . '/b/following',
+		]);
+
+		$this->assertCount(2, $asked);
+		$this->assertSame(
+			['https://' . self::PUBLIC_IP . '/a/following'],
+			$answers['https://' . self::PUBLIC_IP . '/a/following']['orderedItems']
+		);
+	}
+
+	/**
+	 * A peer that is down, blocked or talking nonsense is `null` in its place:
+	 * a caller asking twenty servers a question has to cope with that anyway,
+	 * and one failure must not lose the other nineteen answers.
+	 */
+	public function testOneServerFailingDoesNotLoseTheOthers(): void {
+		$this->client->method('getAsync')->willReturnCallback(
+			function (string $url, array $options) {
+				return str_contains($url, '/b/')
+					? $this->promiseOf(new \RuntimeException('down'))
+					: $this->promiseOf($this->answer('{"ok":true}'));
+			}
+		);
+
+		$answers = $this->service()->retrieveJsonMany([
+			'https://' . self::PUBLIC_IP . '/a/following',
+			'https://' . self::PUBLIC_IP . '/b/following',
+		]);
+
+		$this->assertSame(['ok' => true], $answers['https://' . self::PUBLIC_IP . '/a/following']);
+		$this->assertNull($answers['https://' . self::PUBLIC_IP . '/b/following']);
+	}
+
+	/**
+	 * A request to a blocked host is one this instance must not make at all,
+	 * so the check runs before anything is sent — exactly as it does for a
+	 * single fetch.
+	 */
+	public function testABlockedHostIsNotAskedAtAll(): void {
+		$this->fediverseService->method('authorized')->willReturnCallback(
+			static function (string $host): void {
+				throw new UnauthorizedFediverseException($host);
+			}
+		);
+		$this->client->expects($this->never())->method('getAsync');
+
+		$answers = $this->service()->retrieveJsonMany(['https://' . self::PUBLIC_IP . '/a/following']);
+
+		$this->assertNull($answers['https://' . self::PUBLIC_IP . '/a/following']);
+	}
+
+	/** An answer that is not JSON is nothing, not a failure of the batch. */
+	public function testAnAnswerThatIsNotJsonIsNothing(): void {
+		$this->client->method('getAsync')->willReturnCallback(
+			fn (string $url, array $options) => $this->promiseOf($this->answer('<html>no</html>'))
+		);
+
+		$answers = $this->service()->retrieveJsonMany(['https://' . self::PUBLIC_IP . '/a/following']);
+
+		$this->assertNull($answers['https://' . self::PUBLIC_IP . '/a/following']);
+	}
+
+	/** Each ActivityPub fetch signs its own URL, batch or not. */
+	public function testEachDocumentInABatchIsSignedForItsOwnUrl(): void {
+		$signed = [];
+		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
+		$this->httpSignatureService->method('signFetch')->willReturnCallback(
+			static function (string $url) use (&$signed): array {
+				$signed[] = $url;
+
+				return ['Signature' => 'keyId="' . $url . '"'];
+			}
+		);
+		$sentHeaders = [];
+		$this->client->method('getAsync')->willReturnCallback(
+			function (string $url, array $options) use (&$sentHeaders) {
+				$sentHeaders[$url] = $options['headers'];
+
+				return $this->promiseOf($this->answer('{}'));
+			}
+		);
+
+		$this->service()->retrieveObjectsMany([
+			'https://' . self::PUBLIC_IP . '/a/following',
+			'https://' . self::PUBLIC_IP . '/b/following',
+		]);
+
+		$this->assertCount(2, $signed);
+		$this->assertSame(
+			'keyId="https://' . self::PUBLIC_IP . '/a/following"',
+			$sentHeaders['https://' . self::PUBLIC_IP . '/a/following']['Signature']
+		);
+		$this->assertSame(
+			'application/activity+json',
+			$sentHeaders['https://' . self::PUBLIC_IP . '/a/following']['Accept']
+		);
+	}
 }

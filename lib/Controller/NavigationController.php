@@ -454,7 +454,10 @@ class NavigationController extends Controller {
 				'mime' => $mime
 			]);
 
-			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
+			$response = new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
+			$this->cacheMedia($response);
+
+			return $response;
 		} catch (Exception $e) {
 			$this->logger->error('[NavigationController] Failed to get public document', [
 				'id' => $id,
@@ -497,10 +500,32 @@ class NavigationController extends Controller {
 		try {
 			$mime = '';
 			$file = $this->documentService->getResizedFromCache($id, $mime, true);
+			$response = new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
+			$this->cacheMedia($response);
 
-			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
+			return $response;
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
+	}
+
+	/**
+	 * How long a cached picture may be kept by whoever asked for it.
+	 *
+	 * These two routes serve every avatar and every attachment on a public
+	 * page, and said nothing about caching at all — so a browser asked this
+	 * server for the same forty pictures on every page load, and a shared
+	 * cache in front of the instance could not help.
+	 *
+	 * A day, publicly cacheable, and **not immutable**. A local upload never
+	 * changes under its id and could be kept for a year; a remote avatar is
+	 * the bytes at somebody else's URL, and a peer may replace them — an
+	 * immutable year would mean a profile picture that changed today still
+	 * being drawn next spring. A day is the same bound the avatar route beside
+	 * it already applies, and it is the difference between forty requests a
+	 * page and forty requests a day.
+	 */
+	private function cacheMedia(Response $response): void {
+		$response->cacheFor(86400, true, false);
 	}
 }

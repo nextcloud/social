@@ -411,6 +411,14 @@ class NavigationControllerTest extends TestCase {
 		return $file;
 	}
 
+	/** `Response::cacheFor()` reads the clock out of the container. */
+	private function publicClock(): void {
+		\OC::$server->register(
+			\OCP\AppFramework\Utility\ITimeFactory::class,
+			$this->createMock(\OCP\AppFramework\Utility\ITimeFactory::class)
+		);
+	}
+
 	private function assertServes(FileDisplayResponse|DataResponse $response, string $mime): void {
 		$this->assertInstanceOf(FileDisplayResponse::class, $response);
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
@@ -440,9 +448,38 @@ class NavigationControllerTest extends TestCase {
 	}
 
 	public function testDocumentGetPublicOnlyServesPublicDocuments(): void {
+		$this->publicClock();
 		$this->cachedFile('getFromCache', 'image/png', true);
 
 		$this->assertServes($this->controller(null)->documentGetPublic('doc-1'), 'image/png');
+	}
+
+	/**
+	 * These two routes serve every avatar and every attachment on a public
+	 * page and said nothing about caching, so a browser asked this server for
+	 * the same forty pictures on every page load.
+	 */
+	public function testAPublicPictureMayBeKeptForADay(): void {
+		$this->publicClock();
+		$this->cachedFile('getFromCache', 'image/png', true);
+
+		$headers = $this->controller(null)->documentGetPublic('doc-1')->getHeaders();
+
+		$this->assertSame('public, max-age=86400, must-revalidate', $headers['Cache-Control']);
+	}
+
+	/**
+	 * Not immutable: a remote avatar is the bytes at somebody else's URL and a
+	 * peer may replace them, so an immutable year would mean a profile picture
+	 * that changed today still being drawn next spring.
+	 */
+	public function testAPublicPictureIsNotCalledImmutable(): void {
+		$this->publicClock();
+		$this->cachedFile('getResizedFromCache', 'image/gif', true);
+
+		$headers = $this->controller(null)->resizedGetPublic('doc-1')->getHeaders();
+
+		$this->assertStringNotContainsString('immutable', $headers['Cache-Control']);
 	}
 
 	public function testResizedGetServesTheResizedCopyToItsViewer(): void {
@@ -454,6 +491,7 @@ class NavigationControllerTest extends TestCase {
 	}
 
 	public function testResizedGetPublicOnlyServesPublicDocuments(): void {
+		$this->publicClock();
 		$this->cachedFile('getResizedFromCache', 'image/gif', true);
 
 		$this->assertServes($this->controller(null)->resizedGetPublic('doc-1'), 'image/gif');

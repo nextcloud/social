@@ -35,6 +35,7 @@ use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Outbound HTTP for federation.
@@ -379,6 +380,146 @@ class CurlService {
 		?string &$contentType = null,
 	): array {
 		return $this->retrieveJsonFromFirstReachable([$url], $options, $method, $statusCode, $contentType);
+	}
+
+	/**
+	 * Several ActivityPub documents at once, each signed for its own URL.
+	 *
+	 * `retrieveObject()` for a list — the same `Accept`, the same signature, the
+	 * same unsigned retry not attempted, because a batch is a best-effort read
+	 * and a peer that refuses an unsigned fetch is one this instance signs for
+	 * anyway.
+	 *
+	 * @param string[] $ids
+	 * @param array{timeout?: int} $options
+	 *
+	 * @return array<string, array<string, mixed>|null> id => the document, or null
+	 */
+	public function retrieveObjectsMany(array $ids, array $options = []): array {
+		$perUrl = [];
+		foreach ($ids as $id) {
+			$parsed = parse_url($id);
+			if (!is_array($parsed) || !isset($parsed['host'], $parsed['scheme'], $parsed['path'])) {
+				continue;
+			}
+
+			$perUrl[$id] = ['headers' => $this->httpSignatureService->signFetch($id)];
+		}
+
+		return $this->retrieveJsonMany(
+			array_keys($perUrl),
+			$this->mergeOptions($options, ['headers' => ['Accept' => 'application/activity+json']]),
+			$perUrl
+		);
+	}
+
+	/**
+	 * Several documents at once, from several servers.
+	 *
+	 * The follow-graph walk asks twenty servers who the people you follow
+	 * follow, and asked them one after another: twenty round trips end to end,
+	 * on a page somebody is waiting in front of, where the slowest peer sets
+	 * the pace for all of them. They have nothing to do with each other, so
+	 * they go together.
+	 *
+	 * Every check a single fetch makes still applies. The federation check and
+	 * the local-address check run **before** anything is sent, because a
+	 * request to a blocked host is one this instance must not make at all, and
+	 * the size ceiling applies to each answer as it is read. A redirect is the
+	 * one thing this cannot do in flight — each hop has to be checked before
+	 * it is followed — so a response that names one is finished by the
+	 * ordinary single-URL path, which is rare enough to pay for.
+	 *
+	 * Nothing here throws for one bad answer: a peer that is down, blocked or
+	 * talking nonsense is `null` in its place, which is what a caller asking
+	 * twenty servers a question has to cope with anyway.
+	 *
+	 * @param string[] $urls
+	 * @param array{headers?: array<string, string>, timeout?: int, json_headers?: bool, allow_local_address?: bool} $options
+	 * @param array<string, array<string, mixed>> $perUrl options for one URL, merged over the shared ones
+	 *
+	 * @return array<string, array<string, mixed>|null> url => the document, or null
+	 */
+	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = []): array {
+		$urls = array_values(array_unique(array_filter($urls)));
+		if ($urls === []) {
+			return [];
+		}
+
+		$client = $this->clientService->newClient();
+
+		$answers = array_fill_keys($urls, null);
+		$promises = [];
+		foreach ($urls as $url) {
+			// a signed fetch signs its own URL, so the options are built per
+			// request rather than once for the batch
+			$clientOptions = $this->clientOptions('get', $this->mergeOptions($options, $perUrl[$url] ?? []));
+			$clientOptions['allow_redirects'] = false;
+
+			try {
+				$this->assertReachable($url, $clientOptions);
+				$promises[$url] = $client->getAsync($url, $clientOptions);
+			} catch (Throwable $e) {
+				// blocked, local, or a client that cannot do this at all: the
+				// answer is "nothing from there", which is a normal answer here
+				$this->logger->debug('[CurlService] not asking ' . $url, ['exception' => $e]);
+			}
+		}
+
+		foreach ($promises as $url => $promise) {
+			try {
+				$response = $promise->wait();
+				$answers[$url] = ($response instanceof IResponse)
+					? $this->decodeOrFollow($url, $response, $this->mergeOptions($options, $perUrl[$url] ?? []))
+					: null;
+			} catch (Throwable $e) {
+				$this->logger->debug('[CurlService] no answer from ' . $url, ['exception' => $e]);
+			}
+		}
+
+		return $answers;
+	}
+
+	/**
+	 * @param array<string, mixed> $base
+	 * @param array<string, mixed> $extra
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function mergeOptions(array $base, array $extra): array {
+		$merged = array_merge($base, $extra);
+		if (isset($base['headers']) || isset($extra['headers'])) {
+			$merged['headers'] = $this->mergeHeaders($base['headers'] ?? [], $extra['headers'] ?? []);
+		}
+
+		return $merged;
+	}
+
+	/**
+	 * One parallel answer as JSON, or the single-URL path where it redirected.
+	 *
+	 * @param array<string, mixed> $options
+	 *
+	 * @return array<string, mixed>|null
+	 */
+	private function decodeOrFollow(string $url, IResponse $response, array $options): ?array {
+		if ($this->redirectTarget($response, $url) !== '') {
+			// each hop is checked before it is followed, which is a thing to
+			// do one request at a time
+			try {
+				return $this->retrieveJson('get', $url, $options);
+			} catch (Throwable $e) {
+				return null;
+			}
+		}
+
+		if ($response->getStatusCode() >= 300) {
+			return null;
+		}
+
+		$decoded = json_decode($this->body($response), true);
+
+		return is_array($decoded) ? $decoded : null;
 	}
 
 	/**
