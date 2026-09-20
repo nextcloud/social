@@ -26,6 +26,7 @@ use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Middleware\AccessBlockMiddleware;
+use OCA\Social\Middleware\ApiRateLimitMiddleware;
 use OCA\Social\Middleware\RateLimitHeadersMiddleware;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
@@ -135,9 +136,11 @@ class ApplicationTest extends TestCase {
 
 	/**
 	 * The access check runs first: an address this instance refuses outright
-	 * should never reach the counter, let alone spend budget in it.
+	 * should never reach the counter, let alone spend budget in it. The
+	 * limiter itself comes after the headers, for the same reason and in the
+	 * same order every request meets them.
 	 */
-	public function testTheRateLimitHeadersComeAfterTheAccessCheck(): void {
+	public function testTheRateLimitersComeAfterTheAccessCheck(): void {
 		$registered = [];
 		$context = $this->createMock(IRegistrationContext::class);
 		$context->method('registerMiddleware')->willReturnCallback(
@@ -149,7 +152,11 @@ class ApplicationTest extends TestCase {
 		$this->application()->register($context);
 
 		$this->assertSame(
-			[AccessBlockMiddleware::class, RateLimitHeadersMiddleware::class],
+			[
+				AccessBlockMiddleware::class,
+				RateLimitHeadersMiddleware::class,
+				ApiRateLimitMiddleware::class,
+			],
 			$registered
 		);
 	}

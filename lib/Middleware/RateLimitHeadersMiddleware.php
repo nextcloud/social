@@ -9,14 +9,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Middleware;
 
+use OCA\Social\Service\RateLimitService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Middleware;
-use OCP\ICache;
-use OCP\ICacheFactory;
-use OCP\IRequest;
 use OCP\IUserSession;
 use ReflectionMethod;
 use Throwable;
@@ -48,13 +46,9 @@ use Throwable;
  * the budget is published and the spending is not.
  */
 class RateLimitHeadersMiddleware extends Middleware {
-	/** The cache the counters live in; distinct from anything else the app caches. */
-	private const CACHE_PREFIX = 'social_ratelimit';
-
 	public function __construct(
-		private IRequest $request,
 		private IUserSession $userSession,
-		private ICacheFactory $cacheFactory,
+		private RateLimitService $rateLimitService,
 	) {
 	}
 
@@ -66,12 +60,12 @@ class RateLimitHeadersMiddleware extends Middleware {
 	#[\Override]
 	public function afterController(Controller $controller, string $methodName, Response $response): Response {
 		try {
-			$budget = $this->budgetOf($controller, $methodName);
-			if ($budget === null) {
+			$route = $this->budgetOf($controller, $methodName);
+			if ($route === null) {
 				return $response;
 			}
 
-			[$limit, $period] = $budget;
+			[$bucket, $limit, $period] = $route;
 			$response->addHeader('X-RateLimit-Limit', (string)$limit);
 
 			// An instance with no memcache configured has nowhere to keep a
@@ -85,17 +79,21 @@ class RateLimitHeadersMiddleware extends Middleware {
 			// reading `Limit` without `Remaining` knows what the budget is and
 			// paces itself by counting its own requests, which is what it did
 			// before any of these headers existed.
-			$cache = $this->counter();
-			if ($cache === null) {
+			// the app's own default is counted by the middleware that enforces
+			// it, and reading that count rather than keeping a second one is
+			// what stops a client being told it has budget left and then
+			// refused for spending it
+			$used = ($bucket === RateLimitService::BUCKET_API)
+				? $this->rateLimitService->used($bucket, $period)
+				: $this->rateLimitService->count($bucket, $period);
+			if ($used === null) {
 				return $response;
 			}
-
-			$used = $this->countThisRequest($cache, $controller, $methodName, $period);
 
 			$response->addHeader('X-RateLimit-Remaining', (string)max(0, $limit - $used));
 			// seconds since the epoch, as Mastodon sends it: the moment the
 			// window this request fell in runs out
-			$response->addHeader('X-RateLimit-Reset', (string)$this->windowEnd($period));
+			$response->addHeader('X-RateLimit-Reset', (string)$this->rateLimitService->windowEnd($period));
 		} catch (Throwable $e) {
 			// a header is not worth failing a response over
 		}
@@ -110,7 +108,7 @@ class RateLimitHeadersMiddleware extends Middleware {
 	 * here needs, and where both attributes are present Nextcloud applies the
 	 * user one to a signed-in caller.
 	 *
-	 * @return array{0: int, 1: int}|null
+	 * @return array{0: string, 1: int, 2: int}|null bucket, limit and period
 	 */
 	private function budgetOf(Controller $controller, string $methodName): ?array {
 		$method = new ReflectionMethod($controller, $methodName);
@@ -124,77 +122,23 @@ class RateLimitHeadersMiddleware extends Middleware {
 			foreach ($method->getAttributes($class) as $attribute) {
 				$limit = $attribute->newInstance();
 
-				return [$limit->getLimit(), $limit->getPeriod()];
+				return [
+					$controller::class . '/' . $methodName,
+					$limit->getLimit(),
+					$limit->getPeriod(),
+				];
 			}
 		}
 
-		return null;
-	}
-
-	/**
-	 * Records this request and says how many are now in the window.
-	 *
-	 * Keyed by the window's own start rather than by a sliding expiry, so the
-	 * counter and the `Reset` header agree about where the window ends — a
-	 * client told "0 remaining, resets in 4 seconds" and refused for another
-	 * minute would have been told something untrue.
-	 */
-	private function countThisRequest(
-		ICache $cache, Controller $controller, string $methodName, int $period,
-	): int {
-		$key = implode('/', [
-			$this->identity(),
-			$controller::class,
-			$methodName,
-			// the window, so the count resets with it
-			(string)intdiv(time(), max(1, $period)),
-		]);
-
-		$used = (int)$cache->get($key);
-		$used++;
-		$cache->set($key, $used, $period);
-
-		return $used;
-	}
-
-	/**
-	 * Somewhere to keep the count, or null when there is nowhere.
-	 *
-	 * Distributed first, because a budget is per account and not per web
-	 * server: two requests that land on different servers are two requests
-	 * against one budget. A local cache is the honest second best — the count
-	 * is then per server, so a client behind a load balancer sees a budget
-	 * that looks larger than it is, which is the direction that errs towards
-	 * pacing rather than being refused.
-	 *
-	 * Null when Nextcloud has no memcache at all, which is the default on a
-	 * small install: there is no counter to read and no number worth printing.
-	 */
-	private function counter(): ?ICache {
-		if ($this->cacheFactory->isAvailable()) {
-			return $this->cacheFactory->createDistributed(self::CACHE_PREFIX);
+		// a route with no attribute is governed by the app's default, which is
+		// a budget worth publishing rather than an unlimited one
+		if (!$this->rateLimitService->appliesDefaultTo($controller, $methodName)) {
+			return null;
 		}
 
-		if ($this->cacheFactory->isLocalCacheAvailable()) {
-			return $this->cacheFactory->createLocal(self::CACHE_PREFIX);
-		}
+		$default = $this->rateLimitService->defaultBudget();
 
-		return null;
-	}
-
-	/** Who the budget belongs to: the signed-in account, else the address. */
-	private function identity(): string {
-		$user = $this->userSession->getUser();
-		if ($user !== null) {
-			return 'u:' . $user->getUID();
-		}
-
-		return 'a:' . $this->request->getRemoteAddress();
-	}
-
-	private function windowEnd(int $period): int {
-		$period = max(1, $period);
-
-		return (intdiv(time(), $period) + 1) * $period;
+		return ($default === null)
+			? null : [RateLimitService::BUCKET_API, $default[0], $default[1]];
 	}
 }
