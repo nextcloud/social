@@ -151,49 +151,61 @@
 		</template>
 
 		<template v-else>
-			<!-- above the suggestions, because it answers the question this
-			     page's own suggestions structurally cannot: the follow graph
-			     has nothing to say to an account that is not in it yet, and
-			     "who is there" is a question for a directory -->
-			<FediverseSearch />
+			<!--
+				Three lists of people, each answering a different question, and
+				before this they were stacked with nothing between them: a
+				search box, a heading, and a bare grid. A reader could not tell
+				why somebody was in one list rather than another, which is the
+				only thing that makes a list of strangers worth reading.
+			-->
+			<section class="discover__section">
+				<h3 class="discover__section-title">
+					{{ t('social', 'Search the fediverse') }}
+				</h3>
+				<p class="discover__section-hint">
+					{{ t('social', 'Any name or handle, on any server — including servers this one has never met. A full handle like @someone@example.org finds a person anywhere.') }}
+				</p>
+				<FediverseSearch />
+			</section>
 
-			<!-- and below it the other half of the question: the search asks
-			     who is out there, this asks who the people you already follow
-			     follow. It needs a starting handful of follows and says so,
-			     which is why it sits under the search rather than above it -->
-			<FollowGraphSuggestions />
+			<section class="discover__section">
+				<h3 class="discover__section-title">
+					{{ t('social', 'Because of who you follow') }}
+				</h3>
+				<p class="discover__section-hint">
+					{{ t('social', 'The people you follow follow other people. This asks their servers who, and puts the ones several of them share first.') }}
+				</p>
+				<FollowGraphSuggestions />
+			</section>
 
-			<ul v-if="accounts.length" class="discover__accounts">
-				<li v-for="account in accounts" :key="account.id" class="discover__account">
-					<router-link
-						class="discover__account-link"
-						:to="{ name: 'profile', params: { account: account.acct } }">
-						<ActorAvatar
-							class="discover__avatar"
-							:actor="account"
-							:size="40"
-							:link="false" />
-						<span class="discover__account-names">
-							<span class="discover__account-name">{{ account.display_name || account.username }}</span>
-							<span class="discover__account-handle">@{{ account.acct }}</span>
-						</span>
-						<!-- named in the fediverse field of a profile on this
-						     Nextcloud: the one thing about this account no other
-						     server could know -->
-						<span v-if="isColleague(account)" class="discover__colleague">
-							{{ t('social', 'On your Nextcloud') }}
-						</span>
-					</router-link>
-				</li>
-			</ul>
-			<NcEmptyContent
-				v-else-if="!loading"
-				:name="t('social', 'Nobody to suggest yet')"
-				:description="t('social', 'Accounts this server knows about will appear here. Until it knows any, the search above asks other servers’ directories instead.')">
-				<template #icon>
-					<AccountMultipleOutline />
-				</template>
-			</NcEmptyContent>
+			<section class="discover__section">
+				<h3 class="discover__section-title">
+					{{ t('social', 'People this server knows') }}
+				</h3>
+				<p class="discover__section-hint">
+					{{ t('social', 'Accounts on this Nextcloud, and the ones it has met through the people here.') }}
+				</p>
+
+				<ul v-if="accounts.length" class="discover__people">
+					<PersonCard
+						v-for="account in accounts"
+						:key="account.id"
+						:account="account"
+						link
+						:reason="isColleague(account) ? t('social', 'On your Nextcloud') : ''"
+						:followed="isFollowed(account)"
+						:pending="isPending(account)"
+						@follow="followPerson" />
+				</ul>
+				<NcEmptyContent
+					v-else-if="!loading"
+					:name="t('social', 'Nobody here yet')"
+					:description="t('social', 'Accounts this server has met will appear here. Until it has met any, the search above asks other servers’ directories instead.')">
+					<template #icon>
+						<AccountMultipleOutline />
+					</template>
+				</NcEmptyContent>
+			</section>
 		</template>
 
 		<NcLoadingIcon
@@ -220,6 +232,8 @@ import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import DiscoverCategories from '../components/DiscoverCategories.vue'
 import FediverseSearch from '../components/FediverseSearch.vue'
+import PersonCard from '../components/PersonCard.vue'
+import { useFollowByHandle } from '../composables/useFollowByHandle.js'
 import FollowGraphSuggestions from '../components/FollowGraphSuggestions.vue'
 import TrendingHashtags from '../components/TrendingHashtags.vue'
 import TrendingLinks from '../components/TrendingLinks.vue'
@@ -264,9 +278,17 @@ export default {
 		DiscoverCategories,
 		FediverseSearch,
 		FollowGraphSuggestions,
+		PersonCard,
 		TrendingHashtags,
 		TrendingLinks,
 		Refresh,
+	},
+
+	setup() {
+		// the same follow-by-handle the search and the suggestions use: these
+		// rows carry a handle and no relationship, which is precisely what
+		// `FollowButton` cannot draw
+		return useFollowByHandle()
 	},
 
 	data() {
@@ -423,6 +445,20 @@ export default {
 		 * @param {object} account the suggested account, with its `sources`
 		 * @return {boolean}
 		 */
+		/**
+		 * Follows somebody from the list of accounts this server knows.
+		 *
+		 * By handle, like every other list of people on this page: these rows
+		 * are accounts the server has met rather than accounts the reader has
+		 * a relationship with, so there is nothing for `FollowButton` to read.
+		 *
+		 * @param {object} account the row's account
+		 * @return {Promise<void>} when the request has settled
+		 */
+		async followPerson(account) {
+			await this.follow(account)
+		},
+
 		isColleague(account) {
 			return Array.isArray(account.sources) && account.sources.includes('featured')
 		},
@@ -488,6 +524,43 @@ export default {
 	 * line — name, description and count run together — and which read as a
 	 * page that had failed to load rather than as a list of packs.
 	 */
+	/* three lists of people, each with a heading that says which question it
+	   answers: stacked without them, a reader cannot tell why somebody is in
+	   one list rather than another */
+	&__section {
+		padding-block-end: calc(var(--default-grid-baseline) * 4);
+		border-block-end: 1px solid var(--color-border);
+		margin-block-end: calc(var(--default-grid-baseline) * 4);
+
+		&:last-child {
+			border-block-end: none;
+			margin-block-end: 0;
+			padding-block-end: 0;
+		}
+	}
+
+	&__section-title {
+		font-size: 1.15em;
+		font-weight: bold;
+		margin-block-end: var(--default-grid-baseline);
+	}
+
+	&__section-hint {
+		color: var(--color-text-maxcontrast);
+		margin-block-end: calc(var(--default-grid-baseline) * 3);
+		max-width: 62ch;
+		line-height: 1.4;
+	}
+
+	&__people {
+		list-style: none;
+		display: grid;
+		/* one column on a phone, two where there is room: a person's row needs
+		   about thirty characters before the handle starts truncating */
+		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+		gap: var(--default-grid-baseline);
+	}
+
 	&__packs {
 		list-style: none;
 		display: grid;
