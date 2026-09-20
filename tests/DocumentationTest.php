@@ -123,6 +123,71 @@ class DocumentationTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The method beside a route in `docs/API.md` is what a client will send.
+	 *
+	 * A path that exists is not enough: `GET` where the route is a `POST` is a
+	 * 405 for whoever believed the document, and the existing check compares
+	 * only paths. It has happened — a route changed verb and the table did
+	 * not.
+	 *
+	 * Only rows that name exactly one path are compared: a row like
+	 * "`/api/v1/statuses/{nid}/favourite`, `…/unfavourite`" is prose about two
+	 * routes, and reading a verb off it would be guessing.
+	 */
+	public function testDocumentedMethodsMatchTheRoutes(): void {
+		$verbs = [];
+		foreach ($this->attributeRoutes() as $route) {
+			$path = $this->normalisePath((string)$route['url']);
+			$verbs[$path][] = strtoupper((string)($route['verb'] ?? 'GET'));
+		}
+		foreach ($this->arrayRoutes() as $route) {
+			$path = $this->normalisePath((string)$route['url']);
+			$verbs[$path][] = strtoupper((string)($route['verb'] ?? 'GET'));
+		}
+
+		$wrong = [];
+		foreach (explode("\n", $this->read('docs/API.md')) as $line) {
+			$line = trim($line);
+			if (!str_starts_with($line, '|')) {
+				continue;
+			}
+
+			$cells = array_map('trim', explode('|', trim($line, '|')));
+			if (count($cells) < 2) {
+				continue;
+			}
+
+			$method = strtoupper(trim($cells[0], ' `*'));
+			if (!in_array($method, ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+				continue;
+			}
+
+			preg_match_all('/`(\/[^`]*)`/', $cells[1], $matches);
+			if (count($matches[1]) !== 1) {
+				continue;
+			}
+
+			$path = $this->normalisePath($matches[1][0]);
+			if (in_array($matches[1][0], self::NON_ROUTE_ENDPOINTS, true) || !isset($verbs[$path])) {
+				// a path that is not a route at all is the other test's to report
+				continue;
+			}
+
+			if (!in_array($method, $verbs[$path], true)) {
+				$wrong[] = $method . ' ' . $path . ' (the route answers '
+					. implode('/', array_unique($verbs[$path])) . ')';
+			}
+		}
+
+		$this->assertSame(
+			[],
+			$wrong,
+			'docs/API.md states a method the route does not answer; a client that'
+			. " believes the document gets a 405:\n" . implode("\n", $wrong)
+		);
+	}
+
 	public function testSupportedNextcloudVersionsAreDocumented(): void {
 		$doc = $this->read('docs/Architecture.md');
 

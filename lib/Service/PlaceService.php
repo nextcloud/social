@@ -118,7 +118,10 @@ class PlaceService {
 			return;
 		}
 
-		$places = $this->placesRequest->getByIds($ids);
+		// a page whose posts share a place asked for it once per post: sixty
+		// bound parameters for three places, and a query that grows with the
+		// page rather than with the number of places on it
+		$places = $this->placesRequest->getByIds(array_values(array_unique($ids)));
 		foreach ($posts as $post) {
 			if (!$post instanceof Stream) {
 				continue;
