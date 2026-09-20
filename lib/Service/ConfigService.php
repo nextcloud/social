@@ -32,6 +32,16 @@ class ConfigService {
 	public const SOCIAL_URL = 'social_url';
 	public const SOCIAL_ADDRESS = 'social_address';
 
+	/**
+	 * Whether the client API answered at the domain root the last time it was
+	 * probed: '1', '0', or unset where nothing has asked yet.
+	 *
+	 * Written down rather than only cached because the discovery document is
+	 * built from it, and that is a route any client may call -- see
+	 * `CheckService::clientApiRootIsKnownGood()`.
+	 */
+	public const CLIENT_API_ROOT = 'client_api_root';
+
 	public const SOCIAL_SERVICE = 'service';
 	public const SOCIAL_MAX_SIZE = 'max_size';
 	/** The ceiling for a video, which is not the ceiling for a picture. */
