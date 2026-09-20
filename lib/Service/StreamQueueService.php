@@ -22,6 +22,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -59,7 +60,6 @@ class StreamQueueService {
 	 * once it reaches MAX_ANCESTOR_DEPTH, so a thread of a thousand messages
 	 * costs eight fetches, not a thousand. Mastodon bounds the same climb.
 	 */
-	public const DETAIL_ANCESTOR_DEPTH = 'ancestor_depth';
 	public const MAX_ANCESTOR_DEPTH = 8;
 
 	/** An item left `running` for longer than this was stranded by a dead drain. */
@@ -378,8 +378,8 @@ class StreamQueueService {
 			// one level further up than the stream that asked for it; the save
 			// below queues the next parent only while this stays under the cap
 			$object->setDetailInt(
-				self::DETAIL_ANCESTOR_DEPTH,
-				$stream->getDetailInt(self::DETAIL_ANCESTOR_DEPTH) + 1
+				Details::ANCESTOR_DEPTH,
+				$stream->getDetailInt(Details::ANCESTOR_DEPTH) + 1
 			);
 
 			$interface = AP::instance()->getInterfaceForItem($object);
@@ -403,7 +403,7 @@ class StreamQueueService {
 			return;
 		}
 
-		$note->setDetailInt('replies', $note->getDetailInt('remote_replies') + $stored);
+		$note->setDetailInt(Details::REPLIES, $note->getDetailInt(Details::REMOTE_REPLIES) + $stored);
 		$this->streamRequest->updateDetails($note);
 	}
 

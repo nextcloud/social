@@ -13,6 +13,7 @@ use DateTime;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -1238,16 +1239,16 @@ class CoreRequestBuilder {
 
 		try {
 			$this->parseFollowLeftJoin($data, 'as_follower');
-			$actor->setDetailBool('following', true);
+			$actor->setDetailBool(Details::FOLLOWING, true);
 		} catch (InvalidResourceException $e) {
-			$actor->setDetailBool('following', false);
+			$actor->setDetailBool(Details::FOLLOWING, false);
 		}
 
 		try {
 			$this->parseFollowLeftJoin($data, 'as_followed');
-			$actor->setDetailBool('followed', true);
+			$actor->setDetailBool(Details::FOLLOWED, true);
 		} catch (InvalidResourceException $e) {
-			$actor->setDetailBool('followed', false);
+			$actor->setDetailBool(Details::FOLLOWED, false);
 		}
 
 		$actor->setCompleteDetails(true);

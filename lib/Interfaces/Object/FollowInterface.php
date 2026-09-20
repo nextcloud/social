@@ -32,6 +32,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
@@ -315,9 +316,9 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 
 		/** @var SocialAppNotification $notification */
 		$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-		$notification->setDetail('url', $follower->getId());
-		$notification->setDetail('account', $follower->getAccount());
-		$notification->setDetailItem('actor', $follower);
+		$notification->setDetail(Details::URL, $follower->getId());
+		$notification->setDetail(Details::ACCOUNT, $follower->getAccount());
+		$notification->setDetailItem(Details::ACTOR, $follower);
 		$notification->setAttributedTo($follow->getActorId())
 			->setId($follow->getId() . '/notification')
 			->setSubType($pending ? Follow::TYPE_REQUEST : Follow::TYPE)

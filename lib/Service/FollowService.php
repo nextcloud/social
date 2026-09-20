@@ -31,6 +31,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Relationship;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
@@ -374,7 +375,7 @@ class FollowService {
 	public function getFollowersCollection(Person $actor): OrderedCollection {
 		return OrderedCollection::paged(
 			$actor->getFollowers(),
-			$this->getInt('followers', $actor->getDetails('count')),
+			$this->getInt('followers', $actor->getDetails(Details::COUNT)),
 			$this->collectionRoute('social.ActivityPub.followers', $actor)
 		);
 	}
@@ -424,7 +425,7 @@ class FollowService {
 	public function getFollowingCollection(Person $actor): OrderedCollection {
 		return OrderedCollection::paged(
 			$actor->getFollowing(),
-			$this->getInt('following', $actor->getDetails('count')),
+			$this->getInt('following', $actor->getDetails(Details::COUNT)),
 			$this->collectionRoute('social.ActivityPub.following', $actor)
 		);
 	}

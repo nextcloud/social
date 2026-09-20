@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Details;
 
 /**
  * What an account has done here, and what came back.
@@ -180,9 +181,9 @@ class StatisticsService {
 				$visibility[$scope]++;
 			}
 
-			$likes = $post->getDetailInt('likes');
-			$boosts = $post->getDetailInt('boosts');
-			$replies = $post->getDetailInt('replies');
+			$likes = $post->getDetailInt(Details::LIKES);
+			$boosts = $post->getDetailInt(Details::BOOSTS);
+			$replies = $post->getDetailInt(Details::REPLIES);
 			$engagement['likes'] += $likes;
 			$engagement['boosts'] += $boosts;
 			$engagement['replies'] += $replies;

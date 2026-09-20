@@ -32,6 +32,7 @@ use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\Story;
 use OCA\Social\Model\Client\StoryInteraction;
+use OCA\Social\Model\Details;
 use OCA\Social\Reference\PostReferenceProvider;
 use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
@@ -160,8 +161,8 @@ class NotificationService {
 			try {
 				/** @var SocialAppNotification $item */
 				$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-				$item->setDetailItem('post', $post);
-				$item->addDetail('account', $author);
+				$item->setDetailItem(Details::POST, $post);
+				$item->addDetail(Details::ACCOUNT, $author);
 				$item->setAttributedTo($post->getAttributedTo())
 					->setSubType(Update::TYPE)
 					->setId(
@@ -214,8 +215,8 @@ class NotificationService {
 			try {
 				/** @var SocialAppNotification $item */
 				$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-				$item->setDetailItem('post', $stored);
-				$item->addDetail('account', $author);
+				$item->setDetailItem(Details::POST, $stored);
+				$item->addDetail(Details::ACCOUNT, $author);
 				$item->setAttributedTo($post->getAttributedTo())
 					->setSubType(Stream::SUBTYPE_STATUS)
 					->setId($post->getId() . '/notification+status/' . md5($subscriber))
@@ -258,8 +259,8 @@ class NotificationService {
 			try {
 				/** @var SocialAppNotification $item */
 				$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-				$item->setDetailItem('post', $stored);
-				$item->addDetail('account', $author);
+				$item->setDetailItem(Details::POST, $stored);
+				$item->addDetail(Details::ACCOUNT, $author);
 				$item->setAttributedTo($poll->getAttributedTo())
 					->setSubType(Stream::SUBTYPE_POLL)
 					->setId($poll->getId() . '/notification+poll/' . md5($reader))
@@ -294,8 +295,8 @@ class NotificationService {
 
 			/** @var SocialAppNotification $item */
 			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-			$item->addDetail('action', $action);
-			$item->addDetail('text', $text);
+			$item->addDetail(Details::ACTION, $action);
+			$item->addDetail(Details::TEXT, $text);
 			$item->setAttributedTo($actorId)
 				->setSubType(Stream::SUBTYPE_WARNING)
 				->setId($actorId . '/notification+warning/' . md5($action . '/' . $text . '/' . time()))
@@ -330,9 +331,9 @@ class NotificationService {
 			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
 			$reply = ($interaction->getType() === StoryInteraction::TYPE_REPLY);
 
-			$item->addDetail('story_id', (string)$story->getId());
-			$item->addDetail('content', $interaction->getContent());
-			$item->addDetail('account', $this->accountOf($interaction->getActorId()));
+			$item->addDetail(Details::STORY_ID, (string)$story->getId());
+			$item->addDetail(Details::CONTENT, $interaction->getContent());
+			$item->addDetail(Details::ACCOUNT, $this->accountOf($interaction->getActorId()));
 			// attributedTo is who the notification is *about*, which is what a
 			// client draws as its account — the person who answered, not the
 			// person being told
@@ -367,7 +368,7 @@ class NotificationService {
 
 			/** @var SocialAppNotification $item */
 			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-			$item->addDetail('account', $this->accountOf($author->getId()));
+			$item->addDetail(Details::ACCOUNT, $this->accountOf($author->getId()));
 			$item->setAttributedTo($author->getId())
 				->setSubType(Stream::SUBTYPE_PHOTO_TAG)
 				->setId($post->getId() . '/notification+tagged/' . md5($tagged->getId()))
@@ -399,8 +400,8 @@ class NotificationService {
 
 			/** @var SocialAppNotification $item */
 			$item = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-			$item->addDetail('target_name', $domain);
-			$item->addDetail('relationships_count', (string)$lost);
+			$item->addDetail(Details::TARGET_NAME, $domain);
+			$item->addDetail(Details::RELATIONSHIPS_COUNT, (string)$lost);
 			$item->setAttributedTo($actorId)
 				->setSubType(Stream::SUBTYPE_SEVERED)
 				->setId($actorId . '/notification+severed/' . md5($domain))
@@ -615,7 +616,7 @@ class NotificationService {
 	 * along where there is one, else the stored one, else nothing.
 	 */
 	private function excerptOf(SocialAppNotification $notification): string {
-		$post = $notification->getDetailsAll()['post'] ?? null;
+		$post = $notification->getDetailsAll()[Details::POST] ?? null;
 		if (!($post instanceof Stream)) {
 			if ($notification->getObjectId() === '') {
 				return '';
@@ -660,7 +661,7 @@ class NotificationService {
 	 * own address when it is not one this instance holds.
 	 */
 	private function postLink(SocialAppNotification $notification): string {
-		$post = $notification->getDetailsAll()['post'] ?? null;
+		$post = $notification->getDetailsAll()[Details::POST] ?? null;
 		if (!($post instanceof Stream)) {
 			try {
 				$post = $this->streamRequest->getStreamById($notification->getObjectId());
@@ -710,7 +711,7 @@ class NotificationService {
 				? $notification->getAttributedTo() : $notification->getActorId();
 		}
 
-		$post = $notification->getDetailsAll()['post'] ?? null;
+		$post = $notification->getDetailsAll()[Details::POST] ?? null;
 		if ($post instanceof Stream) {
 			return $post->getAttributedTo();
 		}

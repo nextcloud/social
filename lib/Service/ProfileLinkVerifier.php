@@ -13,6 +13,7 @@ use DateTime;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Details;
 use OCA\Social\Security\RemoteAddress;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -42,9 +43,6 @@ class ProfileLinkVerifier {
 	public const RECHECK_SECONDS = 24 * 3600;
 	/** how many local accounts one cron pass looks at */
 	public const LOCAL_BATCH = 20;
-
-	public const DETAIL_VERIFIED = 'fields_verified';
-	public const DETAIL_CHECKED = 'fields_checked';
 
 	public function __construct(
 		private CacheDocumentService $cacheDocumentService,
@@ -124,12 +122,12 @@ class ProfileLinkVerifier {
 	 */
 	public function verify(Person $cached, bool $force = false): bool {
 		$details = $cached->getDetailsAll();
-		$checked = (int)($details[self::DETAIL_CHECKED] ?? 0);
+		$checked = (int)($details[Details::FIELDS_CHECKED] ?? 0);
 		if (!$force && $checked > time() - self::RECHECK_SECONDS) {
 			return false;
 		}
 
-		$previous = $details[self::DETAIL_VERIFIED] ?? [];
+		$previous = $details[Details::FIELDS_VERIFIED] ?? [];
 		$verified = [];
 		foreach ($cached->getFields() as $field) {
 			$link = self::linkOf((string)($field['value'] ?? ''));
@@ -142,8 +140,8 @@ class ProfileLinkVerifier {
 			}
 		}
 
-		$cached->setDetailArray(self::DETAIL_VERIFIED, $verified);
-		$cached->setDetailInt(self::DETAIL_CHECKED, time());
+		$cached->setDetailArray(Details::FIELDS_VERIFIED, $verified);
+		$cached->setDetailInt(Details::FIELDS_CHECKED, time());
 
 		return true;
 	}

@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Object\NoteInterface;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\ForwardService;
 use OCA\Social\Service\LinkPreviewService;
@@ -130,7 +131,7 @@ class NoteInterfaceQuoteTest extends ActivityPubTestCase {
 	public function testTheQuoteClimbStopsAtTheDepthCap(): void {
 		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
 		$note = $this->quotingNote();
-		$note->setDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH, StreamQueueService::MAX_ANCESTOR_DEPTH);
+		$note->setDetailInt(Details::ANCESTOR_DEPTH, StreamQueueService::MAX_ANCESTOR_DEPTH);
 
 		$this->streamRequest->expects($this->once())->method('save');
 		$this->streamQueueService->expects($this->never())->method('generateStreamQueue');

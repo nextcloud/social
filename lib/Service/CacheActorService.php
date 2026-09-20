@@ -27,6 +27,7 @@ use OCA\Social\Interfaces\Activity\FeaturedCollection;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Details;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -505,7 +506,7 @@ class CacheActorService {
 			'following' => $following->getTotalItems(),
 			'post' => $outbox->getTotalItems()
 		];
-		$actor->setDetailArray('count', $count);
+		$actor->setDetailArray(Details::COUNT, $count);
 	}
 
 	/**

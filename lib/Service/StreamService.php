@@ -28,6 +28,7 @@ use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
@@ -779,7 +780,7 @@ class StreamService {
 		// page size the outbox actually pages at.
 		return OrderedCollection::paged(
 			$actor->getOutbox(),
-			$this->getInt('post', $actor->getDetails('count')),
+			$this->getInt('post', $actor->getDetails(Details::COUNT)),
 			$actor->getOutbox()
 		);
 	}
@@ -979,16 +980,16 @@ class StreamService {
 					// Extract likes/shares/replies counts from ActivityPub collections
 					if (isset($noteData['likes']['totalItems'])) {
 						$remoteLikes = (int)$noteData['likes']['totalItems'];
-						$note->setDetailInt('likes', $remoteLikes);
-						$note->setDetailInt('remote_likes', $remoteLikes);
+						$note->setDetailInt(Details::LIKES, $remoteLikes);
+						$note->setDetailInt(Details::REMOTE_LIKES, $remoteLikes);
 					}
 					if (isset($noteData['shares']['totalItems'])) {
 						$remoteBoosts = (int)$noteData['shares']['totalItems'];
-						$note->setDetailInt('boosts', $remoteBoosts);
-						$note->setDetailInt('remote_boosts', $remoteBoosts);
+						$note->setDetailInt(Details::BOOSTS, $remoteBoosts);
+						$note->setDetailInt(Details::REMOTE_BOOSTS, $remoteBoosts);
 					}
 					if (isset($noteData['replies']['totalItems'])) {
-						$note->setDetailInt('replies', (int)$noteData['replies']['totalItems']);
+						$note->setDetailInt(Details::REPLIES, (int)$noteData['replies']['totalItems']);
 					}
 
 					// Save the Note directly without going through NoteInterface

@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CurlService;
@@ -96,7 +97,7 @@ class StreamQueueServiceTest extends TestCase {
 		$reply->setInReplyTo(self::PARENT_URL);
 		$reply->addCacheItem(self::PARENT_URL);
 		if ($depth > 0) {
-			$reply->setDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH, $depth);
+			$reply->setDetailInt(Details::ANCESTOR_DEPTH, $depth);
 		}
 
 		return $reply;
@@ -298,7 +299,7 @@ class StreamQueueServiceTest extends TestCase {
 		$this->assertSame('remote.example', $fetched->getOrigin());
 		$this->assertSame(SignatureService::ORIGIN_REQUEST, $fetched->getOriginSource());
 		// the object of a boost starts an ancestor climb of its own
-		$this->assertSame(1, $fetched->getDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH));
+		$this->assertSame(1, $fetched->getDetailInt(Details::ANCESTOR_DEPTH));
 	}
 
 	/**
@@ -349,7 +350,7 @@ class StreamQueueServiceTest extends TestCase {
 
 		$this->service->manageStreamQueue($queue);
 
-		$this->assertSame(3, $parent->getDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH));
+		$this->assertSame(3, $parent->getDetailInt(Details::ANCESTOR_DEPTH));
 		$this->assertFalse($updatedCache->hasItem(self::PARENT_URL));
 	}
 
