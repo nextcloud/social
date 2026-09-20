@@ -325,20 +325,60 @@ class OAuthControllerTest extends TestCase {
 		);
 
 		$this->assertStringContainsString(
-			'https://app.example/callback',
+			'https://app.example',
 			$response->getContentSecurityPolicy()->buildPolicy()
 		);
 	}
 
-	public function testACustomSchemeIsAllowedTheSameWay(): void {
+	/**
+	 * A source expression is not a URI. `form-action 'self' icecubesapp://` is
+	 * not something a browser can parse, so it drops the expression, leaves
+	 * `'self'`, and blocks the redirect exactly as if nothing had been added --
+	 * the Authorize button goes on doing nothing for the one kind of client
+	 * that most needs it to work. A scheme-source is the scheme and one colon.
+	 */
+	public function testACustomSchemeBecomesASchemeSource(): void {
 		$this->loggedIn();
 		$this->knownClient();
 
-		$response = $this->controller->authorize('client-1', 'tusky://oauth', 'code', 'read');
+		$policy = $this->controller->authorize('client-1', 'tusky://oauth', 'code', 'read')
+			->getContentSecurityPolicy()->buildPolicy();
 
-		$this->assertStringContainsString(
-			'tusky://oauth', $response->getContentSecurityPolicy()->buildPolicy()
-		);
+		$this->assertStringContainsString('tusky:', $policy);
+		$this->assertStringNotContainsString('tusky://', $policy);
+	}
+
+	/**
+	 * `icecubesapp://` -- a scheme, two slashes and nothing else -- is what
+	 * Ice Cubes registers, and `parse_url()` answers `false` for it, having no
+	 * host to find. Reading the scheme that way lost it and added nothing at
+	 * all, which is a widening that silently does not happen.
+	 */
+	public function testASchemeWithNothingAfterItIsStillRead(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$policy = $this->controller->authorize('client-1', 'icecubesapp://', 'code', 'read')
+			->getContentSecurityPolicy()->buildPolicy();
+
+		$this->assertStringContainsString('icecubesapp:', $policy);
+	}
+
+	/**
+	 * A source expression carries no path, and the path is not ours to
+	 * constrain: the code goes to the URI the client registered, which was
+	 * checked before the page was drawn.
+	 */
+	public function testAnHttpsUriBecomesItsOrigin(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$policy = $this->controller->authorize(
+			'client-1', 'https://app.example:8443/callback?x=1', 'code', 'read'
+		)->getContentSecurityPolicy()->buildPolicy();
+
+		$this->assertStringContainsString('https://app.example:8443', $policy);
+		$this->assertStringNotContainsString('/callback', $policy);
 	}
 
 	/** Out-of-band is answered by a page on this server, so nothing is widened. */
