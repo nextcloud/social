@@ -10,6 +10,16 @@ import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'
 
+/**
+ * How many lists are held aside at once.
+ *
+ * Four covers the switcher — My Feed, Local, Global — plus whatever the reader
+ * came from, which is the round trip that used to cost a request and a
+ * skeleton every time. Each entry holds that list's own status index, so this
+ * is a memory number as much as a UX one.
+ */
+const REMEMBERED = 4
+
 import logger from '../services/logger.js'
 import { noteTimelineRequest } from '../services/boot.js'
 import { excludeTypesFor } from '../services/notifications.js'
@@ -134,14 +144,20 @@ export const useTimelineStore = defineStore('timeline', {
 		params: {},
 		account: '',
 		/**
-		 * The list the reader left last, kept so that coming back to it finds
-		 * the pages they had loaded. One list, not all of them: it holds a full
-		 * status index, and keeping every timeline ever opened is exactly the
-		 * leak `resetTimeline()` was written to stop.
+		 * The lists the reader has been in lately, kept so that coming back to
+		 * one finds the pages they had loaded.
 		 *
-		 * @type {?{identity: string, timeline: string[], parentsTimeline: string[], statuses: object, removedFrom: object}}
+		 * A few, not one, and not all of them. One was enough for Back out of a
+		 * post, and wrong for the thing people actually do: My Feed, Local,
+		 * Global and back is four switches, and with a single slot three of
+		 * them threw the list away and asked the server again — 150 ms of
+		 * skeleton where content had been. All of them would be the leak
+		 * `resetTimeline()` was written to stop, because each holds a full
+		 * status index, so this is capped at `REMEMBERED` and the oldest goes.
+		 *
+		 * @type {{identity: string, timeline: string[], parentsTimeline: string[], statuses: object, removedFrom: object}[]}
 		 */
-		remembered: null,
+		remembered: [],
 		/**
 		 * Whether the list on screen was put back rather than loaded: what tells
 		 * the view that it already holds its pages and must not ask for another
@@ -567,8 +583,11 @@ export const useTimelineStore = defineStore('timeline', {
 				return
 			}
 
-			const returning = this.remembered?.identity === this.getTimelineIdentity ? this.remembered : null
-			this.remembered = left
+			const wanted = this.getTimelineIdentity
+			const returning = this.remembered.find((held) => held.identity === wanted) ?? null
+			// the one being left goes to the front, the one being returned to
+			// is taken out, and the oldest falls off the end
+			this.remembered = [left, ...this.remembered.filter((held) => held.identity !== wanted && held.identity !== left.identity)].slice(0, REMEMBERED)
 			this.restored = returning !== null
 
 			if (returning === null) {

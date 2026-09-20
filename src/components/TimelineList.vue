@@ -30,7 +30,11 @@
 			:posts="timeline"
 			:account="account"
 			:loading="loading" />
-		<transition-group v-else name="list" tag="ul">
+		<transition-group
+			v-else
+			name="list"
+			tag="ul"
+			:class="{ 'timeline-list--settling': holding }">
 			<template v-for="(entry, index) in entries" :key="entry.id">
 				<!-- the two headings only appear when there is a boundary to
 				     mark: a page that is all new, or all seen, is one run -->
@@ -62,7 +66,15 @@
 					:unread="isUnread(entry)" />
 			</template>
 		</transition-group>
-		<TimelineSkeleton v-if="display !== 'grid' && loading && timeline.length === 0" />
+		<!--
+			Not while a switch is settling. Going from My Feed to Local empties
+			the list and fills it again about 150 ms later, and a skeleton in
+			that gap is the content blinking out and back — the flicker people
+			report when they use the switcher above. A list that had posts a
+			moment ago keeps them, dimmed and inert, until the new ones arrive;
+			only a genuinely cold list draws bones.
+		-->
+		<TimelineSkeleton v-if="display !== 'grid' && loading && timeline.length === 0 && !holding" />
 		<!--
 		  A failure used to set allLoaded, so the reader was shown "No posts
 		  found / Posts from people you follow will show up here" for what was
@@ -218,6 +230,13 @@ export default {
 
 	data() {
 		return {
+			/**
+			 * The posts of the list being left, kept on screen while the next
+			 * one loads so a switch does not blink through a skeleton.
+			 *
+			 * @type {string[]}
+			 */
+			heldOver: [],
 			infoHidden: false,
 			state: [],
 			intervalId: -1,
@@ -654,11 +673,28 @@ export default {
 		 * @return {object[]}
 		 */
 		entries() {
+			// what was on screen when the switch started, until the new list
+			// has something of its own: see `holding`
+			const timeline = (this.timeline.length === 0 && this.holding)
+				? this.heldOver
+				: this.timeline
+
 			if (this.type !== 'notifications') {
-				return this.timeline
+				return timeline
 			}
 
-			return groupNotifications(this.timeline)
+			return groupNotifications(timeline)
+		},
+
+		/**
+		 * Whether what is on screen is the list being left.
+		 *
+		 * Only while the next one is loading: once the request has settled on
+		 * an empty list, that emptiness is the answer and the reader is owed
+		 * it rather than somebody else's posts.
+		 */
+		holding() {
+			return this.loading && this.timeline.length === 0 && this.heldOver.length > 0
 		},
 
 		/**
@@ -714,12 +750,27 @@ export default {
 
 		// something new to look at restarts the dwell: what arrived while the
 		// reader was here is read on the same terms as what was already there
-		timeline() {
+		timeline(entries) {
+			// the last list that had anything is what a switch shows while the
+			// next one is on its way. Taken here rather than when the switch is
+			// noticed, because by then the store has already emptied it; ids
+			// only, so holding one costs nothing.
+			if (entries.length > 0) {
+				this.heldOver = [...entries]
+			}
+
 			this.armSeenTimer()
 		},
 	},
 
 	mounted() {
+		// a list that was already full when this mounted has had no change for
+		// the watcher below to see, and the first switch away from it is
+		// exactly the one worth not flickering
+		if (this.timeline.length > 0) {
+			this.heldOver = [...this.timeline]
+		}
+
 		// The ancestors list in the single-post view renders the same
 		// /context response its sibling fetches: it used to page, poll and
 		// observe on its own, so opening a thread made two identical
@@ -1225,6 +1276,15 @@ export default {
 </script>
 
 <style scoped lang="scss">
+// the list being left, while the next one loads: visibly not current, and not
+// clickable — acting on a post that belongs to the timeline you just left is
+// worse than waiting 150 ms for the one you asked for
+.timeline-list--settling {
+	opacity: .55;
+	pointer-events: none;
+	transition: opacity .15s ease-out;
+}
+
 .social__timeline {
 	max-width: var(--social-column);
 	margin: 0 auto;

@@ -4,6 +4,7 @@
  */
 
 import { flushPromises, mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { showError } from '../../../src/services/toast.js'
 import TimelineList from '../../../src/components/TimelineList.vue'
@@ -1312,6 +1313,86 @@ describe('TimelineList', () => {
 			await flushPromises()
 
 			expect(emptyTitle(wrapper)).toBe(title)
+		})
+
+		/**
+		 * A request that has not answered yet, so the moment between the switch
+		 * and the new page — 150 ms against a real server — can be looked at.
+		 */
+		function pending() {
+			let land
+			const promise = new Promise((resolve) => {
+				land = resolve
+			})
+
+			return { promise, land }
+		}
+
+		it('keeps the posts of the list being left until the new ones arrive', async () => {
+			// switching My Feed → Local empties the list and fills it again
+			// about 150 ms later; a skeleton in that gap is the content
+			// blinking out and back, which is the flicker people report
+			const next = pending()
+			const { wrapper, store } = mountList({
+				timeline: [status('1'), status('2')],
+				responses: [[], next.promise],
+			})
+			await flushPromises()
+
+			store.$patch({ ...showing('["timeline","",{}]'), timeline: [], statuses: {}, restored: false })
+			await nextTick()
+			await nextTick()
+
+			expect(wrapper.findAll('.timeline-entry-stub').length).toBe(2)
+			expect(wrapper.find('.timeline-skeleton-stub').exists()).toBe(false)
+			// and it is plainly not the list you asked for, nor clickable
+			expect(wrapper.find('.timeline-list--settling').exists()).toBe(true)
+
+			next.land([])
+			await flushPromises()
+		})
+
+		it('lets go of them as soon as the new list has something', async () => {
+			const next = pending()
+			const { wrapper, store } = mountList({
+				timeline: [status('1'), status('2')],
+				responses: [[], next.promise],
+			})
+			await flushPromises()
+
+			store.$patch({ ...showing('["timeline","",{}]'), timeline: [], statuses: {}, restored: false })
+			await nextTick()
+			store.$patch({ statuses: { 9: status('9') }, timeline: ['9'] })
+			next.land([status('9')])
+			await flushPromises()
+
+			expect(wrapper.findAll('.timeline-entry-stub').length).toBe(1)
+			expect(wrapper.find('.timeline-list--settling').exists()).toBe(false)
+		})
+
+		it('shows an empty list rather than the old one once the answer is in', async () => {
+			// My Feed really is empty for somebody who follows nobody, and
+			// that is the answer they are owed
+			const { wrapper, store } = mountList({
+				timeline: [status('1')],
+				responses: [[], []],
+			})
+			await flushPromises()
+
+			store.$patch({ ...showing('["timeline","",{}]'), timeline: [], statuses: {}, restored: false })
+			await flushPromises()
+
+			expect(wrapper.findAll('.timeline-entry-stub').length).toBe(0)
+			expect(wrapper.find('.timeline-list--settling').exists()).toBe(false)
+		})
+
+		it('draws bones for a list that never had anything', async () => {
+			// a cold list has nothing to hold over, and a skeleton is then the
+			// honest thing to show
+			const { wrapper } = mountList({ timeline: [], responses: [[]] })
+			await nextTick()
+
+			expect(wrapper.find('.timeline-list--settling').exists()).toBe(false)
 		})
 
 		it('does not rewrite the shared empty-content entry for a public profile', async () => {
