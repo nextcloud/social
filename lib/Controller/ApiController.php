@@ -315,7 +315,11 @@ class ApiController extends Controller {
 				return new DataResponse(
 					[
 						'name' => $this->client->getAppName(),
-						'website' => $this->client->getAppWebsite(),
+						// null rather than '' for the same reason the
+						// registration route sends null: a client that decodes
+						// this as a URL fails on the empty string
+						'website' => $this->client->getAppWebsite() === ''
+							? null : $this->client->getAppWebsite(),
 						'vapid_key' => ''
 					], Http::STATUS_OK
 				);

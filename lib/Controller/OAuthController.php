@@ -192,9 +192,19 @@ class OAuthController extends Controller {
 
 		return new DataResponse(
 			[
-				'id' => $client->getId(),
+				// A string, as every id in Mastodon's API is. This one is a
+				// database row number and the temptation is to answer with the
+				// number; a client that decodes the response into a typed
+				// struct declares `id: String` because that is what Mastodon
+				// sends, and a JSON number fails to decode. The registration
+				// then succeeds with a 200 that the client cannot read, and
+				// its sign-in stops with nothing in any log to show for it.
+				'id' => (string)$client->getId(),
 				'name' => $client->getAppName(),
-				'website' => $client->getAppWebsite(),
+				// null rather than '' where the client registered no website:
+				// Mastodon sends null, and a client that decodes this field as
+				// a URL fails on the empty string, which is not one.
+				'website' => $client->getAppWebsite() === '' ? null : $client->getAppWebsite(),
 				'scopes' => implode(' ', $client->getAppScopes()),
 				'client_id' => $client->getAppClientId(),
 				'client_secret' => $client->getAppClientSecret(),

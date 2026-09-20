@@ -196,7 +196,8 @@ class OAuthControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([
-			'id' => 7,
+			// a string, as every id in Mastodon's API is
+			'id' => '7',
 			'name' => 'Tusky',
 			'website' => 'https://tusky.app',
 			'scopes' => 'read write',
@@ -245,6 +246,26 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->method('createApp');
 
 		$this->assertSame('read', $this->controller->apps('App', 'https://a/cb')->getData()['scopes']);
+	}
+
+	/**
+	 * Ice Cubes decodes this response into `InstanceApp`, whose `id` is a
+	 * `String` and whose `website` is a `URL?` -- because that is the shape
+	 * Mastodon sends. A JSON number for `id`, or `""` for `website`, fails to
+	 * decode, and the registration then succeeds with a 200 the client cannot
+	 * read: its sign-in stops there, with a 200 in the web server's log and
+	 * nothing at all in the app's.
+	 */
+	public function testTheRegistrationIsShapedTheWayATypedClientDecodesIt(): void {
+		$this->clientService->method('createApp')
+			->willReturnCallback(static function (SocialClient $client): void {
+				$client->setId(7)->setAppClientId('cid')->setAppClientSecret('csecret');
+			});
+
+		$data = $this->controller->apps('Tusky', 'https://tusky.app/callback', '', 'read')->getData();
+
+		$this->assertIsString($data['id']);
+		$this->assertNull($data['website'], 'an absent website is null, never the empty string');
 	}
 
 	// authorize()
