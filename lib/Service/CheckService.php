@@ -45,6 +45,22 @@ class CheckService {
 
 	public const CACHE_PREFIX = 'social_check_';
 
+	/**
+	 * What each client-API probe saw, in the order the bases were tried.
+	 *
+	 * A failed probe is the only thing an administrator has to work from, and
+	 * "nothing answers" is the one thing it should not say: the rules being
+	 * absent and the rules pointing somewhere that is not this Nextcloud look
+	 * identical from the outside and are fixed differently.
+	 *
+	 * The bases are tried in order of how much they mean -- the address Social
+	 * is configured for, then the host this request came in on, then the
+	 * server's base URL -- so the first recorded attempt is the one to show.
+	 *
+	 * @var list<array{base: string, status: int, reason: string}>
+	 */
+	private array $attempts = [];
+
 	private ?string $userId = null;
 	private ICache $cache;
 
@@ -98,6 +114,9 @@ class CheckService {
 			'success' => $success,
 			'checks' => $checks,
 			'addresses' => $this->cloudAddresses(),
+			// what the client-API probe actually saw, so a page can say why
+			// rather than only that. Empty where it succeeded.
+			'clientApi' => ($checks['clientApi'] === false) ? $this->clientApiDiagnosis() : [],
 		];
 	}
 
@@ -412,6 +431,8 @@ class CheckService {
 			return $known === 'true';
 		}
 
+		$this->attempts = [];
+
 		$address = $this->configuredSocialBase();
 		if ($address !== '' && $this->requestClientApi($address)) {
 			return true;
@@ -426,6 +447,10 @@ class CheckService {
 		if ($this->requestClientApi($this->urlGenerator->getBaseUrl())) {
 			return true;
 		}
+
+		$this->cache->set(
+			self::CACHE_PREFIX . 'clientapi_why', (string)json_encode($this->attempts), 300
+		);
 
 		// A failure is remembered as well, and for a much shorter time than a
 		// success: this runs on every page load of the app for an
@@ -449,6 +474,8 @@ class CheckService {
 		try {
 			$scheme = strtolower((string)parse_url($base, PHP_URL_SCHEME));
 			if (!in_array($scheme, ['http', 'https'], true)) {
+				// not recorded: a base that is not a URL is this app having
+				// nothing to try, not something an administrator can act on
 				return false;
 			}
 
@@ -458,12 +485,22 @@ class CheckService {
 
 			$response = $this->clientService->newClient()
 				->get(rtrim($base, '/') . '/api/v1/instance', $options);
-			if ($response->getStatusCode() !== Http::STATUS_OK) {
+			$status = $response->getStatusCode();
+			if ($status !== Http::STATUS_OK) {
+				// 404 is the interesting one, and the reason this is recorded
+				// at all: it is what both a missing rule and a rule pointing at
+				// the wrong document root produce.
+				$this->noted($base, $status, 'status');
+
 				return false;
 			}
 
 			$body = json_decode((string)$response->getBody(), true);
 			if (!is_array($body) || !array_key_exists('uri', $body)) {
+				// something answered, and it was not this app: a login page, a
+				// catch-all index, another server's error page
+				$this->noted($base, $status, 'not-social');
+
 				return false;
 			}
 
@@ -471,11 +508,34 @@ class CheckService {
 
 			return true;
 		} catch (Exception $e) {
-			// anything that is not a readable instance document means a client
-			// would fail here too
+			// nothing was reachable there at all -- a refused connection, a
+			// name that does not resolve, a certificate this server will not
+			// accept
+			$this->noted($base, 0, 'unreachable');
 		}
 
 		return false;
+	}
+
+	/** Records one probe, without its body: a page may show this to anybody. */
+	private function noted(string $base, int $status, string $reason): void {
+		$this->attempts[] = ['base' => $base, 'status' => $status, 'reason' => $reason];
+	}
+
+	/**
+	 * What the last failed run of the client-API probe saw.
+	 *
+	 * @return list<array{base: string, status: int, reason: string}>
+	 */
+	public function clientApiDiagnosis(): array {
+		$raw = (string)$this->cache->get(self::CACHE_PREFIX . 'clientapi_why');
+		if ($raw === '') {
+			return $this->attempts;
+		}
+
+		$attempts = json_decode($raw, true);
+
+		return is_array($attempts) ? array_values($attempts) : [];
 	}
 
 	private function requestWellKnown(string $base, string $username): bool {

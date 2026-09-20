@@ -19,7 +19,10 @@
 		<ReactionPicker />
 		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
-				<SetupChecks :checks="serverData.checks.checks" :addresses="serverData.checks.addresses" />
+				<SetupChecks
+					:checks="serverData.checks.checks"
+					:addresses="serverData.checks.addresses"
+					:clientApi="serverData.checks.clientApi || []" />
 			</div>
 			<!-- not keyed on the full path: that remounted the whole view on
 			     every route change, so opening a post and pressing Back
@@ -84,7 +87,8 @@
 				<SetupChecks
 					v-if="!serverData.checks.success"
 					:checks="serverData.checks.checks"
-					:addresses="serverData.checks.addresses" />
+					:addresses="serverData.checks.addresses"
+					:clientApi="serverData.checks.clientApi || []" />
 			</form>
 		</NcAppContent>
 		<NcAppContent v-else class="setup">

@@ -123,6 +123,48 @@ go in an `.htaccess` file, because `ProxyPreserveHost` is not allowed there and
 without it the app is handed `Host: 127.0.0.1` and refuses the request as an
 untrusted domain.
 
+**Check what `127.0.0.1:80` actually serves.** These rules proxy to plain HTTP
+on the loopback address, which only works if something there serves *this*
+Nextcloud. A server whose virtual hosts are all on `:443` — what a
+certbot-managed config looks like once the HTTP ones have been commented out —
+has no `:80` virtual host for the domain at all, so the request falls through
+to the main server and its `DocumentRoot`, and every proxied request answers
+404 from there.
+
+That 404 is indistinguishable from having no rules at all, which is the trap:
+the rules are correct, they fire, and the warning stays up. The way to tell them
+apart is that an Apache error page names the port it came from —
+
+```
+/api/v1/instance  →  "Server at example.com Port 80"    the rules fired, the target is wrong
+/login            →  "Server at example.com Port 443"   served by the HTTPS vhost itself
+```
+
+— and `apachectl -S` will show no `*:80` section. The app says which of the two
+it is as well: the warning carries what the probe got back.
+
+The fix is to give the proxy something to land on. A loopback-only listener
+keeps plain HTTP off the public interface:
+
+```apache
+Listen 127.0.0.1:8081
+
+<VirtualHost 127.0.0.1:8081>
+    ServerName example.com
+    DocumentRoot /path/to/nextcloud
+    <Directory /path/to/nextcloud>
+        Options FollowSymLinks
+        AllowOverride All
+        Require ip 127.0.0.1
+    </Directory>
+</VirtualHost>
+```
+
+then point the three rules at `http://127.0.0.1:8081` instead. `AllowOverride
+All` is not optional here: Nextcloud's own `.htaccess` is what hands the
+`Authorization` header to PHP, so without it the client API answers *the
+access_token was revoked* for every signed-in request — see below.
+
 They map three things onto the app:
 
 | Path | Why |

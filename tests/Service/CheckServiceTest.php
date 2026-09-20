@@ -350,6 +350,8 @@ class CheckServiceTest extends TestCase {
 					'configured' => 'https://cloud.example/index.php',
 					'expected' => 'https://cloud.example/index.php',
 				],
+				// nothing to explain while the check passes
+				'clientApi' => [],
 			],
 			$this->service->checkDefault()
 		);
@@ -455,11 +457,17 @@ class CheckServiceTest extends TestCase {
 		$this->configService->method('getSocialAddress')->willReturn('');
 		$this->client->method('get')->willReturn($this->response(404));
 
-		$this->cache->expects($this->once())
-			->method('set')
-			->with(CheckService::CACHE_PREFIX . 'clientapi', 'false', 300);
+		// two writes now: what the probe saw, then the failure itself
+		$written = [];
+		$this->cache->method('set')
+			->willReturnCallback(function (string $key, $value, int $ttl) use (&$written): bool {
+				$written[$key] = [$value, $ttl];
+
+				return true;
+			});
 
 		$this->assertFalse($this->service->checkClientApiRoot());
+		$this->assertSame(['false', 300], $written[CheckService::CACHE_PREFIX . 'clientapi']);
 	}
 
 	/**
@@ -491,6 +499,84 @@ class CheckServiceTest extends TestCase {
 			->with(CheckService::CACHE_PREFIX . 'clientapi', 'true', 3600);
 
 		$this->assertTrue($this->service->checkClientApiRoot());
+	}
+
+	/**
+	 * The reason any of this is recorded: rules that are absent and rules whose
+	 * proxy target is not this Nextcloud both answer 404 here, and an
+	 * administrator who has just pasted the rules cannot tell which they have.
+	 */
+	public function testAFailedProbeRecordsWhatItSaw(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$this->client->method('get')->willReturn($this->response(404));
+
+		$this->service->checkClientApiRoot();
+		$seen = $this->service->clientApiDiagnosis();
+
+		$this->assertNotSame([], $seen);
+		$this->assertSame('https://social.example.com', $seen[0]['base']);
+		$this->assertSame(404, $seen[0]['status']);
+		$this->assertSame('status', $seen[0]['reason']);
+	}
+
+	public function testAnAnswerFromSomethingOtherThanThisAppIsRecordedAsSuch(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$response = $this->response(200);
+		$response->method('getBody')->willReturn('<!DOCTYPE html><title>Log in</title>');
+		$this->client->method('get')->willReturn($response);
+
+		$this->service->checkClientApiRoot();
+		$seen = $this->service->clientApiDiagnosis();
+
+		$this->assertSame('not-social', $seen[0]['reason']);
+	}
+
+	public function testAServerThatCannotBeReachedAtAllIsRecordedAsThat(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$this->client->method('get')->willThrowException(new \Exception('refused'));
+
+		$this->service->checkClientApiRoot();
+		$seen = $this->service->clientApiDiagnosis();
+
+		$this->assertSame('unreachable', $seen[0]['reason']);
+		$this->assertSame(0, $seen[0]['status']);
+	}
+
+	/** The diagnosis is kept with the failure, so a later page load can show it. */
+	public function testWhatTheProbeSawIsRememberedAlongsideTheFailure(): void {
+		$held = [];
+		$this->cache->method('get')
+			->willReturnCallback(function (string $key) use (&$held) {
+				return $held[$key] ?? null;
+			});
+		$this->cache->method('set')
+			->willReturnCallback(function (string $key, $value) use (&$held): bool {
+				$held[$key] = $value;
+
+				return true;
+			});
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$this->client->method('get')->willReturn($this->response(404));
+
+		$this->service->checkClientApiRoot();
+
+		$this->assertStringContainsString(
+			'"reason":"status"', (string)$held[CheckService::CACHE_PREFIX . 'clientapi_why']
+		);
+	}
+
+	public function testASuccessfulCheckExplainsNothing(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->configService->method('getSocialAddress')->willReturn('https://social.example.com');
+		$response = $this->response(200);
+		$response->method('getBody')->willReturn('{"uri":"social.example.com"}');
+		$this->client->method('get')->willReturn($response);
+		$this->addressesAgree();
+
+		$this->assertSame([], $this->service->checkDefault()['clientApi']);
 	}
 
 	// the address the app builds ids from vs. the one the server says it has
