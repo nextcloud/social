@@ -36,19 +36,54 @@ function tag(name, uses) {
 }
 
 /**
- * Answers the two requests the list makes.
+ * One hashtag as the peer-trends endpoint reports it.
+ *
+ * @param {string} name the tag, without its '#'
+ * @param {string[]} servers who says it is busy
+ * @param {object} extra `local` and `uses`, where a test cares
+ * @return {object} a PeerTag entity
+ */
+function peerTag(name, servers, extra = {}) {
+	return {
+		name,
+		servers,
+		servers_count: servers.length,
+		uses: 0,
+		local: false,
+		...extra,
+	}
+}
+
+/** What the peer-trends endpoint answers when a test says nothing about it. */
+const NO_PEERS = { tags: [], sources: [] }
+
+/**
+ * Answers the three requests the page makes.
  *
  * @param {object[]} tags what the trends endpoint returns
  * @param {object[]|Error} followed what the followed-tags endpoint returns
+ * @param {object|Error|Function} peers what the peer-trends endpoint returns; a
+ *                                      function is given the query, so a test
+ *                                      can answer a search differently
  */
-function serve(tags, followed = []) {
-	axios.get.mockImplementation(async (url) => {
+function serve(tags, followed = [], peers = NO_PEERS) {
+	axios.get.mockImplementation(async (url, config = {}) => {
 		if (url.endsWith('/followed_tags')) {
 			if (followed instanceof Error) {
 				throw followed
 			}
 
 			return { data: followed }
+		}
+
+		if (url.endsWith('/directories/hashtags')) {
+			if (peers instanceof Error) {
+				throw peers
+			}
+
+			return {
+				data: typeof peers === 'function' ? peers(config?.params?.q ?? '') : peers,
+			}
 		}
 
 		return { data: tags }
@@ -255,5 +290,235 @@ describe('TrendingHashtags', () => {
 
 		expect(wrapper.findComponent(RouterLinkStub).props('to'))
 			.toEqual({ name: 'tags', params: { tag: 'nextcloud' } })
+	})
+
+	describe('what other servers are talking about', () => {
+		const peerNames = (wrapper) => wrapper.findAll('.peertags__name').map((el) => el.text())
+		const where = (wrapper) => wrapper.findAll('.peertags__where').map((el) => el.text())
+
+		it('asks the other servers when the page opens, without anything typed', async () => {
+			serve([tag('nextcloud', 4)], [], { tags: [peerTag('berlin', ['mastodon.social'])], sources: [] })
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				`${API}/directories/hashtags`,
+				{ params: { q: '', limit: 20 } },
+			)
+			expect(peerNames(wrapper)).toEqual(['#berlin'])
+			expect(wrapper.text()).toContain('Busy elsewhere in the fediverse')
+		})
+
+		it('names the servers rather than counting them', async () => {
+			serve([], [], { tags: [peerTag('berlin', ['mastodon.social', 'misskey.io'])], sources: [] })
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(where(wrapper)).toEqual(['Busy on mastodon.social, misskey.io'])
+		})
+
+		it('counts the servers it has no room to name', async () => {
+			serve([], [], {
+				tags: [peerTag('berlin', ['one.example', 'two.example', 'three.example', 'four.example'])],
+				sources: [],
+			})
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(where(wrapper)[0]).toContain('and 2 other servers')
+		})
+
+		it('says when a tag is busy here as well as out there', async () => {
+			serve([], [], {
+				tags: [peerTag('berlin', ['cloud.example.org', 'mastodon.social'], { local: true })],
+				sources: [],
+			})
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(where(wrapper)).toEqual(['Busy on mastodon.social, and used here'])
+		})
+
+		/**
+		 * The same tag in both lists would read as a second opinion rather
+		 * than as the answer to a different question.
+		 */
+		it('does not repeat a tag that is already in the list above', async () => {
+			serve([tag('nextcloud', 4)], [], {
+				tags: [
+					peerTag('nextcloud', ['cloud.example.org', 'mastodon.social'], { local: true }),
+					peerTag('berlin', ['mastodon.social']),
+				],
+				sources: [],
+			})
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(names(wrapper)).toEqual(['#nextcloud'])
+			expect(peerNames(wrapper)).toEqual(['#berlin'])
+		})
+
+		it('says nothing about elsewhere when only this server named anything', async () => {
+			serve([tag('nextcloud', 4)], [], {
+				tags: [peerTag('nextcloud', ['cloud.example.org'], { local: true })],
+				sources: [],
+			})
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(wrapper.text()).not.toContain('Busy elsewhere')
+		})
+
+		/**
+		 * "No trending hashtags" above twenty of them reads as a broken page,
+		 * and on the instances this exists for that is the normal case.
+		 */
+		it('points the empty state at what is below it rather than at a longer window', async () => {
+			serve([], [], { tags: [peerTag('berlin', ['mastodon.social'])], sources: [] })
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(wrapper.text()).toContain('Nothing is trending on this server')
+			expect(wrapper.text()).toContain('What other servers are talking about is below.')
+			expect(wrapper.text()).not.toContain('Try a longer one.')
+		})
+
+		it('still says try a longer window when there is nothing anywhere', async () => {
+			serve([], [], NO_PEERS)
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(wrapper.text()).toContain('Try a longer one.')
+		})
+
+		it('leaves the page alone when the other servers cannot be reached', async () => {
+			serve([tag('nextcloud', 4)], [], new Error('network'))
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			expect(names(wrapper)).toEqual(['#nextcloud'])
+			expect(wrapper.text()).not.toContain('Busy elsewhere')
+		})
+	})
+
+	describe('finding a hashtag', () => {
+		const peerNames = (wrapper) => wrapper.findAll('.peertags__name').map((el) => el.text())
+
+		/**
+		 * @param {object} wrapper the mounted page
+		 * @param {string} text what the reader typed
+		 */
+		async function type(wrapper, text) {
+			await wrapper.find('input[type="search"]').setValue(text)
+			await vi.advanceTimersByTimeAsync(500)
+			await flushPromises()
+		}
+
+		beforeEach(() => {
+			vi.useFakeTimers()
+		})
+
+		afterEach(() => {
+			vi.useRealTimers()
+		})
+
+		it('asks every server about the word, and shows what they answer', async () => {
+			serve([tag('nextcloud', 4)], [], (q) => (q === 'berlin'
+				? { tags: [peerTag('berlin', ['mastodon.social'])], sources: [] }
+				: NO_PEERS))
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			await type(wrapper, 'berlin')
+
+			expect(axios.get).toHaveBeenCalledWith(
+				`${API}/directories/hashtags`,
+				{ params: { q: 'berlin', limit: 20 } },
+			)
+			expect(peerNames(wrapper)).toEqual(['#berlin'])
+		})
+
+		/**
+		 * The list on screen ranks one window on one server. Filtering it by a
+		 * word answers a question nobody asked.
+		 */
+		it('replaces the trending list rather than filtering it', async () => {
+			serve([tag('nextcloud', 4)], [], (q) => (q === 'berlin'
+				? { tags: [peerTag('berlin', ['mastodon.social'])], sources: [] }
+				: NO_PEERS))
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			await type(wrapper, 'berlin')
+
+			expect(names(wrapper)).toEqual([])
+			expect(wrapper.find('.trending__periods').exists()).toBe(false)
+		})
+
+		it('waits for the typing to stop, so a word is one search', async () => {
+			serve([], [], NO_PEERS)
+			const wrapper = mountTrends()
+			await flushPromises()
+			const before = axios.get.mock.calls.length
+
+			const field = wrapper.find('input[type="search"]')
+			await field.setValue('be')
+			await field.setValue('ber')
+			await field.setValue('berl')
+			await vi.advanceTimersByTimeAsync(500)
+			await flushPromises()
+
+			expect(axios.get.mock.calls.length - before).toBe(1)
+		})
+
+		it('asks nobody about a single letter', async () => {
+			serve([], [], NO_PEERS)
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			await type(wrapper, 'b')
+
+			expect(axios.get).toHaveBeenLastCalledWith(
+				`${API}/directories/hashtags`,
+				{ params: { q: '', limit: 20 } },
+			)
+		})
+
+		it('says nobody is using it rather than showing an empty list', async () => {
+			serve([tag('nextcloud', 4)], [], NO_PEERS)
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			await type(wrapper, 'nothingatall')
+
+			expect(wrapper.text()).toContain('Nobody is using that')
+		})
+
+		it('says which servers did not answer, so an empty result can be read', async () => {
+			serve([], [], {
+				tags: [peerTag('berlin', ['up.example'])],
+				sources: [
+					{ host: 'up.example', label: 'up.example', status: 'ok' },
+					{ host: 'down.example', label: 'down.example', status: 'failed' },
+				],
+			})
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			await type(wrapper, 'berlin')
+
+			expect(wrapper.text()).toContain('down.example did not answer')
+		})
+
+		it('goes back to the trend when the box is emptied', async () => {
+			serve([tag('nextcloud', 4)], [], NO_PEERS)
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			await type(wrapper, 'berlin')
+			await type(wrapper, '')
+
+			expect(names(wrapper)).toEqual(['#nextcloud'])
+		})
 	})
 })

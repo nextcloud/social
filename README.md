@@ -223,6 +223,15 @@ six ways:
 - **Trending hashtags**, ranked over a window you choose from one hour to ten days. The
   busiest hour and the busiest ten days are genuinely different lists, not one list
   relabelled.
+- **What other servers are talking about**, under the trending list, and a box that
+  **finds a hashtag** across them. A small server's own trending list is a list of
+  what the few people on it posted today, and a new one's is empty; this asks other
+  servers the same question and says whose answer it is — "busy on mastodon.social
+  and misskey.io" rather than a number from nowhere. Ranked by how many servers named
+  a tag, because instances differ in size by four orders of magnitude and adding their
+  counts together would make the biggest one's opinion everybody's. Nothing is fetched
+  or stored: a hashtag is a string, and following one from here brings in posts the
+  same way following any hashtag does.
 - **Trending pictures and videos.**
 - **The articles being shared here**, under **News** — with what people here said about
   each one, which is the part a feed reader cannot do.
