@@ -54,6 +54,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$boosted = $this->getBool(StreamAction::BOOSTED, $values, false);
 		$replied = $this->getBool(StreamAction::REPLIED, $values, false);
 		$bookmarked = $this->getBool(StreamAction::BOOKMARKED, $values, false);
+		$disliked = $this->getBool(StreamAction::DISLIKED, $values, false);
 
 		$qb->setValue('actor_id', $qb->createNamedParameter($action->getActorId()))
 			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($action->getActorId())))
@@ -63,6 +64,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 			->setValue('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
 			->setValue('replied', $qb->createNamedParameter(($replied) ? 1 : 0))
 			->setValue('bookmarked', $qb->createNamedParameter(($bookmarked) ? 1 : 0))
+			->setValue('disliked', $qb->createNamedParameter(($disliked) ? 1 : 0))
 			->setValue('values', $qb->createNamedParameter(json_encode($this->nonFlagValues($action))));
 
 		$qb->executeStatement();
@@ -81,6 +83,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 				StreamAction::BOOSTED => 'boosted',
 				StreamAction::REPLIED => 'replied',
 				StreamAction::BOOKMARKED => 'bookmarked',
+				StreamAction::DISLIKED => 'disliked',
 				default => ''
 			};
 

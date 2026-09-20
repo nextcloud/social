@@ -815,6 +815,44 @@ export const useTimelineStore = defineStore('timeline', {
 				logger.error('Failed to like status', { error })
 			}
 		},
+		/**
+		 * PeerTube's other counter, which only a video carries.
+		 *
+		 * No optimistic update: unlike a like, nothing on the page depends on
+		 * it being instant, and the count that matters is the author's
+		 * server's. The answer carries the new one.
+		 *
+		 * @param {object} root0 the status to dislike
+		 * @param {object} root0.status that status
+		 * @return {Promise<object|undefined>} the updated status
+		 */
+		async postDislike({ status }) {
+			try {
+				const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/dislike`))
+				this.addToStatuses(response.data)
+				return response
+			} catch (error) {
+				showError(t('social', 'Could not dislike the video'))
+				logger.error('Failed to dislike status', { error })
+			}
+		},
+
+		/**
+		 * @param {object} root0 the status to stop disliking
+		 * @param {object} root0.status that status
+		 * @return {Promise<object|undefined>} the updated status
+		 */
+		async postUndislike({ status }) {
+			try {
+				const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/undislike`))
+				this.addToStatuses(response.data)
+				return response
+			} catch (error) {
+				showError(t('social', 'Could not take the dislike back'))
+				logger.error('Failed to undislike status', { error })
+			}
+		},
+
 		async postUnlike({ status }) {
 			try {
 				if (this.type === 'favourites') {

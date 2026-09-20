@@ -31,6 +31,9 @@ class ActionService {
 	private const UNMUTE = 'unmute';
 	private const PIN = 'pin';
 	private const UNPIN = 'unpin';
+	/** PeerTube's other counter; only a video can carry one. */
+	private const DISLIKE = 'dislike';
+	private const UNDISLIKE = 'undislike';
 
 	private static array $availableStatusAction = [
 		self::FAVOURITE,
@@ -42,7 +45,9 @@ class ActionService {
 		self::MUTE,
 		self::UNMUTE,
 		self::PIN,
-		self::UNPIN
+		self::UNPIN,
+		self::DISLIKE,
+		self::UNDISLIKE,
 	];
 
 	public function __construct(
@@ -53,6 +58,7 @@ class ActionService {
 		private PinService $pinService,
 		private ActionsRequest $actionsRequest,
 		private ConversationsRequest $conversationsRequest,
+		private DislikeService $dislikeService,
 	) {
 	}
 
@@ -112,12 +118,49 @@ class ActionService {
 		);
 	}
 
+	/**
+	 * Refuses an interaction the post's own author has said no to.
+	 *
+	 * GoToSocial defined `interactionPolicy`, Mastodon 4.5 reads it and Loops
+	 * publishes it: an author can state that their post may not be replied to,
+	 * boosted or liked. This app read only the quote clause, so the other
+	 * three were offered here and refused by the author's server afterwards —
+	 * the reader was told their boost went out, and it did, and nothing ever
+	 * showed it.
+	 *
+	 * Only what a peer stated about their own post is refused. A post from
+	 * here is this instance's to decide about when the interaction arrives,
+	 * and a post whose server publishes no policy — which is most of them — is
+	 * untouched.
+	 *
+	 * @throws InvalidActionException
+	 */
+	private function assertAllowedByAuthor(Stream $post, string $action): void {
+		$interaction = match ($action) {
+			self::FAVOURITE => Stream::INTERACTION_LIKE,
+			self::REBLOG => Stream::INTERACTION_BOOST,
+			default => '',
+		};
+
+		// taking one back is always allowed: the author's policy is about what
+		// may be sent, and an Undo is how this instance stops having sent it
+		if ($interaction === '' || $post->allowsInteraction($interaction)) {
+			return;
+		}
+
+		throw new InvalidActionException(
+			'the author of this post does not allow it to be '
+			. ($interaction === Stream::INTERACTION_LIKE ? 'favourited' : 'boosted')
+		);
+	}
+
 	public function action(Person $actor, int $nid, string $action): ?Stream {
 		if (!in_array($action, self::$availableStatusAction)) {
 			throw new InvalidActionException();
 		}
 
 		$post = $this->streamService->getStreamByNid($nid);
+		$this->assertAllowedByAuthor($post, $action);
 
 		switch ($action) {
 			case self::FAVOURITE:
@@ -142,6 +185,14 @@ class ActionService {
 
 			case self::UNBOOKMARK:
 				$this->bookmark($actor, $post->getId(), false);
+				break;
+
+			case self::DISLIKE:
+				$this->dislikeService->create($actor, $post->getId());
+				break;
+
+			case self::UNDISLIKE:
+				$this->dislikeService->delete($actor, $post->getId());
 				break;
 
 			case self::PIN:

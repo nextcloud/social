@@ -1383,7 +1383,9 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
 
 		$this->assertSame('', $saved->getContent());
-		$this->assertSame('', $saved->getUrl());
+		// `url` may be a list, and a list of one plain address is a valid one:
+		// what used to be dropped as an odd shape is now read
+		$this->assertSame('https://remote.example/@bob/1', $saved->getUrl());
 		$this->assertSame('', $saved->getInReplyTo());
 		$this->assertSame(['https://remote.example/followers'], $saved->getToArray());
 		$this->assertSame([ACore::CONTEXT_PUBLIC], $saved->getCcArray());

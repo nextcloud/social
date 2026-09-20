@@ -130,6 +130,25 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * question existed — the visibility rule, public and unlisted posts being
 	 * quotable and nothing else.
 	 */
+	/**
+	 * The largest counter this app will repeat from another server: ten
+	 * million, which is some five orders of magnitude above the most-boosted
+	 * post the fediverse has produced.
+	 */
+	public const REMOTE_COUNT_CEILING = 10000000;
+
+	/** The interactions an author can speak about, in this app's own names. */
+	public const INTERACTION_REPLY = 'reply';
+	public const INTERACTION_BOOST = 'boost';
+	public const INTERACTION_LIKE = 'like';
+
+	/** Which `interactionPolicy` clause each of them is. */
+	public const INTERACTION_CLAUSES = [
+		self::INTERACTION_REPLY => 'canReply',
+		self::INTERACTION_BOOST => 'canAnnounce',
+		self::INTERACTION_LIKE => 'canLike',
+	];
+
 	public const QUOTE_POLICY_PUBLIC = 'public';
 	public const QUOTE_POLICY_FOLLOWERS = 'followers';
 	public const QUOTE_POLICY_NOBODY = 'nobody';
@@ -868,6 +887,27 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * Whether this post is a video, in the sense the watch page means.
+	 *
+	 * Either it arrived as one — a `Video`, which leaves the metadata block
+	 * behind — or it carries a video as its only kind of attachment, which is
+	 * what an upload here produces.
+	 */
+	public function isVideo(): bool {
+		if ($this->getVideoMeta() !== []) {
+			return true;
+		}
+
+		foreach ($this->getAttachments() as $attachment) {
+			if (str_starts_with($attachment->getMediaType(), 'video/')) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * @param array<string, mixed> $meta
 	 */
 	public function setVideoMeta(array $meta): self {
@@ -1238,6 +1278,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setQuote($this->quoteIdOf($data));
 		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $data, ''));
 		$this->setQuotePolicy(self::quotePolicyOf($data));
+		$this->importInteractionPolicies($data);
 		// `social_stream` has no column for it, and `details` is the one thing
 		// on the row that survives the round trip and is already read back
 		// with it. Only stored when it says something the id does not.
@@ -1254,19 +1295,77 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->importAttachments($this->getArray('attachment', $data, []));
 		$this->convertPublished();
 
-		if (isset($data['likes']['totalItems'])) {
-			$remoteLikes = (int)$data['likes']['totalItems'];
+		$remoteLikes = self::statedCount($data, 'likes');
+		if ($remoteLikes !== null) {
 			$this->setDetailInt(Details::LIKES, $remoteLikes);
 			$this->setDetailInt(Details::REMOTE_LIKES, $remoteLikes);
 		}
-		if (isset($data['shares']['totalItems'])) {
-			$remoteShares = (int)$data['shares']['totalItems'];
+		$remoteShares = self::statedCount($data, 'shares');
+		if ($remoteShares !== null) {
 			$this->setDetailInt(Details::BOOSTS, $remoteShares);
 			$this->setDetailInt(Details::REMOTE_BOOSTS, $remoteShares);
 		}
-		if (isset($data['replies']['totalItems'])) {
-			$this->setDetailInt(Details::REPLIES, (int)$data['replies']['totalItems']);
+		$remoteReplies = self::statedCount($data, 'replies');
+		if ($remoteReplies !== null) {
+			$this->setDetailInt(Details::REPLIES, $remoteReplies);
 		}
+	}
+
+	/**
+	 * The three policies that are not about quoting, off the wire object.
+	 *
+	 * Only stored where the author said something: an empty `policies` blob on
+	 * every post from every server that publishes none would be a row larger
+	 * for no reason.
+	 *
+	 * @param array<string, mixed> $data
+	 */
+	private function importInteractionPolicies(array $data): void {
+		$policies = [];
+		foreach (self::INTERACTION_CLAUSES as $interaction => $clause) {
+			$policy = self::policyOf($data, $clause);
+			if ($policy !== '') {
+				$policies[$interaction] = $policy;
+			}
+		}
+
+		if ($policies !== []) {
+			$this->setDetailArray(Details::POLICIES, $policies);
+		}
+	}
+
+	/**
+	 * A counter another server states, where it states a believable one.
+	 *
+	 * `likes`, `shares` and `replies` arrive as collections with a
+	 * `totalItems`, and whatever is in there is what every reader on this
+	 * instance is shown — there is no way to verify it and no attempt to. That
+	 * is fine for a number that is roughly right and useless for one that is
+	 * not: a server that states four billion favourites is not describing a
+	 * post, it is writing in somebody else's timeline, and the figure sits in
+	 * the database until the post is deleted.
+	 *
+	 * So a count has to be a number, it has to be positive, and it has to be
+	 * small enough to be a count of something. The ceiling is far above
+	 * anything the fediverse has produced — the most-boosted post in its
+	 * history is five orders of magnitude below it — and deliberately not a
+	 * judgement about what is plausible for *this* post. What is over it is
+	 * refused rather than clamped: a number nobody can believe is worse than
+	 * no number, because clamping would state a figure this instance made up.
+	 *
+	 * @param array<string, mixed> $data the wire object
+	 *
+	 * @return int|null null where the sender said nothing believable
+	 */
+	public static function statedCount(array $data, string $key): ?int {
+		$stated = $data[$key]['totalItems'] ?? null;
+		if (!is_int($stated) && !(is_string($stated) && ctype_digit($stated))) {
+			return null;
+		}
+
+		$count = (int)$stated;
+
+		return ($count >= 0 && $count <= self::REMOTE_COUNT_CEILING) ? $count : null;
 	}
 
 	/**
@@ -1467,8 +1566,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 						$this->setDetailInt(Details::BOOSTS, $remoteBoosts);
 					}
 				}
-				if (isset($sourceData['replies']['totalItems'])) {
-					$this->setDetailInt(Details::REPLIES, (int)$sourceData['replies']['totalItems']);
+				$remoteReplies = self::statedCount($sourceData, 'replies');
+				if ($remoteReplies !== null) {
+					$this->setDetailInt(Details::REPLIES, $remoteReplies);
 				}
 			}
 		}
@@ -1658,6 +1758,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$favorited = false;
 		$reblogged = false;
 		$bookmarked = false;
+		$disliked = false;
 		foreach ($actions as $action => $value) {
 			if ($value) {
 				switch ($action) {
@@ -1666,6 +1767,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 						break;
 					case StreamAction::LIKED:
 						$favorited = true;
+						break;
+					case StreamAction::DISLIKED:
+						$disliked = true;
 						break;
 					case StreamAction::BOOKMARKED:
 						$bookmarked = true;
@@ -1708,6 +1812,19 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// test for a key it will almost never see is a client that will
 			// get it wrong.
 			'reply_approval' => $this->exportReplyApproval(),
+			// what the author's own server says may be done with this post, so
+			// a client can leave out a button rather than offer an action that
+			// will be refused. Absent on a local post, where the policy is
+			// this instance's to apply when the interaction arrives
+			'interaction_policy' => $this->exportAllowedInteractions(),
+			// PeerTube's other counter. Null for everything that is not a
+			// video, which is almost every post: Mastodon has never had a
+			// dislike, and a key full of zeroes would invite a client to draw
+			// a button for one
+			'dislikes_count' => $this->isVideo() ? $this->getDetailInt(Details::DISLIKES) : null,
+			// and whether this reader is one of them; null on anything that is
+			// not a video, for the same reason
+			'disliked' => $this->isVideo() ? $disliked : null,
 			// what a video is, beyond being a post with a file on it: null for
 			// every post that is not one, which is almost all of them
 			'video' => ($video = $this->getVideoMeta()) === [] ? null : $video,
@@ -1960,6 +2077,31 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * What may be done with somebody else's post, in the shape a client reads.
+	 *
+	 * Null where there is nothing to say — a local post, or a remote one whose
+	 * server publishes no policies, which is most of them. A client that has
+	 * to test for a key it will almost never see is a client that gets it
+	 * wrong, so it is absent rather than full of `true`.
+	 *
+	 * @return array<string, bool>|null
+	 */
+	private function exportAllowedInteractions(): ?array {
+		if ($this->isLocal()) {
+			return null;
+		}
+
+		$policy = [];
+		foreach (array_keys(self::INTERACTION_CLAUSES) as $interaction) {
+			if ($this->getInteractionPolicy($interaction) !== '') {
+				$policy[$interaction] = $this->allowsInteraction($interaction);
+			}
+		}
+
+		return ($policy === []) ? null : $policy;
+	}
+
+	/**
 	 * Who is reading, as the stream reads were scoped for — or '' where there
 	 * is nobody, which is also what a context with no container is (a model
 	 * exported in a unit test, or by a command that never opened one).
@@ -2076,12 +2218,36 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * before showing a reader the quote they just wrote.
 	 */
 	private static function quotePolicyOf(array $data): string {
-		$canQuote = $data['interactionPolicy']['canQuote'] ?? null;
-		if (!is_array($canQuote)) {
+		return self::policyOf($data, 'canQuote');
+	}
+
+	/**
+	 * One clause of an `interactionPolicy`, as this app understands it.
+	 *
+	 * The same shape answers all four questions — may this be replied to,
+	 * boosted, liked, quoted — and only `canQuote` was ever read. The other
+	 * three were offered in the interface of every reader here and refused by
+	 * the author's server afterwards, which is the worst of both: the reader
+	 * is told their reply went out, and it did, and nothing ever shows it.
+	 *
+	 * `automaticApproval` naming the public collection is the only "yes" this
+	 * app acts on, for the reason set out above `quotePolicyOf()`:
+	 * `manualApproval` means the author's server decides case by case, and
+	 * nothing here can wait for that answer.
+	 *
+	 * @param array<string, mixed> $data the wire object
+	 * @param string $clause `canReply`, `canAnnounce`, `canLike` or `canQuote`
+	 *
+	 * @return string one of the policy constants, or '' where the author said
+	 *                nothing at all — which is not the same as "nobody"
+	 */
+	private static function policyOf(array $data, string $clause): string {
+		$stated = $data['interactionPolicy'][$clause] ?? null;
+		if (!is_array($stated)) {
 			return '';
 		}
 
-		$automatic = $canQuote['automaticApproval'] ?? [];
+		$automatic = $stated['automaticApproval'] ?? [];
 		$automatic = is_array($automatic) ? $automatic : [$automatic];
 		foreach ($automatic as $allowed) {
 			if (is_string($allowed) && $allowed === self::CONTEXT_PUBLIC) {
@@ -2090,6 +2256,38 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return self::QUOTE_POLICY_NOBODY;
+	}
+
+	/**
+	 * What the author allows, for an interaction other than quoting.
+	 *
+	 * Kept in `details` rather than in columns of their own: three more
+	 * columns on the largest table in the app, for three fields almost no post
+	 * carries and nothing queries by.
+	 *
+	 * @return string '' where the author said nothing, which is every post
+	 *                from a server that does not publish policies
+	 */
+	public function getInteractionPolicy(string $interaction): string {
+		$stored = $this->getDetailsAll()[Details::POLICIES][$interaction] ?? '';
+
+		return is_string($stored) ? $stored : '';
+	}
+
+	/**
+	 * Whether this instance should offer an interaction at all.
+	 *
+	 * True where the author said nothing — which is every post from every
+	 * server that does not publish policies, and has to stay the default — and
+	 * true for anything local, where the policy is this instance's to apply
+	 * when the interaction arrives rather than something to refuse in advance.
+	 */
+	public function allowsInteraction(string $interaction): bool {
+		if ($this->isLocal()) {
+			return true;
+		}
+
+		return $this->getInteractionPolicy($interaction) !== self::QUOTE_POLICY_NOBODY;
 	}
 
 	/**

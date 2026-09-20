@@ -684,6 +684,7 @@ class CoreRequestBuilder {
 			'boosted',
 			'replied',
 			'bookmarked',
+			'disliked',
 			'values'
 		],
 		self::TABLE_STREAM_DEST => [

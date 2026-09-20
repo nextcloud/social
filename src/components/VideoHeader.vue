@@ -23,8 +23,8 @@
 			<span v-if="video.likes !== undefined">
 				{{ n('social', '%n like', '%n likes', video.likes) }}
 			</span>
-			<span v-if="video.dislikes">
-				{{ n('social', '%n dislike', '%n dislikes', video.dislikes) }}
+			<span v-if="dislikes">
+				{{ n('social', '%n dislike', '%n dislikes', dislikes) }}
 			</span>
 			<span v-if="video.category">{{ video.category }}</span>
 			<span v-if="video.language">{{ video.language }}</span>
@@ -44,6 +44,21 @@
 				<span class="watch__channel-acct">{{ status.account.acct }}</span>
 			</router-link>
 			<FollowButton :uid="status.account.acct" />
+			<!-- PeerTube's other counter, and only here: a dislike button
+			     under a written post is a product this app is not, and a
+			     `Dislike` sent to a server with no model for it is dropped -->
+			<NcButton
+				class="watch__dislike"
+				:title="disliked ? t('social', 'Undo dislike') : t('social', 'Dislike')"
+				:aria-label="disliked ? t('social', 'Undo dislike') : t('social', 'Dislike')"
+				:aria-pressed="disliked ? 'true' : 'false'"
+				:disabled="sending"
+				variant="tertiary"
+				@click="toggleDislike">
+				<template #icon>
+					<ThumbDown :size="20" :fillColor="disliked ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+				</template>
+			</NcButton>
 		</div>
 
 		<div v-if="chapters.length" class="watch__chapters">
@@ -72,9 +87,12 @@
 
 <script>
 import { n, t } from '@nextcloud/l10n'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import ThumbDown from 'vue-material-design-icons/ThumbDown.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import FollowButton from './FollowButton.vue'
 import PostAttachment from './PostAttachment.vue'
+import { useTimelineStore } from '../store/timeline.js'
 
 /**
  * A video's own page, rather than a post with a rectangle in it.
@@ -96,7 +114,9 @@ export default {
 	components: {
 		ActorAvatar,
 		FollowButton,
+		NcButton,
 		PostAttachment,
+		ThumbDown,
 	},
 
 	props: {
@@ -107,10 +127,39 @@ export default {
 		},
 	},
 
+	setup() {
+		return { timelineStore: useTimelineStore() }
+	},
+
+	data() {
+		return {
+			/** whether a dislike of ours is in flight */
+			sending: false,
+		}
+	},
+
 	computed: {
 		/** @return {object} what the post said about the video */
 		video() {
 			return this.status.video ?? {}
+		},
+
+		/**
+		 * How many people disliked it.
+		 *
+		 * The post's own count where this server has one — it counts the
+		 * `Dislike` activities it received — and the number PeerTube stated
+		 * otherwise, which covers everybody who watched it there.
+		 *
+		 * @return {number}
+		 */
+		dislikes() {
+			return this.status.dislikes_count || this.video.dislikes || 0
+		},
+
+		/** @return {boolean} whether this reader has disliked it */
+		disliked() {
+			return this.status.disliked === true
 		},
 
 		/**
@@ -142,6 +191,26 @@ export default {
 	methods: {
 		t,
 		n,
+
+		/**
+		 * Sends the dislike, or takes it back.
+		 *
+		 * @return {Promise<void>} when the server has answered
+		 */
+		async toggleDislike() {
+			if (this.sending) {
+				return
+			}
+
+			this.sending = true
+			try {
+				await (this.disliked
+					? this.timelineStore.postUndislike({ status: this.status })
+					: this.timelineStore.postDislike({ status: this.status }))
+			} finally {
+				this.sending = false
+			}
+		},
 
 		/**
 		 * @param {number} seconds a moment in the video

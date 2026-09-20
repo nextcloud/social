@@ -43,6 +43,8 @@ class ActionServiceTest extends TestCase {
 	private Person $actor;
 	private Note $post;
 
+	private \OCA\Social\Service\DislikeService|\PHPUnit\Framework\MockObject\MockObject $dislikeService;
+
 	protected function setUp(): void {
 		$this->streamService = $this->createMock(StreamService::class);
 		$this->boostService = $this->createMock(BoostService::class);
@@ -60,6 +62,8 @@ class ActionServiceTest extends TestCase {
 			}
 		);
 
+		$this->dislikeService = $this->createMock(\OCA\Social\Service\DislikeService::class);
+
 		$this->service = new ActionService(
 			$this->streamService,
 			$this->boostService,
@@ -68,6 +72,7 @@ class ActionServiceTest extends TestCase {
 			$this->pinService,
 			$this->actionsRequest,
 			$this->conversationsRequest,
+			$this->dislikeService,
 		);
 
 		$this->actor = new Person();
@@ -211,5 +216,22 @@ class ActionServiceTest extends TestCase {
 			->with($this->actor, 42)->willReturn($this->post->setPinned(false));
 
 		$this->assertFalse($this->service->action($this->actor, 42, 'unpin')->isPinned());
+	}
+
+	/**
+	 * PeerTube publishes two counters and this app could only send one, so a
+	 * video watched here was liked by its viewers and disliked by nobody —
+	 * the count its author cares about was a count of everybody else.
+	 */
+	public function testDislikeAndUndislikeAreHandedToTheDislikeService(): void {
+		$this->streamService->method('getStreamByNid')->willReturn($this->post);
+
+		$this->dislikeService->expects($this->once())->method('create')
+			->with($this->actor, self::POST_ID);
+		$this->service->action($this->actor, 42, 'dislike');
+
+		$this->dislikeService->expects($this->once())->method('delete')
+			->with($this->actor, self::POST_ID);
+		$this->service->action($this->actor, 42, 'undislike');
 	}
 }

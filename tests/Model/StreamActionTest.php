@@ -60,7 +60,7 @@ class StreamActionTest extends TestCase {
 		$this->assertSame([StreamAction::LIKED], $action->getAffected(), 'defaults do not count as changes');
 	}
 
-	public function testImportFromDatabaseReadsTheFourFlags(): void {
+	public function testImportFromDatabaseReadsTheInteractionFlags(): void {
 		$action = new StreamAction();
 
 		$action->importFromDatabase([
@@ -77,7 +77,14 @@ class StreamActionTest extends TestCase {
 		$this->assertSame('https://a.example/users/alice', $action->getActorId());
 		$this->assertSame('https://a.example/n/1', $action->getStreamId());
 		$this->assertSame(
-			[StreamAction::LIKED => true, StreamAction::BOOSTED => false, StreamAction::REPLIED => true, StreamAction::BOOKMARKED => true],
+			[
+				StreamAction::LIKED => true,
+				StreamAction::BOOSTED => false,
+				StreamAction::REPLIED => true,
+				StreamAction::BOOKMARKED => true,
+				// PeerTube's other counter, absent from this row and so false
+				StreamAction::DISLIKED => false,
+			],
 			$action->getValues()
 		);
 	}

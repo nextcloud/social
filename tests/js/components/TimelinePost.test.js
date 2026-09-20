@@ -1803,4 +1803,59 @@ describe('TimelinePost', () => {
 			expect(wrapper.find('.post-tagged__leave').exists()).toBe(false)
 		})
 	})
+
+	/**
+	 * GoToSocial defined `interactionPolicy` and Mastodon 4.5 reads it: an
+	 * author can say their post may not be replied to, boosted or liked.
+	 * Offering the button anyway means the reader is told their reply went
+	 * out — and it did, and the author's server threw it away.
+	 */
+	describe('what the author allows', () => {
+		it('offers everything for a post whose server said nothing', () => {
+			const { wrapper } = mountPost({ item: makeItem({ visibility: 'public' }) })
+
+			expect(actionButton(wrapper, 'Reply').exists()).toBe(true)
+			expect(actionButton(wrapper, 'Boost').exists()).toBe(true)
+			expect(actionButton(wrapper, 'Like').exists()).toBe(true)
+		})
+
+		it('leaves out a button the author refused', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({
+					visibility: 'public',
+					interaction_policy: { reply: false, boost: false, like: false },
+				}),
+			})
+
+			expect(actionButton(wrapper, 'Reply').exists()).toBe(false)
+			expect(actionButton(wrapper, 'Boost').exists()).toBe(false)
+			expect(actionButton(wrapper, 'Like').exists()).toBe(false)
+		})
+
+		it('keeps the ones the author allowed', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({
+					visibility: 'public',
+					interaction_policy: { reply: true, boost: false },
+				}),
+			})
+
+			expect(actionButton(wrapper, 'Reply').exists()).toBe(true)
+			expect(actionButton(wrapper, 'Boost').exists()).toBe(false)
+			expect(actionButton(wrapper, 'Like').exists()).toBe(true)
+		})
+
+		/** Undoing is how this instance stops having sent one. */
+		it('still lets a like be taken back after the policy changed', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({
+					visibility: 'public',
+					favourited: true,
+					interaction_policy: { like: false },
+				}),
+			})
+
+			expect(actionButton(wrapper, 'Undo Like').exists()).toBe(true)
+		})
+	})
 })
