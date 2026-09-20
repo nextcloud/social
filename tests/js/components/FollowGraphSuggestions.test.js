@@ -91,8 +91,8 @@ describe('FollowGraphSuggestions', () => {
 		await flushPromises()
 
 		expect(axios.get).toHaveBeenCalledWith(WALK, { params: { limit: 20 } })
-		expect(wrapper.findAll('.graph__row')).toHaveLength(2)
-		expect(wrapper.find('.graph__why').text()).toContain('bea@example.org')
+		expect(wrapper.findAll('.person')).toHaveLength(2)
+		expect(wrapper.find('.person__reason').text()).toContain('bea@example.org')
 	})
 
 	/** Nobody new is a description of the graph, not a failure. */
@@ -131,10 +131,10 @@ describe('FollowGraphSuggestions', () => {
 		await wrapper.findComponent({ name: 'NcButton' }).trigger('click')
 		await flushPromises()
 
-		await wrapper.find('.graph__follow').trigger('click')
+		await wrapper.find('.person__follow').trigger('click')
 		await flushPromises()
 
 		expect(follow).toHaveBeenCalledWith({ accountToFollow: 'jens@chaos.social' })
-		expect(wrapper.find('.graph__follow').text()).toContain('Following')
+		expect(wrapper.find('.person__follow').text()).toContain('Following')
 	})
 })

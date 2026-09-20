@@ -21,6 +21,15 @@ vi.mock('../../../src/services/logger.js', () => ({
 
 const API = '/index.php/apps/social/api/v1'
 
+// NcActions only renders its entries inside a popover once opened; these
+// stand-ins render them inline so the menu content can be asserted
+const NcActionsStub = { name: 'NcActions', props: ['menuName'], template: '<div class="finder__menu">{{ menuName }}<slot /></div>' }
+const NcActionButtonStub = {
+	name: 'NcActionButton',
+	emits: ['click'],
+	template: '<button class="finder__menu-item" @click="$emit(\'click\')"><slot /></button>',
+}
+
 const SOURCES = [
 	{ host: 'cloud.example', kind: 'local', label: 'cloud.example' },
 	{ host: 'mastodon.social', kind: 'mastodon', label: 'mastodon.social' },
@@ -68,7 +77,14 @@ function mountSearch() {
 	setActivePinia(pinia)
 
 	return mount(FediverseSearch, {
-		global: { plugins: [pinia], stubs: { RouterLink: RouterLinkStub } },
+		global: {
+			plugins: [pinia],
+			stubs: {
+				RouterLink: RouterLinkStub,
+				NcActions: NcActionsStub,
+				NcActionButton: NcActionButtonStub,
+			},
+		},
 	})
 }
 
@@ -84,7 +100,7 @@ async function type(wrapper, text) {
 	await flushPromises()
 }
 
-const handles = (wrapper) => wrapper.findAll('.finder__handle').map((el) => el.text())
+const handles = (wrapper) => wrapper.findAll('.person__handle').map((el) => el.text())
 
 describe('FediverseSearch', () => {
 	beforeEach(() => {
@@ -99,13 +115,28 @@ describe('FediverseSearch', () => {
 		vi.clearAllMocks()
 	})
 
-	it('names the directories it will ask, because an administrator chose them', async () => {
+	/**
+	 * One control rather than a button per directory: eight of them wrap onto
+	 * two lines above an empty result list, and the question they answer has
+	 * one answer at a time.
+	 */
+	it('says where it is looking, and how many places that is', async () => {
 		const wrapper = mountSearch()
 		await flushPromises()
 
 		expect(axios.get).toHaveBeenCalledWith(`${API}/directories`)
-		expect(wrapper.find('.finder__sources').text()).toContain('mastodon.social')
-		expect(wrapper.find('.finder__sources').text()).toContain('Everywhere')
+		expect(wrapper.find('.finder__where').text()).toContain('Everywhere')
+		expect(wrapper.find('.finder__where').text()).toContain('2 directories')
+	})
+
+	it('offers each directory on its own in the menu', async () => {
+		const wrapper = mountSearch()
+		await flushPromises()
+
+		const options = wrapper.findAllComponents({ name: 'NcActionButton' })
+			.map((button) => button.text())
+		expect(options).toContain('mastodon.social')
+		expect(options).toContain('Everywhere')
 	})
 
 	it('asks the directories for what was typed', async () => {
@@ -153,9 +184,9 @@ describe('FediverseSearch', () => {
 		await flushPromises()
 		await type(wrapper, 'jens')
 
-		await wrapper.findAll('.finder__sources button')
+		await wrapper.findAllComponents({ name: 'NcActionButton' })
 			.find((button) => button.text() === 'mastodon.social')
-			.trigger('click')
+			.vm.$emit('click')
 		await flushPromises()
 
 		expect(axios.get).toHaveBeenLastCalledWith(`${API}/directories/search`, {
@@ -202,7 +233,7 @@ describe('FediverseSearch', () => {
 
 		await type(wrapper, 'jens')
 
-		const rows = wrapper.findAll('.finder__person')
+		const rows = wrapper.findAll('.person__link')
 		expect(wrapper.findComponent(RouterLinkStub).props('to'))
 			.toEqual({ name: 'profile', params: { account: 'jens@chaos.social' } })
 		expect(rows[1].attributes('href')).toBe('https://other.example/@far')
@@ -219,11 +250,11 @@ describe('FediverseSearch', () => {
 		const store = useAccountStore()
 		const followed = vi.spyOn(store, 'followAccount').mockResolvedValue({ data: {} })
 
-		await wrapper.find('.finder__follow').trigger('click')
+		await wrapper.find('.person__follow').trigger('click')
 		await flushPromises()
 
 		expect(followed).toHaveBeenCalledWith({ accountToFollow: 'jens@chaos.social' })
-		expect(wrapper.find('.finder__follow').text()).toBe('Following')
+		expect(wrapper.find('.person__follow').text()).toBe('Following')
 	})
 
 	/** A refused follow must not leave the row claiming it worked. */
@@ -236,10 +267,10 @@ describe('FediverseSearch', () => {
 		const store = useAccountStore()
 		vi.spyOn(store, 'followAccount').mockResolvedValue(undefined)
 
-		await wrapper.find('.finder__follow').trigger('click')
+		await wrapper.find('.person__follow').trigger('click')
 		await flushPromises()
 
-		expect(wrapper.find('.finder__follow').text()).toBe('Follow')
+		expect(wrapper.find('.person__follow').text()).toBe('Follow')
 	})
 
 	it('tells an empty answer apart from a question nobody has asked yet', async () => {
@@ -253,16 +284,32 @@ describe('FediverseSearch', () => {
 		expect(wrapper.text()).toContain('Nobody by that name')
 	})
 
-	/** A picture that will not load leaves a broken frame in every row. */
-	it('falls back to an initial when an avatar will not load', async () => {
+	/**
+	 * A directory result is somebody this server has never met: the picture it
+	 * carries is on that account's own server, and the component that resolves
+	 * a cached avatar has nothing to resolve. Asking it anyway drew a question
+	 * mark for every stranger.
+	 */
+	it('shows the picture the directory gave for a stranger', async () => {
 		serve([person()])
 		const wrapper = mountSearch()
 		await flushPromises()
 		await type(wrapper, 'jens')
 
-		await wrapper.find('img.finder__avatar').trigger('error')
+		expect(wrapper.find('img.person__avatar').attributes('src'))
+			.toBe('https://chaos.social/jens.png')
+	})
 
-		expect(wrapper.find('img.finder__avatar').exists()).toBe(false)
-		expect(wrapper.find('.finder__avatar--blank').text()).toBe('J')
+	/** And a picture that will not load leaves a letter, not a broken frame. */
+	it('falls back to an initial when that picture will not load', async () => {
+		serve([person()])
+		const wrapper = mountSearch()
+		await flushPromises()
+		await type(wrapper, 'jens')
+
+		await wrapper.find('img.person__avatar').trigger('error')
+
+		expect(wrapper.find('img.person__avatar').exists()).toBe(false)
+		expect(wrapper.find('.person__avatar--blank').text()).toBe('J')
 	})
 })
