@@ -30,6 +30,7 @@ use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\FollowGraphService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\PeerTrendService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\ProfileHighlightsService;
 use OCA\Social\Service\StarterPackService;
@@ -79,6 +80,7 @@ class DiscoveryControllerTest extends TestCase {
 	private ProfileHighlightsService|MockObject $profileHighlightsService;
 	private AccountRelationService|MockObject $accountRelationService;
 	private FediverseDirectoryService|MockObject $fediverseDirectoryService;
+	private PeerTrendService|MockObject $peerTrendService;
 	private IUserSession|MockObject $userSession;
 
 	/** @var array<string, string> the request headers the controller will see */
@@ -218,6 +220,7 @@ class DiscoveryControllerTest extends TestCase {
 		$this->accountRelationService = $this->createMock(AccountRelationService::class);
 
 		$this->fediverseDirectoryService = $this->createMock(FediverseDirectoryService::class);
+		$this->peerTrendService = $this->createMock(PeerTrendService::class);
 
 		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 		$this->linkPreviewService->method('attachCards')
@@ -251,7 +254,8 @@ class DiscoveryControllerTest extends TestCase {
 			$this->starterPackService,
 			$this->profileHighlightsService,
 			$this->accountRelationService,
-			$this->fediverseDirectoryService
+			$this->fediverseDirectoryService,
+			$this->peerTrendService
 		);
 	}
 
@@ -353,6 +357,38 @@ class DiscoveryControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertArrayHasKey('accounts', $response->getData());
+		$this->assertSame('failed', $response->getData()['sources'][0]['status']);
+	}
+
+	public function testAskingOtherServersAboutHashtagsPassesItsParametersThrough(): void {
+		$asked = [];
+		$this->peerTrendService->method('tags')
+			->willReturnCallback(function (string $q, string $host, int $limit) use (&$asked): array {
+				$asked = ['q' => $q, 'source' => $host, 'limit' => $limit];
+
+				return ['tags' => [], 'sources' => []];
+			});
+
+		$this->controller()->searchHashtagDirectories('berlin', 'chaos.social', 5);
+
+		$this->assertSame(['q' => 'berlin', 'source' => 'chaos.social', 'limit' => 5], $asked);
+	}
+
+	/**
+	 * Unlike the people search beside it, this one answers anybody: a tag is a
+	 * string, so nothing is fetched on the caller's say-so and there is no
+	 * outbound-fetch amplifier to guard against.
+	 */
+	public function testAskingOtherServersAboutHashtagsAnswersAnAnonymousCaller(): void {
+		$this->anonymous();
+		$this->peerTrendService->method('tags')->willReturn([
+			'tags' => [],
+			'sources' => [['host' => 'misskey.io', 'status' => 'failed', 'count' => 0]],
+		]);
+
+		$response = $this->controller()->searchHashtagDirectories();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame('failed', $response->getData()['sources'][0]['status']);
 	}
 
