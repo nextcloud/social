@@ -76,13 +76,13 @@
 
 					<NcButton
 						class="finder__follow"
-						:variant="followed.includes(account.acct) ? 'success' : 'primary'"
-						:disabled="following === account.acct || followed.includes(account.acct)"
+						:variant="isFollowed(account) ? 'success' : 'primary'"
+						:disabled="isPending(account) || isFollowed(account)"
 						@click="follow(account)">
-						<template v-if="following === account.acct" #icon>
+						<template v-if="isPending(account)" #icon>
 							<NcLoadingIcon :size="20" />
 						</template>
-						{{ followed.includes(account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
+						{{ isFollowed(account) ? t('social', 'Following') : t('social', 'Follow') }}
 					</NcButton>
 				</li>
 			</ul>
@@ -120,7 +120,7 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import AccountSearch from 'vue-material-design-icons/AccountSearch.vue'
-import { useAccountStore } from '../store/account.js'
+import { useFollowByHandle } from '../composables/useFollowByHandle.js'
 import logger from '../services/logger.js'
 
 /** How long the box waits after the last keystroke before it asks anybody. */
@@ -156,7 +156,7 @@ export default {
 	},
 
 	setup() {
-		return { accountStore: useAccountStore() }
+		return useFollowByHandle()
 	},
 
 	data() {
@@ -171,10 +171,6 @@ export default {
 			loading: false,
 			/** whether anything has been asked yet, so the empty state waits its turn */
 			asked: false,
-			/** the handle whose follow is in flight */
-			following: '',
-			/** the handles followed from this list, so the rows can say so */
-			followed: [],
 			timer: null,
 		}
 	},
@@ -338,25 +334,6 @@ export default {
 		/** @param {object} account one result @return {string} the letter its avatar falls back to */
 		initial(account) {
 			return (account.display_name || account.username || '?').trim().charAt(0).toUpperCase()
-		},
-
-		/**
-		 * Follows by handle, which is the only durable reference to somebody on
-		 * another server — and the one thing every result here is guaranteed to
-		 * carry.
-		 *
-		 * @param {object} account the row's account
-		 */
-		async follow(account) {
-			this.following = account.acct
-			try {
-				const response = await this.accountStore.followAccount({ accountToFollow: account.acct })
-				if (response) {
-					this.followed = [...this.followed, account.acct]
-				}
-			} finally {
-				this.following = ''
-			}
 		},
 
 		/**
