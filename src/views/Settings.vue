@@ -183,7 +183,7 @@ export default {
 					icon: 'IconAccount',
 					component: 'AccountSettings',
 					title: t('social', 'Your account'),
-					lede: t('social', 'How you are named, how others find you, and who sees what you post.'),
+					lede: t('social', 'How others find you, and who sees what you post.'),
 				},
 				{
 					id: 'featured-tags',

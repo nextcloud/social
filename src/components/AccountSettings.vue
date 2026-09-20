@@ -8,12 +8,19 @@
 			{{ t('social', 'Loading your account …') }}
 		</p>
 		<template v-else>
-			<NcTextField
-				v-model="draft.display_name"
-				class="account-settings__name"
-				:label="t('social', 'Display name')"
-				:placeholder="credentials.username"
-				maxlength="255" />
+			<!--
+				Not a field. The display name belongs to the Nextcloud account
+				and the actor copies it, so editing it here was a remote
+				control for a setting that lives somewhere else -- one that
+				silently did nothing on the accounts whose backend owns the
+				name, which is every LDAP or SAML instance.
+			-->
+			<p class="account-settings__name">
+				{{ t('social', 'You post as {name}.', { name: displayName }) }}
+				<a class="account-settings__link" :href="personalSettings">
+					{{ t('social', 'Change your name in your Nextcloud settings') }} ↗
+				</a>
+			</p>
 
 			<!-- the settings that shape how others reach the account; each is
 			     one sentence about what it does, since the Mastodon names
@@ -112,7 +119,6 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
-import NcTextField from '@nextcloud/vue/components/NcTextField'
 import ContentSave from 'vue-material-design-icons/ContentSave.vue'
 import { translate as t } from '@nextcloud/l10n'
 import { mapStores } from 'pinia'
@@ -143,7 +149,6 @@ export default {
 		NcCheckboxRadioSwitch,
 		NcLoadingIcon,
 		NcSelect,
-		NcTextField,
 		VisibilityIcon,
 	},
 
@@ -157,7 +162,6 @@ export default {
 		return {
 			visibilities: visibilitiesInfo,
 			draft: {
-				display_name: '',
 				locked: false,
 				discoverable: false,
 				indexable: false,
@@ -194,6 +198,19 @@ export default {
 		},
 
 		/**
+		 * @return {string} the name this account posts under, falling back to
+		 *                  the handle where Nextcloud holds no display name
+		 */
+		displayName() {
+			return this.credentials?.display_name || this.credentials?.username || ''
+		},
+
+		/** @return {string} where the name actually lives */
+		personalSettings() {
+			return generateUrl('/settings/user')
+		},
+
+		/**
 		 * The request as it would be sent now: the fields whose draft differs
 		 * from what the server holds, in the route's own names.
 		 *
@@ -205,9 +222,6 @@ export default {
 			}
 			const changes = {}
 			const stored = this.credentials
-			if (this.draft.display_name !== (stored.display_name ?? '')) {
-				changes.display_name = this.draft.display_name
-			}
 			for (const flag of ['locked', 'discoverable', 'indexable', 'bot']) {
 				if (this.draft[flag] !== Boolean(stored[flag])) {
 					changes[flag] = this.draft[flag]
@@ -283,7 +297,6 @@ export default {
 		reset(credentials) {
 			const privacy = this.accountStore.defaultPostVisibility || 'public'
 			this.draft = {
-				display_name: credentials.display_name ?? '',
 				locked: Boolean(credentials.locked),
 				discoverable: Boolean(credentials.discoverable),
 				indexable: Boolean(credentials.indexable),
@@ -348,6 +361,12 @@ export default {
 	&__name {
 		max-width: 420px;
 		margin-bottom: 8px;
+		color: var(--color-text-maxcontrast);
+	}
+
+	&__link {
+		display: block;
+		text-decoration: underline;
 	}
 
 	&__switch {
