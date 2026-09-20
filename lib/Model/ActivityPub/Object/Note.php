@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Model\Details;
 use OCA\Social\Service\ChannelService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\PeerTubeService;
@@ -73,7 +74,7 @@ class Note extends Stream implements JsonSerializable {
 			$mentions[] = $mention;
 		}
 
-		$this->setDetailArray('mentions', $mentions);
+		$this->setDetailArray(Details::MENTIONS, $mentions);
 	}
 
 	public function fillHashtags(): void {

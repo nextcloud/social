@@ -594,10 +594,30 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @return string
 	 * @throws InvalidResourceEntryException
 	 */
+	/**
+	 * Whether handing this to a browser would run something.
+	 *
+	 * The list is short on purpose: everything else is an identifier this app
+	 * either fetches — where `CurlService` enforces http(s) of its own accord —
+	 * or shows as text.
+	 */
+	private static function isExecutableScheme(string $value): bool {
+		$scheme = strtolower((string)parse_url($value, PHP_URL_SCHEME));
+
+		return in_array($scheme, ['javascript', 'data', 'vbscript'], true);
+	}
+
 	public function validateEntryString(int $as, string $value, bool $exception = true): string {
 		switch ($as) {
 			case self::AS_ID:
-				if (parse_url($value) !== false) {
+				// An id is an identifier rather than an address, so this is
+				// not the http(s) check `AS_URL` makes: Mastodon names a
+				// conversation with a `tag:` URI and that is a perfectly good
+				// id. What it must not be is a scheme that *does* something
+				// when a browser is handed it — an id reaches an `href` in at
+				// least one place (a portfolio frame falls back to it), and a
+				// remote server chooses this value.
+				if (parse_url($value) !== false && !self::isExecutableScheme($value)) {
 					return $value;
 				}
 				break;

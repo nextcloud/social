@@ -25,6 +25,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
@@ -344,7 +345,7 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		$parent->setDetailInt(
-			'replies', $parent->getDetailInt('remote_replies') + $this->countRepliesTo($inReplyTo)
+			Details::REPLIES, $parent->getDetailInt(Details::REMOTE_REPLIES) + $this->countRepliesTo($inReplyTo)
 		);
 		$this->updateDetails($parent);
 	}

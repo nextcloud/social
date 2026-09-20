@@ -36,6 +36,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Moderation;
 use OCP\Accounts\IAccountManager;
@@ -814,7 +815,7 @@ class AccountService {
 			$this->cacheActorsRequest->setCounts($actor->getId(), $count);
 		}
 
-		$actor->setDetailArray('count', [
+		$actor->setDetailArray(Details::COUNT, [
 			'followers' => $count['followers'],
 			'following' => $count['following'],
 			// never incremental: it is bounded by how many people are waiting
@@ -823,7 +824,7 @@ class AccountService {
 			'follow_requests' => $this->followsRequest->countPendingRequests($actor->getId()),
 			'post' => $count['post'],
 		]);
-		$actor->setDetail('last_post_creation', $lastPostCreation);
+		$actor->setDetail(Details::LAST_POST, $lastPostCreation);
 	}
 
 	/**

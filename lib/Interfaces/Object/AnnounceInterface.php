@@ -31,6 +31,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
@@ -256,9 +257,9 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	}
 
 	private function updateDetails(Stream $post): void {
-		$remoteBoosts = $post->getDetailInt('remote_boosts');
+		$remoteBoosts = $post->getDetailInt(Details::REMOTE_BOOSTS);
 		$localBoosts = $this->actionsRequest->countActions($post->getId(), Announce::TYPE);
-		$post->setDetailInt('boosts', $remoteBoosts + $localBoosts);
+		$post->setDetailInt(Details::BOOSTS, $remoteBoosts + $localBoosts);
 
 		$this->streamRequest->updateDetails($post);
 	}
@@ -281,16 +282,16 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 				$post->getId(), SocialAppNotification::TYPE, Announce::TYPE
 			);
 
-			$notification->addDetail('accounts', $author->getAccount());
+			$notification->addDetail(Details::ACCOUNTS, $author->getAccount());
 			$notificationInterface->update($notification);
 			$this->notificationService->onNotification($notification, $author->getId());
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
 			$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-			//			$notification->setDetail('url', '');
+			//			$notification->setDetail(Details::URL, '');
 
-			$notification->setDetailItem('post', $post);
-			$notification->addDetail('accounts', $author->getAccount());
+			$notification->setDetailItem(Details::POST, $post);
+			$notification->addDetail(Details::ACCOUNTS, $author->getAccount());
 			$notification->setAttributedTo($author->getId())
 				->setSubType(Announce::TYPE)
 				->setId($post->getId() . '/notification+boost')
@@ -321,8 +322,8 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 				$post->getId(), SocialAppNotification::TYPE, Announce::TYPE
 			);
 
-			$notification->removeDetail('accounts', $author->getAccount());
-			if (empty($notification->getDetails('accounts'))) {
+			$notification->removeDetail(Details::ACCOUNTS, $author->getAccount());
+			if (empty($notification->getDetails(Details::ACCOUNTS))) {
 				$notificationInterface->delete($notification);
 			} else {
 				$notificationInterface->update($notification);

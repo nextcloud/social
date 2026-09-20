@@ -26,6 +26,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\ForwardService;
 use OCA\Social\Service\LinkPreviewService;
@@ -394,7 +395,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->nothingStored();
 		$note = $this->incomingNote();
 		$note->setInReplyTo(self::PARENT);
-		$note->setDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH, StreamQueueService::MAX_ANCESTOR_DEPTH);
+		$note->setDetailInt(Details::ANCESTOR_DEPTH, StreamQueueService::MAX_ANCESTOR_DEPTH);
 
 		$this->streamRequest->expects($this->once())->method('save');
 		$this->streamQueueService->expects($this->never())->method('generateStreamQueue');

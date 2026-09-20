@@ -127,6 +127,44 @@ describe('Portfolio', () => {
 		expect(wrapper.find('.portfolio__meta').text()).toContain('2024')
 	})
 
+	it('links a picture to the page its own server names', async () => {
+		get.mockResolvedValue({ data: page({ posts: [work('1', {
+			url: 'https://remote.example/@bob/1',
+			uri: 'https://remote.example/users/bob/statuses/1',
+		})] }) })
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(wrapper.find('.portfolio__frame').attributes('href')).toBe('https://remote.example/@bob/1')
+	})
+
+	/**
+	 * Every address on this page was chosen by whichever server the post came
+	 * from, and the page is served to anonymous readers.
+	 */
+	it('refuses to link an address that would run something', async () => {
+		get.mockResolvedValue({ data: page({ posts: [work('1', {
+			url: 'javascript:alert(1)',
+			uri: 'javascript:alert(2)',
+		})] }) })
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(wrapper.find('.portfolio__frame').attributes('href')).toBeUndefined()
+	})
+
+	it('falls back to the id when that is the only address there is', async () => {
+		get.mockResolvedValue({ data: page({ posts: [work('1', {
+			url: '',
+			uri: 'https://remote.example/users/bob/statuses/1',
+		})] }) })
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(wrapper.find('.portfolio__frame').attributes('href'))
+			.toBe('https://remote.example/users/bob/statuses/1')
+	})
+
 	it('lays the page out the way its owner chose', async () => {
 		get.mockResolvedValue({ data: page({ layout: 'rows' }) })
 

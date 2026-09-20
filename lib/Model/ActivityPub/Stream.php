@@ -28,6 +28,7 @@ use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Place;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Model\StreamCard;
 use OCA\Social\Tools\IQueryRow;
@@ -138,47 +139,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		self::QUOTE_POLICY_FOLLOWERS,
 		self::QUOTE_POLICY_NOBODY,
 	];
-
-	/**
-	 * Where a quote state that cannot be read off the wire object is kept.
-	 *
-	 * `quote` and `quoteAuthorization` are properties of the stored wire object
-	 * and come back with it, but a refusal leaves no trace there: the quoting
-	 * post is somebody else's document and this instance may not rewrite it.
-	 * The details column is local, derived data — exactly what a refusal is.
-	 */
-	public const DETAIL_QUOTE_STATE = 'quote_state';
-
-	/**
-	 * Whether replies to this post have to be approved before anybody sees
-	 * them, and — on a reply of ours — whether this one has been.
-	 *
-	 * PeerTube ≥ 6.2 moderates comments (FEP-5624): a video whose
-	 * `commentsPolicy` is 3 takes a reply in and shows it to nobody until a
-	 * human approves it, and says so by sending an `ApproveReply` back to the
-	 * server the reply came from. Without reading any of that, a reply written
-	 * here looked posted, sat in a queue on the other side, and either appeared
-	 * a day later or never — with nothing anywhere to say which.
-	 *
-	 * Local, derived data, which is what the details column is for: neither
-	 * fact is a property of the wire object this instance holds, and the second
-	 * one is about somebody else's document entirely.
-	 */
-	/**
-	 * Everything a `Video` says that a `Note` has nowhere to put: the category,
-	 * the licence, the language, the chapters, the captions, the counters and
-	 * the author's support line.
-	 *
-	 * One block rather than a dozen columns, because it is local derived data
-	 * about somebody else's document — which is what this column is for — and
-	 * because a watch page wants all of it or none of it.
-	 */
-	public const DETAIL_VIDEO = 'video';
-	/** The page a person can open, where the author named one that is not the id. */
-	public const DETAIL_PAGE = 'page_url';
-
-	public const DETAIL_REPLY_POLICY = 'reply_policy';
-	public const DETAIL_REPLY_STATE = 'reply_state';
 
 	/** Replies to this post are held until somebody approves them. */
 	public const REPLY_POLICY_APPROVAL = 'approval';
@@ -724,13 +684,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * time from what this instance actually holds; see exportQuoteAsLocal().
 	 */
 	public function getQuoteState(): string {
-		$state = $this->getDetailsAll()[self::DETAIL_QUOTE_STATE] ?? '';
+		$state = $this->getDetailsAll()[Details::QUOTE_STATE] ?? '';
 
 		return is_string($state) ? $state : '';
 	}
 
 	public function setQuoteState(string $state): self {
-		$this->setDetail(self::DETAIL_QUOTE_STATE, $state);
+		$this->setDetail(Details::QUOTE_STATE, $state);
 
 		return $this;
 	}
@@ -902,7 +862,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	public function getVideoMeta(): array {
-		$meta = $this->getDetailsAll()[self::DETAIL_VIDEO] ?? [];
+		$meta = $this->getDetailsAll()[Details::VIDEO] ?? [];
 
 		return is_array($meta) ? $meta : [];
 	}
@@ -911,7 +871,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @param array<string, mixed> $meta
 	 */
 	public function setVideoMeta(array $meta): self {
-		$this->setDetailArray(self::DETAIL_VIDEO, $meta);
+		$this->setDetailArray(Details::VIDEO, $meta);
 
 		return $this;
 	}
@@ -921,13 +881,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * the ordinary case where they do not.
 	 */
 	public function getReplyPolicy(): string {
-		$policy = $this->getDetailsAll()[self::DETAIL_REPLY_POLICY] ?? '';
+		$policy = $this->getDetailsAll()[Details::REPLY_POLICY] ?? '';
 
 		return is_string($policy) ? $policy : '';
 	}
 
 	public function setReplyPolicy(string $policy): self {
-		$this->setDetail(self::DETAIL_REPLY_POLICY, $policy);
+		$this->setDetail(Details::REPLY_POLICY, $policy);
 
 		return $this;
 	}
@@ -942,13 +902,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * `approved`, `rejected`, or '' for a reply nobody had to approve.
 	 */
 	public function getReplyState(): string {
-		$state = $this->getDetailsAll()[self::DETAIL_REPLY_STATE] ?? '';
+		$state = $this->getDetailsAll()[Details::REPLY_STATE] ?? '';
 
 		return is_string($state) ? $state : '';
 	}
 
 	public function setReplyState(string $state): self {
-		$this->setDetail(self::DETAIL_REPLY_STATE, $state);
+		$this->setDetail(Details::REPLY_STATE, $state);
 
 		return $this;
 	}
@@ -1282,7 +1242,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		// on the row that survives the round trip and is already read back
 		// with it. Only stored when it says something the id does not.
 		if ($this->getUrl() !== '' && $this->getUrl() !== $this->getId()) {
-			$this->setDetail(self::DETAIL_PAGE, $this->getUrl());
+			$this->setDetail(Details::PAGE, $this->getUrl());
 		}
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
@@ -1296,16 +1256,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		if (isset($data['likes']['totalItems'])) {
 			$remoteLikes = (int)$data['likes']['totalItems'];
-			$this->setDetailInt('likes', $remoteLikes);
-			$this->setDetailInt('remote_likes', $remoteLikes);
+			$this->setDetailInt(Details::LIKES, $remoteLikes);
+			$this->setDetailInt(Details::REMOTE_LIKES, $remoteLikes);
 		}
 		if (isset($data['shares']['totalItems'])) {
 			$remoteShares = (int)$data['shares']['totalItems'];
-			$this->setDetailInt('boosts', $remoteShares);
-			$this->setDetailInt('remote_boosts', $remoteShares);
+			$this->setDetailInt(Details::BOOSTS, $remoteShares);
+			$this->setDetailInt(Details::REMOTE_BOOSTS, $remoteShares);
 		}
 		if (isset($data['replies']['totalItems'])) {
-			$this->setDetailInt('replies', (int)$data['replies']['totalItems']);
+			$this->setDetailInt(Details::REPLIES, (int)$data['replies']['totalItems']);
 		}
 	}
 
@@ -1495,20 +1455,20 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				$details = $this->getDetailsAll();
 				if (!array_key_exists('remote_likes', $details) && isset($sourceData['likes']['totalItems'])) {
 					$remoteLikes = (int)$sourceData['likes']['totalItems'];
-					$this->setDetailInt('remote_likes', $remoteLikes);
+					$this->setDetailInt(Details::REMOTE_LIKES, $remoteLikes);
 					if (!array_key_exists('likes', $details) || $details['likes'] === 0) {
-						$this->setDetailInt('likes', $remoteLikes);
+						$this->setDetailInt(Details::LIKES, $remoteLikes);
 					}
 				}
 				if (!array_key_exists('remote_boosts', $details) && isset($sourceData['shares']['totalItems'])) {
 					$remoteBoosts = (int)$sourceData['shares']['totalItems'];
-					$this->setDetailInt('remote_boosts', $remoteBoosts);
+					$this->setDetailInt(Details::REMOTE_BOOSTS, $remoteBoosts);
 					if (!array_key_exists('boosts', $details) || $details['boosts'] === 0) {
-						$this->setDetailInt('boosts', $remoteBoosts);
+						$this->setDetailInt(Details::BOOSTS, $remoteBoosts);
 					}
 				}
 				if (isset($sourceData['replies']['totalItems'])) {
-					$this->setDetailInt('replies', (int)$sourceData['replies']['totalItems']);
+					$this->setDetailInt(Details::REPLIES, (int)$sourceData['replies']['totalItems']);
 				}
 			}
 		}
@@ -1522,7 +1482,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$attachments[] = (new MediaAttachment())->import($attachment);
 		}
 		$this->setAttachments($attachments);
-		$this->setMentions($this->getDetails('mentions'));
+		$this->setMentions($this->getDetails(Details::MENTIONS));
 		$this->setVisibility($this->get('visibility', $data));
 
 		$cache = new Cache();
@@ -1754,9 +1714,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'mentions' => $this->exportMentionsAsLocal(),
 			'emojis' => $this->getEmojis(),
 			'tags' => $this->exportTagsAsLocal(),
-			'replies_count' => $this->getDetailInt('replies'),
-			'reblogs_count' => $this->getDetailInt('boosts'),
-			'favourites_count' => $this->getDetailInt('likes'),
+			'replies_count' => $this->getDetailInt(Details::REPLIES),
+			'reblogs_count' => $this->getDetailInt(Details::BOOSTS),
+			'favourites_count' => $this->getDetailInt(Details::LIKES),
 			'favourited' => $favorited,
 			'reblogged' => $reblogged,
 			'muted' => false,
@@ -2081,7 +2041,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			return $this->getUrl();
 		}
 
-		$stored = $this->getDetailsAll()[self::DETAIL_PAGE] ?? '';
+		$stored = $this->getDetailsAll()[Details::PAGE] ?? '';
 
 		return is_string($stored) && $stored !== '' ? $stored : $this->getId();
 	}

@@ -12,9 +12,11 @@ namespace OCA\Social\Traits;
 use OCA\Social\Model\ActivityPub\Item;
 
 /**
- * Trait TDetails
+ * The `details` JSON blob carried by streams, actors and notifications.
  *
- * @package OCA\Social\Traits
+ * Keys are not free-form: every one of them is named in
+ * {@see \OCA\Social\Model\Details}, because a misspelled key here is not an
+ * error but a new key, holding the value under a name nothing will read.
  */
 trait TDetails {
 	/** @var array */
@@ -87,8 +89,18 @@ trait TDetails {
 		return $this->details[$detail];
 	}
 
+	/**
+	 * A details blob is JSON somebody else may have written — an older version
+	 * of this app, or a row hand-edited during an upgrade — so a count that
+	 * comes back as a string is cast rather than allowed to fatal on the way
+	 * out of a declared `int` return.
+	 *
+	 * @param string $detail one of the keys in {@see \OCA\Social\Model\Details}
+	 */
 	public function getDetailInt(string $detail, int $default = 0): int {
-		return $this->details[$detail] ?? $default;
+		$value = $this->details[$detail] ?? null;
+
+		return is_numeric($value) ? (int)$value : $default;
 	}
 
 	/**

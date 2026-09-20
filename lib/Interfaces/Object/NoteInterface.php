@@ -28,6 +28,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\ForwardService;
 use OCA\Social\Service\LinkPreviewService;
@@ -214,7 +215,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			return false;
 		}
 
-		if ($note->getDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH)
+		if ($note->getDetailInt(Details::ANCESTOR_DEPTH)
 			>= StreamQueueService::MAX_ANCESTOR_DEPTH) {
 			return false;
 		}
@@ -244,7 +245,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			return false;
 		}
 
-		if ($note->getDetailInt(StreamQueueService::DETAIL_ANCESTOR_DEPTH)
+		if ($note->getDetailInt(Details::ANCESTOR_DEPTH)
 			>= StreamQueueService::MAX_ANCESTOR_DEPTH) {
 			return false;
 		}
@@ -360,8 +361,8 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 
 			/** @var SocialAppNotification $notification */
 			$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-			$notification->setDetailItem('post', $post);
-			$notification->addDetail('account', $post->getActor()->getAccount());
+			$notification->setDetailItem(Details::POST, $post);
+			$notification->addDetail(Details::ACCOUNT, $post->getActor()->getAccount());
 			// the author, not the reader. The notification timeline finds this
 			// row by its recipient rows in social_stream_dest, so `attributedTo`
 			// is free to say who *did* the thing — which is what it means on

@@ -471,6 +471,18 @@ a.external_link {
 	> * {
 		grid-area: 1 / 1;
 		min-width: 0;
+		/*
+		 * Every page centres itself with `margin-inline: auto`, and auto
+		 * margins opt a grid item out of stretching to its track: the page is
+		 * then sized to its content, clamped only by its own `max-width`. A
+		 * results row with a long handle on it therefore widened Discover to
+		 * the full 1000px it is allowed inside a 963px column, and the Follow
+		 * buttons at the end of each row were clipped by the edge of the app.
+		 *
+		 * A definite width puts the track back in charge; `max-width` still
+		 * clamps it, and the auto margins still centre what is left over.
+		 */
+		inline-size: 100%;
 	}
 }
 

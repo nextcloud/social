@@ -64,13 +64,13 @@
 					     nothing at all in a list like this one -->
 					<NcButton
 						class="graph__follow"
-						:variant="followed.includes(suggestion.account.acct) ? 'success' : 'primary'"
-						:disabled="following === suggestion.account.acct || followed.includes(suggestion.account.acct)"
+						:variant="isFollowed(suggestion.account) ? 'success' : 'primary'"
+						:disabled="isPending(suggestion.account) || isFollowed(suggestion.account)"
 						@click="follow(suggestion.account)">
-						<template v-if="following === suggestion.account.acct" #icon>
+						<template v-if="isPending(suggestion.account)" #icon>
 							<NcLoadingIcon :size="20" />
 						</template>
-						{{ followed.includes(suggestion.account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
+						{{ isFollowed(suggestion.account) ? t('social', 'Following') : t('social', 'Follow') }}
 					</NcButton>
 				</li>
 			</ul>
@@ -91,8 +91,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import logger from '../services/logger.js'
-import { mapStores } from 'pinia'
-import { useAccountStore } from '../store/account.js'
+import { useFollowByHandle } from '../composables/useFollowByHandle.js'
 
 /**
  * "Whom to follow", asked of the fediverse rather than of this server.
@@ -111,6 +110,10 @@ export default {
 		NcLoadingIcon,
 	},
 
+	setup() {
+		return useFollowByHandle()
+	},
+
 	data() {
 		return {
 			/** false once the server says there is no viewer to ask about */
@@ -121,14 +124,7 @@ export default {
 			asked: false,
 			loading: false,
 			suggestions: [],
-			/** the handle a follow is in flight for, and the ones taken */
-			following: '',
-			followed: [],
 		}
-	},
-
-	computed: {
-		...mapStores(useAccountStore),
 	},
 
 	async mounted() {
@@ -177,24 +173,6 @@ export default {
 				}
 			} finally {
 				this.loading = false
-			}
-		},
-
-		/**
-		 * Follows by handle, the only durable reference to somebody on another
-		 * server and the one thing every row here carries.
-		 *
-		 * @param {object} account the row's account
-		 */
-		async follow(account) {
-			this.following = account.acct
-			try {
-				const response = await this.accountStore.followAccount({ accountToFollow: account.acct })
-				if (response) {
-					this.followed = [...this.followed, account.acct]
-				}
-			} finally {
-				this.following = ''
 			}
 		},
 

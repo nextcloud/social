@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Details;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
@@ -73,7 +74,7 @@ class ActorService {
 	 * types that value again.
 	 */
 	private function carryVerifiedFields(Person $actor, Person $cached): void {
-		$verified = $cached->getDetailsAll()[ProfileLinkVerifier::DETAIL_VERIFIED] ?? [];
+		$verified = $cached->getDetailsAll()[Details::FIELDS_VERIFIED] ?? [];
 		if (!is_array($verified) || $verified === []) {
 			return;
 		}
@@ -83,7 +84,7 @@ class ActorService {
 			array_flip(array_column($actor->getFields(), 'value'))
 		);
 		if ($kept !== []) {
-			$actor->setDetailArray(ProfileLinkVerifier::DETAIL_VERIFIED, $kept);
+			$actor->setDetailArray(Details::FIELDS_VERIFIED, $kept);
 		}
 	}
 

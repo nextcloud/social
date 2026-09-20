@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Details;
 
 /**
  * The year an account had, as Mastodon's `#Wrapstodon` reports it.
@@ -159,11 +160,11 @@ class AnnualReportService {
 				}
 			}
 
-			$favouritesTaken += $post->getDetailInt('likes');
+			$favouritesTaken += $post->getDetailInt(Details::LIKES);
 			foreach ([
-				'by_reblogs' => $post->getDetailInt('boosts'),
-				'by_replies' => $post->getDetailInt('replies'),
-				'by_favourites' => $post->getDetailInt('likes'),
+				'by_reblogs' => $post->getDetailInt(Details::BOOSTS),
+				'by_replies' => $post->getDetailInt(Details::REPLIES),
+				'by_favourites' => $post->getDetailInt(Details::LIKES),
 			] as $key => $count) {
 				if ($count > $most[$key]) {
 					$most[$key] = $count;

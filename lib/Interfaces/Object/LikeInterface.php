@@ -29,6 +29,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\NotificationService;
 
@@ -149,9 +150,9 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	}
 
 	private function updateDetails(Stream $post): void {
-		$remoteLikes = $post->getDetailInt('remote_likes');
+		$remoteLikes = $post->getDetailInt(Details::REMOTE_LIKES);
 		$localLikes = $this->actionsRequest->countActions($post->getId(), Like::TYPE);
-		$post->setDetailInt('likes', $remoteLikes + $localLikes);
+		$post->setDetailInt(Details::LIKES, $remoteLikes + $localLikes);
 
 		$this->streamRequest->updateDetails($post);
 	}
@@ -176,15 +177,15 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 				$post->getId(), SocialAppNotification::TYPE, Like::TYPE
 			);
 
-			$notification->addDetail('accounts', $author->getAccount());
+			$notification->addDetail(Details::ACCOUNTS, $author->getAccount());
 			$notificationInterface->update($notification);
 			$this->notificationService->onNotification($notification, $author->getId());
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
 			$notification = AP::instance()->getItemFromType(SocialAppNotification::TYPE);
-			//			$notification->setDetail('url', '');
-			$notification->setDetailItem('post', $post);
-			$notification->addDetail('accounts', $author->getAccount());
+			//			$notification->setDetail(Details::URL, '');
+			$notification->setDetailItem(Details::POST, $post);
+			$notification->addDetail(Details::ACCOUNTS, $author->getAccount());
 			$notification->setAttributedTo($author->getId())
 				->setSubType(Like::TYPE)
 				->setId($post->getId() . '/notification+like')
@@ -215,8 +216,8 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 				$post->getId(), SocialAppNotification::TYPE, Like::TYPE
 			);
 
-			$notification->removeDetail('accounts', $author->getAccount());
-			if (empty($notification->getDetails('accounts'))) {
+			$notification->removeDetail(Details::ACCOUNTS, $author->getAccount());
+			if (empty($notification->getDetails(Details::ACCOUNTS))) {
 				$notificationInterface->delete($notification);
 			} else {
 				$notificationInterface->update($notification);

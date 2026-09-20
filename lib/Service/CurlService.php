@@ -93,7 +93,7 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function webfingerAccount(string &$account): array {
-		$this->logger->debug('webfingerAccount', ['account' => $account]);
+		$this->logger->debug('[CurlService] webfinger', ['account' => $account]);
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
@@ -204,7 +204,7 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveAccount(string &$account): Person {
-		$this->logger->debug('retrieveAccount', ['account' => $account]);
+		$this->logger->debug('[CurlService] retrieving an actor', ['account' => $account]);
 		$result = $this->webfingerAccount($account);
 
 		try {

@@ -19,6 +19,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\Details;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Traits\TDetails;
 use OCP\IURLGenerator;
@@ -999,7 +1000,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			'post' => $this->getInt('statuses_count', $data),
 			'last_post_creation' => $this->get('last_status_at', $data)
 		];
-		$this->setDetailArray('count', $count);
+		$this->setDetailArray(Details::COUNT, $count);
 
 		return $this;
 	}
@@ -1025,12 +1026,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			return;
 		}
 
-		$count = $this->getDetails('count');
+		$count = $this->getDetails(Details::COUNT);
 		$count['followers'] = (int)$data['count_followers'];
 		$count['following'] = max(0, (int)($data['count_following'] ?? 0));
 		$count['post'] = max(0, (int)($data['count_posts'] ?? 0));
 
-		$this->setDetailArray('count', $count);
+		$this->setDetailArray(Details::COUNT, $count);
 	}
 
 	/**
