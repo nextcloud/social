@@ -343,6 +343,20 @@ describe('App', () => {
 		expect(source).toMatch(/grid-area: 1 \/ 1/)
 	})
 
+	/**
+	 * The grid is at least as tall as the window, and with the default
+	 * `normal` its single row takes the leftover height and sits in the middle
+	 * of it -- so a page with little on it, which in practice means an empty
+	 * one, floated halfway down the window with a screenful of nothing above
+	 * it, and the composer went with it. `align-self` on the page does not
+	 * help: what is centred is the row, not the item in it.
+	 */
+	it('lays a page out from the top, however little is on it', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+
+		expect(source).toMatch(/\.social__pages \{[^}]*align-content: start/s)
+	})
+
 	/** Down the sidebar one way, back up it the other. */
 	it('gives the change a direction', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')

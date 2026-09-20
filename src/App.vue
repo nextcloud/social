@@ -465,6 +465,19 @@ a.external_link {
 .social__pages {
 	display: grid;
 	min-block-size: 100%;
+	/*
+	 * Lay the page out from the top. The grid is at least as tall as the
+	 * window, and with the default `normal` the single row takes the leftover
+	 * height and sits in the middle of it -- so a page with little on it, which
+	 * in practice means an empty one, floated halfway down the window with a
+	 * screenful of nothing above it. The composer went with it.
+	 *
+	 * `align-self` on the page does not help: what is centred is the row, not
+	 * the item in it. Only pages shorter than the window move; every page with
+	 * enough content to fill it was already starting at the top and is
+	 * untouched.
+	 */
+	align-content: start;
 	/* What the browser animates. Without a name of its own the only thing
 	   there is to animate is `root`, which is a picture of the whole window --
 	   so the sidebar, the header and the search box all slid across with the
