@@ -341,14 +341,21 @@ class CacheActorService {
 		} catch (CacheActorDoesNotExistException $e) {
 		}
 
-		$this->logger->debug('getFromAccount', ['account' => $account, 'retrieve' => $retrieve]);
+		$this->logger->debug('[CacheActorService] getFromAccount', [
+			'account' => $account, 'retrieve' => $retrieve,
+		]);
 
 		try {
 			$actor = $this->cacheActorsRequest->getFromAccount($account);
 
-			$this->logger->debug('Found Actor', ['account' => $account, 'actor' => $actor->getSource()]);
+			// the id, not the document: `getSource()` is the whole actor as its
+			// server sent it, and a log line per lookup of that size is a log
+			// nobody can read and a disk nobody budgeted for
+			$this->logger->debug('[CacheActorService] found an actor', [
+				'account' => $account, 'actor' => $actor->getId(),
+			]);
 		} catch (CacheActorDoesNotExistException $e) {
-			$this->logger->debug('Actor not found', ['account' => $account]);
+			$this->logger->debug('[CacheActorService] no actor held here', ['account' => $account]);
 
 			if (!$retrieve) {
 				throw new CacheActorDoesNotExistException();
@@ -357,7 +364,7 @@ class CacheActorService {
 			$actor = $this->curlService->retrieveAccount($account);
 			$actor->setAccount($account);
 			try {
-				$this->logger->debug('Saving Actor', ['actor' => $actor->getSource()]);
+				$this->logger->debug('[CacheActorService] saving an actor', ['actor' => $actor->getId()]);
 
 				$this->save($actor);
 			} catch (Exception $e) {
