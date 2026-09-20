@@ -48,7 +48,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
+      # The matrix is built from the Nextcloud range, so a server that still
+      # supports an older PHP puts that PHP here even though info.xml does not
+      # claim it. The PHPUnit workflows already skip such a leg for exactly
+      # this reason; without the same guard, `php -l` reads the whole tree
+      # under a PHP this app never claimed and fails on syntax it is entitled
+      # to use.
+      - name: Check PHP version requirement
+        id: php_check
+        run: |
+          PHP_MIN=$(grep -oP 'php min-version="\K[^"]+' appinfo/info.xml)
+          echo "App requires PHP >= $PHP_MIN, current is ${{ matrix.php-versions }}"
+          if php -r "exit(version_compare('${{ matrix.php-versions }}', '$PHP_MIN') < 0 ? 1 : 0);"; then
+            echo "PHP version ${{ matrix.php-versions }} meets minimum requirement $PHP_MIN"
+          else
+            echo "PHP version ${{ matrix.php-versions }} is below minimum $PHP_MIN, skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up php ${{ matrix.php-versions }}
+        if: steps.php_check.outputs.skip != 'true'
         uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231 # v2.31.1
         with:
           php-version: ${{ matrix.php-versions }}
@@ -59,7 +78,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lint
+        if: steps.php_check.outputs.skip != 'true'
         run: composer run lint
+
+      - name: Skipped notification
+        if: steps.php_check.outputs.skip == 'true'
+        run: echo "PHP version ${{ matrix.php-versions }} is below app minimum, skipping"
 
   summary:
     permissions:
