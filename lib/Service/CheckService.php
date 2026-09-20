@@ -523,6 +523,19 @@ class CheckService {
 	}
 
 	/**
+	 * Whether the root rewrite is known to work, without going and finding out.
+	 *
+	 * `checkClientApiRoot()` will make up to three outbound requests on a cold
+	 * cache, which is fine behind an administrator opening a settings page and
+	 * not fine on a route any client may call: it would make an unauthenticated
+	 * endpoint into a way to have this server fetch things. This reads what the
+	 * probe last concluded and answers false when it has concluded nothing.
+	 */
+	public function clientApiRootIsKnownGood(): bool {
+		return (string)$this->cache->get(self::CACHE_PREFIX . 'clientapi') === 'true';
+	}
+
+	/**
 	 * What the last failed run of the client-API probe saw.
 	 *
 	 * @return list<array{base: string, status: int, reason: string}>

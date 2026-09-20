@@ -579,6 +579,32 @@ class CheckServiceTest extends TestCase {
 		$this->assertSame([], $this->service->checkDefault()['clientApi']);
 	}
 
+	/**
+	 * The discovery document asks this, and it must never be the thing that
+	 * makes an unauthenticated route go and fetch three URLs.
+	 */
+	public function testAskingWhetherTheRootWorksNeverProbes(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->client->expects($this->never())->method('get');
+
+		$this->assertFalse($this->service->clientApiRootIsKnownGood());
+	}
+
+	public function testTheRootIsKnownGoodOnlyWhenTheProbeSaidSo(): void {
+		$cached = '';
+		$this->cache->method('get')
+			->willReturnCallback(function (string $key) use (&$cached) {
+				return $key === CheckService::CACHE_PREFIX . 'clientapi' ? $cached : null;
+			});
+
+		foreach (['true' => true, 'false' => false, '' => false] as $value => $expected) {
+			$cached = (string)$value;
+			$this->assertSame(
+				$expected, $this->service->clientApiRootIsKnownGood(), 'cached: ' . $value
+			);
+		}
+	}
+
 	// the address the app builds ids from vs. the one the server says it has
 
 	public function testTheAddressCheckPassesWhenTheServerAndTheAppAgree(): void {

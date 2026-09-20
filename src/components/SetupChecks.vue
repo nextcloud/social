@@ -34,7 +34,7 @@
 				{{ clientApiFinding }}
 			</p>
 			<p>
-				{{ t('social', 'The web server has to map /api, /oauth and /.well-known/host-meta onto Social. It has to do that as an internal proxy and not as a redirect: Nextcloud routes on the address a request arrived at, so a plain rewrite answers 404, and many clients drop their authorization when they follow a redirect. Inside the Apache virtual host that serves Nextcloud:') }}
+				{{ t('social', 'The web server has to map /api, /oauth and two /.well-known paths onto Social. It has to do that as an internal proxy and not as a redirect: Nextcloud routes on the address a request arrived at, so a plain rewrite answers 404, and many clients drop their authorization when they follow a redirect. Inside the Apache virtual host that serves Nextcloud:') }}
 			</p>
 			<pre class="setup-checks__config"><code>{{ apacheRules }}</code></pre>
 			<p>
@@ -110,6 +110,7 @@ export default {
 				'RewriteRule ^/?api/(.*)$   http://127.0.0.1/index.php/apps/social/api/$1   [P,QSA,L]',
 				'RewriteRule ^/?oauth/(.*)$ http://127.0.0.1/index.php/apps/social/oauth/$1 [P,QSA,L]',
 				'RewriteRule ^/?\\.well-known/host-meta$ http://127.0.0.1/index.php/.well-known/host-meta [P,QSA,L]',
+				'RewriteRule ^/?\\.well-known/oauth-authorization-server$ http://127.0.0.1/index.php/apps/social/.well-known/oauth-authorization-server [P,QSA,L]',
 			].join('\n')
 		},
 

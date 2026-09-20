@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
@@ -47,6 +48,7 @@ class OAuthController extends Controller {
 		private AccountService $accountService,
 		private ClientService $clientService,
 		private ConfigService $configService,
+		private CheckService $checkService,
 		private LoggerInterface $logger,
 		private IInitialState $initialState,
 	) {
@@ -626,18 +628,33 @@ class OAuthController extends Controller {
 	 * authorization and token endpoints, the scopes it may ask for and the
 	 * response types that work, instead of assuming Mastodon's own paths.
 	 *
-	 * The addresses are this app's real ones, under `/apps/social/`. That is
-	 * the honest answer and it is also the useful one: a client that reads
-	 * this document is told where the endpoints *are*, which is the one way a
-	 * client can reach them without the domain-root rewrite. A client that
-	 * does not read it looks at the root, finds nothing, and is no worse off.
+	 * **The addresses have to match how the document was reached.** RFC 8414
+	 * §3.3 says the `issuer` must be the URL the metadata was fetched from
+	 * minus the well-known suffix, and a client that follows the spec rejects
+	 * a document whose issuer is anything else. A client asking
+	 * `https://cloud.example/.well-known/oauth-authorization-server` and being
+	 * told the issuer is `https://cloud.example/index.php/apps/social/` has
+	 * been handed a mismatch, and is right to refuse it -- which it does
+	 * before ever opening a browser, so nothing on this server sees it fail.
+	 *
+	 * So where the domain-root rewrite is in place, this answers with the root
+	 * addresses the client actually used. Where it is not, it answers with the
+	 * app's own, which is the honest answer for a client that found this
+	 * document under `/apps/social/` and the only reachable one.
+	 *
+	 * The rewrite cannot be detected from the request -- an internal proxy
+	 * hands PHP the app path either way -- so what decides is the check that
+	 * already probes it for the setup warning, read from its cache and never
+	 * run from here.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/.well-known/oauth-authorization-server')]
 	public function oauthMetadata(): DataResponse {
-		// the app's own base, which is where the endpoints really are
 		$base = rtrim($this->configService->getSocialUrl(), '/');
+		if ($this->checkService->clientApiRootIsKnownGood()) {
+			$base = rtrim($this->configService->getCloudUrl(true), '/');
+		}
 
 		return new DataResponse([
 			'issuer' => $base . '/',
