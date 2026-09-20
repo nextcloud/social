@@ -744,4 +744,69 @@ describe('account store actions', () => {
 			expect(store.accountsFollowingsLoading[alice.url]).toBe(false)
 		})
 	})
+
+	/**
+	 * Following is two round trips — the follow, then the relationship and the
+	 * credentials it refreshes — and the button said "Follow" for both of
+	 * them. On a fediverse round trip that is a second of a button that looks
+	 * broken, and what people do with those is press them again.
+	 */
+	describe('the relationship a button draws while the server is thinking', () => {
+		/**
+		 * @param {object} store the account store
+		 */
+		function knownBob(store) {
+			store.addAccount({ actorId: 'https://remote.example/users/bob', data: { id: '42', acct: 'bob@remote.example', url: 'https://remote.example/users/bob' } })
+			store.addRelationship({ actorId: '42', data: { id: '42', following: false } })
+		}
+
+		it('shows the follow before the server has confirmed it', async () => {
+			const store = useAccountStore()
+			knownBob(store)
+			let resolve
+			axios.put.mockReturnValue(new Promise((r) => {
+				resolve = r
+			}))
+
+			const pending = store.followAccount({ accountToFollow: 'https://remote.example/users/bob' })
+			expect(store.accountsRelationships['42'].following).toBe(true)
+
+			resolve({ data: { status: 1 } })
+			await pending
+		})
+
+		it('puts it back when the server refuses', async () => {
+			const store = useAccountStore()
+			knownBob(store)
+			axios.put.mockResolvedValue({ data: { status: -1 } })
+
+			await store.followAccount({ accountToFollow: 'https://remote.example/users/bob' })
+
+			expect(store.accountsRelationships['42'].following).toBe(false)
+		})
+
+		it('does the same for unfollowing', async () => {
+			const store = useAccountStore()
+			knownBob(store)
+			store.addRelationship({ actorId: '42', data: { id: '42', following: true } })
+			axios.delete.mockRejectedValue(new Error('gone'))
+
+			await store.unfollowAccount({ accountToUnfollow: 'https://remote.example/users/bob' })
+
+			expect(store.accountsRelationships['42'].following).toBe(true)
+		})
+
+		/**
+		 * A stranger has no relationship row yet, and inventing one would draw
+		 * a button state the server never confirmed.
+		 */
+		it('invents nothing for an account it has never heard of', async () => {
+			const store = useAccountStore()
+			axios.put.mockResolvedValue({ data: { status: 1 } })
+
+			await store.followAccount({ accountToFollow: 'nobody@elsewhere.example' })
+
+			expect(store.accountsRelationships['nobody@elsewhere.example']).toBeUndefined()
+		})
+	})
 })
