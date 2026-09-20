@@ -14,6 +14,7 @@ use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Migration\Version1000Date20260920000002;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\Client\Options\ProbeOptions;
@@ -91,7 +92,13 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 			->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 			->setValue('source', $qb->createNamedParameter($actor->getSource()))
-			->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
+			->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())))
+			// the server this account is on, so "which servers do we know"
+			// is a grouped query rather than a read of every row; derived
+			// from the handle, which never changes for a row
+			->setValue('host', $qb->createNamedParameter(
+				Version1000Date20260920000002::hostOf($actor->getAccount())
+			));
 
 		try {
 			if ($actor->getCreation() > 0) {

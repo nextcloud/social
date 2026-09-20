@@ -109,26 +109,35 @@ class InstanceStatsRequest extends CoreRequestBuilder {
 		return $hosts;
 	}
 
-	/** @return array<string, int> host => how many cached accounts are on it */
+	/**
+	 * @return array<string, int> host => how many cached accounts are on it
+	 *
+	 * Grouped in the database on `social_cache_actors.host`, which exists for
+	 * this: the four callers used to read every cached actor row and split the
+	 * handle in PHP, which on an instance that has been federating for a year
+	 * is hundreds of thousands of rows fetched to produce a list of a few
+	 * thousand hosts.
+	 *
+	 * A row whose host has not been backfilled yet is skipped rather than
+	 * guessed at, so the count is briefly low rather than wrong; one pass of
+	 * the upgrade's backfill fixes it.
+	 */
 	private function remoteHosts(): array {
 		$qb = $this->getQueryBuilder();
-		$qb->selectDistinct('ca.account')
-			->from(self::TABLE_CACHE_ACTORS, 'ca');
+		$qb->select('ca.host')
+			->selectAlias($qb->createFunction('COUNT(*)'), 'accounts')
+			->from(self::TABLE_CACHE_ACTORS, 'ca')
+			->andWhere($qb->expr()->neq('ca.host', $qb->createNamedParameter('')))
+			->groupBy('ca.host');
 		$qb->setDefaultSelectAlias('ca');
 		$qb->limitToLocal(false);
 
 		$hosts = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$account = (string)($data['account'] ?? '');
-			$at = strrpos($account, '@');
-			if ($at === false) {
-				continue;
-			}
-
-			$host = strtolower(substr($account, $at + 1));
+			$host = strtolower((string)($data['host'] ?? ''));
 			if ($host !== '') {
-				$hosts[$host] = ($hosts[$host] ?? 0) + 1;
+				$hosts[$host] = (int)($data['accounts'] ?? 0);
 			}
 		}
 		$cursor->closeCursor();
