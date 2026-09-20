@@ -4,69 +4,133 @@
 -->
 <template>
 	<div class="trending">
+		<NcTextField
+			v-model="query"
+			class="trending__find"
+			type="search"
+			:label="t('social', 'Find a hashtag')"
+			:placeholder="t('social', 'A word, without the #')"
+			trailingButtonIcon="close"
+			:showTrailingButton="query !== ''"
+			@trailingButtonClick="query = ''">
+			<template #icon>
+				<Pound :size="20" />
+			</template>
+		</NcTextField>
+
 		<!--
+			Searching replaces the list rather than filtering it. What is on
+			screen otherwise is a ranking of one window on one server, and
+			narrowing that to a word answers a question nobody asked: the
+			reader who typed wants the tag wherever it is, which is what the
+			servers are asked for.
+		-->
+		<template v-if="searching">
+			<NcLoadingIcon v-if="finding" class="trending__loading" :size="32" />
+
+			<template v-else-if="found.length > 0">
+				<PeerTagRows :tags="found" :followed="followed" @changed="onFollowChanged" />
+				<p v-if="quiet.length" class="trending__quiet">
+					{{ n('social',
+						'{names} did not answer. What is above is the rest.',
+						'{names} did not answer. What is above is the rest.',
+						quiet.length, { names: quiet.join(', ') }) }}
+				</p>
+			</template>
+
+			<NcEmptyContent
+				v-else
+				:name="t('social', 'Nobody is using that')"
+				:description="t('social', 'Neither this server nor the ones it asks have seen that hashtag lately.')">
+				<template #icon>
+					<Pound />
+				</template>
+			</NcEmptyContent>
+		</template>
+
+		<template v-else>
+			<!--
 			The list answers "what is busy here", so which stretch of time it
 			means is part of the answer rather than a setting: the server ranks
 			by the window it is asked for, so an hour and ten days are two
 			different lists, not two labels on one.
 		-->
-		<div class="trending__periods" role="tablist" :aria-label="t('social', 'Over what time')">
-			<NcButton
-				v-for="option in periods"
-				:key="option.id"
-				role="tab"
-				:aria-selected="String(option.id === period)"
-				:variant="option.id === period ? 'secondary' : 'tertiary'"
-				@click="choose(option.id)">
-				{{ option.name }}
-			</NcButton>
-		</div>
+			<div class="trending__periods" role="tablist" :aria-label="t('social', 'Over what time')">
+				<NcButton
+					v-for="option in periods"
+					:key="option.id"
+					role="tab"
+					:aria-selected="String(option.id === period)"
+					:variant="option.id === period ? 'secondary' : 'tertiary'"
+					@click="choose(option.id)">
+					{{ option.name }}
+				</NcButton>
+			</div>
 
-		<div v-if="error" class="trending__error" role="alert">
-			<p>{{ error }}</p>
-			<NcButton variant="primary" :disabled="loading" @click="load(true)">
-				<template #icon>
-					<Refresh :size="20" />
-				</template>
-				{{ t('social', 'Try again') }}
-			</NcButton>
-		</div>
+			<div v-if="error" class="trending__error" role="alert">
+				<p>{{ error }}</p>
+				<NcButton variant="primary" :disabled="loading" @click="load(true)">
+					<template #icon>
+						<Refresh :size="20" />
+					</template>
+					{{ t('social', 'Try again') }}
+				</NcButton>
+			</div>
 
-		<NcLoadingIcon v-else-if="loading && tags.length === 0" class="trending__loading" :size="32" />
+			<NcLoadingIcon v-else-if="loading && tags.length === 0" class="trending__loading" :size="32" />
 
-		<ol v-else-if="tags.length > 0" class="trending__list" :class="{ 'trending__list--stale': loading }">
-			<li v-for="(tag, index) in tags" :key="tag.name" class="trending__row">
-				<router-link class="trending__tag" :to="{ name: 'tags', params: { tag: tag.name } }">
-					<span class="trending__rank" aria-hidden="true">{{ index + 1 }}</span>
-					<span class="trending__body">
-						<span class="trending__name">#{{ tag.name }}</span>
-						<span class="trending__count">{{ countText(tag) }}</span>
-						<!--
+			<ol v-else-if="tags.length > 0" class="trending__list" :class="{ 'trending__list--stale': loading }">
+				<li v-for="(tag, index) in tags" :key="tag.name" class="trending__row">
+					<router-link class="trending__tag" :to="{ name: 'tags', params: { tag: tag.name } }">
+						<span class="trending__rank" aria-hidden="true">{{ index + 1 }}</span>
+						<span class="trending__body">
+							<span class="trending__name">#{{ tag.name }}</span>
+							<span class="trending__count">{{ countText(tag) }}</span>
+							<!--
 							How busy this tag is against the busiest one on the
 							list, which is the only comparison the numbers here
 							support. Decoration: the count above it is the fact.
 						-->
-						<span class="trending__bar" aria-hidden="true">
-							<span class="trending__bar-fill" :style="{ width: share(tag) }" />
+							<span class="trending__bar" aria-hidden="true">
+								<span class="trending__bar-fill" :style="{ width: share(tag) }" />
+							</span>
 						</span>
-					</span>
-				</router-link>
-				<HashtagFollowButton
-					class="trending__follow"
-					:tag="tag.name"
-					:known="followed"
-					@changed="onFollowChanged" />
-			</li>
-		</ol>
+					</router-link>
+					<HashtagFollowButton
+						class="trending__follow"
+						:tag="tag.name"
+						:known="followed"
+						@changed="onFollowChanged" />
+				</li>
+			</ol>
 
-		<NcEmptyContent
-			v-else
-			:name="t('social', 'No trending hashtags')"
-			:description="emptyDescription">
-			<template #icon>
-				<Pound />
-			</template>
-		</NcEmptyContent>
+			<NcEmptyContent
+				v-else
+				:name="elsewhere.length > 0
+					? t('social', 'Nothing is trending on this server')
+					: t('social', 'No trending hashtags')"
+				:description="emptyDescription">
+				<template #icon>
+					<Pound />
+				</template>
+			</NcEmptyContent>
+
+			<!--
+			What other servers are busy with, and this one is not. A small
+			instance's own trending list is a list of what the few people on it
+			posted today, and on a new one it is empty; this is the same
+			question asked of servers that have an answer to it.
+		-->
+			<section v-if="elsewhere.length > 0" class="trending__elsewhere">
+				<h3 class="trending__heading">
+					{{ t('social', 'Busy elsewhere in the fediverse') }}
+				</h3>
+				<p class="trending__hint">
+					{{ t('social', 'What other servers are talking about. Following one of these brings its posts into your timeline from the servers this one federates with.') }}
+				</p>
+				<PeerTagRows :tags="elsewhere" :followed="followed" @changed="onFollowChanged" />
+			</section>
+		</template>
 	</div>
 </template>
 
@@ -77,14 +141,25 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import HashtagFollowButton from './HashtagFollowButton.vue'
+import PeerTagRows from './PeerTagRows.vue'
 import logger from '../services/logger.js'
 import { useServerData } from '../composables/useServerData.js'
 
 /** As many as the server will rank. */
 const LIMIT = 20
+
+/** How long the box waits after the last keystroke before it asks anybody. */
+const DEBOUNCE = 400
+
+/**
+ * The shortest query worth sending to five servers. One letter matches
+ * everything and tells the reader nothing.
+ */
+const MIN_LENGTH = 2
 
 export default {
 	name: 'TrendingHashtags',
@@ -93,6 +168,8 @@ export default {
 		NcButton,
 		NcEmptyContent,
 		NcLoadingIcon,
+		NcTextField,
+		PeerTagRows,
 		Pound,
 		Refresh,
 	},
@@ -111,6 +188,15 @@ export default {
 			period: '1d',
 			loading: false,
 			error: null,
+			/** what the reader typed, which is not yet what was asked */
+			query: '',
+			/** what other servers said, as `PeerTag` entities */
+			peers: [],
+			/** what each asked server said about itself */
+			reports: [],
+			/** whether a fan-out is in flight */
+			finding: false,
+			timer: null,
 		}
 	},
 
@@ -131,6 +217,46 @@ export default {
 			return this.tags.reduce((most, tag) => Math.max(most, this.uses(tag)), 0)
 		},
 
+		/** @return {boolean} whether the screen is showing a search rather than the trend */
+		searching() {
+			return this.query.trim().length >= MIN_LENGTH
+		},
+
+		/**
+		 * What a search found: everything, wherever it is busy.
+		 *
+		 * @return {object[]}
+		 */
+		found() {
+			return this.peers
+		},
+
+		/**
+		 * What other servers are busy with and this one is not.
+		 *
+		 * A tag already ranked in the list above is not repeated here: it is
+		 * the same tag, and showing it twice would make the second list look
+		 * like a second opinion rather than a different question.
+		 *
+		 * @return {object[]}
+		 */
+		elsewhere() {
+			const here = new Set(this.tags.map((tag) => String(tag.name).toLowerCase()))
+
+			return this.peers.filter((tag) => {
+				const servers = Array.isArray(tag.servers) ? tag.servers : []
+
+				return servers.length > (tag.local ? 1 : 0) && !here.has(tag.name)
+			})
+		},
+
+		/** @return {string[]} the servers that were asked and did not answer */
+		quiet() {
+			return this.reports
+				.filter((report) => report.status === 'failed')
+				.map((report) => report.label || report.host)
+		},
+
 		/**
 		 * An empty list means nothing was posted in *this* window, which is a
 		 * different thing from an instance where nobody uses hashtags at all.
@@ -138,15 +264,34 @@ export default {
 		 * @return {string}
 		 */
 		emptyDescription() {
+			// "No trending hashtags" above a list of twenty of them reads as a
+			// broken page. On the instances this feature exists for -- small
+			// ones, new ones -- that is the normal case, so the empty state
+			// points at what is underneath it instead of at a longer window.
+			if (this.elsewhere.length > 0) {
+				return t('social', 'Nobody here has used one in this stretch of time. What other servers are talking about is below.')
+			}
+
 			return this.period === '10d'
 				? t('social', 'Hashtags people are using will appear here.')
 				: t('social', 'Nothing was tagged in this stretch of time. Try a longer one.')
 		},
 	},
 
+	watch: {
+		query() {
+			this.schedule()
+		},
+	},
+
 	beforeMount() {
 		this.load()
 		this.loadFollowed()
+		this.ask()
+	},
+
+	beforeUnmount() {
+		clearTimeout(this.timer)
 	},
 
 	methods: {
@@ -160,6 +305,55 @@ export default {
 
 			this.period = period
 			this.load()
+		},
+
+		/** Waits for the typing to stop, so a word is one fan-out and not eight. */
+		schedule() {
+			clearTimeout(this.timer)
+			const query = this.query.trim()
+
+			// back to nothing typed: the trend is on screen again, and what is
+			// busy elsewhere belongs under it
+			this.timer = setTimeout(
+				() => this.ask(query.length >= MIN_LENGTH ? query : ''),
+				DEBOUNCE,
+			)
+		},
+
+		/**
+		 * Asks the other servers, either what is trending there or about one
+		 * tag. One request either way: the server fans out, not this.
+		 *
+		 * A failure here is quiet. The trending list above it is this
+		 * instance's own and is already on screen, and an error card about
+		 * strangers' servers on top of a page that is working would be this
+		 * app apologising for somebody else.
+		 *
+		 * @param {string} query what to look for, or '' for what is trending
+		 */
+		async ask(query = '') {
+			this.finding = true
+			try {
+				const { data } = await axios.get(
+					generateUrl('apps/social/api/v1/directories/hashtags'),
+					{ params: { q: query, limit: LIMIT } },
+				)
+
+				// the reader has typed on since this was asked
+				const wanted = this.query.trim()
+				if (query !== (wanted.length >= MIN_LENGTH ? wanted : '')) {
+					return
+				}
+
+				this.peers = Array.isArray(data?.tags) ? data.tags : []
+				this.reports = Array.isArray(data?.sources) ? data.sources : []
+			} catch (error) {
+				logger.debug('Could not ask other servers about hashtags', { error })
+				this.peers = []
+				this.reports = []
+			} finally {
+				this.finding = false
+			}
 		},
 
 		/** @param {boolean} retry whether this is the reader asking again after a failure */
@@ -267,6 +461,29 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: calc(var(--default-grid-baseline) * 3);
+}
+
+/* the box is the page's first line, so it keeps the page's own width */
+.trending__find {
+	max-inline-size: 420px;
+}
+
+.trending__elsewhere {
+	display: flex;
+	flex-direction: column;
+	gap: var(--default-grid-baseline);
+	padding-block-start: calc(var(--default-grid-baseline) * 2);
+	border-block-start: 1px solid var(--color-border);
+}
+
+.trending__heading {
+	font-weight: bold;
+}
+
+.trending__hint,
+.trending__quiet {
+	color: var(--color-text-maxcontrast);
+	font-size: var(--font-size-small, 0.85em);
 }
 
 .trending__periods {

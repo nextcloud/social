@@ -30,6 +30,7 @@ use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\FollowGraphService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Service\PeerTrendService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\ProfileHighlightsService;
 use OCA\Social\Service\StarterPackService;
@@ -95,6 +96,7 @@ class DiscoveryController extends Controller {
 		private ProfileHighlightsService $profileHighlightsService,
 		private AccountRelationService $accountRelationService,
 		private FediverseDirectoryService $fediverseDirectoryService,
+		private PeerTrendService $peerTrendService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -195,6 +197,45 @@ class DiscoveryController extends Controller {
 			return new DataResponse(
 				$this->fediverseDirectoryService->search($q, $source, $limit), Http::STATUS_OK
 			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The hashtags other servers are busy with, and a search across them.
+	 *
+	 * The trending list this app has always had ranks the tags used *here*,
+	 * which on a small instance is what the handful of people on it posted
+	 * today and on a new one is nothing at all. This asks other servers the
+	 * same question and answers with what they said, attributed to them.
+	 *
+	 * Nothing is fetched, ingested or stored -- what comes back is a list of
+	 * strings. See `PeerTrendService` for which kinds of server can answer a
+	 * search rather than only a trending page, which is a fact about their
+	 * APIs rather than a choice made here.
+	 *
+	 * The answer carries `sources` beside `tags` for the reason
+	 * `/api/v1/directories/search` does: "nobody is talking about that" and
+	 * "the servers we asked did not answer" are different answers.
+	 *
+	 * @param string $q a tag to look for; empty asks each server what is trending there
+	 * @param string $source one host to ask, or '' for all of them
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 10, period: 300)]
+	#[UserRateLimit(limit: 30, period: 300)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/directories/hashtags')]
+	public function searchHashtagDirectories(
+		string $q = '',
+		string $source = '',
+		int $limit = PeerTrendService::LIMIT,
+	): DataResponse {
+		try {
+			$this->initViewer(['read'], false);
+
+			return new DataResponse($this->peerTrendService->tags($q, $source, $limit), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

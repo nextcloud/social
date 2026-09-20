@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.32  
+**App version:** 0.26.33  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -299,6 +299,7 @@ The business logic lives in `lib/Service/`.
 - **StatusRevisionService** — The versions a status has been through. The first edit records the version being replaced as well as the new one, so the first entry of a history is always what was posted
 - **StarterPackService** — Named handfuls of accounts worth following, answering the question `SuggestionService` structurally cannot: suggestions work off the follow graph, and a new account has none, so the fallback is whoever posted recently — a list of strangers sorted by luck. A pack is a list of `user@host` handles and nothing else; no table, because the accounts are not this instance's to own and the handles are the only durable reference to them. The index resolves nobody (a handle costs a WebFinger lookup and an actor fetch), so resolution happens only when a pack is opened, and a handle that will not resolve is *reported* rather than dropped — a pack that quietly shrinks looks like one somebody wrote badly. The shipped packs are the official accounts of the projects this app federates with, which is the one editorial line defensible without becoming a directory nobody agreed to be in; the `starter_packs` app value replaces or extends them, and a configured pack whose slug matches a shipped one replaces it
 - **FediverseDirectoryService** — Looking for somebody to follow when you do not know which server they are on. The app could already resolve a handle you had been given and suggest people out of a follow graph a new account is not part of; neither is how anybody finds anyone. This asks several servers' directories at once, over APIs they serve to strangers without a token — nothing here holds credentials for anyone else's instance and nothing here can be made to. **It does not aggregate**: no list is stored, nothing is indexed, an answer is cached for five minutes so typing is not four requests a keystroke, and the people in it are not this instance's to hold. Four kinds — `local` (this instance, always first, never a network request), `mastodon` (`/api/v1/directory` plus `/api/v1/accounts/lookup`, which is what Pixelfed and most forks serve too), `misskey` (`users/search`) and `lemmy` (`search`) — and the kind is configured rather than sniffed, because sniffing is a request before the request for an answer that changes once in a server's lifetime. Mastodon having no public search is a fact about Mastodon, not an omission here: an exact lookup and one page of the directory is the whole of what it will answer, and the query is applied to that page by this app rather than pretending to be a search. Each source's outcome is reported with the results, because "nobody by that name" and "that server did not answer" are different answers. Results are `DirectoryAccount`, deliberately not Mastodon `Account`: the id in a remote directory's answer is a row number in somebody else's database, and giving these the same shape would make that mistake invisible — the handle is the durable reference and the only thing a client acts on. Anybody on a domain this instance will not federate with is dropped from what is offered, which guards a different thing from the fetch guard: that one protects the server being asked, this one keeps the instance from recommending exactly what it refuses to deliver to
+- **PeerTrendService** — What the rest of the fediverse is talking about. `HashtagService` ranks the tags used on *this* instance, which on a small server is what the handful of people here posted today and on a new one is nothing; this asks the servers `FediverseDirectoryService` already keeps the same question, since "which servers do we ask about people" has the same answer as "which servers do we ask about tags". **Nothing is fetched, ingested or stored** — what comes back is a list of strings, so no post is retrieved and no actor is cached, which is why the route needs no viewer where the people search does. Ranked by **how many servers named a tag** rather than by their counts added together: instances differ in size by four orders of magnitude, so a sum ranks mastodon.social's opinion as everybody's, while a count of servers is the model the follow graph already uses and is the one a row can explain. What each kind of server can answer is a fact about its API — `mastodon` serves `/api/v1/trends/tags` publicly but has no public tag search, so a search there matches the query against that same trending page; `misskey` serves both `hashtags/trend` and `hashtags/search`; `lemmy` and the curated directory have no hashtags at all and are reported as `unsupported` rather than asked. A peer's answer is held to what a hashtag is here before it is shown, because it is a string this instance is about to display and offer to follow. This instance's own rejection list is applied to what strangers say: a tag a moderator took off the local trending page has been decided about, and showing it anyway because somebody else's server likes it would overrule that decision
 - **DirectoryService / SuggestionService / TrendService / FeaturedTagService** — Discovery. The directory is opt-in through `discoverable`, applied as a predicate of the deciding query rather than as a filter over rows already read; suggestions are two counted facts (friends of friends, then locally active accounts) rather than a scoring model; trends count from the rows a like, a boost and a link preview already write, so a trend cannot drift from the counts a status reports
 - **BannerService** — The banner across the top of a profile. Three routes set one — a picked file, a URL, and `header` on `update_credentials` — and all three end in the same work: store the bytes, point the cached actor at them, tell the followers. It is one service so those three cannot drift on the parts that matter, which are the banner being public where an attachment is not, and the `Update{Person}` that is the only reason anybody else ever sees it
 
@@ -1718,6 +1719,21 @@ drawn. The empty state says which of the two emptinesses it is: nothing tagged
 in this stretch of time, or — over ten days — an instance where hashtags are not
 used.
 
+**Beside it, what other servers say.** The same tab carries a search box and, under
+the ranking, a *Busy elsewhere in the fediverse* section; both draw `PeerTagRows`,
+because a tag found by searching and a tag that is busy somewhere else are the same
+row and differ only in what put it on screen. A row names the servers — "busy on
+mastodon.social, misskey.io" — rather than counting them, since a named server is
+checkable and "1 server" is not, and it counts only once there is no room left to
+name. Typing **replaces** the ranking rather than filtering it: what is on screen
+otherwise is one window on one server, and narrowing that to a word answers a
+question nobody asked, so the box asks `/api/v1/directories/hashtags` and shows what
+the servers said. A tag already in the ranking above is not repeated below it — the
+same tag twice reads as a second opinion rather than as the answer to a different
+question. A failure out there is quiet: the ranking is this instance's own and is
+already drawn, and an error card about strangers' servers on a working page would be
+this app apologising for somebody else.
+
 Following is answered once for the page. `HashtagFollowButton` looks a tag up
 for itself when nobody has told it, which is right for the one button on a
 hashtag timeline and wrong for twenty on a ranking: it takes an optional
@@ -2073,6 +2089,35 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
 | Files | `FilesScriptsListener` | `Application::register()` (on `OCA\Files\Event\LoadAdditionalScriptsEvent`) | Adds the self-contained `social-filesAction` init script, which registers "Share to Social" on pictures and videos |
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |
+
+### Events this app publishes
+
+The app listens to Nextcloud's events and, until now, published none of its own
+— so nothing else on the server could know that somebody had posted. An
+Activity entry, a Talk message, a Flow rule or an integration of somebody's own
+had nothing to subscribe to, and would have had to poll this app's client API
+from inside the same server to find out.
+
+| Event | Dispatched from | Carries | When |
+|-------|-----------------|---------|------|
+| `OCA\Social\Events\PostPublishedEvent` | `PostService::createPost()` | the `Stream` as stored, and `getAuthorId()` | after the post is stored and addressed, **before** it is delivered |
+| `OCA\Social\Events\PostDeletedEvent` | `StreamService::deleteLocalItem()` | the post as it last was | after the row is gone and the `Delete` is queued |
+
+Both are **local posts only**. Everything that arrives from elsewhere arrives
+through the inbox, in volume, and an event per federated post would be a
+firehose nobody asked for — that is a separate event with a separate name if
+anybody ever wants one.
+
+A listener must not wait for *delivery*: delivery is a queue and other people's
+servers, and a listener that waited on it would be waiting on the internet. The
+publish event says the post exists and has been addressed, which is the thing a
+listener can act on.
+
+Subscribe as usual:
+
+```php
+$context->registerEventListener(PostPublishedEvent::class, MyListener::class);
+```
 | User Events | `UserDeletedListener` | `Application::register()` (on `UserDeletedEvent`) | Deletes the Social account of a deleted Nextcloud user through `AccountService::deleteActor()`: the actor is tombstoned, what belongs to it is dropped and a `Delete` is federated. A user who never opened Social has nothing here and is skipped; a failure is logged rather than thrown, since the Nextcloud user is already gone |
 | Group Events | `GroupListListener` | `Application::register()` (on `UserAddedEvent`, `UserRemovedEvent`, `GroupDeletedEvent`, `GroupChangedEvent`) | Keeps the group lists in step with the groups; never fails the group operation, a failure is logged and the cron's reconcile settles it |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
