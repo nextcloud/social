@@ -57,6 +57,9 @@ class ConfigService {
 	/** How many follows one account may send in an hour; `0` is no limit. */
 	public const SOCIAL_FOLLOW_LIMIT = 'follow_limit';
 
+	/** How many megabytes of media one other server may keep here; `0` is no limit. */
+	public const SOCIAL_DOMAIN_MEDIA_QUOTA = 'domain_media_quota';
+
 	/** days to keep remote statuses nobody local cares about; 0 disables */
 	public const SOCIAL_RETENTION_DAYS = 'retention_days';
 
@@ -368,6 +371,7 @@ class ConfigService {
 		self::SOCIAL_RATE_LIMIT_ANON => '300',
 		self::SOCIAL_RATE_LIMIT_WINDOW => '300',
 		self::SOCIAL_FOLLOW_LIMIT => '100',
+		self::SOCIAL_DOMAIN_MEDIA_QUOTA => '0',
 		self::SOCIAL_RETENTION_DAYS => '0',
 		self::SOCIAL_CACHE_ACTOR_DAYS => '180',
 		self::SOCIAL_SILENCED_LIST => '[]',

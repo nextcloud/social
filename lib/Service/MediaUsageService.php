@@ -47,6 +47,7 @@ class MediaUsageService {
 		private CacheDocumentsRequest $cacheDocumentsRequest,
 		private CacheDocumentService $cacheDocumentService,
 		private ConfigService $configService,
+		private RemoteMediaQuotaService $remoteMediaQuotaService,
 	) {
 	}
 
@@ -61,6 +62,11 @@ class MediaUsageService {
 		$usage = [
 			'local' => $empty,
 			'remote' => $empty,
+			// bytes per remote host, which is what the per-domain quota is
+			// enforced against; this walk is already asking how big every file
+			// is, and nothing else could answer the question without asking
+			// again
+			'domains' => [],
 			'rows' => 0,
 			'streamed' => 0,
 			'missing' => 0,
@@ -88,8 +94,9 @@ class MediaUsageService {
 				$kind = ($row['actor_local'] !== null || $this->looksLikeAvatar($row['id']))
 					? 'avatars' : 'attachments';
 
+				$host = ($side === 'remote') ? $this->hostOf((string)$row['id']) : '';
 				foreach ([$row['local_copy'], $row['resized_copy']] as $copy) {
-					$this->addCopy($usage, $side, $kind, $copy);
+					$this->addCopy($usage, $side, $kind, $copy, $host);
 				}
 
 				$this->recordSize($row);
@@ -110,6 +117,11 @@ class MediaUsageService {
 		$this->configService->setAppValue(
 			ConfigService::SOCIAL_MEDIA_USAGE, (string)json_encode($usage)
 		);
+
+		// everything the per-domain quota was counting since the last walk is
+		// in the figure just written; leaving those counters would charge the
+		// same bytes twice and shrink the quota with every pass
+		$this->remoteMediaQuotaService->forgetAll(array_keys($usage['domains']));
 
 		return $usage;
 	}
@@ -168,7 +180,9 @@ class MediaUsageService {
 	/**
 	 * @param array<string, mixed> $usage
 	 */
-	private function addCopy(array &$usage, string $side, string $kind, string $copy): void {
+	private function addCopy(
+		array &$usage, string $side, string $kind, string $copy, string $host = '',
+	): void {
 		if ($copy === '') {
 			return;
 		}
@@ -198,6 +212,17 @@ class MediaUsageService {
 		$usage[$side][$kind]['bytes'] += $size;
 		$usage['files']++;
 		$usage['bytes'] += $size;
+
+		if ($host !== '') {
+			$usage['domains'][$host] = ($usage['domains'][$host] ?? 0) + $size;
+		}
+	}
+
+	/** The host an address names, lower-cased, as the quota keys them. */
+	private function hostOf(string $id): string {
+		$host = parse_url($id, PHP_URL_HOST);
+
+		return is_string($host) ? strtolower($host) : '';
 	}
 
 	private function looksLocal(string $id): bool {

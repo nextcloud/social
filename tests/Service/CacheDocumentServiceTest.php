@@ -104,8 +104,20 @@ class CacheDocumentServiceTest extends TestCase {
 			$this->tempManager,
 			$this->mediaBlocksRequest,
 			$this->createMock(\OCA\Social\Service\VideoQuotaService::class),
+			$this->unlimitedDomainQuota(),
 			new NullLogger(),
 		);
+	}
+
+	/** No per-domain media quota, which is what an instance has by default. */
+	private function unlimitedDomainQuota(): \OCA\Social\Service\RemoteMediaQuotaService {
+		$quota = $this->createMock(\OCA\Social\Service\RemoteMediaQuotaService::class);
+		$quota->method('fits')->willReturn(true);
+		$quota->method('hostOf')->willReturnCallback(
+			static fn (string $url): string => (string)parse_url($url, PHP_URL_HOST)
+		);
+
+		return $quota;
 	}
 
 	/** A small real PNG, so mime detection and the resizer see a genuine image. */
