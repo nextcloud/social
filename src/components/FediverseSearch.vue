@@ -20,71 +20,50 @@
 		</NcTextField>
 
 		<!--
-			Which directories are being asked, and a way to ask just one. Named
-			rather than implied: whose directory a reader is searching is not
-			something to have to guess, and an instance's administrator chose
-			this list.
+			Which directories are being asked, and a way to ask just one.
+			Named rather than implied: whose directory a reader is searching is
+			not something to have to guess, and an instance's administrator
+			chose this list.
+
+			One control rather than a button per directory. Eight of them wrap
+			onto two lines above an empty result list, which is a lot of
+			furniture in front of a search box that has not been used yet — and
+			the question they answer ("where am I looking?") has one answer at
+			a time.
 		-->
-		<div
-			v-if="sources.length > 1"
-			class="finder__sources"
-			role="group"
-			:aria-label="t('social', 'Which directories to ask')">
-			<NcButton
-				:variant="chosen === '' ? 'secondary' : 'tertiary'"
-				@click="choose('')">
-				{{ t('social', 'Everywhere') }}
-			</NcButton>
-			<NcButton
-				v-for="source in sources"
-				:key="source.host"
-				:variant="chosen === source.host ? 'secondary' : 'tertiary'"
-				:title="whySource(source)"
-				@click="choose(source.host)">
-				{{ source.label }}
-			</NcButton>
+		<div v-if="sources.length > 1" class="finder__where">
+			<span class="finder__where-label">{{ t('social', 'Looking in') }}</span>
+			<NcActions :menuName="chosenLabel" variant="tertiary">
+				<NcActionButton :modelValue="chosen === ''" @click="choose('')">
+					<template #icon>
+						<Earth :size="20" />
+					</template>
+					{{ t('social', 'Everywhere') }}
+				</NcActionButton>
+				<NcActionButton
+					v-for="source in sources"
+					:key="source.host"
+					:modelValue="chosen === source.host"
+					@click="choose(source.host)">
+					{{ source.label }}
+				</NcActionButton>
+			</NcActions>
+			<span class="finder__where-why">{{ whereWhy }}</span>
 		</div>
 
 		<NcLoadingIcon v-if="loading" class="finder__loading" :size="32" />
 
 		<template v-else-if="asked">
 			<ul v-if="accounts.length" class="finder__list">
-				<li v-for="account in accounts" :key="account.acct" class="finder__row">
-					<component
-						:is="account.known ? 'router-link' : 'a'"
-						class="finder__person"
-						v-bind="linkFor(account)">
-						<img
-							v-if="account.avatar"
-							class="finder__avatar"
-							:src="account.avatar"
-							alt=""
-							loading="lazy"
-							@error="dropAvatar(account)">
-						<span v-else class="finder__avatar finder__avatar--blank" aria-hidden="true">
-							{{ initial(account) }}
-						</span>
-						<span class="finder__names">
-							<span class="finder__name">
-								{{ account.display_name || account.username }}
-								<span v-if="account.bot" class="finder__bot">{{ t('social', 'bot') }}</span>
-							</span>
-							<span class="finder__handle">@{{ account.acct }}</span>
-							<span v-if="account.note" class="finder__note">{{ account.note }}</span>
-						</span>
-					</component>
-
-					<NcButton
-						class="finder__follow"
-						:variant="isFollowed(account) ? 'success' : 'primary'"
-						:disabled="isPending(account) || isFollowed(account)"
-						@click="follow(account)">
-						<template v-if="isPending(account)" #icon>
-							<NcLoadingIcon :size="20" />
-						</template>
-						{{ isFollowed(account) ? t('social', 'Following') : t('social', 'Follow') }}
-					</NcButton>
-				</li>
+				<PersonCard
+					v-for="account in accounts"
+					:key="account.acct"
+					:account="account"
+					:link="account.known === true"
+					:reason="reasonFor(account)"
+					:followed="isFollowed(account)"
+					:pending="isPending(account)"
+					@follow="follow" />
 			</ul>
 
 			<NcEmptyContent
@@ -115,11 +94,14 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
-import NcButton from '@nextcloud/vue/components/NcButton'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActions from '@nextcloud/vue/components/NcActions'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import AccountSearch from 'vue-material-design-icons/AccountSearch.vue'
+import Earth from 'vue-material-design-icons/Earth.vue'
+import PersonCard from './PersonCard.vue'
 import { useFollowByHandle } from '../composables/useFollowByHandle.js'
 import logger from '../services/logger.js'
 
@@ -149,10 +131,13 @@ export default {
 	name: 'FediverseSearch',
 	components: {
 		AccountSearch,
-		NcButton,
+		Earth,
+		NcActionButton,
+		NcActions,
 		NcEmptyContent,
 		NcLoadingIcon,
 		NcTextField,
+		PersonCard,
 	},
 
 	setup() {
@@ -176,6 +161,29 @@ export default {
 	},
 
 	computed: {
+		/** @return {string} the directory being searched, for the menu's own button */
+		chosenLabel() {
+			if (this.chosen === '') {
+				return t('social', 'Everywhere')
+			}
+
+			return this.sources.find((source) => source.host === this.chosen)?.label ?? this.chosen
+		},
+
+		/**
+		 * @return {string} how many directories that is, or why this one is on
+		 * the list — the question the row of chips used to answer by existing
+		 */
+		whereWhy() {
+			if (this.chosen !== '') {
+				const source = this.sources.find((one) => one.host === this.chosen)
+
+				return source ? this.whySource(source) : ''
+			}
+
+			return n('social', '%n directory', '%n directories', this.sources.length)
+		},
+
 		/** @return {string[]} the directories that were asked and did not answer */
 		quiet() {
 			return this.reports
@@ -212,6 +220,26 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Which directory answered for this person.
+		 *
+		 * The row's own reason for being on the page: with eight directories
+		 * asked at once, "who told us about this account" is the difference
+		 * between a name a reader recognises and one they do not.
+		 *
+		 * @param {object} account one result
+		 * @return {string}
+		 */
+		reasonFor(account) {
+			if (account.known) {
+				return t('social', 'Known to this server')
+			}
+
+			const source = this.sources.find((one) => one.host === account.source)
+
+			return source ? t('social', 'From {directory}', { directory: source.label }) : ''
+		},
+
 		/**
 		 * Why a server is in this list, for the reader who wonders how their
 		 * Nextcloud came to be asking a stranger's server about people. The
@@ -357,10 +385,51 @@ export default {
 	margin-block-end: calc(var(--default-grid-baseline) * 4);
 }
 
-.finder__sources {
+/*
+ * "Looking in Everywhere · 10 directories" is one sentence with a control in
+ * the middle of it, so it is set as one: the same size and baseline
+ * throughout, with only the part somebody can press carrying the page's own
+ * text colour. A button left at its own font size sits a couple of pixels
+ * above the words either side of it and reads as a different thought.
+ */
+.finder__where {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--default-grid-baseline);
+	align-items: center;
+	gap: calc(var(--default-grid-baseline) / 2);
+	color: var(--color-text-maxcontrast);
+	font-size: var(--font-size-small, 0.85em);
+	min-height: 34px;
+}
+
+.finder__where :deep(.button-vue) {
+	font-size: inherit;
+	min-height: 34px;
+	padding-inline: calc(var(--default-grid-baseline) * 1.5);
+}
+
+.finder__where :deep(.button-vue__text) {
+	font-weight: bold;
+	color: var(--color-main-text);
+	margin-inline-start: calc(var(--default-grid-baseline) / 2);
+}
+
+/* the dots are what Nextcloud draws for a menu; at this size they are the
+   only thing saying the name beside them can be pressed */
+.finder__where :deep(.button-vue__icon) {
+	height: 20px;
+	min-width: 20px;
+}
+
+/* the separator belongs to the count, and needs air on both sides of it or it
+   reads as part of the number */
+.finder__where-why {
+	margin-inline-start: var(--default-grid-baseline);
+}
+
+.finder__where-why::before {
+	content: '·';
+	margin-inline-end: var(--default-grid-baseline);
 }
 
 .finder__loading {
@@ -369,90 +438,9 @@ export default {
 
 .finder__list {
 	list-style: none;
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 	gap: var(--default-grid-baseline);
-}
-
-.finder__row {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--default-grid-baseline);
-	padding-inline-end: calc(var(--default-grid-baseline) * 2);
-	border-radius: var(--border-radius-large);
-	background-color: var(--color-background-hover);
-
-	&:hover,
-	&:focus-within {
-		background-color: var(--color-background-dark);
-	}
-}
-
-.finder__person {
-	display: flex;
-	align-items: center;
-	gap: calc(var(--default-grid-baseline) * 2);
-	padding: calc(var(--default-grid-baseline) * 2);
-	min-width: 0;
-	flex: 1 1 280px;
-	color: inherit;
-}
-
-.finder__avatar {
-	flex: 0 0 auto;
-	width: 40px;
-	height: 40px;
-	border-radius: 50%;
-	object-fit: cover;
-	background-color: var(--color-background-dark);
-}
-
-.finder__avatar--blank {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-weight: bold;
-	color: var(--color-text-maxcontrast);
-}
-
-.finder__names {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	min-width: 0;
-	flex: 1 1 auto;
-}
-
-.finder__name {
-	font-weight: bold;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-/* said quietly, because it is a fact about the account rather than a warning */
-.finder__bot {
-	margin-inline-start: var(--default-grid-baseline);
-	padding: 0 6px;
-	border-radius: var(--border-radius);
-	background-color: var(--color-background-dark);
-	font-size: var(--font-size-small, 0.85em);
-	font-weight: normal;
-	color: var(--color-text-maxcontrast);
-}
-
-.finder__handle,
-.finder__note {
-	font-size: var(--font-size-small, 0.85em);
-	color: var(--color-text-maxcontrast);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.finder__follow {
-	flex: 0 0 auto;
 }
 
 .finder__quiet {

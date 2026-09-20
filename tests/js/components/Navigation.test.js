@@ -1189,6 +1189,16 @@ describe('Navigation entries are links', () => {
 	describe('the hook the account menu animates from', () => {
 		// the real accordion, not the stub the other tests use: the point here
 		// is precisely what @nextcloud/vue renders
+		/**
+		 * Mounting the real accordion resolves a component this suite stubs
+		 * everywhere else, and whichever of these three runs first pays for
+		 * that once: locally it is 400ms against 8ms for its siblings. On a
+		 * loaded runner that one-off has overrun the 5s default, failing a
+		 * test that was not measuring speed in the first place, so they are
+		 * given a budget that only a real hang can exhaust.
+		 */
+		const FIRST_REAL_MOUNT_MS = 30_000
+
 		const mountWithRealMenu = async () => {
 			const realPinia = createPinia()
 			setActivePinia(realPinia)
@@ -1209,7 +1219,7 @@ describe('Navigation entries are links', () => {
 
 			expect(menu.exists()).toBe(true)
 			expect(menu.find('button[aria-expanded]').exists()).toBe(true)
-		})
+		}, FIRST_REAL_MOUNT_MS)
 
 		/**
 		 * Why the delay is passed from the template rather than counted in CSS.
@@ -1226,7 +1236,7 @@ describe('Navigation entries are links', () => {
 			expect(entries.length).toBeGreaterThan(1)
 			const parents = new Set(entries.map((entry) => entry.element.parentElement))
 			expect(parents.size).toBe(entries.length)
-		})
+		}, FIRST_REAL_MOUNT_MS)
 
 		it('numbers the entries from nothing, in the order they are drawn', async () => {
 			const menu = (await mountWithRealMenu()).find('.navigation__more')
@@ -1235,7 +1245,7 @@ describe('Navigation entries are links', () => {
 
 			// 0, 1, 2 … with none skipped and none repeated
 			expect(indices).toEqual(indices.map((_, position) => String(position)))
-		})
+		}, FIRST_REAL_MOUNT_MS)
 	})
 
 	it.each([

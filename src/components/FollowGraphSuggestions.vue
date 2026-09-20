@@ -7,10 +7,6 @@
 	     served to a reader with no session, and a "follow more people" hint
 	     shown to somebody who cannot follow anybody is noise -->
 	<section v-if="available" class="graph">
-		<h3 class="graph__title">
-			{{ t('social', 'Followed by people you follow') }}
-		</h3>
-
 		<!--
 			The whole method needs a starting handful of follows, and saying so
 			is the only honest empty state: "no suggestions" to somebody who
@@ -23,10 +19,6 @@
 		</p>
 
 		<template v-else>
-			<p class="graph__hint">
-				{{ t('social', 'This asks the servers of the people you follow who they follow. Accounts several of them follow come first.') }}
-			</p>
-
 			<NcButton v-if="!asked" :disabled="loading" @click="load">
 				<template #icon>
 					<NcLoadingIcon v-if="loading" :size="20" />
@@ -38,41 +30,14 @@
 			<NcLoadingIcon v-else-if="loading" class="graph__loading" :size="32" />
 
 			<ul v-else-if="suggestions.length" class="graph__list">
-				<li v-for="suggestion in suggestions" :key="suggestion.account.acct" class="graph__row">
-					<router-link
-						class="graph__person"
-						:to="{ name: 'profile', params: { account: suggestion.account.acct } }">
-						<ActorAvatar
-							class="graph__avatar"
-							:actor="suggestion.account"
-							:size="40"
-							:link="false" />
-						<span class="graph__names">
-							<span class="graph__name">
-								{{ suggestion.account.display_name || suggestion.account.username }}
-							</span>
-							<span class="graph__handle">@{{ suggestion.account.acct }}</span>
-							<!-- the count is the claim and the handles are the
-							     evidence for it; a suggestion a reader cannot
-							     check is one they can only take on trust -->
-							<span class="graph__why">{{ why(suggestion) }}</span>
-						</span>
-					</router-link>
-					<!-- the same follow-by-handle the search beside it uses:
-					     `FollowButton` waits for a relationship the account
-					     store has never fetched for a stranger, so it renders
-					     nothing at all in a list like this one -->
-					<NcButton
-						class="graph__follow"
-						:variant="isFollowed(suggestion.account) ? 'success' : 'primary'"
-						:disabled="isPending(suggestion.account) || isFollowed(suggestion.account)"
-						@click="follow(suggestion.account)">
-						<template v-if="isPending(suggestion.account)" #icon>
-							<NcLoadingIcon :size="20" />
-						</template>
-						{{ isFollowed(suggestion.account) ? t('social', 'Following') : t('social', 'Follow') }}
-					</NcButton>
-				</li>
+				<PersonCard
+					v-for="suggestion in suggestions"
+					:key="suggestion.account.acct"
+					:account="suggestion.account"
+					:reason="why(suggestion)"
+					:followed="isFollowed(suggestion.account)"
+					:pending="isPending(suggestion.account)"
+					@follow="follow" />
 			</ul>
 
 			<p v-else class="graph__hint">
@@ -89,7 +54,7 @@ import { translate, translatePlural } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
-import ActorAvatar from './ActorAvatar.vue'
+import PersonCard from './PersonCard.vue'
 import logger from '../services/logger.js'
 import { useFollowByHandle } from '../composables/useFollowByHandle.js'
 
@@ -105,9 +70,9 @@ export default {
 
 	components: {
 		AccountMultiplePlus,
-		ActorAvatar,
 		NcButton,
 		NcLoadingIcon,
+		PersonCard,
 	},
 
 	setup() {
@@ -216,59 +181,15 @@ export default {
 	margin-block-end: calc(var(--default-grid-baseline) * 4);
 }
 
-.graph__title {
-	font-weight: bold;
-}
-
 .graph__hint {
 	color: var(--color-text-maxcontrast);
 }
 
 .graph__list {
 	list-style: none;
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 	gap: var(--default-grid-baseline);
-}
-
-.graph__row {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--default-grid-baseline);
-}
-
-.graph__person {
-	display: flex;
-	align-items: center;
-	gap: calc(var(--default-grid-baseline) * 2);
-	flex: 1 1 260px;
-	min-width: 0;
-	padding: var(--default-grid-baseline);
-	border-radius: var(--border-radius-element, var(--border-radius-large));
-
-	&:hover,
-	&:focus-visible {
-		background-color: var(--color-background-hover);
-	}
-}
-
-.graph__names {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-}
-
-.graph__name {
-	font-weight: bold;
-}
-
-.graph__handle,
-.graph__why {
-	color: var(--color-text-maxcontrast);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .graph__loading {
