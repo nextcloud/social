@@ -99,6 +99,7 @@ class ConversationViewerTest extends TestCase {
 				$this->createMock(CurlService::class),
 				$this->createMock(LinkPreviewService::class),
 				$this->createMock(EmojiService::class),
+				$this->createMock(\OCP\EventDispatcher\IEventDispatcher::class),
 				new NullLogger(),
 				$this->createMock(PlaceService::class),
 				$this->createMock(ReactionSummaryService::class),

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Events\PostPublishedEvent;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -32,6 +33,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IUserManager;
 use OCP\L10N\IFactory;
 use Psr\Log\LoggerInterface;
@@ -70,6 +72,7 @@ class PostService {
 		private LinkifyService $linkifyService,
 		private ChannelService $channelService,
 		private ConfigService $configService,
+		private IEventDispatcher $eventDispatcher,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -191,6 +194,12 @@ class PostService {
 		}
 
 		$this->logger->debug('Activity: ' . json_encode($activity));
+
+		// the one thing the rest of the server had no way to know. Dispatched
+		// after the post is stored and addressed, so a listener sees what was
+		// published rather than what was asked for — and never waits on
+		// delivery, which is a queue and other people's servers
+		$this->eventDispatcher->dispatchTyped(new PostPublishedEvent($note));
 
 		return $activity;
 	}
