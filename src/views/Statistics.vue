@@ -446,6 +446,53 @@
 				</p>
 			</section>
 
+			<!--
+				And whether that network is growing, which is the question the
+				figures above cannot answer: a reader deciding whether to write
+				here wants to know if this is somewhere more people are
+				arriving or somewhere they are leaving, and no amount of
+				precision about today says.
+			-->
+			<section v-if="growth" class="stats__card stats__growth">
+				<h3>{{ t('social', 'How the fediverse has grown') }}</h3>
+
+				<ul class="stats__figures stats__figures--change">
+					<li v-for="change in growthChanges" :key="change.key">
+						<strong :class="change.className">{{ change.month }}</strong>
+						<span>{{ change.label }}</span>
+						<span class="stats__growth-year">{{ change.year }}</span>
+					</li>
+				</ul>
+
+				<figure class="stats__growth-chart">
+					<figcaption>{{ t('social', 'Accounts, month by month') }}</figcaption>
+					<svg
+						class="stats__spark stats__spark--growth"
+						viewBox="0 0 100 32"
+						preserveAspectRatio="none"
+						role="img"
+						:aria-label="growthDescription">
+						<polyline
+							class="stats__spark-line stats__spark-line--current"
+							:points="growthPoints"
+							vector-effect="non-scaling-stroke" />
+					</svg>
+					<p class="stats__growth-span">
+						<span>{{ growthFrom }}</span>
+						<span>{{ growthTo }}</span>
+					</p>
+				</figure>
+
+				<!-- a second source, named as such: the figures above publish
+				     no history, and the two do not agree about the totals -->
+				<p class="stats__note">
+					{{ growthNote }}
+					<a :href="growth.source_url" target="_blank" rel="noreferrer noopener">
+						{{ growth.source }} ↗
+					</a>
+				</p>
+			</section>
+
 			<p class="stats__window">
 				{{ window }}
 			</p>
@@ -537,6 +584,77 @@ export default {
 			return t('social', 'Counted across the fediverse on {date} by', {
 				date: on.toLocaleDateString(getCanonicalLocale(), { year: 'numeric', month: 'long', day: 'numeric' }),
 			})
+		},
+
+		/** @return {object|null} the monthly series, or null where there is none */
+		growth() {
+			const growth = this.stats?.growth
+			return Array.isArray(growth?.months) && growth.months.length > 1 ? growth : null
+		},
+
+		/**
+		 * The four figures, each with what it did last month and last year.
+		 *
+		 * A percentage rather than a difference: the four are orders of
+		 * magnitude apart, and "up 3%" is the sentence a reader wants from all
+		 * of them.
+		 *
+		 * @return {Array<{key: string, label: string, month: string, year: string, className: string}>}
+		 */
+		growthChanges() {
+			const labels = {
+				servers: t('social', 'servers'),
+				accounts: t('social', 'accounts'),
+				active: t('social', 'posted last month'),
+				posts: t('social', 'posts'),
+			}
+			const month = this.growth?.change?.month ?? {}
+			const year = this.growth?.change?.year ?? {}
+
+			return Object.keys(labels)
+				.filter((key) => month[key] !== undefined)
+				.map((key) => ({
+					key,
+					label: labels[key],
+					month: this.percentage(month[key]),
+					year: year[key] === undefined
+						? ''
+						: t('social', '{change} over a year', { change: this.percentage(year[key]) }),
+					className: month[key] >= 0 ? 'stats__delta--up' : 'stats__delta--down',
+				}))
+		},
+
+		/** @return {string} the accounts series, as a polyline */
+		growthPoints() {
+			const accounts = (this.growth?.months ?? []).map((month) => month.accounts)
+
+			return this.points(accounts, Math.max(1, ...accounts))
+		},
+
+		/** @return {string} the first month drawn */
+		growthFrom() {
+			return this.monthName(this.growth?.months?.[0]?.month)
+		},
+
+		/** @return {string} and the last */
+		growthTo() {
+			return this.monthName(this.growth?.months?.[this.growth.months.length - 1]?.month)
+		},
+
+		/** @return {string} what the chart says, for somebody who cannot see it */
+		growthDescription() {
+			return t('social', 'Accounts in the fediverse from {from} to {to}', {
+				from: this.growthFrom,
+				to: this.growthTo,
+			})
+		},
+
+		/**
+		 * @return {string} why this says different numbers than the card above
+		 * it, which is the first thing anybody comparing them will ask
+		 */
+		growthNote() {
+			return t('social', 'Counted separately from the figures above — the two surveys crawl different servers and count dormant accounts differently, so their totals do not match. Month by month, by')
 		},
 
 		/** @return {string} the login name, which is what the avatar endpoint answers for */
@@ -961,6 +1079,27 @@ export default {
 		},
 
 		/**
+		 * @param {number} change a percentage
+		 * @return {string} it with a sign and an arrow, as the KPI cards do
+		 */
+		percentage(change) {
+			return (change >= 0 ? '↑ +' : '↓ ') + this.decimal(change) + '%'
+		},
+
+		/**
+		 * @param {string} month `YYYY-MM`
+		 * @return {string} it as a month and a year a reader knows
+		 */
+		monthName(month) {
+			if (typeof month !== 'string' || !/^\d{4}-\d{2}$/.test(month)) {
+				return ''
+			}
+
+			return new Date(month + '-01T00:00:00Z')
+				.toLocaleDateString(getCanonicalLocale(), { year: 'numeric', month: 'short' })
+		},
+
+		/**
 		 * One sparkline, as SVG points.
 		 *
 		 * Drawn into a fixed 100 × 32 box that the CSS stretches, with the
@@ -1061,6 +1200,53 @@ export default {
 	a {
 		text-decoration: underline;
 	}
+}
+
+.stats__growth {
+	h3 {
+		margin-block-end: calc(var(--default-grid-baseline) * 2);
+		font-weight: bold;
+	}
+
+	a {
+		text-decoration: underline;
+	}
+}
+
+/* the change figures read as a row of verdicts rather than of totals, so the
+   number is the loud part and the period is the quiet one */
+.stats__figures--change {
+	strong {
+		font-variant-numeric: tabular-nums;
+	}
+}
+
+.stats__growth-year {
+	color: var(--color-text-maxcontrast);
+	font-size: var(--font-size-small, 0.85em);
+}
+
+.stats__growth-chart {
+	margin: calc(var(--default-grid-baseline) * 2) 0 0;
+
+	figcaption {
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small, 0.85em);
+		margin-block-end: var(--default-grid-baseline);
+	}
+}
+
+.stats__spark--growth {
+	width: 100%;
+	height: 64px;
+}
+
+.stats__growth-span {
+	display: flex;
+	justify-content: space-between;
+	margin: 0;
+	color: var(--color-text-maxcontrast);
+	font-size: var(--font-size-small, 0.85em);
 }
 
 .stats {

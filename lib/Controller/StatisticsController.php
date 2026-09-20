@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\NetworkGrowthService;
 use OCA\Social\Service\NetworkStatsService;
 use OCA\Social\Service\StatisticsService;
 use OCP\AppFramework\Controller;
@@ -41,6 +42,7 @@ class StatisticsController extends Controller {
 		private AccountService $accountService,
 		private StatisticsService $statisticsService,
 		private NetworkStatsService $networkStatsService,
+		private NetworkGrowthService $networkGrowthService,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct('social', $request);
@@ -63,6 +65,10 @@ class StatisticsController extends Controller {
 			// survey did not answer, and the page leaves the section out
 			// rather than drawing zeros
 			$statistics['network'] = $this->networkStatsService->network();
+			// and whether that place is growing, which is the question a
+			// single number cannot answer. A second source, named as such: the
+			// snapshot above publishes no history at all
+			$statistics['growth'] = $this->networkGrowthService->growth();
 
 			return new DataResponse($statistics, Http::STATUS_OK);
 		} catch (Throwable $e) {

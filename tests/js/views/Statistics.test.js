@@ -456,4 +456,77 @@ describe('Statistics', () => {
 		expect(bare.text()).not.toContain('What works')
 		expect(bare.text()).not.toContain('When your posts do best')
 	})
+
+	/**
+	 * The figures above say how big the fediverse is today, which cannot
+	 * answer the thing somebody deciding whether to write here wants to know:
+	 * whether this is somewhere more people are arriving, or leaving.
+	 */
+	describe('how the fediverse has grown', () => {
+		const GROWTH = {
+			months: [
+				{ month: '2025-10', servers: 40000, accounts: 30000000, active: 1000000, posts: 1500000000 },
+				{ month: '2025-11', servers: 41000, accounts: 31000000, active: 1050000, posts: 1550000000 },
+				{ month: '2026-09', servers: 49683, accounts: 38069836, active: 1451756, posts: 1913585339 },
+			],
+			change: {
+				month: { servers: 0.4, accounts: 3.0, active: 3.8, posts: 3.3 },
+				year: { servers: 5.8, accounts: 12.1, active: 28.2, posts: 4.1 },
+			},
+			source: 'Fediverse Observer',
+			source_url: 'https://fediverse.observer',
+		}
+
+		/**
+		 * @param {object|undefined} growth what the server sent
+		 * @return {Promise<object>} the page, drawn
+		 */
+		async function mountGrowth(growth) {
+			axios.get.mockResolvedValue({ data: answer(growth === undefined ? {} : { growth }) })
+			const wrapper = mountPage()
+			await flushPromises()
+
+			return wrapper
+		}
+
+		it('draws the section with what changed and who counted it', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+
+			expect(wrapper.find('.stats__growth').exists()).toBe(true)
+			expect(wrapper.text()).toContain('How the fediverse has grown')
+			expect(wrapper.text()).toContain('↑ +3%')
+			expect(wrapper.text()).toContain('Fediverse Observer')
+		})
+
+		/**
+		 * The first thing anybody comparing the two cards will ask is why the
+		 * numbers differ, and the answer is that they are different surveys.
+		 */
+		it('says why its numbers differ from the ones above', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+
+			expect(wrapper.text()).toContain('crawl different servers')
+		})
+
+		it('draws the chart with the months it covers named', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+
+			expect(wrapper.find('.stats__spark--growth').attributes('points')).toBeUndefined()
+			expect(wrapper.find('.stats__growth-chart polyline').attributes('points')).toBeTruthy()
+			expect(wrapper.find('.stats__growth-span').text()).toContain('2025')
+		})
+
+		/** One point is not a trend. */
+		it('leaves the section out when there is no series', async () => {
+			const wrapper = await mountGrowth({ ...GROWTH, months: [GROWTH.months[0]] })
+
+			expect(wrapper.find('.stats__growth').exists()).toBe(false)
+		})
+
+		it('leaves it out entirely when the server sent none', async () => {
+			const wrapper = await mountGrowth(undefined)
+
+			expect(wrapper.find('.stats__growth').exists()).toBe(false)
+		})
+	})
 })
