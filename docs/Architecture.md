@@ -22,7 +22,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.31  
+**App version:** 0.26.32  
 **Supported Nextcloud versions:** 35 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -2073,35 +2073,6 @@ anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
 | Files | `FilesScriptsListener` | `Application::register()` (on `OCA\Files\Event\LoadAdditionalScriptsEvent`) | Adds the self-contained `social-filesAction` init script, which registers "Share to Social" on pictures and videos |
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |
-
-### Events this app publishes
-
-The app listens to Nextcloud's events and, until now, published none of its own
-— so nothing else on the server could know that somebody had posted. An
-Activity entry, a Talk message, a Flow rule or an integration of somebody's own
-had nothing to subscribe to, and would have had to poll this app's client API
-from inside the same server to find out.
-
-| Event | Dispatched from | Carries | When |
-|-------|-----------------|---------|------|
-| `OCA\Social\Events\PostPublishedEvent` | `PostService::createPost()` | the `Stream` as stored, and `getAuthorId()` | after the post is stored and addressed, **before** it is delivered |
-| `OCA\Social\Events\PostDeletedEvent` | `StreamService::deleteLocalItem()` | the post as it last was | after the row is gone and the `Delete` is queued |
-
-Both are **local posts only**. Everything that arrives from elsewhere arrives
-through the inbox, in volume, and an event per federated post would be a
-firehose nobody asked for — that is a separate event with a separate name if
-anybody ever wants one.
-
-A listener must not wait for *delivery*: delivery is a queue and other people's
-servers, and a listener that waited on it would be waiting on the internet. The
-publish event says the post exists and has been addressed, which is the thing a
-listener can act on.
-
-Subscribe as usual:
-
-```php
-$context->registerEventListener(PostPublishedEvent::class, MyListener::class);
-```
 | User Events | `UserDeletedListener` | `Application::register()` (on `UserDeletedEvent`) | Deletes the Social account of a deleted Nextcloud user through `AccountService::deleteActor()`: the actor is tombstoned, what belongs to it is dropped and a `Delete` is federated. A user who never opened Social has nothing here and is skipped; a failure is logged rather than thrown, since the Nextcloud user is already gone |
 | Group Events | `GroupListListener` | `Application::register()` (on `UserAddedEvent`, `UserRemovedEvent`, `GroupDeletedEvent`, `GroupChangedEvent`) | Keeps the group lists in step with the groups; never fails the group operation, a failure is logged and the cron's reconcile settles it |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
