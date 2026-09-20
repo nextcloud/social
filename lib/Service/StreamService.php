@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Events\PostDeletedEvent;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -39,6 +40,7 @@ use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
@@ -73,6 +75,7 @@ class StreamService {
 		private CurlService $curlService,
 		private LinkPreviewService $linkPreviewService,
 		private EmojiService $emojiService,
+		private IEventDispatcher $eventDispatcher,
 		private LoggerInterface $logger,
 		private PlaceService $placeService,
 		private ReactionSummaryService $reactionSummaryService,
@@ -492,6 +495,11 @@ class StreamService {
 		// without this the parent went on claiming a reply that no page could
 		// show — and the recount has to happen after the row has gone.
 		$this->streamRequest->recountReplies($item->getInReplyTo());
+
+		// after the row has gone and the Delete is queued, with the post as it
+		// last was: anything that copied it somewhere else needs the id to
+		// remove its own copy, and nothing can hand that over afterwards
+		$this->eventDispatcher->dispatchTyped(new PostDeletedEvent($item));
 	}
 
 	/**

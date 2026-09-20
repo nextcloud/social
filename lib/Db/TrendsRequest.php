@@ -101,6 +101,61 @@ class TrendsRequest extends TrendsRequestBuilder {
 	}
 
 	/**
+	 * Recent public posts carrying media, newest first.
+	 *
+	 * What a discovery grid shows when nothing is trending. Trending needs an
+	 * interaction inside the window, and a young instance has none — so the
+	 * Pictures and Videos tabs were empty on exactly the instances whose
+	 * readers most need something to look at, and empty in a way that reads as
+	 * broken rather than as new.
+	 *
+	 * The same audience rule as trending: public statuses only, because a
+	 * discovery surface must not show somebody something they would not have
+	 * been shown anywhere else.
+	 *
+	 * @param int[] $excluding nids already on the page, so a top-up does not repeat one
+	 *
+	 * @return int[]
+	 */
+	public function recentMediaNids(int $limit, string $mediaType = '', array $excluding = []): array {
+		if ($limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getTrendingStatusNidsSelectSql();
+		$expr = $qb->expr();
+
+		$qb->andWhere($expr->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
+		$qb->andWhere($expr->eq('s.type', $qb->createNamedParameter(Note::TYPE)));
+		$qb->limitToMedia();
+
+		if ($mediaType === 'video') {
+			$qb->limitToVideo();
+		} elseif ($mediaType !== '') {
+			$qb->limitToMediaType($mediaType);
+		}
+
+		if ($excluding !== []) {
+			$qb->andWhere($expr->notIn(
+				's.nid',
+				$qb->createNamedParameter($excluding, IQueryBuilder::PARAM_INT_ARRAY)
+			));
+		}
+
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($limit);
+
+		$nids = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$nids[] = (int)$data['nid'];
+		}
+		$cursor->closeCursor();
+
+		return $nids;
+	}
+
+	/**
 	 * The statuses of a page that has already been decided, in its order.
 	 *
 	 * The same shape as the list timeline's own reader and deliberately not a

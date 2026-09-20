@@ -470,7 +470,51 @@ export const useAccountStore = defineStore('account', {
 				this.fetchCredentials(),
 			])
 		},
+		/**
+		 * Draws the relationship as it will be, before the server says so.
+		 *
+		 * Following somebody is two round trips — the follow, then the
+		 * relationship and the credentials it refreshes — and the button sat
+		 * saying "Follow" for both of them. On a fediverse round trip that is
+		 * a second or more of a button that looks broken, and the usual
+		 * outcome is somebody pressing it again.
+		 *
+		 * Only the flag the button reads is moved. Nothing else is guessed at:
+		 * the follower counts, whether the follow is pending approval on a
+		 * locked account, and everything else come back from the server a
+		 * moment later and are the truth.
+		 *
+		 * @param {string} account the handle that was acted on
+		 * @param {boolean} following what to show until the server answers
+		 * @return {object|null} what the relationship was, to put back on failure
+		 */
+		assumeFollowing(account, following) {
+			const actorId = this.accounts[account]?.url ?? account
+			const id = this.accounts[actorId]?.id ?? this.accounts[account]?.id ?? account
+			const known = this.accountsRelationships[id]
+			if (known === undefined) {
+				// nothing to move: a stranger has no relationship row yet, and
+				// inventing one would draw a button state the server never
+				// confirmed
+				return null
+			}
+
+			this.addRelationship({ actorId: id, data: { ...known, following } })
+
+			return { id, data: known }
+		},
+
+		/**
+		 * @param {object|null} previous what `assumeFollowing()` handed back
+		 */
+		restoreFollowing(previous) {
+			if (previous !== null) {
+				this.addRelationship({ actorId: previous.id, data: previous.data })
+			}
+		},
+
 		async followAccount({ accountToFollow }) {
+			const previous = this.assumeFollowing(accountToFollow, true)
 			try {
 				const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToFollow))
 				const response = await axios.put(url)
@@ -484,11 +528,13 @@ export const useAccountStore = defineStore('account', {
 				await this.refreshFollowState(accountToFollow)
 				return response
 			} catch (error) {
+				this.restoreFollowing(previous)
 				showError(t('social', 'Could not follow {account}', { account: accountToFollow }))
 				logger.error(`Failed to follow user ${accountToFollow}`, { error })
 			}
 		},
 		async unfollowAccount({ accountToUnfollow }) {
+			const previous = this.assumeFollowing(accountToUnfollow, false)
 			try {
 				const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToUnfollow))
 				const response = await axios.delete(url)
@@ -500,6 +546,7 @@ export const useAccountStore = defineStore('account', {
 				await this.refreshFollowState(accountToUnfollow)
 				return response
 			} catch (error) {
+				this.restoreFollowing(previous)
 				showError(t('social', 'Could not unfollow {account}', { account: accountToUnfollow }))
 				logger.error(`Failed to unfollow user ${accountToUnfollow}`, { error })
 				return error

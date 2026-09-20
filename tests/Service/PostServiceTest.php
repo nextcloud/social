@@ -65,6 +65,9 @@ class PostServiceTest extends TestCase {
 	private ActivityService|MockObject $activityService;
 	private CacheActorService|MockObject $cacheActorService;
 	private ModerationService|MockObject $moderationService;
+	private \OCP\EventDispatcher\IEventDispatcher|MockObject $eventDispatcher;
+	/** @var object[] every event the service dispatched */
+	private array $dispatched = [];
 	private PostService $service;
 
 	/** what the poster's Nextcloud is set to, as IFactory::getUserLanguage() reports it */
@@ -98,6 +101,7 @@ class PostServiceTest extends TestCase {
 			$this->createMock(CurlService::class),
 			$this->createMock(LinkPreviewService::class),
 			$this->createMock(EmojiService::class),
+			$this->createMock(\OCP\EventDispatcher\IEventDispatcher::class),
 			new NullLogger(),
 			$this->createMock(PlaceService::class),
 			$this->createMock(ReactionSummaryService::class),
@@ -109,6 +113,12 @@ class PostServiceTest extends TestCase {
 		$l10nFactory->method('getUserLanguage')->willReturnCallback(fn (): string => $this->userLanguage);
 
 		$this->moderationService = $this->createMock(ModerationService::class);
+		$this->eventDispatcher = $this->createMock(\OCP\EventDispatcher\IEventDispatcher::class);
+		$this->eventDispatcher->method('dispatchTyped')->willReturnCallback(
+			function (object $event): void {
+				$this->dispatched[] = $event;
+			}
+		);
 
 		$this->service = new PostService(
 			$streamService,
@@ -122,6 +132,7 @@ class PostServiceTest extends TestCase {
 			new \OCA\Social\Service\LinkifyService(),
 			$this->createMock(\OCA\Social\Service\ChannelService::class),
 			$this->createMock(\OCA\Social\Service\ConfigService::class),
+			$this->eventDispatcher,
 			new NullLogger(),
 		);
 	}
@@ -1176,5 +1187,26 @@ class PostServiceTest extends TestCase {
 		$source = json_decode($stored->getSource(), true);
 		$this->assertSame('<p>new</p>', $source['content'], 'the source is what a re-export reads');
 		$this->assertSame($stored->getUpdated(), $source['updated']);
+	}
+
+	/**
+	 * Nothing else on a Nextcloud server could know that somebody had posted,
+	 * so every integration would have had to poll this app's API as a client
+	 * from inside the same server.
+	 */
+	public function testPublishingAPostTellsTheRestOfTheServer(): void {
+		$this->service->createPost($this->post('something worth hearing about'));
+
+		$published = array_values(array_filter(
+			$this->dispatched,
+			static fn (object $event): bool => $event instanceof \OCA\Social\Events\PostPublishedEvent
+		));
+
+		$this->assertCount(1, $published);
+		$this->assertSame(
+			'something worth hearing about',
+			strip_tags($published[0]->getPost()->getContent())
+		);
+		$this->assertSame(self::ACTOR_ID, $published[0]->getAuthorId());
 	}
 }
