@@ -55,4 +55,71 @@ describe('OAuth2Authorize', () => {
 		setState('appName', 'Ivory')
 		expect(mount(OAuth2Authorize).find('p').text()).toContain('Ivory would like permission')
 	})
+
+	describe('after the code has been granted', () => {
+		beforeEach(() => {
+			setState('appName', 'Tusky')
+			setState('code', 'abc123def456')
+			wrapper = mount(OAuth2Authorize)
+		})
+
+		/**
+		 * The out-of-band flow used to answer the consent form with a JSON
+		 * body, so a browser drew `{"code":"..."}` on a blank document one
+		 * click after being promised the code would be shown. That reads as
+		 * the button having done nothing.
+		 */
+		it('shows the code instead of the consent form', () => {
+			expect(wrapper.find('form').exists()).toBe(false)
+			expect(wrapper.find('h1').text()).toBe('Authorized')
+			expect(wrapper.find('.code').element.value).toBe('abc123def456')
+		})
+
+		it('says what to do with it, and names the application', () => {
+			expect(wrapper.text()).toContain('Paste this code into Tusky to finish signing in.')
+			expect(wrapper.text()).toContain('It can be used once')
+		})
+
+		it('offers to copy it', async () => {
+			const copied = []
+			Object.defineProperty(navigator, 'clipboard', {
+				value: {
+					writeText: (text) => {
+						copied.push(text)
+
+						return Promise.resolve()
+					},
+				},
+				configurable: true,
+			})
+
+			await wrapper.find('button').trigger('click')
+			await wrapper.vm.$nextTick()
+
+			expect(copied).toEqual(['abc123def456'])
+			expect(wrapper.text()).toContain('Copied')
+		})
+
+		/**
+		 * No clipboard permission, or a page served over plain HTTP. The code
+		 * is on screen and selectable either way, so the failure must not be
+		 * silent breakage.
+		 */
+		it('falls back to selecting the code when the clipboard refuses', async () => {
+			Object.defineProperty(navigator, 'clipboard', {
+				value: { writeText: () => Promise.reject(new Error('denied')) },
+				configurable: true,
+			})
+			let selected = false
+			wrapper.vm.$refs.code.select = () => {
+				selected = true
+			}
+
+			await wrapper.find('button').trigger('click')
+			await wrapper.vm.$nextTick()
+
+			expect(selected).toBe(true)
+			expect(wrapper.text()).not.toContain('Copied')
+		})
+	})
 })

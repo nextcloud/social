@@ -269,6 +269,64 @@ class OAuthControllerTest extends TestCase {
 		], $response->getParams());
 	}
 
+	/**
+	 * Not inside the app. This asks somebody to hand an application their
+	 * account, and the app's content area is a flex container, so a page
+	 * mounted into it took the width of its own contents and sat against the
+	 * left edge of the window rather than in the middle of it.
+	 */
+	public function testTheConsentPageIsAGuestPage(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$response = $this->controller->authorize('client-1', self::OOB, 'code', 'read');
+
+		$this->assertSame(TemplateResponse::RENDER_AS_GUEST, $response->getRenderAs());
+	}
+
+	/**
+	 * Nextcloud's default policy is `form-action 'self'`, and a browser applies
+	 * that to where a submission *ends up*. Granting an application whose
+	 * redirect_uri is anywhere but this server therefore submitted the form,
+	 * took the 303 to the client and had the navigation blocked -- no error, no
+	 * page, the button apparently doing nothing.
+	 */
+	public function testTheConsentPageLetsTheFormReachTheClientsRedirectUri(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$response = $this->controller->authorize(
+			'client-1', 'https://app.example/callback', 'code', 'read'
+		);
+
+		$this->assertStringContainsString(
+			'https://app.example/callback',
+			$response->getContentSecurityPolicy()->buildPolicy()
+		);
+	}
+
+	public function testACustomSchemeIsAllowedTheSameWay(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$response = $this->controller->authorize('client-1', 'tusky://oauth', 'code', 'read');
+
+		$this->assertStringContainsString(
+			'tusky://oauth', $response->getContentSecurityPolicy()->buildPolicy()
+		);
+	}
+
+	/** Out-of-band is answered by a page on this server, so nothing is widened. */
+	public function testOutOfBandWidensNothing(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$policy = $this->controller->authorize('client-1', self::OOB, 'code', 'read')
+			->getContentSecurityPolicy()->buildPolicy();
+
+		$this->assertStringNotContainsString('urn:ietf', $policy);
+	}
+
 	public function testAuthorizeCarriesTheClientsStateToTheConsentPage(): void {
 		$this->loggedIn();
 		$this->knownClient();
@@ -338,21 +396,37 @@ class OAuthControllerTest extends TestCase {
 				$c->setAuthCode('auth-code-1');
 			});
 
+		$states = $this->recordInitialState();
+
 		$response = $this->controller->authorizing('client-1', self::OOB, 'code', 'read write');
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame(['code' => 'auth-code-1'], $response->getData());
+		$this->assertSame('auth-code-1', $states['code']);
 	}
 
-	public function testAuthorizingEchoesTheStateOnTheOutOfBandResponse(): void {
+	/**
+	 * The out-of-band answer is a page, not a JSON body.
+	 *
+	 * What reaches this route is a browser submitting the consent form, so a
+	 * `DataResponse` rendered as `{"code":"..."}` on a blank white document --
+	 * one click after a consent screen promising the code would be shown. It
+	 * is a page with the code on it, and `state` has no part in it: there is
+	 * no redirect here for a client to correlate.
+	 */
+	public function testTheOutOfBandAnswerIsAPageAndNotAJsonBody(): void {
 		$this->loggedIn('alice');
 		$this->knownClient();
 		$this->clientService->method('authClient')
 			->willReturnCallback(static fn (SocialClient $c) => $c->setAuthCode('auth-code-1'));
+		$states = $this->recordInitialState();
 
 		$response = $this->controller->authorizing('client-1', self::OOB, 'code', 'read', 'xyz789');
 
-		$this->assertSame(['code' => 'auth-code-1', 'state' => 'xyz789'], $response->getData());
+		$this->assertInstanceOf(TemplateResponse::class, $response);
+		$this->assertSame('oauth2', $response->getTemplateName());
+		$this->assertSame(TemplateResponse::RENDER_AS_GUEST, $response->getRenderAs());
+		$this->assertSame('auth-code-1', $states['code']);
+		$this->assertSame('Tusky', $states['appName']);
 	}
 
 	/**

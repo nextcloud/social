@@ -3,8 +3,40 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="wrapper">
-		<form class="guest-box" method="post">
+	<div class="oauth">
+		<!--
+			After the consent form is submitted, the out-of-band flow lands
+			back here with a code. It used to be answered with a JSON body, so
+			a browser drew `{"code":"..."}` on a blank document one click after
+			being promised the code would be shown -- which reads as the button
+			having done nothing at all.
+		-->
+		<div v-if="code" class="guest-box">
+			<h1>{{ t('social', 'Authorized') }}</h1>
+			<p>
+				{{ t('social', 'Paste this code into {appDisplayName} to finish signing in. It can be used once, and only by the application that asked for it.', { appDisplayName: appName }) }}
+			</p>
+			<!--
+				An input rather than a <code> block: it is selectable, it
+				survives a long code without wrapping it into something
+				ambiguous, and a phone can pick it up with a tap.
+			-->
+			<input
+				ref="code"
+				class="code"
+				type="text"
+				readonly
+				:value="code"
+				:aria-label="t('social', 'Authorization code')"
+				@focus="selectCode">
+			<div class="button-row">
+				<NcButton variant="primary" @click="copyCode">
+					{{ copied ? t('social', 'Copied') : t('social', 'Copy code') }}
+				</NcButton>
+			</div>
+		</div>
+
+		<form v-else class="guest-box" method="post">
 			<h1>{{ t('social', 'Authorization required') }}</h1>
 			<p>
 				{{ t('social', '{appDisplayName} would like permission to access your account. It is a third party application.', {appDisplayName: appName}) }}
@@ -55,6 +87,10 @@ export default {
 
 	data() {
 		return {
+			// present only on the page the consent form submits to, in the
+			// out-of-band flow
+			code: loadState('social', 'code', ''),
+			copied: false,
 			appName: loadState('social', 'appName'),
 			scopes: loadState('social', 'scopes', []),
 			redirectUri: loadState('social', 'redirectUri', ''),
@@ -144,17 +180,40 @@ export default {
 		scopeLabel(scope) {
 			return this.scopeLabels[scope] ?? scope
 		},
+
+		/** Focusing the field selects the whole code, so one tap picks it up. */
+		selectCode() {
+			this.$refs.code?.select()
+		},
+
+		async copyCode() {
+			try {
+				await navigator.clipboard.writeText(this.code)
+				this.copied = true
+			} catch {
+				// no clipboard permission, or an insecure context: the field is
+				// selectable and the code is on screen either way
+				this.selectCode()
+			}
+		},
 	},
 }
 </script>
 
-<style lang="scss" scopped>
-.wrapper {
+<style lang="scss" scoped>
+/* `scopped` for a long time, which quietly published all of this to every
+   page that ever loaded this bundle. */
+// `.wrapper` before, which is also what Nextcloud's guest layout calls its
+// own container -- two elements one selector apart, which made this hard to
+// look at in a browser.
+.oauth {
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
 	align-items: center;
-	width: 100%;
+	// no viewport height here: the guest layout already places and centres
+	// what it is given, and a second full-screen box inside it pushed the
+	// form below the fold with its buttons off the bottom of the window
+	inline-size: 100%;
 }
 
 .guest-box {
@@ -210,6 +269,13 @@ export default {
 		flex-direction: row;
 		margin-top: 1rem;
 		justify-content: end;
+	}
+
+	.code {
+		inline-size: 100%;
+		margin-top: 1rem;
+		font-family: monospace;
+		text-align: center;
 	}
 }
 </style>

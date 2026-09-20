@@ -26,6 +26,7 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
@@ -259,7 +260,14 @@ class OAuthController extends Controller {
 			$this->initialState->provideInitialState('redirectUri', $redirect_uri);
 			$this->initialState->provideInitialState('denyUrl', $this->denyUrl($redirect_uri, $state));
 
-			return new TemplateResponse(Application::APP_ID, 'oauth2', [
+			// as a guest page, not inside the app: this asks somebody to hand
+			// an application their account, and the navigation, the search bar
+			// and the rest of the app around that question are both a
+			// distraction and a way to wander off mid-consent. It is also what
+			// puts the box in the middle of the screen -- the app's own
+			// content area is a flex container, so a page mounted into it
+			// takes the width of its contents and sits against the left edge.
+			$response = new TemplateResponse(Application::APP_ID, 'oauth2', [
 				'request'
 					=> [
 						'clientId' => $client_id,
@@ -273,12 +281,44 @@ class OAuthController extends Controller {
 						'codeChallenge' => $code_challenge,
 						'codeChallengeMethod' => $code_challenge_method,
 					]
-			]);
+			], TemplateResponse::RENDER_AS_GUEST);
+
+			// Nextcloud's default policy is `form-action 'self'`, and a browser
+			// applies that to where a form submission *ends up*, not only to
+			// where it is sent. Granting an application whose redirect_uri is
+			// anywhere but this server therefore submitted the form, took the
+			// 303 to the client, and had the navigation blocked -- no error, no
+			// page, the button apparently doing nothing.
+			//
+			// The URI is the one already registered for this client and
+			// confirmed against the request above, so this widens the policy to
+			// exactly the destination the code was always going to be sent to.
+			$response->setContentSecurityPolicy($this->consentPolicy($redirect_uri));
+
+			return $response;
 		} catch (Throwable $e) {
 			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
+	}
+
+	/**
+	 * The consent page's policy: the default one, plus the client's own
+	 * redirect URI as a form-action destination.
+	 *
+	 * Out-of-band needs nothing added -- that answer is a page on this server.
+	 * A custom scheme (`tusky://…`) is passed through as it is: a browser
+	 * matches form-action against the scheme, and an application that
+	 * registered one is exactly the case this exists for.
+	 */
+	private function consentPolicy(string $redirectUri): ContentSecurityPolicy {
+		$policy = new ContentSecurityPolicy();
+		if ($redirectUri !== '' && $redirectUri !== 'urn:ietf:wg:oauth:2.0:oob') {
+			$policy->addAllowedFormActionDomain($redirectUri);
+		}
+
+		return $policy;
 	}
 
 	/**
@@ -367,14 +407,20 @@ class OAuthController extends Controller {
 				return new RedirectResponse($this->redirectWithCode($redirect_uri, $code, $state));
 			}
 
-			// the out-of-band flow: the code is shown to the person to paste
-			// into their client, so it comes back as the response body
-			$result = ['code' => $code];
-			if ($state !== '') {
-				$result['state'] = $state;
-			}
+			// The out-of-band flow: the code is shown to the person to paste
+			// into their client. This is reached by submitting the consent
+			// form, so what arrives here is a browser, and the answer has to
+			// be a page -- as a JSON body it rendered as `{"code":"..."}` on a
+			// blank white document, immediately after a consent screen that
+			// had promised the code would be shown to them. Somebody who does
+			// not recognise that as the code reads it as the button having
+			// done nothing.
+			$this->initialState->provideInitialState('code', $code);
+			$this->initialState->provideInitialState('appName', $client->getAppName());
 
-			return new DataResponse($result, Http::STATUS_OK);
+			return new TemplateResponse(
+				Application::APP_ID, 'oauth2', [], TemplateResponse::RENDER_AS_GUEST
+			);
 		} catch (Exception $e) {
 			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
 
