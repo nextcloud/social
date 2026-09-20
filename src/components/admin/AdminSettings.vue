@@ -83,6 +83,7 @@
 								:storage="state.storage"
 								:videoStorage="state.videoStorage" />
 							<FederationSection v-else-if="card.id === 'federation'" :federation="state.federation" />
+							<BackgroundSection v-else-if="card.id === 'background'" :background="state.background" />
 							<AccessSection
 								v-else-if="card.id === 'access'"
 								:accessType="state.accessType"
@@ -107,6 +108,7 @@ import AccountsSection from './AccountsSection.vue'
 import AnnouncementsSection from './AnnouncementsSection.vue'
 import DiscoverSection from './DiscoverSection.vue'
 import EmojiSection from './EmojiSection.vue'
+import BackgroundSection from './BackgroundSection.vue'
 import FederationSection from './FederationSection.vue'
 import MediaBlocksSection from './MediaBlocksSection.vue'
 import RelaysSection from './RelaysSection.vue'
@@ -146,6 +148,7 @@ const NOTHING = {
 		truncated: false,
 		abandonedTruncated: false,
 		retentionDays: 7,
+		stuckSince: 0,
 		instances: [],
 		givenUp: [],
 	},
@@ -169,6 +172,7 @@ export default {
 		AnnouncementsSection,
 		DiscoverSection,
 		EmojiSection,
+		BackgroundSection,
 		FederationSection,
 		MediaBlocksSection,
 		RelaysSection,
@@ -247,6 +251,7 @@ export default {
 					name: t('social', 'Federation'),
 					cards: [
 						{ id: 'federation', title: t('social', 'Federation health') },
+						{ id: 'background', title: t('social', 'Background work') },
 						{ id: 'access', title: t('social', 'Fediverse access') },
 						...(administrator ? [{ id: 'relays', title: t('social', 'Relays') }] : []),
 					],

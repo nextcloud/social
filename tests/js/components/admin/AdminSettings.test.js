@@ -23,6 +23,7 @@ const STATE = {
 	resolvedReports: 0,
 	reportsPerPage: 50,
 	activity: { day: { posts: 3, authors: 2 }, week: { posts: 11, authors: 4 } },
+	background: { jobs: [], late: 0, worst: 0 },
 	server: {
 		contact_email: '',
 		extended_description: '',
@@ -85,7 +86,7 @@ describe('the administration page', () => {
 	 * are grouped by what they are for. The order inside a group is the order
 	 * they were in; the groups are what changed.
 	 */
-	it('is the seventeen cards, grouped by what they are for', async () => {
+	it('is the eighteen cards, grouped by what they are for', async () => {
 		const wrapper = await mountPage(STATE)
 		const headings = wrapper.findAll('h2').map((heading) => heading.text())
 
@@ -104,6 +105,7 @@ describe('the administration page', () => {
 			'Retention',
 			'Storage',
 			'Federation health',
+			'Background work',
 			'Fediverse access',
 			'Relays',
 			'Server',
@@ -116,7 +118,7 @@ describe('the administration page', () => {
 		expect(wrapper.findAll('.social-admin__group-name').map((h) => h.text()))
 			.toEqual(['Overview', 'Moderation', 'What people see', 'What is kept', 'Federation', 'Server'])
 		// the rail is the same list, so it cannot drift from the page
-		expect(wrapper.findAll('.social-admin__rail-link')).toHaveLength(17)
+		expect(wrapper.findAll('.social-admin__rail-link')).toHaveLength(18)
 		expect(wrapper.findAll('.social-admin__card').map((card) => card.attributes('id')))
 			.toEqual(wrapper.findAll('.social-admin__rail-link').map((link) => link.attributes('href').slice(1)))
 	})
@@ -137,7 +139,7 @@ describe('the administration page', () => {
 		// instance rather than about a report
 		expect(headings).not.toContain('Sections')
 		// and the fourteen cards a delegate does hold are all still there
-		expect(wrapper.findAll('h2')).toHaveLength(14)
+		expect(wrapper.findAll('h2')).toHaveLength(15)
 		// with the group that has nothing left in it drawing no heading
 		expect(wrapper.findAll('.social-admin__group-name').map((h) => h.text()))
 			.not.toContain('Server')

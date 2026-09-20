@@ -87,6 +87,10 @@ class FederationHealthService {
 			// how far back the abandoned count reaches: the rows are purged
 			// after this, so it is a window and not a total
 			'retentionDays' => (int)round(RequestQueueService::RETENTION_SECONDS / 86400),
+			// when the longest-failing delivery was last tried: the difference
+			// between a peer rebooting and a delivery that is never going to
+			// happen, which the counts alone could not tell an administrator
+			'stuckSince' => $this->requestQueueRequest->oldestFailingAttempt(),
 			'instances' => $this->byInstance($failing),
 			'givenUp' => $this->byInstance($abandoned),
 		];

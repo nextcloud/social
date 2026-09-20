@@ -26,6 +26,9 @@
 					{{ n('social', '%n of them is close to being given up on.', '%n of them are close to being given up on.', federation.atRisk) }}
 				</strong>
 				{{ t('social', 'A delivery is abandoned after {attempts} attempts.', { attempts: federation.maxTries }) }}
+				<template v-if="stuckFor !== ''">
+					{{ t('social', 'The longest-failing one was last tried {ago}.', { ago: stuckFor }) }}
+				</template>
 			</NcNoteCard>
 
 			<div class="social-admin__scroll">
@@ -119,6 +122,36 @@ export default {
 		federation: {
 			type: Object,
 			required: true,
+		},
+	},
+
+	computed: {
+		/**
+		 * How long the queue has been stuck, said the way somebody reads it.
+		 *
+		 * An hour is a peer rebooting; a week is a delivery that is never
+		 * going to happen, and the two want different reactions out of an
+		 * administrator. An exact timestamp answers neither question without
+		 * arithmetic, so this is a span and the table below keeps the dates.
+		 *
+		 * @return {string} empty when nothing is failing yet
+		 */
+		stuckFor() {
+			const since = Number(this.federation.stuckSince || 0)
+			if (since <= 0) {
+				return ''
+			}
+
+			const seconds = Math.max(0, Math.floor(Date.now() / 1000) - since)
+			if (seconds < 3600) {
+				return n('social', '%n minute ago', '%n minutes ago', Math.max(1, Math.floor(seconds / 60)))
+			}
+
+			if (seconds < 86400) {
+				return n('social', '%n hour ago', '%n hours ago', Math.floor(seconds / 3600))
+			}
+
+			return n('social', '%n day ago', '%n days ago', Math.floor(seconds / 86400))
 		},
 	},
 

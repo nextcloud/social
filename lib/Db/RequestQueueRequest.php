@@ -151,6 +151,50 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @return array<int, int> status => count
 	 * @throws Exception
 	 */
+	/**
+	 * When the longest-failing delivery was last attempted, or 0 where nothing
+	 * is failing.
+	 *
+	 * The one figure the federation card could not answer: how long this
+	 * instance has been stuck. The counts say how much is failing and the
+	 * per-instance list says where, but neither says whether it started an
+	 * hour ago or a week ago — which is the difference between a peer
+	 * rebooting and a delivery that is never going to happen.
+	 *
+	 * Attempted rather than queued: `social_request_queue` records the last
+	 * try and not the creation, and the last try is the more useful of the two
+	 * anyway — a row whose last attempt was six days ago has been retried all
+	 * week.
+	 */
+	public function oldestFailingAttempt(): int {
+		// `last` is a datetime column and not a timestamp: a row that was
+		// never attempted has it NULL rather than zero, and comparing it
+		// against 0 asks PostgreSQL to read "0" as a date.
+		$qb = $this->getQueryBuilder();
+		$qb->selectAlias($qb->func()->min('last'), 'oldest')
+			->from(self::TABLE_REQUEST_QUEUE)
+			->where($qb->expr()->eq('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->gt('tries', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->isNotNull('last'));
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		$oldest = $data['oldest'] ?? null;
+		if ($oldest === null || $oldest === '') {
+			return 0;
+		}
+
+		// what comes back is whatever shape the database writes a datetime
+		// in, so it is parsed the same way a hydrated row's is
+		try {
+			return (new DateTime((string)$oldest))->getTimestamp();
+		} catch (\Exception $e) {
+			return 0;
+		}
+	}
+
 	public function countByStatus(): array {
 		$qb = $this->getQueryBuilder();
 		$qb->select('status')

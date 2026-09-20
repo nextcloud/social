@@ -27,6 +27,7 @@ function mountFederation(overrides = {}) {
 				truncated: false,
 				abandonedTruncated: false,
 				retentionDays: 7,
+				stuckSince: 0,
 				instances: [],
 				givenUp: [],
 				...overrides,
@@ -68,6 +69,27 @@ describe('the federation health section', () => {
 
 		expect(wrapper.text()).toContain('never')
 		expect(wrapper.text()).not.toContain('1970-01-01')
+	})
+
+	it('says how long the queue has been stuck, as a span rather than a date', () => {
+		const threeDays = Math.floor(Date.now() / 1000) - (3 * 86400)
+		const wrapper = mountFederation({ failing: 2, stuckSince: threeDays })
+
+		expect(wrapper.text()).toContain('The longest-failing one was last tried 3 days ago.')
+	})
+
+	it('rounds a fresh problem to hours and minutes', () => {
+		const now = Math.floor(Date.now() / 1000)
+
+		expect(mountFederation({ failing: 1, stuckSince: now - (5 * 3600) }).text())
+			.toContain('last tried 5 hours ago')
+		expect(mountFederation({ failing: 1, stuckSince: now - 90 }).text())
+			.toContain('last tried 1 minute ago')
+	})
+
+	it('says nothing about being stuck when nothing has been tried yet', () => {
+		expect(mountFederation({ failing: 1, stuckSince: 0 }).text())
+			.not.toContain('longest-failing')
 	})
 
 	it('says when a count stopped short', () => {

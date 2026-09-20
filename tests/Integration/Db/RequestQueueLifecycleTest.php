@@ -64,6 +64,34 @@ class RequestQueueLifecycleTest extends TestCase {
 		);
 	}
 
+	/**
+	 * `last` is a datetime column, not a timestamp. SQLite compares it against
+	 * an integer without complaint and hands back something `(int)` turns into
+	 * a plausible-looking zero; PostgreSQL and MySQL reject the comparison
+	 * outright. The figure the federation card prints is therefore only
+	 * trustworthy against a real database, which is why it is asserted here.
+	 */
+	public function testTheOldestFailingAttemptComesBackAsATimestamp(): void {
+		// the figure is the minimum over the whole queue, so another test's
+		// leftover row may be older than ours: what is asserted is that it is
+		// a real moment in the recent past rather than zero or the epoch
+		$before = time();
+		$baseline = $this->request->oldestFailingAttempt();
+
+		$token = $this->enqueue();
+		$queued = $this->service->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+		$this->service->initRequest($queued[0]);
+		$this->service->endRequest($queued[0], false);
+
+		$oldest = $this->request->oldestFailingAttempt();
+		$this->assertGreaterThan(0, $oldest, 'a failing delivery has been attempted');
+		$this->assertLessThanOrEqual(time() + 1, $oldest, 'an attempt cannot be in the future');
+
+		if ($baseline === 0) {
+			$this->assertGreaterThanOrEqual($before - 1, $oldest, 'ours is the only one failing');
+		}
+	}
+
 	public function testSuccessfulDeliveryIsKeptAsDeliveredUntilTheRetentionPasses(): void {
 		$token = $this->enqueue();
 

@@ -57,6 +57,15 @@ class FederationHealthServiceTest extends TestCase {
 		$this->assertFalse($summary['abandonedTruncated']);
 	}
 
+	public function testTheSummaryCarriesWhenTheQueueFirstStuck(): void {
+		$this->queueHolds([], [$this->request('gone.example', 9, 1_700_000_000)]);
+		$this->requestQueueRequest->expects($this->once())
+			->method('oldestFailingAttempt')
+			->willReturn(1_700_000_000);
+
+		$this->assertSame(1_700_000_000, $this->service->summary()['stuckSince']);
+	}
+
 	public function testWaitingAndRunningAreReadFromTheirOwnStates(): void {
 		$this->queueHolds(
 			[RequestQueue::STATUS_STANDBY => 12, RequestQueue::STATUS_RUNNING => 3],
