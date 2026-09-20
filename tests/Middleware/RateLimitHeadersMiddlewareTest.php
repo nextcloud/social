@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Middleware;
 
 use OCA\Social\Middleware\RateLimitHeadersMiddleware;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\RateLimitService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -52,6 +54,12 @@ class RateLimitHeadersMiddlewareTest extends TestCase {
 	private array $store = [];
 	private RateLimitHeadersMiddleware $middleware;
 	private RateLimitedController $controller;
+	/** @var array<string, string> the app's own rate-limit values */
+	private array $appValues = [
+		ConfigService::SOCIAL_RATE_LIMIT_USER => '900',
+		ConfigService::SOCIAL_RATE_LIMIT_ANON => '300',
+		ConfigService::SOCIAL_RATE_LIMIT_WINDOW => '300',
+	];
 
 	protected function tearDown(): void {
 		\OC::$server->reset();
@@ -88,7 +96,17 @@ class RateLimitHeadersMiddlewareTest extends TestCase {
 
 		$this->request = $request;
 		$this->middleware = new RateLimitHeadersMiddleware(
-			$request, $this->userSession, $this->cacheFactory
+			$this->userSession, $this->service($this->cacheFactory)
+		);
+	}
+
+	private function service(ICacheFactory|MockObject $cacheFactory): RateLimitService {
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getAppValue')
+			->willReturnCallback(fn (string $key): string => $this->appValues[$key] ?? '');
+
+		return new RateLimitService(
+			$this->request, $this->userSession, $cacheFactory, $configService
 		);
 	}
 
@@ -170,16 +188,50 @@ class RateLimitHeadersMiddlewareTest extends TestCase {
 	}
 
 	/**
-	 * "Unlimited" and "I did not measure" are different answers, and a client
-	 * should be able to tell them apart.
+	 * A route that declares no limit of its own is governed by the app's
+	 * default, and a budget a caller can be refused against is one worth
+	 * publishing.
 	 */
-	public function testARouteWithNoLimitIsGivenNoHeaders(): void {
+	public function testARouteWithNoLimitOfItsOwnIsToldTheAppsDefault(): void {
+		$this->signedInAs('alice');
+
+		$headers = $this->call('unlimited')->getHeaders();
+
+		$this->assertSame('900', $headers['X-RateLimit-Limit']);
+	}
+
+	public function testAnAnonymousCallerGetsTheSmallerDefault(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+
+		$this->assertSame('300', $this->call('unlimited')->getHeaders()['X-RateLimit-Limit']);
+	}
+
+	/**
+	 * "Unlimited" and "I did not measure" are different answers, and a client
+	 * should be able to tell them apart — so an instance that has switched the
+	 * default off publishes nothing rather than a made-up budget.
+	 */
+	public function testARouteWithNoLimitAnywhereIsGivenNoHeaders(): void {
+		$this->appValues[ConfigService::SOCIAL_RATE_LIMIT_USER] = '0';
 		$this->signedInAs('alice');
 
 		$headers = $this->call('unlimited')->getHeaders();
 
 		$this->assertArrayNotHasKey('X-RateLimit-Limit', $headers);
 		$this->assertArrayNotHasKey('X-RateLimit-Remaining', $headers);
+	}
+
+	/**
+	 * The default is counted by the middleware that enforces it; counting it a
+	 * second time here would tell a client it had spent twice what it had.
+	 */
+	public function testTheDefaultBudgetIsReadRatherThanSpentTwice(): void {
+		$this->signedInAs('alice');
+
+		$this->call('unlimited');
+		$headers = $this->call('unlimited')->getHeaders();
+
+		$this->assertSame('900', $headers['X-RateLimit-Remaining'], 'the headers spent the budget');
 	}
 
 	/** The reset is when the window ends, in seconds since the epoch. */
@@ -221,7 +273,7 @@ class RateLimitHeadersMiddlewareTest extends TestCase {
 		$cacheFactory->expects($this->never())->method('createDistributed');
 
 		$middleware = new RateLimitHeadersMiddleware(
-			$this->request, $this->userSession, $cacheFactory
+			$this->userSession, $this->service($cacheFactory)
 		);
 		$this->signedInAs('alice');
 
@@ -247,7 +299,7 @@ class RateLimitHeadersMiddlewareTest extends TestCase {
 			->willReturn($this->createMock(ICache::class));
 
 		$middleware = new RateLimitHeadersMiddleware(
-			$this->request, $this->userSession, $cacheFactory
+			$this->userSession, $this->service($cacheFactory)
 		);
 		$this->signedInAs('alice');
 

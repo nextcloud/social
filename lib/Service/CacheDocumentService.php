@@ -68,6 +68,7 @@ class CacheDocumentService {
 		private ITempManager $tempManager,
 		private MediaBlocksRequest $mediaBlocksRequest,
 		private VideoQuotaService $videoQuotaService,
+		private RemoteMediaQuotaService $remoteMediaQuotaService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -305,7 +306,13 @@ class CacheDocumentService {
 	 * @throws CacheContentSizeException
 	 */
 	public function filterQuota(Document $document, string $mime, int $size): void {
-		if (!$document->isLocal() || !str_starts_with($mime, 'video/')) {
+		if (!$document->isLocal()) {
+			$this->filterDomainQuota($document, $size);
+
+			return;
+		}
+
+		if (!str_starts_with($mime, 'video/')) {
 			return;
 		}
 
@@ -317,6 +324,37 @@ class CacheDocumentService {
 		throw new CacheContentSizeException(
 			'this account has used its ' . $this->videoQuotaService->quota()
 			. 'MB of video storage on this instance'
+		);
+	}
+
+	/**
+	 * How much of this instance's disk the server a picture came from may take.
+	 *
+	 * The twin of the per-account video quota, for the other direction: every
+	 * picture on a post somebody here follows is fetched and kept, and nothing
+	 * bounded that by where it came from. One server posting large images at a
+	 * high rate filled the disk of every instance following anybody on it.
+	 *
+	 * Refused before the bytes are written, and the bytes that are written are
+	 * counted, so the next fetch from that host knows about this one.
+	 *
+	 * @throws CacheContentSizeException
+	 */
+	private function filterDomainQuota(Document $document, int $size): void {
+		$host = $this->remoteMediaQuotaService->hostOf($document->getId());
+		if ($this->remoteMediaQuotaService->fits($host, $size)) {
+			$this->remoteMediaQuotaService->record($host, $size);
+
+			return;
+		}
+
+		$this->logger->info('[CacheDocumentService] a domain reached its media quota', [
+			'host' => $host, 'quota' => $this->remoteMediaQuotaService->quota(),
+		]);
+
+		throw new CacheContentSizeException(
+			$host . ' has used the ' . $this->remoteMediaQuotaService->quota()
+			. 'MB of media storage this instance allows one server'
 		);
 	}
 

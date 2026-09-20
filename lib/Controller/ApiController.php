@@ -22,6 +22,7 @@ use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\FollowLimitException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
@@ -4722,6 +4723,7 @@ class ApiController extends Controller {
 		// allowed to ask, not allowed to have
 		[UnauthorizedFediverseException::class, Http::STATUS_FORBIDDEN],
 		[TooManyRequestsException::class, Http::STATUS_TOO_MANY_REQUESTS],
+		[FollowLimitException::class, Http::STATUS_TOO_MANY_REQUESTS],
 		// this server could do it, and cannot right now: Mastodon answers a
 		// translation it has no provider for with exactly this, and a client
 		// reads it as "later", not as "never"

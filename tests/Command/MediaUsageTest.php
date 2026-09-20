@@ -49,7 +49,8 @@ class MediaUsageTest extends TestCase {
 			new MediaUsageService(
 				$this->cacheDocumentsRequest,
 				$this->cacheDocumentService,
-				$this->configService
+				$this->configService,
+				$this->createMock(\OCA\Social\Service\RemoteMediaQuotaService::class)
 			),
 			$this->configService
 		));
@@ -191,7 +192,10 @@ class MediaUsageTest extends TestCase {
 		$configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException('no address'));
 		$tester = new CommandTester(new MediaUsage(
 			new MediaUsageService(
-				$this->cacheDocumentsRequest, $this->cacheDocumentService, $configService
+				$this->cacheDocumentsRequest,
+				$this->cacheDocumentService,
+				$configService,
+				$this->createMock(\OCA\Social\Service\RemoteMediaQuotaService::class)
 			),
 			$configService
 		));

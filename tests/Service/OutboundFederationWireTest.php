@@ -661,6 +661,7 @@ class OutboundFederationWireTest extends TestCase {
 			$this->createMock(ITempManager::class),
 			$this->createMock(MediaBlocksRequest::class),
 			$this->createMock(\OCA\Social\Service\VideoQuotaService::class),
+			$this->unlimitedDomainQuota(),
 			new NullLogger(),
 		);
 
@@ -669,5 +670,16 @@ class OutboundFederationWireTest extends TestCase {
 		$sent = $this->onlyRequest();
 		$this->assertSame('https://' . self::REMOTE . '/media/1.png?sig=abc', $sent['url']);
 		$this->assertSame(['user-agent'], array_keys($sent['options']['headers']));
+	}
+
+	/** No per-domain media quota, which is what an instance has by default. */
+	private function unlimitedDomainQuota(): \OCA\Social\Service\RemoteMediaQuotaService {
+		$quota = $this->createMock(\OCA\Social\Service\RemoteMediaQuotaService::class);
+		$quota->method('fits')->willReturn(true);
+		$quota->method('hostOf')->willReturnCallback(
+			static fn (string $url): string => (string)parse_url($url, PHP_URL_HOST)
+		);
+
+		return $quota;
 	}
 }

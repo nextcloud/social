@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\FollowLimitException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -190,6 +191,72 @@ class FollowServiceTest extends TestCase {
 		$this->assertSame(self::BOB_ID . '/inbox', $paths[0]->getUri());
 		$this->assertSame(InstancePath::TYPE_INBOX, $paths[0]->getType());
 		$this->assertSame(InstancePath::PRIORITY_TOP, $paths[0]->getPriority());
+	}
+
+	/**
+	 * A compromised account, or one running a script, can fan out follows to
+	 * thousands of servers from this instance's address in a few minutes —
+	 * every one of them a signed request this instance is answerable for, and
+	 * the shape of it is indistinguishable from a botnet warming up.
+	 */
+	public function testAnAccountThatHasFollowedItsHoursWorthIsRefused(): void {
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => ($key === ConfigService::SOCIAL_FOLLOW_LIMIT) ? '5' : ''
+		);
+		$this->followsRequest->method('countFollowsSince')->willReturn(5);
+		$this->cacheActorService->method('getFromAccount')->willReturn($this->person(self::BOB_ID, 'bob'));
+
+		$this->followsRequest->expects($this->never())->method('save');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->expectException(FollowLimitException::class);
+		$this->service->followAccount($this->alice(), 'bob@remote.example');
+	}
+
+	/** The hour is the window, and only what is in it counts. */
+	public function testOnlyTheLastHourOfFollowsIsCounted(): void {
+		$since = 0;
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => ($key === ConfigService::SOCIAL_FOLLOW_LIMIT) ? '5' : ''
+		);
+		$this->followsRequest->method('countFollowsSince')
+			->willReturnCallback(function (string $actorId, int $from) use (&$since): int {
+				$since = $from;
+
+				return 0;
+			});
+		$this->cacheActorService->method('getFromAccount')->willReturn($this->person(self::BOB_ID, 'bob'));
+		$this->activityService->method('request')->willReturn('token');
+
+		$this->service->followAccount($this->alice(), 'bob@remote.example');
+
+		$this->assertEqualsWithDelta(time() - 3600, $since, 5);
+	}
+
+	public function testAnAccountUnderTheLimitFollowsAsBefore(): void {
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => ($key === ConfigService::SOCIAL_FOLLOW_LIMIT) ? '5' : ''
+		);
+		$this->followsRequest->method('countFollowsSince')->willReturn(4);
+		$this->cacheActorService->method('getFromAccount')->willReturn($this->person(self::BOB_ID, 'bob'));
+		// nobody follows bob yet, which is what makes this a new follow
+		$this->followsRequest->method('getByPersons')
+			->willThrowException(new FollowNotFoundException());
+		$this->activityService->method('request')->willReturn('token');
+
+		$this->followsRequest->expects($this->once())->method('save');
+
+		$this->service->followAccount($this->alice(), 'bob@remote.example');
+	}
+
+	/** An instance that wants no limit says so, and nothing is counted. */
+	public function testAnInstanceCanSwitchTheFollowLimitOff(): void {
+		$this->configService->method('getAppValue')->willReturn('0');
+		$this->followsRequest->expects($this->never())->method('countFollowsSince');
+		$this->cacheActorService->method('getFromAccount')->willReturn($this->person(self::BOB_ID, 'bob'));
+		$this->activityService->method('request')->willReturn('token');
+
+		$this->service->followAccount($this->alice(), 'bob@remote.example');
 	}
 
 	/**

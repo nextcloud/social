@@ -46,6 +46,20 @@ class ConfigService {
 	/** incoming inbox requests allowed per origin host per minute; 0 disables */
 	public const SOCIAL_INBOX_THROTTLE = 'inbox_throttle';
 
+	/**
+	 * The budget a client API route with no rate limit of its own gets, per
+	 * window; `0` on either switches the default off.
+	 */
+	public const SOCIAL_RATE_LIMIT_USER = 'rate_limit_user';
+	public const SOCIAL_RATE_LIMIT_ANON = 'rate_limit_anon';
+	public const SOCIAL_RATE_LIMIT_WINDOW = 'rate_limit_window';
+
+	/** How many follows one account may send in an hour; `0` is no limit. */
+	public const SOCIAL_FOLLOW_LIMIT = 'follow_limit';
+
+	/** How many megabytes of media one other server may keep here; `0` is no limit. */
+	public const SOCIAL_DOMAIN_MEDIA_QUOTA = 'domain_media_quota';
+
 	/** days to keep remote statuses nobody local cares about; 0 disables */
 	public const SOCIAL_RETENTION_DAYS = 'retention_days';
 
@@ -353,6 +367,11 @@ class ConfigService {
 		self::SOCIAL_ACCESS_LIST => '[]',
 		self::SOCIAL_SELF_SIGNED => '0',
 		self::SOCIAL_INBOX_THROTTLE => '300',
+		self::SOCIAL_RATE_LIMIT_USER => '900',
+		self::SOCIAL_RATE_LIMIT_ANON => '300',
+		self::SOCIAL_RATE_LIMIT_WINDOW => '300',
+		self::SOCIAL_FOLLOW_LIMIT => '100',
+		self::SOCIAL_DOMAIN_MEDIA_QUOTA => '0',
 		self::SOCIAL_RETENTION_DAYS => '0',
 		self::SOCIAL_CACHE_ACTOR_DAYS => '180',
 		self::SOCIAL_SILENCED_LIST => '[]',

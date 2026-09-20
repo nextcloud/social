@@ -25,6 +25,7 @@ use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Middleware\AccessBlockMiddleware;
+use OCA\Social\Middleware\ApiRateLimitMiddleware;
 use OCA\Social\Middleware\RateLimitHeadersMiddleware;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Reference\PostReferenceProvider;
@@ -69,6 +70,8 @@ class Application extends App implements IBootstrap {
 		$context->registerMiddleware(AccessBlockMiddleware::class);
 		// after the access check, so a refused address is never counted
 		$context->registerMiddleware(RateLimitHeadersMiddleware::class);
+		// and the budget itself, for the routes that carry no limit of their own
+		$context->registerMiddleware(ApiRateLimitMiddleware::class);
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
 		$context->registerReferenceProvider(PostReferenceProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);

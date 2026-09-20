@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MediaUsageService;
+use OCA\Social\Service\RemoteMediaQuotaService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -33,6 +34,9 @@ class MediaUsageServiceTest extends TestCase {
 	private CacheDocumentService|MockObject $cacheDocumentService;
 	private ConfigService|MockObject $configService;
 	private MediaUsageService $service;
+	private RemoteMediaQuotaService|MockObject $remoteMediaQuotaService;
+	/** @var string[] the hosts whose day counter the walk reset */
+	private array $forgotten = [];
 
 	/** @var array<string, int|null> a stored copy => its size, or null for gone */
 	private array $onDisk = [];
@@ -77,8 +81,19 @@ class MediaUsageServiceTest extends TestCase {
 				$this->appValues[$key] = $value;
 			});
 
+		// the walk clears the per-domain quota's day counters as it finishes,
+		// because everything they were counting is in the figure it just wrote
+		$this->remoteMediaQuotaService = $this->createMock(RemoteMediaQuotaService::class);
+		$this->remoteMediaQuotaService->method('forgetAll')
+			->willReturnCallback(function (array $hosts): void {
+				$this->forgotten = $hosts;
+			});
+
 		$this->service = new MediaUsageService(
-			$this->cacheDocumentsRequest, $this->cacheDocumentService, $this->configService
+			$this->cacheDocumentsRequest,
+			$this->cacheDocumentService,
+			$this->configService,
+			$this->remoteMediaQuotaService
 		);
 	}
 
@@ -277,5 +292,48 @@ class MediaUsageServiceTest extends TestCase {
 		$this->appValues[ConfigService::SOCIAL_MEDIA_USAGE] = 'not json';
 
 		$this->assertNull($this->service->lastMeasured());
+	}
+
+	/**
+	 * The per-domain quota reads this walk's figure, so the walk has to
+	 * produce one: without it the quota would have nothing to enforce against
+	 * but what it had counted since the last restart.
+	 */
+	public function testEachRemoteHostsBytesAreTotalledForTheQuota(): void {
+		$this->row(1, 'https://remote.example/media/a', [
+			'local_copy' => $this->onDisk('a', 500),
+		]);
+		$this->row(2, 'https://remote.example/media/b', [
+			'local_copy' => $this->onDisk('b', 300),
+		]);
+		$this->row(3, 'https://other.example/media/c', [
+			'local_copy' => $this->onDisk('c', 100),
+		]);
+		$this->row(4, self::CLOUD . '/documents/local/mine', [
+			'local_copy' => $this->onDisk('mine', 900),
+		]);
+
+		$usage = $this->service->measure();
+
+		$this->assertSame(
+			['remote.example' => 800, 'other.example' => 100],
+			$usage['domains'],
+			'this instance\'s own uploads are nobody else\'s quota to spend'
+		);
+	}
+
+	/**
+	 * Everything the counters were holding is in the figure the walk just
+	 * wrote; leaving them would charge those bytes twice and shrink the quota
+	 * a little more with every pass.
+	 */
+	public function testTheWalkClearsTheDayCountersItHasJustAccountedFor(): void {
+		$this->row(1, 'https://remote.example/media/a', [
+			'local_copy' => $this->onDisk('a', 500),
+		]);
+
+		$this->service->measureAndStore();
+
+		$this->assertSame(['remote.example'], $this->forgotten);
 	}
 }

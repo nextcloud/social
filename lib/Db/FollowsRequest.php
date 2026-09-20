@@ -318,6 +318,39 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
+	 * How many follows this actor has sent since a moment.
+	 *
+	 * Counted from the rows rather than from a cache counter: this is the
+	 * number a limit is enforced against, and an instance with no memcache —
+	 * which is most of them — would otherwise have no limit at all. Pending
+	 * and accepted alike, because what is being limited is the sending.
+	 */
+	public function countFollowsSince(string $actorId, int $since): int {
+		$qb = $this->countFollowsSelectSql();
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
+		$qb->limitToType(Follow::TYPE);
+		$qb->andWhere(
+			$qb->expr()->gt('f.creation', $qb->createNamedParameter(
+				$this->dateTime($since), IQueryBuilder::PARAM_DATE
+			))
+		);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+	/** A timestamp as the DateTime the date parameters take. */
+	private function dateTime(int $timestamp): DateTime {
+		$date = new DateTime();
+		$date->setTimestamp($timestamp);
+
+		return $date;
+	}
+
+	/**
 	 * @return int
 	 */
 	public function countFollows() {
