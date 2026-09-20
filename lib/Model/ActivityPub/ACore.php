@@ -552,10 +552,52 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 */
 	public function validate(int $as, string $k, array $arr, string $default = ''): string {
 		try {
-			return $this->validateEntryString($as, $this->get($k, $arr, $default));
+			return $this->validateEntryString($as, $this->linkOf($as, $k, $arr, $default));
 		} catch (InvalidResourceEntryException $e) {
 			return $default;
 		}
+	}
+
+	/**
+	 * A URL as ActivityStreams actually sends one: a string, or a `Link`.
+	 *
+	 * `url` is defined as either, and several implementations use the object
+	 * form — Loops sends `"url": {"type": "Link", "href": "...",
+	 * "mediaType": "video/mp4"}` for a video, and Mastodon sends a list of
+	 * them for a post with more than one representation. `get()` answers an
+	 * empty string for anything that is not a scalar, so every one of those
+	 * silently became "this object has no url": a video with no address, a
+	 * post that linked to nothing, and nothing anywhere to say why.
+	 *
+	 * Only `AS_URL` is read this way. An id is a string by definition, and a
+	 * date or a name arriving as an object is a malformed document rather than
+	 * a shape to accommodate.
+	 *
+	 * Where several are offered the first usable one wins, which is what the
+	 * sender's order means.
+	 *
+	 * @param array<string, mixed> $arr
+	 */
+	private function linkOf(int $as, string $k, array $arr, string $default): string {
+		$value = $arr[$k] ?? null;
+		if ($as !== self::AS_URL || !is_array($value)) {
+			return $this->get($k, $arr, $default);
+		}
+
+		// a single Link, or a list of them mixed with plain strings
+		$candidates = array_is_list($value) ? $value : [$value];
+		foreach ($candidates as $candidate) {
+			$href = is_array($candidate) ? ($candidate['href'] ?? '') : $candidate;
+			if (is_string($href) && $href !== '') {
+				try {
+					return $this->validateEntryString(self::AS_URL, $href);
+				} catch (InvalidResourceEntryException $e) {
+					// try the next one it offered
+				}
+			}
+		}
+
+		return $default;
 	}
 
 	/**
@@ -594,30 +636,10 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @return string
 	 * @throws InvalidResourceEntryException
 	 */
-	/**
-	 * Whether handing this to a browser would run something.
-	 *
-	 * The list is short on purpose: everything else is an identifier this app
-	 * either fetches — where `CurlService` enforces http(s) of its own accord —
-	 * or shows as text.
-	 */
-	private static function isExecutableScheme(string $value): bool {
-		$scheme = strtolower((string)parse_url($value, PHP_URL_SCHEME));
-
-		return in_array($scheme, ['javascript', 'data', 'vbscript'], true);
-	}
-
 	public function validateEntryString(int $as, string $value, bool $exception = true): string {
 		switch ($as) {
 			case self::AS_ID:
-				// An id is an identifier rather than an address, so this is
-				// not the http(s) check `AS_URL` makes: Mastodon names a
-				// conversation with a `tag:` URI and that is a perfectly good
-				// id. What it must not be is a scheme that *does* something
-				// when a browser is handed it — an id reaches an `href` in at
-				// least one place (a portfolio frame falls back to it), and a
-				// remote server chooses this value.
-				if (parse_url($value) !== false && !self::isExecutableScheme($value)) {
+				if (parse_url($value) !== false) {
 					return $value;
 				}
 				break;

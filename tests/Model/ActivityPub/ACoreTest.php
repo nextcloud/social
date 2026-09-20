@@ -602,6 +602,77 @@ class ACoreTest extends TestCase {
 		$this->assertSame(ACore::FORMAT_NOTIFICATION, $item->getExportFormat());
 	}
 
+	/**
+	 * `url` is defined as a string *or* a `Link`, and several implementations
+	 * send the object: Loops sends one for a video, Mastodon a list of them
+	 * for a post with more than one representation. Every one of those used to
+	 * become "this object has no url" — a video with no address, and nothing
+	 * anywhere to say why.
+	 */
+	public function testAUrlSentAsALinkObjectIsRead(): void {
+		$item = new ACore();
+
+		$this->assertSame(
+			'https://loops.example/v/1.mp4',
+			$item->validate(ACore::AS_URL, 'url', [
+				'url' => [
+					'type' => 'Link',
+					'href' => 'https://loops.example/v/1.mp4',
+					'mediaType' => 'video/mp4',
+				],
+			])
+		);
+	}
+
+	public function testAUrlSentAsAListTakesTheFirstUsableOne(): void {
+		$item = new ACore();
+
+		$this->assertSame(
+			'https://remote.example/@bob/1',
+			$item->validate(ACore::AS_URL, 'url', [
+				'url' => [
+					['type' => 'Link', 'href' => 'not a url'],
+					['type' => 'Link', 'href' => 'https://remote.example/@bob/1'],
+				],
+			])
+		);
+	}
+
+	public function testAPlainStringUrlIsStillAUrl(): void {
+		$item = new ACore();
+
+		$this->assertSame(
+			'https://remote.example/@bob/1',
+			$item->validate(ACore::AS_URL, 'url', ['url' => 'https://remote.example/@bob/1'])
+		);
+	}
+
+	/** The scheme check applies to a `Link` exactly as it does to a string. */
+	public function testALinkObjectWithAnExecutableSchemeIsRefused(): void {
+		$item = new ACore();
+
+		$this->assertSame(
+			'',
+			$item->validate(ACore::AS_URL, 'url', [
+				'url' => ['type' => 'Link', 'href' => 'javascript:alert(1)'],
+			])
+		);
+	}
+
+	/**
+	 * Only a URL is read this way: an id is a string by definition, and a date
+	 * arriving as an object is a malformed document rather than a shape to
+	 * accommodate.
+	 */
+	public function testOnlyAUrlIsReadOutOfAnObject(): void {
+		$item = new ACore();
+
+		$this->assertSame(
+			'',
+			$item->validate(ACore::AS_ID, 'id', ['id' => ['href' => 'https://remote.example/1']])
+		);
+	}
+
 	public function testEntryHelpersSkipEmptyValues(): void {
 		$item = new ACore();
 
