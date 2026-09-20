@@ -427,6 +427,7 @@
 					<div class="post-actions__groups">
 						<div class="post-action-group">
 							<NcButton
+								v-if="canReply"
 								:title="t('social', 'Reply')"
 								:aria-label="t('social', 'Reply')"
 								variant="tertiary"
@@ -441,7 +442,7 @@
 							class="post-action-group"
 							:class="{ 'post-action-group--refused': refused === 'boost' }">
 							<NcButton
-								v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+								v-if="canBoost"
 								:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 								:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 								:aria-pressed="isBoosted ? 'true' : 'false'"
@@ -475,6 +476,7 @@
 							     unmounting the button someone just pressed drops their focus
 							     to the body and loses their place in the timeline -->
 							<NcButton
+								v-if="canLike || isLiked"
 								:title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
 								:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
 								:aria-pressed="isLiked ? 'true' : 'false'"
@@ -1040,7 +1042,32 @@ export default {
 		 * offering the action on anything narrower would be offering a refusal.
 		 */
 		canQuote() {
-			return this.item.visibility === 'public' || this.item.visibility === 'unlisted'
+			return (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
+				&& this.allowedByAuthor('quote')
+		},
+
+		/**
+		 * @return {boolean} whether the author allows replies to this post.
+		 * True unless their server said otherwise: most servers publish no
+		 * policy at all, and a post with none is a post anybody may answer.
+		 */
+		canReply() {
+			return this.allowedByAuthor('reply')
+		},
+
+		/**
+		 * @return {boolean} whether this post may be boosted — public or
+		 * unlisted, which is what the server grants, and not refused by the
+		 * author's own policy.
+		 */
+		canBoost() {
+			return (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
+				&& this.allowedByAuthor('boost')
+		},
+
+		/** @return {boolean} whether the author allows this post to be liked. */
+		canLike() {
+			return this.allowedByAuthor('like')
 		},
 
 		/**
@@ -1308,6 +1335,22 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Whether the post's own server says an interaction is allowed.
+		 *
+		 * GoToSocial defined `interactionPolicy` and Mastodon 4.5 reads it: an
+		 * author can say their post may not be replied to, boosted or liked.
+		 * The server sends what it understood as `interaction_policy`, and
+		 * only for a remote post that carries one — so an absent key is "the
+		 * author said nothing", which is most posts and means yes.
+		 *
+		 * @param {string} interaction one of reply, boost, like, quote
+		 * @return {boolean} whether to offer it
+		 */
+		allowedByAuthor(interaction) {
+			return this.item.interaction_policy?.[interaction] !== false
+		},
+
 		/**
 		 * Puts the post away, or brings it back.
 		 *

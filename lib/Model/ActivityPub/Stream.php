@@ -137,6 +137,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public const REMOTE_COUNT_CEILING = 10000000;
 
+	/** The interactions an author can speak about, in this app's own names. */
+	public const INTERACTION_REPLY = 'reply';
+	public const INTERACTION_BOOST = 'boost';
+	public const INTERACTION_LIKE = 'like';
+
+	/** Which `interactionPolicy` clause each of them is. */
+	public const INTERACTION_CLAUSES = [
+		self::INTERACTION_REPLY => 'canReply',
+		self::INTERACTION_BOOST => 'canAnnounce',
+		self::INTERACTION_LIKE => 'canLike',
+	];
+
 	public const QUOTE_POLICY_PUBLIC = 'public';
 	public const QUOTE_POLICY_FOLLOWERS = 'followers';
 	public const QUOTE_POLICY_NOBODY = 'nobody';
@@ -1245,6 +1257,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setQuote($this->quoteIdOf($data));
 		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $data, ''));
 		$this->setQuotePolicy(self::quotePolicyOf($data));
+		$this->importInteractionPolicies($data);
 		// `social_stream` has no column for it, and `details` is the one thing
 		// on the row that survives the round trip and is already read back
 		// with it. Only stored when it says something the id does not.
@@ -1274,6 +1287,29 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$remoteReplies = self::statedCount($data, 'replies');
 		if ($remoteReplies !== null) {
 			$this->setDetailInt(Details::REPLIES, $remoteReplies);
+		}
+	}
+
+	/**
+	 * The three policies that are not about quoting, off the wire object.
+	 *
+	 * Only stored where the author said something: an empty `policies` blob on
+	 * every post from every server that publishes none would be a row larger
+	 * for no reason.
+	 *
+	 * @param array<string, mixed> $data
+	 */
+	private function importInteractionPolicies(array $data): void {
+		$policies = [];
+		foreach (self::INTERACTION_CLAUSES as $interaction => $clause) {
+			$policy = self::policyOf($data, $clause);
+			if ($policy !== '') {
+				$policies[$interaction] = $policy;
+			}
+		}
+
+		if ($policies !== []) {
+			$this->setDetailArray(Details::POLICIES, $policies);
 		}
 	}
 
@@ -1751,6 +1787,11 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// test for a key it will almost never see is a client that will
 			// get it wrong.
 			'reply_approval' => $this->exportReplyApproval(),
+			// what the author's own server says may be done with this post, so
+			// a client can leave out a button rather than offer an action that
+			// will be refused. Absent on a local post, where the policy is
+			// this instance's to apply when the interaction arrives
+			'interaction_policy' => $this->exportAllowedInteractions(),
 			// what a video is, beyond being a post with a file on it: null for
 			// every post that is not one, which is almost all of them
 			'video' => ($video = $this->getVideoMeta()) === [] ? null : $video,
@@ -2003,6 +2044,31 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * What may be done with somebody else's post, in the shape a client reads.
+	 *
+	 * Null where there is nothing to say — a local post, or a remote one whose
+	 * server publishes no policies, which is most of them. A client that has
+	 * to test for a key it will almost never see is a client that gets it
+	 * wrong, so it is absent rather than full of `true`.
+	 *
+	 * @return array<string, bool>|null
+	 */
+	private function exportAllowedInteractions(): ?array {
+		if ($this->isLocal()) {
+			return null;
+		}
+
+		$policy = [];
+		foreach (array_keys(self::INTERACTION_CLAUSES) as $interaction) {
+			if ($this->getInteractionPolicy($interaction) !== '') {
+				$policy[$interaction] = $this->allowsInteraction($interaction);
+			}
+		}
+
+		return ($policy === []) ? null : $policy;
+	}
+
+	/**
 	 * Who is reading, as the stream reads were scoped for — or '' where there
 	 * is nobody, which is also what a context with no container is (a model
 	 * exported in a unit test, or by a command that never opened one).
@@ -2119,12 +2185,36 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * before showing a reader the quote they just wrote.
 	 */
 	private static function quotePolicyOf(array $data): string {
-		$canQuote = $data['interactionPolicy']['canQuote'] ?? null;
-		if (!is_array($canQuote)) {
+		return self::policyOf($data, 'canQuote');
+	}
+
+	/**
+	 * One clause of an `interactionPolicy`, as this app understands it.
+	 *
+	 * The same shape answers all four questions — may this be replied to,
+	 * boosted, liked, quoted — and only `canQuote` was ever read. The other
+	 * three were offered in the interface of every reader here and refused by
+	 * the author's server afterwards, which is the worst of both: the reader
+	 * is told their reply went out, and it did, and nothing ever shows it.
+	 *
+	 * `automaticApproval` naming the public collection is the only "yes" this
+	 * app acts on, for the reason set out above `quotePolicyOf()`:
+	 * `manualApproval` means the author's server decides case by case, and
+	 * nothing here can wait for that answer.
+	 *
+	 * @param array<string, mixed> $data the wire object
+	 * @param string $clause `canReply`, `canAnnounce`, `canLike` or `canQuote`
+	 *
+	 * @return string one of the policy constants, or '' where the author said
+	 *                nothing at all — which is not the same as "nobody"
+	 */
+	private static function policyOf(array $data, string $clause): string {
+		$stated = $data['interactionPolicy'][$clause] ?? null;
+		if (!is_array($stated)) {
 			return '';
 		}
 
-		$automatic = $canQuote['automaticApproval'] ?? [];
+		$automatic = $stated['automaticApproval'] ?? [];
 		$automatic = is_array($automatic) ? $automatic : [$automatic];
 		foreach ($automatic as $allowed) {
 			if (is_string($allowed) && $allowed === self::CONTEXT_PUBLIC) {
@@ -2133,6 +2223,38 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return self::QUOTE_POLICY_NOBODY;
+	}
+
+	/**
+	 * What the author allows, for an interaction other than quoting.
+	 *
+	 * Kept in `details` rather than in columns of their own: three more
+	 * columns on the largest table in the app, for three fields almost no post
+	 * carries and nothing queries by.
+	 *
+	 * @return string '' where the author said nothing, which is every post
+	 *                from a server that does not publish policies
+	 */
+	public function getInteractionPolicy(string $interaction): string {
+		$stored = $this->getDetailsAll()[Details::POLICIES][$interaction] ?? '';
+
+		return is_string($stored) ? $stored : '';
+	}
+
+	/**
+	 * Whether this instance should offer an interaction at all.
+	 *
+	 * True where the author said nothing — which is every post from every
+	 * server that does not publish policies, and has to stay the default — and
+	 * true for anything local, where the policy is this instance's to apply
+	 * when the interaction arrives rather than something to refuse in advance.
+	 */
+	public function allowsInteraction(string $interaction): bool {
+		if ($this->isLocal()) {
+			return true;
+		}
+
+		return $this->getInteractionPolicy($interaction) !== self::QUOTE_POLICY_NOBODY;
 	}
 
 	/**

@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -530,5 +531,100 @@ class StreamQuoteTest extends TestCase {
 
 		$this->assertSame([], $approval['automatic']);
 		$this->assertSame('denied', $approval['current_user']);
+	}
+
+	/**
+	 * GoToSocial defined `interactionPolicy`, Mastodon 4.5 reads it and Loops
+	 * publishes it. This app read only the quote clause, so the other three
+	 * were offered to every reader here and refused by the author's server
+	 * afterwards — the reader was told their reply went out, and it did.
+	 */
+	public function testWhatTheAuthorAllowsIsReadForEveryInteractionNotJustQuoting(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://gts.example/@bob/1',
+			'interactionPolicy' => [
+				'canReply' => ['automaticApproval' => ['https://www.w3.org/ns/activitystreams#Public']],
+				'canAnnounce' => ['automaticApproval' => ['https://gts.example/@bob/followers']],
+				'canLike' => ['automaticApproval' => []],
+			],
+		]);
+
+		$this->assertSame('public', $stream->getInteractionPolicy(Stream::INTERACTION_REPLY));
+		$this->assertSame('nobody', $stream->getInteractionPolicy(Stream::INTERACTION_BOOST));
+		$this->assertSame('nobody', $stream->getInteractionPolicy(Stream::INTERACTION_LIKE));
+	}
+
+	/**
+	 * Most servers publish no policy at all, and a post with none is a post
+	 * anybody may answer: an absent clause must not read as "nobody".
+	 */
+	public function testAPostWhoseServerSaysNothingAllowsEverything(): void {
+		$stream = new Stream();
+		$stream->import(['id' => 'https://remote.example/@bob/1']);
+
+		$this->assertSame('', $stream->getInteractionPolicy(Stream::INTERACTION_REPLY));
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_REPLY));
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_BOOST));
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_LIKE));
+	}
+
+	public function testAnInteractionTheAuthorRefusedIsNotAllowed(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://gts.example/@bob/1',
+			'interactionPolicy' => ['canLike' => ['automaticApproval' => []]],
+		]);
+
+		$this->assertFalse($stream->allowsInteraction(Stream::INTERACTION_LIKE));
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_BOOST));
+	}
+
+	/**
+	 * A post of ours is this instance's to decide about when the interaction
+	 * arrives, not something to refuse in advance.
+	 */
+	public function testALocalPostIsNeverRefusedInAdvance(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://cloud.example/@alice/1',
+			'interactionPolicy' => ['canLike' => ['automaticApproval' => []]],
+		]);
+		$stream->setLocal(true);
+
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_LIKE));
+	}
+
+	/** A row larger for no reason on every post from every ordinary server. */
+	public function testNoPolicyBlobIsStoredForAPostThatCarriesNone(): void {
+		$stream = new Stream();
+		$stream->import(['id' => 'https://remote.example/@bob/1']);
+
+		$this->assertArrayNotHasKey(Details::POLICIES, $stream->getDetailsAll());
+	}
+
+	/** A client can only leave a button out if it is told to. */
+	public function testTheClientIsToldWhatTheAuthorAllows(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://gts.example/@bob/1',
+			'interactionPolicy' => [
+				'canReply' => ['automaticApproval' => ['https://www.w3.org/ns/activitystreams#Public']],
+				'canLike' => ['automaticApproval' => []],
+			],
+		]);
+		$stream->setExportFormat(Stream::FORMAT_LOCAL);
+
+		$exported = $stream->jsonSerialize()['interaction_policy'];
+
+		$this->assertSame(['reply' => true, 'like' => false], $exported);
+	}
+
+	public function testAPostWithNoPolicyTellsTheClientNothingRatherThanTrue(): void {
+		$stream = new Stream();
+		$stream->import(['id' => 'https://remote.example/@bob/1']);
+		$stream->setExportFormat(Stream::FORMAT_LOCAL);
+
+		$this->assertNull($stream->jsonSerialize()['interaction_policy']);
 	}
 }

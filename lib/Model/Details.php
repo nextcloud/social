@@ -56,6 +56,14 @@ final class Details {
 	public const PAGE = 'page_url';
 
 	/**
+	 * What the author allows besides quoting, as `interaction => policy`.
+	 *
+	 * Three more columns on the largest table in the app, for three fields
+	 * almost no post carries and nothing queries by, would be the wrong trade.
+	 */
+	public const POLICIES = 'policies';
+
+	/**
 	 * Whether this post may be quoted, and whether a quote was let through.
 	 *
 	 * `quote` and `quoteAuthorization` are properties of the stored wire object
