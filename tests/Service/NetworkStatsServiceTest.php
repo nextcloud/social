@@ -36,6 +36,8 @@ class NetworkStatsServiceTest extends TestCase {
 
 	/** what the survey answers with, or a Throwable it raises */
 	private mixed $answer = null;
+	/** and what it answers about the platforms */
+	private mixed $platforms = null;
 	/** the `network_stats` app value */
 	private string $configured = '';
 	/** how many requests were made */
@@ -46,8 +48,16 @@ class NetworkStatsServiceTest extends TestCase {
 
 		$this->curlService = $this->createMock(CurlService::class);
 		$this->curlService->method('retrieveJson')
-			->willReturnCallback(function (): array {
+			->willReturnCallback(function (string $method, string $url): array {
 				$this->asked++;
+				if (str_contains($url, '/software')) {
+					if ($this->platforms instanceof \Throwable) {
+						throw $this->platforms;
+					}
+
+					return is_array($this->platforms) ? $this->platforms : [];
+				}
+
 				if ($this->answer instanceof \Throwable) {
 					throw $this->answer;
 				}
@@ -181,5 +191,82 @@ class NetworkStatsServiceTest extends TestCase {
 		// a statistics page that cannot reach the survey must not spend four
 		// seconds finding that out again
 		$this->assertSame(1, $this->asked);
+	}
+
+	/** One row of the platform list, in the shape fedidb sends it. */
+	private function platform(string $name, int $accounts, int $servers = 10): array {
+		return [
+			'name' => $name,
+			'user_count' => $accounts,
+			'instance_count' => $servers,
+			'monthly_active_users' => (int)($accounts / 10),
+			'status_count' => $accounts * 100,
+		];
+	}
+
+	/**
+	 * The totals say how big the fediverse is and nothing about what it is.
+	 * "Forty thousand servers" is an abstraction; the platforms are a picture
+	 * of a place.
+	 */
+	public function testThePlatformsComeBackLargestFirstWithTheirShare(): void {
+		$this->platforms = [
+			$this->platform('Pixelfed', 1000000),
+			$this->platform('Mastodon', 8000000),
+			$this->platform('PeerTube', 1000000),
+		];
+
+		$software = $this->service->software();
+
+		$this->assertSame(
+			['Mastodon', 'Pixelfed', 'PeerTube'],
+			array_column($software['platforms'], 'name')
+		);
+		$this->assertSame(80.0, $software['platforms'][0]['share']);
+		$this->assertSame(10000000, $software['accounts']);
+	}
+
+	/** So the shares still sum to the whole and nobody wonders what is missing. */
+	public function testWhatIsNotNamedIsAddedTogetherRatherThanDropped(): void {
+		$rows = [];
+		for ($i = 0; $i < 9; $i++) {
+			$rows[] = $this->platform('Platform ' . $i, 1000 * (10 - $i));
+		}
+		$this->platforms = $rows;
+
+		$software = $this->service->software();
+
+		$this->assertCount(NetworkStatsService::SOFTWARE_NAMED + 1, $software['platforms']);
+		$rest = end($software['platforms']);
+		$this->assertSame('', $rest['name'], 'the remainder is not a platform and has no name');
+		// the three that were not named: 4000 + 3000 + 2000
+		$this->assertSame(9000, $rest['accounts']);
+		$this->assertEqualsWithDelta(
+			100.0, array_sum(array_column($software['platforms'], 'share')), 0.3
+		);
+	}
+
+	/**
+	 * Of the seventy-odd platforms the survey lists, a third have never been
+	 * met — and a band of zero width with a name on it is noise.
+	 */
+	public function testAPlatformWithNobodyOnItIsLeftOut(): void {
+		$this->platforms = [$this->platform('Mastodon', 100), $this->platform('Gitea', 0, 0)];
+
+		$this->assertSame(['Mastodon'], array_column($this->service->software()['platforms'], 'name'));
+	}
+
+	public function testAnAdministratorCanRefuseThisRequestToo(): void {
+		$this->configured = '0';
+		$this->platforms = [$this->platform('Mastodon', 100)];
+
+		$this->assertNull($this->service->software());
+		$this->assertSame(0, $this->asked);
+	}
+
+	public function testAPlatformListThatDoesNotAnswerLeavesTheCardOut(): void {
+		$this->platforms = new RuntimeException('down');
+
+		$this->assertNull($this->service->software());
 	}
 }

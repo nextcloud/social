@@ -456,4 +456,189 @@ describe('Statistics', () => {
 		expect(bare.text()).not.toContain('What works')
 		expect(bare.text()).not.toContain('When your posts do best')
 	})
+
+	/**
+	 * The figures above say how big the fediverse is today, which cannot
+	 * answer the thing somebody deciding whether to write here wants to know:
+	 * whether this is somewhere more people are arriving, or leaving.
+	 */
+	describe('how the fediverse has grown', () => {
+		const GROWTH = {
+			months: [
+				{ month: '2025-10', servers: 40000, accounts: 30000000, active: 1000000, posts: 1500000000 },
+				{ month: '2025-11', servers: 41000, accounts: 31000000, active: 1050000, posts: 1550000000 },
+				{ month: '2026-09', servers: 49683, accounts: 38069836, active: 1451756, posts: 1913585339 },
+			],
+			change: {
+				month: { servers: 0.4, accounts: 3.0, active: 3.8, posts: 3.3 },
+				year: { servers: 5.8, accounts: 12.1, active: 28.2, posts: 4.1 },
+			},
+			coverage_changed: false,
+			source: 'Fediverse Observer',
+			source_url: 'https://fediverse.observer',
+		}
+
+		/**
+		 * @param {object|undefined} growth what the server sent
+		 * @return {Promise<object>} the page, drawn
+		 */
+		async function mountGrowth(growth) {
+			axios.get.mockResolvedValue({ data: answer(growth === undefined ? {} : { growth }) })
+			const wrapper = mountPage()
+			await flushPromises()
+
+			return wrapper
+		}
+
+		it('draws the section with what changed and who counted it', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+
+			expect(wrapper.find('.stats__growth').exists()).toBe(true)
+			expect(wrapper.text()).toContain('How the fediverse has grown')
+			expect(wrapper.text()).toContain('↑ +3%')
+			expect(wrapper.text()).toContain('Fediverse Observer')
+		})
+
+		/**
+		 * The first thing anybody comparing the two cards will ask is why the
+		 * numbers differ, and the answer is that they are different surveys.
+		 */
+		it('says why its numbers differ from the ones above', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+
+			expect(wrapper.text()).toContain('crawl different servers')
+		})
+
+		it('draws the chart with the months it covers named', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+
+			expect(wrapper.find('.stats__area-line').attributes('points')).toBeTruthy()
+			// closed along the bottom, so the area under it can be filled
+			expect(wrapper.find('.stats__area-fill').attributes('points')).toContain('0,40')
+			expect(wrapper.find('.stats__growth-span').text()).toContain('2025')
+		})
+
+		/**
+		 * A series from thirty million to thirty-eight, drawn from zero, is a
+		 * flat line with a lot of empty chart under it.
+		 */
+		it('scales the line to its own range rather than to zero', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+			const ys = wrapper.find('.stats__area-line').attributes('points')
+				.split(' ')
+				.map((point) => Number(point.split(',')[1]))
+
+			expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(20)
+		})
+
+		/**
+		 * A young instance talks to two servers out of forty thousand, which
+		 * is 0.0%: a true number that tells its reader nothing.
+		 */
+		it('counts the servers it reaches when the share rounds to nothing', async () => {
+			axios.get.mockResolvedValue({
+				data: answer({ growth: GROWTH, network: { peers: 2, servers: 42809, accounts: 1, active: 1, measured: '', source: 'FediDB', source_url: 'https://fedidb.org' } }),
+			})
+			const wrapper = mountPage()
+			await flushPromises()
+
+			expect(wrapper.find('.stats__derived').text()).toContain('2')
+			expect(wrapper.find('.stats__derived').text()).toContain('of 42,809 servers')
+			expect(wrapper.find('.stats__derived').text()).not.toContain('0%')
+		})
+
+		it('says what the numbers mean rather than leaving it as arithmetic', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+
+			expect(wrapper.find('.stats__derived').text()).toContain('posted last month')
+			expect(wrapper.find('.stats__derived').text()).toContain('posts per account')
+		})
+
+		/**
+		 * A reader who is not told reads a step in the line as the network
+		 * doubling, which is the one thing it is not.
+		 */
+		it('explains a missing year rather than leaving a gap', async () => {
+			const wrapper = await mountGrowth({
+				...GROWTH,
+				change: { month: GROWTH.change.month, year: {} },
+				coverage_changed: true,
+			})
+
+			expect(wrapper.text()).toContain('reaching servers it had not reached before')
+			expect(wrapper.text()).not.toContain('over a year')
+		})
+
+		/** One point is not a trend. */
+		it('leaves the section out when there is no series', async () => {
+			const wrapper = await mountGrowth({ ...GROWTH, months: [GROWTH.months[0]] })
+
+			expect(wrapper.find('.stats__growth').exists()).toBe(false)
+		})
+
+		it('leaves it out entirely when the server sent none', async () => {
+			const wrapper = await mountGrowth(undefined)
+
+			expect(wrapper.find('.stats__growth').exists()).toBe(false)
+		})
+	})
+
+	/**
+	 * "Forty thousand servers" is an abstraction; the list of platforms is a
+	 * picture of a place — and for somebody reading this from inside a
+	 * Nextcloud, that the network is many kinds of software talking to each
+	 * other is the whole point of it.
+	 */
+	describe('what the fediverse runs on', () => {
+		const SOFTWARE = {
+			platforms: [
+				{ name: 'Mastodon', accounts: 8726285, servers: 8716, active: 972920, posts: 999431667, share: 64.1 },
+				{ name: 'Misskey', accounts: 1249410, servers: 1178, active: 20046, posts: 458311684, share: 9.2 },
+				{ name: '', accounts: 3634687, servers: 32250, active: 312416, posts: 178313649, share: 26.7 },
+			],
+			accounts: 13610382,
+			source: 'FediDB',
+			source_url: 'https://fedidb.org',
+		}
+
+		/**
+		 * @param {object|undefined} software what the server sent
+		 * @return {Promise<object>} the page, drawn
+		 */
+		async function mountSoftware(software) {
+			axios.get.mockResolvedValue({ data: answer(software === undefined ? {} : { software }) })
+			const wrapper = mountPage()
+			await flushPromises()
+
+			return wrapper
+		}
+
+		it('draws a band per platform and a row to read it by', async () => {
+			const wrapper = await mountSoftware(SOFTWARE)
+
+			expect(wrapper.findAll('.stats__composition-band')).toHaveLength(3)
+			expect(wrapper.find('.stats__platform-list').text()).toContain('Mastodon')
+			expect(wrapper.find('.stats__platform-list').text()).toContain('64.1%')
+			expect(wrapper.find('.stats__platform-list').text()).toContain('8,716 servers')
+		})
+
+		/** Which keeps the shares summing to the whole. */
+		it('names what is left over rather than dropping it', async () => {
+			const wrapper = await mountSoftware(SOFTWARE)
+
+			expect(wrapper.find('.stats__platform-list').text()).toContain('everything else')
+		})
+
+		it('says what the shares are shares of', async () => {
+			const wrapper = await mountSoftware(SOFTWARE)
+
+			expect(wrapper.text()).toContain('Share of accounts')
+		})
+
+		it('leaves the card out when the server sent none', async () => {
+			const wrapper = await mountSoftware(undefined)
+
+			expect(wrapper.find('.stats__platforms').exists()).toBe(false)
+		})
+	})
 })
