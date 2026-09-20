@@ -14,6 +14,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\FollowLimitException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -77,6 +78,44 @@ class FollowService {
 		private TimelineRevisionService $timelineRevisionService,
 		private LoggerInterface $logger,
 	) {
+	}
+
+	/**
+	 * Refuses an account that is following faster than anybody follows.
+	 *
+	 * A compromised account, or one running a script, can fan out follows to
+	 * thousands of servers from this instance's address in a few minutes —
+	 * every one of them a signed request that this instance is answerable for,
+	 * and the shape of it is indistinguishable from a botnet warming up.
+	 * Nothing anywhere counted them.
+	 *
+	 * An hour rather than a day, because what this catches is a burst;
+	 * somebody importing a follow list from another server does it in bursts
+	 * too, which is why the number is high enough for one. Counted from the
+	 * rows, so it holds on an instance with no memcache, and checked before
+	 * the follow is created rather than before it is delivered — a row written
+	 * and then not sent is a follow that never completes and never retries.
+	 *
+	 * @throws FollowLimitException
+	 */
+	private function assertWithinFollowLimit(Person $actor): void {
+		$limit = (int)$this->configService->getAppValue(ConfigService::SOCIAL_FOLLOW_LIMIT);
+		if ($limit < 1) {
+			return;
+		}
+
+		$sent = $this->followsRequest->countFollowsSince($actor->getId(), time() - 3600);
+		if ($sent < $limit) {
+			return;
+		}
+
+		$this->logger->warning('an account reached its follow limit', [
+			'actor' => $actor->getId(), 'limit' => $limit, 'sent' => $sent,
+		]);
+
+		throw new FollowLimitException(
+			'this account has sent as many follows in the last hour as this server allows'
+		);
 	}
 
 	/**
@@ -179,6 +218,7 @@ class FollowService {
 	 */
 	public function followActor(Person $actor, Person $remoteActor): void {
 		$this->moderationService->assertNotSuspended($actor->getId());
+		$this->assertWithinFollowLimit($actor);
 
 		if ($remoteActor->getId() === $actor->getId()) {
 			$this->logger->warning('FollowService::followAccount - same account');
