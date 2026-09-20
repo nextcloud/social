@@ -69,6 +69,9 @@ class StatisticsController extends Controller {
 			// single number cannot answer. A second source, named as such: the
 			// snapshot above publishes no history at all
 			$statistics['growth'] = $this->networkGrowthService->growth();
+			// and what it is made of: "forty thousand servers" is an
+			// abstraction, and the list of platforms is a picture of a place
+			$statistics['software'] = $this->networkStatsService->software();
 
 			return new DataResponse($statistics, Http::STATUS_OK);
 		} catch (Throwable $e) {

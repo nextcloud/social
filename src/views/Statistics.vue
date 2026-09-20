@@ -447,6 +447,46 @@
 			</section>
 
 			<!--
+				What it is made of. "Forty thousand servers" is an abstraction;
+				the list of platforms is a picture of a place — and for
+				somebody reading this from inside a Nextcloud, that the network
+				is many kinds of software talking to each other is the whole
+				point of it.
+			-->
+			<section v-if="platforms.length" class="stats__card stats__platforms">
+				<h3>{{ t('social', 'What the fediverse runs on') }}</h3>
+
+				<div
+					class="stats__composition"
+					role="img"
+					:aria-label="compositionDescription">
+					<span
+						v-for="platform in platforms"
+						:key="platform.key"
+						class="stats__composition-band"
+						:class="{ 'stats__composition-band--rest': platform.rest }"
+						:style="{ width: platform.width, background: platform.colour }"
+						:title="platform.title" />
+				</div>
+
+				<ul class="stats__platform-list">
+					<li v-for="platform in platforms" :key="platform.key">
+						<span class="stats__platform-swatch" :style="{ background: platform.colour }" aria-hidden="true" />
+						<span class="stats__platform-name">{{ platform.name }}</span>
+						<span class="stats__platform-share">{{ platform.shareLabel }}</span>
+						<span class="stats__platform-detail">{{ platform.detail }}</span>
+					</li>
+				</ul>
+
+				<p class="stats__note">
+					{{ platformsNote }}
+					<a :href="stats.software.source_url" target="_blank" rel="noreferrer noopener">
+						{{ stats.software.source }} ↗
+					</a>
+				</p>
+			</section>
+
+			<!--
 				And whether that network is growing, which is the question the
 				figures above cannot answer: a reader deciding whether to write
 				here wants to know if this is somewhere more people are
@@ -465,23 +505,65 @@
 				</ul>
 
 				<figure class="stats__growth-chart">
-					<figcaption>{{ t('social', 'Accounts, month by month') }}</figcaption>
+					<figcaption>
+						{{ t('social', 'Accounts, month by month') }}
+						<span class="stats__growth-latest">{{ growthLatest }}</span>
+					</figcaption>
 					<svg
-						class="stats__spark stats__spark--growth"
-						viewBox="0 0 100 32"
+						class="stats__area"
+						viewBox="0 0 100 40"
 						preserveAspectRatio="none"
 						role="img"
 						:aria-label="growthDescription">
+						<defs>
+							<linearGradient
+								:id="gradientId"
+								x1="0"
+								y1="0"
+								x2="0"
+								y2="1">
+								<stop offset="0%" stop-color="var(--color-primary-element)" stop-opacity=".35" />
+								<stop offset="100%" stop-color="var(--color-primary-element)" stop-opacity="0" />
+							</linearGradient>
+						</defs>
+						<!-- the years behind it, so a rise has something to be
+						     a rise against -->
+						<line
+							v-for="tick in growthTicks"
+							:key="tick.x"
+							class="stats__area-tick"
+							:x1="tick.x"
+							:x2="tick.x"
+							y1="0"
+							y2="40"
+							vector-effect="non-scaling-stroke" />
+						<polygon class="stats__area-fill" :points="growthArea" :fill="`url(#${gradientId})`" />
 						<polyline
-							class="stats__spark-line stats__spark-line--current"
+							class="stats__area-line"
 							:points="growthPoints"
 							vector-effect="non-scaling-stroke" />
 					</svg>
 					<p class="stats__growth-span">
 						<span>{{ growthFrom }}</span>
+						<span
+							v-for="tick in growthTicks"
+							:key="tick.x"
+							class="stats__growth-tick"
+							:style="{ left: tick.x + '%' }">
+							{{ tick.label }}
+						</span>
 						<span>{{ growthTo }}</span>
 					</p>
 				</figure>
+
+				<!-- the numbers nobody has to work out for themselves: what
+				     they are actually looking at, in sentences -->
+				<ul class="stats__derived">
+					<li v-for="fact in growthFacts" :key="fact.key">
+						<strong>{{ fact.value }}</strong>
+						<span>{{ fact.label }}</span>
+					</li>
+				</ul>
 
 				<!-- a step in this series is usually the crawler reaching more
 				     servers, and a reader who is not told that reads it as the
@@ -593,6 +675,63 @@ export default {
 			})
 		},
 
+		/**
+		 * The platforms, as bands of a bar and rows of a list.
+		 *
+		 * Coloured from a fixed palette rather than from the theme's accent:
+		 * six bands of one hue is a gradient, and this is a legend. The last
+		 * row is everything not named, which keeps the shares summing to the
+		 * whole.
+		 *
+		 * @return {Array<object>}
+		 */
+		platforms() {
+			const platforms = this.stats?.software?.platforms
+			if (!Array.isArray(platforms) || platforms.length === 0) {
+				return []
+			}
+
+			const palette = [
+				'#6ea8fe',
+				'#7fd1ae',
+				'#f4b183',
+				'#c9a0dc',
+				'#7ec8e3',
+				'#e7909a',
+			]
+
+			return platforms.map((platform, index) => {
+				const rest = !platform.name
+				const name = rest ? t('social', 'everything else') : platform.name
+
+				return {
+					key: name + index,
+					name,
+					rest,
+					colour: rest ? 'var(--color-border-dark)' : palette[index % palette.length],
+					width: Math.max(0.5, platform.share) + '%',
+					shareLabel: this.decimal(platform.share) + '%',
+					detail: t('social', '{servers} servers · {accounts} accounts', {
+						servers: this.number(platform.servers),
+						accounts: this.number(platform.accounts),
+					}),
+					title: name + ' — ' + this.decimal(platform.share) + '%',
+				}
+			})
+		},
+
+		/** @return {string} the bar, for somebody who cannot see it */
+		compositionDescription() {
+			return this.platforms
+				.map((platform) => platform.name + ' ' + platform.shareLabel)
+				.join(', ')
+		},
+
+		/** @return {string} why these shares are of accounts and not servers */
+		platformsNote() {
+			return t('social', 'Share of accounts, largest first — a platform can be many small servers or one big one. Counted by')
+		},
+
 		/** @return {object|null} the monthly series, or null where there is none */
 		growth() {
 			const growth = this.stats?.growth
@@ -633,9 +772,96 @@ export default {
 
 		/** @return {string} the accounts series, as a polyline */
 		growthPoints() {
-			const accounts = (this.growth?.months ?? []).map((month) => month.accounts)
+			return this.series(38)
+		},
 
-			return this.points(accounts, Math.max(1, ...accounts))
+		/**
+		 * @return {string} the same, closed along the bottom so it can be
+		 * filled: a line says "it went up", a filled area says "this much of
+		 * it is there"
+		 */
+		growthArea() {
+			const line = this.series(38)
+
+			return line === '' ? '' : '0,40 ' + line + ' 100,40'
+		},
+
+		/** @return {string} a unique id, so two charts on a page do not share a gradient */
+		gradientId() {
+			return 'social-growth-' + (this.growth?.months?.length ?? 0)
+		},
+
+		/**
+		 * @return {Array<{x: number, label: string}>} a mark at each January
+		 * the series covers, so a rise has something to be a rise against
+		 */
+		growthTicks() {
+			const months = this.growth?.months ?? []
+
+			return months
+				.map((month, index) => ({ month, index }))
+				.filter(({ month }) => month.month.endsWith('-01'))
+				.map(({ month, index }) => ({
+					x: Math.round((index / Math.max(1, months.length - 1)) * 1000) / 10,
+					label: month.month.slice(0, 4),
+				}))
+		},
+
+		/** @return {string} where the line ends, said in words beside it */
+		growthLatest() {
+			const months = this.growth?.months ?? []
+			const last = months[months.length - 1]
+
+			return last ? t('social', '{count} accounts', { count: this.number(last.accounts) }) : ''
+		},
+
+		/**
+		 * The things a reader would otherwise work out for themselves, in the
+		 * one place they have all the numbers to hand.
+		 *
+		 * @return {Array<{key: string, value: string, label: string}>}
+		 */
+		growthFacts() {
+			const months = this.growth?.months ?? []
+			const last = months[months.length - 1]
+			const facts = []
+			if (!last) {
+				return facts
+			}
+
+			const yearAgo = months[months.length - 13]
+			if (yearAgo && last.accounts > yearAgo.accounts) {
+				facts.push({
+					key: 'joined',
+					value: this.number(last.accounts - yearAgo.accounts),
+					label: t('social', 'accounts more than a year ago'),
+				})
+			}
+
+			if (last.accounts > 0) {
+				facts.push({
+					key: 'active',
+					value: this.decimal((last.active / last.accounts) * 100) + '%',
+					label: t('social', 'of them posted last month'),
+				})
+				facts.push({
+					key: 'perAccount',
+					value: this.number(Math.round(last.posts / last.accounts)),
+					label: t('social', 'posts per account, all time'),
+				})
+			}
+
+			const peers = this.stats?.network?.peers ?? 0
+			const servers = this.stats?.network?.servers ?? 0
+			if (peers > 0 && servers > 0) {
+				facts.push({
+					key: 'reach',
+					value: this.decimal((peers / servers) * 100) + '%',
+					label: t('social', 'of all servers are ones this one talks to'),
+				})
+			}
+
+			return facts
 		},
 
 		/** @return {string} the first month drawn */
@@ -1086,6 +1312,39 @@ export default {
 		},
 
 		/**
+		 * The accounts series as SVG points, scaled to its own range rather
+		 * than to zero.
+		 *
+		 * A series that runs from thirty million to thirty-eight drawn from
+		 * zero is a flat line with a lot of empty chart under it; drawn from
+		 * its own floor it is the shape the numbers actually have. The floor
+		 * is a tenth below the smallest value so the line never touches the
+		 * bottom edge.
+		 *
+		 * @param {number} height the box to draw into
+		 * @return {string} the points
+		 */
+		series(height) {
+			const values = (this.growth?.months ?? []).map((month) => month.accounts)
+			if (values.length < 2) {
+				return ''
+			}
+
+			const top = Math.max(...values)
+			const floor = Math.min(...values) * 0.9
+			const span = Math.max(1, top - floor)
+
+			return values
+				.map((value, index) => {
+					const x = (index / (values.length - 1)) * 100
+					const y = height - 2 - ((value - floor) / span) * (height - 4)
+
+					return Math.round(x * 100) / 100 + ',' + Math.round(y * 100) / 100
+				})
+				.join(' ')
+		},
+
+		/**
 		 * @param {number} change a percentage
 		 * @return {string} it with a sign and an arrow, as the KPI cards do
 		 */
@@ -1209,6 +1468,111 @@ export default {
 	}
 }
 
+/* six bands of one hue is a gradient; this is a legend, so the colours are a
+   fixed palette and the bar is read against the list beside it */
+.stats__composition {
+	display: flex;
+	height: 14px;
+	border-radius: 7px;
+	overflow: hidden;
+	margin-block: calc(var(--default-grid-baseline) * 2);
+	background: var(--color-background-dark);
+}
+
+.stats__composition-band {
+	height: 100%;
+	transition: flex-basis .2s ease;
+}
+
+.stats__platform-list {
+	list-style: none;
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	gap: var(--default-grid-baseline) calc(var(--default-grid-baseline) * 2);
+	align-items: baseline;
+
+	li {
+		display: contents;
+	}
+}
+
+.stats__platform-swatch {
+	inline-size: 10px;
+	block-size: 10px;
+	border-radius: 3px;
+	align-self: center;
+}
+
+.stats__platform-name {
+	font-weight: bold;
+}
+
+.stats__platform-share {
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+
+/* the third column wraps under on a phone, where three columns of numbers do
+   not fit and the detail is the one that can wait */
+.stats__platform-detail {
+	grid-column: 2 / -1;
+	color: var(--color-text-maxcontrast);
+	font-size: var(--font-size-small, 0.85em);
+}
+
+.stats__area {
+	width: 100%;
+	height: 120px;
+	display: block;
+}
+
+.stats__area-line {
+	fill: none;
+	stroke: var(--color-primary-element);
+	stroke-width: 2;
+	stroke-linejoin: round;
+}
+
+.stats__area-tick {
+	stroke: var(--color-border);
+	stroke-width: 1;
+	stroke-dasharray: 2 3;
+}
+
+.stats__growth-latest {
+	float: inline-end;
+	color: var(--color-main-text);
+	font-weight: bold;
+}
+
+.stats__growth-tick {
+	position: absolute;
+	transform: translateX(-50%);
+}
+
+.stats__derived {
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: calc(var(--default-grid-baseline) * 4);
+	margin-block-start: calc(var(--default-grid-baseline) * 3);
+
+	li {
+		display: flex;
+		flex-direction: column;
+	}
+
+	strong {
+		font-size: 1.3em;
+	}
+
+	span {
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small, 0.85em);
+	}
+}
+
+.stats__platforms,
 .stats__growth {
 	h3 {
 		margin-block-end: calc(var(--default-grid-baseline) * 2);
@@ -1249,6 +1613,7 @@ export default {
 }
 
 .stats__growth-span {
+	position: relative;
 	display: flex;
 	justify-content: space-between;
 	margin: 0;

@@ -512,9 +512,30 @@ describe('Statistics', () => {
 		it('draws the chart with the months it covers named', async () => {
 			const wrapper = await mountGrowth(GROWTH)
 
-			expect(wrapper.find('.stats__spark--growth').attributes('points')).toBeUndefined()
-			expect(wrapper.find('.stats__growth-chart polyline').attributes('points')).toBeTruthy()
+			expect(wrapper.find('.stats__area-line').attributes('points')).toBeTruthy()
+			// closed along the bottom, so the area under it can be filled
+			expect(wrapper.find('.stats__area-fill').attributes('points')).toContain('0,40')
 			expect(wrapper.find('.stats__growth-span').text()).toContain('2025')
+		})
+
+		/**
+		 * A series from thirty million to thirty-eight, drawn from zero, is a
+		 * flat line with a lot of empty chart under it.
+		 */
+		it('scales the line to its own range rather than to zero', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+			const ys = wrapper.find('.stats__area-line').attributes('points')
+				.split(' ')
+				.map((point) => Number(point.split(',')[1]))
+
+			expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(20)
+		})
+
+		it('says what the numbers mean rather than leaving it as arithmetic', async () => {
+			const wrapper = await mountGrowth(GROWTH)
+
+			expect(wrapper.find('.stats__derived').text()).toContain('posted last month')
+			expect(wrapper.find('.stats__derived').text()).toContain('posts per account')
 		})
 
 		/**
@@ -543,6 +564,65 @@ describe('Statistics', () => {
 			const wrapper = await mountGrowth(undefined)
 
 			expect(wrapper.find('.stats__growth').exists()).toBe(false)
+		})
+	})
+
+	/**
+	 * "Forty thousand servers" is an abstraction; the list of platforms is a
+	 * picture of a place — and for somebody reading this from inside a
+	 * Nextcloud, that the network is many kinds of software talking to each
+	 * other is the whole point of it.
+	 */
+	describe('what the fediverse runs on', () => {
+		const SOFTWARE = {
+			platforms: [
+				{ name: 'Mastodon', accounts: 8726285, servers: 8716, active: 972920, posts: 999431667, share: 64.1 },
+				{ name: 'Misskey', accounts: 1249410, servers: 1178, active: 20046, posts: 458311684, share: 9.2 },
+				{ name: '', accounts: 3634687, servers: 32250, active: 312416, posts: 178313649, share: 26.7 },
+			],
+			accounts: 13610382,
+			source: 'FediDB',
+			source_url: 'https://fedidb.org',
+		}
+
+		/**
+		 * @param {object|undefined} software what the server sent
+		 * @return {Promise<object>} the page, drawn
+		 */
+		async function mountSoftware(software) {
+			axios.get.mockResolvedValue({ data: answer(software === undefined ? {} : { software }) })
+			const wrapper = mountPage()
+			await flushPromises()
+
+			return wrapper
+		}
+
+		it('draws a band per platform and a row to read it by', async () => {
+			const wrapper = await mountSoftware(SOFTWARE)
+
+			expect(wrapper.findAll('.stats__composition-band')).toHaveLength(3)
+			expect(wrapper.find('.stats__platform-list').text()).toContain('Mastodon')
+			expect(wrapper.find('.stats__platform-list').text()).toContain('64.1%')
+			expect(wrapper.find('.stats__platform-list').text()).toContain('8,716 servers')
+		})
+
+		/** Which keeps the shares summing to the whole. */
+		it('names what is left over rather than dropping it', async () => {
+			const wrapper = await mountSoftware(SOFTWARE)
+
+			expect(wrapper.find('.stats__platform-list').text()).toContain('everything else')
+		})
+
+		it('says what the shares are shares of', async () => {
+			const wrapper = await mountSoftware(SOFTWARE)
+
+			expect(wrapper.text()).toContain('Share of accounts')
+		})
+
+		it('leaves the card out when the server sent none', async () => {
+			const wrapper = await mountSoftware(undefined)
+
+			expect(wrapper.find('.stats__platforms').exists()).toBe(false)
 		})
 	})
 })

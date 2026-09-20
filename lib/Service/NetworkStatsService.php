@@ -46,6 +46,16 @@ class NetworkStatsService {
 	public const SOURCE_NAME = 'FediDB';
 	public const SOURCE_URL = 'https://fedidb.org';
 	private const ENDPOINT = 'https://api.fedidb.org/v1/stats';
+	private const SOFTWARE_ENDPOINT = 'https://api.fedidb.org/v1/software';
+
+	/**
+	 * How many platforms are named before the rest are added together.
+	 *
+	 * Six and a remainder: the seventh is under two per cent of accounts, and
+	 * a bar with twenty slivers in it says less than one with six bands and a
+	 * number for everything else.
+	 */
+	public const SOFTWARE_NAMED = 6;
 
 	/** Long, because the network does not change between two page loads. */
 	private const CACHE_TTL = 21600;
@@ -91,6 +101,129 @@ class NetworkStatsService {
 			'source' => self::SOURCE_NAME,
 			'source_url' => self::SOURCE_URL,
 		]);
+	}
+
+	/**
+	 * What the fediverse is made of: the platforms, largest first.
+	 *
+	 * The totals above say how big it is and nothing about what it is. "Forty
+	 * thousand servers" is an abstraction; "Mastodon, Misskey, Pixelfed,
+	 * PeerTube, and this is where the video ones are" is a picture of a place
+	 * — and for somebody reading this page from inside a Nextcloud, the fact
+	 * that the network is many kinds of software talking to each other is the
+	 * whole point of it.
+	 *
+	 * The named few carry a share; everything else is added into one row
+	 * rather than dropped, so the shares still sum to the whole and nobody has
+	 * to wonder what is missing.
+	 *
+	 * @return array{
+	 *     platforms: list<array{name: string, accounts: int, servers: int, active: int, posts: int, share: float}>,
+	 *     accounts: int, source: string, source_url: string
+	 * }|null
+	 */
+	public function software(): ?array {
+		if (trim((string)$this->configService->getAppValue(self::CONFIG_KEY)) === '0') {
+			return null;
+		}
+
+		$platforms = $this->platforms();
+		if ($platforms === null || $platforms === []) {
+			return null;
+		}
+
+		$total = array_sum(array_column($platforms, 'accounts'));
+		if ($total < 1) {
+			return null;
+		}
+
+		$named = array_slice($platforms, 0, self::SOFTWARE_NAMED);
+		$rest = array_slice($platforms, self::SOFTWARE_NAMED);
+		if ($rest !== []) {
+			$named[] = [
+				'name' => '',
+				'accounts' => array_sum(array_column($rest, 'accounts')),
+				'servers' => array_sum(array_column($rest, 'servers')),
+				'active' => array_sum(array_column($rest, 'active')),
+				'posts' => array_sum(array_column($rest, 'posts')),
+			];
+		}
+
+		$shared = [];
+		foreach ($named as $platform) {
+			$accounts = (float)$platform['accounts'];
+			$platform['share'] = round($accounts / (float)$total * 100.0, 1);
+			$shared[] = $platform;
+		}
+
+		return [
+			'platforms' => $shared,
+			'accounts' => $total,
+			'source' => self::SOURCE_NAME,
+			'source_url' => self::SOURCE_URL,
+		];
+	}
+
+	/**
+	 * The platforms as the survey lists them, largest by accounts first and
+	 * the empty ones left out.
+	 *
+	 * A platform with no accounts and no servers is one the survey knows the
+	 * name of and has never met — of the seventy-odd it lists, a third are
+	 * that — and a bar band of zero width with a name on it is noise.
+	 *
+	 * @return list<array{name: string, accounts: int, servers: int, active: int, posts: int}>|null
+	 */
+	private function platforms(): ?array {
+		$cached = $this->cache->get('software');
+		if (is_string($cached)) {
+			$decoded = json_decode($cached, true);
+
+			return (is_array($decoded) && $decoded !== []) ? $decoded : null;
+		}
+
+		try {
+			$answer = $this->curlService->retrieveJson(
+				'get',
+				self::SOFTWARE_ENDPOINT,
+				['timeout' => self::TIMEOUT, 'json_headers' => false, 'headers' => ['Accept' => 'application/json']]
+			);
+		} catch (Throwable $e) {
+			$this->logger->debug('[NetworkStatsService] the platform list did not answer', ['exception' => $e]);
+			$this->cache->set('software', '[]', self::FAILURE_TTL);
+
+			return null;
+		}
+
+		$platforms = [];
+		foreach ($answer as $row) {
+			if (!is_array($row)) {
+				continue;
+			}
+
+			$name = trim((string)($row['name'] ?? ''));
+			$accounts = (int)($row['user_count'] ?? 0);
+			if ($name === '' || $accounts < 1) {
+				continue;
+			}
+
+			$platforms[] = [
+				'name' => $name,
+				'accounts' => $accounts,
+				'servers' => (int)($row['instance_count'] ?? 0),
+				'active' => (int)($row['monthly_active_users'] ?? 0),
+				'posts' => (int)($row['status_count'] ?? 0),
+			];
+		}
+
+		usort($platforms, static fn (array $a, array $b): int => $b['accounts'] <=> $a['accounts']);
+		$this->cache->set(
+			'software',
+			(string)json_encode($platforms),
+			($platforms === []) ? self::FAILURE_TTL : self::CACHE_TTL
+		);
+
+		return ($platforms === []) ? null : $platforms;
 	}
 
 	/**
