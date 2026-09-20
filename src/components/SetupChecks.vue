@@ -23,10 +23,23 @@
 			<p>
 				{{ clientApiExplanation }}
 			</p>
+			<!--
+				What the probe actually saw. The whole reason this is here: a
+				missing rule and a rule whose proxy target is not this Nextcloud
+				both answer 404, so an administrator who has just pasted the
+				rules and still sees this warning would otherwise have nothing
+				to go on.
+			-->
+			<p v-if="clientApiFinding" class="setup-checks__finding">
+				{{ clientApiFinding }}
+			</p>
 			<p>
 				{{ t('social', 'The web server has to map /api, /oauth and /.well-known/host-meta onto Social. It has to do that as an internal proxy and not as a redirect: Nextcloud routes on the address a request arrived at, so a plain rewrite answers 404, and many clients drop their authorization when they follow a redirect. Inside the Apache virtual host that serves Nextcloud:') }}
 			</p>
 			<pre class="setup-checks__config"><code>{{ apacheRules }}</code></pre>
+			<p>
+				{{ t('social', 'Whatever the rules proxy to has to serve this Nextcloud itself. A host or port that serves a different document root — one with no virtual host for this domain, say — answers 404 for every proxied request, which looks exactly like having no rules at all. An Apache 404 page names the port it came from, which tells the two apart.') }}
+			</p>
 			<p>
 				{{ t('social', 'The rules for nginx, what each one is for, and what else changes once requests arrive through a proxy are in the documentation. Nothing else is affected: the web interface and federation with other servers work without any of this.') }}
 				<a
@@ -70,6 +83,12 @@ export default {
 			type: Object,
 			default: () => ({ configured: '', expected: '' }),
 		},
+
+		/** What each client-API probe saw, in the order the bases were tried. */
+		clientApi: {
+			type: Array,
+			default: () => [],
+		},
 	},
 
 	data() {
@@ -92,6 +111,46 @@ export default {
 				'RewriteRule ^/?oauth/(.*)$ http://127.0.0.1/index.php/apps/social/oauth/$1 [P,QSA,L]',
 				'RewriteRule ^/?\\.well-known/host-meta$ http://127.0.0.1/index.php/.well-known/host-meta [P,QSA,L]',
 			].join('\n')
+		},
+
+		/**
+		 * The last thing the probe saw, said plainly.
+		 *
+		 * @return {string} empty where there is nothing useful to add
+		 */
+		clientApiFinding() {
+			// the first, not the last: the server tries the bases in order of
+			// how much they mean and the later ones are fallbacks
+			const last = this.clientApi[0]
+			if (!last) {
+				return ''
+			}
+
+			if (last.reason === 'status') {
+				return translate(
+					'social',
+					'This server asked {base}/api/v1/instance and got {status}.',
+					{ base: last.base, status: String(last.status) },
+				)
+			}
+
+			if (last.reason === 'not-social') {
+				return translate(
+					'social',
+					'This server asked {base}/api/v1/instance and something answered, but not this app — a login page or a catch-all index rather than an instance document.',
+					{ base: last.base },
+				)
+			}
+
+			if (last.reason === 'unreachable') {
+				return translate(
+					'social',
+					'This server could not reach {base} at all: the connection was refused, the name did not resolve, or the certificate was not accepted.',
+					{ base: last.base },
+				)
+			}
+
+			return ''
 		},
 
 		clientApiExplanation() {
@@ -132,6 +191,17 @@ export default {
 	// rather than scroll out of sight, because a rule an administrator cannot
 	// see is a rule they will paste half of -- a soft wrap is not part of what
 	// gets copied, so the paste is still one line.
+	// what the probe saw, set apart from the prose around it: it is the one
+	// line on this card that is about this server rather than about the
+	// feature in general
+	&__finding {
+		padding: 8px 12px;
+		border-inline-start: 4px solid var(--color-warning, var(--color-border));
+		background-color: var(--color-background-hover);
+		border-radius: var(--border-radius);
+		overflow-wrap: anywhere;
+	}
+
 	&__config {
 		margin-bottom: 8px;
 		padding: 8px 12px;

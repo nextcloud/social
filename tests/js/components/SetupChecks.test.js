@@ -8,8 +8,8 @@ import { mount } from '@vue/test-utils'
 
 import SetupChecks from '../../../src/components/SetupChecks.vue'
 
-function mountChecks(checks, addresses = { configured: '', expected: '' }) {
-	return mount(SetupChecks, { props: { checks, addresses } })
+function mountChecks(checks, addresses = { configured: '', expected: '' }, clientApi = []) {
+	return mount(SetupChecks, { props: { checks, addresses, clientApi } })
 }
 
 describe('SetupChecks', () => {
@@ -101,5 +101,63 @@ describe('SetupChecks', () => {
 		const wrapper = mountChecks({ wellknown: true })
 
 		expect(wrapper.findAll('h3')).toHaveLength(0)
+	})
+
+	describe('when Mastodon apps cannot connect', () => {
+		const failing = { wellknown: true, cloudAddress: true, clientApi: false }
+
+		it('says what the probe got, not only that it failed', () => {
+			const wrapper = mountChecks(failing, undefined, [
+				{ base: 'https://cloud.example', status: 404, reason: 'status' },
+			])
+
+			expect(wrapper.text()).toContain('https://cloud.example/api/v1/instance and got 404')
+		})
+
+		/**
+		 * The case this exists for: rules pasted correctly, proxying to a port
+		 * that serves a different document root. Identical 404 to having no
+		 * rules at all, and fixed somewhere else entirely.
+		 */
+		it('warns that the proxy target has to serve this Nextcloud', () => {
+			const wrapper = mountChecks(failing, undefined, [
+				{ base: 'https://cloud.example', status: 404, reason: 'status' },
+			])
+
+			expect(wrapper.text()).toContain('has to serve this Nextcloud itself')
+			expect(wrapper.text()).toContain('names the port it came from')
+		})
+
+		it('tells a wrong answer apart from no answer', () => {
+			expect(mountChecks(failing, undefined, [
+				{ base: 'https://cloud.example', status: 200, reason: 'not-social' },
+			]).text()).toContain('not this app')
+
+			expect(mountChecks(failing, undefined, [
+				{ base: 'https://cloud.example', status: 0, reason: 'unreachable' },
+			]).text()).toContain('could not reach https://cloud.example at all')
+		})
+
+		/**
+		 * The server tries the address Social is configured for, then the host
+		 * the request came in on, then its own base URL. The first is the one
+		 * an administrator is thinking about; the rest are fallbacks.
+		 */
+		it('reports the first base tried, the others being fallbacks', () => {
+			const wrapper = mountChecks(failing, undefined, [
+				{ base: 'https://first.example', status: 404, reason: 'status' },
+				{ base: 'https://fallback.example', status: 503, reason: 'status' },
+			])
+
+			expect(wrapper.text()).toContain('https://first.example/api/v1/instance and got 404')
+			expect(wrapper.text()).not.toContain('fallback.example')
+		})
+
+		it('still explains the feature when there is no diagnosis to add', () => {
+			const wrapper = mountChecks(failing, undefined, [])
+
+			expect(wrapper.text()).toContain('Mastodon apps cannot connect to this server')
+			expect(wrapper.find('.setup-checks__finding').exists()).toBe(false)
+		})
 	})
 })
