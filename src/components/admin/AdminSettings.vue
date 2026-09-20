@@ -148,6 +148,7 @@ const NOTHING = {
 		truncated: false,
 		abandonedTruncated: false,
 		retentionDays: 7,
+		stuckSince: 0,
 		instances: [],
 		givenUp: [],
 	},
