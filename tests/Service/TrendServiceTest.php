@@ -38,6 +38,10 @@ class TrendServiceTest extends TestCase {
 	private ?array $askedLinks = null;
 	/** @var int[] the nids the store answers a status trend with */
 	private array $nids = [];
+	/** @var int[] the newest media this instance holds */
+	private array $recent = [];
+	/** @var array{limit: int, media: string, excluding: int[]}|null what the top-up asked for */
+	private ?array $askedRecent = null;
 	/** @var array<array{url: string, shares: int}> the counted links */
 	private array $links = [];
 	/** @var array<string, StreamCard> the stored previews, by url */
@@ -65,6 +69,13 @@ class TrendServiceTest extends TestCase {
 					return $note;
 				}, $nids
 			));
+
+		$this->trendsRequest->method('recentMediaNids')
+			->willReturnCallback(function (int $limit, string $mediaType, array $excluding): array {
+				$this->askedRecent = ['limit' => $limit, 'media' => $mediaType, 'excluding' => $excluding];
+
+				return array_slice($this->recent, 0, $limit);
+			});
 
 		$this->trendsRequest->method('trendingLinks')
 			->willReturnCallback(function (int $since, int $limit, int $offset): array {
@@ -193,5 +204,67 @@ class TrendServiceTest extends TestCase {
 
 		$this->assertSame('https://example.org/b', $links[0]->jsonSerialize()['url']);
 		$this->assertSame('https://example.org/a', $links[1]->jsonSerialize()['url']);
+	}
+
+	/**
+	 * Trending needs an interaction inside the window, and a young instance
+	 * has none — so the Pictures and Videos tabs were empty on exactly the
+	 * instances whose readers most need something to look at, and empty in a
+	 * way that reads as broken rather than as new.
+	 */
+	public function testAMediaGridWithNothingTrendingShowsTheNewestMediaInstead(): void {
+		$this->nids = [];
+		$this->recent = [9, 8, 7];
+
+		$statuses = $this->service->trendingStatuses(HashtagService::PERIOD_DEFAULT, 3, 0, true, 'video');
+
+		$this->assertSame([9, 8, 7], array_map(static fn (Stream $s): int => $s->getNid(), $statuses));
+		$this->assertSame('video', $this->askedRecent['media']);
+	}
+
+	/** What is trending stays first and keeps its order; the rest is a top-up. */
+	public function testTrendingComesFirstAndTheRestIsTheNewest(): void {
+		$this->nids = [42];
+		$this->recent = [9, 8];
+
+		$statuses = $this->service->trendingStatuses(HashtagService::PERIOD_DEFAULT, 3, 0, true);
+
+		$this->assertSame([42, 9, 8], array_map(static fn (Stream $s): int => $s->getNid(), $statuses));
+		$this->assertSame(2, $this->askedRecent['limit'], 'it asked for more than it had room for');
+		$this->assertSame([42], $this->askedRecent['excluding'], 'a top-up must not repeat the page');
+	}
+
+	public function testAFullPageOfTrendingIsNotToppedUp(): void {
+		$this->nids = [1, 2, 3];
+		$this->recent = [9];
+
+		$statuses = $this->service->trendingStatuses(HashtagService::PERIOD_DEFAULT, 3, 0, true);
+
+		$this->assertCount(3, $statuses);
+		$this->assertNull($this->askedRecent);
+	}
+
+	/** A page deeper in is paging through trending and has no business being padded. */
+	public function testASecondPageIsNotToppedUp(): void {
+		$this->nids = [];
+		$this->recent = [9, 8];
+
+		$this->service->trendingStatuses(HashtagService::PERIOD_DEFAULT, 3, 20, true);
+
+		$this->assertNull($this->askedRecent);
+	}
+
+	/**
+	 * Only the media grids: the text trends are a list of what people are
+	 * talking about, and padding it with the newest posts would say they are
+	 * trending when they are not.
+	 */
+	public function testTheTextTrendsAreNotPadded(): void {
+		$this->nids = [];
+		$this->recent = [9, 8];
+
+		$this->service->trendingStatuses(HashtagService::PERIOD_DEFAULT, 3, 0);
+
+		$this->assertNull($this->askedRecent);
 	}
 }

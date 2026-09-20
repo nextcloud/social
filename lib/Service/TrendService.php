@@ -61,9 +61,25 @@ class TrendService {
 		bool $onlyMedia = false,
 		string $mediaType = '',
 	): array {
+		$wanted = $this->limit($limit);
 		$nids = $this->trendsRequest->trendingStatusNids(
-			$this->since($period), $this->limit($limit), max(0, $offset), $onlyMedia, $mediaType
+			$this->since($period), $wanted, max(0, $offset), $onlyMedia, $mediaType
 		);
+
+		// A grid with nothing in it, on exactly the instances whose readers
+		// most need something to look at. Trending needs an interaction inside
+		// the window and a young instance has none, so the Pictures and Videos
+		// tabs were empty in a way that reads as broken rather than as new.
+		//
+		// Topped up rather than replaced, and only on the first page: what is
+		// trending stays first and keeps its order, and the rest is the newest
+		// media this instance holds. A page deeper in is paging through
+		// trending itself and has no business being padded.
+		if ($onlyMedia && $offset === 0 && count($nids) < $wanted) {
+			$nids = array_merge($nids, $this->trendsRequest->recentMediaNids(
+				$wanted - count($nids), $mediaType, $nids
+			));
+		}
 
 		$statuses = $this->trendsRequest->statusesByNids($nids);
 
