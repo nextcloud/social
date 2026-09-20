@@ -181,10 +181,6 @@ export default {
 	margin-block-end: calc(var(--default-grid-baseline) * 4);
 }
 
-.graph__title {
-	font-weight: bold;
-}
-
 .graph__hint {
 	color: var(--color-text-maxcontrast);
 }
@@ -194,46 +190,6 @@ export default {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 	gap: var(--default-grid-baseline);
-}
-
-.graph__row {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--default-grid-baseline);
-}
-
-.graph__person {
-	display: flex;
-	align-items: center;
-	gap: calc(var(--default-grid-baseline) * 2);
-	flex: 1 1 260px;
-	min-width: 0;
-	padding: var(--default-grid-baseline);
-	border-radius: var(--border-radius-element, var(--border-radius-large));
-
-	&:hover,
-	&:focus-visible {
-		background-color: var(--color-background-hover);
-	}
-}
-
-.graph__names {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-}
-
-.graph__name {
-	font-weight: bold;
-}
-
-.graph__handle,
-.graph__why {
-	color: var(--color-text-maxcontrast);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .graph__loading {

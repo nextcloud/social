@@ -385,10 +385,51 @@ export default {
 	margin-block-end: calc(var(--default-grid-baseline) * 4);
 }
 
-.finder__sources {
+/*
+ * "Looking in Everywhere · 10 directories" is one sentence with a control in
+ * the middle of it, so it is set as one: the same size and baseline
+ * throughout, with only the part somebody can press carrying the page's own
+ * text colour. A button left at its own font size sits a couple of pixels
+ * above the words either side of it and reads as a different thought.
+ */
+.finder__where {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--default-grid-baseline);
+	align-items: center;
+	gap: calc(var(--default-grid-baseline) / 2);
+	color: var(--color-text-maxcontrast);
+	font-size: var(--font-size-small, 0.85em);
+	min-height: 34px;
+}
+
+.finder__where :deep(.button-vue) {
+	font-size: inherit;
+	min-height: 34px;
+	padding-inline: calc(var(--default-grid-baseline) * 1.5);
+}
+
+.finder__where :deep(.button-vue__text) {
+	font-weight: bold;
+	color: var(--color-main-text);
+	margin-inline-start: calc(var(--default-grid-baseline) / 2);
+}
+
+/* the dots are what Nextcloud draws for a menu; at this size they are the
+   only thing saying the name beside them can be pressed */
+.finder__where :deep(.button-vue__icon) {
+	height: 20px;
+	min-width: 20px;
+}
+
+/* the separator belongs to the count, and needs air on both sides of it or it
+   reads as part of the number */
+.finder__where-why {
+	margin-inline-start: var(--default-grid-baseline);
+}
+
+.finder__where-why::before {
+	content: '·';
+	margin-inline-end: var(--default-grid-baseline);
 }
 
 .finder__loading {
@@ -400,87 +441,6 @@ export default {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 	gap: var(--default-grid-baseline);
-}
-
-.finder__row {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--default-grid-baseline);
-	padding-inline-end: calc(var(--default-grid-baseline) * 2);
-	border-radius: var(--border-radius-large);
-	background-color: var(--color-background-hover);
-
-	&:hover,
-	&:focus-within {
-		background-color: var(--color-background-dark);
-	}
-}
-
-.finder__person {
-	display: flex;
-	align-items: center;
-	gap: calc(var(--default-grid-baseline) * 2);
-	padding: calc(var(--default-grid-baseline) * 2);
-	min-width: 0;
-	flex: 1 1 280px;
-	color: inherit;
-}
-
-.finder__avatar {
-	flex: 0 0 auto;
-	width: 40px;
-	height: 40px;
-	border-radius: 50%;
-	object-fit: cover;
-	background-color: var(--color-background-dark);
-}
-
-.finder__avatar--blank {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-weight: bold;
-	color: var(--color-text-maxcontrast);
-}
-
-.finder__names {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	min-width: 0;
-	flex: 1 1 auto;
-}
-
-.finder__name {
-	font-weight: bold;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-/* said quietly, because it is a fact about the account rather than a warning */
-.finder__bot {
-	margin-inline-start: var(--default-grid-baseline);
-	padding: 0 6px;
-	border-radius: var(--border-radius);
-	background-color: var(--color-background-dark);
-	font-size: var(--font-size-small, 0.85em);
-	font-weight: normal;
-	color: var(--color-text-maxcontrast);
-}
-
-.finder__handle,
-.finder__note {
-	font-size: var(--font-size-small, 0.85em);
-	color: var(--color-text-maxcontrast);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.finder__follow {
-	flex: 0 0 auto;
 }
 
 .finder__quiet {
