@@ -130,6 +130,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * question existed — the visibility rule, public and unlisted posts being
 	 * quotable and nothing else.
 	 */
+	/**
+	 * The largest counter this app will repeat from another server: ten
+	 * million, which is some five orders of magnitude above the most-boosted
+	 * post the fediverse has produced.
+	 */
+	public const REMOTE_COUNT_CEILING = 10000000;
+
 	public const QUOTE_POLICY_PUBLIC = 'public';
 	public const QUOTE_POLICY_FOLLOWERS = 'followers';
 	public const QUOTE_POLICY_NOBODY = 'nobody';
@@ -1254,19 +1261,54 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->importAttachments($this->getArray('attachment', $data, []));
 		$this->convertPublished();
 
-		if (isset($data['likes']['totalItems'])) {
-			$remoteLikes = (int)$data['likes']['totalItems'];
+		$remoteLikes = self::statedCount($data, 'likes');
+		if ($remoteLikes !== null) {
 			$this->setDetailInt(Details::LIKES, $remoteLikes);
 			$this->setDetailInt(Details::REMOTE_LIKES, $remoteLikes);
 		}
-		if (isset($data['shares']['totalItems'])) {
-			$remoteShares = (int)$data['shares']['totalItems'];
+		$remoteShares = self::statedCount($data, 'shares');
+		if ($remoteShares !== null) {
 			$this->setDetailInt(Details::BOOSTS, $remoteShares);
 			$this->setDetailInt(Details::REMOTE_BOOSTS, $remoteShares);
 		}
-		if (isset($data['replies']['totalItems'])) {
-			$this->setDetailInt(Details::REPLIES, (int)$data['replies']['totalItems']);
+		$remoteReplies = self::statedCount($data, 'replies');
+		if ($remoteReplies !== null) {
+			$this->setDetailInt(Details::REPLIES, $remoteReplies);
 		}
+	}
+
+	/**
+	 * A counter another server states, where it states a believable one.
+	 *
+	 * `likes`, `shares` and `replies` arrive as collections with a
+	 * `totalItems`, and whatever is in there is what every reader on this
+	 * instance is shown — there is no way to verify it and no attempt to. That
+	 * is fine for a number that is roughly right and useless for one that is
+	 * not: a server that states four billion favourites is not describing a
+	 * post, it is writing in somebody else's timeline, and the figure sits in
+	 * the database until the post is deleted.
+	 *
+	 * So a count has to be a number, it has to be positive, and it has to be
+	 * small enough to be a count of something. The ceiling is far above
+	 * anything the fediverse has produced — the most-boosted post in its
+	 * history is five orders of magnitude below it — and deliberately not a
+	 * judgement about what is plausible for *this* post. What is over it is
+	 * refused rather than clamped: a number nobody can believe is worse than
+	 * no number, because clamping would state a figure this instance made up.
+	 *
+	 * @param array<string, mixed> $data the wire object
+	 *
+	 * @return int|null null where the sender said nothing believable
+	 */
+	public static function statedCount(array $data, string $key): ?int {
+		$stated = $data[$key]['totalItems'] ?? null;
+		if (!is_int($stated) && !(is_string($stated) && ctype_digit($stated))) {
+			return null;
+		}
+
+		$count = (int)$stated;
+
+		return ($count >= 0 && $count <= self::REMOTE_COUNT_CEILING) ? $count : null;
 	}
 
 	/**
@@ -1467,8 +1509,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 						$this->setDetailInt(Details::BOOSTS, $remoteBoosts);
 					}
 				}
-				if (isset($sourceData['replies']['totalItems'])) {
-					$this->setDetailInt(Details::REPLIES, (int)$sourceData['replies']['totalItems']);
+				$remoteReplies = self::statedCount($sourceData, 'replies');
+				if ($remoteReplies !== null) {
+					$this->setDetailInt(Details::REPLIES, $remoteReplies);
 				}
 			}
 		}

@@ -1163,4 +1163,70 @@ class StreamTest extends TestCase {
 		$this->assertSame('pt-BR', (new Note())->setLanguage('PT_br')->getLanguage());
 		$this->assertSame('', (new Note())->setLanguage('nonsense words')->getLanguage());
 	}
+
+	/**
+	 * Whatever a peer states is what every reader here is shown, and there is
+	 * no way to verify it. A server stating four billion favourites is not
+	 * describing a post, it is writing in somebody else's timeline — and the
+	 * figure sits in the database until the post is deleted.
+	 */
+	public function testACountNobodyCouldBelieveIsRefusedRatherThanRepeated(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://remote.example/@bob/1',
+			'likes' => ['totalItems' => 4000000000],
+			'shares' => ['totalItems' => Stream::REMOTE_COUNT_CEILING + 1],
+		]);
+
+		$this->assertSame(0, $stream->getDetailInt('likes'));
+		$this->assertSame(0, $stream->getDetailInt('boosts'));
+	}
+
+	public function testACountAtTheCeilingIsStillRepeated(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://remote.example/@bob/1',
+			'likes' => ['totalItems' => Stream::REMOTE_COUNT_CEILING],
+		]);
+
+		$this->assertSame(Stream::REMOTE_COUNT_CEILING, $stream->getDetailInt('likes'));
+	}
+
+	/** Refused, not clamped: a clamp would state a figure this instance made up. */
+	public function testAnImpossibleCountLeavesWhatWasAlreadyKnown(): void {
+		$stream = new Stream();
+		$stream->setDetailInt('likes', 7);
+
+		$stream->import([
+			'id' => 'https://remote.example/@bob/1',
+			'likes' => ['totalItems' => -3],
+		]);
+
+		$this->assertSame(7, $stream->getDetailInt('likes'));
+	}
+
+	public function testACountThatIsNotANumberIsNotACount(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://remote.example/@bob/1',
+			'likes' => ['totalItems' => 'lots'],
+			'shares' => ['totalItems' => ['1', '2']],
+			'replies' => ['totalItems' => 1.5],
+		]);
+
+		$this->assertSame(0, $stream->getDetailInt('likes'));
+		$this->assertSame(0, $stream->getDetailInt('boosts'));
+		$this->assertSame(0, $stream->getDetailInt('replies'));
+	}
+
+	/** A count sent as a numeric string is what several servers send. */
+	public function testACountSentAsAStringIsRead(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://remote.example/@bob/1',
+			'replies' => ['totalItems' => '12'],
+		]);
+
+		$this->assertSame(12, $stream->getDetailInt('replies'));
+	}
 }

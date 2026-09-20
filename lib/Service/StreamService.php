@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -405,6 +406,7 @@ class StreamService {
 		}
 
 		$parent = $this->streamRequest->getStreamById($replyTo);
+
 		$author = $this->cacheActorService->getFromId($parent->getAttributedTo());
 		$note->setInReplyTo($replyTo);
 
@@ -977,19 +979,21 @@ class StreamService {
 					} catch (Exception $e) {
 					}
 
-					// Extract likes/shares/replies counts from ActivityPub collections
-					if (isset($noteData['likes']['totalItems'])) {
-						$remoteLikes = (int)$noteData['likes']['totalItems'];
+					// what the origin says about its own post, where what it
+					// says is a believable count; see Stream::statedCount()
+					$remoteLikes = Stream::statedCount($noteData, 'likes');
+					if ($remoteLikes !== null) {
 						$note->setDetailInt(Details::LIKES, $remoteLikes);
 						$note->setDetailInt(Details::REMOTE_LIKES, $remoteLikes);
 					}
-					if (isset($noteData['shares']['totalItems'])) {
-						$remoteBoosts = (int)$noteData['shares']['totalItems'];
+					$remoteBoosts = Stream::statedCount($noteData, 'shares');
+					if ($remoteBoosts !== null) {
 						$note->setDetailInt(Details::BOOSTS, $remoteBoosts);
 						$note->setDetailInt(Details::REMOTE_BOOSTS, $remoteBoosts);
 					}
-					if (isset($noteData['replies']['totalItems'])) {
-						$note->setDetailInt(Details::REPLIES, (int)$noteData['replies']['totalItems']);
+					$remoteReplies = Stream::statedCount($noteData, 'replies');
+					if ($remoteReplies !== null) {
+						$note->setDetailInt(Details::REPLIES, $remoteReplies);
 					}
 
 					// Save the Note directly without going through NoteInterface
