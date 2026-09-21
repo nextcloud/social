@@ -42,6 +42,14 @@ class ConfigService {
 	 */
 	public const CLIENT_API_ROOT = 'client_api_root';
 
+	/**
+	 * Whether the last root probe came back with addresses in the scheme it was
+	 * asked over: '1', '0', or unset where nothing has asked yet. A proxy that
+	 * drops the scheme leaves every absolute URL saying `http` on an `https`
+	 * site — see `CheckService::answeredInScheme()`.
+	 */
+	public const CLIENT_API_SCHEME = 'client_api_scheme';
+
 	public const SOCIAL_SERVICE = 'service';
 	public const SOCIAL_MAX_SIZE = 'max_size';
 	/** The ceiling for a video, which is not the ceiling for a picture. */

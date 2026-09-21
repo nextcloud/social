@@ -192,9 +192,19 @@ class OAuthController extends Controller {
 
 		return new DataResponse(
 			[
-				'id' => $client->getId(),
+				// A string, as every id in Mastodon's API is. This one is a
+				// database row number and the temptation is to answer with the
+				// number; a client that decodes the response into a typed
+				// struct declares `id: String` because that is what Mastodon
+				// sends, and a JSON number fails to decode. The registration
+				// then succeeds with a 200 that the client cannot read, and
+				// its sign-in stops with nothing in any log to show for it.
+				'id' => (string)$client->getId(),
 				'name' => $client->getAppName(),
-				'website' => $client->getAppWebsite(),
+				// null rather than '' where the client registered no website:
+				// Mastodon sends null, and a client that decodes this field as
+				// a URL fails on the empty string, which is not one.
+				'website' => $client->getAppWebsite() === '' ? null : $client->getAppWebsite(),
 				'scopes' => implode(' ', $client->getAppScopes()),
 				'client_id' => $client->getAppClientId(),
 				'client_secret' => $client->getAppClientSecret(),
@@ -316,11 +326,58 @@ class OAuthController extends Controller {
 	 */
 	private function consentPolicy(string $redirectUri): ContentSecurityPolicy {
 		$policy = new ContentSecurityPolicy();
-		if ($redirectUri !== '' && $redirectUri !== 'urn:ietf:wg:oauth:2.0:oob') {
-			$policy->addAllowedFormActionDomain($redirectUri);
+		$source = $this->formActionSource($redirectUri);
+		if ($source !== '') {
+			$policy->addAllowedFormActionDomain($source);
 		}
 
 		return $policy;
+	}
+
+	/**
+	 * The redirect URI as a CSP source expression, which is not the URI.
+	 *
+	 * A mobile client registers a custom scheme -- `icecubesapp://` -- and
+	 * putting that in the policy verbatim writes `form-action 'self'
+	 * icecubesapp://`, which is not a valid source: a scheme-source is the
+	 * scheme and one colon. A browser drops the expression it cannot parse,
+	 * leaving `'self'`, and blocks the redirect to the client exactly as if
+	 * nothing had been added -- so the Authorize button goes on doing nothing,
+	 * for the one kind of client that most needs it to work.
+	 *
+	 * An `http`/`https` URI becomes its origin instead of the whole address:
+	 * a source expression carries no path, and the path is not ours to
+	 * constrain anyway -- the code goes to the URI the client registered,
+	 * which was checked before this page was drawn.
+	 */
+	private function formActionSource(string $redirectUri): string {
+		if ($redirectUri === '' || $redirectUri === 'urn:ietf:wg:oauth:2.0:oob') {
+			// answered by a page on this server; 'self' already covers it
+			return '';
+		}
+
+		// Read with a pattern rather than parse_url(): the URI a mobile client
+		// registers is often `icecubesapp://` -- a scheme, two slashes and
+		// nothing else -- and parse_url() answers `false` for that, having no
+		// host to find. The scheme is then lost and this returns nothing,
+		// which is the whole widening silently not happening.
+		if (preg_match('/^([a-zA-Z][a-zA-Z0-9+.\-]*):/', $redirectUri, $matches) !== 1) {
+			return '';
+		}
+
+		$scheme = strtolower($matches[1]);
+		if (!in_array($scheme, ['http', 'https'], true)) {
+			return $scheme . ':';
+		}
+
+		$host = (string)parse_url($redirectUri, PHP_URL_HOST);
+		if ($host === '') {
+			return '';
+		}
+
+		$port = parse_url($redirectUri, PHP_URL_PORT);
+
+		return $scheme . '://' . $host . (is_int($port) ? ':' . $port : '');
 	}
 
 	/**

@@ -34,6 +34,7 @@ use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
+use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
 use OCA\Social\SetupChecks\ReachableByStrictPeers;
 use OCA\Social\SetupChecks\UploadLimitsAgree;
 use OCA\Social\SetupChecks\WebFingerReachable;
@@ -106,6 +107,7 @@ class Application extends App implements IBootstrap {
 		$context->registerSetupCheck(CronRanRecently::class);
 		$context->registerSetupCheck(OutboundQueueNotStuck::class);
 		$context->registerSetupCheck(ClientApiAtRoot::class);
+		$context->registerSetupCheck(ProxyForwardsTheScheme::class);
 	}
 
 	#[\Override]

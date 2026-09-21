@@ -20,6 +20,7 @@ use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\Docs;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
+use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
 use OCA\Social\SetupChecks\ReachableByStrictPeers;
 use OCA\Social\SetupChecks\UploadLimitsAgree;
 use OCA\Social\SetupChecks\WebFingerReachable;
@@ -104,6 +105,31 @@ class SetupChecksTest extends TestCase {
 		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
 		$this->assertStringContainsString('/api/v1/instance', (string)$result->getDescription());
 		$this->assertSame(ClientApiAtRoot::DOC, $result->getLinkToDoc());
+	}
+
+	/**
+	 * Invisible from inside: the app answers, the routes work, and the
+	 * addresses in the answers are wrong. It took a web server's access log to
+	 * find, which is the argument for a check saying it.
+	 */
+	public function testAProxyThatDropsTheSchemeIsAWarning(): void {
+		$checkService = $this->checkService();
+		$checkService->method('clientApiSchemeIsWrong')->willReturn(true);
+
+		$result = (new ProxyForwardsTheScheme($this->l10n, $checkService))->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('X-Forwarded-Proto', (string)$result->getDescription());
+	}
+
+	public function testNothingIsSaidWhileTheSchemeSurvivesTheProxy(): void {
+		$checkService = $this->checkService();
+		$checkService->method('clientApiSchemeIsWrong')->willReturn(false);
+
+		$this->assertSame(
+			SetupResult::SUCCESS,
+			(new ProxyForwardsTheScheme($this->l10n, $checkService))->run()->getSeverity()
+		);
 	}
 
 	public function testAnInstanceNobodyCanBeFoundOnIsAnError(): void {

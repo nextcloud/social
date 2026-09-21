@@ -196,7 +196,8 @@ class OAuthControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([
-			'id' => 7,
+			// a string, as every id in Mastodon's API is
+			'id' => '7',
 			'name' => 'Tusky',
 			'website' => 'https://tusky.app',
 			'scopes' => 'read write',
@@ -245,6 +246,26 @@ class OAuthControllerTest extends TestCase {
 		$this->clientService->method('createApp');
 
 		$this->assertSame('read', $this->controller->apps('App', 'https://a/cb')->getData()['scopes']);
+	}
+
+	/**
+	 * Ice Cubes decodes this response into `InstanceApp`, whose `id` is a
+	 * `String` and whose `website` is a `URL?` -- because that is the shape
+	 * Mastodon sends. A JSON number for `id`, or `""` for `website`, fails to
+	 * decode, and the registration then succeeds with a 200 the client cannot
+	 * read: its sign-in stops there, with a 200 in the web server's log and
+	 * nothing at all in the app's.
+	 */
+	public function testTheRegistrationIsShapedTheWayATypedClientDecodesIt(): void {
+		$this->clientService->method('createApp')
+			->willReturnCallback(static function (SocialClient $client): void {
+				$client->setId(7)->setAppClientId('cid')->setAppClientSecret('csecret');
+			});
+
+		$data = $this->controller->apps('Tusky', 'https://tusky.app/callback', '', 'read')->getData();
+
+		$this->assertIsString($data['id']);
+		$this->assertNull($data['website'], 'an absent website is null, never the empty string');
 	}
 
 	// authorize()
@@ -304,20 +325,60 @@ class OAuthControllerTest extends TestCase {
 		);
 
 		$this->assertStringContainsString(
-			'https://app.example/callback',
+			'https://app.example',
 			$response->getContentSecurityPolicy()->buildPolicy()
 		);
 	}
 
-	public function testACustomSchemeIsAllowedTheSameWay(): void {
+	/**
+	 * A source expression is not a URI. `form-action 'self' icecubesapp://` is
+	 * not something a browser can parse, so it drops the expression, leaves
+	 * `'self'`, and blocks the redirect exactly as if nothing had been added --
+	 * the Authorize button goes on doing nothing for the one kind of client
+	 * that most needs it to work. A scheme-source is the scheme and one colon.
+	 */
+	public function testACustomSchemeBecomesASchemeSource(): void {
 		$this->loggedIn();
 		$this->knownClient();
 
-		$response = $this->controller->authorize('client-1', 'tusky://oauth', 'code', 'read');
+		$policy = $this->controller->authorize('client-1', 'tusky://oauth', 'code', 'read')
+			->getContentSecurityPolicy()->buildPolicy();
 
-		$this->assertStringContainsString(
-			'tusky://oauth', $response->getContentSecurityPolicy()->buildPolicy()
-		);
+		$this->assertStringContainsString('tusky:', $policy);
+		$this->assertStringNotContainsString('tusky://', $policy);
+	}
+
+	/**
+	 * `icecubesapp://` -- a scheme, two slashes and nothing else -- is what
+	 * Ice Cubes registers, and `parse_url()` answers `false` for it, having no
+	 * host to find. Reading the scheme that way lost it and added nothing at
+	 * all, which is a widening that silently does not happen.
+	 */
+	public function testASchemeWithNothingAfterItIsStillRead(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$policy = $this->controller->authorize('client-1', 'icecubesapp://', 'code', 'read')
+			->getContentSecurityPolicy()->buildPolicy();
+
+		$this->assertStringContainsString('icecubesapp:', $policy);
+	}
+
+	/**
+	 * A source expression carries no path, and the path is not ours to
+	 * constrain: the code goes to the URI the client registered, which was
+	 * checked before the page was drawn.
+	 */
+	public function testAnHttpsUriBecomesItsOrigin(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$policy = $this->controller->authorize(
+			'client-1', 'https://app.example:8443/callback?x=1', 'code', 'read'
+		)->getContentSecurityPolicy()->buildPolicy();
+
+		$this->assertStringContainsString('https://app.example:8443', $policy);
+		$this->assertStringNotContainsString('/callback', $policy);
 	}
 
 	/** Out-of-band is answered by a page on this server, so nothing is widened. */
