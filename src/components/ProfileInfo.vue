@@ -311,7 +311,7 @@
 								id="social-profile-banner-url"
 								v-model="bannerUrlInput"
 								type="url"
-								:placeholder="t('social', 'https://example.com/image.jpg')"
+								placeholder="https://example.com/image.jpg"
 								@keyup.enter="uploadBannerByUrl">
 							<NcButton :disabled="!bannerUrlInput || loadingUrl" @click="uploadBannerByUrl">
 								{{ loadingUrl ? t('social', 'Downloading…') : t('social', 'Apply') }}

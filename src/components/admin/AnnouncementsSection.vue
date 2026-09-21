@@ -20,7 +20,11 @@
 			<table class="social-admin__table">
 				<thead>
 					<tr>
-						<th>{{ t('social', 'Announcement') }}</th>
+						<!-- not "Announcement": `n()` uses that word as the
+						     singular of a plural elsewhere, and gettext folds
+						     the two into one plural entry, which `t()` cannot
+						     look up. The column holds the text anyway. -->
+						<th>{{ t('social', 'Text') }}</th>
 						<th>{{ t('social', 'Shown from') }}</th>
 						<th>{{ t('social', 'Until') }}</th>
 						<th>{{ t('social', 'State') }}</th>

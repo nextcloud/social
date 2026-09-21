@@ -260,6 +260,21 @@ the extractor produces, not something the repository holds. The workflow now
 exists; the catalogue has not caught up, and that is a Transifex round trip
 rather than a code change.
 
+The extraction itself has been run and checked: it reads all 1,625 source
+strings, and `tests/TranslatableStringsTest.php` now guards the three ways a
+string can be written so that it never reaches a translator — a message used
+both as a singular and as the singular of a plural, which gettext folds into
+one entry `t()` cannot look up; a message that is only a URL or an address,
+which ninety-eight locales can only copy back; and a message that is not a
+literal, which `xgettext` cannot see at all. Two of those were present and are
+fixed.
+
+What remains is the one thing outside the repository: `TRANSIFEX_API_TOKEN` is
+not set, so `l10n.yml` extracts and uploads the template as a build artefact
+but pushes nothing, and `l10n-pull.yml` does nothing at all. Setting that
+secret — or registering this app with the organisation's own translation sync —
+is the whole of the remaining work.
+
 ---
 
 ## What is not debt
