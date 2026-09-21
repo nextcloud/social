@@ -758,6 +758,57 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/**
+	 * The client API's routes are the contract every Mastodon client is written
+	 * against; `/api/v1/instance` is the first request one makes, and several
+	 * of the media routes are written into the ActivityPub documents this
+	 * server publishes as `social.Api.*`, a name derived from this class.
+	 *
+	 * The controller is split across three files, so a method that lost its
+	 * attributes in a move, or a trait that stopped being used, would take its
+	 * route with it and nothing else here would notice: the other route tests
+	 * walk whatever exists rather than checking that anything does.
+	 */
+	public function testTheSplitOutRoutesAreStillDeclaredOnThisController(): void {
+		$declared = self::declaredRoutes();
+
+		foreach ([
+			// the instance describes itself: the first request a client makes
+			'instance' => 'GET',
+			'instanceV2' => 'GET',
+			'instanceRules' => 'GET',
+			'instanceDomainBlocks' => 'GET',
+			'instanceExtendedDescription' => 'GET',
+			'instancePrivacyPolicy' => 'GET',
+			'instanceTermsOfService' => 'GET',
+			'instanceTranslationLanguages' => 'GET',
+			'oembed' => 'GET',
+			// and the bytes
+			'mediaNew' => 'POST',
+			'mediaNewV2' => 'POST',
+			'mediaFromFile' => 'POST',
+			'mediaGet' => 'GET',
+			'mediaUpdate' => 'PUT',
+			'mediaOpen' => 'GET',
+			'mediaStream' => 'GET',
+			'mediaPlaylist' => 'GET',
+			'mediaPlaylistFile' => 'GET',
+			'mediaLadder' => 'GET',
+			'mediaLadderRung' => 'GET',
+			'mediaLadderFile' => 'GET',
+			'statusWatched' => 'POST',
+			'statusUnwatched' => 'DELETE',
+			'videosContinue' => 'GET',
+		] as $route => $verb) {
+			$this->assertArrayHasKey(
+				$route,
+				$declared,
+				$route . '() no longer declares a route; every URL naming social.Api.' . $route . ' is now a 404'
+			);
+			$this->assertSame($verb, $declared[$route], $route . '() answers a different verb');
+		}
+	}
+
+	/**
 	 * The scopes the controller resolves for one route, without going through a
 	 * request.
 	 *
