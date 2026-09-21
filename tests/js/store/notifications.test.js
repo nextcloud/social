@@ -203,9 +203,7 @@ describe('notifications store', () => {
 
 			await store.fetchUnreadDirectMessages()
 
-			expect(axios.get).toHaveBeenCalledWith(
-				'/index.php/apps/social/api/v1/conversations/unread_count',
-			)
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/unread_count')
 			expect(store.unreadDirectMessages).toBe(3)
 		})
 
@@ -226,7 +224,9 @@ describe('notifications store', () => {
 			const store = useNotificationsStore()
 			store.setUnreadDirectMessages(2)
 			let resolve
-			axios.post.mockReturnValue(new Promise((r) => { resolve = r }))
+			axios.post.mockReturnValue(new Promise((r) => {
+				resolve = r
+			}))
 
 			const pending = store.markDirectMessagesRead()
 			expect(store.unreadDirectMessages).toBe(0)
