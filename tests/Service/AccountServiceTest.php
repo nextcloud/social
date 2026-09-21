@@ -169,6 +169,8 @@ class AccountServiceTest extends TestCase {
 	/** @var string[] every value written to the fediverse field */
 	private array $fediverseWrites = [];
 	private int $accountUpdates = 0;
+	/** the scope of the profile picture; a stock Nextcloud federates it */
+	private string $avatarScope = IAccountManager::SCOPE_FEDERATED;
 
 	/**
 	 * Point the display-name account property at a value with the given
@@ -190,10 +192,16 @@ class AccountServiceTest extends TestCase {
 			return $fediverse;
 		});
 
+		$avatar = $this->createMock(IAccountProperty::class);
+		$avatar->method('getScope')->willReturnCallback(fn (): string => $this->avatarScope);
+
 		$account = $this->createMock(IAccount::class);
 		$account->method('getProperty')->willReturnCallback(
-			static fn (string $property): IAccountProperty
-				=> $property === IAccountManager::PROPERTY_FEDIVERSE ? $fediverse : $displayName
+			fn (string $property): IAccountProperty => match ($property) {
+				IAccountManager::PROPERTY_FEDIVERSE => $fediverse,
+				IAccountManager::PROPERTY_AVATAR => $avatar,
+				default => $displayName,
+			}
 		);
 		$this->accountManager->method('getAccount')->willReturn($account);
 		$this->accountManager->method('updateAccount')
@@ -781,6 +789,43 @@ class AccountServiceTest extends TestCase {
 		$this->service->cacheLocalActorByUsername('alice');
 
 		$this->assertSame($expectPublished ? 'Alice Wonder' : 'alice', $alice->getName());
+	}
+
+	/**
+	 * @return array<string, array{string, bool}>
+	 */
+	public static function avatarScopeProvider(): array {
+		return [
+			'federated is published' => [IAccountManager::SCOPE_FEDERATED, true],
+			'published is published' => [IAccountManager::SCOPE_PUBLISHED, true],
+			'local is kept back' => [IAccountManager::SCOPE_LOCAL, false],
+			'private is kept back' => [IAccountManager::SCOPE_PRIVATE, false],
+		];
+	}
+
+	/**
+	 * Reported in 2019 (#440): a picture set to "local only" was published to
+	 * every server and every anonymous visitor regardless. The display name
+	 * had honoured the setting for a while; the picture -- the one part of it
+	 * a reader on another server can actually see -- did not.
+	 */
+	#[DataProvider('avatarScopeProvider')]
+	public function testThePictureFederatesUnlessTheUserAskedOtherwise(
+		string $scope,
+		bool $expectPublished,
+	): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->withDisplayName('Alice Wonder', IAccountManager::SCOPE_FEDERATED);
+		$this->avatarScope = $scope;
+		$this->documentService->method('cacheLocalAvatarByUsername')->willReturn('icon-42');
+		$this->streamRequest->method('lastNoteFromActorId')
+			->willThrowException(new StreamNotFoundException());
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame($expectPublished ? 'icon-42' : '', $alice->getIconId());
 	}
 
 	// the fediverse field of the Nextcloud profile
