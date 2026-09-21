@@ -44,6 +44,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
+# the schema the migration history produced, which carries no comment syntax
+[[annotations]]
+path = "tests/Migration/schema.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
 [[annotations]]
 path = ["psalm.xml", "tests/psalm-baseline.xml", "tests/stub.phpstub"]
 precedence = "aggregate"

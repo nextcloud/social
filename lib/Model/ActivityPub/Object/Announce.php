@@ -42,15 +42,24 @@ class Announce extends Stream implements JsonSerializable {
 	}
 
 	/**
+	 * The boost, as a client reads one: a status whose `reblog` is the status
+	 * that was boosted.
+	 *
+	 * Only a Stream can stand in `reblog`, because only a Stream exports the
+	 * shape of a status. An `Announce` naming anything else — an actor, a
+	 * collection, a type this app has no model for — is a boost of something a
+	 * timeline cannot show, and handing a client the wrong shape under a key it
+	 * decodes as a status is worse than handing it none.
+	 *
 	 * @return array
 	 */
 	#[\Override]
 	public function exportAsLocal(): array {
 		$result = parent::exportAsLocal();
 
-		if ($this->hasObject()) {
-			// TODO: check it is a repost/boost
-			$result['reblog'] = $this->getObject()->exportAsLocal();
+		$object = $this->getObject();
+		if ($object instanceof Stream) {
+			$result['reblog'] = $object->exportAsLocal();
 		}
 
 		return $result;

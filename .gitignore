@@ -20,6 +20,13 @@ js/*.map
 *.crt
 RELEASE.md
 
+# what the translation extractor leaves behind when it is run locally
+# (.github/workflows/l10n.yml): the .pot it writes, the tool itself, and the
+# file it concatenates every Vue template into for xgettext to read
+translationfiles/
+translationtool.phar
+specialVueFakeDummyForL10nScript.js
+
 # test artefacts
 tests/.phpunit.result.cache
 coverage/

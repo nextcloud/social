@@ -273,157 +273,30 @@
 					     with the card's right edge. The menu opens in a portal, so the
 					     pointer leaving the card while it is open would take the row it
 					     belongs to away -->
-					<NcActions @update:open="menuOpen = $event">
-						<NcActionButton v-if="canQuote" @click="quote">
-							<template #icon>
-								<FormatQuoteClose :size="20" />
-							</template>
-							{{ t('social', 'Quote') }}
-						</NcActionButton>
-						<NcActionButton
-							v-if="item.account.acct === currentAccount?.acct"
-							icon="icon-rename"
-							@click="editPost">
-							{{ t('social', 'Edit') }}
-						</NcActionButton>
-						<!-- the answer to "this no longer belongs on my profile" that
-					     is not destroying it. Nothing federates: the post stays on
-					     every server that received it, which is what deleting is
-					     for -->
-						<NcActionButton
-							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-							:disabled="archiving"
-							closeAfterClick
-							@click="toggleArchive">
-							<template #icon>
-								<IconArchiveOutline :size="20" />
-							</template>
-							{{ item.archived ? t('social', 'Put back on my profile') : t('social', 'Archive') }}
-						</NcActionButton>
-						<!-- who may quote it, and who already has. The two are
-					     deliberately one dialog: the reason to let people quote
-					     you is the same reason to be able to stop one of them -->
-						<NcActionButton
-							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-							closeAfterClick
-							@click="managingQuotes = true">
-							<template #icon>
-								<FormatQuoteClose :size="20" />
-							</template>
-							{{ t('social', 'Quotes of this post') }}
-						</NcActionButton>
-						<!-- who is in the picture, which only the author may say:
-					     anybody able to write a name onto anybody's photograph
-					     could put a post in front of an audience that did not
-					     ask for it -->
-						<NcActionButton
-							v-if="item.account.acct === currentAccount?.acct && hasPictures"
-							closeAfterClick
-							@click="taggingPeople = true">
-							<template #icon>
-								<IconAccountBoxMultiple :size="20" />
-							</template>
-							{{ t('social', 'Tag people') }}
-						</NcActionButton>
-						<NcActionButton
-							v-if="item.account.acct === currentAccount?.acct"
-							icon="icon-delete"
-							@click="askToDelete(false)">
-							{{ t('social', 'Delete') }}
-						</NcActionButton>
-						<!-- the correction people actually make: the post goes and
-					     its words come back in the composer, to be posted again
-					     as a new post -->
-						<NcActionButton
-							v-if="item.account.acct === currentAccount?.acct"
-							@click="askToDelete(true)">
-							<template #icon>
-								<PencilBoxOutline :size="20" />
-							</template>
-							{{ t('social', 'Delete & re-draft') }}
-						</NcActionButton>
-						<NcActionButton
-							v-if="canTranslate"
-							:disabled="translating"
-							closeAfterClick
-							@click="toggleTranslation">
-							<template #icon>
-								<Translate :size="20" />
-							</template>
-							{{ translation === null
-								? t('social', 'Translate')
-								: t('social', 'Show original') }}
-						</NcActionButton>
-						<!-- where the post got to: the queue knows, and this asks it
-					     for the author, who is the only one it is answered for -->
-						<NcActionButton
-							v-if="item.account.acct === currentAccount?.acct && item.local !== false"
-							@click="openDelivery">
-							<template #icon>
-								<SendCheck :size="20" />
-							</template>
-							{{ t('social', 'Delivery status') }}
-						</NcActionButton>
-						<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
-						<NcActionLink
-							v-if="!origin.local && item.url"
-							:href="item.url"
-							target="_blank">
-							<template #icon>
-								<OpenInNew :size="20" />
-							</template>
-							{{ t('social', 'Open on original instance') }}
-						</NcActionLink>
-						<NcActionButton @click="toggleBookmark">
-							<template #icon>
-								<Bookmark v-if="item.bookmarked" :size="20" />
-								<BookmarkOutline v-else :size="20" />
-							</template>
-							{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
-						</NcActionButton>
-						<!-- an album is made of the reader's own pictures; where the
-					     picture is, is where it is put into one -->
-						<NcActionButton
-							v-if="canCollect"
-							@click="showCollectionDialog = true">
-							<template #icon>
-								<FolderMultiplePlusOutline :size="20" />
-							</template>
-							{{ t('social', 'Add to a collection') }}
-						</NcActionButton>
-						<NcActionButton
-							v-if="canPin"
-							@click="togglePin">
-							<template #icon>
-								<Pin v-if="!item.pinned" :size="20" />
-								<PinOff v-else :size="20" />
-							</template>
-							{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
-						</NcActionButton>
-						<!-- what to do about somebody else, from the post that
-					     made the reader want to: both take their posts out of
-					     every timeline at once -->
-						<NcActionButton v-if="canModerateAuthor" @click="showMuteDialog = true">
-							<template #icon>
-								<VolumeOff :size="20" />
-							</template>
-							{{ t('social', 'Mute {account}', { account: item.account.acct }) }}
-						</NcActionButton>
-						<NcActionButton v-if="canModerateAuthor" @click="showBlockDialog = true">
-							<template #icon>
-								<Cancel :size="20" />
-							</template>
-							{{ t('social', 'Block {account}', { account: item.account.acct }) }}
-						</NcActionButton>
-						<NcActionButton
-							v-if="item.account.acct !== currentAccount?.acct"
-							@click="showReportDialog = true">
-							<template #icon>
-								<Flag :size="20" />
-							</template>
-							{{ t('social', 'Report') }}
-						</NcActionButton>
-					</NcActions>
+					<PostMenu
+						:item="item"
+						:currentAccount="currentAccount"
+						:isPublic="serverData.public"
+						:canTranslate="canTranslate"
+						:translating="translating"
+						:translated="translation !== null"
+						:archiving="archiving"
+						@update:open="menuOpen = $event"
+						@quote="quote"
+						@edit="editPost"
+						@archive="toggleArchive"
+						@manageQuotes="managingQuotes = true"
+						@tagPeople="taggingPeople = true"
+						@delete="askToDelete(false)"
+						@redraft="askToDelete(true)"
+						@translate="toggleTranslation"
+						@delivery="showDeliveryDialog = true"
+						@bookmark="toggleBookmark"
+						@collect="showCollectionDialog = true"
+						@pin="togglePin"
+						@mute="showMuteDialog = true"
+						@block="showBlockDialog = true"
+						@report="showReportDialog = true" />
 					<div class="post-actions__groups">
 						<div class="post-action-group">
 							<NcButton
@@ -549,37 +422,9 @@
 				:placeholder="t('social', 'Why are you reporting this post? (optional)')"
 				rows="3" />
 		</NcDialog>
-		<NcDialog
+		<DeliveryDialog
 			v-model:open="showDeliveryDialog"
-			:name="t('social', 'Delivery status')"
-			:buttons="deliveryButtons"
-			class="delivery-dialog">
-			<p v-if="deliveryLoading" class="delivery-hint">
-				{{ t('social', 'Asking the delivery queue …') }}
-			</p>
-			<p v-else-if="deliveryError" class="delivery-hint delivery-hint--error">
-				{{ deliveryError }}
-			</p>
-			<template v-else-if="delivery">
-				<p class="delivery-hint">
-					{{ deliverySummary }}
-				</p>
-				<ul v-if="delivery.instances.length" class="delivery-list">
-					<li
-						v-for="entry in delivery.instances"
-						:key="entry.host + entry.state + entry.last"
-						class="delivery-list__row"
-						:class="'delivery-list__row--' + entry.state">
-						<span class="delivery-list__dot" aria-hidden="true" />
-						<span class="delivery-list__host">{{ entry.host }}</span>
-						<span class="delivery-list__state">{{ deliveryStateLabel(entry) }}</span>
-					</li>
-				</ul>
-				<p v-else class="delivery-hint delivery-hint--muted">
-					{{ t('social', 'Nothing is on record for this post. Deliveries are kept for {days} days; a post older than that, or one that never left this server, has nothing to show.', { days: retentionDays }) }}
-				</p>
-			</template>
-		</NcDialog>
+			:statusId="item.id" />
 		<!-- deleting is irreversible and federates: it is not something to
 		     do on the first click of a menu item sitting under "Edit" -->
 		<NcDialog
@@ -602,31 +447,17 @@
 import { fromNow, fullDateTime } from '../utils/relativeTime.js'
 import 'linkify-plugin-mention'
 import 'linkify-string'
+import IconAccountBoxMultiple from 'vue-material-design-icons/AccountBoxMultiple.vue'
+import Pin from 'vue-material-design-icons/Pin.vue'
+import DeliveryDialog from './DeliveryDialog.vue'
 import PostAttachment from './PostAttachment.vue'
+import PostMenu from './PostMenu.vue'
 import PostCard from './PostCard.vue'
 import ReactionBar from './ReactionBar.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcActions from '@nextcloud/vue/components/NcActions'
-import NcActionButton from '@nextcloud/vue/components/NcActionButton'
-import NcActionLink from '@nextcloud/vue/components/NcActionLink'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import EyeOff from 'vue-material-design-icons/EyeOff.vue'
-import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
-import Flag from 'vue-material-design-icons/Flag.vue'
-import Cancel from 'vue-material-design-icons/Cancel.vue'
-import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
-import Bookmark from 'vue-material-design-icons/Bookmark.vue'
-import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
-import IconAccountBoxMultiple from 'vue-material-design-icons/AccountBoxMultiple.vue'
-import IconArchiveOutline from 'vue-material-design-icons/ArchiveOutline.vue'
 import IconEyeOutline from 'vue-material-design-icons/EyeOutline.vue'
-import PencilBoxOutline from 'vue-material-design-icons/PencilBoxOutline.vue'
-import Pin from 'vue-material-design-icons/Pin.vue'
-import PinOff from 'vue-material-design-icons/PinOff.vue'
-import SendCheck from 'vue-material-design-icons/SendCheck.vue'
-import Translate from 'vue-material-design-icons/Translate.vue'
-import FormatQuoteClose from 'vue-material-design-icons/FormatQuoteClose.vue'
-import FolderMultiplePlusOutline from 'vue-material-design-icons/FolderMultiplePlusOutline.vue'
 import MapMarkerOutline from 'vue-material-design-icons/MapMarkerOutline.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -640,6 +471,7 @@ import { accountStyle } from '../services/accountColour.js'
 import logger from '../services/logger.js'
 import { onTick } from '../services/clock.js'
 import { filterCoverLabel, matchedFilters } from '../utils/filters.js'
+import { allowedByAuthor, isShareable } from '../utils/interactionPolicy.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
 import QuotedPost from './QuotedPost.vue'
@@ -651,7 +483,6 @@ import { mapStores } from 'pinia'
 import { htmlToPlainText } from '../utils/plainText.js'
 import { defaultLanguage, languageName } from '../utils/postLanguage.js'
 import { useAccountStore } from '../store/account.js'
-import { originOf } from '../utils/instanceIdentity.js'
 import { useInstanceStore } from '../store/instance.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
@@ -676,36 +507,22 @@ const HOLD_MS = 450
 export default {
 	name: 'TimelinePost',
 	components: {
+		DeliveryDialog,
 		IconAccountBoxMultiple,
+		Pin,
 		QuoteControlDialog,
 		TagPeopleDialog,
-		IconArchiveOutline,
 		IconEyeOutline,
-		Cancel,
 		CollectionPickerDialog,
-		FolderMultiplePlusOutline,
 		MapMarkerOutline,
 		MuteDialog,
 		ReactionBar,
-		VolumeOff,
 		PostAttachment,
+		PostMenu,
 		PostCard,
-		NcActions,
-		NcActionButton,
-		NcActionLink,
 		NcDialog,
-		SendCheck,
 		EyeOff,
-		OpenInNew,
-		Flag,
 		NcButton,
-		Bookmark,
-		BookmarkOutline,
-		PencilBoxOutline,
-		Pin,
-		PinOff,
-		Translate,
-		FormatQuoteClose,
 		Repeat,
 		Reply,
 		Heart,
@@ -777,10 +594,6 @@ export default {
 			/** whether the provider is working on it right now */
 			translating: false,
 			showDeliveryDialog: false,
-			/** the answer of /statuses/{nid}/delivery, or null before it came */
-			delivery: null,
-			deliveryLoading: false,
-			deliveryError: '',
 			reportComment: '',
 			localPoll: this.item?.poll ?? null,
 			/** re-read from the shared clock, so "5 minutes ago" stays true */
@@ -967,33 +780,9 @@ export default {
 			return t('social', 'Post by {account}', { account: this.item.account?.acct ?? '' })
 		},
 
-		/**
-		 * Where the author lives. Nothing is drawn from it any more — the
-		 * hostname moved to the account card — but the overflow menu still
-		 * asks it whether there *is* an original instance to open.
-		 *
-		 * @return {{instance: string, colour: string, local: boolean}}
-		 */
-		origin() {
-			return originOf(this.item.account?.acct ?? '')
-		},
-
 		/** @return {boolean} a link preview replaces nothing, so media wins */
 		showCard() {
 			return !this.hasAttachments && Boolean(this.item.card?.title)
-		},
-
-		/**
-		 * @return {boolean} own local posts can be pinned to the profile, and
-		 * only the ones anyone may see: a pinned followers-only post was
-		 * served in full to the anonymous internet through the featured
-		 * collection, so the server now refuses anything that is not public
-		 * or unlisted — the same set a boost is allowed for.
-		 */
-		canPin() {
-			return this.item.account.acct === this.currentAccount?.acct
-				&& this.item.local !== false
-				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
 		},
 
 		/** @return {boolean} whether there is a picture to name anybody in */
@@ -1023,36 +812,12 @@ export default {
 		},
 
 		/**
-		 * @return {boolean} whether this post can go into one of the reader's
-		 * collections: their own, written here, and with a picture or a video
-		 * in it — a collection holds only its owner's own media posts, so
-		 * offering the action on anything else would be offering a refusal
-		 */
-		canCollect() {
-			return this.item.account.acct === this.currentAccount?.acct
-				&& this.item.local !== false
-				&& Array.isArray(this.item.media_attachments)
-				&& this.item.media_attachments.length > 0
-		},
-
-		/**
-		 * @return {boolean} whether this post may be quoted at all. A quote
-		 * carries the audience of the quoter, so the server grants one only for
-		 * a public or unlisted post — the same set a boost is allowed for — and
-		 * offering the action on anything narrower would be offering a refusal.
-		 */
-		canQuote() {
-			return (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
-				&& this.allowedByAuthor('quote')
-		},
-
-		/**
 		 * @return {boolean} whether the author allows replies to this post.
 		 * True unless their server said otherwise: most servers publish no
 		 * policy at all, and a post with none is a post anybody may answer.
 		 */
 		canReply() {
-			return this.allowedByAuthor('reply')
+			return allowedByAuthor(this.item, 'reply')
 		},
 
 		/**
@@ -1061,24 +826,12 @@ export default {
 		 * author's own policy.
 		 */
 		canBoost() {
-			return (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
-				&& this.allowedByAuthor('boost')
+			return isShareable(this.item) && allowedByAuthor(this.item, 'boost')
 		},
 
 		/** @return {boolean} whether the author allows this post to be liked. */
 		canLike() {
-			return this.allowedByAuthor('like')
-		},
-
-		/**
-		 * @return {boolean} whether this post's author is somebody the reader
-		 * can act on: not themselves, and not on the public pages, where there
-		 * is nobody signed in to do the blocking
-		 */
-		canModerateAuthor() {
-			return !this.serverData.public
-				&& !!this.currentAccount
-				&& this.item.account.acct !== this.currentAccount?.acct
+			return allowedByAuthor(this.item, 'like')
 		},
 
 		blockButtons() {
@@ -1111,50 +864,6 @@ export default {
 					callback: () => this.sendReport(),
 				},
 			]
-		},
-
-		deliveryButtons() {
-			return [
-				{
-					label: t('social', 'Close'),
-					callback: () => {
-						this.showDeliveryDialog = false
-					},
-				},
-			]
-		},
-
-		/** @return {number} how many days the queue keeps a finished delivery */
-		retentionDays() {
-			return Math.round((this.delivery?.retention ?? 7 * 86400) / 86400)
-		},
-
-		/**
-		 * @return {string} the counts as one sentence — the author reads this
-		 * line and, most of the time, needs nothing under it
-		 */
-		deliverySummary() {
-			const d = this.delivery
-			if (!d || d.total === 0) {
-				return ''
-			}
-			const parts = []
-			if (d.delivered) {
-				parts.push(n('social', 'delivered to %n server', 'delivered to %n servers', d.delivered))
-			}
-			if (d.sending) {
-				parts.push(n('social', 'being sent to %n server', 'being sent to %n servers', d.sending))
-			}
-			if (d.waiting) {
-				parts.push(n('social', 'waiting for %n server', 'waiting for %n servers', d.waiting))
-			}
-			if (d.failing) {
-				parts.push(n('social', 'failing against %n server', 'failing against %n servers', d.failing))
-			}
-			if (d.abandoned) {
-				parts.push(n('social', 'given up on %n server', 'given up on %n servers', d.abandoned))
-			}
-			return t('social', 'Of {total}: {parts}.', { total: n('social', '%n delivery', '%n deliveries', d.total), parts: parts.join(', ') })
 		},
 
 		/**
@@ -1246,7 +955,9 @@ export default {
 		 * @return {boolean}
 		 */
 		hasAttachments() {
-			// TODO: clean media_attachments
+			// a post read straight off the composer has no `media_attachments`
+			// at all until the server answers, so the list is defaulted rather
+			// than assumed
 			return (this.item.media_attachments || []).length > 0
 		},
 
@@ -1336,31 +1047,6 @@ export default {
 
 	methods: {
 		/**
-		 * Whether the post's own server says an interaction is allowed.
-		 *
-		 * GoToSocial defined `interactionPolicy` and Mastodon 4.5 reads it: an
-		 * author can say their post may not be replied to, boosted or liked.
-		 * The server sends what it understood as `interaction_policy`, and
-		 * only for a remote post that carries one — so an absent key is "the
-		 * author said nothing", which is most posts and means yes.
-		 *
-		 * @param {string} interaction one of reply, boost, like, quote
-		 * @return {boolean} whether to offer it
-		 */
-		allowedByAuthor(interaction) {
-			return this.item.interaction_policy?.[interaction] !== false
-		},
-
-		/**
-		 * Puts the post away, or brings it back.
-		 *
-		 * The row leaves the timeline it is in as soon as the server agrees:
-		 * the post is out of every list this server builds, and the list the
-		 * reader is looking at is one of them.
-		 *
-		 * @return {Promise<void>}
-		 */
-		/**
 		 * @param {Array} people who the post names now, as the server says
 		 */
 		onTagged(people) {
@@ -1393,6 +1079,15 @@ export default {
 			}
 		},
 
+		/**
+		 * Puts the post away, or brings it back.
+		 *
+		 * The row leaves the timeline it is in as soon as the server agrees:
+		 * the post is out of every list this server builds, and the list the
+		 * reader is looking at is one of them.
+		 *
+		 * @return {Promise<void>}
+		 */
 		async toggleArchive() {
 			if (this.archiving) {
 				return
@@ -1689,46 +1384,6 @@ export default {
 		},
 
 		/**
-		 * Opens the delivery dialog and asks the server. Asked fresh every
-		 * time: a delivery that was failing a minute ago may have gone through.
-		 */
-		async openDelivery() {
-			this.showDeliveryDialog = true
-			this.deliveryLoading = true
-			this.deliveryError = ''
-			try {
-				const { data } = await axios.get(generateUrl('/apps/social/api/v1/statuses/{nid}/delivery', { nid: this.item.id }))
-				this.delivery = data
-			} catch {
-				this.delivery = null
-				this.deliveryError = t('social', 'Could not read the delivery status of this post.')
-			} finally {
-				this.deliveryLoading = false
-			}
-		},
-
-		/**
-		 * @param {{state: string, tries: number, last: number}} entry one server's row
-		 * @return {string} its state, with the detail the state calls for
-		 */
-		deliveryStateLabel(entry) {
-			switch (entry.state) {
-				case 'delivered':
-					return t('social', 'Delivered')
-				case 'sending':
-					return t('social', 'Sending')
-				case 'waiting':
-					return t('social', 'Waiting')
-				case 'failing':
-					return n('social', 'Failing (%n attempt)', 'Failing (%n attempts)', entry.tries)
-				case 'abandoned':
-					return n('social', 'Given up after %n attempt', 'Given up after %n attempts', entry.tries)
-				default:
-					return entry.state
-			}
-		},
-
-		/**
 		 * A vote is cast on the component's own copy of the poll; the store
 		 * holds the one every other view reads, so it hears about it too.
 		 *
@@ -1840,6 +1495,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 /* the like confirmation: a short overshoot, not a bounce */
 @keyframes post-pop {
 	0% { transform: scale(1); }
@@ -1871,7 +1528,7 @@ export default {
 	75% { transform: translateX(4px); }
 }
 
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.post-content {
 		// the screen's width is the post's: less of it goes to the frame
 		padding: 14px 16px 12px;
@@ -2501,83 +2158,6 @@ export default {
 	padding: 0 12px 12px;
 	color: var(--color-text-lighter);
 	line-height: 1.5;
-}
-
-.delivery-hint {
-	padding: 0 12px 12px;
-	color: var(--color-main-text);
-	line-height: 1.5;
-
-	&--muted {
-		color: var(--color-text-lighter);
-	}
-
-	&--error {
-		color: var(--color-error-text);
-	}
-}
-
-/*
- * One row per server, the state carried by a dot as well as the word so the
- * list reads at a glance: green got there, amber is still trying, red was
- * given up on.
- */
-.delivery-list {
-	margin: 0 12px 12px;
-	padding: 0;
-	list-style: none;
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-
-	&__row {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		min-height: 28px;
-		font-size: 14px;
-	}
-
-	&__dot {
-		flex: none;
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		background: var(--color-text-maxcontrast);
-	}
-
-	&__host {
-		flex: 1;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-variant-numeric: tabular-nums;
-	}
-
-	&__state {
-		flex: none;
-		color: var(--color-text-lighter);
-		font-size: 13px;
-	}
-
-	&__row--delivered &__dot {
-		background: var(--color-success);
-	}
-
-	&__row--sending &__dot,
-	&__row--waiting &__dot {
-		background: var(--color-warning);
-	}
-
-	&__row--failing &__dot {
-		background: var(--color-warning);
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning) 30%, transparent);
-	}
-
-	&__row--abandoned &__dot {
-		background: var(--color-error);
-	}
 }
 
 /*

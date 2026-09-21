@@ -315,10 +315,6 @@ class CacheActorServiceTest extends TestCase {
 		$this->service->setViewer($bob);
 	}
 
-	public function testMissingCacheRemoteActorsIsNotImplemented(): void {
-		$this->assertSame(0, $this->service->missingCacheRemoteActors());
-	}
-
 	public function testManageCacheRemoteActorsRefreshesEachStaleActorAndSurvivesFailures(): void {
 		$stale = [$this->person(self::BOB), $this->person('https://other.example/users/carol', 'carol')];
 		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')->with(true)->willReturn($stale);

@@ -213,69 +213,12 @@
 				:warning="showWarning ? spoilerText : ''"
 				@close="showPreview = false" />
 
-			<div v-if="showPoll" class="poll-editor">
-				<div class="poll-editor__head">
-					<span class="poll-editor__title">{{ t('social', 'Poll') }}</span>
-					<NcButton
-						variant="tertiary"
-						class="poll-editor__remove"
-						:title="t('social', 'Remove the poll')"
-						:aria-label="t('social', 'Remove the poll')"
-						@click.prevent="togglePoll">
-						<template #icon>
-							<Close :size="18" />
-						</template>
-					</NcButton>
-				</div>
-				<div v-for="(option, index) in pollOptions" :key="index" class="poll-editor__option">
-					<input
-						v-model="pollOptions[index]"
-						type="text"
-						:placeholder="t('social', 'Poll option {number}', { number: index + 1 })"
-						maxlength="100">
-					<NcButton
-						v-if="pollOptions.length > 2"
-						variant="tertiary"
-						:aria-label="t('social', 'Remove option')"
-						@click.prevent="pollOptions.splice(index, 1)">
-						<template #icon>
-							<Close :size="18" />
-						</template>
-					</NcButton>
-				</div>
-				<div class="poll-editor__settings">
-					<NcButton
-						v-if="pollOptions.length < 4"
-						variant="tertiary"
-						@click.prevent="pollOptions.push('')">
-						{{ t('social', 'Add option') }}
-					</NcButton>
-					<label>
-						<input v-model="pollMultiple" type="checkbox">
-						{{ t('social', 'Multiple choice') }}
-					</label>
-					<select v-model.number="pollExpiresIn" :aria-label="t('social', 'Poll duration')">
-						<option :value="1800">
-							{{ t('social', '30 minutes') }}
-						</option>
-						<option :value="3600">
-							{{ t('social', '1 hour') }}
-						</option>
-						<option :value="21600">
-							{{ t('social', '6 hours') }}
-						</option>
-						<option :value="86400">
-							{{ t('social', '1 day') }}
-						</option>
-						<option :value="259200">
-							{{ t('social', '3 days') }}
-						</option>
-						<option :value="604800">
-							{{ t('social', '7 days') }}
-						</option>
-					</select>
-				</div>
-			</div>
+			<PollEditor
+				v-if="showPoll"
+				v-model:options="pollOptions"
+				v-model:multiple="pollMultiple"
+				v-model:expiresIn="pollExpiresIn"
+				@remove="togglePoll" />
 
 			<!-- When the post goes out, if not now. The picker is most of a
 			     date library and arrives when the clock is pressed, not with
@@ -528,6 +471,7 @@ import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import { ownAvatarUrl } from '../../services/avatar.js'
+import PollEditor from './PollEditor.vue'
 import PreviewGrid from './PreviewGrid.vue'
 import ComposerPreview from './ComposerPreview.vue'
 import LanguageSelect from './LanguageSelect.vue'
@@ -700,6 +644,7 @@ export default {
 		AlertOutline,
 		EyeOutline,
 		PollIcon,
+		PollEditor,
 		PreviewGrid,
 		ComposerPreview,
 		FileGifBox,
@@ -2644,6 +2589,8 @@ function nodeToPlainText(node) {
 </script>
 
 <style scoped lang="scss">
+@use '../../styles/layout.scss' as layout;
+
 .video-row {
 	display: flex;
 	flex-direction: column;
@@ -3019,7 +2966,7 @@ $composer-duration: 220ms;
  * spacer goes, the visibility menu shows its icon only, and Post keeps the
  * end of whatever row it lands on.
  */
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.options {
 		flex-wrap: wrap;
 		row-gap: 4px;
@@ -3119,77 +3066,6 @@ $composer-duration: 220ms;
 	li.highlight .account,
 	li:hover .account {
 		color: var(--color-primary-text) !important;
-	}
-}
-
-.poll-editor {
-	margin: 8px 0;
-	padding: 8px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius);
-
-	&__head {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 4px;
-	}
-
-	&__title {
-		color: var(--color-text-maxcontrast);
-		font-size: 12px;
-		text-transform: uppercase;
-		letter-spacing: .04em;
-	}
-
-	&__remove {
-		margin-inline-start: auto;
-	}
-
-	&__option {
-		display: flex;
-		gap: 4px;
-		margin-bottom: 4px;
-
-		input[type='text'] {
-			flex-grow: 1;
-		}
-	}
-
-	/* One row: add an option, say whether more than one may be picked, say how
-	   long it runs. They are three controls of one sentence and they read as
-	   one line or as nothing. */
-	&__settings {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		flex-wrap: wrap;
-
-		/* The checkbox and its words are one control, so they are laid out as
-		   a row that centres them on each other. Left to itself the label is
-		   an inline box and the checkbox sits with its *bottom edge* on the
-		   text's baseline — which is why the words read as though they had
-		   slipped a line below everything beside them. */
-		label {
-			display: flex;
-			align-items: center;
-			gap: 4px;
-			margin: 0;
-			/* against a wrap that would leave the checkbox on one line and the
-			   words it labels on the next */
-			white-space: nowrap;
-		}
-
-		/* The server gives a bare checkbox and a bare select margins of their
-		   own, and they are what tips each of them off the line its
-		   neighbours sit on. */
-		input[type='checkbox'] {
-			margin: 0;
-		}
-
-		select {
-			margin: 0;
-		}
 	}
 }
 

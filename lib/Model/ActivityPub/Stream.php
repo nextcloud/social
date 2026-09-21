@@ -1670,7 +1670,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$this->exportLanguageMaps()
 		);
 
-		// TODO: use exportFormat
+		// Bookkeeping this app keeps about a post — the counts it has seen, the
+		// last action taken on it, what it still has to fetch — carried in the
+		// document rather than beside it. No other implementation reads any of
+		// it, and taking it back out means knowing which of the callers that
+		// ask for complete details are reading it, so it stays until each of
+		// those has been walked.
 		if ($this->isCompleteDetails()) {
 			$result = array_merge(
 				$result,
@@ -1859,12 +1864,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'url' => $this->pageUrl(),
 			'reblog' => null,
 			'media_attachments' => $this->getAttachments(),
+			// seconds, with the milliseconds Mastodon's shape asks for written
+			// as zero: `published_time` is what the row keeps, and the full
+			// string the sender wrote is kept beside it in `published`, so
+			// nothing is lost by this being the coarser of the two. Clients
+			// order a timeline by the snowflake `id`, not by this.
 			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
 			'edited_at' => $this->editedAt(),
 			'noindex' => false
 		];
 
-		// TODO - store created_at full string with milliseconds ?
 		if ($this->hasActor()) {
 			$actor = $this->getActor();
 			$result['account'] = $actor->exportAsLocal();

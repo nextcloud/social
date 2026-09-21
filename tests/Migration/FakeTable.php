@@ -36,6 +36,8 @@ class FakeTable implements ITable {
 	private ?array $primaryKey = null;
 	/** @var list<string> */
 	private array $dropped = [];
+	/** @var list<string> */
+	private array $droppedIndexes = [];
 	private bool $primaryKeyDropped = false;
 
 	/**
@@ -78,6 +80,11 @@ class FakeTable implements ITable {
 	/** @return list<string> */
 	public function droppedColumns(): array {
 		return $this->dropped;
+	}
+
+	/** @return list<string> */
+	public function droppedIndexes(): array {
+		return $this->droppedIndexes;
 	}
 
 	// --- ITable --------------------------------------------------------------
@@ -167,7 +174,17 @@ class FakeTable implements ITable {
 	}
 
 	public function dropIndex(string $name): self {
-		throw new LogicException('dropIndex() is not part of this double');
+		$this->droppedIndexes[] = $name;
+		$this->indexes = array_values(array_filter(
+			$this->indexes,
+			static fn (array $index): bool => $index['name'] !== $name
+		));
+		$this->existingIndexes = array_values(array_filter(
+			$this->existingIndexes,
+			static fn (string $existing): bool => $existing !== $name
+		));
+
+		return $this;
 	}
 
 	public function renameIndex(string $oldName, ?string $newName = null): self {

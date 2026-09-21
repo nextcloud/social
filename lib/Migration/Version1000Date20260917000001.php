@@ -13,7 +13,6 @@ use Closure;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Service\ConfigService;
 use OCP\DB\ISchemaWrapper;
-use OCP\DB\Types;
 use OCP\IAppConfig;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
@@ -74,37 +73,10 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 	}
 
 	/**
-	 * @param IOutput $output
-	 * @param Closure(): ISchemaWrapper $schemaClosure
-	 * @param array<string, mixed> $options
+	 * The columns this step used to add are in `Version1000Date20221118000002`,
+	 * which describes the whole schema and runs before this. What is left here
+	 * is the half a schema cannot express: the rows.
 	 */
-	#[\Override]
-	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
-		/** @var ISchemaWrapper $schema */
-		$schema = $schemaClosure();
-
-		if (!$schema->hasTable(CoreRequestBuilder::TABLE_STREAM_DEST)) {
-			return $schema;
-		}
-
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_STREAM_DEST);
-
-		if (!$table->hasColumn('nid')) {
-			$table->addColumn('nid', Types::BIGINT, [
-				'notnull' => false,
-				'length' => 11,
-				'default' => 0,
-			]);
-		}
-
-		// the whole point: `WHERE actor_id = ? AND type = ? ORDER BY nid DESC`
-		// answered from the index, without touching a row
-		if (!$table->hasIndex('social_sd_atn')) {
-			$table->addIndex(['actor_id', 'type', 'nid'], 'social_sd_atn');
-		}
-
-		return $schema;
-	}
 
 	/**
 	 * Fills in the nids of the rows that already exist.

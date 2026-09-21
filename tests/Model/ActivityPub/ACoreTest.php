@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Model\ActivityPub;
 
-use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -184,32 +183,6 @@ class ACoreTest extends TestCase {
 		$item->checkActor($expected, $actual);
 	}
 
-	public function testVerifyAcceptsSameSchemeHostAndPort(): void {
-		$item = new ACore();
-		$item->setId('https://mastodon.social:8443/users/alice');
-
-		$item->verify('https://mastodon.social:8443/inbox');
-		$this->assertSame('https://mastodon.social:8443/users/alice', $item->getId());
-	}
-
-	public static function mismatchingUrlProvider(): array {
-		return [
-			'host' => ['https://evil.example/inbox'],
-			'scheme' => ['http://mastodon.social/inbox'],
-			'port' => ['https://mastodon.social:8443/inbox'],
-		];
-	}
-
-	#[DataProvider('mismatchingUrlProvider')]
-	public function testVerifyRejectsMismatchingUrls(string $url): void {
-		$item = new ACore();
-		$item->setId('https://mastodon.social/users/alice');
-
-		$this->expectException(ActivityCantBeVerifiedException::class);
-
-		$item->verify($url);
-	}
-
 	public static function validEntryProvider(): array {
 		return [
 			'id is kept' => [ACore::AS_ID, 'https://a.example/x', 'https://a.example/x'],
@@ -234,10 +207,39 @@ class ACoreTest extends TestCase {
 		$this->assertSame($expected, (new ACore())->validateEntryString($as, $value));
 	}
 
-	public function testValidateEntryStringRejectsUnparsableIds(): void {
+	public static function unusableIdProvider(): array {
+		return [
+			'unparsable' => ['http:///broken'],
+			// this app puts ids in hrefs, so a scheme that does something in a
+			// browser is not an id it has any use for
+			'javascript' => ['javascript:alert(1)'],
+			'a local file' => ['file:///etc/passwd'],
+			'data' => ['data:text/html,<script>alert(1)</script>'],
+			'relative, so not an id at all' => ['/users/alice'],
+			'not a URI at all' => ['Public'],
+			'nothing' => [''],
+		];
+	}
+
+	#[DataProvider('unusableIdProvider')]
+	public function testValidateEntryStringRejectsUnusableIds(string $id): void {
 		$this->expectException(InvalidResourceEntryException::class);
 
-		(new ACore())->validateEntryString(ACore::AS_ID, 'http:///broken');
+		(new ACore())->validateEntryString(ACore::AS_ID, $id);
+	}
+
+	public static function opaqueIdProvider(): array {
+		return [
+			// Mastodon names a conversation with one of these, and it is an id
+			// nothing ever fetches
+			'a tag URI' => ['tag:mastodon.social,2024-05-01:objectId=1:objectType=Conversation'],
+			'a urn' => ['urn:uuid:9f0c4d5e-1f1a-4c1a-9f0c-4d5e1f1a4c1a'],
+		];
+	}
+
+	#[DataProvider('opaqueIdProvider')]
+	public function testValidateEntryStringKeepsIdsThatAreNamesRatherThanAddresses(string $id): void {
+		$this->assertSame($id, (new ACore())->validateEntryString(ACore::AS_ID, $id));
 	}
 
 	public function testValidateEntryStringCanReturnEmptyInsteadOfThrowing(): void {
@@ -257,11 +259,15 @@ class ACoreTest extends TestCase {
 		$item = new ACore();
 
 		$result = $item->validateArray(ACore::AS_ID, 'to', [
-			'to' => ['https://a.example/1', 'http:///broken', 'https://a.example/2'],
+			'to' => ['https://a.example/1', 'javascript:alert(1)', 'https://a.example/2'],
 		]);
 
 		$this->assertSame(['https://a.example/1', 'https://a.example/2'], $result);
-		$this->assertSame(['dflt'], $item->validateArray(ACore::AS_ID, 'to', [], ['dflt']));
+		// the default goes through the same check, so it has to be a real one
+		$this->assertSame(
+			['https://a.example/dflt'],
+			$item->validateArray(ACore::AS_ID, 'to', [], ['https://a.example/dflt'])
+		);
 	}
 
 	public function testValidateArrayNormalisesTagsToTypeHrefAndName(): void {

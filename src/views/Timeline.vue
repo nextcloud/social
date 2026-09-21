@@ -554,6 +554,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 /*
  * The column, and nothing about what is in it. `.social__timeline` is another
  * component's root element, and a scoped style still reaches a child's root —
@@ -655,14 +657,11 @@ export default {
 	color: var(--color-primary-element-light-text);
 }
 
-@media (max-width: 800px) {
+// the notification filter has more options than the timeline switcher does, so
+// its labels run out of room before that one's do
+@include layout.below(layout.$crowded) {
 	.notifications-filter :deep(.switcher__label) {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
+		@include layout.visually-hidden;
 	}
 }
 
@@ -673,7 +672,7 @@ export default {
 /* while the sidebar is collapsed its toggle sits over the top-left corner of
    the content, where the composer or the heading begins; the first thing on
    the page starts below it */
-@media (max-width: 1024px) {
+@include layout.below(layout.$folded) {
 	.social__wrapper > :first-child {
 		margin-top: calc(var(--default-clickable-area, 44px) + var(--default-grid-baseline, 4px) * 2);
 	}

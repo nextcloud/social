@@ -62,35 +62,10 @@ class Version1000Date20260917000003 extends SimpleMigrationStep {
 	}
 
 	/**
-	 * @param IOutput $output
-	 * @param Closure(): ISchemaWrapper $schemaClosure
-	 * @param array<string, mixed> $options
+	 * The columns this step used to add are in `Version1000Date20221118000002`,
+	 * which describes the whole schema and runs before this. What is left here
+	 * is the half a schema cannot express: the rows.
 	 */
-	#[\Override]
-	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
-		/** @var ISchemaWrapper $schema */
-		$schema = $schemaClosure();
-
-		if (!$schema->hasTable(CoreRequestBuilder::TABLE_STREAM)) {
-			return $schema;
-		}
-
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_STREAM);
-
-		if (!$table->hasColumn('media_kind')) {
-			$table->addColumn('media_kind', Types::STRING, [
-				'notnull' => false,
-				'length' => 7,
-				'default' => null,
-			]);
-		}
-
-		if (!$table->hasIndex('social_s_mk')) {
-			$table->addIndex(['media_kind', 'nid'], 'social_s_mk');
-		}
-
-		return $schema;
-	}
 
 	/**
 	 * Works out the kind of every post already stored.

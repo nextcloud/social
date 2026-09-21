@@ -53,19 +53,19 @@ export default {
 		 * What a screen reader says in place of the tick, and what the tooltip
 		 * shows. The date is worth having — a verification is a check that was
 		 * made once, and how long ago says how much it is worth — but a row
-		 * whose date did not come through is still verified, so it falls back
-		 * to the claim on its own.
+		 * whose date did not come through, or came through in a shape the
+		 * browser cannot read, is still verified, so it falls back to the claim
+		 * on its own rather than trailing off after "verified on".
 		 *
 		 * @return {string} the label
 		 */
 		label() {
-			if (this.verifiedAt === '') {
+			const date = this.verifiedAt === '' ? '' : fullDateTime(this.verifiedAt)
+			if (date === '') {
 				return t('social', 'Ownership of this link was verified')
 			}
 
-			return t('social', 'Ownership of this link was verified on {date}', {
-				date: fullDateTime(this.verifiedAt),
-			})
+			return t('social', 'Ownership of this link was verified on {date}', { date })
 		},
 	},
 

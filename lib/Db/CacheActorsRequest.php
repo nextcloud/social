@@ -22,6 +22,13 @@ use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
+	/**
+	 * The most rows a search will read, whatever it was asked for: a search
+	 * box shows a handful, and a caller that asks for a thousand is asking the
+	 * database to build a page nobody will look at.
+	 */
+	public const SEARCH_LIMIT = 25;
+
 	/** The counter columns `bumpCount()` will touch, and nothing else. */
 	private const COUNT_COLUMNS = ['count_followers', 'count_following', 'count_posts'];
 
@@ -376,12 +383,12 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 *
 	 * @return Person[]
 	 */
-	public function searchAccounts(string $search): array {
+	public function searchAccounts(string $search, ?int $limit = null): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$qb->searchInAccount($search);
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
-		$qb->limitResults(25);
+		$qb->limitResults(min($limit ?? self::SEARCH_LIMIT, self::SEARCH_LIMIT));
 
 		return $this->getCacheActorsFromRequest($qb);
 	}

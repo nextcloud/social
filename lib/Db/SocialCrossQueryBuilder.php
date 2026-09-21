@@ -237,7 +237,9 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		try {
 			$icon = $this->parseLeftJoinCacheDocuments($data, $prefix);
 			$actor->setIcon($icon);
-			// TODO: store avatar/header within table cache_actor
+			// the address of the picture is built per row from the joined
+			// document: the thumbnail where one has been made, the full copy
+			// until then, and nothing at all while it is still being fetched
 			$uuid = ($icon->getResizedCopy() === '') ? $icon->getLocalCopy() : $icon->getResizedCopy();
 			$actor->setAvatar(
 				$this->urlGenerator->linkToRouteAbsolute(

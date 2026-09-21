@@ -352,6 +352,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 .wrapper {
 	display: flex;
 	gap: 12px;
@@ -619,7 +621,7 @@ export default {
  * moves inside the card, smaller (`PHONE_AVATAR`), over the corner the header
  * leaves for it. Same number as `PHONE_WIDTH` in services/phone.js.
  */
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.wrapper {
 		position: relative;
 		gap: 0;

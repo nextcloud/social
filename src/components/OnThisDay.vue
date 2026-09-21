@@ -184,6 +184,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use '../styles/layout.scss' as layout;
+
 .on-this-day {
 	margin-bottom: 14px;
 	padding: 10px 12px;
@@ -249,7 +251,7 @@ export default {
 	text-overflow: ellipsis;
 }
 
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	/* at phone width there is no room for two columns of text */
 	.on-this-day__link {
 		flex-direction: column;

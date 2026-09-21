@@ -283,6 +283,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 .switcher {
 	position: relative;
 	display: flex;
@@ -424,18 +426,14 @@ export default {
  * in the accessibility tree, because the label is the option's name and a
  * radiogroup of five unnamed buttons is not a control anybody can use.
  */
-@media (max-width: 500px) {
+@include layout.below(layout.$phone) {
 	.switcher .switcher__option {
 		padding: 0 14px;
 	}
 
+	// the icon says the same thing, and there is no longer room for both
 	.switcher__label {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
+		@include layout.visually-hidden;
 	}
 }
 

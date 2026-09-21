@@ -185,7 +185,7 @@ class ProbeOptionsTest extends TestCase {
 	 * posts back among the rest.
 	 */
 	public function testThePublicTimelineNarrowsByWhereAPostCameFrom(): void {
-		$source = (string)file_get_contents(__DIR__ . '/../../../../lib/Db/StreamRequest.php');
+		$source = (string)file_get_contents(__DIR__ . '/../../../../lib/Db/StreamTimelines.php');
 		$start = strpos($source, 'private function getTimelinePublic(');
 		$this->assertNotFalse($start);
 		$body = substr($source, $start, (int)strpos($source, "\n\t}", $start) - $start);

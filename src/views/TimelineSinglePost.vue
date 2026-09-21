@@ -372,6 +372,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 .social__wrapper {
 	padding-bottom: 25%;
 }
@@ -454,7 +456,7 @@ export default {
 
 /* a phone: no avatar column to be level with, so nothing is set in 64px
    from it, and the spine runs down the middle of the face inside the card */
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.thread .social__timeline {
 		margin-inline-start: 0;
 	}
