@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub;
 
 use JsonSerializable;
-use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -29,6 +28,12 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	use TPathTools;
 
 	public const CONTEXT_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+
+	/**
+	 * The URI schemes an id may use: the two this app fetches, and the two the
+	 * fediverse names things with that are never dereferenced at all.
+	 */
+	public const ID_SCHEMES = ['http', 'https', 'tag', 'urn'];
 	public const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
 	public const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
 
@@ -392,31 +397,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	}
 
 	/**
-	 * @param string $url
-	 *
-	 * @throws ActivityCantBeVerifiedException
-	 * @deprecated
-	 *
-	 */
-	public function verify(string $url) {
-		// TODO - Compare this with checkOrigin() - and delete this method.
-		$url1 = parse_url($this->getId());
-		$url2 = parse_url($url);
-
-		if ($this->get('host', $url1, '1') !== $this->get('host', $url2, '2')) {
-			throw new ActivityCantBeVerifiedException('activity cannot be verified');
-		}
-
-		if ($this->get('scheme', $url1, '1') !== $this->get('scheme', $url2, '2')) {
-			throw new ActivityCantBeVerifiedException('activity cannot be verified');
-		}
-
-		if ($this->getInt('port', $url1, 1) !== $this->getInt('port', $url2, 1)) {
-			throw new ActivityCantBeVerifiedException('activity cannot be verified');
-		}
-	}
-
-	/**
 	 * @return bool
 	 */
 	public function isRoot(): bool {
@@ -627,19 +607,30 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	}
 
 	/**
-	 * // TODO - better checks
+	 * One field of an incoming document, checked and normalised for what it is.
 	 *
-	 * @param int $as
-	 * @param string $value
-	 * @param bool $exception
+	 * Everything that reaches here came off the wire from a server this one
+	 * does not control, and each kind is checked against what this app will do
+	 * with it rather than against a general idea of well-formedness.
 	 *
-	 * @return string
+	 * @param int $as which kind of field it is
+	 * @param string $value the field as it arrived
+	 * @param bool $exception whether an unusable value throws or comes back as ''
+	 *
+	 * @return string the value this app will store
 	 * @throws InvalidResourceEntryException
 	 */
 	public function validateEntryString(int $as, string $value, bool $exception = true): string {
 		switch ($as) {
 			case self::AS_ID:
-				if (parse_url($value) !== false) {
+				// An id has to be an absolute URI, and `parse_url()` on its own
+				// says nothing about that: it happily reads `javascript:` and
+				// `data:` as a scheme and a path, and this app puts ids in
+				// `href`s. http and https are what it fetches; `tag:` and `urn:`
+				// are what the fediverse actually sends for the ids it never
+				// dereferences — Mastodon names a conversation with a `tag:`
+				// URI — and neither of those does anything in a browser.
+				if (in_array(strtolower((string)parse_url($value, PHP_URL_SCHEME)), self::ID_SCHEMES, true)) {
 					return $value;
 				}
 				break;
@@ -857,7 +848,11 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 */
 	#[\Override]
 	public function importFromDatabase(array $data) {
-		// TODO: check if validate is needed when importing from database;
+		// A row is checked on the way out as it was on the way in. It is the
+		// same data, so nothing should change — but the rules have been
+		// tightened since rows were first written, and a row stored under the
+		// older ones is exactly what this would otherwise hand straight to a
+		// client.
 		$this->setNid($this->getInt('nid', $data));
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
 		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
@@ -970,7 +965,9 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			$this->addEntry('object', $this->getObjectId());
 		}
 
-		// TODO - moving the $this->icon to Model/Person ?
+		// `icon` is declared here because ACore holds it, though in practice
+		// only an actor has one: moving it to Person means moving the accessors
+		// too, and LocalController and the search provider read them off ACore.
 		if ($this->hasIcon()) {
 			$this->addEntryItem('icon', $this->getIcon());
 		}

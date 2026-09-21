@@ -380,26 +380,8 @@ class CacheActorService {
 	 *
 	 * @return Person[]
 	 */
-	public function searchCachedAccounts(string $search): array {
-		return $this->cacheActorsRequest->searchAccounts($search);
-	}
-
-	/**
-	 * @return int
-	 * @throws Exception
-	 */
-	public function missingCacheRemoteActors(): int {
-		// TODO - looking for missing cache remote actors...
-		$missing = [];
-
-		foreach ($missing as $item) {
-			try {
-				$this->getFromId($item->getId());
-			} catch (Exception $e) {
-			}
-		}
-
-		return sizeof($missing);
+	public function searchCachedAccounts(string $search, ?int $limit = null): array {
+		return $this->cacheActorsRequest->searchAccounts($search, $limit);
 	}
 
 	/**

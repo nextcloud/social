@@ -220,11 +220,7 @@ class SearchService {
 		} catch (Exception $e) {
 		}
 
-		$accounts = $this->cacheActorService->searchCachedAccounts($search);
-
-		// TODO: push the cut into CacheActorsRequest::searchAccounts() so the
-		// database stops loading rows nobody asked for
-		return ($limit === null) ? $accounts : array_slice($accounts, 0, $limit);
+		return $this->cacheActorService->searchCachedAccounts($search, $limit);
 	}
 
 	/**
@@ -244,11 +240,7 @@ class SearchService {
 			$search = substr($search, 1);
 		}
 
-		$hashtags = $this->hashtagService->searchHashtags($search, true);
-
-		// TODO: push the cut into HashtagsRequest::searchHashtags() so the
-		// database stops loading rows nobody asked for
-		return ($limit === null) ? $hashtags : array_slice($hashtags, 0, $limit);
+		return $this->hashtagService->searchHashtags($search, true, $limit);
 	}
 
 	/**

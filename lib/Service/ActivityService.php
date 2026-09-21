@@ -121,8 +121,6 @@ class ActivityService {
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);
 
-		// TODO: utiliser AP::instance()->getInterfaceFromType(Activity::TYPE)->save($item);
-
 		$this->saveActivity($activity);
 
 		return $this->request($activity);
@@ -692,11 +690,17 @@ class ActivityService {
 	}
 
 	/**
-	 * @param ACore $activity
+	 * Stores what an outgoing activity is about, which is not the activity.
+	 *
+	 * There is no table for activities and there has never been one: a `Create`
+	 * or a `Like` is the envelope a thing travelled in, and nothing in this app
+	 * reads an envelope back. What is kept is what it carried — the post, the
+	 * like, the follow — each through the interface for its own type, which is
+	 * also what an inbox delivery goes through.
+	 *
+	 * @param ACore $activity the activity about to go out
 	 */
 	private function saveActivity(ACore $activity) {
-		// TODO: save activity in DB ?
-
 		if ($activity->hasObject()) {
 			$this->saveObject($activity->getObject());
 		}

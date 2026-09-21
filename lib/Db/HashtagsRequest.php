@@ -20,6 +20,9 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Db
  */
 class HashtagsRequest extends HashtagsRequestBuilder {
+	/** The most rows a hashtag search will read, whatever it was asked for. */
+	public const SEARCH_LIMIT = 25;
+
 	use TArrayTools;
 
 	/**
@@ -313,10 +316,10 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		return $related;
 	}
 
-	public function searchHashtags(string $hashtag, bool $all): array {
+	public function searchHashtags(string $hashtag, bool $all, ?int $limit = null): array {
 		$qb = $this->getHashtagsSelectSql();
 		$qb->searchInHashtag($hashtag, $all);
-		$qb->limitResults(25);
+		$qb->limitResults(min($limit ?? self::SEARCH_LIMIT, self::SEARCH_LIMIT));
 
 		$hashtags = [];
 		$cursor = $qb->executeQuery();

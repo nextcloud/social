@@ -288,7 +288,11 @@ class StreamService {
 		if ($type === Stream::TYPE_DIRECT) {
 			$priority = InstancePath::PRIORITY_HIGH;
 			$stream->addToArray($actor->getId());
-			$stream->setFilterDuplicate(true); // TODO: really needed ?
+			// `filter_duplicate` is what keeps a post out of its own author's
+			// home timeline (SocialFiltersQueryBuilder::filterDuplicate()). A
+			// direct message belongs in the conversation it is part of, and
+			// the sender already has it there.
+			$stream->setFilterDuplicate(true);
 		} else {
 			$stream->addCc($actor->getId());
 		}
@@ -446,7 +450,9 @@ class StreamService {
 			return;
 		}
 
-		// TODO - type can be NOT public !
+		// Addressed whatever the reply's audience is, and first: the person
+		// being answered is the one recipient every reply has, and the audience
+		// decides who else it reaches rather than whether it reaches them.
 		$note->addInstancePath(
 			new InstancePath($inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH)
 		);

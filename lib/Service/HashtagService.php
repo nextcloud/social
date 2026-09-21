@@ -226,8 +226,8 @@ class HashtagService {
 		return $tags;
 	}
 
-	public function searchHashtags(string $hashtag, bool $all = false): array {
-		return $this->hashtagsRequest->searchHashtags($hashtag, $all);
+	public function searchHashtags(string $hashtag, bool $all = false, ?int $limit = null): array {
+		return $this->hashtagsRequest->searchHashtags($hashtag, $all, $limit);
 	}
 
 	/**

@@ -65,9 +65,6 @@ class CacheRefresh extends SocialCommand {
 		$result = $this->accountService->manageCacheLocalActors();
 		$output->writeLn($result . ' local accounts regenerated');
 
-		$result = $this->cacheActorService->missingCacheRemoteActors();
-		$output->writeLn($result . ' remote accounts created');
-
 		$result = $this->cacheActorService->manageCacheRemoteActors($input->getOption('force'));
 		$output->writeLn($result . ' remote accounts updated');
 

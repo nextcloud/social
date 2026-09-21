@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Model\ActivityPub\Object;
 
 use OCA\Social\AP;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -75,5 +76,17 @@ class AnnounceTest extends TestCase {
 		$this->assertSame('5', $reblog['id']);
 		$this->assertSame('<p>original</p>', $reblog['content']);
 		$this->assertSame('https://remote.example/users/bob/statuses/1', $reblog['uri']);
+	}
+
+	/**
+	 * Only a Stream exports the shape of a status, so an `Announce` of anything
+	 * else has no `reblog` rather than one a client cannot decode.
+	 */
+	public function testABoostOfSomethingThatIsNotAPostHasNoReblog(): void {
+		$announce = new Announce();
+		$announce->setId('https://mastodon.social/users/alice/statuses/2/activity');
+		$announce->setObject(new Person());
+
+		$this->assertNull($announce->exportAsLocal()['reblog']);
 	}
 }

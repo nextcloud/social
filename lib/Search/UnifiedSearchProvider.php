@@ -119,9 +119,14 @@ class UnifiedSearchProvider implements IProvider {
 	}
 
 	/**
-	 * TODO: switch to SessionService
+	 * Tells everything this search will ask whose search it is.
 	 *
-	 * @param bool $exception
+	 * Each of these holds the viewer itself, so the viewer has to be handed to
+	 * each of them: a service that was not told sees the search as a stranger's
+	 * and answers only what is public.
+	 *
+	 * @param IUser $user who is searching
+	 * @param bool $exception whether a user with no Social account throws
 	 *
 	 * @throws AccountDoesNotExistException
 	 */

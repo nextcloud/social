@@ -1246,7 +1246,9 @@ export default {
 		 * @return {boolean}
 		 */
 		hasAttachments() {
-			// TODO: clean media_attachments
+			// a post read straight off the composer has no `media_attachments`
+			// at all until the server answers, so the list is defaulted rather
+			// than assumed
 			return (this.item.media_attachments || []).length > 0
 		},
 

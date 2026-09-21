@@ -357,7 +357,7 @@ class HashtagServiceTest extends TestCase {
 
 	public function testSearchHashtagsDelegatesWithTheAllFlag(): void {
 		$searches = [];
-		$this->hashtagsRequest->expects($this->exactly(2))
+		$this->hashtagsRequest->expects($this->exactly(3))
 			->method('searchHashtags')
 			->willReturnCallback(function (...$args) use (&$searches): array {
 				$searches[] = $args;
@@ -367,7 +367,13 @@ class HashtagServiceTest extends TestCase {
 
 		$this->assertSame([['hashtag' => '#nextcloud']], $this->service->searchHashtags('next'));
 		$this->assertSame([], $this->service->searchHashtags('next', true));
-		$this->assertSame([['next', false], ['next', true]], $searches);
+		// the caller's limit goes to the database rather than being applied to
+		// the rows it has already loaded
+		$this->assertSame([], $this->service->searchHashtags('next', true, 5));
+		$this->assertSame(
+			[['next', false, null], ['next', true, null], ['next', true, 5]],
+			$searches
+		);
 	}
 
 	public function testATagEntityIsTheShapeAClientReads(): void {

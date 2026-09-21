@@ -385,11 +385,14 @@ class Document extends ACore implements JsonSerializable {
 			$this->setDescription($this->validate(ACore::AS_STRING, 'name', $data, ''));
 		}
 
+		// An attachment that arrived without an id of its own gets one here, so
+		// that it can be cached and addressed like any other. One that has an
+		// id keeps it, and it is deliberately not held to the activity's own
+		// origin: a server may name its media on a host it does not federate
+		// from, and the id of an attachment is never fetched — only its `url`
+		// is, and CurlService holds that to a scheme it can fetch.
 		if ($this->getId() === '') {
 			$this->generateUniqueId('/documents/g');
-		} else {
-			// TODO: question if we need this, and why during the import ?
-			//			$this->checkOrigin($this->getId());
 		}
 	}
 

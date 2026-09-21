@@ -237,8 +237,6 @@ class StreamQueueService {
 		$cache = $stream->getCache();
 
 		foreach ($cache->getItems() as $item) {
-			// TODO: PHP7.2 (NC16) : multiple exception per catch
-
 			try {
 				$this->cacheItem($stream, $item);
 				if ($stream->getType() === Note::TYPE) {
@@ -249,82 +247,47 @@ class StreamQueueService {
 					$item->setStatus(StreamQueue::STATUS_SUCCESS);
 					$cache->updateItem($item);
 				}
-			} catch (StreamNotFoundException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
+			} catch (
+				StreamNotFoundException
+				|InvalidOriginException
+				|RequestContentException
+				|MalformedArrayException
+				|RedundancyLimitException
+				|InvalidResourceException
+				|RequestResultSizeException
+				|ItemUnknownException
+				|UnauthorizedFediverseException $e
+			) {
+				// the item itself is the problem — gone, not ours, too big, or a
+				// type this app has no model for — so asking again would ask the
+				// same question and get the same answer
+				$this->logCacheError($item, $e);
 				$cache->removeItem($item->getUrl());
-			} catch (InvalidOriginException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$cache->removeItem($item->getUrl());
-			} catch (RequestContentException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$cache->removeItem($item->getUrl());
-			} catch (MalformedArrayException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$cache->removeItem($item->getUrl());
-			} catch (RedundancyLimitException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$cache->removeItem($item->getUrl());
-			} catch (InvalidResourceException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$cache->removeItem($item->getUrl());
-			} catch (RequestResultSizeException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$cache->removeItem($item->getUrl());
-			} catch (ItemUnknownException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$cache->removeItem($item->getUrl());
-			} catch (UnauthorizedFediverseException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$cache->removeItem($item->getUrl());
-			} catch (RequestNetworkException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$item->incrementError();
-			} catch (RequestResultNotJsonException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-				$item->incrementError();
-			} catch (RequestServerException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
+			} catch (
+				RequestNetworkException
+				|RequestResultNotJsonException
+				|RequestServerException $e
+			) {
+				// the other server is the problem, and it may not be tomorrow:
+				// counted against the item, which the queue retries until the
+				// count runs out
+				$this->logCacheError($item, $e);
 				$item->incrementError();
 			}
 		}
 
 		return $this->updateCache($stream, $cache);
+	}
+
+	/**
+	 * @param CacheItem $item the item that could not be fetched
+	 * @param Throwable $e why not
+	 */
+	private function logCacheError(CacheItem $item, Throwable $e): void {
+		$this->miscService->log(
+			'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
+			. $e->getMessage(), 1
+		);
 	}
 
 	/**

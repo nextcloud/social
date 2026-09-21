@@ -24,13 +24,9 @@ class InstancesRequest extends InstancesRequestBuilder {
 	use TArrayTools;
 
 	/**
-	 * @param Instance $instance
-	 *                           TODO: store instance in db
+	 * @param Instance $instance the instance to write a row for
 	 */
 	public function save(Instance $instance) {
-		//		$now = new DateTime('now');
-		//		$instance->setCreation($now->getTimestamp());
-
 		$qb = $this->getInstanceInsertSql();
 		$qb->setValue('uri', $qb->createNamedParameter($instance->getUri()))
 			->setValue('local', $qb->createNamedParameter($instance->isLocal(), IQueryBuilder::PARAM_BOOL))
